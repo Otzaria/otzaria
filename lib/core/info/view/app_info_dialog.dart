@@ -671,24 +671,14 @@ class _FolderPath extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Text(
-      path,
+    return AppInlineLink(
+      text: path,
       textDirection: TextDirection.ltr,
+      onTap: onOpen,
+      tooltip: 'פתיחה במנהל הקבצים',
       style: TextStyle(
         fontSize: AppTokens.fontSM,
-        color: onOpen == null ? cs.onSurfaceVariant : cs.primary,
-        decoration: onOpen == null ? null : TextDecoration.underline,
-        decorationColor: cs.primary,
-      ),
-    );
-    if (onOpen == null) return text;
-    return Tooltip(
-      message: 'פתיחה במנהל הקבצים',
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: text,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }
@@ -704,25 +694,16 @@ class _MoreToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Text(
-      label,
+    final link = AppInlineLink(
+      text: label,
+      onTap: onTap,
       style: TextStyle(
         fontSize: AppTokens.fontSM,
-        color: onTap == null ? cs.onSurfaceVariant : cs.primary,
-        decoration: onTap == null ? null : TextDecoration.underline,
-        decorationColor: cs.primary,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
-    if (onTap == null) return text;
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: text,
-      ),
-    );
+    if (onTap == null) return link;
+    return Align(alignment: AlignmentDirectional.centerStart, child: link);
   }
 }
 

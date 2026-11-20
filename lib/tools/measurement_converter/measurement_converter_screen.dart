@@ -1,6 +1,7 @@
 // lib/tools/measurement_converter/measurement_converter_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/services.dart';
@@ -671,8 +672,9 @@ class _MeasurementConverterScreenState
     );
   }
 
-  Widget _swapUnitsButton() => IconButton.filledTonal(
+  Widget _swapUnitsButton() => AppIconButton(
     icon: const Icon(FluentIcons.arrow_swap_24_regular),
+    fill: AppIconButtonFill.tonal,
     onPressed: () {
       setState(() {
         final temp = _selectedFromUnit;
@@ -685,9 +687,6 @@ class _MeasurementConverterScreenState
       );
     },
     tooltip: 'החלף יחידות',
-    style: IconButton.styleFrom(
-      shape: AppTokens.roundedShape,
-    ),
   );
 
   // ── קלט ──────────────────────────────────────────────────────────────────────

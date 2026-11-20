@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
@@ -36,7 +37,6 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria/widgets/layout/tool_scaffold.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -254,12 +254,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: IconButton.filledTonal(
+          child: AppIconButton(
             tooltip: 'הוסף ספרים למעקב',
-            visualDensity: VisualDensity.compact,
-            style: IconButton.styleFrom(
-              shape: AppTokens.roundedShape,
-            ),
+            size: AppIconButtonSize.medium,
+            fill: AppIconButtonFill.tonal,
             onPressed: _openAddBooksDialog,
             icon: const Icon(FluentIcons.add_24_regular),
           ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 
 /// תגית המקור שעל כרטיס תוצאת חיפוש — 'אוצריא' לתוצאות המנוע המובנה, ושם
 /// המדור (`resultsTitle`) לתוצאות של ספק חיצוני מתוסף.
@@ -14,25 +14,12 @@ class SearchResultSourceTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: cs.tertiaryContainer,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Text(
-        label,
-        // שם המדור של ספק חיצוני מגיע מהתוסף (עד 120 תווים) — התגית נחתכת
-        // ולא דוחקת את שאר השורה.
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: cs.onTertiaryContainer,
-        ),
-      ),
+    // שם המדור של ספק חיצוני מגיע מהתוסף (עד 120 תווים) — ‏[MetaChip] חותך
+    // אותו בשורה אחת ולא דוחק את שאר השורה.
+    return MetaChip(
+      label: label,
+      tone: MetaChipTone.tertiary,
+      size: MetaChipSize.small,
     );
   }
 }

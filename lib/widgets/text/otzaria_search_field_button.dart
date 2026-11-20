@@ -1,6 +1,7 @@
 // lib/widgets/text/otzaria_search_field_button.dart
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 
@@ -143,7 +144,7 @@ class OtzariaSearchFieldButton extends StatelessWidget {
         Theme.of(context).materialTapTargetSize == MaterialTapTargetSize.padded;
     return SizedBox.square(
       dimension: touchClear ? kMinInteractiveDimension : size.button,
-      child: IconButton(
+      child: AppIconButton(
         icon: busy
             ? SizedBox.square(
                 dimension: iconSize * 0.8,
@@ -153,17 +154,14 @@ class OtzariaSearchFieldButton extends StatelessWidget {
         tooltip: tooltip,
         isSelected: selected,
         onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        color: selected
+        size: size.icon <= AppTokens.iconSM
+            ? AppIconButtonSize.small
+            : AppIconButtonSize.medium,
+        extent: size.button,
+        foregroundColor: selected
             ? cs.onSecondaryContainer
             : (color ?? cs.onSurfaceVariant),
-        style: selected
-            ? IconButton.styleFrom(
-                backgroundColor: AppSurfaces.barButtonSelected(cs),
-                shape: AppTokens.roundedShape,
-              )
-            : null,
+        backgroundColor: selected ? AppSurfaces.barButtonSelected(cs) : null,
       ),
     );
   }

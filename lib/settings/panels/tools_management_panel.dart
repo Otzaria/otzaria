@@ -973,20 +973,17 @@ Widget _toggleIconButton(
   Color? offForegroundColor,
 }) {
   final cs = Theme.of(context).colorScheme;
-  return IconButton(
+  return AppIconButton(
     tooltip: tooltip,
     isSelected: isSelected,
     icon: Icon(icon),
     selectedIcon: Icon(selectedIcon),
-    style: IconButton.styleFrom(
-      backgroundColor: isSelected
-          ? null
-          : (offBackgroundColor ?? cs.surfaceContainerHighest),
-      foregroundColor: isSelected
-          ? null
-          : (offForegroundColor ?? cs.onSurfaceVariant),
-      shape: AppTokens.roundedShape,
-    ),
+    backgroundColor: isSelected
+        ? null
+        : (offBackgroundColor ?? cs.surfaceContainerHighest),
+    foregroundColor: isSelected
+        ? null
+        : (offForegroundColor ?? cs.onSurfaceVariant),
     onPressed: onPressed,
   );
 }
@@ -1311,16 +1308,11 @@ class _PluginRowState extends State<_PluginRow> {
         onPressed: a.onTap,
       );
     }
-    return IconButton(
+    return AppIconButton(
       tooltip: a.label,
       icon: Icon(a.icon),
-      style: a.fixedBg != null
-          ? IconButton.styleFrom(
-              backgroundColor: a.fixedBg,
-              foregroundColor: a.fixedFg,
-              shape: AppTokens.roundedShape,
-            )
-          : null,
+      backgroundColor: a.fixedBg,
+      foregroundColor: a.fixedFg,
       onPressed: a.onTap,
     );
   }

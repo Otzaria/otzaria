@@ -21,6 +21,7 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/controls/app_color_swatch.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
@@ -801,10 +802,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     final brightness = Theme.of(context).brightness;
     return Wrap(
       children: [
-        _ColorSwatch(
+        AppColorSwatch(
           color: null,
           selected: _selectedColorIndex == null,
-          tooltip: CalendarEventColors.noColorLabel,
+          label: CalendarEventColors.noColorLabel,
           onTap: () {
             setState(() {
               _selectedColorIndex = null;
@@ -814,10 +815,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           },
         ),
         for (int i = 0; i < CalendarEventColors.count; i++)
-          _ColorSwatch(
+          AppColorSwatch(
             color: CalendarEventColors.colorForIndex(i, brightness),
             selected: _selectedColorIndex == i,
-            tooltip: CalendarEventColors.nameOf(i),
+            label: CalendarEventColors.labelOf(i),
             onTap: () {
               setState(() {
                 _selectedColorIndex = i;
@@ -1332,55 +1333,6 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           ),
           const SizedBox(height: 8),
         ],
-      ),
-    );
-  }
-}
-
-/// עיגול בחירת צבע יחיד בבורר הצבעים.
-class _ColorSwatch extends StatelessWidget {
-  final Color? color;
-  final bool selected;
-  final String? tooltip;
-  final VoidCallback onTap;
-
-  const _ColorSwatch({
-    required this.color,
-    required this.selected,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip ?? '',
-      child: InkWell(
-        onTap: onTap,
-        // ui-lint: allow UIL-019 — עיגול צבע, רכיב עגול מטבעו (DESIGN_SYSTEM §2.3)
-        customBorder: const CircleBorder(),
-        // ריפוד סביב העיגול הנראה — מטרת לחיצה של 48dp לפחות
-        child: Container(
-          width: 32,
-          height: 32,
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color ?? cs.surfaceContainerHighest,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: selected ? cs.primary : cs.outlineVariant,
-              width: selected ? 3 : 1,
-            ),
-          ),
-          child: color == null
-              ? Icon(
-                  FluentIcons.line_horizontal_1_24_regular,
-                  size: AppTokens.iconSM,
-                  color: cs.onSurfaceVariant,
-                )
-              : null,
-        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -163,10 +164,11 @@ class _SourceCredit extends StatelessWidget {
               children: [
                 TextSpan(
                   text: 'לוח עתים לבינה',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
+                  style: AppInlineLink.styleOf(
+                    context,
+                    theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],

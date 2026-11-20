@@ -2069,18 +2069,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                 _orderedLinks = [];
                 _scheduleSearchCompute();
                 if (state.linksLoading && !noCommentatorsAtAll) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'טוען מפרשים...',
-                        style: TextStyle(
-                          fontSize: widget.fontSize * 0.7,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                  return const LoadingIndicator.compact(
+                    message: 'טוען מפרשים...',
                   );
                 }
                 if (notesWidget != null) {

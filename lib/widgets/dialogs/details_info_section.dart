@@ -3,6 +3,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 
 /// כותרת בראש דיאלוג מידע: שם הפריט בגדול, ומתחתיו שורת משנה עמומה.
 class DetailsHeading extends StatelessWidget {
@@ -161,27 +162,17 @@ class DetailsInfoSection extends StatelessWidget {
         ),
       ],
     );
-    Widget valueText = Text(
-      value,
+    final valueText = AppInlineLink(
+      text: value,
       textDirection: valueDirection,
+      onTap: onTap,
+      tooltip: tapTooltip,
       style: TextStyle(
         fontSize: AppTokens.fontMD,
         fontWeight: FontWeight.w600,
-        color: onTap == null ? cs.onSurface : cs.primary,
-        decoration: onTap == null ? null : TextDecoration.underline,
-        decorationColor: cs.primary,
+        color: cs.onSurface,
       ),
     );
-    if (onTap != null) {
-      valueText = Tooltip(
-        message: tapTooltip ?? '',
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppTokens.borderRadiusAll,
-          child: valueText,
-        ),
-      );
-    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),

@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/search/utils/hebrew_layout_suggestion.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 
 /// באנר "האם התכוונת ל..." לטקסט שהוקלד בעברית במצב מקלדת אנגלי
 /// (issue #975). מוצג רק כשההמרה לפי מיקום המקשים מניבה טקסט עברי, ואינו
@@ -43,67 +45,40 @@ class LayoutFixSuggestionBanner extends StatelessWidget {
     if (suggestion == null) return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.tertiaryContainer,
-      // Enter על ההצעה מפעיל אותה כאן ונעצר: מארח שמגיש ב-Enter (דיאלוג
-      // החיפוש) היה מריץ אחרת את הטקסט השגוי במקום להחיל את ההצעה.
-      child: Shortcuts(
-        shortcuts: const {
-          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-        },
-        child: InkWell(
-          focusNode: focusNode,
-          onTap: () => onAccept(suggestion),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-              vertical: 6.0,
+    // Enter על ההצעה מפעיל אותה כאן ונעצר: מארח שמגיש ב-Enter (דיאלוג
+    // החיפוש) היה מריץ אחרת את הטקסט השגוי במקום להחיל את ההצעה.
+    return Shortcuts(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+      },
+      child: AppInfoBanner.rich(
+        tone: AppInfoBannerTone.tertiary,
+        icon: FluentIcons.keyboard_24_regular,
+        focusNode: focusNode,
+        onTap: () => onAccept(suggestion),
+        messageMaxLines: 1,
+        message: TextSpan(
+          children: [
+            const TextSpan(text: 'האם התכוונת לחפש: '),
+            TextSpan(
+              text: suggestion,
+              style: AppInlineLink.styleOf(
+                context,
+                const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  FluentIcons.keyboard_24_regular,
-                  size: 16,
-                  color: cs.primary,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text.rich(
-                    TextSpan(
-                      style: TextStyle(fontSize: 13, color: cs.onSurface),
-                      children: [
-                        const TextSpan(text: 'האם התכוונת לחפש: '),
-                        TextSpan(
-                          text: suggestion,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: cs.primary,
-                            decoration: TextDecoration.underline,
-                            decorationColor: cs.primary,
-                          ),
-                        ),
-                        const TextSpan(text: '?'),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (hint != null) ...[
-                  const SizedBox(width: AppTokens.spaceSM),
-                  Text(
-                    hint!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+            const TextSpan(text: '?'),
+          ],
         ),
+        trailing: hint == null
+            ? null
+            : Text(
+                hint!,
+                style: TextStyle(
+                  fontSize: AppTokens.fontSM,
+                  color: cs.onTertiaryContainer,
+                ),
+              ),
       ),
     );
   }

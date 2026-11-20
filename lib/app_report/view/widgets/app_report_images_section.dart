@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_image_viewer.dart';
@@ -398,19 +399,12 @@ class _ImageThumbnail extends StatelessWidget {
               PositionedDirectional(
                 top: 2,
                 end: 2,
-                child: IconButton.filledTonal(
+                child: AppIconButton(
                   key: const ValueKey('app-report-image-remove'),
                   tooltip: context.settingsText('הסרת התמונה'),
-                  iconSize: 14,
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 24,
-                    height: 24,
-                  ),
-                  padding: EdgeInsets.zero,
-                  style: IconButton.styleFrom(
-                    shape: AppTokens.roundedShape,
-                  ),
+                  size: AppIconButtonSize.small,
+                  extent: 24,
+                  fill: AppIconButtonFill.tonal,
                   onPressed: onRemove,
                   icon: const Icon(FluentIcons.dismiss_16_regular),
                 ),

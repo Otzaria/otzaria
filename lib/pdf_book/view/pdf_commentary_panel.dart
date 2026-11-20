@@ -42,6 +42,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/commentary/links_list_view.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
@@ -1491,18 +1492,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     if (visibleContent == null) {
       _invalidateFullSelection();
       _cancelSearchScroll();
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'טוען מפרשים...',
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.9,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען מפרשים...');
     }
 
     if (visibleContent.commentaryLinks.isEmpty) {
@@ -1511,18 +1501,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       _invalidateFullSelection();
       _cancelSearchScroll();
       if (widget.linksLoading) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'טוען מפרשים...',
-              style: TextStyle(
-                fontSize: widget.fontSize * 0.9,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        );
+        return const LoadingIndicator.compact(message: 'טוען מפרשים...');
       }
 
       final hasCommentaryLinks = visibleContent.hasAnyCommentaryLinks;
@@ -1887,35 +1866,13 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   Widget _buildLinksView() {
     final visibleContent = _getVisibleContent();
     if (visibleContent == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'טוען קישורים...',
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.9,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען קישורים...');
     }
 
     final relevantLinks = visibleContent.links;
 
     if (relevantLinks.isEmpty && widget.linksLoading) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'טוען קישורים...',
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.9,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען קישורים...');
     }
 
     // אותה רשימה בדיוק כמו בכרטיסיית הטקסט: צ׳יפי סוג ודור, חיפוש בכותרת

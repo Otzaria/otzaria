@@ -103,21 +103,10 @@ class PluginDevBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: cs.tertiary,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Text(
-        'DEV',
-        style: TextStyle(
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-          color: cs.onTertiary,
-        ),
-      ),
+    return const MetaChip(
+      label: 'DEV',
+      tone: MetaChipTone.tertiary,
+      size: MetaChipSize.small,
     );
   }
 }

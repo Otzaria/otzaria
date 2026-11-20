@@ -108,17 +108,11 @@ class _DonationInstructions extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                       vertical: AppTokens.spaceSM + 1,
                     ),
-                    child: InkWell(
+                    child: AppInlineLink(
+                      text: kNedarimDonationUrl,
+                      textDirection: TextDirection.ltr,
                       onTap: _launchDonationPage,
-                      child: Text(
-                        kNedarimDonationUrl,
-                        textDirection: TextDirection.ltr,
-                        style: TextStyle(
-                          fontSize: AppTokens.fontMD,
-                          color: Theme.of(context).colorScheme.primary,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
+                      style: const TextStyle(fontSize: AppTokens.fontMD),
                     ),
                   ),
                 ],

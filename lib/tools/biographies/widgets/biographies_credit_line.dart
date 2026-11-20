@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/dialogs/details_info_section.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -67,11 +68,9 @@ class BiographiesCreditLine extends StatelessWidget {
                   const SizedBox(width: AppTokens.spaceXS),
                   Text(
                     'מקורות וזכויות',
-                    style: TextStyle(
-                      fontSize: AppTokens.fontSM,
-                      color: linkColor,
-                      decoration: TextDecoration.underline,
-                      decorationColor: linkColor,
+                    style: AppInlineLink.styleOf(
+                      context,
+                      const TextStyle(fontSize: AppTokens.fontSM),
                     ),
                   ),
                 ],

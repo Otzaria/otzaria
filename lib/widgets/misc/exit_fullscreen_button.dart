@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
@@ -11,17 +11,13 @@ class ExitFullscreenButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return AppIconButton(
       tooltip: context.settingsText('צא ממסך מלא'),
       icon: const Icon(FluentIcons.full_screen_minimize_24_regular),
+      fill: AppIconButtonFill.neutral,
       onPressed: () async {
         await FullscreenHelper.toggleFullscreen(context, false);
       },
-      style: IconButton.styleFrom(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        shape: AppTokens.roundedShape,
-      ),
     );
   }
 }

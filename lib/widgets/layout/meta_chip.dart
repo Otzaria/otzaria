@@ -20,6 +20,10 @@ enum MetaChipTone {
 
   /// הושלם או פעיל. בגוון החום הנייטרלי (secondaryContainer), לא בירוק (DD-24).
   success,
+
+  /// מקור או מצב מיוחד שאינו מידע רגיל ואינו אזהרה: מקור תוצאה, תוסף פיתוח.
+  /// בצבע המשלים של הערכה (tertiaryContainer).
+  tertiary,
 }
 
 /// הגודל של [MetaChip]: regular לכרטיסים, small לשורות צפופות.
@@ -78,6 +82,10 @@ class MetaChip extends StatelessWidget {
       MetaChipTone.success => (
         background: cs.secondaryContainer,
         foreground: cs.onSecondaryContainer,
+      ),
+      MetaChipTone.tertiary => (
+        background: cs.tertiaryContainer,
+        foreground: cs.onTertiaryContainer,
       ),
     };
   }
