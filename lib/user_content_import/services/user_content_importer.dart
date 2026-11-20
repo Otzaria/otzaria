@@ -812,9 +812,12 @@ class UserContentImporter {
       }
       // צמד קבצים דו-כיווני של הכלי מייצר גם רשומת מפרש→בסיס; מנרמלים אותה
       // לכיוון הקנוני (בסיס→מפרש) כך שהיא מתלכדת עם הרשומה מהקובץ של הבסיס.
-      final connectionType = row.connectionType == LinkTypes.linker
-          ? LinkTypes.commentary
-          : row.connectionType;
+      // ציטוט בטקסט נשמר כ-LINKER: מוצג בגוף הטקסט ונפתח ישר בספר היעד.
+      final connectionType = switch (row.connectionType) {
+        LinkTypes.linker => LinkTypes.commentary,
+        kInlineLinkerImportType => LinkTypes.linker,
+        final type => type,
+      };
       final flip =
           LinkTypes.isDependentTextLink(connectionType) &&
           source.isUserBook &&
