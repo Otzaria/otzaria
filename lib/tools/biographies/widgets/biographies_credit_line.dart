@@ -48,36 +48,33 @@ class BiographiesCreditLine extends StatelessWidget {
               color: cs.onSurfaceVariant,
             ),
           ),
-          Tooltip(
-            message: 'הצגת המקורות והרישיונות',
-            child: InkWell(
-              onTap: () => _showCredits(context),
-              borderRadius: AppTokens.borderRadiusAll,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTokens.spaceXS,
-                  vertical: 2,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      FluentIcons.info_16_regular,
-                      size: AppTokens.iconXS,
+          InkWell(
+            onTap: () => _showCredits(context),
+            borderRadius: AppTokens.borderRadiusAll,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTokens.spaceXS,
+                vertical: 2,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    FluentIcons.info_16_regular,
+                    size: AppTokens.iconXS,
+                    color: linkColor,
+                  ),
+                  const SizedBox(width: AppTokens.spaceXS),
+                  Text(
+                    'מקורות וזכויות',
+                    style: TextStyle(
+                      fontSize: AppTokens.fontSM,
                       color: linkColor,
+                      decoration: TextDecoration.underline,
+                      decorationColor: linkColor,
                     ),
-                    const SizedBox(width: AppTokens.spaceXS),
-                    Text(
-                      'מקורות וזכויות',
-                      style: TextStyle(
-                        fontSize: AppTokens.fontSM,
-                        color: linkColor,
-                        decoration: TextDecoration.underline,
-                        decorationColor: linkColor,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

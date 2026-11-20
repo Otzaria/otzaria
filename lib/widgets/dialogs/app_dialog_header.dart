@@ -8,6 +8,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 /// גוון תג האייקון בכותרת. [error] שמור למצבי תקלה וסיכון.
 enum AppDialogHeaderTone { primary, error }
@@ -64,7 +65,8 @@ class AppDialogHeader extends StatefulWidget {
   /// ריפוד אנכי קטן יותר, לכותרות שאינן מחזיקות תיאור ארוך.
   final bool compact;
 
-  /// מגביל כותרת ארוכה ומציג את הטקסט המלא ברמז; null ללא הגבלה.
+  /// מגביל כותרת ארוכה, ומציג את הטקסט המלא ברמז כשהיא נחתכת; null ללא
+  /// הגבלה.
   final int? titleMaxLines;
 
   /// null = בלי הגבלה. כותרות עם שם ספר ארוך מגבילות לשורה אחת.
@@ -146,14 +148,11 @@ class _AppDialogHeaderState extends State<AppDialogHeader> {
                       ),
                     )
                   else if (widget.titleMaxLines != null)
-                    Tooltip(
-                      message: widget.title,
-                      child: Text(
-                        widget.title,
-                        maxLines: widget.titleMaxLines,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleLarge,
-                      ),
+                    // הרמז רק כשהכותרת נחתכת; כשהיא נכנסת הוא חוזר עליה.
+                    OverflowTooltipText(
+                      text: widget.title,
+                      maxLines: widget.titleMaxLines!,
+                      style: theme.textTheme.titleLarge,
                     )
                   else
                     Text(widget.title, style: theme.textTheme.titleLarge),

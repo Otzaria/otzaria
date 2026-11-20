@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 
 /// מידות כפתור פעולה בשדה חיפוש. [OtzariaSearchField] קובע אותן לכפתורים
 /// שבתוכו לפי הצפיפות שלו; מחוץ לו (שדה טופס עם תווית) — [form].
@@ -178,43 +179,43 @@ class OtzariaSearchFieldButton extends StatelessWidget {
         ? cs.onSecondaryContainer
         : (color ?? cs.onSurfaceVariant);
     const shape = AppTokens.roundedShape;
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
-        selected: selected,
-        container: true,
-        child: SizedBox(
-          height: size.button,
-          child: Material(
-            color: selected
-                ? AppSurfaces.barButtonSelected(cs)
-                : Colors.transparent,
-            shape: shape,
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onPressed,
-              customBorder: shape,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: _labelPadding),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: size.icon, color: fg),
-                    const SizedBox(width: _labelGap),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: labelStyle(context)?.copyWith(color: fg),
-                    ),
-                  ],
-                ),
+    final chip = Semantics(
+      button: true,
+      selected: selected,
+      container: true,
+      child: SizedBox(
+        height: size.button,
+        child: Material(
+          color: selected
+              ? AppSurfaces.barButtonSelected(cs)
+              : Colors.transparent,
+          shape: shape,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: shape,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _labelPadding),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: size.icon, color: fg),
+                  const SizedBox(width: _labelGap),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: labelStyle(context)?.copyWith(color: fg),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
     );
+    // טולטיפ שחוזר על התווית הגלויה מיותר; הוא מוצג רק כשהוא מוסיף עליה.
+    if (tooltipRepeatsLabel(tooltip, label)) return chip;
+    return Tooltip(message: tooltip, child: chip);
   }
 }

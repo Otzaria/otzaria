@@ -2,6 +2,7 @@
 // האירועים חייבים להופיע לפי שעה, לא לפי סדר א-ב של הכותרת.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -10,6 +11,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -115,14 +117,27 @@ void main() {
 
   tearDown(() => cubit.close());
 
-  Future<void> pumpEventsPanel(WidgetTester tester) async {
+  Future<void> pumpEventsPanel(
+    WidgetTester tester, {
+    double width = 600,
+    double scale = 1,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: child!,
+          ),
+        ),
         home: BlocProvider.value(
           value: cubit,
           child: Scaffold(
             body: SizedBox(
-              width: 600,
+              width: width,
               height: 900,
               child: BlocBuilder<CalendarCubit, CalendarState>(
                 builder: (context, state) => CalendarEventsPanel(
@@ -139,6 +154,30 @@ void main() {
   }
 
   group('CalendarEventsPanel — תצוגת יום נבחר', () {
+    testWidgets('תאריך האירוע מוצג במלואו בריחוף רק כשהתווית נחתכת', (
+      tester,
+    ) async {
+      cubit.selectDate(JewishDate.fromDateTime(_date), _date);
+      await cubit.addEvent(
+        title: 'אירוע',
+        baseGregorianDate: _date,
+        recurrenceType: RecurrenceType.none,
+      );
+
+      final date = formatEventDate(_date);
+      await pumpEventsPanel(tester);
+      expect(find.text(date), findsOneWidget);
+      expect(find.byTooltip(date), findsNothing);
+
+      await pumpEventsPanel(tester, width: 320, scale: 2);
+      final narrowDate = find.text(date.replaceFirst(' • ', '\n'));
+      expect(
+        tester.renderObject<RenderParagraph>(narrowDate).didExceedMaxLines,
+        isTrue,
+      );
+      expect(find.byTooltip(date), findsOneWidget);
+    });
+
     testWidgets('אירועים מוצגים לפי שעה ולא לפי א-ב', (tester) async {
       cubit.selectDate(JewishDate.fromDateTime(_date), _date);
       await cubit.addEvent(

@@ -94,17 +94,13 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
         ListTile(
           shape: Border(bottom: listDialogRowDivider(context)),
           leading: Icon(entry.icon, size: 20, color: cs.primary),
-          title: Tooltip(
-            message: entry.label,
-            child: Text(
-              entry.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: AppTokens.fontMD + 1,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ),
+          // השם גלוי: רמז צף רק כשהוא נחתך.
+          title: OverflowTooltipText(
+            text: entry.label,
+            style: TextStyle(
+              fontSize: AppTokens.fontMD + 1,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
             ),
           ),
           // ברוחב טלפון הכפתור עם הטקסט היה מצמצם את שם הספר לכמה אותיות.
