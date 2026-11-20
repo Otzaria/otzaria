@@ -124,21 +124,44 @@ void main() {
     return result.added;
   }
 
+  test('רשומה פגומה בגיבוי מדולגת במיזוג ונספרת', () async {
+    final repo = BookmarkRepository();
+    await repo.mutateBookmarks((_) => [buildBookmark('מהגיבוי')]);
+    final path = await createFullBackup();
+    final data = jsonDecode(await File(path).readAsString()) as Map;
+    (data['bookmarks'] as List).add({'type': 'לא ידוע'});
+    await File(path).writeAsString(jsonEncode(data));
+    await repo.mutateBookmarks((_) => [buildBookmark('מקומי')]);
+
+    final added = await importMerge(path);
+
+    expect(added?.bookmarks, 1);
+    expect(added?.skipped, 1);
+    expect(
+      (await repo.loadBookmarks()).map((b) => b.book.title),
+      ['מקומי', 'מהגיבוי'],
+    );
+  });
+
   test('סימניות והיסטוריה מתווספות, והמקומיות נשמרות', () async {
     final repo = BookmarkRepository();
     final history = HistoryRepository();
-    await repo.replaceBookmarks([
-      buildBookmark('משותף'),
-      buildBookmark('מהגיבוי'),
-    ]);
-    await history.replaceHistory([buildBookmark('היסטוריה מהגיבוי')]);
+    await repo.mutateBookmarks(
+      (_) => [
+        buildBookmark('משותף'),
+        buildBookmark('מהגיבוי'),
+      ],
+    );
+    await history.mutateHistory((_) => [buildBookmark('היסטוריה מהגיבוי')]);
     final path = await createFullBackup();
 
-    await repo.replaceBookmarks([
-      buildBookmark('משותף'),
-      buildBookmark('מקומי'),
-    ]);
-    await history.replaceHistory([buildBookmark('היסטוריה מקומית')]);
+    await repo.mutateBookmarks(
+      (_) => [
+        buildBookmark('משותף'),
+        buildBookmark('מקומי'),
+      ],
+    );
+    await history.mutateHistory((_) => [buildBookmark('היסטוריה מקומית')]);
 
     final added = await importMerge(path);
 
@@ -158,9 +181,9 @@ void main() {
 
     test('a restore brings the groups back', () async {
       final repo = BookmarkRepository();
-      await repo.replaceGroups([group('g1', 'ראשונים')]);
+      await repo.mutateGroups((_) => [group('g1', 'ראשונים')]);
       final path = await createFullBackup();
-      await repo.replaceGroups([]);
+      await repo.mutateGroups((_) => []);
 
       await BackupService.restoreFromBackup(path);
 
@@ -169,9 +192,13 @@ void main() {
 
     test('a merge import adds only groups that are not here', () async {
       final repo = BookmarkRepository();
-      await repo.replaceGroups([group('g1', 'משותפת'), group('g2', 'מהגיבוי')]);
+      await repo.mutateGroups(
+        (_) => [group('g1', 'משותפת'), group('g2', 'מהגיבוי')],
+      );
       final path = await createFullBackup();
-      await repo.replaceGroups([group('g1', 'משותפת'), group('g3', 'מקומית')]);
+      await repo.mutateGroups(
+        (_) => [group('g1', 'משותפת'), group('g3', 'מקומית')],
+      );
 
       final added = await importMerge(path);
 
@@ -186,7 +213,7 @@ void main() {
           jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
       json.remove('bookmarkGroups');
       await File(path).writeAsString(jsonEncode(json));
-      await repo.replaceGroups([group('g1', 'קיימת')]);
+      await repo.mutateGroups((_) => [group('g1', 'קיימת')]);
 
       await BackupService.restoreFromBackup(path);
 
@@ -305,7 +332,7 @@ void main() {
   });
 
   test('ייבוא חוזר של אותו קובץ אינו מוסיף דבר', () async {
-    await BookmarkRepository().replaceBookmarks([buildBookmark('ספר')]);
+    await BookmarkRepository().mutateBookmarks((_) => [buildBookmark('ספר')]);
     await WorkspaceRepository().replaceWorkspaces([
       Workspace(id: 'w1', name: 'לימוד', tabs: const []),
     ], 'w1');

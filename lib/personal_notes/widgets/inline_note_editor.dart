@@ -332,6 +332,10 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
           return;
         }
       }
+      // טיימר שיורה בזמן המחיקה היה שומר את הטיוטה מחדש.
+      _draftSaveTimer?.cancel();
+      _draftMaxWaitTimer?.cancel();
+      _draftMaxWaitTimer = null;
       await _clearDraft();
       _isDone = true;
       if (mounted) widget.onCancel();

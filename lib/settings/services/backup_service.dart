@@ -1314,6 +1314,7 @@ class BackupService {
       return;
     }
     final bookmarks = repo.decodeJson(bookmarksData);
+    counts.skipped += bookmarksData.length - bookmarks.length;
     // `mutate` משמר סימנייה שנוספה בחלון אחר בין הקריאה לכתיבה.
     var added = 0;
     await repo.mutateBookmarks((current) {
@@ -1337,6 +1338,7 @@ class BackupService {
       return;
     }
     final groups = repo.decodeGroupsJson(groupsData);
+    counts.skipped += groupsData.length - groups.length;
     // `mutate`, as for bookmarks: a group added in another window meanwhile
     // must survive the import.
     var added = 0;
@@ -1359,6 +1361,7 @@ class BackupService {
       return;
     }
     final history = repo.decodeJson(historyData);
+    counts.skipped += historyData.length - history.length;
     // ⚠️ `mutate` — ראו ההערה ב-`_restoreBookmarks`.
     var added = 0;
     await repo.mutateHistory((current) {

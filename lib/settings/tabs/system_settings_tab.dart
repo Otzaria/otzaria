@@ -1132,6 +1132,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           'נוספו: {items}.',
           args: {'items': items.join(', ')},
         ),
+      if (added.skipped > 0)
+        context.settingsText(
+          '{count} רשומות פגומות בקובץ לא יובאו.',
+          args: {'count': added.skipped},
+        ),
       if (skipped.isNotEmpty)
         context.settingsText(
           'סעיפים שלא ניתן היה לייבא: {items}.',

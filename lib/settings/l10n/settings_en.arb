@@ -468,6 +468,7 @@
   "{count} שולחנות עבודה": "{count} workspaces",
   "{count} תוספים": "{count} plugins",
   "{count} ספרים בשמור וזכור": "{count} books in Shamor VeZachor",
+  "{count} רשומות פגומות בקובץ לא יובאו.": "{count} damaged records in the file were not imported.",
   "גיבוי אוטומטי": "Automatic Backup",
   "גיבוי אוטומטי מושבת": "Automatic Backup is Off",
   "יומי": "Daily",

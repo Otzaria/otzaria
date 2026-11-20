@@ -105,6 +105,59 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('מחיקה בביטול אינה נשמרת מחדש מטיימר שיורה בזמן המחיקה', (
+    tester,
+  ) async {
+    await Settings.init(cacheProvider: _SlowRemoveCacheProvider());
+    final cancelRequest = ValueNotifier<int>(0);
+    addTearDown(cancelRequest.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: InlineNoteEditor(
+            bookId: 'ספר מחיקה',
+            draftLineNumber: 1,
+            linkableNotes: const [],
+            cancelRequest: cancelRequest,
+            onSave: (_) {},
+            onCancel: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    tester
+        .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+        .controller
+        .document
+        .insert(0, 'א' * (largeDraftLength + 1));
+    await tester.pump();
+
+    cancelRequest.value++;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(
+      PersonalNoteDraftService().draftVersion(
+        bookId: 'ספר מחיקה',
+        lineNumber: 1,
+      ),
+      isNull,
+      reason: 'עדיין לפני ה-debounce',
+    );
+    await tester.tap(find.text('סגור בלי לשמור'));
+    await tester.pump();
+    // המחיקה נמשכת שנייה, וה-debounce של 2 שניות יורה בתוכה.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+
+    final drafts = PersonalNoteDraftService();
+    expect(drafts.draftVersion(bookId: 'ספר מחיקה', lineNumber: 1), isNull);
+    expect(
+      await drafts.loadDraft(bookId: 'ספר מחיקה', lineNumber: 1),
+      isNull,
+    );
+  });
+
   testWidgets('InlineNoteEditor תופס פוקוס מיד בעלייה', (tester) async {
     // רגרסיה: בצורת הדף, פתיחת הערה חדשה לא תפסה פוקוס במצב הראשוני
     // (autoFocus של QuillEditor איבד את ה-race עם אנימציית הפאנל).
@@ -276,4 +329,13 @@ void main() {
       expect(find.text('שמור טיוטה'), findsOneWidget);
     });
   });
+}
+
+/// מחיקה איטית, כדי שטיימר ייפול באמצע ניקוי הטיוטה.
+class _SlowRemoveCacheProvider extends MemoryCacheProvider {
+  @override
+  Future<void> remove(String key) async {
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await super.remove(key);
+  }
 }
