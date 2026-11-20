@@ -981,6 +981,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כווץ את עמודת הכרטיסיות': 'Collapse the tab column',
     'כווץ הכל': 'Collapse all',
     'כולל את כלל הגדרות התוכנה': 'All of Otzaria\'s settings',
+    'כולל האפשרויות הנוכחיות': 'Including the current options',
     'כותבים חידושי תורה? אפשר להציג אותם בתוך אוצריא ואף לחפש בהם. היכנסו להגדרות ← ספרייה: במחשב דרך "תיקיות מותאמות אישית" (תיקיה שלמה), ובנייד דרך "ספרים אישיים" (בחירת קבצים). הקבצים (כולל Word ו-TXT) יתווספו ל"ספרים אישיים", והחיפוש יסרוק אותם אוטומטית. כדי לאתר אותם באיתור — סמנו "כלול ספרים אישיים".': 'Writing your own Chidushei Torah? You can see them in Otzaria and even search them. Go to Settings → Library: on desktop use "Custom folders" (a whole folder), and on mobile use "ספרים אישיים" (pick files). The files (Word and TXT included) join "ספרים אישיים", and the search picks them up automatically. To reach them from Find, check "כלול ספרים אישיים".',
     'כותרות': 'Headings',
     'כותרת': 'Title',
