@@ -5,6 +5,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 
+import '../support/search_engine_test_init.dart';
+
 Bookmark _entry(String q) => Bookmark(
   ref: q,
   book: TextBook(title: q),
@@ -42,7 +44,10 @@ Future<void> _pump(
   );
 }
 
-void main() {
+Future<void> main() async {
+  // כותרת עם אפשרויות מפצלת מילים דרך המנוע; מדולג כשאין build.
+  final engineReady = await tryInitSearchEngine();
+
   testWidgets('כל חיפוש הוא שורה, ובחירה ומחיקה מועברות החוצה', (tester) async {
     final selected = <String>[];
     final removed = <String>[];
@@ -103,4 +108,58 @@ void main() {
     expect(find.byType(SingleChildScrollView), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'אפשרויות המילה מובחנות מהמילים, כמו בחלון ההיסטוריה (issue #5537)',
+    (tester) async {
+      await _pump(tester, [
+        Bookmark(
+          ref: '(קד)שלום + עולם',
+          book: TextBook(title: 'שלום עולם'),
+          index: 0,
+          isSearch: true,
+          searchOptions: {
+            'שלום_0': {'קידומות דקדוקיות': true},
+          },
+        ),
+      ]);
+
+      final title = tester.widget<Text>(find.text('(קד)שלום + עולם'));
+      final spans = <String, TextStyle?>{};
+      title.textSpan?.visitChildren((span) {
+        if (span is TextSpan && span.text != null) {
+          spans[span.text!] = span.style;
+        }
+        return true;
+      });
+      final theme = Theme.of(tester.element(find.byKey(searchHistoryMenuKey)));
+      expect(spans.keys, ['(קד)', 'שלום', ' + ', 'עולם']);
+      expect(spans['(קד)']?.fontSize, theme.textTheme.bodySmall?.fontSize);
+      expect(spans['(קד)']?.color, theme.colorScheme.primary);
+      expect(spans['שלום'], isNull, reason: 'המילה בסגנון השורה הרגיל');
+      expect(find.byTooltip('(קד)שלום + עולם'), findsOneWidget);
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets('רשומה ותיקה מציגה את הנוסח השמור כשהפיצול הנוכחי שונה', (
+    tester,
+  ) async {
+    const storedRef = 'רמב"ם תורה';
+    await _pump(tester, [
+      Bookmark(
+        ref: storedRef,
+        book: TextBook(title: storedRef),
+        index: 0,
+        isSearch: true,
+        searchOptions: {
+          'רמב_0': {'קידומות דקדוקיות': true},
+          'תורה_2': {'סיומות': true},
+        },
+      ),
+    ]);
+
+    expect(find.text(storedRef), findsOneWidget);
+    expect(find.byTooltip(storedRef), findsOneWidget);
+  }, skip: !engineReady);
 }

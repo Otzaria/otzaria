@@ -863,15 +863,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     final hasActualBookConfig =
         PageShapeSettingsManager.loadConfiguration(state.book.title) != null;
 
-    final categoryToSave =
-        workspaceToSave == null &&
-            !hasActualBookConfig &&
-            state.book.heCategories != null &&
-            state.book.heCategories!.isNotEmpty
-        ? PageShapeSettingsManager.getActiveCategory(state.book.heCategories) ??
-              PageShapeSettingsManager.getParentCategory(
-                state.book.heCategories,
-              )
+    final categoryToSave = workspaceToSave == null && !hasActualBookConfig
+        ? PageShapeSettingsManager.getActiveCategory(state.book.heCategories)
         : null;
 
     await PageShapeSettingsManager.saveConfiguration(

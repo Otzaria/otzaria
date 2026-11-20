@@ -12,7 +12,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
+import 'package:otzaria/text_display/models/text_display_layer.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
+import 'package:otzaria/text_display/models/text_display_slot.dart';
 
 import '../../test_helpers/stub_settings_bloc.dart';
 
@@ -1941,6 +1943,54 @@ void main() {
       expect(chipLabels(), before);
     });
   });
+
+  group('אות הסימון של קישור מעוגן (issue #3599)', () {
+    setUp(_seedEras);
+    tearDown(CommentaryService.clearEraCache);
+
+    final anchored = Link(
+      heRef: 'הפניה ראשונים א',
+      index1: 1,
+      path2: '/books/ראשונים א.txt',
+      index2: 1,
+      connectionType: 'REFERENCE',
+      anchorStart: 0,
+      anchorLabel: 'א',
+    );
+    final marker = RegExp(r'^[(\[{]א[)\]}] הפניה ראשונים א$');
+    final hidden = TextDisplayLayer({
+      TextDisplaySlot.root: const TextDisplayPatch(
+        anchorMarkers: MarkVisibility.hide,
+      ),
+    });
+
+    testWidgets('ציוני מפרשים כבויים בגוף — ההפניה בלי אות הסימון', (
+      tester,
+    ) async {
+      await _pumpView(tester, links: [anchored], displayOverrides: hidden);
+
+      expect(find.textContaining(marker), findsNothing);
+      expect(find.text('הפניה ראשונים א'), findsOneWidget);
+    });
+
+    testWidgets('כיבוי והדלקה של ציוני המפרשים מתעדכנים ברשימה הפתוחה', (
+      tester,
+    ) async {
+      final bloc = await _pumpView(tester, links: [anchored]);
+      expect(find.textContaining(marker), findsOneWidget);
+
+      bloc.emitState(
+        _loadedState(links: [anchored], displayOverrides: hidden),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining(marker), findsNothing);
+      expect(find.text('הפניה ראשונים א'), findsOneWidget);
+
+      bloc.emitState(_loadedState(links: [anchored]));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(marker), findsOneWidget);
+    });
+  });
 }
 
 /// קבוצות הצ׳יפים לפי סדר התצוגה — סוגים ואז דורות. קבוצה
@@ -1988,6 +2038,7 @@ Future<_RecordingTextBookBloc> _pumpView(
   List<Link>? visibleLinks,
   Set<String> selectedLinkTypes = const {},
   String bookTitle = 'ספר בדיקה',
+  TextDisplayLayer? displayOverrides,
   bool settle = true,
 }) async {
   final bloc = _RecordingTextBookBloc(
@@ -1996,6 +2047,7 @@ Future<_RecordingTextBookBloc> _pumpView(
       visibleLinks: visibleLinks,
       selectedLinkTypes: selectedLinkTypes,
       bookTitle: bookTitle,
+      displayOverrides: displayOverrides,
     ),
   );
   addTearDown(bloc.close);
@@ -2041,9 +2093,11 @@ TextBookLoaded _loadedState({
   List<Link>? visibleLinks,
   Set<String> selectedLinkTypes = const {},
   String bookTitle = 'ספר בדיקה',
+  TextDisplayLayer? displayOverrides,
 }) {
   return TextBookLoaded(
     book: TextBook(title: bookTitle),
+    displayOverrides: displayOverrides,
     showLeftPane: false,
     content: const ['שורה א'],
     fontSize: 18,

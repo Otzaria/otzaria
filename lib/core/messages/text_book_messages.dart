@@ -49,8 +49,7 @@ abstract class TextBookMessages {
   static String pdfNotFoundForBook(String bookTitle) =>
       'לא נמצא ספר PDF עבור "$bookTitle"';
 
-  static const String pdfLocationNotFoundOpeningAtStart =
-      'לא נמצא מיקום תואם ב-PDF — הספר נפתח מתחילתו';
+  static const String pdfLocationNotFound = 'לא נמצא מיקום תואם ב-PDF';
 
   static const String pairedBookLocationNotFound =
       'לא נמצא סימן תואם בספר המקביל';

@@ -178,4 +178,84 @@ void main() {
       );
     },
   );
+
+  test('פרשות מוזרקות ככותרת "פרשת…" ברמה העליונה בלבד', () async {
+    await UserContentRepository(db).replaceBookHeadings(bookId, [
+      UserAltTocStructureData(
+        key: 'Parasha',
+        heTitle: 'פרשות',
+        entries: [
+          entry('ויצא', line: 3, hasChildren: true),
+          entry('עליה א', level: 2, line: 3, parent: 0),
+          entry('פרשת וישלח', line: 7),
+          entry('הקדמה', line: 0),
+        ],
+      ),
+    ], source: 'parasha');
+
+    final rows = await reader.inlineSectionRows(bookId);
+
+    expect(
+      [
+        for (final h in rows.headings)
+          if (h.label.startsWith('פרשת')) (h.lineIndex, h.label),
+      ],
+      [(3, 'פרשת ויצא'), (7, 'פרשת וישלח')],
+    );
+    expect(rows.headings.map((h) => h.label), isNot(contains('עליה א')));
+    expect(rows.headings.map((h) => h.label), isNot(contains('הקדמה')));
+  });
+  test('פרשה קיימת בלי שורה מוזרקת בשורת הצאצא הראשון', () async {
+    await UserContentRepository(db).replaceBookHeadings(bookId, [
+      UserAltTocStructureData(
+        key: 'פרשות',
+        heTitle: 'פרשות',
+        entries: [
+          entry('ויצא', hasChildren: true),
+          entry('פתיחה', level: 2, parent: 0, hasChildren: true),
+          entry('חלק ראשון', level: 3, line: 6, parent: 1),
+          entry('עליה ב', level: 2, line: 12, parent: 0),
+        ],
+      ),
+    ], source: 'legacy');
+
+    final structure = (await reader.structures(bookId))
+        .singleWhere((structure) => structure.heTitle == 'פרשות');
+    final first = (await reader.entries(structure.id)).first;
+    final target = (await reader.linksForEntry(structure.id, first.id)).single;
+    final rows = await reader.inlineSectionRows(bookId);
+
+    expect(structure.key, 'Parasha');
+    expect(target.index2, 7);
+    expect(rows.headings, contains((lineIndex: 6, label: 'פרשת ויצא')));
+  });
+
+  test('ייבוא פרשות ממקור אחר מחליף גם את המבנה במפתח הישן', () async {
+    final writer = UserContentRepository(db);
+    await writer.replaceBookHeadings(bookId, [
+      UserAltTocStructureData(
+        key: 'פרשות',
+        heTitle: 'פרשות',
+        entries: [entry('ויצא', line: 6)],
+      ),
+    ], source: 'old-file.csv');
+    final oldStructure = (await reader.structures(bookId))
+        .singleWhere((structure) => structure.heTitle == 'פרשות');
+
+    await writer.replaceBookHeadings(bookId, [
+      UserAltTocStructureData(
+        key: 'Parasha',
+        heTitle: 'פרשות',
+        entries: [entry('וישלח', line: 10)],
+      ),
+    ], source: 'new-file.csv');
+
+    final structures = (await reader.structures(bookId))
+        .where((structure) => structure.heTitle == 'פרשות');
+    expect(structures, hasLength(1));
+    expect(await reader.entries(oldStructure.id), isEmpty);
+    final rows = await reader.inlineSectionRows(bookId);
+    expect(rows.headings, contains((lineIndex: 10, label: 'פרשת וישלח')));
+    expect(rows.headings, isNot(contains((lineIndex: 6, label: 'פרשת ויצא'))));
+  });
 }

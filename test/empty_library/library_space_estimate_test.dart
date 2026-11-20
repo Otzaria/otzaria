@@ -13,7 +13,7 @@ import '../support/zstd_test_lib.dart';
 import 'library_package_test_support.dart';
 
 const _gib = 1 << 30;
-const _currentDbBytes = 3738877952;
+const _currentDbBytes = 4418928640;
 
 /// כותרת frame עם Frame_Content_Size של 8 בייטים, בלי Single_Segment.
 List<int> _header(int contentSize) => [
@@ -70,6 +70,33 @@ void main() {
     }, skip: lib == null ? 'libzstd אינו זמין' : false);
   });
 
+  group('estimatedDatabaseExtractedSize', () {
+    test('release v38: גודל ה-zstd משמש במקום אומדן עתיק', () {
+      expect(
+        estimatedDatabaseExtractedSize(
+          2246741848,
+          firstFrameSize: _currentDbBytes,
+        ),
+        _currentDbBytes,
+      );
+    });
+
+    test('frame ראשון קטן מדי: שומר רצפת ביטחון', () {
+      expect(
+        estimatedDatabaseExtractedSize(1000, firstFrameSize: 100),
+        1900,
+      );
+    });
+
+    test('אין FCS: fallback נגזר מגודל הארכיון, בלי קבוע קשיח', () {
+      expect(estimatedDatabaseExtractedSize(1000), 2500);
+    });
+
+    test('אין FCS או גודל ארכיון: משתמשים בגודל המסד שנמדד', () {
+      expect(estimatedDatabaseExtractedSize(0), measuredDatabaseBytes);
+    });
+  });
+
   group('extractedSizeOf', () {
     test('גודל ארכיון מלא גובר על האומדן', () {
       expect(
@@ -108,7 +135,7 @@ void main() {
   });
 
   group('הורדה', () {
-    test('על אותו כונן: ההורדה ועוד שיא החילוץ — כ-6GB ולא 8GB', () {
+    test('על אותו כונן: הצריכה לפי release הנוכחי ומרווח ביטחון', () {
       final download = measuredLibraryDownload.fold<int>(
         0,
         (sum, s) => sum + s.compressed,
@@ -117,8 +144,8 @@ void main() {
       // ה-DB מחולץ ראשון; כשהוא נמחק החילוצים הבאים קטנים ממנו.
       expect(peak, _currentDbBytes);
       final need = withSafetyMargin(download + peak);
-      expect(need, greaterThan(6 * 1000 * 1000 * 1000));
-      expect(need, lessThan(7 * _gib));
+      expect(need, greaterThan(7 * 1000 * 1000 * 1000));
+      expect(need, lessThan(8 * _gib));
     });
 
     test('שיא החילוץ כשהנכס הגדול אחרון', () {
@@ -139,8 +166,8 @@ void main() {
   });
 
   group('FAT32', () {
-    test('ה-DB הנוכחי (3.74GB) מותר', () {
-      expect(exceedsFat32FileLimit(_currentDbBytes), isFalse);
+    test('ה-DB הנוכחי (>4GiB) אינו נתמך ב-FAT32', () {
+      expect(exceedsFat32FileLimit(_currentDbBytes), isTrue);
       expect(exceedsFat32FileLimit(fat32MaxFileBytes), isFalse);
     });
 
@@ -154,7 +181,7 @@ void main() {
           supportsLargeFiles: false,
           largestFileBytes: _currentDbBytes,
         ),
-        isTrue,
+        isFalse,
       );
       expect(
         volumeCanHoldLibrary(

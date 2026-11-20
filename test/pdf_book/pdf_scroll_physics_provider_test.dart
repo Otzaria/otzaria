@@ -82,6 +82,15 @@ void main() {
       expect(inner.created.single.pans, const [Offset(0, -100), Offset(0, -8)]);
     });
 
+    test('zoomTo מחזיר false כל עוד אין צפיין פעיל', () {
+      final inner = _RecordingProvider();
+      final provider = StoppablePdfScrollPhysicsProvider(inner: inner);
+      expect(provider.zoomTo(2, Offset.zero), isFalse);
+      provider.create();
+      expect(provider.zoomTo(2, Offset.zero), isFalse);
+      expect(inner.created.single.stops, 0);
+    });
+
     test('ברירת המחדל עוטפת את ה-delegate הפיזיקלי של pdfrx', () {
       final provider = StoppablePdfScrollPhysicsProvider();
       expect(provider.create(), isA<PdfViewerScrollInteractionDelegate>());

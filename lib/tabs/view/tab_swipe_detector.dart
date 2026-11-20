@@ -25,9 +25,15 @@ class TabSwipeDetector extends StatefulWidget {
     required this.controller,
     required this.onActiveChanged,
     required this.child,
+    this.tabContentIsWebView = _never,
   });
 
   final PageController? controller;
+
+  /// האם הטאב כולו הוא WebView, שבו גלילה במגע לא מתחרה בזירה.
+  final bool Function() tabContentIsWebView;
+
+  static bool _never() => false;
 
   /// `true` מתחילת הגרירה ו-`false` בסוף ההתיישבות, כדי שסנכרון ה-PageView
   /// מה-bloc לא יקפיץ את התצוגה באמצע.
@@ -74,7 +80,9 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
               GestureRecognizerFactoryWithHandlers<
                 TabContentVerticalDragRecognizer
               >(
-                TabContentVerticalDragRecognizer.new,
+                () => TabContentVerticalDragRecognizer(
+                  contentIsWebView: () => widget.tabContentIsWebView(),
+                ),
                 (recognizer) => recognizer.onStart = (_) {},
               ),
           TrackpadTabSwipeRecognizer:
@@ -128,9 +136,11 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
       ..onEnd = (details) {
         _settle(
           details.velocity.pixelsPerSecond.dx,
-          crossAxisDistance: recognizer is TrackpadTabSwipeRecognizer
-              ? recognizer.pan.dy.abs()
-              : 0,
+          crossAxisDistance: switch (recognizer) {
+            TrackpadTabSwipeRecognizer() => recognizer.pan.dy.abs(),
+            TouchTabSwipeRecognizer() => recognizer.pan.dy.abs(),
+            _ => 0,
+          },
         );
       }
       ..onCancel = () {

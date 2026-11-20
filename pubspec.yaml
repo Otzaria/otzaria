@@ -29,7 +29,7 @@ environment:
   sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
-  sentry_flutter: ^10.4.0
+  sentry_flutter: ^10.6.0
   flutter:
     sdk: flutter
   otzaria_context_menu:
@@ -51,20 +51,15 @@ dependencies:
   material_color_utilities: any
   # נסיגת ההגדרות כשפתיחת Hive נכשלת (SharePreferenceCache).
   shared_preferences: ^2.5.6
-  hive_ce: ^2.22.0
+  hive_ce: ^2.23.3
   path_provider: ^2.1.6
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור espresso3389/pdfrx#820 (סדר רינדור לפי שטח נראה, #4175).
-  # שאר הפורק זהה ל-master של upstream (2.12.1 ומעלה).
-  pdfrx:
-    git:
-      url: https://github.com/Otzaria/pdfrx
-      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
-      path: packages/pdfrx
+  # pdfrx 3.x דורש Flutter 3.50 ומעלה.
+  pdfrx: ^2.13.1
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
-  pdfium_dart: ^0.4.1
+  pdfium_dart: ^0.4.3
   url_launcher: ^6.3.3
   # ליבה בלבד: החבילה המורחבת רושמת בעלייה plugins של וידאו/אודיו/WebView.
   flutter_widget_from_html_core: ^0.17.4
@@ -121,13 +116,13 @@ dependencies:
   pinenacl: ^0.6.0
   path: ^1.9.1
   http: ^1.6.0
-  zstandard: 1.5.0
-  zstandard_native: 1.5.0
+  zstandard: ^1.5.6
+  zstandard_native: ^1.5.6
   ffi: ^2.2.0
   win32: ^6.4.0
   win32_registry: ^3.0.3
-  googleapis: ^17.0.0
-  googleapis_auth: ^2.3.5
+  googleapis: ^19.0.0
+  googleapis_auth: ^2.3.7
   characters: ^1.4.1
   collection: ^1.19.1
   otzaria_search_engine: ^7.2.0
@@ -156,11 +151,11 @@ dependencies:
       url: https://github.com/Otzaria/flutter_spinbox
       ref: 3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e
   logging: ^1.3.0
-  sqlite3: ^3.8.0
+  sqlite3: ^3.9.1
   super_clipboard: ^0.9.1
   # Dragging selected reader text via the already bundled native extension.
   super_native_extensions: ^0.9.1
-  flutter_local_notifications: ^23.0.0
+  flutter_local_notifications: ^23.0.3
   timezone: ^0.11.2
   xml: ^7.0.1
   markdown: ^7.3.1
@@ -215,17 +210,6 @@ dependency_overrides:
       url: https://github.com/Otzaria/packages
       ref: 1ffcf4a7842a39cf8d35ea16d39881f8edb8dea9
       path: third_party/packages/flutter_svg
-  # תיקוני המנוע וההורדה של PDFium מהענף המשולב; ראה ה-TODO ליד pdfrx.
-  pdfrx_engine:
-    git:
-      url: https://github.com/Otzaria/pdfrx
-      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
-      path: packages/pdfrx_engine
-  pdfium_dart:
-    git:
-      url: https://github.com/Otzaria/pdfrx
-      ref: f8f29ee20d8cd895122fccba35439f888a9135e8
-      path: packages/pdfium_dart
   # TODO: להסיר יחד עם ה-override של super_native_extensions כשתשוחרר 0.10 יציבה
   # (native assets, תלויה ב-irondash ^0.6). עד אז הפורק Otzaria: 0.5.5 עם תיקון Cargokit
   # ל-AGP 9 ו-Gradle 9 (irondash/irondash#95), תג irondash_engine_context-v0.5.5+otzaria.1.
@@ -247,13 +231,6 @@ dependency_overrides:
       url: https://github.com/Otzaria/flutter_local_notifications
       ref: 0943fb8a6ee58b2aaabc578835d0019e54b3133e
       path: flutter_local_notifications_windows
-  # TODO: להחזיר ל-pub.dev כשימוזג וישוחרר getsentry/sentry-dart#4094 (ענף feat/nonblocking-native-init:
-  # טעינת sentry.dll, sentry_init, עדכוני ה-scope וה-close ב-worker isolate ב-Windows).
-  sentry_flutter:
-    git:
-      url: https://github.com/Otzaria/sentry-dart
-      ref: c3a1edeb3a0a509720ea8561122eaecf46d21c36
-      path: packages/flutter
   # TODO: לחזור ל-pub.dev (printing, pdf, pdf_widget_wrapper) אחרי מיזוג ושחרור DavBfr/dart_pdf#1976, #1984-#1988,
   # #1993-#1996, #2005, #2008-#2027. קומיט בענף otzaria/integration.
   printing:
@@ -418,7 +395,7 @@ flutter_launcher_icons:
     icon_size: 256 # min:48, max:256, default: 48
 
 dev_dependencies:
-  sentry_dart_plugin: ^3.4.0
+  sentry_dart_plugin: ^3.6.0
   # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
   # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
   analyzer: ^14.7.0

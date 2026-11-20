@@ -1770,11 +1770,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
         if (mounted) setState(() => _printProgress = null);
         if (printed) UiSnack.show(PdfMessages.printSent);
         if (printed && context.mounted) {
-          Navigator.of(context).pop(true);
+          _closeWithSuccess(context);
         }
       case _PrintDestination.pdf:
         if (await _saveToFile(_ExportFormat.pdf) && context.mounted) {
-          Navigator.of(context).pop(true);
+          _closeWithSuccess(context);
         }
       case _PrintDestination.word:
         if (!_supportsWord) {
@@ -1782,8 +1782,20 @@ class _PrintingScreenState extends State<PrintingScreen> {
           return;
         }
         if (await _saveToFile(_ExportFormat.word) && context.mounted) {
-          Navigator.of(context).pop(true);
+          _closeWithSuccess(context);
         }
+    }
+  }
+
+  void _closeWithSuccess(BuildContext context) {
+    final route = ModalRoute.of(context);
+    final navigator = route?.navigator;
+    if (route == null || navigator == null || !route.isActive) return;
+    dismissAnchoredAppMenus(route);
+    if (route.isCurrent) {
+      navigator.pop(true);
+    } else {
+      navigator.removeRoute(route, true);
     }
   }
 

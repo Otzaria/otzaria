@@ -1,5 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 
 void main() {
@@ -107,6 +111,45 @@ void main() {
             .setMockMethodCallHandler(SystemChannels.platform, null);
       }
     });
+  });
+
+  testWidgets('קישור ארוך מעתיק את הטקסט ומציע קישור למקטע לבחירה', (
+    tester,
+  ) async {
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox()),
+    );
+
+    final selection = List.filled(15, 'בראשית').join(' ');
+    final entries = buildDirectLinkContextMenuEntries(
+      bookId: 42,
+      index: 7,
+      source: BookSource.attached('library'),
+      selectedText: selection,
+    );
+    entries.last.onTap!();
+    await tester.pumpAndSettle();
+    final precise = Uri.parse(copied!).queryParameters;
+    expect(precise, {'source': 'db:library', 'index': '7', 'm': selection});
+
+    await tester.tap(find.text(CommonMessages.copyShortSectionMarkLink));
+    await tester.pumpAndSettle();
+    final short = Uri.parse(copied!).queryParameters;
+    expect(short, {'source': 'db:library', 'index': '7', 'mark': ''});
+    UiSnack.hide();
+    await tester.pumpAndSettle();
   });
 
   group('buildCopyDirectLinkEntry', () {

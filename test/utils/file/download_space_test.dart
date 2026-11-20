@@ -35,7 +35,7 @@ void main() {
   });
   tearDown(() => dir.deleteSync(recursive: true));
 
-  Future<int> needed() => additionalDownloadBytes(
+  Future<DownloadSpace> needed() => additionalDownloadSpace(
     destPath: dest,
     identity: identity,
     size: split.size,
@@ -50,7 +50,7 @@ void main() {
   }
 
   test('הורדה חדשה שומרת מקום לכל החלקים ולארכיון המחובר', () async {
-    expect(await needed(), 140);
+    expect(await needed(), (peak: 140, retained: 70));
   });
 
   test('חלק שלם וחלקי עם validator מזוכים לפי הטוקן שלהם', () async {
@@ -61,18 +61,18 @@ void main() {
       'v31|part-1|second',
       '"e"',
     );
-    expect(await needed(), 80);
+    expect(await needed(), (peak: 80, retained: 10));
   });
 
   test('חלקים מלאים נשמרים בזמן חיבור ולכן דרוש ארכיון נוסף', () async {
     cache(PatchDownloader.splitPartPath(dest, 0), 50, 'v31|part-0|first');
     cache(PatchDownloader.splitPartPath(dest, 1), 20, 'v31|part-1|second');
-    expect(await needed(), 70);
+    expect(await needed(), (peak: 70, retained: 0));
   });
 
   test('קובץ חיבור שנקטע אינו מזוכה כעותק שניתן להמשך', () async {
     File('$dest.joining').writeAsBytesSync(List.filled(60, 0));
-    expect(await needed(), 140);
+    expect(await needed(), (peak: 140, retained: 70));
   });
 
   test('טוקן שונה, validator חלש וחלק ארוך מדי אינם מזוכים', () async {
@@ -83,48 +83,48 @@ void main() {
       'v31|part-1|second',
       'W/"e"',
     );
-    expect(await needed(), 140);
+    expect(await needed(), (peak: 140, retained: 70));
     cache(PatchDownloader.splitPartPath(dest, 0), 51, 'v31|part-0|first');
-    expect(await needed(), 140);
+    expect(await needed(), (peak: 140, retained: 70));
   });
 
   test('ארכיון מחובר מהורדה קודמת אינו דורש הורדה או חיבור שוב', () async {
     cache(dest, 70, 'v31|joined:whole');
-    expect(await needed(), 0);
+    expect(await needed(), (peak: 0, retained: 0));
   });
 
   test('ארכיון מחובר חלקי אינו ניתן להמשך', () async {
     cache(dest, 69, 'v31|joined:whole', '"e"');
-    expect(await needed(), 140);
+    expect(await needed(), (peak: 140, retained: 70));
   });
 
   test('קובץ יחיד מזוכה רק עם זהות תואמת ו-validator או גודל מלא', () async {
     cache(dest, 35, 'v31', '"e"');
     expect(
-      await additionalDownloadBytes(
+      await additionalDownloadSpace(
         destPath: dest,
         identity: identity,
         size: 70,
       ),
-      35,
+      (peak: 35, retained: 35),
     );
     cache(dest, 35, 'v30', '"e"');
     expect(
-      await additionalDownloadBytes(
+      await additionalDownloadSpace(
         destPath: dest,
         identity: identity,
         size: 70,
       ),
-      70,
+      (peak: 70, retained: 70),
     );
     cache(dest, 70, 'v31');
     expect(
-      await additionalDownloadBytes(
+      await additionalDownloadSpace(
         destPath: dest,
         identity: identity,
         size: 70,
       ),
-      0,
+      (peak: 0, retained: 0),
     );
   });
 }

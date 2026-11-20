@@ -85,7 +85,7 @@ void main() {
       expect(labels, isNot(contains('מפרשים')));
       expect(labels, isNot(contains('קישורים')));
       expect(labels, contains('העתק את כל הפסקה'));
-      expect(labels, contains('פתח ועבור לכרטיסיה'));
+      expect(labels, contains('פתח ועבור לכרטיסייה'));
     });
 
     testWidgets('"פתח בכרטיסייה חדשה" מופיע מיד אחרי פתיחת הספר', (
@@ -96,7 +96,7 @@ void main() {
       expect(labels, contains(kOpenInNewTabLabel));
       expect(
         labels.indexOf(kOpenInNewTabLabel),
-        labels.indexOf('פתח ועבור לכרטיסיה') + 1,
+        labels.indexOf('פתח ועבור לכרטיסייה') + 1,
       );
     });
 
@@ -151,7 +151,7 @@ void main() {
       );
       expect(
         labels.indexOf('קישורים'),
-        lessThan(labels.indexOf('פתח ועבור לכרטיסיה')),
+        lessThan(labels.indexOf('פתח ועבור לכרטיסייה')),
       );
     });
 
@@ -167,7 +167,7 @@ void main() {
         contains('העתקה'),
       );
       expect(labels, contains('העתק את כל הפסקה'));
-      expect(labels, contains('פתח ועבור לכרטיסיה'));
+      expect(labels, contains('פתח ועבור לכרטיסייה'));
       expect(labels, contains('דווח על טעות בספר'));
     });
   });

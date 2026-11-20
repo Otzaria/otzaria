@@ -37,6 +37,8 @@ const Set<String> kKnownSeforimTables = {
   'alt_toc_structure',
   'alt_toc_entry',
   'line_alt_toc',
+  'user_alt_toc_structure',
+  'user_alt_toc_entry',
   'default_commentator',
   'default_targum',
   'book_version',
@@ -135,6 +137,18 @@ class DbCapabilities {
       has('tocText');
   bool get hasLineAltToc => hasAltToc && has('line_alt_toc');
 
+  /// כותרות חלופיות של ספרים אישיים (user_books.db), מקושרות ל-lineIndex.
+  bool get hasUserAltToc =>
+      hasBooks &&
+      hasColumn('user_alt_toc_structure', 'id') &&
+      hasColumn('user_alt_toc_structure', 'bookId') &&
+      hasColumn('user_alt_toc_entry', 'id') &&
+      hasColumn('user_alt_toc_entry', 'structureId') &&
+      hasColumn('user_alt_toc_entry', 'parentId') &&
+      hasColumn('user_alt_toc_entry', 'level') &&
+      hasColumn('user_alt_toc_entry', 'text') &&
+      hasColumn('user_alt_toc_entry', 'lineIndex');
+
   /// קישורים דורשים גם את סוגי החיבור ואת השורות שהם מצביעים עליהן.
   bool get hasLinks => hasLines && has('link') && has('connection_type');
   bool get hasLinkAnchors => hasLinks && has('link_anchor');
@@ -144,6 +158,11 @@ class DbCapabilities {
       hasLinks && has('link_range') && has('link_coverage');
   bool get hasLinkSuppressedSide => hasLinks && has('link_suppressed_side');
   bool get hasLinkBaseProvenance => hasColumn('link', 'baseProvenance');
+
+  /// הצהרות על ספרי בסיס, המשמשות לסיווג מפרשים עם מעט קישורים.
+  bool get hasBookBaseTexts =>
+      hasColumn('book_base_text', 'bookId') &&
+      hasColumn('book_base_text', 'baseBookId');
 
   /// מהדורות: book_version בלי version_line (או להפך) אינה שמישה.
   bool get hasBookVersions =>

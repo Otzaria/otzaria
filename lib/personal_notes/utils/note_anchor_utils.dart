@@ -29,6 +29,9 @@ class LineProjection {
 bool _isDiacritic(int code) =>
     code >= 0x0591 && code <= 0x05C7 && code != 0x05BE;
 
+bool _isHebrewSpacingPunctuation(int code) =>
+    code == 0x05BE || code == 0x05C0 || code == 0x05C3 || code == 0x05C6;
+
 final _punctuation = RegExp('[!"\',\\-.:;?\u05F3\u05F4\u2013\u2014]');
 String _withoutPunctuation(String? s) =>
     s == null ? '' : s.replaceAll(_punctuation, '');
@@ -65,6 +68,7 @@ bool _isBreakTag(String s, int start, int end) {
 LineProjection projectLine(
   String rawLine, {
   bool keepPunctuation = false,
+  bool keepHebrewPunctuation = false,
   bool omitInjectedAnchorMarkers = false,
   bool plainText = false,
   bool joinAtPunctuation = false,
@@ -109,11 +113,14 @@ LineProjection projectLine(
       punctuationRawStart = null;
       previous = code;
     }
-    if (_isDiacritic(code) || (!keepPunctuation && _isPunctuation(code))) {
+    final keepSpacingMark =
+        keepHebrewPunctuation && _isHebrewSpacingPunctuation(code);
+    if ((!keepSpacingMark && _isDiacritic(code)) ||
+        (!keepPunctuation && _isPunctuation(code))) {
       return;
     }
     final isWhitespace =
-        code == 0x05BE ||
+        (code == 0x05BE && !keepSpacingMark) ||
         ((code < 0x05D0 || code > 0x05EA) &&
             String.fromCharCode(code).trim().isEmpty);
     if (isWhitespace) {
@@ -181,6 +188,21 @@ String normalizeAnchorText(String text) => projectLine(
   plainText: true,
 ).normalized.trim();
 
+/// בחירה של סימני פיסוק בלבד (למשל `:`), שמעוגנת לפי הפיסוק עצמו.
+bool isPunctuationOnlyAnchor(String text) =>
+    _containsAnchorPunctuation(text) && normalizeAnchorText(text).isEmpty;
+
+bool _containsAnchorPunctuation(String text) => text.codeUnits.any(
+  (code) => _isPunctuation(code) || _isHebrewSpacingPunctuation(code),
+);
+
+String _projectPunctuationAnchor(String text) => projectLine(
+  text,
+  plainText: true,
+  keepPunctuation: true,
+  keepHebrewPunctuation: true,
+).normalized.trim();
+
 /// האם [normalizedText] (מ-[normalizeAnchorText]) נמצא ב-[rawLine], גם כפי
 /// שנשמר כשהסתרת הפיסוק עוד הדביקה מילים.
 bool lineContainsAnchorText(String rawLine, String normalizedText) =>
@@ -215,8 +237,12 @@ class ComputedAnchor {
 
 const int _kContextLength = 24;
 
-/// מאתר את כל המופעים של [needle] בתוך [haystack] (חיפוש פשוט, ללא חפיפה).
-List<int> _allOccurrences(String haystack, String needle) {
+/// מאתר את כל המופעים. בפיסוק '::' יכול להתחיל גם באמצע מופע קודם.
+List<int> _allOccurrences(
+  String haystack,
+  String needle, {
+  bool allowOverlap = false,
+}) {
   final result = <int>[];
   if (needle.isEmpty) return result;
   int from = 0;
@@ -224,25 +250,25 @@ List<int> _allOccurrences(String haystack, String needle) {
     final idx = haystack.indexOf(needle, from);
     if (idx < 0) break;
     result.add(idx);
-    from = idx + needle.length;
+    from = idx + (allowOverlap ? 1 : needle.length);
   }
   return result;
 }
 
-/// מודד את אורך ההתאמה בין סיומת [context] לבין הטקסט שלפני מופע (prefix),
-/// או בין תחילת [context] לטקסט שאחרי מופע (suffix).
-int _contextScore(String have, String want, {required bool matchTail}) {
-  if (want.isEmpty || have.isEmpty) return 0;
-  final maxLen = have.length < want.length ? have.length : want.length;
-  int score = 0;
-  for (int k = 1; k <= maxLen; k++) {
-    final a = matchTail ? have[have.length - k] : have[k - 1];
-    final b = matchTail ? want[want.length - k] : want[k - 1];
-    if (a == b) {
-      score++;
-    } else {
-      break;
-    }
+/// משווה הקשר ליד הגבול [at], בלי להעתיק את יתר הטקסט לכל מופע.
+int _contextScoreAt(
+  String text,
+  int at,
+  String context, {
+  required bool before,
+}) {
+  final available = before ? at : text.length - at;
+  final limit = available < context.length ? available : context.length;
+  var score = 0;
+  for (; score < limit; score++) {
+    final textIndex = before ? at - score - 1 : at + score;
+    final contextIndex = before ? context.length - score - 1 : score;
+    if (text.codeUnitAt(textIndex) != context.codeUnitAt(contextIndex)) break;
   }
   return score;
 }
@@ -263,12 +289,15 @@ int _pickBestOccurrence(
   for (final idx in occurrences) {
     int score = 0;
     if (prefix != null && prefix.isNotEmpty) {
-      final before = normalized.substring(0, idx);
-      score += _contextScore(before, prefix, matchTail: true);
+      score += _contextScoreAt(normalized, idx, prefix, before: true);
     }
     if (suffix != null && suffix.isNotEmpty) {
-      final after = normalized.substring(idx + needleLen);
-      score += _contextScore(after, suffix, matchTail: false);
+      score += _contextScoreAt(
+        normalized,
+        idx + needleLen,
+        suffix,
+        before: false,
+      );
     }
     // שובר שוויון: קרבה לרמז המיקום (ככל שקרוב יותר — עדיף).
     if (score == bestScore && normalizedHint != null) {
@@ -289,13 +318,19 @@ int _rawEnd(
   String rawLine,
   int matchEnd, {
   bool plainText = false,
+  bool keepHebrewPunctuation = false,
 }) {
   final lastRawStart = p.rawIndex[matchEnd - 1];
   final entity = plainText
       ? null
       : _htmlEntity.matchAsPrefix(rawLine, lastRawStart);
   var end = entity?.end ?? lastRawStart + 1;
-  while (end < rawLine.length && _isDiacritic(rawLine.codeUnitAt(end))) {
+  while (end < rawLine.length) {
+    final code = rawLine.codeUnitAt(end);
+    if (!_isDiacritic(code) ||
+        (keepHebrewPunctuation && _isHebrewSpacingPunctuation(code))) {
+      break;
+    }
     end++;
   }
   return end;
@@ -322,6 +357,7 @@ int _rawToNormalizedIndex(LineProjection p, int rawHint) {
 /// [anchorText] הוא הטקסט המנורמל שנבחר. [prefix]/[suffix] הם הקשר מנורמל
 /// לבחירת המופע הנכון. [hintStart] נמדד ב-[hintSourceLine] אם סופקה.
 /// [plainText] — [rawLine] הוא טקסט בלי HTML, והטווח נמדד בו.
+/// [requirePunctuationContext] מאמת עיגון מחדש רק בהקשר זהה וחד-משמעי.
 NoteAnchorRange? locateAnchor({
   required String rawLine,
   required String anchorText,
@@ -330,21 +366,37 @@ NoteAnchorRange? locateAnchor({
   int? hintStart,
   String? hintSourceLine,
   bool plainText = false,
+  bool requirePunctuationContext = false,
 }) {
-  final needle = normalizeAnchorText(anchorText);
+  final normalized = normalizeAnchorText(anchorText);
+  final punctuationOnly =
+      normalized.isEmpty && _containsAnchorPunctuation(anchorText);
+  final needle = punctuationOnly
+      ? _projectPunctuationAnchor(anchorText)
+      : normalized;
   if (needle.isEmpty) return null;
 
   NoteAnchorRange? best;
   var bestScore = -1;
   var bestDistance = double.infinity;
-  for (final joinAtPunctuation in [false, true]) {
+  var ambiguous = false;
+  final exactContext = punctuationOnly && requirePunctuationContext;
+  final before = punctuationOnly ? (prefix ?? '') : _withoutPunctuation(prefix);
+  final after = punctuationOnly ? (suffix ?? '') : _withoutPunctuation(suffix);
+  for (final joinAtPunctuation in punctuationOnly ? [false] : [false, true]) {
     final p = projectLine(
       rawLine,
       omitInjectedAnchorMarkers: hintSourceLine != null,
       joinAtPunctuation: joinAtPunctuation,
+      keepPunctuation: punctuationOnly,
+      keepHebrewPunctuation: punctuationOnly,
       plainText: plainText,
     );
-    final occurrences = _allOccurrences(p.normalized, needle);
+    final occurrences = _allOccurrences(
+      p.normalized,
+      needle,
+      allowOverlap: punctuationOnly,
+    );
     if (occurrences.isEmpty) continue;
 
     int? rawHint;
@@ -355,6 +407,8 @@ NoteAnchorRange? locateAnchor({
         final source = projectLine(
           hintSourceLine,
           joinAtPunctuation: joinAtPunctuation,
+          keepPunctuation: punctuationOnly,
+          keepHebrewPunctuation: punctuationOnly,
         );
         final offset = p.normalized.indexOf(source.normalized);
         if (source.normalized.isNotEmpty && offset >= 0) {
@@ -363,35 +417,46 @@ NoteAnchorRange? locateAnchor({
         }
       }
     }
-    final before = _withoutPunctuation(prefix);
-    final after = _withoutPunctuation(suffix);
     for (final start in occurrences) {
       final end = start + needle.length;
       final rawStart = p.rawIndex[start];
-      final rawEnd = _rawEnd(p, rawLine, end, plainText: plainText);
+      final rawEnd = _rawEnd(
+        p,
+        rawLine,
+        end,
+        plainText: plainText,
+        keepHebrewPunctuation: punctuationOnly,
+      );
       if (rawStart < 0 || rawEnd > rawLine.length || rawStart >= rawEnd) {
         continue;
       }
       final score =
-          _contextScore(
-            p.normalized.substring(0, start),
-            before,
-            matchTail: true,
-          ) +
-          _contextScore(p.normalized.substring(end), after, matchTail: false);
+          _contextScoreAt(p.normalized, start, before, before: true) +
+          _contextScoreAt(p.normalized, end, after, before: false);
       final distance = rawHint == null ? 0 : (rawStart - rawHint).abs();
+      if (exactContext) {
+        if (score != before.length + after.length ||
+            (score == 0 && rawStart != rawHint)) {
+          continue;
+        }
+        if (best != null && distance == bestDistance) {
+          ambiguous = true;
+          continue;
+        }
+      }
       if (score > bestScore ||
           (score == bestScore && distance < bestDistance) ||
           (score == bestScore &&
               distance == bestDistance &&
               (best == null || rawStart < best.start))) {
         best = NoteAnchorRange(rawStart, rawEnd);
+        ambiguous = false;
         bestScore = score;
         bestDistance = distance.toDouble();
       }
     }
   }
-  return best;
+  return ambiguous ? null : best;
 }
 
 /// מחשב עוגן (טווח + הקשר) עבור טקסט שנבחר, לשמירה בעת יצירת ההערה.
@@ -409,11 +474,24 @@ ComputedAnchor? computeAnchorForSelection({
   bool punctuationHidden = false,
   int? occurrenceIndex,
 }) {
-  final needle = normalizeAnchorText(selectedText);
+  final normalized = normalizeAnchorText(selectedText);
+  final punctuationOnly =
+      normalized.isEmpty && _containsAnchorPunctuation(selectedText);
+  final needle = punctuationOnly
+      ? _projectPunctuationAnchor(selectedText)
+      : normalized;
   if (needle.isEmpty) return null;
 
-  final p = projectLine(rawLine);
-  final occurrences = _allOccurrences(p.normalized, needle);
+  final p = projectLine(
+    rawLine,
+    keepPunctuation: punctuationOnly,
+    keepHebrewPunctuation: punctuationOnly,
+  );
+  final occurrences = _allOccurrences(
+    p.normalized,
+    needle,
+    allowOverlap: punctuationOnly,
+  );
   if (occurrences.isEmpty) return null;
   if (occurrenceIndex != null &&
       (occurrenceIndex < 0 || occurrenceIndex >= occurrences.length)) {
@@ -423,7 +501,12 @@ ComputedAnchor? computeAnchorForSelection({
   int matchStart = occurrences.first;
   int? normalizedHint;
   if (sourceSelectionOffset != null && sourceSelectionText != null) {
-    final source = projectLine(sourceSelectionText, plainText: true);
+    final source = projectLine(
+      sourceSelectionText,
+      plainText: true,
+      keepPunctuation: punctuationOnly,
+      keepHebrewPunctuation: punctuationOnly,
+    );
     final offset = p.normalized.indexOf(source.normalized);
     if (source.normalized.isNotEmpty && offset >= 0) {
       normalizedHint =
@@ -434,7 +517,11 @@ ComputedAnchor? computeAnchorForSelection({
     final displayedLine = punctuationHidden
         ? text_utils.removePunctuation(rawLine)
         : rawLine;
-    final shown = projectLine(displayedLine, keepPunctuation: true);
+    final shown = projectLine(
+      displayedLine,
+      keepPunctuation: true,
+      keepHebrewPunctuation: punctuationOnly,
+    );
     final displayedMatch = punctuationHidden ? projectLine(displayedLine) : p;
     final sameMatchText = displayedMatch.normalized == p.normalized;
     int shownIndex(int idx) => sameMatchText
@@ -470,7 +557,12 @@ ComputedAnchor? computeAnchorForSelection({
 
   return ComputedAnchor(
     start: p.rawIndex[matchStart],
-    end: _rawEnd(p, rawLine, matchEnd),
+    end: _rawEnd(
+      p,
+      rawLine,
+      matchEnd,
+      keepHebrewPunctuation: punctuationOnly,
+    ),
     prefix: p.normalized.substring(prefixStart, matchStart),
     suffix: p.normalized.substring(matchEnd, suffixEnd),
   );

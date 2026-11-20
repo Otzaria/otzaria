@@ -212,7 +212,7 @@ class ContextMenuUtils {
       ],
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
-        label: 'פתח ועבור לכרטיסיה',
+        label: 'פתח ועבור לכרטיסייה',
         icon: FluentIcons.open_24_regular,
         onTap: () => openBookCallback(_targetTabFromLink(link)),
       ),

@@ -7,6 +7,7 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show Database, sqlite3;
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/navigation/view/tab_context_menu.dart';
 import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
@@ -167,6 +168,61 @@ void main() {
       await tester.pumpAndSettle();
       expect(await result, isTrue);
     });
+  });
+
+  testWidgets('"סגור את האחרים" סוגר רק כרטיסיות שעברו את האישור', (
+    tester,
+  ) async {
+    final keep = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+    final closing = pluginTab('p.closing', 'תוסף לסגירה');
+    final pinned = pluginTab('p.pinned', 'תוסף מוצמד')..isPinned = true;
+    final incoming = pluginTab('p.incoming', 'תוסף שנפתח בינתיים');
+    final registry = PluginUnsavedChangesRegistry.instance;
+    for (final tab in [closing, pinned, incoming]) {
+      final key = (pluginId: tab.toolId, instanceId: tab.instanceId);
+      registry.set(key, hasChanges: true);
+      addTearDown(() => registry.removeInstance(key));
+    }
+
+    final bloc = TabsBloc(
+      repository: _FakeTabsRepository(),
+      disposeDelay: Duration.zero,
+    );
+    addTearDown(bloc.close);
+    bloc.add(ReplaceAllTabs([closing, pinned, keep], 1));
+    late BuildContext menuContext;
+    await tester.pumpWidget(
+      BlocProvider.value(
+        value: bloc,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) {
+              menuContext = context;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+
+    final close = closeOtherTabsConfirmed(menuContext, keep);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('תוסף לסגירה'), findsOneWidget);
+    expect(find.textContaining('תוסף מוצמד'), findsNothing);
+
+    bloc.add(TogglePinTab(pinned));
+    bloc.add(AddTab(incoming));
+    await tester.pump();
+    expect(pinned.isPinned, isFalse);
+    expect(bloc.state.tabs, contains(same(incoming)));
+
+    await tester.tap(find.text(unsavedChangesCloseAnyway));
+    await tester.pumpAndSettle();
+    await close;
+
+    expect(bloc.state.tabs, [same(pinned), same(keep), same(incoming)]);
+    expect(bloc.state.currentTab, same(keep));
+    expect(bloc.recentlyClosedTabs.map((tab) => tab.title), [closing.title]);
   });
 
   group('confirmAppCloseWithUnsavedChanges', () {

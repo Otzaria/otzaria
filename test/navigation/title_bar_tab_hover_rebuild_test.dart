@@ -116,7 +116,7 @@ void main() {
 
   testWidgets('ה-X של כרטיסיה צרה מופיע בריחוף ונעלם ביציאה', (tester) async {
     final harness = await pumpTitleBar(tester, width: 900);
-    final closeButtons = find.byTooltip('סגור כרטיסיה');
+    final closeButtons = find.byTooltip('סגור כרטיסייה');
     expect(closeButtons, findsNothing);
 
     await harness.mouse.moveTo(tester.getCenter(find.text('ספר 5')));

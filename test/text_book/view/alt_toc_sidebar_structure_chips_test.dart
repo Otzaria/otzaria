@@ -17,6 +17,8 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/text_display/models/text_display_policy.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -67,11 +69,14 @@ void main() {
       "'פרקים')",
       [bookId],
     );
-    db.execute("INSERT INTO tocText VALUES (20, 'פרק ראשון'), (21, 'פרק שני')");
+    db.execute(
+      "INSERT INTO tocText VALUES (20, 'פרק ראשון'), (21, 'פרק שני'), "
+      "(22, 'שירת יהוה')",
+    );
     db.execute(
       'INSERT INTO alt_toc_entry (id, structureId, parentId, textId, level, '
       'lineId, hasChildren) VALUES (20, 2, NULL, 20, 1, 1, 0), '
-      '(21, 2, NULL, 21, 1, 2, 0)',
+      '(21, 2, NULL, 21, 1, 2, 0), (22, 2, NULL, 22, 1, 3, 0)',
     );
     db.close();
 
@@ -358,6 +363,32 @@ void main() {
           .selected,
       isTrue,
     );
+  });
+
+  testWidgets('הסתרת שם השם חלה גם על הכותרות החלופיות (#3543)', (
+    tester,
+  ) async {
+    TextDisplayPolicy policy(bool replace) => TextDisplayPolicy.fromLegacy(
+      defaultRemoveNikud: false,
+      removeNikudFromTanach: false,
+      defaultRemovePunctuation: false,
+      showTeamim: true,
+      replaceHolyNames: replace,
+      holyNameStyle: HolyNameStyle.kufKuf,
+    );
+    final bloc = await pumpSidebar(tester);
+    final loaded = bloc.state as TextBookLoaded;
+    bloc.emitState(loaded.copyWith(displayPolicy: policy(false)));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'פרקים'));
+    await _settleRealAsync(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('שירת יהוה'), findsOneWidget);
+
+    // שינוי ההגדרה בזמן שהספר פתוח מתעדכן גם ברשימה שכבר נבנתה.
+    bloc.emitState(loaded.copyWith(displayPolicy: policy(true)));
+    await tester.pumpAndSettle();
+    expect(find.text('שירת יהוה'), findsNothing);
+    expect(find.text('שירת יקוק'), findsOneWidget);
   });
 }
 

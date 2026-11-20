@@ -73,6 +73,52 @@ void main() {
     expect(data.needsRefresh, isFalse);
   });
 
+  test('שחרור תוכן בטאב רקע אינו משנה את הערכות הגובה (issue #4173)', () async {
+    final identity = Object();
+    final content = [for (var i = 0; i < 3000; i++) 'א' * (1 + i % 7 * 90)];
+    // ספר שחומם בחלקו: 2000 השורות הראשונות נספרו, השאר טרם נטענו.
+    final data = ReadingExtentEstimates(
+      _segments(
+        content,
+        identity: identity,
+        version: 1,
+        flags: [for (var i = 0; i < 3000; i++) i < 2000],
+      ),
+    );
+    addTearDown(data.dispose);
+    await data.refresh();
+    // חימום הדרגתי משמר את הערכת השורות שטרם נטענו גם כשהממוצע השתנה.
+    final warmed = List<String>.of(content)..fillRange(2000, 2700, 'א' * 1000);
+    data.update(
+      _segments(
+        warmed,
+        identity: identity,
+        version: 2,
+        flags: [for (var i = 0; i < 3000; i++) i < 2700],
+        changes: ContentLineChanges(
+          fromVersion: 1,
+          ranges: [(first: 2000, last: 2699)],
+        ),
+      ),
+    );
+    expect((await data.refresh()).full, isFalse);
+    const metrics = ReadingExtentMetrics(lineExtent: 20, charWidth: 8);
+    final items = [100, 1000, 2500, 2800];
+    final before = [for (final i in items) data.estimate(i, 400, metrics)];
+
+    bool kept(int i) => (i - 1000).abs() <= 50;
+    data.update(
+      _segments(
+        [for (var i = 0; i < 3000; i++) kept(i) ? warmed[i] : ''],
+        identity: identity,
+        version: 3,
+        flags: [for (var i = 0; i < 3000; i++) kept(i)],
+      ),
+    );
+    await data.refresh();
+    expect([for (final i in items) data.estimate(i, 400, metrics)], before);
+  });
+
   test('מסיר רק סימנים משולבים ומשאיר פיסוק עברי', () {
     expect(visibleReadingCharCount('אַ֑ב־ג׀ד׃ה׆ו'), 'אב־ג׀ד׃ה׆ו'.length);
     expect(visibleReadingCharCount('e\u0301'), 1);
@@ -261,7 +307,8 @@ void main() {
     expect((await data.refresh()).full, isTrue);
     expect(data.debugCountedLines, 40);
     final other = _segments(
-      after.content,
+      ['', for (var i = 0; i < 19; i++) 'א' * 100],
+      flags: [false, ...List.filled(19, true)],
       identity: Object(),
       version: 4,
       changes: ContentLineChanges(
@@ -270,6 +317,10 @@ void main() {
       ),
     );
     expect(other.changedLinesSince(after), isNull);
+    data.update(other);
+    expect((await data.refresh()).full, isTrue);
+    const metrics = ReadingExtentMetrics(lineExtent: 20, charWidth: 10);
+    expect(data.estimate(0, 100, metrics), 204);
   });
 
   for (final textWidth in <double Function(double)?>[null, (w) => w / 2]) {

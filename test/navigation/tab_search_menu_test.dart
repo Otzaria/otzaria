@@ -165,7 +165,11 @@ void main() {
 
     testWidgets('כפתורי השורה הם AppIconButton עם tooltip', (tester) async {
       await openMenu(tester);
-      for (final tooltip in ['סגור כרטיסיה', 'שחזר כרטיסיה', 'נקה את הרשימה']) {
+      for (final tooltip in [
+        'סגור כרטיסייה',
+        'שחזר כרטיסייה',
+        'נקה את הרשימה',
+      ]) {
         final buttons = find.ancestor(
           of: find.byTooltip(tooltip),
           matching: find.byType(AppIconButton),
@@ -237,7 +241,7 @@ void main() {
   ) async {
     await openMenu(tester);
 
-    await tester.tap(find.byTooltip('סגור כרטיסיה').first);
+    await tester.tap(find.byTooltip('סגור כרטיסייה').first);
     await tester.pumpAndSettle();
 
     expect(
@@ -286,7 +290,7 @@ void main() {
       paneFocusNodes: nodes,
       contentFocusRequests: focusRequests,
     );
-    await tester.tap(find.byTooltip('סגור כרטיסיה').first);
+    await tester.tap(find.byTooltip('סגור כרטיסייה').first);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('הצג את כל ההיסטוריה'));
@@ -482,7 +486,7 @@ void main() {
       await openMenu(tester);
 
       await press(tester, arrowDown);
-      await tester.tap(find.byTooltip('סגור כרטיסיה').first);
+      await tester.tap(find.byTooltip('סגור כרטיסייה').first);
       await tester.pumpAndSettle();
       expect(find.text('בראשית'), findsNothing);
 
@@ -612,7 +616,7 @@ void main() {
       );
       expect(fieldFocus(tester).hasFocus, isTrue);
 
-      await tester.tap(find.byTooltip('סגור כרטיסיה').at(1));
+      await tester.tap(find.byTooltip('סגור כרטיסייה').at(1));
       await tester.pumpAndSettle();
       expect(fieldFocus(tester).hasFocus, isTrue);
       expect(focusRequests, isEmpty);
@@ -641,13 +645,13 @@ void main() {
           paneFocusNodes: nodes,
           contentFocusRequests: focusRequests,
         );
-        await tester.tap(find.byTooltip('סגור כרטיסיה').first);
+        await tester.tap(find.byTooltip('סגור כרטיסייה').first);
         await tester.pumpAndSettle();
         expect(tabsBloc.state.activePane, same(tabs[1]));
         expect(fieldFocus(tester).hasFocus, isTrue);
         expect(focusRequests, isEmpty);
 
-        await tester.tap(find.byTooltip('שחזר כרטיסיה'));
+        await tester.tap(find.byTooltip('שחזר כרטיסייה'));
         await tester.pumpAndSettle();
         expect(tabsBloc.state.activePane, same(closedTabs.single));
         expect(fieldFocus(tester).hasFocus, isTrue);
@@ -673,7 +677,7 @@ void main() {
         paneFocusNodes: nodes,
         contentFocusRequests: focusRequests,
       );
-      await tester.tap(find.byTooltip('סגור כרטיסיה').first);
+      await tester.tap(find.byTooltip('סגור כרטיסייה').first);
       await tester.pumpAndSettle();
       expect(fieldFocus(tester).hasFocus, isTrue);
       expect(focusRequests, isEmpty);

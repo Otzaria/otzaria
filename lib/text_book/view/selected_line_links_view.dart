@@ -57,6 +57,8 @@ class SelectedLineLinksView extends StatelessWidget {
             previous.fontSize != current.fontSize ||
             previous.commentaryDisplayProfile !=
                 current.commentaryDisplayProfile ||
+            previous.bodyDisplayProfile.showAnchorMarkers !=
+                current.bodyDisplayProfile.showAnchorMarkers ||
             _copyProfile(previous) != _copyProfile(current);
       },
       builder: (context, built) {
@@ -74,6 +76,7 @@ class SelectedLineLinksView extends StatelessWidget {
           fontSize: fontSize,
           displayProfile: state.commentaryDisplayProfile,
           copyDisplayProfile: _copyProfile(state),
+          showAnchorMarkers: state.bodyDisplayProfile.showAnchorMarkers,
           selectionSyncController: selectionSyncController,
         );
       },

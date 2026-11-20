@@ -499,8 +499,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       if (root && ::GetClassNameW(root, window_class, 64) &&
           (::wcscmp(window_class, kFlutterWindowClassName) == 0 ||
            ::wcscmp(window_class, kDartHostWindowClassName) == 0)) {
-        FLASHWINFO flash = {sizeof(FLASHWINFO), root, FLASHW_STOP, 0, 0};
-        ::FlashWindowEx(&flash);
+        window.StopAttentionFlash(root);
       }
     }
     NormalizeFlutterKeyboardMessage(msg);

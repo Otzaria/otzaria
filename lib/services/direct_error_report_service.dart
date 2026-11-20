@@ -318,7 +318,9 @@ class DirectErrorReportService {
     if (attemptResult.isSuccess) {
       final sentRecord = _sentRecord(report, attemptResult);
       await _saveSentReport(sentRecord);
-      unawaited(flushPendingReports(onlyAutomaticRetry: true));
+      _flush.runInBackground(
+        () => flushPendingReports(onlyAutomaticRetry: true),
+      );
       if (sentRecord.serverAcceptedCorrection == false) {
         return DirectReportDeliveryResult.sent(
           ReportMessages.correctionNotSupportedByServer(

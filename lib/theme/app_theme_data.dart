@@ -373,7 +373,11 @@ class AppThemeData {
         ),
         boxShadow: AppShadows.floating(cs),
       ),
-      textStyle: TextStyle(color: cs.onSurface),
+      textStyle: TextStyle(
+        fontFamily: uiFontFamily,
+        fontFamilyFallback: uiFontFamilyFallback,
+        color: cs.onSurface,
+      ),
     );
   }
 

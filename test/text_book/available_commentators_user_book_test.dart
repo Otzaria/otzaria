@@ -178,6 +178,36 @@ void main() {
     );
 
     test(
+      'ספר גדול: מפרש שמצהיר על הספר כבסיס שלו אינו נדיר גם עם מעט קישורים',
+      () async {
+        // #5539: מלחמת השם על רי"ף ביצה (8 קישורים) נעלם מצורת הדף כנדיר.
+        await seforimRepo.updateBookTotalLines(bereshitId, 500);
+        final db = await seforimDb.database;
+        db.execute(
+          'CREATE TABLE book_base_text (bookId INTEGER NOT NULL, '
+          'baseBookId INTEGER NOT NULL, PRIMARY KEY (bookId, baseBookId))',
+        );
+        db.execute(
+          'INSERT INTO book_base_text (bookId, baseBookId) '
+          'SELECT id, ? FROM book WHERE title = ?',
+          [bereshitId, 'רש"י על בראשית'],
+        );
+
+        final officialBook = TextBook(
+          title: 'בראשית',
+          source: BookSource.official,
+          categoryId: bereshitCategoryId,
+          fileType: 'txt',
+        );
+
+        final result = await repository.getCommentatorsWithRarity(officialBook);
+
+        expect(result.all, contains('רש"י על בראשית'));
+        expect(result.rare, isEmpty);
+      },
+    );
+
+    test(
       'ספר קטן (עד 100 שורות): אין מפרשים נדירים',
       () async {
         await seforimRepo.updateBookTotalLines(bereshitId, 50);

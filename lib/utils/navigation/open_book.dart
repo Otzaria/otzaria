@@ -17,10 +17,11 @@ BookOpenCoordinator bookOpenCoordinatorOf(BuildContext context) =>
       layoutWidth: readingLayoutWidthResolverOf(context),
     );
 
+/// מיקום חסר שומר על מקום הקריאה אם הספר כבר פתוח.
 void openBook(
   BuildContext context,
   Book book,
-  int index,
+  int? index,
   String searchQuery, {
   bool ignoreHistory = false,
   bool explicitIndex = false,

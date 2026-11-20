@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/widgets/controls/contained_tooltip.dart';
-import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria_context_menu/otzaria_context_menu.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
-/// עורך פרופיל תצוגה — שורה לכל שדה. מסך ההגדרות משתמש ב-[tiles], והפופאפ
-/// בסרגל הספר ב-[TextDisplayProfileTable]; שניהם בונים את אותם שדות מ-[_fields],
-/// כדי שהמשתמש יראה את אותם פקדים בכל מקום.
+/// עורך פרופיל תצוגה. מסך ההגדרות משתמש ב-[tiles] (שורה לכל שדה), והחלונית
+/// בסרגל הספר ב-[popupTiles] (רשימה צפופה). שניהם משתמשים באותם פקדים —
+/// מתגים, ותג "כמו הניקוד" עם מתג לטעמי המקרא (DD-32).
 abstract final class TextDisplayProfileEditor {
   /// השורות כרשימה — לשיבוץ ישיר בתוך [SettingsCard] (שמוסיף מפרידים).
   static List<Widget> tiles(
@@ -23,38 +23,27 @@ abstract final class TextDisplayProfileEditor {
 
   static List<_Field> _fields(BuildContext context) {
     final t = context.settingsText;
-    final showHide = [
-      SegmentOption(value: MarkVisibility.show, label: t('הצג')),
-      SegmentOption(value: MarkVisibility.hide, label: t('הסתר')),
-    ];
+    // הצג/הסתר — מתג (דולק = מוצג), כמו בחלונית שבסרגל. שם הוי"ה נשאר
+    // תפריט עם כל הנוסחים.
     return [
-      _SegmentField<MarkVisibility>(
+      _SwitchField(
         icon: OtzariaIcons.alef_niqqud_24_filled,
         title: t('ניקוד'),
-        options: showHide,
-        read: (p) => p.nikud,
-        write: (p, v) => p.copyWith(nikud: v),
+        read: (p) => p.nikud == MarkVisibility.show,
+        write: (p, v) =>
+            p.copyWith(nikud: v ? MarkVisibility.show : MarkVisibility.hide),
       ),
-      _SegmentField<TeamimVisibility>(
+      _TeamimField(
         icon: OtzariaIcons.alef_niqqud_taamim_24_filled,
         title: t('טעמי המקרא'),
-        options: [
-          SegmentOption(value: TeamimVisibility.show, label: t('הצג')),
-          SegmentOption(value: TeamimVisibility.hide, label: t('הסתר')),
-          SegmentOption(
-            value: TeamimVisibility.followNikud,
-            label: t('כמו הניקוד'),
-          ),
-        ],
-        read: (p) => p.teamim,
-        write: (p, v) => p.copyWith(teamim: v),
       ),
-      _SegmentField<MarkVisibility>(
+      _SwitchField(
         icon: OtzariaIcons.alef_punctuation_24_filled,
         title: t('סימני פיסוק'),
-        options: showHide,
-        read: (p) => p.punctuation,
-        write: (p, v) => p.copyWith(punctuation: v),
+        read: (p) => p.punctuation == MarkVisibility.show,
+        write: (p, v) => p.copyWith(
+          punctuation: v ? MarkVisibility.show : MarkVisibility.hide,
+        ),
       ),
       _DropdownField<HolyNameDisplay>(
         icon: OtzariaIcons.alef_lock_24_filled,
@@ -83,167 +72,323 @@ abstract final class TextDisplayProfileEditor {
         read: (p) => p.divineNames,
         write: (p, v) => p.copyWith(divineNames: v),
       ),
-      _SegmentField<MarkVisibility>(
+      _SwitchField(
         icon: OtzariaIcons.text_font_hebrew_24_filled,
         title: t('ציוני המפרשים'),
         subtitle: t('אותיות הציון שבטקסט, למשל (א)'),
-        options: showHide,
-        read: (p) => p.anchorMarkers,
-        write: (p, v) => p.copyWith(anchorMarkers: v),
+        read: (p) => p.anchorMarkers == MarkVisibility.show,
+        write: (p, v) => p.copyWith(
+          anchorMarkers: v ? MarkVisibility.show : MarkVisibility.hide,
+        ),
       ),
     ];
   }
-}
 
-/// עמודה אחת בטבלה — פרופיל של יעד אחד והפעולה שמחילה שינוי בו.
-typedef TextDisplayProfileColumn = ({
-  String title,
-  TextDisplayProfile profile,
-  ValueChanged<TextDisplayProfile> onChanged,
-});
+  /// פקדים צפופים לחלונית הסרגל. שמות הקודש מוצגים כאן כמתג אחד שמחליף
+  /// יחד את שם הוי"ה ואת שאר השמות; בחירת הנוסח נשארת בהגדרות המלאות.
+  ///
+  /// [preferredHolyName] — הנוסח שהמשתמש בחר לשם הוי"ה, לשימוש בהסתרה.
+  static List<Widget> popupTiles(
+    BuildContext context, {
+    required TextDisplayProfile profile,
+    required ValueChanged<TextDisplayProfile> onChanged,
+    bool includeTeamimSelector = true,
+    HolyNameDisplay preferredHolyName = HolyNameDisplay.kufKuf,
+    bool includeHolyNames = true,
+  }) {
+    final t = context.settingsText;
+    // אותם גדלים כמו בשאר התפריטים בתוכנה.
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    final itemStyle = TextStyle(fontSize: metrics.fontSize);
 
-/// הפרופילים כטבלה (q12 Q7): שורה לכל שדה, ועמודה לכל יעד ב-[columns].
-/// אייקון ושם בעמודה הראשונה; ההסבר של שדה עובר ל-tooltip על השם. כשאין
-/// מקום לטבלה (חלונית צרה, טלפון), השם עולה מעל, ולכל יעד שורה משלו.
-class TextDisplayProfileTable extends StatelessWidget {
-  final List<TextDisplayProfileColumn> columns;
-
-  const TextDisplayProfileTable({super.key, required this.columns});
-
-  /// רוחב עמודת השמות: אייקון, ריווח, ו"שאר שמות הקודש" בשורה אחת.
-  static const double labelWidth = 152;
-
-  /// התא הצר ביותר שבו "הצג | הסתר | כמו הניקוד" עוד נקרא.
-  static const double minCellWidth = 200;
-
-  /// רוחב שם היעד ("גוף הספר", "מפרשים") לפני הפקד, כשאין מקום לטבלה.
-  static const double stackedTitleWidth = 76;
-
-  static const _cellPadding = EdgeInsetsDirectional.only(
-    start: AppTokens.spaceXS,
-    top: AppTokens.spaceXS,
-    bottom: AppTokens.spaceXS,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final fields = TextDisplayProfileEditor._fields(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final fitsSideBySide =
-            constraints.maxWidth >= labelWidth + columns.length * minCellWidth;
-        return fitsSideBySide
-            ? _table(context, fields)
-            : _stacked(context, fields);
-      },
-    );
-  }
-
-  Widget _heading(BuildContext context, String text) {
-    final theme = Theme.of(context);
-    return Text(
-      text,
-      // כותרת עמודה בצבע הערכה (DD-14), בגודל של שורות הפאנל.
-      style: theme.textTheme.labelLarge?.copyWith(
-        color: theme.colorScheme.primary,
-      ),
-    );
-  }
-
-  // בטבלה הפקד מופרד מהשם שלו; קורא המסך מקבל את השם ואת היעד יחד.
-  Widget _cell(_Field field, TextDisplayProfileColumn column) => Semantics(
-    container: true,
-    label: '${field.title}, ${column.title}',
-    child: Padding(
-      padding: _cellPadding,
-      child: field.cell(column.profile, column.onChanged),
-    ),
-  );
-
-  Widget _table(BuildContext context, List<_Field> fields) => Table(
-    columnWidths: {
-      0: const FixedColumnWidth(labelWidth),
-      for (var i = 1; i <= columns.length; i++) i: const FlexColumnWidth(),
-    },
-    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    children: [
-      TableRow(
-        children: [
-          const SizedBox.shrink(),
-          for (final column in columns)
-            Padding(
-              padding: _cellPadding,
-              child: _heading(context, column.title),
-            ),
-        ],
-      ),
-      for (final field in fields)
-        TableRow(
+    Widget visibilityRow({
+      required IconData icon,
+      required String title,
+      required MarkVisibility value,
+      required ValueChanged<MarkVisibility> onValue,
+    }) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: AppTokens.spaceSMD,
+          vertical: AppTokens.space2XS,
+        ),
+        child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
-              child: _FieldLabel(field),
+            Icon(
+              icon,
+              size: metrics.iconSize,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            for (final column in columns) _cell(field, column),
+            const SizedBox(width: AppTokens.spaceSM),
+            Expanded(
+              child: Text(title, style: itemStyle),
+            ),
+            // קורא המסך מקריא את שם השורה עם המתג.
+            Semantics(
+              label: title,
+              child: Switch(
+                value: value == MarkVisibility.show,
+                onChanged: (show) => onValue(
+                  show ? MarkVisibility.show : MarkVisibility.hide,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           ],
         ),
-    ],
-  );
+      );
+    }
 
-  /// בלי מקום לטבלה: השם מעל, ומתחתיו שורה לכל יעד — שם היעד ואחריו הפקד
-  /// ברוחב מלא, כי בחצי רוחב של טלפון "כמו הניקוד" ו"הסתר" נשברים.
-  Widget _stacked(BuildContext context, List<_Field> fields) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      for (final field in fields) ...[
+    return [
+      visibilityRow(
+        icon: OtzariaIcons.alef_niqqud_24_filled,
+        title: t('ניקוד'),
+        value: profile.nikud,
+        onValue: (v) => onChanged(profile.copyWith(nikud: v)),
+      ),
+      if (includeTeamimSelector)
         Padding(
-          padding: const EdgeInsets.only(top: AppTokens.spaceSM),
-          child: _FieldLabel(field),
-        ),
-        for (final column in columns)
-          Row(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: AppTokens.spaceSMD,
+            vertical: AppTokens.space2XS,
+          ),
+          child: Row(
             children: [
-              if (columns.length > 1)
-                SizedBox(
-                  width: stackedTitleWidth,
-                  child: _heading(context, column.title),
+              Icon(
+                OtzariaIcons.alef_niqqud_taamim_24_filled,
+                size: metrics.iconSize,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppTokens.spaceSM),
+              Expanded(
+                child: Text(
+                  t('טעמי המקרא'),
+                  style: itemStyle,
                 ),
-              Expanded(child: _cell(field, column)),
+              ),
+              followNikudChip(
+                context,
+                profile: profile,
+                onChanged: onChanged,
+                textStyle: itemStyle,
+              ),
+              const SizedBox(width: AppTokens.spaceSM),
+              teamimSwitch(context, profile: profile, onChanged: onChanged),
             ],
           ),
-      ],
-    ],
-  );
-}
-
-/// אייקון ושם של שדה; ההסבר, אם יש, ב-tooltip.
-class _FieldLabel extends StatelessWidget {
-  final _Field field;
-  const _FieldLabel(this.field);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final label = Row(
-      children: [
-        Icon(
-          field.icon,
-          size: AppTokens.iconMD,
-          color: theme.colorScheme.onSurfaceVariant,
         ),
-        const SizedBox(width: AppTokens.spaceSM),
-        Flexible(child: Text(field.title, style: theme.textTheme.bodyMedium)),
-      ],
+      visibilityRow(
+        icon: OtzariaIcons.alef_punctuation_24_filled,
+        title: t('סימני פיסוק'),
+        value: profile.punctuation,
+        onValue: (v) => onChanged(profile.copyWith(punctuation: v)),
+      ),
+      visibilityRow(
+        icon: OtzariaIcons.text_font_hebrew_24_filled,
+        title: t('ציוני המפרשים'),
+        value: profile.anchorMarkers,
+        onValue: (v) => onChanged(profile.copyWith(anchorMarkers: v)),
+      ),
+      if (includeHolyNames)
+        holyNamesTile(
+          context,
+          shown: holyNamesShown(profile),
+          onShown: (show) => onChanged(
+            withHolyNames(profile, show: show, preferred: preferredHolyName),
+          ),
+        ),
+    ];
+  }
+
+  /// תג "כמו הניקוד" — משותף לחלונית ולמסך ההגדרות. בחור: גוון בהיר
+  /// ומסגרת חומה; כבוי: מסגרת דקה וטקסט אפור. לחיצה מחליפה, ובניתוק
+  /// נשארים על המצב שהיה בפועל.
+  static Widget followNikudChip(
+    BuildContext context, {
+    required TextDisplayProfile profile,
+    required ValueChanged<TextDisplayProfile> onChanged,
+    required TextStyle textStyle,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final linked = profile.teamim == TeamimVisibility.followNikud;
+    return Semantics(
+      button: true,
+      toggled: linked,
+      child: Material(
+        color: linked ? AppSurfaces.followChipFill(cs) : Colors.transparent,
+        shape: AppTokens.followChipShape(
+          BorderSide(
+            width: linked ? 1.5 : 1,
+            color: linked
+                ? AppSurfaces.followChipBorder(cs)
+                : cs.outlineVariant,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => onChanged(
+            profile.copyWith(
+              teamim: linked
+                  ? (profile.removeTeamim
+                        ? TeamimVisibility.hide
+                        : TeamimVisibility.show)
+                  : TeamimVisibility.followNikud,
+            ),
+          ),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.center,
+            // הגופן העברי יושב נמוך בתיבה — הזזה קלה למעלה למרכוז.
+            child: Transform.translate(
+              offset: const Offset(0, -1.5),
+              child: Text(
+                context.settingsText('כמו הניקוד'),
+                textAlign: TextAlign.center,
+                style: textStyle.copyWith(
+                  height: 1,
+                  leadingDistribution: TextLeadingDistribution.even,
+                  fontWeight: linked ? FontWeight.w600 : FontWeight.normal,
+                  color: linked ? cs.primary : cs.outline,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-    final subtitle = field.subtitle;
-    return subtitle == null
-        ? label
-        : ContainedTooltip(message: subtitle, child: label);
+  }
+
+  /// מתג טעמי המקרא: מראה את המצב בפועל. כש"כמו הניקוד" בחור הוא דהוי
+  /// (מסלול ומסגרת גלויים), ולחיצה עליו קובעת הצג/הסתר ומבטלת את הקישור.
+  static Widget teamimSwitch(
+    BuildContext context, {
+    required TextDisplayProfile profile,
+    required ValueChanged<TextDisplayProfile> onChanged,
+    bool shrinkWrap = true,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final linked = profile.teamim == TeamimVisibility.followNikud;
+    final control = Switch(
+      value: !profile.removeTeamim,
+      onChanged: (show) => onChanged(
+        profile.copyWith(
+          teamim: show ? TeamimVisibility.show : TeamimVisibility.hide,
+        ),
+      ),
+      materialTapTargetSize: shrinkWrap
+          ? MaterialTapTargetSize.shrinkWrap
+          : null,
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (!linked) return null;
+        return states.contains(WidgetState.selected)
+            ? AppSurfaces.linkedSwitchTrack(cs)
+            : cs.surfaceContainerHighest;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (!linked) return null;
+        return states.contains(WidgetState.selected)
+            ? Colors.transparent
+            : AppSurfaces.linkedSwitchOutline(cs);
+      }),
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (!linked) return null;
+        return states.contains(WidgetState.selected)
+            ? cs.surface
+            : AppSurfaces.linkedSwitchThumb(cs);
+      }),
+    );
+    return Semantics(
+      label: context.settingsText('טעמי המקרא'),
+      child: control,
+    );
+  }
+
+  /// שמות הקודש מוצגים רק כששם הוי"ה וגם שאר השמות ככתבם; מצב מעורב = מוסתר.
+  static bool holyNamesShown(TextDisplayProfile profile) =>
+      profile.holyName == HolyNameDisplay.asIs &&
+      profile.divineNames == DivineNamesDisplay.asIs;
+
+  /// הצג: שניהם ככתבם. הסתר: נוסח קיים נשמר; אחרת הנוסח המועדף,
+  /// ו"ככתבו" הופך ליקוק. שאר השמות — בכינוי.
+  static TextDisplayProfile withHolyNames(
+    TextDisplayProfile profile, {
+    required bool show,
+    required HolyNameDisplay preferred,
+  }) => show
+      ? profile.copyWith(
+          holyName: HolyNameDisplay.asIs,
+          divineNames: DivineNamesDisplay.asIs,
+        )
+      : profile.copyWith(
+          holyName: profile.holyName != HolyNameDisplay.asIs
+              ? profile.holyName
+              : preferred != HolyNameDisplay.asIs
+              ? preferred
+              : HolyNameDisplay.kufKuf,
+          divineNames: DivineNamesDisplay.substitute,
+        );
+
+  /// שורת "שמות הקודש" בסגנון שאר שורות החלונית.
+  static Widget holyNamesTile(
+    BuildContext context, {
+    required bool shown,
+    required ValueChanged<bool> onShown,
+    String? subtitle,
+  }) {
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    return Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: AppTokens.spaceSMD,
+        vertical: AppTokens.space2XS,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            OtzariaIcons.alef_crown_24_filled,
+            size: metrics.iconSize,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppTokens.spaceSM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.settingsText('שמות הקודש'),
+                  style: TextStyle(fontSize: metrics.fontSize),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: metrics.fontSize - 2,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Semantics(
+            label: context.settingsText('שמות הקודש'),
+            child: Switch(
+              value: shown,
+              onChanged: onShown,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-/// שדה אחד בפרופיל: שורה במסך ההגדרות ([tile]) ותא בטבלה ([cell]).
+/// שדה אחד בפרופיל: שורה במסך ההגדרות ([tile]).
 sealed class _Field {
   final IconData icon;
   final String title;
@@ -252,11 +397,6 @@ sealed class _Field {
   const _Field({required this.icon, required this.title, this.subtitle});
 
   Widget tile(
-    TextDisplayProfile profile,
-    ValueChanged<TextDisplayProfile> onChanged,
-  );
-
-  Widget cell(
     TextDisplayProfile profile,
     ValueChanged<TextDisplayProfile> onChanged,
   );
@@ -288,18 +428,96 @@ final class _SegmentField<T> extends _Field {
     currentValue: read(profile),
     onChanged: (v) => onChanged(write(profile, v)),
   );
+}
+
+/// הצג/הסתר כמתג (דולק = מוצג).
+final class _SwitchField extends _Field {
+  final bool Function(TextDisplayProfile) read;
+  final TextDisplayProfile Function(TextDisplayProfile, bool) write;
+
+  const _SwitchField({
+    required super.icon,
+    required super.title,
+    super.subtitle,
+    required this.read,
+    required this.write,
+  });
 
   @override
-  Widget cell(
+  Widget tile(
     TextDisplayProfile profile,
     ValueChanged<TextDisplayProfile> onChanged,
-  ) => AppSegmentedControl<T>(
-    options: options,
-    currentValue: read(profile),
+  ) => SettingsSwitchTile(
+    icon: icon,
+    title: title,
+    subtitle: subtitle,
+    value: read(profile),
     onChanged: (v) => onChanged(write(profile, v)),
-    expandToFillWidth: true,
-    // "כמו הניקוד" אינו נכנס בשליש תא, ויורד לשתי שורות.
-    maxLabelLines: 2,
+  );
+}
+
+/// טעמי המקרא: תג "כמו הניקוד" ומתג — כמו בחלונית שבסרגל.
+final class _TeamimField extends _Field {
+  const _TeamimField({required super.icon, required super.title});
+
+  Widget _controls(
+    BuildContext context,
+    TextDisplayProfile profile,
+    ValueChanged<TextDisplayProfile> onChanged,
+  ) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      TextDisplayProfileEditor.followNikudChip(
+        context,
+        profile: profile,
+        onChanged: onChanged,
+        textStyle: Theme.of(context).textTheme.bodyMedium ?? const TextStyle(),
+      ),
+      const SizedBox(width: AppTokens.spaceSM),
+      TextDisplayProfileEditor.teamimSwitch(
+        context,
+        profile: profile,
+        onChanged: onChanged,
+        shrinkWrap: false,
+      ),
+    ],
+  );
+
+  @override
+  Widget tile(
+    TextDisplayProfile profile,
+    ValueChanged<TextDisplayProfile> onChanged,
+  ) => LayoutBuilder(
+    builder: (context, constraints) {
+      // התג והמתג יורדים לשורה משלהם רק כשהכותרת באמת לא נכנסת לצידם —
+      // מדידה מדויקת במקום ההערכה הכללית של SettingsActionTile.
+      final scaler = MediaQuery.textScalerOf(context);
+      final direction = Directionality.of(context);
+      double measure(String text, TextStyle? style) => (TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: direction,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout()).width;
+      final bodyStyle = Theme.of(context).textTheme.bodyMedium;
+      const iconArea = 56.0, hPadding = 32.0, chipPadding = 24.0;
+      const switchWidth = 60.0, gaps = AppTokens.spaceSM + 12;
+      final needed =
+          iconArea +
+          hPadding +
+          measure(title, AppTextStyles.settingTitle) +
+          measure(context.settingsText('כמו הניקוד'), bodyStyle) +
+          chipPadding +
+          switchWidth +
+          gaps;
+      return SettingsActionTile.text(
+        icon: icon,
+        title: title,
+        responsiveActions: constraints.maxWidth < needed,
+        stacked: constraints.maxWidth < needed,
+        actions: [_controls(context, profile, onChanged)],
+      );
+    },
   );
 }
 
@@ -320,27 +538,30 @@ final class _DropdownField<T> extends _Field {
   Widget tile(
     TextDisplayProfile profile,
     ValueChanged<TextDisplayProfile> onChanged,
-  ) => SettingsDropdownTile<T>(
-    icon: icon,
-    title: title,
-    entries: entries,
-    value: read(profile),
-    onSelected: (v) {
-      if (v != null) onChanged(write(profile, v));
-    },
-  );
-
-  @override
-  Widget cell(
-    TextDisplayProfile profile,
-    ValueChanged<TextDisplayProfile> onChanged,
-  ) => AppDropdownField<T>(
-    value: read(profile),
-    // בתא אין תווית גלויה מעל השדה: השם הנגיש וה-tooltip (DESIGN_SYSTEM §3.3).
-    semanticLabel: title,
-    entries: entries,
-    onSelected: (v) {
-      if (v != null) onChanged(write(profile, v));
+  ) => Builder(
+    builder: (context) {
+      final theme = Theme.of(context);
+      // הכפתור ברקע הכרטיס (ולא בגוון המודגש), עם מסגרת דקה שתבחין בו.
+      return Theme(
+        data: theme.copyWith(
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppSurfaces.card(context),
+              foregroundColor: theme.colorScheme.onSurface,
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+          ),
+        ),
+        child: SettingsDropdownTile<T>(
+          icon: icon,
+          title: title,
+          entries: entries,
+          value: read(profile),
+          onSelected: (v) {
+            if (v != null) onChanged(write(profile, v));
+          },
+        ),
+      );
     },
   );
 }

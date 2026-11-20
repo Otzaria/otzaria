@@ -6,6 +6,7 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show removeAttachedMarks;
@@ -404,6 +405,7 @@ class PluginSearchApi {
 /// בקשת חיפוש מתוסף, אחרי אימות והמרה לטיפוסי המנוע.
 class PluginSearchRequest {
   final String query;
+  final bool regex;
   final String negativeQuery;
   final int limit;
   final int offset;
@@ -436,6 +438,7 @@ class PluginSearchRequest {
 
   const PluginSearchRequest({
     required this.query,
+    this.regex = false,
     required this.negativeQuery,
     required this.limit,
     required this.offset,
@@ -477,6 +480,7 @@ class PluginSearchRequest {
 
   static const Set<String> _allowedKeys = {
     'query',
+    'regex',
     'negativeQuery',
     'mode',
     'order',
@@ -604,7 +608,12 @@ class PluginSearchRequest {
     if (args['negativeQuery'] != null && args['negativeQuery'] is! String) {
       PluginSearchApi._invalid('negativeQuery must be a string');
     }
-    for (final key in ['includeBookCounts', 'baseBooksOnly', 'anyOrder']) {
+    for (final key in [
+      'includeBookCounts',
+      'baseBooksOnly',
+      'anyOrder',
+      'regex',
+    ]) {
       if (args[key] != null && args[key] is! bool) {
         PluginSearchApi._invalid('$key must be a boolean');
       }
@@ -621,6 +630,41 @@ class PluginSearchRequest {
       SearchMode.exact,
     );
     _rejectParametersUnsupportedByMode(args, searchMode);
+    final regex = args['regex'] == true;
+    if (regex && searchMode != SearchMode.exact) {
+      PluginSearchApi._invalid('regex: true requires mode: "exact"');
+    }
+    final regexPlan = regex ? UserRegexQuery.plan(query) : null;
+    if (regex) {
+      if (regexPlan == null) {
+        PluginSearchApi._invalid(
+          'query must be a valid /…/ regex (max 300 characters)',
+        );
+      }
+      const incompatible = [
+        'negativeQuery',
+        'negativeDistance',
+        'negativeProximityScope',
+        'negativeOptions',
+        'negativeWordOptions',
+        'negativeAlternativeWords',
+        'negativeCustomSpacing',
+        'options',
+        'wordOptions',
+        'alternativeWords',
+        'customSpacing',
+        'distance',
+        'proximityScope',
+        'wordMatchMode',
+        'wordMatchCount',
+        'anyOrder',
+      ];
+      for (final key in incompatible) {
+        if (_isPresent(args[key])) {
+          PluginSearchApi._invalid('$key is not supported with regex: true');
+        }
+      }
+    }
 
     final rawLimit = PluginSearchApi._intArg(
       args['limit'],
@@ -683,17 +727,34 @@ class PluginSearchRequest {
       );
     }
 
+    final order = PluginSearchApi._enumArg(
+      PluginSearchApi.resultOrders,
+      args['order'],
+      regex ? engine.ResultsOrder.catalogue : engine.ResultsOrder.relevance,
+    );
+    final grouping = PluginSearchApi._enumArg(
+      PluginSearchApi.groupingModes,
+      args['grouping'],
+      ResultGroupingMode.none,
+    ).engineGrouping;
+    if (regex && grouping != null) {
+      PluginSearchApi._invalid('grouping is not supported with regex: true');
+    }
+    if (regexPlan?.kind == engine.UserRegexKind.crossSpace &&
+        order != engine.ResultsOrder.catalogue) {
+      PluginSearchApi._invalid(
+        'cross-space regex requires order: "catalogue"',
+      );
+    }
+
     return PluginSearchRequest(
       query: query,
+      regex: regex,
       negativeQuery: args['negativeQuery'] as String? ?? '',
       limit: limit,
       offset: offset,
       searchMode: searchMode,
-      order: PluginSearchApi._enumArg(
-        PluginSearchApi.resultOrders,
-        args['order'],
-        engine.ResultsOrder.relevance,
-      ),
+      order: order,
       distance: distance,
       negativeDistance: PluginSearchApi._intArg(
         args['negativeDistance'],
@@ -706,11 +767,7 @@ class PluginSearchRequest {
         args['negativeProximityScope'],
         proximityScope,
       ),
-      grouping: PluginSearchApi._enumArg(
-        PluginSearchApi.groupingModes,
-        args['grouping'],
-        ResultGroupingMode.none,
-      ).engineGrouping,
+      grouping: grouping,
       wordMatchMode: wordMatchMode,
       wordMatchCount: wordMatchCount,
       anyOrder: anyOrder,
@@ -825,7 +882,9 @@ class PluginSearchRequest {
     }
   }
 
-  String get sanitizedQuery => SearchQueryBuilder.sanitizeQuery(query);
+  String get sanitizedQuery => regex
+      ? SearchQueryBuilder.engineQuery(query)
+      : SearchQueryBuilder.sanitizeQuery(query);
 
   String get sanitizedNegativeQuery =>
       SearchQueryBuilder.sanitizeQuery(negativeQuery);

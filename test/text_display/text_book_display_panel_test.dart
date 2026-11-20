@@ -21,25 +21,45 @@ class _FakeTextBookRepository extends TextBookRepository {
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
-  _FakeSettingsBloc() : super(SettingsState.initial());
+  _FakeSettingsBloc([TextDisplayPolicy? policy])
+    : super(
+        policy == null
+            ? SettingsState.initial()
+            : SettingsState.initial().copyWith(textDisplayPolicy: policy),
+      );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// שורת "ציוני המפרשים" בפאנל הסרגל חלה גם על המפרשים (#2372).
+/// המתג בשורה שהכותרת שלה [title]; [last] — המופע האחרון (מקטע המפרשים).
+Finder _switchOf(String title, {bool last = false}) {
+  final text = last ? find.text(title).last : find.text(title).first;
+  final row = find.ancestor(of: text, matching: find.byType(Row)).first;
+  return find.descendant(of: row, matching: find.byType(Switch));
+}
+
+Future<void> _tap(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+/// חלונית הסרגל מעל TextBookBloc אמיתי.
 void main() {
   setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
 
-  testWidgets('ציוני המפרשים בפאנל: שינוי למפרשים לא נוגע בגוף', (
-    tester,
-  ) async {
+  Future<TextBookBloc> pumpPanel(
+    WidgetTester tester, {
+    TextDisplayPolicy? settingsPolicy,
+  }) async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = TextBookBloc(
       repository: _FakeTextBookRepository(),
       initialState: TextBookInitial.named(book, 0, true, const []),
     );
-    final settings = _FakeSettingsBloc();
+    final settings = _FakeSettingsBloc(settingsPolicy);
     addTearDown(bloc.close);
     addTearDown(settings.close);
     // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
@@ -82,15 +102,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    return bloc;
+  }
 
-    // טבלה: שם השורה פעם אחת, ותא לכל מקטע (q12 Q7).
+  /// שורת "ציוני המפרשים" בפאנל הסרגל חלה גם על המפרשים (#2372).
+  testWidgets('ציוני המפרשים בפאנל: שינוי למפרשים לא נוגע בגוף', (
+    tester,
+  ) async {
+    final bloc = await pumpPanel(tester);
+
+    // מקטע המפרשים מקופל: רק שורת הציונים של גוף הספר גלויה.
     expect(find.text('ציוני המפרשים'), findsOneWidget);
+    await _tap(tester, find.text('מפרשים'));
+    expect(find.text('ציוני המפרשים'), findsNWidgets(2));
 
-    // "הסתר" האחרון בפאנל שייך לשורת הציונים של מקטע המפרשים.
-    final hide = find.text('הסתר').last;
-    await tester.ensureVisible(hide);
-    await tester.tap(hide);
-    await tester.pumpAndSettle();
+    // שורת הציונים האחרונה שייכת למקטע המפרשים.
+    await _tap(tester, _switchOf('ציוני המפרשים', last: true));
 
     final state = bloc.state as TextBookLoaded;
     expect(
@@ -109,4 +136,84 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('שינוי שבוטל נמחק מהעקיפה, ו"איפוס" נעלם', (tester) async {
+    final bloc = await pumpPanel(tester);
+    expect(find.text('איפוס'), findsNothing);
+
+    await _tap(tester, _switchOf('סימני פיסוק'));
+    expect(
+      (bloc.state as TextBookLoaded).bodyDisplayProfile.removePunctuation,
+      isTrue,
+    );
+    expect(find.text('איפוס'), findsOneWidget);
+
+    await _tap(tester, _switchOf('סימני פיסוק'));
+    final state = bloc.state as TextBookLoaded;
+    expect(state.bodyDisplayProfile.removePunctuation, isFalse);
+    expect(state.displayOverrides.isEmpty, isTrue);
+    expect(find.text('איפוס'), findsNothing);
+  });
+
+  testWidgets('"איפוס" מנקה את כל העקיפות', (tester) async {
+    final bloc = await pumpPanel(tester);
+
+    await _tap(tester, _switchOf('ניקוד'));
+    await _tap(tester, find.text('איפוס'));
+
+    final state = bloc.state as TextBookLoaded;
+    expect(state.displayOverrides.isEmpty, isTrue);
+    expect(state.bodyDisplayProfile.removeNikud, isFalse);
+    expect(find.text('איפוס'), findsNothing);
+  });
+
+  testWidgets(
+    '"שמות הקודש" המשותף: הצג — ככתבם בשני המקטעים; הסתר — הנוסח מההגדרות ובכינוי',
+    (tester) async {
+      // בהגדרות נבחר הנוסח ה' לשם הוי"ה.
+      final bloc = await pumpPanel(
+        tester,
+        settingsPolicy: TextDisplayPolicy(
+          general: TextDisplayLayer({
+            TextDisplaySlot.root: const TextDisplayPatch(
+              holyName: HolyNameDisplay.hehApostrophe,
+            ),
+          }),
+          tanach: TextDisplayLayer.empty,
+        ),
+      );
+      expect(find.text('בגוף הספר ובמפרשים'), findsOneWidget);
+      expect(find.text('שמות הקודש'), findsOneWidget);
+
+      await _tap(tester, _switchOf('שמות הקודש'));
+      var state = bloc.state as TextBookLoaded;
+      for (final target in TextTarget.values) {
+        final profile = state.displayProfile(target: target);
+        expect(profile.holyName, HolyNameDisplay.asIs, reason: target.name);
+        expect(
+          profile.divineNames,
+          DivineNamesDisplay.asIs,
+          reason: target.name,
+        );
+      }
+      expect(tester.widget<Switch>(_switchOf('שמות הקודש')).value, isTrue);
+
+      await _tap(tester, _switchOf('שמות הקודש'));
+      state = bloc.state as TextBookLoaded;
+      for (final target in TextTarget.values) {
+        final profile = state.displayProfile(target: target);
+        expect(
+          profile.holyName,
+          HolyNameDisplay.hehApostrophe,
+          reason: target.name,
+        );
+        expect(
+          profile.divineNames,
+          DivineNamesDisplay.substitute,
+          reason: target.name,
+        );
+      }
+      expect(tester.widget<Switch>(_switchOf('שמות הקודש')).value, isFalse);
+    },
+  );
 }

@@ -1254,21 +1254,74 @@ class FindRefRepository {
         (queryTokens, books, detection) = (stripped, retryBooks, retry);
       }
     }
-    final search = _FindRefSearch(
-      rawQuery: query.ref,
-      queryTokens: queryTokens,
-      dibburPrefix: query.dibbur?.prefix,
-      visibility: visibility,
-      books: books,
-      detection: detection,
-      bookMatchRanks: _bookMatchRanks(detection, queryTokens),
-      includePersonalBooks: includePersonalBooks,
-      userBooks: userBooks,
-    );
+    Future<List<DbReferenceResult>> resultsFor(
+      List<String> tokens,
+      _BookSearch books,
+      _BookDetection detection,
+    ) {
+      final search = _FindRefSearch(
+        rawQuery: query.ref,
+        queryTokens: tokens,
+        dibburPrefix: query.dibbur?.prefix,
+        visibility: visibility,
+        books: books,
+        detection: detection,
+        bookMatchRanks: _bookMatchRanks(detection, tokens),
+        includePersonalBooks: includePersonalBooks,
+        userBooks: userBooks,
+      );
+      return tokens.length == 1
+          ? _singleWordResults(search)
+          : _multiWordResults(search, repository);
+    }
 
-    return queryTokens.length == 1
-        ? _singleWordResults(search)
-        : _multiWordResults(search, repository);
+    final results = await resultsFor(queryTokens, books, detection);
+    final original = query.tokens;
+    if (results.isNotEmpty ||
+        original.length < 2 ||
+        !_genrePrefixes.contains(original.first)) {
+      return results;
+    }
+    throwIfSearchCancelled();
+    // "שו"ת הב"ח" הוא "תשובות בית חדש": בלי תוצאה מנסים את הסוגה השנייה.
+    // מילת הסוגה לבדה אינה מזהה ספר.
+    final swapped = [
+      _genrePrefixes.firstWhere((g) => g != original.first),
+      ...original.skip(1),
+    ];
+    final swappedBooks = _BookSearch(
+      injected: searchReferenceBooks,
+      queryTokens: swapped,
+      visibility: visibility,
+    );
+    final swappedDetection = _detectBooks(swappedBooks, swapped);
+    if (swappedDetection.phraseTokenCount < 2) return results;
+
+    final swappedResults = await resultsFor(
+      swapped,
+      swappedBooks,
+      swappedDetection,
+    );
+    if (query.dibbur != null ||
+        swappedDetection.phraseTokenCount != swapped.length) {
+      return swappedResults;
+    }
+    // בהחלפת סוגה, שם או כינוי מלא עדיפים על כינוי ארוך שרק מתחיל
+    // באותן מילים ("תשובות בח" לעומת "תשובות הבח על רי״ף תענית").
+    final exactBooks = {
+      for (final hit in swappedDetection.hits)
+        if (hit.namesBookExactly)
+          _bookKey(BookSource.official, hit.bookId, hit.filePath),
+    };
+    if (exactBooks.isEmpty) return swappedResults;
+    final exactResults = [
+      for (final result in swappedResults)
+        if (exactBooks.contains(
+          _bookKey(result.source, result.bookId, result.filePath),
+        ))
+          result,
+    ];
+    return exactResults.isEmpty ? swappedResults : exactResults;
   }
 
   static const _genrePrefixes = {'שות', 'תשובות'};
@@ -2382,26 +2435,52 @@ class FindRefRepository {
     if (invalidateCache) {
       await repository.invalidateTocCacheIfChangedExternally();
     }
-    return _tocOf(repository, book);
+    return _tocOf(repository, book, includeUserAltToc: true);
   };
 
   /// ה-TOC של ספר משני; ריק עם זנב ראש-תיבות — חיפוש חוזר בלעדיו, כמו במסד הרשמי.
+  /// כשאין בו התאמה מלאה — הכותרות החלופיות של הספר ("פרשת ויצא" מקובץ
+  /// הכותרות של ספר אישי), כמו ה-AltToc בקטלוג הרשמי.
   static Future<List<Map<String, dynamic>>> _secondaryToc(
     SeforimRepository repository,
-    _SecondaryTocRequest book,
-  ) async {
-    final toc = await repository.getTocEntriesForReference(
+    _SecondaryTocRequest book, {
+    required bool includeUserAltToc,
+  }) async {
+    var toc = await repository.getTocEntriesForReference(
       book.bookId,
       book.bookTitle,
       queryTokens: book.queryTokens,
     );
     final fallback = book.fallbackTokens;
-    if (toc.isNotEmpty || fallback == null) return toc;
-    return repository.getTocEntriesForReference(
+    if (toc.isEmpty && fallback != null) {
+      toc = await repository.getTocEntriesForReference(
+        book.bookId,
+        book.bookTitle,
+        queryTokens: fallback,
+      );
+    }
+    if (!includeUserAltToc ||
+        toc.any((entry) => entry['partialMatch'] != true)) {
+      return toc;
+    }
+    final alt = await repository.getUserAltTocEntriesForReference(
       book.bookId,
       book.bookTitle,
-      queryTokens: fallback,
+      queryTokens: fallback ?? book.queryTokens,
     );
+    if (alt.isEmpty) return toc;
+    return [
+      ...toc,
+      for (final entry in alt)
+        {
+          ...entry,
+          'reference': qualifyAltTocReference(
+            book.bookTitle,
+            entry['reference'] as String,
+          ),
+          'altToc': true,
+        },
+    ];
   }
 
   /// מזהה חיבור ייחודי גם בין מופעי worker: מונה החיבורים מתאפס ב-isolate חדש.
@@ -2486,10 +2565,15 @@ class FindRefRepository {
   /// כשל בספר אחד אינו מונע איתור בשאר הספרים.
   static Future<List<Map<String, dynamic>>> _tocOf(
     SeforimRepository repository,
-    _SecondaryTocRequest book,
-  ) async {
+    _SecondaryTocRequest book, {
+    bool includeUserAltToc = false,
+  }) async {
     try {
-      return await _secondaryToc(repository, book);
+      return await _secondaryToc(
+        repository,
+        book,
+        includeUserAltToc: includeUserAltToc,
+      );
     } catch (e) {
       debugPrint('[FindRef] secondary TOC lookup failed: $e');
       return const [];
@@ -2755,6 +2839,7 @@ class FindRefRepository {
         required int segment,
         int tocLevel = 1,
         int sourceLineId = 0,
+        bool isAltToc = false,
         bool isSourceLine = false,
         bool isPartialTocMatch = false,
       }) => DbReferenceResult(
@@ -2770,6 +2855,7 @@ class FindRefRepository {
         bookPath: bookPath,
         sourceLineId: sourceLineId,
         source: source,
+        isAltToc: isAltToc,
         isSourceLine: isSourceLine,
         isPartialTocMatch: isPartialTocMatch,
       );
@@ -2801,6 +2887,7 @@ class FindRefRepository {
             segment: entry['segment'] as int,
             tocLevel: entry['level'] as int,
             sourceLineId: entry['dbLineId'] as int? ?? 0,
+            isAltToc: entry['altToc'] == true,
             isPartialTocMatch: entry['partialMatch'] == true,
           ),
         );
@@ -3284,6 +3371,10 @@ class FindRefRepository {
       final bare = titleTokenWithoutConjunction(qt, allowVav: true);
       if (bare == null || !leafTokens.contains(bare)) return false;
       matched.add(bare);
+    }
+    // "ספר" לבדו אינו מספיק לשם תיקייה ארוך יותר ("ספר זמנים").
+    if (leafWords.length > 1 && matched.every((t) => t == 'ספר')) {
+      return false;
     }
     if (!wholeName) return true;
     for (var i = 0; i < leafWords.length; i++) {

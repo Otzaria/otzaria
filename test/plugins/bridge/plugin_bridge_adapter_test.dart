@@ -66,6 +66,8 @@ import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/search_engine_gateway.dart'
+    show SearchCountProgress;
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -152,6 +154,7 @@ class _StubSearchRepository extends SearchRepository {
   int streamWithCountsCalls = 0;
   Stream<SearchStreamUpdate>? streamOverride;
   List<SearchResult> fullTextResults = const [];
+  final cancelledSearchIds = <int>[];
 
   @override
   Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async =>
@@ -163,6 +166,7 @@ class _StubSearchRepository extends SearchRepository {
       'facets': request.facets,
       'limit': request.limit,
       'offset': request.offset,
+      'cancelRequestId': request.cancelRequestId,
       'order': request.order,
       'searchMode': request.searchMode,
       'distance': request.distance,
@@ -191,6 +195,11 @@ class _StubSearchRepository extends SearchRepository {
     _capture(request);
     return streamOverride ?? Stream.fromIterable(updates);
   }
+
+  @override
+  Future<void> cancelLexicalSearch(int requestId) async {
+    cancelledSearchIds.add(requestId);
+  }
 }
 
 class _MockPersonalNotesRepository extends Mock
@@ -217,6 +226,7 @@ class _RecordingReaderCoordinator extends BookOpenCoordinator {
     OpenedTab tab, {
     bool insertAdjacent = false,
     bool navigateToPositionIfReused = false,
+    bool matchBookOnly = false,
     bool inSidePane = false,
     bool navigate = true,
     bool captureHistory = true,
@@ -4978,7 +4988,9 @@ Future<void> main() async {
           final titles = registerTitledOpener('inst-new');
           const familyEmoji = '👨‍👩‍👧‍👦';
           final prefix = 'א' * 59;
-          final title = '$prefix$familyEmoji' 'ב';
+          final title =
+              '$prefix$familyEmoji'
+              'ב';
 
           await adapterFor(allowMultipleInstances: true).execute(
             'plugin',
@@ -4996,7 +5008,12 @@ Future<void> main() async {
           await adapterFor(allowMultipleInstances: true).execute(
             'plugin',
             'openSelf',
-            {'newTab': true, 'title': '  שבת$c1Controls' 'ב  '},
+            {
+              'newTab': true,
+              'title':
+                  '  שבת$c1Controls'
+                  'ב  ',
+            },
           );
 
           expect(titles, ['שבת ב']);
@@ -5752,6 +5769,155 @@ Future<void> main() async {
         expect(stub.streamWithCountsCalls, 1);
         expect(chunks.single['facets'], ['/']);
         expect(chunks.single['total'], isNull);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test(
+      'search.query עם regex: true מעביר את /…/ למנוע בלי ניקוי (issue #5516)',
+      () async {
+        final stub = _StubSearchRepository()
+          ..updates = [const SearchStreamUpdate(results: [], truncated: false)];
+        final adapter = buildAdapter(
+          books: [TextBook(id: 10, title: 'בראשית')],
+          searchRepository: stub,
+        );
+        Future<Object?> run(Map<String, dynamic> args) => adapter.execute(
+          'search',
+          'query',
+          args,
+          eventSink: (topic, payload) async {},
+        );
+
+        await run({
+          'query': '/מש.ה/',
+          'regex': true,
+          '__streamId': 'test_search_regex',
+        });
+        expect(stub.captured!['query'], '/מש.ה/');
+
+        await run({'query': '/מש.ה/', '__streamId': 'test_search_plain'});
+        expect(stub.captured!['query'], isNot('/מש.ה/'));
+        expect(stub.streamWithCountsCalls, 2);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test(
+      'search.query עם regex מדווח רק ספירה סופית',
+      () async {
+        final stub = _StubSearchRepository()
+          ..updates = [
+            SearchSnapshotUpdate(
+              'snapshot',
+              const SearchCountProgress(foundSoFar: 1, truncated: false),
+            ),
+            SearchStreamUpdate(
+              results: [
+                SearchResult(
+                  title: 'בראשית',
+                  reference: 'בראשית, פרק א',
+                  text: 'שמע בני ישראל',
+                  id: BigInt.one,
+                  segment: BigInt.from(12),
+                  isPdf: false,
+                  filePath: 'id:10',
+                  mergedCount: 1,
+                  merged: const <MergedSibling>[],
+                  textStatus: TextStatus.ok,
+                  continuesToNextLine: false,
+                ),
+              ],
+              truncated: false,
+            ),
+            const SearchStreamUpdate(
+              totalCount: 3,
+              results: [],
+              truncated: false,
+            ),
+          ];
+        final adapter = buildAdapter(
+          books: [TextBook(id: 10, title: 'בראשית')],
+          searchRepository: stub,
+        );
+        final chunks = <Map<String, dynamic>>[];
+        await adapter.execute(
+          'search',
+          'query',
+          {
+            'query': r'/שמע \S+ ישראל/',
+            'regex': true,
+            '__streamId': 'regex_count',
+          },
+          eventSink: (topic, payload) async {
+            chunks.add(payload['chunk'] as Map<String, dynamic>);
+          },
+        );
+
+        expect(chunks.map((chunk) => chunk['total']), [null, 3]);
+        expect(chunks.first['results'], hasLength(1));
+        expect(stub.cancelledSearchIds, isEmpty);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test(
+      'search.query עם regex מעביר ביטול למנוע',
+      () async {
+        final listening = Completer<void>();
+        final controller = StreamController<SearchStreamUpdate>(
+          onListen: listening.complete,
+        );
+        addTearDown(controller.close);
+        final stub = _StubSearchRepository()
+          ..streamOverride = controller.stream;
+        final adapter = buildAdapter(
+          books: [TextBook(id: 10, title: 'בראשית')],
+          searchRepository: stub,
+        );
+        final search = adapter.execute('search', 'query', {
+          'query': '/מש.ה/',
+          'regex': true,
+          '__streamId': 'regex_cancel',
+        }, eventSink: (topic, payload) async {});
+        await listening.future;
+        final id = stub.captured!['cancelRequestId'];
+        expect(id, isA<int>());
+
+        await adapter.execute('search', 'query', {
+          '__cancelStreamId': 'regex_cancel',
+        });
+        expect(await search, containsPair('cancelled', true));
+        expect(stub.cancelledSearchIds, [id]);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test(
+      'search.query מחזיר invalid_params על רג׳קס שהמנוע דחה',
+      () async {
+        final stub = _StubSearchRepository()
+          ..streamOverride = Stream.error(
+            Exception('invalid user regex: syntax'),
+          );
+        final adapter = buildAdapter(
+          books: [TextBook(id: 10, title: 'בראשית')],
+          searchRepository: stub,
+        );
+        await expectLater(
+          adapter.execute('search', 'query', {
+            'query': '/מש.ה/',
+            'regex': true,
+            '__streamId': 'regex_invalid',
+          }, eventSink: (topic, payload) async {}),
+          throwsA(
+            isA<Exception>().having(
+              (error) => error.toString(),
+              'message',
+              contains('error.invalid_params'),
+            ),
+          ),
+        );
       },
       skip: engineReady ? false : searchEngineSkipReason,
     );

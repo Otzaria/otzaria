@@ -189,7 +189,7 @@ class AppReportService {
       case _AttemptKind.success:
         final sent = _sentRecord(current, attempt);
         await _saveSentReport(sent);
-        unawaited(flushPendingReports());
+        _flush.runInBackground(flushPendingReports);
         return AppReportDeliveryResult(
           status: AppReportDeliveryStatus.sent,
           report: sent,

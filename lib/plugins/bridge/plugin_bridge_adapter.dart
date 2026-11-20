@@ -58,6 +58,8 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/search/search_engine_gateway.dart'
+    show isSearchCancelledError, LexicalSearchRequestIds, SearchCountProgress;
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
@@ -2833,6 +2835,9 @@ class PluginBridgeAdapter {
       publicArgs,
       findBook: (identity) => _findPluginBook(library, identity),
     );
+    final regexRequestId = request.regex
+        ? LexicalSearchRequestIds.next()
+        : null;
     final stream = _dependencies.searchRepository.searchTextsStreamWithCounts(
       SearchEngineRequest(
         query: request.sanitizedQuery,
@@ -2856,6 +2861,7 @@ class PluginBridgeAdapter {
         wordMatchMode: request.wordMatchMode,
         wordMatchCount: request.wordMatchCount,
         anyOrder: request.anyOrder,
+        cancelRequestId: regexRequestId,
       ),
       chunkSize: 50,
     );
@@ -2865,9 +2871,20 @@ class PluginBridgeAdapter {
     final iterator = StreamIterator<SearchStreamUpdate>(stream);
     var cancelled = false;
     var expired = false;
+    Future<void>? engineCancellation;
     Future<void> cancel() async {
       cancelled = true;
+      if (regexRequestId != null) {
+        engineCancellation ??= _dependencies.searchRepository
+            .cancelLexicalSearch(regexRequestId)
+            .catchError((Object error) {
+              debugPrint(
+                '[PluginBridge] Failed to cancel regex search: $error',
+              );
+            });
+      }
       await iterator.cancel();
+      await engineCancellation;
     }
 
     if (_pendingSearchCancellations.remove(streamId)) {
@@ -2883,10 +2900,16 @@ class PluginBridgeAdapter {
     int? totalCount;
     int? groupCount;
     var truncated = false;
+    var completed = false;
     final restrictedByPath = <String, bool>{};
     try {
       while (await iterator.moveNext().timeout(_searchIdleTimeout)) {
         final update = iterator.current;
+        final engineUpdate = update is SearchSnapshotUpdate
+            ? update.update
+            : update;
+        // בזרם רג׳קס תוצאות יכולות להקדים את הספירה הסופית.
+        if (request.regex && engineUpdate is SearchCountProgress) continue;
         if (update.totalCount != null) {
           totalCount = update.totalCount;
           groupCount = update.groupCount;
@@ -2947,15 +2970,31 @@ class PluginBridgeAdapter {
         });
       }
       if (expired) throw TimeoutException('Search stream timed out');
+      completed = !cancelled;
       return {
-        'completed': !cancelled,
+        'completed': completed,
         'cancelled': cancelled,
         'chunks': sequence,
       };
+    } catch (error) {
+      if (request.regex && isSearchCancelledError(error)) {
+        if (expired) throw TimeoutException('Search stream timed out');
+        return {'completed': false, 'cancelled': true, 'chunks': sequence};
+      }
+      if (request.regex && error.toString().contains('invalid user regex:')) {
+        throw Exception(
+          'error.invalid_params: query must be a valid /…/ regex',
+        );
+      }
+      rethrow;
     } finally {
       deadline.cancel();
       _activeSearchStreams.remove(streamId);
-      await iterator.cancel();
+      if (request.regex && !completed) {
+        await cancel();
+      } else {
+        await iterator.cancel();
+      }
     }
   }
 

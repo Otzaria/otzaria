@@ -256,17 +256,11 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
 
     final talmudCategory = _talmudCategory();
-    for (final path in bundledPaths) {
-      final dir = Directory(path);
-      if (!await dir.exists()) continue;
-      await for (final entity in dir.list()) {
-        if (entity is! File ||
-            documentFormatFromExtension(entity.path) != DocumentFormat.pdf) {
-          continue;
-        }
-        addFile(entity.path, DocumentFormat.pdf, talmudCategory);
-      }
-      break;
+    final bundled = await DatabaseConstants.findBundledTalmudBavliPdfs(
+      bundledPaths,
+    );
+    for (final pdf in bundled.files) {
+      addFile(pdf, DocumentFormat.pdf, talmudCategory);
     }
     return (files: files, paths: paths, categoryPaths: categoryPaths);
   });

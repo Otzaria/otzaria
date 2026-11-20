@@ -1972,6 +1972,42 @@ void main() {
       return (slug: library.slug, full: full);
     }
 
+    for (final manual in [false, true]) {
+      test(
+        'המשך ${manual ? 'ידני' : 'אוטומטי'} מעל אינדקס שהושלם בונה מאפס, '
+        'בלי כפילות יעדים (issue #2977)',
+        () async {
+          final library = await attach(attachedDb('ext', rows: fourPerLine()));
+          await links.sync();
+          final full = indexSnapshot(library.slug);
+          // סימון בנייה מעל האינדקס הקודם, כמו שהשאירה בנייה שנקטעה לפני המנה
+          // הראשונה בגרסה 0.9.98: היעדים והשורות הישנות (שורה 0 התיישנה) נשארו.
+          final db = sqlite3.sqlite3.open(cachePath());
+          db.execute(
+            'UPDATE attached_external_link_index SET targetLineIndex = 9 '
+            'WHERE sourceSlug = ? AND sourceLineIndex = 0',
+            [library.slug],
+          );
+          db.execute(
+            "UPDATE attached_external_link_meta SET targetsSignature = "
+            "'!building:' || targetsSignature WHERE sourceSlug = ?",
+            [library.slug],
+          );
+          db.close();
+
+          if (manual) {
+            links.requestResume(library.slug);
+            await links.sync();
+          } else {
+            expect(await links.sync(autoResume: true), {library.slug});
+          }
+          expect(indexSnapshot(library.slug), full);
+          expect(metaSignature(library.slug), isNot(startsWith('!')));
+          expect(links.incompleteSlugs.value, isEmpty);
+        },
+      );
+    }
+
     test('המשך אוטומטי: קריסה (בלי סיומת) עם התקדמות ממשיכה', () async {
       final build = await interruptedBuild();
       setBuildingMarker(build.slug, '');

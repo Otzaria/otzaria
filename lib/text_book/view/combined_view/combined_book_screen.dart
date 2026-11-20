@@ -1000,10 +1000,7 @@ class _CombinedViewState extends State<CombinedView> {
     if (state.selectedIndex == line && state.selectedIndices.contains(line)) {
       if (!_commentaryRevealSelectionObserved) {
         _commentaryRevealSelectionObserved = true;
-        final generation = _commentaryRevealGeneration;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          unawaited(_positionCommentaryCard(line, generation));
-        });
+        _scheduleCommentaryPosition(line);
       }
     } else if (_commentaryRevealSelectionObserved) {
       _cancelCommentaryReveal();
@@ -2083,7 +2080,12 @@ class _CombinedViewState extends State<CombinedView> {
         }
         return LayoutBuilder(
           builder: (context, constraints) {
-            // שומר את גובה הבלוק בפועל לשימוש בחישובי הגלילה
+            final revealLine = _commentaryRevealLine;
+            if (constraints.maxHeight < _viewportHeight &&
+                revealLine != null &&
+                _commentaryCardAnchor?.isActive == true) {
+              _scheduleCommentaryPosition(revealLine);
+            }
             _viewportHeight = constraints.maxHeight;
 
             // יירוט Ctrl+C ממוקם *מעל* ה-SelectionArea — שם מנגנון ה-override
@@ -3108,6 +3110,13 @@ class _CombinedViewState extends State<CombinedView> {
     _onTextBookState(_textBookBloc.state);
   }
 
+  void _scheduleCommentaryPosition(int line) {
+    final generation = _commentaryRevealGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_positionCommentaryCard(line, generation));
+    });
+  }
+
   Future<void> _positionCommentaryCard(int line, int generation) async {
     if (!mounted || generation != _commentaryRevealGeneration) return;
     final lines = widget.tab.lines;
@@ -3123,6 +3132,10 @@ class _CombinedViewState extends State<CombinedView> {
     final viewportBox = viewport as RenderBox;
     final top = card.localToGlobal(Offset.zero, ancestor: viewportBox).dy;
     final height = scroll.position.viewportDimension;
+    // עוגן קיים נשמר כל עוד יש לכרטיס מקום גם אחרי צמצום התצוגה.
+    if (_commentaryCardAnchor?.isActive == true && top <= height * 0.25) {
+      return;
+    }
     final tail = scroll.position.extentAfter + height - top - card.size.height;
     if (_commentaryRevealAtEnd &&
         tail <= height * 0.25 &&
@@ -3149,7 +3162,13 @@ class _CombinedViewState extends State<CombinedView> {
               ?.findRenderObject();
           if (target is! RenderBox || !target.hasSize) return null;
           final offset = target.localToGlobal(Offset.zero, ancestor: item);
-          return offset & target.size;
+          // הכרטיס (עד 75% מהמסך) יורד עד רבע המסך כדי שתחילת המקור לא תיחתך.
+          final viewportHeight = scroll.position.viewportDimension;
+          final shift = (offset.dy - viewportHeight * 0.15).clamp(
+            0.0,
+            viewportHeight * 0.1,
+          );
+          return offset.translate(0, -shift) & target.size;
         },
       ),
     );

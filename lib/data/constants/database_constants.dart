@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart'
     show kSemanticModelFolderName;
@@ -195,6 +197,38 @@ class DatabaseConstants {
     final marker = File(talmudBavliVersionFilePath(talmudDirPath));
     if (!marker.existsSync()) return false;
     return marker.readAsStringSync().trim() == talmudBavliInstallingMarker;
+  }
+
+  /// מחזיר את קובצי התלמוד מהתיקייה הראשונה שאפשר לקרוא והתקנתה הושלמה.
+  static Future<({String path, List<String> files})> findBundledTalmudBavliPdfs(
+    List<String> candidatePaths,
+  ) async {
+    for (final candidate in candidatePaths) {
+      try {
+        final directory = Directory(candidate);
+        if (!await directory.exists()) continue;
+        final marker = File(talmudBavliVersionFilePath(candidate));
+        if (await marker.exists() &&
+            (await marker.readAsString()).trim() ==
+                talmudBavliInstallingMarker) {
+          continue;
+        }
+        final files = await directory
+            .list()
+            .where(
+              (e) =>
+                  e is File && path.extension(e.path).toLowerCase() == '.pdf',
+            )
+            .map((e) => e.path)
+            .toList();
+        if (files.isNotEmpty) return (path: candidate, files: files);
+      } on FileSystemException catch (e) {
+        debugPrint(
+          'Could not read bundled Talmud PDF directory $candidate: $e',
+        );
+      }
+    }
+    return (path: candidatePaths.first, files: const <String>[]);
   }
 
   /// Returns whether [filePath] points to a file inside the bundled
