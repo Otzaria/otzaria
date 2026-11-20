@@ -100,11 +100,6 @@ void main() {
           style.fontStyle == FontStyle.italic,
           reason: 'אינדקס $index — נטייה',
         );
-        expect(
-          css['text-decoration'] == 'underline',
-          style.decoration == TextDecoration.underline,
-          reason: 'אינדקס $index — קו תחתון',
-        );
       }
     });
 
@@ -117,7 +112,6 @@ void main() {
               variant.bold,
               variant.italic,
               variant.rashiScript,
-              variant.underline,
               variant.delimiter,
             ),
           )
@@ -151,10 +145,7 @@ void main() {
     test('אף וריאנט אינו "ריק" — לכל אחד יש סימן מבחין', () {
       for (final variant in kLinkAnchorVariants) {
         expect(
-          variant.bold ||
-              variant.italic ||
-              variant.rashiScript ||
-              variant.underline,
+          variant.bold || variant.italic || variant.rashiScript,
           isTrue,
         );
       }
