@@ -83,7 +83,7 @@ void main() {
       userDb,
       locateBook: locate,
     );
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
     expect(
       await UserContentRepository(userDb).forwardUserLinks(
@@ -112,8 +112,138 @@ void main() {
       locateBook: locate,
     );
     expect(result.errors.single, contains('ספר הבסיס'));
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
+  });
+
+  // #5222: ספר במסד מצורף בשם של ספר רשמי — native אינו יכול לדעת לאיזה מהם
+  // התכוון הקובץ, ולכן אסור לו להיקשר בשקט לרשמי.
+  for (final baseCollides in [true, false]) {
+    test(
+      'native דוחה כותרת שקיימת גם במסד מצורף (בסיס: $baseCollides)',
+      () async {
+        await addBook(userDb, 'אישי');
+        await addBook(officialDb, 'רשמי');
+        final attachedDb = MyDatabase.withPath(
+          p.join(directory.path, 'attached.db'),
+        );
+        await addBook(attachedDb, 'רשמי');
+        attachedDb.close();
+        final attached = AttachedLinkBooks.open([
+          (
+            slug: 'attached',
+            path: attachedDb.path,
+            immutable: false,
+            visible: true,
+          ),
+        ]);
+        addTearDown(attached.close);
+
+        final result = await UserContentImporter.importContents(
+          [
+            ImportedFile(
+              name: '${baseCollides ? 'רשמי' : 'אישי'}_links.json',
+              content:
+                  '[{"line_index_1": 1, "line_index_2": 2, '
+                  '"path_2": "${baseCollides ? 'אישי' : 'רשמי'}.txt"}]',
+            ),
+          ],
+          userDb,
+          locateBook: locate,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('ביותר ממקור אחד'));
+        expect(result.linksApplied, 0);
+      },
+    );
+  }
+
+  test('עדיפות בין מצורפים נשמרת, וכפילות עם הרשמי חוסמת ייבוא נוסף', () async {
+    await addBook(userDb, 'יעד');
+    final paths = <String, String>{};
+    for (final slug in ['preferred', 'other']) {
+      final database = MyDatabase.withPath(p.join(directory.path, '$slug.db'));
+      await addBook(database, 'משותף');
+      paths[slug] = database.path;
+      database.close();
+    }
+    final attached = AttachedLinkBooks.open([
+      for (final entry in paths.entries)
+        (slug: entry.key, path: entry.value, immutable: false, visible: true),
+    ]);
+    addTearDown(attached.close);
+    Future<UserImportResult> import() => UserContentImporter.importContents(
+      const [
+        ImportedFile(
+          name: 'משותף_links.json',
+          content:
+              '[{"line_index_1": 1, "line_index_2": 2, "path_2": "יעד.txt"}]',
+        ),
+      ],
+      userDb,
+      locateBook: locate,
+      attachedBooks: attached,
+    );
+    expect((await import()).linksApplied, 1);
+
+    await addBook(officialDb, 'משותף');
+    expect((await import()).errors.single, contains('ביותר ממקור אחד'));
+    final repo = UserContentRepository(userDb);
+    expect(
+      await repo.forwardUserLinks(
+        'משותף',
+        sourceIsUserBook: false,
+        sourceDb: 'preferred',
+      ),
+      hasLength(1),
+    );
+    expect(
+      await repo.forwardUserLinks(
+        'משותף',
+        sourceIsUserBook: false,
+        sourceDb: 'other',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('כשל בקריאת מסד גלוי משאיר קישור מקובץ תיקייה קודם', () async {
+    await addBook(officialDb, 'מקור');
+    await addBook(userDb, 'יעד');
+    Future<UserImportResult> importAt(
+      int line, {
+      AttachedLinkBooks? attachedBooks,
+    }) => UserContentImporter.importContents(
+      [
+        ImportedFile(
+          name: 'מקור_links.json',
+          content:
+              '[{"line_index_1": $line, "line_index_2": 2, "path_2": "יעד.txt"}]',
+        ),
+      ],
+      userDb,
+      locateBook: locate,
+      attachedBooks: attachedBooks,
+      source: 'linked/path/מקור_links.json',
+    );
+    expect((await importAt(1)).linksApplied, 1);
+
+    final attached = AttachedLinkBooks.open([
+      (
+        slug: 'detached',
+        path: p.join(directory.path, 'missing.db'),
+        immutable: false,
+        visible: true,
+      ),
+    ]);
+    addTearDown(attached.close);
+    final result = await importAt(4, attachedBooks: attached);
+    expect(result.errors.single, contains('לא ניתן לבדוק את המסדים המצורפים'));
+    final links = await UserContentRepository(userDb).forwardUserLinks(
+      'מקור',
+      sourceIsUserBook: false,
+    );
+    expect(links.single.sourceLineIndex, 0);
   });
 
   test('ספרייה אישית עצמאית ללא מסד רשמי עדיין נקלטת', () async {

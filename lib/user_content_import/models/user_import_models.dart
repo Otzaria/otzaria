@@ -14,7 +14,7 @@ class ImportedFile {
   final String name;
   final String content;
 
-  /// נבחר בייבוא הנוכחי, להבדיל מקובץ שמור שרק נבנה מחדש איתו.
+  /// נבחר לייבוא או הוחזר לשימוש, לעומת קובץ שמור שרק נבנה מחדש.
   final bool selected;
 
   const ImportedFile({
