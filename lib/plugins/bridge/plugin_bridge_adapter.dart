@@ -153,6 +153,7 @@ import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_book_correction_service.dart';
+import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
 import 'package:otzaria/plugins/services/plugin_biography_compatibility.dart';
@@ -1047,9 +1048,11 @@ class PluginBridgeAdapter {
     }
     final pending = _pendingBookLoads[key];
     if (pending != null) return pending.result;
-    if (shareFor <= Duration.zero) return _readBookRawText(book);
-
-    final load = _readBookRawText(book);
+    final load = PluginBookContentGate.runLoad(
+      () => _readBookRawText(book),
+      timeout: shareFor,
+    );
+    if (shareFor <= Duration.zero) return load;
     // ניסיון חוזר אחרי timeout יכול לטעון גם כשהקריאה הקודמת עדיין תקועה.
     final expiry = Timer(shareFor, () {
       _pendingBookLoads.remove(key);
@@ -1202,6 +1205,12 @@ class PluginBridgeAdapter {
       case 'fonts':
         return await _handleFonts(action, args);
       case 'library':
+        if (action == 'getBookContent') {
+          return await PluginBookContentGate.trackCall(
+            plugin.pluginId,
+            () => _handleLibrary(action, args),
+          );
+        }
         return await _handleLibrary(action, args);
       case 'search':
         return await _handleSearch(action, args, eventSink: eventSink);
@@ -1740,7 +1749,10 @@ class PluginBridgeAdapter {
         await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
         final rawNames = _rawDivineNamesArg(args);
         final rawText = book == null
-            ? await DataRepository.instance.getBookText(bookId!)
+            ? await PluginBookContentGate.runLoad(
+                () => DataRepository.instance.getBookText(bookId!),
+                timeout: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
+              )
             : await _loadBookRawText(
                 book,
                 shareFor: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,

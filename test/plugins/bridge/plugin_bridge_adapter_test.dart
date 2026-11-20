@@ -35,6 +35,7 @@ import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
+import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -2501,6 +2502,8 @@ Future<void> main() async {
             ],
           ),
         );
+        PluginBookContentGate.resetForTesting();
+        addTearDown(PluginBookContentGate.resetForTesting);
         repository = _CountingTextBookRepository();
         bookAdapter = buildAdapter(repository);
       });
@@ -2546,7 +2549,7 @@ Future<void> main() async {
         expect(repository.loads, books.length);
       });
 
-      test('בקשה מהירה מתחילה גם כשארבע טעינות אחרות ממתינות', () async {
+      test('טעינות מתוסף לספרים שונים מוגבלות יחד לשתיים', () async {
         final gate = Completer<void>();
         final blocked = books.take(4);
         for (final book in blocked) {
@@ -2554,16 +2557,20 @@ Future<void> main() async {
         }
         final pending = [for (final book in blocked) load(book)];
         await pumpEventQueue();
-        String? fastResult;
-        final fast = load(books.last).then((result) => fastResult = result);
+        final fast = load(books.last);
         try {
           await pumpEventQueue();
-          expect(repository.loads, 5);
-          expect(fastResult, 'תוכן של ${books.last.title}');
+          expect(repository.loads, PluginBookContentGate.maxConcurrentLoads);
         } finally {
           gate.complete();
-          await Future.wait([...pending, fast]);
         }
+        expect(await fast, 'תוכן של ${books.last.title}');
+        await Future.wait(pending);
+        expect(repository.loads, 5);
+        final plugins =
+            PluginBookContentGate.diagnostics!['plugins']
+                as Map<String, Object>;
+        expect(plugins.values.single, {'active': 0, 'peak': 5, 'calls': 5});
       });
 
       test('טעינה משותפת שנכשלה ניתנת לניסיון חוזר', () async {
