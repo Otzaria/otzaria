@@ -46,6 +46,8 @@ const Set<String> kValidatorKnownTables = {
   'alt_toc_structure',
   'alt_toc_entry',
   'line_alt_toc',
+  'user_alt_toc_structure',
+  'user_alt_toc_entry',
   'default_commentator',
   'default_targum',
   'book_version',
