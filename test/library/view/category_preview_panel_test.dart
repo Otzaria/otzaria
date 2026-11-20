@@ -272,7 +272,7 @@ void main() {
     expect(initialReads, lessThan(25));
     expect(find.byType(NavTreeTile).evaluate().length, lessThan(25));
     final initialIndices = Set<int>.of(books.indices);
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
     await tester.pumpAndSettle();
     final scrollReads = books.reads;
     expect(books.indices.difference(initialIndices), isNotEmpty);

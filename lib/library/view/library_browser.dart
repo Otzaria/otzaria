@@ -349,6 +349,13 @@ String pluginCategoryPath(Category? category, {required Category? root}) =>
     ? ''
     : category.displayPath.substring(1).replaceAll('/', ', ');
 
+/// "נסה שוב" במסכי הכישלון של הספרייה (שגיאת טעינה, ואין נתוני ספרייה).
+Widget _retryLoadAction(BuildContext context) => ActionButton.recommended(
+  text: context.settingsText('נסה שוב'),
+  icon: FluentIcons.arrow_clockwise_24_regular,
+  onPressed: () => context.read<LibraryBloc>().add(const RefreshLibrary()),
+);
+
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
 
@@ -633,12 +640,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 return OtzariaErrorState(
                   title: CommonMessages.loadFailed,
                   details: state.error,
+                  actions: [_retryLoadAction(context)],
                 );
               }
               if (state.library == null && !state.isLoading) {
-                return const OtzariaErrorState(
+                return OtzariaErrorState(
                   title: CommonMessages.noLibraryData,
                   icon: OtzariaIcons.library_exclamation_24_regular,
+                  actions: [_retryLoadAction(context)],
                 );
               }
 
@@ -1039,6 +1048,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 'איתור ספר או מחבר ב{category}',
                 args: {'category': state.currentCategory?.title ?? ''},
               ),
+              compactHintText: context.settingsText('איתור ספר או מחבר'),
               maxWidth: isCompact ? 500 : 400,
               extraActions: PluginSearchFieldExtraActions(
                 PluginSearchField.library,

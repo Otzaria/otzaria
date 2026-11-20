@@ -24,6 +24,9 @@ class OtzariaSearchActionSize {
   /// [OtzariaSearchField] רגיל (48).
   static const regular = OtzariaSearchActionSize._(32, 20, 18);
 
+  /// [OtzariaSearchField] צר (36) במסך מגע, כשיש בו מקום: ריבוע 40 (q4).
+  static const slimTouch = OtzariaSearchActionSize._(40, 20, 18);
+
   /// שדה טקסט עם עיטור ערכת הנושא ותווית. האייקון בגודל ממשק רגיל (DD-03),
   /// וה-X כמוהו: בריבוע 40 אין צורך להקטין אותו.
   static const form = OtzariaSearchActionSize._(

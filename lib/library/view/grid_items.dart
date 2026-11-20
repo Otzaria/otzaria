@@ -159,7 +159,7 @@ Widget _libraryInfoButton(
   return Tooltip(
     message: tooltip,
     waitDuration: const Duration(milliseconds: 400),
-    textAlign: TextAlign.right,
+    textAlign: TextAlign.start,
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     margin: const EdgeInsets.all(12),
     constraints: const BoxConstraints(maxWidth: 320),
@@ -178,7 +178,7 @@ class LibraryOverflowTooltipText extends StatelessWidget {
     required this.text,
     this.style,
     this.maxLines = 2,
-    this.textAlign = TextAlign.right,
+    this.textAlign = TextAlign.start,
   });
 
   @override
@@ -191,7 +191,7 @@ class LibraryOverflowTooltipText extends StatelessWidget {
     tooltipTheme: TooltipTheme.of(context).copyWith(
       preferBelow: false,
       verticalOffset: 18,
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.start,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.all(12),
       constraints: const BoxConstraints(maxWidth: 260),
@@ -225,7 +225,7 @@ class LibraryItemTitle extends StatelessWidget {
     return LibraryOverflowTooltipText(
       text: text,
       maxLines: maxLines,
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.start,
       style: styleOf(context, isFolder),
     );
   }
@@ -236,6 +236,50 @@ class LibraryItemTitle extends StatelessWidget {
 Color _iconBadgeColor(BuildContext context, bool cardSelected) => cardSelected
     ? AppSurfaces.card(context)
     : Theme.of(context).colorScheme.secondaryContainer;
+
+/// הרווח בין שם הקטגוריה (או נתיב האב) לתיאור הקצר שלה.
+const double _kCategoryDescriptionGap = 4;
+
+/// כמה שורות של תיאור קצר נכנסות בכרטיס קטגוריה (0 עד 2). הגובה של הכרטיס
+/// קבוע, ולכן התיאור מוצג רק בשורות שנשארות אחרי הכותרת (עד שתי שורות) ונתיב
+/// האב; בכרטיס צר שבו שם ארוך תופס את המקום, התיאור לא מוצג והוא נשאר
+/// בריחוף על לחצן המידע.
+int _categoryDescriptionLines(
+  BuildContext context,
+  Category category, {
+  required double maxWidth,
+  required double maxHeight,
+  required bool hasParentPath,
+}) {
+  const maxLines = 2;
+  if (category.shortDescription.trim().isEmpty) return 0;
+  if (!maxHeight.isFinite) return maxLines;
+  final theme = Theme.of(context);
+  final textScaler = MediaQuery.textScalerOf(context);
+  final direction = Directionality.of(context);
+  double heightOf(String text, TextStyle? style, int lines) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: direction,
+      textScaler: textScaler,
+      maxLines: lines,
+    )..layout(maxWidth: maxWidth.isFinite ? maxWidth : double.infinity);
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
+
+  final bodySmall = theme.textTheme.bodySmall;
+  final lineHeight = heightOf('א', bodySmall, 1);
+  var used = heightOf(
+    category.title,
+    LibraryItemTitle.styleOf(context, true),
+    2,
+  );
+  if (hasParentPath) used += 3 + lineHeight;
+  final free = maxHeight - used - _kCategoryDescriptionGap;
+  return (free / lineHeight).floor().clamp(0, maxLines);
+}
 
 class CategoryGridItem extends StatelessWidget {
   final Category category;
@@ -291,26 +335,51 @@ class CategoryGridItem extends StatelessWidget {
           // שומר על סדר אייקונים משמאל וטקסט מימין בתוך ממשק RTL.
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LibraryItemTitle(
-                    text: category.title,
-                    isFolder: true,
-                  ),
-                  if (parentPath != null && parentPath!.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    LibraryOverflowTooltipText(
-                      text: parentPath!,
-                      maxLines: 1,
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.secondary,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final hasParentPath =
+                      parentPath != null && parentPath!.isNotEmpty;
+                  final descriptionLines = _categoryDescriptionLines(
+                    context,
+                    category,
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: constraints.maxHeight,
+                    hasParentPath: hasParentPath,
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LibraryItemTitle(
+                        text: category.title,
+                        isFolder: true,
                       ),
-                    ),
-                  ],
-                ],
+                      if (hasParentPath) ...[
+                        const SizedBox(height: 3),
+                        LibraryOverflowTooltipText(
+                          text: parentPath!,
+                          maxLines: 1,
+                          textAlign: TextAlign.start,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.secondary,
+                          ),
+                        ),
+                      ],
+                      if (descriptionLines > 0) ...[
+                        const SizedBox(height: _kCategoryDescriptionGap),
+                        Text(
+                          category.shortDescription.trim(),
+                          maxLines: descriptionLines,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.start,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(width: 18),
@@ -555,10 +624,9 @@ class _BookGridTextColumn extends StatelessWidget {
     final authorStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSecondaryContainer,
     );
-    // זמני: התיאור הקצר הוסר מגוף הכרטיס. להחזרה — בטלו את ההערות כאן ולהלן.
-    // final descriptionStyle = theme.textTheme.bodySmall?.copyWith(
-    //   color: theme.colorScheme.onSurfaceVariant,
-    // );
+    final descriptionStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
     final topicsStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.secondary,
     );
@@ -575,21 +643,21 @@ class _BookGridTextColumn extends StatelessWidget {
               style: titleStyle,
               maxLines: 2,
               maxWidth: constraints.maxWidth,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.start,
               cache: _libraryOverflowCache,
             );
 
         final authorMaxLines = titleOverflow ? 1 : 2;
         final hasAuthor = (book.author ?? '').isNotEmpty;
-        // final shortDescription = truncateBookCardDescription(
-        //   book.heShortDesc ?? '',
-        // );
-        // final hasShortDescription = shortDescription.isNotEmpty;
-        // final descriptionMaxLines = constraints.maxHeight < 100
-        //     ? 1
-        //     : titleOverflow
-        //     ? 2
-        //     : 3;
+        final shortDescription = truncateBookCardDescription(
+          book.heShortDesc ?? '',
+        );
+        final hasShortDescription = shortDescription.isNotEmpty;
+        final descriptionMaxLines = constraints.maxHeight < 100
+            ? 1
+            : titleOverflow
+            ? 2
+            : 3;
         // בתוצאות חיפוש מוצג נתיב הקטגוריות — הוא שמסביר למשתמש למה הספר
         // הותאם, ובספרים אישיים שם הספר יושב עליו ולא על הקובץ.
         final pathText = (book.categoryPath ?? '').trim().isNotEmpty
@@ -602,7 +670,8 @@ class _BookGridTextColumn extends StatelessWidget {
             ? 1
             : constraints.maxHeight < 140 ||
                   hasAuthor ||
-                  titleOverflow // || hasShortDescription
+                  titleOverflow ||
+                  hasShortDescription
             ? 2
             : 3;
 
@@ -613,7 +682,7 @@ class _BookGridTextColumn extends StatelessWidget {
             LibraryOverflowTooltipText(
               text: book.title,
               maxLines: 2,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.start,
               style: titleStyle,
             ),
             if (hasAuthor) ...[
@@ -621,28 +690,28 @@ class _BookGridTextColumn extends StatelessWidget {
               LibraryOverflowTooltipText(
                 text: book.author!,
                 maxLines: authorMaxLines,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.start,
                 style: authorStyle,
               ),
             ],
-            // if (hasShortDescription) ...[
-            //   const SizedBox(height: 4),
-            //   Flexible(
-            //     child: Text(
-            //       shortDescription,
-            //       maxLines: descriptionMaxLines,
-            //       overflow: TextOverflow.ellipsis,
-            //       textAlign: TextAlign.right,
-            //       style: descriptionStyle,
-            //     ),
-            //   ),
-            // ],
+            if (hasShortDescription) ...[
+              const SizedBox(height: 4),
+              Flexible(
+                child: Text(
+                  shortDescription,
+                  maxLines: descriptionMaxLines,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.start,
+                  style: descriptionStyle,
+                ),
+              ),
+            ],
             if (hasTopics) ...[
               const Spacer(),
               LibraryOverflowTooltipText(
                 text: pathText,
                 maxLines: topicsMaxLines,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.start,
                 style: topicsStyle,
               ),
             ],

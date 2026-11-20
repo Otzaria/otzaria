@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -79,105 +80,47 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
       return widget.fallbackWidget!;
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: constraints
-                  .maxHeight, // מבטיח שהתוכן יתפוס לפחות את כל הגובה הפנוי
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center, // ממורכז אנכית
-                crossAxisAlignment: CrossAxisAlignment.center, // ממורכז אופקית
-                children: [
-                  Icon(
-                    FluentIcons.error_circle_24_regular,
-                    size: AppTokens.iconXL,
-                    color: Theme.of(context).colorScheme.error,
+    return OtzariaErrorState(
+      title: widget.fallbackMessage ?? error.userFriendlyMessage,
+      details: error.suggestedAction,
+      body: kDebugMode && error.details != null
+          ? ExpansionTile(
+              title: const Text('פרטים טכניים'),
+              children: [
+                Container(
+                  height: 150,
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12.0),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: AppTokens.borderRadiusAll,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.fallbackMessage ?? error.userFriendlyMessage,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface,
+                  child: AppSelectionArea(
+                    child: Text(
+                      'Type: ${error.type}\n\nMessage: ${error.message}\n\nDetails: ${error.details}\n\nStackTrace: ${error.stackTrace ?? 'N/A'}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: AppTextStyles.monospaceFamily,
+                      ),
                     ),
                   ),
-                  if (error.suggestedAction != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      error.suggestedAction!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (error.isRecoverable)
-                        ActionButton.recommended(
-                          icon: FluentIcons.arrow_sync_24_regular,
-                          onPressed: _retry,
-                          text: 'נסה שוב',
-                        ),
-                      if (error.isRecoverable) const SizedBox(width: 16),
-                      ActionButton.neutral(onPressed: _reset, text: 'איפוס'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (kDebugMode && error.details != null) ...[
-                    const SizedBox(height: 16),
-                    ExpansionTile(
-                      title: const Text('פרטים טכניים'),
-                      children: [
-                        Container(
-                          height: 150,
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12.0),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                            borderRadius: AppTokens.borderRadiusAll,
-                          ),
-                          child: AppSelectionArea(
-                            child: Text(
-                              'Type: ${error.type}\n\nMessage: ${error.message}\n\nDetails: ${error.details}\n\nStackTrace: ${error.stackTrace ?? 'N/A'}',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    fontFamily: AppTextStyles.monospaceFamily,
-                                  ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+                ),
+              ],
+            )
+          : null,
+      actions: [
+        ActionButton.recommended(
+          icon: FluentIcons.arrow_sync_24_regular,
+          onPressed: _retry,
+          text: 'נסה שוב',
+        ),
+      ],
     );
   }
 
-  void _retry() {
-    setState(() {
-      _hasError = false;
-      _error = null;
-    });
-  }
-
   /// מחזיר את התוכן. לא נוגע בניווט: ה־Navigator כאן הוא של החלון (DD-29).
-  void _reset() {
+  void _retry() {
     setState(() {
       _hasError = false;
       _error = null;

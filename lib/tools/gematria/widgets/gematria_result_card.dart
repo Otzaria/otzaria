@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -124,14 +126,21 @@ class _NumberBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // הגובה והרוחב גדלים עם הגדלת הטקסט, כדי שהספרות יישארו בתוך הריבוע.
+    final height = math.max(
+      26.0,
+      MediaQuery.textScalerOf(context).scale(AppTokens.fontSM) * 1.5,
+    );
     return Container(
-      width: 26,
-      height: 26,
+      constraints: const BoxConstraints(minWidth: 26),
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
       decoration: BoxDecoration(
         color: cs.primaryContainer,
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
+        widthFactor: 1,
         child: Text(
           '$number',
           style: TextStyle(

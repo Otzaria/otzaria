@@ -73,26 +73,30 @@ class WorkStatusOverlay extends StatelessWidget {
                             ),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 380),
-                        child: isSingle
-                            ? _PrimaryItemRow(item: items.single)
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  for (final (index, item)
-                                      in items.indexed) ...[
-                                    if (index > 0)
-                                      Divider(
-                                        height: 13,
-                                        color:
-                                            colorScheme.surfaceContainerHighest,
+                        // בחלון נמוך או בהודעה ארוכה הכרטיס מוגבל לגובה החלון,
+                        // והתוכן נגלל.
+                        child: SingleChildScrollView(
+                          child: isSingle
+                              ? _PrimaryItemRow(item: items.single)
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (final (index, item)
+                                        in items.indexed) ...[
+                                      if (index > 0)
+                                        Divider(
+                                          height: 13,
+                                          color: colorScheme
+                                              .surfaceContainerHighest,
+                                        ),
+                                      _WorkItemRow(
+                                        key: ValueKey(item.id),
+                                        item: item,
                                       ),
-                                    _WorkItemRow(
-                                      key: ValueKey(item.id),
-                                      item: item,
-                                    ),
+                                    ],
                                   ],
-                                ],
-                              ),
+                                ),
+                        ),
                       ),
                     ),
                     Positioned(

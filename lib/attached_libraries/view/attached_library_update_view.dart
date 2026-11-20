@@ -254,6 +254,7 @@ Future<bool> confirmAttachedUpdate(
         ),
         icon: FluentIcons.arrow_sync_24_regular,
         size: AppDialogSize.medium,
+        scrollable: true,
         customContent: _ConfirmContent(offer: offer),
         cancelText: dialogContext.settingsText('ביטול'),
         confirmText: dialogContext.settingsText('עדכן'),

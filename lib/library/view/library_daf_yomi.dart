@@ -53,8 +53,11 @@ class _LibraryDafYomiState extends State<LibraryDafYomi> {
     final dafText = '$tractate ${formatAmud(dafAmud)}';
     final dateText = getHebrewDateFormattedAsString(calendarDay);
 
-    final content = Row(
-      mainAxisSize: MainAxisSize.min,
+    // בחלון צר או בהגדלת טקסט שני הכפתורים לא נכנסים בשורה: הדף היומי יורד
+    // לשורה שנייה במקום לגלוש.
+    final content = Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Tooltip(
           message: 'פתח לוח שנה',
