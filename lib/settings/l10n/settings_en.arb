@@ -988,7 +988,7 @@
   "הכותרת תופיע בפסקה נפרדת לפני הטקסט": "The mareh makom comes in its own paragraph before the text",
   "הגדרות לפי ספר": "Individual Sefer Settings",
   "שמירת התאמות לכל ספר בנפרד": "Save adjustments for each sefer separately",
-  "גודל הגופן, הניקוד והמפרשים שנקבעו בספר יישמרו לו בנפרד. סוג הגופן נשאר כללי": "Font size, nikud and commentators set in a sefer are saved for that sefer. The font itself stays global",
+  "גודל הגופן, גודל המפרשים, מרווח השורות, הניקוד והמפרשים שנקבעו בספר יישמרו לו בנפרד. סוג הגופן נשאר כללי": "Font size, commentary size, line spacing, nikud and commentators set in a sefer are saved for that sefer. The font itself stays global",
   "כל הספרים ישתמשו בהגדרות הכלליות": "Every sefer uses the general settings",
   "איפוס הגדרות לפי ספר": "Reset per-sefer settings",
   "מחיקת כל ההתאמות שנשמרו לכל ספר בנפרד": "Delete everything saved for individual seforim",

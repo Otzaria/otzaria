@@ -834,7 +834,8 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       builder: (context, settingsState) => CommentaryListBase(
         key: _commentaryKey,
         openBookCallback: widget.openBookCallback,
-        fontSize: settingsState.commentatorsFontSize,
+        fontSize:
+            state.commentatorsFontSize ?? settingsState.commentatorsFontSize,
         indexes: effectiveIndexes,
         showSearch: true,
         autofocus: true,

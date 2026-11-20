@@ -4,8 +4,17 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+
+/// גודל גופן המפרשים בספר שב-[context]: מה שנשמר לספר, או הכללי (#2306).
+double commentatorsFontSizeOf(BuildContext context, SettingsState settings) =>
+    context.select((TextBookBloc bloc) {
+      final state = bloc.state;
+      return state is TextBookLoaded ? state.commentatorsFontSize : null;
+    }) ??
+    settings.commentatorsFontSize;
 
 /// שמירת שינוי בהגדרות התצוגה של הספר (גופן/ניקוד/פיסוק/פיצול/רצף) פר-ספר.
 ///
@@ -17,6 +26,8 @@ Future<void> savePerBookDisplaySettings(
   BuildContext context,
   TextBookLoaded state, {
   double? fontSize,
+  double? commentatorsFontSize,
+  double? lineHeight,
   bool? showSplitView,
   bool? removeNikud,
   bool? removePunctuation,
@@ -45,6 +56,8 @@ Future<void> savePerBookDisplaySettings(
     );
   }
   if (fontSize == null &&
+      commentatorsFontSize == null &&
+      lineHeight == null &&
       showSplitView == null &&
       continuousReadingMode == null) {
     return;
@@ -60,11 +73,24 @@ Future<void> savePerBookDisplaySettings(
   // הדדית עם שמירות מקבילות על אותו קובץ (רוחבי טורים, מפרשים).
   await TextBookPerBookSettings.mutate(state.book, (existingSettings) {
     double? newFontSize = existingSettings?.fontSize;
+    double? newCommentatorsFontSize = existingSettings?.commentatorsFontSize;
+    double? newLineHeight = existingSettings?.lineHeight;
     bool? newCommentatorsBelow = existingSettings?.commentatorsBelow;
     bool? newContinuousReadingMode = existingSettings?.continuousReadingMode;
 
     if (fontSize != null) {
       newFontSize = (fontSize == defaultFontSize) ? null : fontSize;
+    }
+    if (commentatorsFontSize != null) {
+      newCommentatorsFontSize =
+          commentatorsFontSize == settingsBloc.state.commentatorsFontSize
+          ? null
+          : commentatorsFontSize;
+    }
+    if (lineHeight != null) {
+      newLineHeight = lineHeight == settingsBloc.state.lineHeight
+          ? null
+          : lineHeight;
     }
 
     if (showSplitView != null) {
@@ -83,6 +109,8 @@ Future<void> savePerBookDisplaySettings(
     return _withDisplayFields(
       existingSettings,
       fontSize: newFontSize,
+      commentatorsFontSize: newCommentatorsFontSize,
+      lineHeight: newLineHeight,
       commentatorsBelow: newCommentatorsBelow,
       continuousReadingMode: newContinuousReadingMode,
       displayLayer: existingSettings?.effectiveDisplayLayer,
@@ -152,6 +180,8 @@ Future<void> persistPerBookDisplayPatch({
     return _withDisplayFields(
       existingSettings,
       fontSize: existingSettings?.fontSize,
+      commentatorsFontSize: existingSettings?.commentatorsFontSize,
+      lineHeight: existingSettings?.lineHeight,
       commentatorsBelow: existingSettings?.commentatorsBelow,
       continuousReadingMode: existingSettings?.continuousReadingMode,
       displayLayer: layer,
@@ -165,12 +195,16 @@ Future<void> persistPerBookDisplayPatch({
 TextBookPerBookSettings _withDisplayFields(
   TextBookPerBookSettings? existing, {
   required double? fontSize,
+  required double? commentatorsFontSize,
+  required double? lineHeight,
   required bool? commentatorsBelow,
   required bool? continuousReadingMode,
   required TextDisplayLayer? displayLayer,
 }) {
   return TextBookPerBookSettings(
     fontSize: fontSize,
+    commentatorsFontSize: commentatorsFontSize,
+    lineHeight: lineHeight,
     commentatorsBelow: commentatorsBelow,
     displayLayer: (displayLayer == null || displayLayer.isEmpty)
         ? null
@@ -195,6 +229,8 @@ Future<void> clearPerBookDisplayLayer(Book book) async {
     return _withDisplayFields(
       existing,
       fontSize: existing.fontSize,
+      commentatorsFontSize: existing.commentatorsFontSize,
+      lineHeight: existing.lineHeight,
       commentatorsBelow: existing.commentatorsBelow,
       continuousReadingMode: existing.continuousReadingMode,
       displayLayer: null,

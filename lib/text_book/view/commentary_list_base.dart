@@ -1714,6 +1714,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       link: link,
       previousLink: previousLink,
       fontSize: widget.fontSize,
+      lineHeight: state.lineHeight,
       openBookCallback: widget.openBookCallback,
       displayProfile: state.commentaryDisplayProfile,
       copyDisplayProfile: _commentaryCopyProfile(state),
