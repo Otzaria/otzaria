@@ -352,6 +352,9 @@ void main() {
                   BlocProvider<CustomFoldersBloc>(
                     create: (_) => CustomFoldersBloc(addLibraryEvent: (_) {}),
                   ),
+                  BlocProvider<TabsBloc>(
+                    create: (_) => _TestTabsBloc(TabsState.initial()),
+                  ),
                 ],
                 child: const LibraryBrowser(),
               ),

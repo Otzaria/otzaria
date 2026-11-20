@@ -51,6 +51,7 @@ import 'package:otzaria/library/view/category_preview_panel.dart';
 import 'package:otzaria/library/view/library_empty_state_widget.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
@@ -60,6 +61,7 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -438,6 +440,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return true;
   }
 
+  bool _returnToReading() {
+    if (!context.read<TabsBloc>().state.hasOpenTabs) return false;
+    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
+    return true;
+  }
+
   void _togglePreviewPanel(SettingsState s) =>
       _setPreviewPanel(!s.libraryShowPreviewFor(isShortWindow: _isShortWindow));
 
@@ -765,6 +773,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
     final previewSelected =
         !isLibraryEmpty && _isPreviewPanelVisible(settingsState);
+    final readingTitle = context.select<TabsBloc, String?>(
+      (b) => b.state.currentTab?.title,
+    );
 
     // ── Trailing items ────────────────────────────────────────────────────
     final trailingItems = <AppTopBarItem>[];
@@ -783,6 +794,21 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     }
 
     trailingItems.addAll([
+      // בחלון צר הכפתור דוחק את רמז החיפוש; "עיון" זמין שם בסרגל הניווט.
+      if (readingTitle != null &&
+          MediaQuery.sizeOf(context).width >= LayoutBreakpoints.compact)
+        AppTopBarItem(
+          widget: BarButton.icon(
+            compact: isCompact,
+            tooltip: context.settingsText(
+              'חזרה לעיון: {title}',
+              args: {'title': readingTitle},
+            ),
+            icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
+            label: context.settingsText('חזרה לעיון'),
+            onPressed: _returnToReading,
+          ),
+        ),
       if (MediaQuery.sizeOf(context).width >= kLibraryPreviewMinScreenWidth)
         AppTopBarItem(
           dividerBefore: true,
@@ -1623,7 +1649,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.escape) {
-      return !isEditableTextFocused && _returnPreviewToCurrent()
+      return !isEditableTextFocused &&
+              (_returnPreviewToCurrent() || _returnToReading())
           ? KeyEventResult.handled
           : KeyEventResult.ignored;
     }

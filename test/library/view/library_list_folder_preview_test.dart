@@ -27,6 +27,9 @@ import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.da
 import 'package:provider/provider.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import '../../test_helpers/stub_tabs_bloc.dart';
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {
@@ -130,6 +133,9 @@ Future<void> _pumpBrowser(WidgetTester tester, LibraryBloc libraryBloc) async {
           BlocProvider<LibraryBloc>(create: (_) => libraryBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),
           BlocProvider<NavigationBloc>.value(value: navigationBloc),
+          BlocProvider<TabsBloc>(
+            create: (_) => StubTabsBloc(TabsState.initial()),
+          ),
           BlocProvider<LibraryUpdateBloc>.value(value: libraryUpdateBloc),
           BlocProvider<CalendarCubit>.value(value: calendarCubit),
           BlocProvider<CustomFoldersBloc>(
