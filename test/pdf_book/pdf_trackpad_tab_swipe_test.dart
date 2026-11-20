@@ -436,6 +436,79 @@ void main() {
     expect(reader.tabs.state.currentTabIndex, 1);
   });
 
+  group('PDF touchpad fling (issue #3491)', () {
+    /// גלילה אנכית בשתי אצבעות: [steps] צעדים של [step] פיקסלים, [stepMs]
+    /// מילישניות בין צעד לצעד, ואז הרמת האצבעות.
+    Future<void> verticalPan(
+      WidgetTester tester, {
+      required double step,
+      required int steps,
+      required int stepMs,
+      bool settle = true,
+    }) async {
+      final center = tester.getCenter(find.byType(PageView));
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(center, timeStamp: Duration.zero);
+      for (var i = 1; i <= steps; i++) {
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(0, step * i),
+          timeStamp: Duration(milliseconds: stepMs * i),
+        );
+        await tester.pump();
+      }
+      await gesture.panZoomEnd(
+        timeStamp: Duration(milliseconds: stepMs * (steps + 1)),
+      );
+      if (settle) await frames(tester, 90);
+    }
+
+    testWidgets('החלקה מהירה ממשיכה לגלול אחרי הרמת האצבעות', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      final top = controller.visibleRect.top;
+      // 240px ב-64ms: כ-3750 פיקסלים לשנייה, החלקה מהירה רגילה.
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8);
+      final fingers = 240 / controller.currentZoom;
+      expect(
+        controller.visibleRect.top - top,
+        greaterThan(fingers * 2),
+        reason: 'בלי המשך תנועה המסמך זז רק כמרחק האצבעות',
+      );
+    });
+
+    testWidgets('גלילה איטית זזה כמרחק האצבעות בלבד', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      final top = controller.visibleRect.top;
+      // 60px בשלוש שניות: מתחת לסף ההחלקה.
+      await verticalPan(tester, step: -1, steps: 60, stepMs: 50);
+      expect(
+        controller.visibleRect.top - top,
+        closeTo(60 / controller.currentZoom, 1),
+      );
+    });
+
+    testWidgets('הנחת אצבעות על לוח המגע עוצרת את ההחלקה', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      final top = controller.visibleRect.top;
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8, settle: false);
+      await frames(tester, 3);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(tester.getCenter(find.byType(PageView)));
+      final stoppedAt = controller.visibleRect.top;
+      await frames(tester, 60);
+      await gesture.panZoomEnd();
+      expect(stoppedAt - top, greaterThan(0));
+      expect(controller.visibleRect.top, closeTo(stoppedAt, 1));
+    });
+  });
+
   // R7-5, #2988: גם בתפריט "עוד" הפריט מציע את ההתאמה הבאה.
   testWidgets('חלון צר: "התאם" בתפריט עוד מתחלף אחרי ההתאמה', (tester) async {
     await pumpReader(tester, currentTabIndex: 1);

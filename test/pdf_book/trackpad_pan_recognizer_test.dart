@@ -53,7 +53,7 @@ void main() {
                       >(
                         () => TrackpadPanRecognizer(
                           onPanDelta: (delta, position) => panDeltas.add(delta),
-                          onPanEnd: () => panEnds++,
+                          onPanEnd: (_) => panEnds++,
                           canPanHorizontally: () => canPanHorizontally,
                           onPanZoomEvent: forwardScaling
                               ? forwardedEvents.add
