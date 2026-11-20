@@ -66,6 +66,7 @@ import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
+import 'package:otzaria/widgets/selection/pen_selection_gestures.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
@@ -1125,6 +1126,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     );
   }
 
+  void _onSelectionChanged(SelectedContent? selection) {
+    trackRtlSelection(selection?.plainText);
+    if (rtlSelectionPriming) return;
+    final text = selection?.plainText ?? '';
+    setState(() {
+      _savedSelectedText = text.isNotEmpty ? text : null;
+    });
+  }
+
   /// עוטף תוכן ב-SelectionArea (לבחירת טקסט) + מעקב כיוון גרירה ל-RTL.
   /// יירוט Ctrl+C ממוקם *מעל* ה-SelectionArea — שם מנגנון ה-override של
   /// CopySelectionTextIntent מאתר אותו (מתחתיו הוא נשאר בלתי-נראה).
@@ -1134,15 +1144,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       child: RtlSelectionShortcuts(
         child: SelectionArea(
           contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-          onSelectionChanged: (selection) {
-            trackRtlSelection(selection?.plainText);
-            if (rtlSelectionPriming) return;
-            final text = selection?.plainText ?? '';
-            setState(() {
-              _savedSelectedText = text.isNotEmpty ? text : null;
-            });
-          },
-          child: child,
+          onSelectionChanged: _onSelectionChanged,
+          // עט בוחר בגרירה כמו עכבר (SelectableRegion מתייחס אליו כאל אצבע).
+          child: PenSelectionGestures(
+            onSelectionChanged: _onSelectionChanged,
+            child: child,
+          ),
         ),
       ),
     );

@@ -691,113 +691,119 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
               contextMenuBuilder: (context, _) => const SizedBox.shrink(),
               onSelectionChanged: (selection) =>
                   _onNotesSelectionChanged(selection?.plainText),
-              child: AppContextMenuRegion(
-                // לחיצה ימנית על טקסט מסומן לא תשחרר את הבחירה (ברירת המחדל של
-                // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
-                shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-                  final selected = _selectedText;
-                  if (selected == null || selected.isEmpty) return false;
-                  final root = context.findRenderObject();
-                  if (root == null) return true;
-                  return clickIsOnSelectionWithinArea(
-                        root: root,
-                        globalPosition: globalPosition,
-                        selectedText: selected,
-                      ) ??
-                      true;
-                },
-                menuBuilder: (menuCtx, _) => [
-                  AppContextMenuEntry(
-                    label: 'העתק',
-                    icon: FluentIcons.copy_24_regular,
-                    enabled:
-                        _selectedText != null &&
-                        _selectedText!.trim().isNotEmpty,
-                    onTap: () => ContextMenuUtils.copyFormattedText(
-                      context: menuCtx,
-                      savedSelectedText: _selectedText,
-                      fontSize: widget.fontSize,
-                      protection: widget.state.protection,
-                    ),
-                  ),
-                  if (showCopyWithoutNikud(_selectedText))
+              child: PenSelectionGestures(
+                onSelectionChanged: (selection) =>
+                    _onNotesSelectionChanged(selection?.plainText),
+                child: AppContextMenuRegion(
+                  // לחיצה ימנית על טקסט מסומן לא תשחרר את הבחירה (ברירת המחדל של
+                  // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
+                  shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+                    final selected = _selectedText;
+                    if (selected == null || selected.isEmpty) return false;
+                    final root = context.findRenderObject();
+                    if (root == null) return true;
+                    return clickIsOnSelectionWithinArea(
+                          root: root,
+                          globalPosition: globalPosition,
+                          selectedText: selected,
+                        ) ??
+                        true;
+                  },
+                  menuBuilder: (menuCtx, _) => [
                     AppContextMenuEntry(
-                      label: 'העתק בלי ניקוד',
-                      icon: OtzariaIcons.alef_eraser_24_filled,
+                      label: 'העתק',
+                      icon: FluentIcons.copy_24_regular,
+                      enabled:
+                          _selectedText != null &&
+                          _selectedText!.trim().isNotEmpty,
                       onTap: () => ContextMenuUtils.copyFormattedText(
                         context: menuCtx,
                         savedSelectedText: _selectedText,
                         fontSize: widget.fontSize,
-                        removeNikud: true,
                         protection: widget.state.protection,
                       ),
                     ),
-                  if (widget.state.book.isOfficialLibraryBook) ...[
-                    const AppContextMenuEntry.divider(),
-                    AppContextMenuEntry(
-                      label: 'דווח על טעות בספר',
-                      icon: FluentIcons.error_circle_24_regular,
-                      enabled:
-                          _selectedText != null &&
-                          _selectedText!.trim().isNotEmpty,
-                      onTap: () => _reportError(menuCtx),
-                    ),
-                  ],
-                ],
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 12.0,
-                        ),
-                        child: Text(
-                          kNotesCommentatorTitle,
-                          style: TextStyle(
-                            fontSize: widget.fontSize * 0.85,
-                            fontWeight: FontWeight.bold,
-                            fontVariations: AppFonts.boldFontVariations(
-                              settingsState.commentatorsFontFamily,
-                            ),
-                            fontFamily: AppFonts.renderFontFamily(
-                              settingsState.commentatorsFontFamily,
-                            ),
-                          ),
+                    if (showCopyWithoutNikud(_selectedText))
+                      AppContextMenuEntry(
+                        label: 'העתק בלי ניקוד',
+                        icon: OtzariaIcons.alef_eraser_24_filled,
+                        onTap: () => ContextMenuUtils.copyFormattedText(
+                          context: menuCtx,
+                          savedSelectedText: _selectedText,
+                          fontSize: widget.fontSize,
+                          removeNikud: true,
+                          protection: widget.state.protection,
                         ),
                       ),
-                      ...widget.notes.indexed.map((entry) {
-                        final (index, note) = entry;
-                        return Padding(
-                          key: widget.noteKeys[index],
-                          padding: const EdgeInsets.only(
-                            right: 32.0,
-                            left: 16.0,
-                            bottom: 12.0,
-                          ),
-                          child: SmartTextWidget(
-                            text: note,
-                            settings: renderSettings.copyWith(
-                              // מונח החיפוש בספר מודגש בכללי הספר, לא בספירה.
-                              currentSearchIndex: widget.searchedBook == null
-                                  ? widget.noteSearchIndex(index)
-                                  : -1,
-                            ),
-                            onOpenBook: (tab) {
-                              if (tab is TextBookTab) {
-                                widget.openBookCallback(tab);
-                              }
-                            },
-                            onAnchorTap: _openAnchor,
-                            onAnchorHover: _previewAnchor,
-                            onAnchorHoverExit: (_) =>
-                                LinkPreviewOverlay.scheduleHide(_previewWindow),
-                          ),
-                        );
-                      }),
-                      const Divider(height: 1),
+                    if (widget.state.book.isOfficialLibraryBook) ...[
+                      const AppContextMenuEntry.divider(),
+                      AppContextMenuEntry(
+                        label: 'דווח על טעות בספר',
+                        icon: FluentIcons.error_circle_24_regular,
+                        enabled:
+                            _selectedText != null &&
+                            _selectedText!.trim().isNotEmpty,
+                        onTap: () => _reportError(menuCtx),
+                      ),
                     ],
+                  ],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 12.0,
+                          ),
+                          child: Text(
+                            kNotesCommentatorTitle,
+                            style: TextStyle(
+                              fontSize: widget.fontSize * 0.85,
+                              fontWeight: FontWeight.bold,
+                              fontVariations: AppFonts.boldFontVariations(
+                                settingsState.commentatorsFontFamily,
+                              ),
+                              fontFamily: AppFonts.renderFontFamily(
+                                settingsState.commentatorsFontFamily,
+                              ),
+                            ),
+                          ),
+                        ),
+                        ...widget.notes.indexed.map((entry) {
+                          final (index, note) = entry;
+                          return Padding(
+                            key: widget.noteKeys[index],
+                            padding: const EdgeInsets.only(
+                              right: 32.0,
+                              left: 16.0,
+                              bottom: 12.0,
+                            ),
+                            child: SmartTextWidget(
+                              text: note,
+                              settings: renderSettings.copyWith(
+                                // מונח החיפוש בספר מודגש בכללי הספר, לא בספירה.
+                                currentSearchIndex: widget.searchedBook == null
+                                    ? widget.noteSearchIndex(index)
+                                    : -1,
+                              ),
+                              onOpenBook: (tab) {
+                                if (tab is TextBookTab) {
+                                  widget.openBookCallback(tab);
+                                }
+                              },
+                              onAnchorTap: _openAnchor,
+                              onAnchorHover: _previewAnchor,
+                              onAnchorHoverExit: (_) =>
+                                  LinkPreviewOverlay.scheduleHide(
+                                    _previewWindow,
+                                  ),
+                            ),
+                          );
+                        }),
+                        const Divider(height: 1),
+                      ],
+                    ),
                   ),
                 ),
               ),

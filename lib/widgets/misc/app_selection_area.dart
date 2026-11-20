@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/services.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/selection/pen_selection_gestures.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 
@@ -121,6 +123,13 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     UiSnack.show(copiedMessage);
   }
 
+  void _handleSelectionChanged(SelectedContent? selection) {
+    trackRtlSelection(selection?.plainText);
+    // שינוי בחירה זמני בזמן priming (קיצורי RTL) — לא לעבד.
+    if (rtlSelectionPriming) return;
+    _selectedText = selection?.plainText;
+  }
+
   @override
   Widget build(BuildContext context) {
     final platform = Theme.of(context).platform;
@@ -133,39 +142,38 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
           contextMenuBuilder: useNativeTouchMenu
               ? _buildTouchToolbar
               : (context, _) => const SizedBox.shrink(),
-          onSelectionChanged: (selection) {
-            trackRtlSelection(selection?.plainText);
-            // שינוי בחירה זמני בזמן priming (קיצורי RTL) — לא לעבד.
-            if (rtlSelectionPriming) return;
-            _selectedText = selection?.plainText;
-          },
-          child: AppContextMenuRegion(
-            openOnLongPress: !useNativeTouchMenu,
-            // לחיצה ימנית על הטקסט המסומן לא תשחרר את הבחירה (ברירת המחדל של
-            // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
-            shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-              if (!_hasSelection) return false;
-              final root = context.findRenderObject();
-              if (root == null) return true;
-              return clickIsOnSelectionWithinArea(
-                    root: root,
-                    globalPosition: globalPosition,
-                    selectedText: _selectedText!,
-                  ) ??
-                  true;
-            },
-            menuBuilder: (menuContext, position) {
-              final text = _textToCopyAt(position);
-              return [
-                AppContextMenuEntry(
-                  label: context.settingsText('העתק'),
-                  icon: FluentIcons.copy_24_regular,
-                  enabled: text != null,
-                  onTap: () => _copy(text!),
-                ),
-              ];
-            },
-            child: widget.child,
+          onSelectionChanged: _handleSelectionChanged,
+          // עט בוחר בגרירה כמו עכבר (SelectableRegion מתייחס אליו כאל אצבע).
+          child: PenSelectionGestures(
+            onSelectionChanged: _handleSelectionChanged,
+            child: AppContextMenuRegion(
+              openOnLongPress: !useNativeTouchMenu,
+              // לחיצה ימנית על הטקסט המסומן לא תשחרר את הבחירה (ברירת המחדל של
+              // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
+              shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+                if (!_hasSelection) return false;
+                final root = context.findRenderObject();
+                if (root == null) return true;
+                return clickIsOnSelectionWithinArea(
+                      root: root,
+                      globalPosition: globalPosition,
+                      selectedText: _selectedText!,
+                    ) ??
+                    true;
+              },
+              menuBuilder: (menuContext, position) {
+                final text = _textToCopyAt(position);
+                return [
+                  AppContextMenuEntry(
+                    label: context.settingsText('העתק'),
+                    icon: FluentIcons.copy_24_regular,
+                    enabled: text != null,
+                    onTap: () => _copy(text!),
+                  ),
+                ];
+              },
+              child: widget.child,
+            ),
           ),
         ),
       ),

@@ -26,6 +26,7 @@ import 'package:flutter/gestures.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/widgets/selection/pen_selection_gestures.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -2312,14 +2313,20 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                                     _onListSelectionChanged(
                                       selection?.plainText,
                                     ),
-                                child: ScrollablePositionedListScrollbar(
-                                  scrollController: _itemScrollController,
-                                  itemCount: flatItems.length,
-                                  onNavigationStart: _cancelPendingNavigation,
-                                  child: SmoothWheelScroll(
-                                    child: constrainToContentWidth(
-                                      _trackHeaderScroll(listView),
-                                      widget.contentMaxWidth,
+                                child: PenSelectionGestures(
+                                  onSelectionChanged: (selection) =>
+                                      _onListSelectionChanged(
+                                        selection?.plainText,
+                                      ),
+                                  child: ScrollablePositionedListScrollbar(
+                                    scrollController: _itemScrollController,
+                                    itemCount: flatItems.length,
+                                    onNavigationStart: _cancelPendingNavigation,
+                                    child: SmoothWheelScroll(
+                                      child: constrainToContentWidth(
+                                        _trackHeaderScroll(listView),
+                                        widget.contentMaxWidth,
+                                      ),
                                     ),
                                   ),
                                 ),
