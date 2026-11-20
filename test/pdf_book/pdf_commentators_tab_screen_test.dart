@@ -60,6 +60,15 @@ class _FakePersonalNotesBloc
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// מחליף את `pumpAndSettle`: חלונית המפרשים מציגה בזמן טעינה גלגל מסתובב
+/// (החלטה 62), והוא לעולם לא "נרגע" — pumpAndSettle נגמר ב-timeout. כאן
+/// מקדמים זמן קבוע, שתי שניות, מספיק לאנימציות החלונית ולמעברי הלשוניות.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 Widget _wrap(
   Widget child, {
   SettingsState? settings,
@@ -360,7 +369,7 @@ void main() {
         await tester.sendKeyDownEvent(modifier);
         await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
         await tester.sendKeyUpEvent(modifier);
-        await tester.pumpAndSettle();
+        await _settle(tester);
 
         expect(
           tester
@@ -416,7 +425,7 @@ void main() {
           tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen;
       expect(paneOpen(), isFalse);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyL, character: 'ל');
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(paneOpen(), isTrue);
 
       final modifier = isMac
@@ -425,7 +434,7 @@ void main() {
       await tester.sendKeyDownEvent(modifier);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
       await tester.sendKeyUpEvent(modifier);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(
         tester
             .widget<CommentarySearchPane>(find.byType(CommentarySearchPane))
@@ -443,7 +452,7 @@ void main() {
         }
         await tester.sendKeyEvent(LogicalKeyboardKey.keyL, character: 'ל');
         if (shifted) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-        await tester.pumpAndSettle();
+        await _settle(tester);
         expect(
           paneOpen(),
           isTrue,
@@ -454,7 +463,7 @@ void main() {
       await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(paneOpen(), isFalse, reason: 'קיצור עם modifier פועל גם מתוך שדה');
     });
   }
@@ -483,7 +492,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyUpEvent(modifier);
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(
         tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen,
         expected,
@@ -517,7 +526,7 @@ void main() {
     expect(find.byType(NavSidePanel), findsOneWidget);
     // פתיחת החלונית דרך הכפתור האחיד של כל המסכים.
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.byType(NavPanelTabHeader), findsOneWidget);
     expect(find.byType(NavPanelPinButton), findsOneWidget);
@@ -549,7 +558,7 @@ void main() {
     await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
     await tester.pump();
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.byType(NavPanelTabHeader), findsOneWidget);
     expect(find.byType(NavPanelPinButton), findsNothing);
@@ -578,15 +587,15 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.byTooltip('חיפוש').first);
-    await tester.pumpAndSettle();
+    await _settle(tester);
     final searchField = find.widgetWithText(TextField, 'חיפוש במפרשים...');
     await tester.enterText(searchField, 'אמר');
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.tap(find.text('ניווט'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.widgetWithText(NavTreeTile, 'פרק ב'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // המיקוד עבר לשדה הניווט, ולכן PageView רשאי לפרוק את לשונית החיפוש.
     // בודקים שהשאילתה נשמרה כאשר המשתמש חוזר אליה.
@@ -596,7 +605,7 @@ void main() {
         matching: find.text('חיפוש'),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(
       tester
           .widget<EditableText>(
@@ -629,9 +638,9 @@ void main() {
     sourceTab.currentTitle.value = 'כותרת א';
     final tab = PdfCommentatorsTab(sourceTab: sourceTab);
     await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     final navigationField = find.widgetWithText(TextField, 'איתור כותרת...');
     EditableText field() => tester.widget<EditableText>(
       find.descendant(of: navigationField, matching: find.byType(EditableText)),
@@ -645,15 +654,15 @@ void main() {
         matching: find.text('חיפוש'),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('ניווט'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(field().focusNode.hasFocus, isTrue);
     expect(field().controller.text, 'כותרת');
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(field().focusNode.hasFocus, isTrue);
     expect(field().controller.text, 'כותרת');
   });
@@ -691,7 +700,7 @@ void main() {
       await tester.pump();
 
       await tester.tap(find.byType(NavPanelToggleButton));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       NavSidePanel panel() =>
           tester.widget<NavSidePanel>(find.byType(NavSidePanel));
       expect(panel().isOpen, isTrue);
@@ -710,13 +719,13 @@ void main() {
         context: context,
         direction: ScrollDirection.forward,
       ).dispatch(context);
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(panel().isOpen, isTrue, reason: 'גלילה אינה סגירה מפורשת');
 
       // ההצללה מכסה את המפרשים; לחיצה עליה סוגרת את החלונית.
       await tester.tapAt(const Offset(100, 450));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(panel().isOpen, isFalse);
     });
@@ -744,7 +753,7 @@ void main() {
           settings: SettingsState.initial().copyWith(textMaxWidth: 600),
         ),
       );
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       final list = find.descendant(
         of: find.byType(PdfCommentaryPanel),
@@ -783,17 +792,17 @@ void main() {
     await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
     await tester.pump();
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.byTooltip('נעץ את החלונית'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     tester.view.physicalSize = const Size(700, 900);
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
     await tester.tap(find.byTooltip('בטל נעיצה'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.byTooltip('נעץ את החלונית'), findsNothing);
     await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     final panel = tester.widget<NavSidePanel>(find.byType(NavSidePanel));
     expect(
       panel.isOpen,
