@@ -36,9 +36,12 @@ List<String> _testFiles() =>
       ..sort();
 
 /// קובץ בדיקה שנכנס ל-shards של Linux. ה-goldens רצים ב-job נפרד על
-/// Windows, פלטפורמת הייחוס שלהם.
+/// Windows, פלטפורמת הייחוס שלהם, ובדיקות ה-responsive ב-job `responsive_ui`
+/// (שכבה מהירה, או מלאה בשינוי ממשק) שמפיק להן דוח וצילומי כשל.
 bool isShardedTestFile(String path) =>
-    path.endsWith('_test.dart') && !path.startsWith('test/goldens/');
+    path.endsWith('_test.dart') &&
+    !path.startsWith('test/goldens/') &&
+    !path.startsWith('test/design_system/responsive/');
 
 Map<String, double> _readTimings() {
   final file = File(_timingsPath);

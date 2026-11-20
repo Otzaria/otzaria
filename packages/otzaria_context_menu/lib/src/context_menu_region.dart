@@ -9,6 +9,7 @@ import 'menu_models.dart';
 import 'menu_placement.dart';
 import 'menu_presentation.dart';
 import 'menu_rows.dart';
+import 'menu_visuals.dart';
 import 'submenu_button.dart';
 
 part 'context_menu_gestures.dart';

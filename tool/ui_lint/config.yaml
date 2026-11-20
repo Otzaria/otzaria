@@ -14,12 +14,16 @@ max_allows:
   UIL-010: 5
   UIL-015: 5
   UIL-017: 3
-  UIL-019: 2
+  UIL-019: 1
   UIL-021: 26
   UIL-026: 1
   UIL-030: 2
   UIL-031: 2
+  UIL-040: 1
 
+# כל החרגת נתיב חייבת להשתיק לפחות ממצא אחד (ui_lint_test, "החרגה שלא משתיקה
+# כלום"). היוצאים מן הכלל: lib/theme/** ב־UIL-021/023/029, מדיניות "שכבת
+# הטוקנים פטורה מכללי הטוקנים" שנבדקת ב־ui_lint_test.
 exclude:
   - path: "**/*.g.dart"
     reason: קוד שנוצר אוטומטית
@@ -46,7 +50,7 @@ rules:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים בונה את הצבעים לכל בהירות
-      - path: lib/core/windowing/**
+      - path: lib/core/windowing/caption_button_colors.dart
         reason: כפתורי החלון מחקים את מערכת ההפעלה (JX-06)
       - path: lib/pdf_book/utils/pdf_color_filter.dart
         reason: צבע הנייר ומסנן ההיפוך של עמוד PDF (JX-05)
@@ -70,15 +74,14 @@ rules:
 
   UIL-006:
     strict: true
-    exclude:
-      - path: lib/widgets/misc/rtl_icon.dart
-        reason: הרכיב עצמו מחזיק את הרשימה ומהפך בה
 
   UIL-007:
     strict: true
     exclude:
       - path: lib/theme/**
         reason: ערכת הנושא מגדירה את צבעי המצב
+      - path: packages/otzaria_context_menu/lib/src/menu_rows.dart
+        reason: סגנון פריט התפריט עצמו (hover/pressed של M3) בחבילה שאינה תלויה בערכת הנושא של האפליקציה
 
   UIL-011:
     strict: true
@@ -86,23 +89,14 @@ rules:
       - path: lib/widgets/text/rtl_text_field.dart
         reason: העטיפה שבונה את השדה ומוסיפה לו RTL
 
-  UIL-014:
-    exclude:
-      - path: lib/widgets/misc/**
-        reason: מערכת התפריטים המשותפת (app_popup_menu) עצמה
-
   UIL-015:
     strict: true
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/printing/**
-        reason: פלט נייר
       - path: lib/tools/tikkun_korim/export/**
         reason: פלט נייר
-      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
-        reason: פלט נייר
-      - path: lib/core/windowing/**
+      - path: lib/core/windowing/caption_button_colors.dart
         reason: כפתורי החלון מחקים את מערכת ההפעלה
       - path: lib/pdf_book/utils/pdf_color_filter.dart
         reason: צבע הנייר ומסנן ההיפוך של עמוד PDF (תוכן)
@@ -117,34 +111,17 @@ rules:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/text_book/view/reader_line/**
-        reason: טיפוגרפיית תוכן הספר לפי הגדרות המשתמש
-      - path: lib/widgets/smart_text/**
-        reason: טיפוגרפיית תוכן הספר לפי הגדרות המשתמש
-      - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart
-        reason: טיפוגרפיית תוכן הספר לפי הגדרות המשתמש
-      - path: lib/widgets/commentary/links_list_view.dart
-        reason: גדלים יחסיים לגופן התוכן
-      - path: lib/printing/**
-        reason: פלט נייר
       - path: lib/tools/tikkun_korim/export/**
         reason: פלט נייר
 
   UIL-018:
     strict: true
-    exclude:
-      - path: lib/theme/**
-        reason: שכבת הטוקנים (AppThemeData, AppFonts)
 
   UIL-019:
     strict: true
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/widgets/controls/bar_split_button.dart
-        reason: הגלולה של BarSplitButton, חריג מאושר (DD-04, q8 שאלה 7, q10 Q13)
-      - path: lib/printing/**
-        reason: פלט נייר
 
   UIL-031:
     strict: true
@@ -156,47 +133,33 @@ rules:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/printing/**
-        reason: פלט נייר
 
   UIL-016:
     exclude:
+      - path: packages/otzaria_context_menu/lib/src/menu_rows.dart
+        reason: שקיפויות המצב של פריט התפריט (מושבת, hover, לחיצה) לפי M3, בחבילה שאין לה AppSurfaces
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/printing/**
-        reason: פלט נייר
-      - path: lib/tools/tikkun_korim/export/**
-        reason: פלט נייר
-      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
-        reason: פלט נייר
-      - path: lib/core/windowing/**
+      - path: lib/core/windowing/caption_button_colors.dart
         reason: כפתורי החלון מחקים את מערכת ההפעלה
-      - path: lib/widgets/smart_text/**
-        reason: צבעי CSS של תוכן הספר
-      - path: lib/text_book/view/widgets/continuous_reading_paragraph.dart
-        reason: צבעי CSS של תוכן הספר
+      - path: lib/core/windowing/tab_drag_preview.dart
+        reason: תצוגת הגרירה של כרטיסייה בין חלונות, חלק מכרום החלון (כמו כפתורי החלון)
 
   UIL-020:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/printing/**
-        reason: פלט נייר
       - path: lib/tools/tikkun_korim/export/**
-        reason: פלט נייר
-      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
         reason: פלט נייר
 
   UIL-021:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/printing/**
-        reason: פלט נייר
-      - path: lib/tools/tikkun_korim/export/**
-        reason: פלט נייר
-      - path: lib/tools/calendar/helpers/calendar_print_helpers.dart
-        reason: פלט נייר
+      - path: packages/otzaria_context_menu/lib/src/context_menu_region.dart
+        reason: מיקום התפריט בקואורדינטות מסך גלובליות (Positioned ו-MenuStyle.alignment פיזיים בכוונה)
+      - path: packages/otzaria_context_menu/lib/src/submenu_button.dart
+        reason: כיוון פתיחת תת־תפריט נקבע פיזית לפי המקום שנותר במסך (openToRight)
 
   UIL-023:
     strict: true
@@ -208,20 +171,9 @@ rules:
     exclude:
       - path: lib/theme/**
         reason: שכבת הטוקנים
-      - path: lib/printing/**
-        reason: פלט נייר
-      - path: lib/tools/tikkun_korim/export/**
-        reason: פלט נייר
-      - path: lib/widgets/smart_text/**
-        reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
-      - path: lib/text_book/view/reader_line/**
-        reason: מעבד התוכן, אייקון בתוך הטקסט לפי גודל הקריאה (JX-19)
 
   UIL-008:
     strict: true
-    exclude:
-      - path: lib/core/ui_snack.dart
-        reason: UiSnack עצמו
 
   UIL-010:
     strict: true
@@ -229,10 +181,12 @@ rules:
 
   UIL-012:
     strict: true
-    exclude:
-      - path: lib/widgets/layout/**
-        reason: רכיבי הכרטיס המשותפים (AppCard, ResultCardFrame)
 
+
+  UIL-014:
+    exclude:
+      - path: packages/otzaria_context_menu/lib/src/context_menu_rows.dart
+        reason: תפריט ההקשר של החבילה עצמה, שהוא התשתית של AppPopupMenuButton (MenuAnchor לניווט במקלדת ולתתי־תפריטים)
 
   UIL-013:
     exclude:
@@ -248,9 +202,26 @@ rules:
 
   UIL-026:
     strict: true
+    exclude:
+      - path: packages/otzaria_context_menu/lib/src/menu_rows.dart
+        reason: מדידת רוחב התפריט; ברירת המחדל של הפרמטר היא בלי הגדלה, והקוראים מעבירים את ההגדלה של המערכת
 
 
   UIL-028:
+    strict: true
+
+  UIL-039:
+    strict: true
     exclude:
-      - path: lib/widgets/dialogs/**
-        reason: העזרים המשותפים שבונים את הדיאלוגים (showDialogUntilTornDown)
+      - path: lib/widgets/controls/segmented_control.dart
+        reason: AppSegmentedControl עצמו, שעוטף את SegmentedButton של Material
+
+  UIL-040:
+    strict: true
+    exclude:
+      - path: lib/text_book/view/reader_line/**
+        reason: תוכן הספר, בכיוון התוכן ולא בכיוון הכרום
+      - path: lib/widgets/smart_text/**
+        reason: תוכן הספר, בכיוון התוכן ולא בכיוון הכרום
+      - path: lib/plugins/view/plugin_correction_paragraph.dart
+        reason: פסקת תיקון קוראים, תוכן הספר

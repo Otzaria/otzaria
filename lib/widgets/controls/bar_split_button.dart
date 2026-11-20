@@ -158,8 +158,6 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
         child: ListenableBuilder(
           listenable: AppFocusRing.keyboardFocusChanges,
           builder: (context, _) {
-            final base = AppSurfaces.barSplitOverlay(fg);
-            final keyboard = AppFocusRing.isKeyboardFocusVisible;
             return InkWell(
               onTap: onTap,
               // מעוגל רק בצד החיצוני, שטוח מול הקו המפריד — חצי של כמוסה אחת.
@@ -167,17 +165,10 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
               customBorder: RoundedRectangleBorder(
                 borderRadius: borderRadius.resolve(direction),
               ),
-              overlayColor: keyboard
-                  ? base
-                  : WidgetStateProperty.resolveWith((states) {
-                      final focusOnly =
-                          states.contains(WidgetState.focused) &&
-                          !states.contains(WidgetState.hovered) &&
-                          !states.contains(WidgetState.pressed);
-                      return focusOnly
-                          ? Colors.transparent
-                          : base.resolve(states);
-                    }),
+              overlayColor: AppSurfaces.barSplitOverlay(
+                fg,
+                keyboard: AppFocusRing.isKeyboardFocusVisible,
+              ),
               splashColor: AppSurfaces.barSplitPressed(fg),
               child: SizedBox(
                 width: width,

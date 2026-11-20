@@ -501,7 +501,7 @@ final class _TeamimField extends _Field {
       )..layout()).width;
       final bodyStyle = Theme.of(context).textTheme.bodyMedium;
       const iconArea = 56.0, hPadding = 32.0, chipPadding = 24.0;
-      const switchWidth = 60.0, gaps = AppTokens.spaceSM + 12;
+      const switchWidth = 60.0, gaps = AppTokens.spaceSM + AppTokens.spaceSMD;
       final needed =
           iconArea +
           hPadding +

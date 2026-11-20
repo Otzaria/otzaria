@@ -1,15 +1,18 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
+import '../ast_helpers.dart';
 import '../ui_lint.dart';
 
-/// UIL-028: `showDialog(` רק דרך `showDialogUntilTornDown`/`settingsDialogBuilder`
-/// והעזרים שעוטפים אותם (`showAppDialog`, ‏`showWarningDialog` ודומיהם ב־
-/// lib/widgets/dialogs).
+/// UIL-028: פתיחת דיאלוג גולמי (`showDialog` ושלוש הצורות העוקפות שלו:
+/// `showAdaptiveDialog`, ‏`showCupertinoDialog`, ‏`showGeneralDialog`) רק דרך
+/// `showDialogUntilTornDown`/`settingsDialogBuilder` והעזרים שעוטפים אותם
+/// (`showAppDialog`, ‏`showWarningDialog` ודומיהם ב־lib/widgets/dialogs).
 ///
-/// נתפסת קריאה ל־`showDialog` שה־`builder:` שלה אינו `settingsDialogBuilder(...)`.
-/// דיאלוג כזה לא מקבל את השפה והכיוון של מסך ההגדרות, ואם ה־Navigator מתפרק
-/// לפני שהוא נבנה ה־Future שלו לא מסתיים.
+/// נתפסת קריאה שה־`builder:` שלה אינו `settingsDialogBuilder(...)`, גם עם
+/// prefix של ייבוא Flutter (`m.showDialog`). דיאלוג כזה לא מקבל את השפה
+/// והכיוון של מסך ההגדרות, ואם ה־Navigator מתפרק לפני שהוא נבנה ה־Future שלו
+/// לא מסתיים.
 class RawShowDialogRule extends UiLintRule {
   const RawShowDialogRule();
 
@@ -20,7 +23,8 @@ class RawShowDialogRule extends UiLintRule {
   int get stage => 3;
 
   @override
-  String get title => 'showDialog גולמי';
+  String get title =>
+      'showDialog/showAdaptiveDialog/showCupertinoDialog/showGeneralDialog גולמי';
 
   @override
   String get hint =>
@@ -37,6 +41,13 @@ class _Visitor extends RecursiveAstVisitor<void> {
   final RawShowDialogRule rule;
   final UiLintFile file;
 
+  static const _openers = {
+    'showDialog',
+    'showAdaptiveDialog',
+    'showCupertinoDialog',
+    'showGeneralDialog',
+  };
+
   static bool _scopedBuilder(MethodInvocation node) {
     for (final argument in node.argumentList.arguments) {
       if (argument is NamedArgument && argument.name.lexeme == 'builder') {
@@ -51,10 +62,14 @@ class _Visitor extends RecursiveAstVisitor<void> {
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    if (node.target == null &&
-        node.methodName.name == 'showDialog' &&
-        !_scopedBuilder(node)) {
-      file.report(rule, node, identity: 'showDialog');
+    final target = node.target;
+    final plain =
+        target == null ||
+        (target is SimpleIdentifier &&
+            flutterImportPrefixes(node.root).contains(target.name));
+    final name = node.methodName.name;
+    if (plain && _openers.contains(name) && !_scopedBuilder(node)) {
+      file.report(rule, node, identity: name);
     }
     super.visitMethodInvocation(node);
   }

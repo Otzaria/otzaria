@@ -30,3 +30,17 @@ Future<void> page(BuildContext context, PageController c) => c.nextPage(
   duration: AppMotion.duration(context, AppTokens.animFast),
   curve: Curves.ease,
 );
+
+// גלילה לשורה היא ניווט ולא אנימציית ממשק (הכרעה 18.11): לא נתפסת.
+class FakeLines {
+  Future<void> scrollToLine(int line, {Duration? duration}) async {}
+}
+
+Future<void> scrollToLineNavigation(FakeLines lines) => lines.scrollToLine(
+  3,
+  duration: const Duration(milliseconds: 300),
+);
+const Duration _kDebounce = Duration(milliseconds: 300);
+Future<void> debounceConstant() => Future<void>.delayed(_kDebounce);
+Widget tokenConstant(Duration d, Widget child) =>
+    AnimatedOpacity(opacity: 1, duration: d, child: child);

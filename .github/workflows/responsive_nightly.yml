@@ -1,0 +1,99 @@
+name: Responsive nightly
+
+# השכבה הכבדה של בדיקות הפריסה (docs/design-system/CI_ENFORCEMENT.md §10):
+# כל מטריצת החלונות (RESPONSIVE_TIER=full) על Linux ועל Windows, ובנוסף ה-goldens
+# על Windows כדי לתפוס סטייה בגופן או ברינדור של הראנר. רצה בלוח זמנים מענף
+# ברירת המחדל וביד (workflow_dispatch), ואינה חוסמת PR. הרצה ידנית אחת משמשת
+# גם למדידת הזמן של השכבה המלאה, לקביעת timeout ב-flutter_tests.yml.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: responsive-nightly
+  cancel-in-progress: false
+
+jobs:
+  responsive_full:
+    name: Responsive full (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2025]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          git config --global core.longpaths true
+          flutter pub get --enforce-lockfile
+
+      - name: Generate settings search index
+        shell: bash
+        run: dart run tool/generate_search_index.dart
+
+      - name: Generate settings translation catalog
+        shell: bash
+        run: dart run tool/generate_settings_l10n.dart
+
+      - name: Run responsive tests (full tier)
+        shell: bash
+        env:
+          RESPONSIVE_REPORT: ${{ runner.temp }}/responsive/report.jsonl
+          RESPONSIVE_SHOTS: ${{ runner.temp }}/responsive/shots
+        run: |
+          mkdir -p "$RUNNER_TEMP/responsive"
+          start=$(date +%s)
+          status=0
+          flutter test test/design_system/responsive/ -j 4 --dart-define=RESPONSIVE_TIER=full || status=$?
+          echo "Full tier took $(( $(date +%s) - start )) seconds on ${{ matrix.os }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      # סטיית גופן או רינדור של הראנר: רק ב-Windows, פלטפורמת הייחוס של ה-goldens.
+      - name: Run golden tests
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        shell: bash
+        run: flutter test test/goldens/
+
+      - name: Summarize
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          args=(--run-url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
+          [ -d "$RUNNER_TEMP/responsive" ] && args+=(--responsive="$RUNNER_TEMP/responsive")
+          dart tool/ci/design_report.dart "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload responsive failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: responsive-failures-${{ matrix.os }}
+          path: ${{ runner.temp }}/responsive/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: golden-failures-${{ matrix.os }}
+          path: test/goldens/**/failures/
+          if-no-files-found: ignore
+          retention-days: 14

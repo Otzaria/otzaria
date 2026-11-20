@@ -270,9 +270,10 @@ class PluginHighlightRenderer {
     final background = _color(style.backgroundColor);
     final alpha = revealed ? 1.0 : background.a * style.opacity;
     final opaque = alpha >= 0.99;
+    final solid = Color(background.toARGB32() | 0xFF000000);
     final fills = [
       for (final reader in _readerBackgrounds)
-        Color.alphaBlend(background.withValues(alpha: alpha), reader),
+        Color.lerp(reader, solid, alpha)!,
     ];
     Color? best;
     var bestWorst = 0.0;

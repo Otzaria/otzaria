@@ -8,10 +8,6 @@
       "lib/library/view/grid_items.dart": [
         {"scope":"_libraryInfoButton","fp":"5ba189c4","n":1}
       ],
-      "lib/settings/dialogs/safer_mode_password_dialog.dart": [
-        {"scope":"_SaferModePasswordDialogState.build","fp":"5ba189c4","n":1},
-        {"scope":"_SaferModeSetPasswordDialogState.build","fp":"5ba189c4","n":2}
-      ],
       "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
         {"scope":"_ZmanInfoButton.build","fp":"5ba189c4","n":1}
       ]
@@ -299,13 +295,10 @@
       "lib/core/info/view/app_info_dialog.dart": [
         {"scope":"_AppInfoDialogContentState._buildHeader","fp":"2d3a28a0","n":1},
         {"scope":"_AppInfoDialogContentState.build","fp":"1a491541","n":1},
-        {"scope":"_AttachedLibraryTile.build","fp":"4642f6a0","n":1},
         {"scope":"_ErrorTile.build","fp":"1a491541","n":1},
         {"scope":"_ErrorTile.build","fp":"2d3a28a0","n":1},
         {"scope":"_FolderPath.build","fp":"1a491541","n":1},
         {"scope":"_FolderTileState.build","fp":"1a491541","n":2},
-        {"scope":"_FolderTileState.build","fp":"4642f6a0","n":1},
-        {"scope":"_ListHeading.build","fp":"4642f6a0","n":1},
         {"scope":"_MoreToggle.build","fp":"1a491541","n":1},
         {"scope":"_PluginRow.build","fp":"2d3a28a0","n":1}
       ],
@@ -329,8 +322,7 @@
       ],
       "lib/library_update/changes_notes/library_changes_dialog.dart": [
         {"scope":"_LineView.build","fp":"1b5a5ff5","n":1},
-        {"scope":"_LineView.build","fp":"2d3a28a0","n":2},
-        {"scope":"_LineView.build","fp":"4642f6a0","n":2}
+        {"scope":"_LineView.build","fp":"2d3a28a0","n":2}
       ],
       "lib/navigation/view/custom_title_bar.dart": [
         {"scope":"_CustomTitleBarState._buildPanelTitle","fp":"abc1e632","n":1},
@@ -348,9 +340,6 @@
       "lib/personal_notes/view/personal_notes_screen.dart": [
         {"scope":"_PersonalNotesManagerScreenState._buildMissingNotesTile","fp":"a9c1e30c","n":1},
         {"scope":"_PersonalNotesManagerScreenState._buildMissingNotesTile","fp":"aac1e49f","n":1}
-      ],
-      "lib/plugins/view/plugin_settings_screen.dart": [
-        {"scope":"PluginDevBadge.build","fp":"2903b69b","n":1}
       ],
       "lib/search/view/advanced_search_controls.dart": [
         {"scope":"_AdvancedSearchControlsState._buildAlternativeWordsList","fp":"a9c1e30c","n":1},
@@ -370,10 +359,6 @@
       "lib/search/view/in_book_snippet_style.dart": [
         {"scope":"InBookSnippetStyle.new","fp":"abc1e632","n":1},
         {"scope":"InBookSnippetStyle.new","fp":"adc1e958","n":1}
-      ],
-      "lib/search/view/layout_fix_suggestion_banner.dart": [
-        {"scope":"LayoutFixSuggestionBanner.build","fp":"a7c1dfe6","n":1},
-        {"scope":"LayoutFixSuggestionBanner.build","fp":"a8c1e179","n":1}
       ],
       "lib/search/view/search_results_layout.dart": [
         {"scope":"_SearchResultsLayoutState._buildQueryDisplay","fp":"2d3a28a0","n":1}
@@ -405,18 +390,13 @@
         {"scope":"SemanticResultCard._buildContent","fp":"abc1e632","n":1}
       ],
       "lib/settings/dialogs/books_list_dialog.dart": [
-        {"scope":"_BookListRow.build","fp":"1a491541","n":1},
-        {"scope":"_BookListRow.build","fp":"4642f6a0","n":1}
+        {"scope":"_BookListRow.build","fp":"1a491541","n":1}
       ],
       "lib/settings/dialogs/color_picker_dialog.dart": [
         {"scope":"_ColorPickerDialogState.build","fp":"2d3a28a0","n":2}
       ],
-      "lib/settings/dialogs/hidden_books_list_dialog.dart": [
-        {"scope":"_HiddenBooksListDialogState.build","fp":"4642f6a0","n":1}
-      ],
       "lib/settings/dialogs/hidden_books_picker_dialog.dart": [
-        {"scope":"_HiddenBooksPickerDialogState.build","fp":"1a491541","n":2},
-        {"scope":"_HiddenBooksPickerDialogState.build","fp":"4642f6a0","n":1}
+        {"scope":"_HiddenBooksPickerDialogState.build","fp":"1a491541","n":2}
       ],
       "lib/settings/dialogs/offline_donation_dialog.dart": [
         {"scope":"_DonationInstructions.build","fp":"2d3a28a0","n":1}
@@ -432,8 +412,7 @@
         {"scope":"_LicenseContentState.build","fp":"2d3a28a0","n":1}
       ],
       "lib/settings/panels/user_import_files_dialog.dart": [
-        {"scope":"_ImportFileRow.build","fp":"1a491541","n":1},
-        {"scope":"_ImportFileRow.build","fp":"4642f6a0","n":1}
+        {"scope":"_ImportFileRow.build","fp":"1a491541","n":1}
       ],
       "lib/shortcuts/view/custom_shortcut_dialog.dart": [
         {"scope":"_CustomShortcutDialogState.build","fp":"1a491541","n":1},
@@ -512,9 +491,7 @@
         {"scope":"_BookDetailScreenState._headingStyle","fp":"503c9e50","n":1}
       ],
       "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
-        {"scope":"_AddBooksToTrackingDialogState._buildBookTile","fp":"1a491541","n":1},
-        {"scope":"_AddBooksToTrackingDialogState._buildBookTile","fp":"4642f6a0","n":1},
-        {"scope":"_AddBooksToTrackingDialogState._buildCategoryNode","fp":"4642f6a0","n":1}
+        {"scope":"_AddBooksToTrackingDialogState._buildBookTile","fp":"1a491541","n":1}
       ],
       "lib/tools/shamor_zachor/widgets/book_card_widget.dart": [
         {"scope":"_BookCardWidgetState._buildCyclesProgressInfo","fp":"1a491541","n":1},
@@ -530,7 +507,6 @@
         {"scope":"_CommentarySearchResultsListState._highlightSpans","fp":"abc1e632","n":1}
       ],
       "lib/widgets/dialogs/details_info_section.dart": [
-        {"scope":"DetailsCard.build","fp":"4642f6a0","n":1},
         {"scope":"DetailsHeading.build","fp":"1b5a5ff5","n":1},
         {"scope":"DetailsHeading.build","fp":"2d3a28a0","n":1},
         {"scope":"DetailsInfoSection.build","fp":"2d3a28a0","n":2},
@@ -627,9 +603,6 @@
       "lib/personal_notes/view/personal_notes_screen.dart": [
         {"scope":"_PersonalNotesManagerScreenState._buildNoteCard","fp":"06da8626","n":2}
       ],
-      "lib/plugins/view/plugin_settings_screen.dart": [
-        {"scope":"PluginDevBadge.build","fp":"49ed4e0e","n":1}
-      ],
       "lib/plugins/view/widgets/plugin_update_chip.dart": [
         {"scope":"_PluginUpdateChipState.build","fp":"d1a84c0b","n":1},
         {"scope":"_PluginUpdateChipState.build","fp":"f259c80b","n":1}
@@ -637,14 +610,8 @@
       "lib/search/view/full_text_settings_widgets.dart": [
         {"scope":"ExternalResultsPositionControl.build","fp":"0ed5e89b","n":1}
       ],
-      "lib/search/view/layout_fix_suggestion_banner.dart": [
-        {"scope":"LayoutFixSuggestionBanner.build","fp":"984610d2","n":1}
-      ],
       "lib/search/view/search_dialog.dart": [
         {"scope":"_SearchDialogState._buildFooter","fp":"1509e529","n":1}
-      ],
-      "lib/search/view/search_result_source_tag.dart": [
-        {"scope":"SearchResultSourceTag.build","fp":"9f20568c","n":1}
       ],
       "lib/search/view/search_scope_menu.dart": [
         {"scope":"_ScopeMenuPanelState._buildRow","fp":"05882f6f","n":1},
@@ -702,8 +669,7 @@
         {"scope":"_BookSourceBannerState.build","fp":"bddffc96","n":1}
       ],
       "lib/tools/aramaic_dictionary/widgets/aramaic_result_card.dart": [
-        {"scope":"_MeaningRow.build","fp":"66ff54ff","n":1},
-        {"scope":"_MeaningRow.build","fp":"bd849c5e","n":1}
+        {"scope":"_MeaningRow.build","fp":"66ff54ff","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
         {"scope":"_InlineTimeEditorState._segment","fp":"66ff54ff","n":1}
@@ -961,117 +927,7 @@
         {"scope":"_TextCorrectionEditorState.build","fp":"66b33325","n":1}
       ]
     },
-    "UIL-028": {
-      "lib/app_report/view/app_report_dialog.dart": [
-        {"scope":"showAppReportDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/app_report/view/crash_prompt_dialog.dart": [
-        {"scope":"showCrashPromptDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/bookmarks/view/book_bookmarks_action.dart": [
-        {"scope":"showBookBookmarksDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/bookmarks/view/save_group_bookmark_dialog.dart": [
-        {"scope":"showSaveGroupBookmarkDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/core/windowing/mac_menu_bar.dart": [
-        {"scope":"MacMenuBar._showDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/library/view/book_versions_dialog.dart": [
-        {"scope":"showBookVersionsDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/library/view/library_browser.dart": [
-        {"scope":"_LibraryBrowserState._openOtzarBook","fp":"3e6ca19c","n":1},
-        {"scope":"_LibraryBrowserState._openSearchDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/navigation/view/custom_title_bar.dart": [
-        {"scope":"_CustomTitleBarState._showBookmarksDialog","fp":"3e6ca19c","n":1},
-        {"scope":"_CustomTitleBarState._showHistoryDialog","fp":"3e6ca19c","n":1},
-        {"scope":"_CustomTitleBarState._showSaveWorkspaceDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/navigation/view/main_window_screen.dart": [
-        {"scope":"MainWindowScreenState._dispatchExternalUriAction","fp":"3e6ca19c","n":2},
-        {"scope":"MainWindowScreenState._handleFindRefOpen","fp":"3e6ca19c","n":1},
-        {"scope":"MainWindowScreenState._handleSearchTabOpen","fp":"3e6ca19c","n":1},
-        {"scope":"MainWindowScreenState._showPluginInstallDialog","fp":"3e6ca19c","n":2}
-      ],
-      "lib/pdf_book/view/pdf_book_screen.dart": [
-        {"scope":"_PdfBookScreenState._handlePrintPress","fp":"3e6ca19c","n":1}
-      ],
-      "lib/pdf_book/view/pdf_commentary_panel.dart": [
-        {"scope":"PdfCommentaryPanelState.printDisplayedCommentaries","fp":"3e6ca19c","n":1}
-      ],
-      "lib/personal_notes/view/personal_notes_screen.dart": [
-        {"scope":"_PersonalNotesManagerScreenState._editNote","fp":"3e6ca19c","n":1},
-        {"scope":"_PersonalNotesManagerScreenState._exportSelected","fp":"3e6ca19c","n":1},
-        {"scope":"_PersonalNotesManagerScreenState._importNotes","fp":"3e6ca19c","n":1}
-      ],
-      "lib/personal_notes/widgets/note_draft_decision_dialog.dart": [
-        {"scope":"showNoteDraftDecisionDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/personal_notes/widgets/personal_note_editor.dart": [
-        {"scope":"_PersonalNoteEditorBodyState._insertLink","fp":"3e6ca19c","n":1}
-      ],
-      "lib/plugins/bridge/plugin_bridge_adapter.dart": [
-        {"scope":"PluginBridgeAdapter._defaultPrintBookRange","fp":"3e6ca19c","n":1},
-        {"scope":"PluginBridgeAdapter._defaultPrintPluginFile","fp":"3e6ca19c","n":1}
-      ],
-      "lib/plugins/view/plugin_dev_error_view.dart": [
-        {"scope":"PluginDevErrorView.build","fp":"3e6ca19c","n":1}
-      ],
-      "lib/search/view/in_book_advanced_search_dialog.dart": [
-        {"scope":"showInBookAdvancedSearchDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/search/view/tantivy_full_text_search.dart": [
-        {"scope":"_TantivyFullTextSearchState._openEditDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/semantic_search/view/semantic_search_results_screen.dart": [
-        {"scope":"_SemanticSearchResultsScreenState._openEditDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/shortcuts/keyboard_shortcuts.dart": [
-        {"scope":"_KeyboardShortcutsState._handleKeyEvent","fp":"3e6ca19c","n":5}
-      ],
-      "lib/shortcuts/view/shortcut_dropdown_tile.dart": [
-        {"scope":"_ShortcutDropDownTileState._handleSelection","fp":"3e6ca19c","n":1}
-      ],
-      "lib/text_book/view/reader_print_actions.dart": [
-        {"scope":"showPrintingScreen","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/biographies/widgets/biographies_credit_line.dart": [
-        {"scope":"BiographiesCreditLine._showCredits","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/calendar/calendar_screen.dart": [
-        {"scope":"CalendarWidgetState._togglePrintCalendar","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
-        {"scope":"_CalendarEventDialogState._pickColorWithDialog","fp":"3e6ca19c","n":1},
-        {"scope":"_CalendarEventDialogState._pickDateWithDialog","fp":"3e6ca19c","n":1},
-        {"scope":"_CalendarEventDialogState._showCustomNotificationDialog","fp":"3e6ca19c","n":1},
-        {"scope":"showCalendarEventDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/calendar/dialogs/calendar_print_dialog.dart": [
-        {"scope":"showCalendarPrintDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/calendar/dialogs/calendar_zman_alert_dialog.dart": [
-        {"scope":"showZmanAlertDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/calendar/dialogs/zmanim_settings_dialog.dart": [
-        {"scope":"showZmanimSettingsDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart": [
-        {"scope":"showAddBooksToTrackingDialog","fp":"3e6ca19c","n":1}
-      ],
-      "lib/tools/tikkun_korim/view/tikkun_korim_screen.dart": [
-        {"scope":"_TikkunKorimViewState._print","fp":"3e6ca19c","n":1}
-      ],
-      "lib/update/hebrew_update_widgets.dart": [
-        {"scope":"hebrewDefaultDialog","fp":"3e6ca19c","n":1}
-      ]
-    },
     "UIL-029": {
-      "lib/app_report/view/widgets/app_report_images_section.dart": [
-        {"scope":"_ImageThumbnail.build","fp":"0d3cb7ac","n":1}
-      ],
       "lib/find_ref/view/find_ref_dialog.dart": [
         {"scope":"_FindRefDialogState._buildIdleState","fp":"f9e8a808","n":1},
         {"scope":"_FindRefDialogState._buildResultIcon","fp":"f1e89b70","n":1},
@@ -1137,9 +993,6 @@
         {"scope":"OrderOfResults.build","fp":"f1e89b70","n":1},
         {"scope":"_ScopeAndMatchMenu.build","fp":"f1e89b70","n":1}
       ],
-      "lib/search/view/layout_fix_suggestion_banner.dart": [
-        {"scope":"LayoutFixSuggestionBanner.build","fp":"89f0467d","n":1}
-      ],
       "lib/search/view/search_scope_menu.dart": [
         {"scope":"_ScopeMenuPanelState._buildBreadcrumb","fp":"87f04357","n":1},
         {"scope":"_ScopeMenuPanelState._buildBreadcrumb","fp":"f1e89b70","n":1},
@@ -1156,9 +1009,6 @@
       "lib/semantic_search/view/widgets/semantic_result_card.dart": [
         {"scope":"SemanticResultCard._buildContent","fp":"89f0467d","n":2},
         {"scope":"_VoteButton.build","fp":"89f0467d","n":1}
-      ],
-      "lib/settings/dialogs/color_picker_dialog.dart": [
-        {"scope":"_ColorSwatchState.build","fp":"f1e89b70","n":1}
       ],
       "lib/settings/dialogs/hidden_books_list_dialog.dart": [
         {"scope":"_HiddenBooksListDialogState.build","fp":"f1e89b70","n":1}

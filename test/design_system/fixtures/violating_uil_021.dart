@@ -14,3 +14,8 @@ const BorderRadius h = /* LINT */ BorderRadius.only(
   topRight: Radius.circular(8),
   bottomLeft: Radius.circular(8),
 );
+const BorderSide _side = BorderSide();
+Border borderA() => const Border(left: _side); // LINT
+Border borderB(bool onRight) => onRight
+    ? const Border(left: _side) // LINT
+    : const Border(right: _side); // LINT

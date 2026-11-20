@@ -41,7 +41,7 @@ class _AppContextMenuPanel extends StatelessWidget {
             colorScheme.surfaceContainer,
         elevation:
             menuStyle?.elevation?.resolve(const <WidgetState>{})?.toDouble() ??
-            3,
+            AppMenuVisuals.panelElevation,
         shape:
             menuStyle?.shape?.resolve(const <WidgetState>{}) ??
             RoundedRectangleBorder(borderRadius: presentation.borderRadius),
@@ -97,13 +97,13 @@ class _HoverableHighlightedRow extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final primary = colorScheme.primary;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: AppMenuVisuals.highlightedRowMargin,
       child: InkWell(
         onTap: onTap,
         borderRadius: presentation.borderRadius,
         child: Ink(
           height: metrics.itemHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: AppMenuVisuals.highlightedRowPadding,
           decoration: BoxDecoration(
             border: Border.all(color: primary, width: 1.5),
             borderRadius: presentation.borderRadius,
@@ -121,7 +121,7 @@ class _HoverableHighlightedRow extends StatelessWidget {
               ),
               if (icon != null) ...[
                 const Spacer(),
-                const SizedBox(width: 6),
+                const SizedBox(width: AppMenuVisuals.highlightedRowIconGap),
                 Icon(icon, size: metrics.iconSize, color: primary),
               ],
             ],
@@ -174,19 +174,23 @@ class _AppContextMenuColorRow extends StatelessWidget {
                                 closeMenu();
                                 action.onTap!.call();
                               },
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(
+                          AppMenuVisuals.swatchTapRadius,
+                        ),
                         child: SizedBox.square(
                           dimension: 32,
                           child: Center(
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 120),
+                              duration: AppMenuVisuals.swatchAnimation,
                               width: 20,
                               height: 20,
                               decoration: BoxDecoration(
                                 color: action.icon == null
                                     ? action.color
                                     : Colors.transparent,
-                                borderRadius: BorderRadius.circular(5),
+                                borderRadius: BorderRadius.circular(
+                                  AppMenuVisuals.swatchRadius,
+                                ),
                                 border: Border.all(
                                   color: action.selected
                                       ? colorScheme.primary
@@ -198,7 +202,7 @@ class _AppContextMenuColorRow extends StatelessWidget {
                                   ? null
                                   : Icon(
                                       action.icon,
-                                      size: 18,
+                                      size: metrics.iconSize,
                                       color: colorScheme.onSurfaceVariant,
                                     ),
                             ),
@@ -308,7 +312,10 @@ class _IconRowButton extends StatelessWidget {
               Flexible(
                 child: Text(
                   action.label ?? action.tooltip ?? '',
-                  style: TextStyle(fontSize: 11, color: color),
+                  style: TextStyle(
+                    fontSize: AppMenuVisuals.iconRowLabelFontSize,
+                    color: color,
+                  ),
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -346,7 +353,7 @@ class _IconRowButton extends StatelessWidget {
                 action.onTap?.call();
               }
             : null,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppMenuVisuals.iconRowButtonRadius),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minWidth: 48, maxWidth: 96),
           child: content,
@@ -449,7 +456,7 @@ class _IconRowSubmenuState extends State<_IconRowSubmenu> {
       ],
       builder: (context, controller, _) => InkWell(
         onTap: widget.enabled ? _toggle : null,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppMenuVisuals.iconRowButtonRadius),
         child: widget.child,
       ),
     );

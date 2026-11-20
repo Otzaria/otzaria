@@ -50,4 +50,26 @@ void main() {
     );
     expect(isShardedTestFile('test/widgets/helpers.dart'), isFalse);
   });
+
+  test('responsive tests are not sharded: they run in responsive_ui', () {
+    expect(
+      isShardedTestFile(
+        'test/design_system/responsive/responsive_dialogs_test.dart',
+      ),
+      isFalse,
+    );
+    expect(
+      isShardedTestFile(
+        'test/design_system/responsive/responsive_harness.dart',
+      ),
+      isFalse,
+    );
+    expect(isShardedTestFile('test/design_system/ui_lint_test.dart'), isTrue);
+    expect(
+      isShardedTestFile(
+        'test/tools/calendar/calendar_screen_responsive_test.dart',
+      ),
+      isTrue,
+    );
+  });
 }

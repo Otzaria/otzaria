@@ -36,6 +36,7 @@ jobs:
     outputs:
       native_linux: ${{ steps.filter.outputs.native_linux }}
       native_macos: ${{ steps.filter.outputs.native_macos }}
+      ui: ${{ steps.filter.outputs.ui }}
     steps:
       - id: filter
         env:
@@ -45,6 +46,7 @@ jobs:
           if [ -z "$PR" ] || ! files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename'); then
             echo native_linux=true >> "$GITHUB_OUTPUT"
             echo native_macos=true >> "$GITHUB_OUTPUT"
+            echo ui=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
           shared='^(tool/(download_assistant|updater)/|tool/release/(download_assistant_selection|generate_release_manifest|semantic_release_components)\.dart$|installer/assistant_art\.pin\.json$|\.github/workflows/flutter_tests\.yml$)'
@@ -54,6 +56,12 @@ jobs:
           grep -qE "$macos" <<< "$files" && mac=true
           echo "native_linux=$linux" | tee -a "$GITHUB_OUTPUT"
           echo "native_macos=$mac" | tee -a "$GITHUB_OUTPUT"
+          # שינוי בממשק מריץ את בדיקות ה-responsive בשכבה המלאה (responsive_ui):
+          # רכיבים משותפים, ערכת הנושא, מסכים ודיאלוגים, התשתית של הבדיקות עצמן.
+          uipaths='^(lib/(widgets|theme|settings|navigation|search|library|text_book|pdf_book|tools|core/windowing)/|lib/.*/(view|dialogs|widgets)/|packages/otzaria_context_menu/lib/|test/design_system/|test/goldens/|test/support/|tool/ui_lint/|\.github/workflows/flutter_tests\.yml$)'
+          ui=false
+          grep -qE "$uipaths" <<< "$files" && ui=true
+          echo "ui=$ui" | tee -a "$GITHUB_OUTPUT"
 
   native_linux:
     name: Native updater and download assistant (Linux)
@@ -177,13 +185,47 @@ jobs:
       - name: Check plugin SDK spec is fresh
         run: dart run tool/plugins/generate_plugin_spec.dart --check
 
-      # דוח ui_lint מול tool/ui_lint/baseline.json (docs/design-system/CI_ENFORCEMENT.md).
-      # ה-step הזה רק מדווח: חריגות חדשות מסומנות ב-annotations ולא מכשילות את ה-job.
-      # השער החוסם הוא test/design_system/ui_lint_test.dart, שרץ ב-shards של job ה-test.
-      # ה-summary כולל גם את טבלת המצב לפי מודול (אותה טבלה כמו --format=modules).
-      - name: UI lint report
-        continue-on-error: true
-        run: dart tool/ui_lint_cli.dart --format=github
+      # שער ה-lint החוסם (docs/design-system/CI_ENFORCEMENT.md §5). ה-job הזה אינו
+      # מאחורי run-ci, ולכן חריגה חדשה מהתקן, baseline מת או הערת allow פגומה
+      # מכשילים כל PR, גם בלי התווית. --check לא כותב קבצים.
+      - name: UI lint gate
+        run: dart tool/ui_lint_cli.dart --check
+
+      # בדיקות חבילת העיצוב ללא Flutter (package:test): כללי ה-lint וה-baseline,
+      # נתיבי המסמכים, ומחזורי ייבוא. הן רצות גם ב-shards, אבל שם הן מאחורי run-ci.
+      - name: UI design tests
+        run: >-
+          dart test
+          test/design_system/ui_lint_test.dart
+          test/design_system/ui_lint_pending_test.dart
+          test/design_system/ui_lint_scan_dirs_test.dart
+          test/design_system/ci_enforcement_catalog_test.dart
+          test/design_system/agent_docs_paths_test.dart
+          test/design_system/import_cycles_test.dart
+
+      # קלט לדוח העיצוב (job design_report): הדוח המלא של ה-lint וה-baseline של
+      # הבסיס, להפרש. רץ גם כשהשער נכשל, כדי שהדוח יראה מה נכשל.
+      - name: Collect design report inputs
+        if: always()
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/design"
+          dart tool/ui_lint_cli.dart --format=json > "$RUNNER_TEMP/design/lint.json" || true
+          if [ -n "$BASE_SHA" ]; then
+            git fetch --depth=1 origin "$BASE_SHA" \
+              && git show "$BASE_SHA:tool/ui_lint/baseline.json" > "$RUNNER_TEMP/design/base_baseline.json" \
+              || echo "No base baseline; the report shows no difference."
+          fi
+
+      - name: Upload design report inputs
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: design-lint
+          path: ${{ runner.temp }}/design/
+          if-no-files-found: ignore
+          retention-days: 7
 
       # בדיקות ה־CI: analyze + test (פורמט נבדק locally ב־lint).
       - name: Analyze
@@ -666,6 +708,152 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # בדיקות פריסה (docs/design-system/CI_ENFORCEMENT.md §10): overflow, פעולות
+  # שלא נגישות, טקסט חתוך, דיאלוגים מחוץ לחלון. השכבה המהירה (6 חלונות) חוסמת
+  # בכל PR עם run-ci; בשינוי ממשק (changes.ui) רצה השכבה המלאה (~40 חלונות).
+  # הכשלים נכתבים לקובץ JSON-lines ולצילומים, ש-design_report מסכם. הבדיקות
+  # מוחרגות מה-shards (tool/ci/test_shards.dart) כדי שלא ירוצו פעמיים.
+  responsive_ui:
+    name: Responsive (UI)
+    needs: [gate, changes]
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    # זמן הריצה של השכבה המלאה טרם נמדד: להריץ פעם אחת ב-workflow_dispatch
+    # (responsive_nightly.yml) ולהדק את הערך.
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Cache native build hook output
+        uses: actions/cache@v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared
+          key: ${{ runner.os }}-native-hooks-v1-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+
+      # כמו ב-shards: הבדיקות תלויות בקבצים המחוללים, וה-dart run הראשון מפעיל
+      # build hooks, ולכן retry חל רק על כשל hooks.
+      - name: Generate settings search index
+        run: |
+          set +e
+
+          for attempt in 1 2 3; do
+            output=$(dart run tool/generate_search_index.dart 2>&1)
+            status=$?
+            printf '%s\n' "$output"
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+
+            case "$output" in
+              *'Running build hooks failed'*) ;;
+              *) exit "$status" ;;
+            esac
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::בניית נכסים נייטיביים נכשלה (ניסיון $attempt מתוך 3) - ניסיון נוסף בעוד 15 שניות"
+              sleep 15
+            fi
+          done
+
+          echo "::error::בניית הנכסים הנייטיביים נכשלה בשלושה ניסיונות"
+          exit 1
+
+      - name: Generate settings translation catalog
+        run: dart run tool/generate_settings_l10n.dart
+
+      - name: Run responsive tests
+        env:
+          # כשל בזיהוי השינויים (changes) מריץ את השכבה המלאה, כמו ב-native.
+          TIER: ${{ (needs.changes.result != 'success' || needs.changes.outputs.ui == 'true') && 'full' || 'quick' }}
+          RESPONSIVE_REPORT: ${{ runner.temp }}/responsive/report.jsonl
+          RESPONSIVE_SHOTS: ${{ runner.temp }}/responsive/shots
+        run: |
+          mkdir -p "$RUNNER_TEMP/responsive"
+          echo "Responsive tier: $TIER"
+          flutter test test/design_system/responsive/ -j 4 --dart-define=RESPONSIVE_TIER="$TIER"
+
+      - name: Upload responsive failures
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: responsive-failures
+          path: ${{ runner.temp }}/responsive/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # סיכום עיצוב ו-UI ל-Step Summary (tool/ci/design_report.dart): חריגות לפי כלל
+  # והפרש baseline מול הבסיס, מודולים עם חוב, כשלי responsive ו-golden, מצב
+  # הפלטפורמות ופקודות שחזור. רץ תמיד, כולל PR בלי run-ci (אז הדוח אומר
+  # שהבדיקות החוסמות לא רצו), ואינו חוסם בעצמו: continue-on-error, כי כשל של
+  # workflow על PR מעביר אותו לטיוטה (auto-draft-failed-ci.yml), וכשל בדוח
+  # (חסר artifact, שינוי בפורמט) אינו כשל של הקוד.
+  design_report:
+    name: Design report
+    needs: [gate, analyze, test, build_windows, test_windows, goldens_windows, responsive_ui, build_linux]
+    if: ${{ always() }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # נדרש רק dart; design_report.dart לא תלוי בחבילות.
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Download design report inputs
+        continue-on-error: true
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: design-lint
+          path: ${{ runner.temp }}/design
+
+      - name: Download responsive failures
+        continue-on-error: true
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: responsive-failures
+          path: ${{ runner.temp }}/responsive
+
+      - name: Download golden failures
+        continue-on-error: true
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: golden-failures
+          path: ${{ runner.temp }}/goldens
+
+      - name: Build design report
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          RUN_CI: ${{ needs.gate.outputs.run }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          d="$RUNNER_TEMP/design"
+          printf '%s' "$NEEDS" > "$RUNNER_TEMP/needs.json"
+          args=(--needs-json="$RUNNER_TEMP/needs.json" --run-ci="$RUN_CI" --run-url="$RUN_URL")
+          [ -f "$d/lint.json" ] && args+=(--lint-json="$d/lint.json")
+          [ -f "$d/base_baseline.json" ] && args+=(--base-baseline="$d/base_baseline.json")
+          [ -d "$RUNNER_TEMP/responsive" ] && args+=(--responsive="$RUNNER_TEMP/responsive")
+          [ -d "$RUNNER_TEMP/goldens" ] && args+=(--goldens-dir="$RUNNER_TEMP/goldens")
+          dart tool/ci/design_report.dart "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+
   build_linux:
     name: Build (Linux)
     needs: gate
@@ -781,7 +969,7 @@ jobs:
   # הסיכום רץ רק כשהשער פתוח: בלי run-ci הוא מדולג ולא מאפשר מיזוג.
   ci_result:
     name: CI result
-    needs: [gate, changes, native_linux, native_macos, analyze, test, build_windows, test_windows, goldens_windows, build_linux]
+    needs: [gate, changes, native_linux, native_macos, analyze, test, build_windows, test_windows, goldens_windows, responsive_ui, build_linux]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     steps:

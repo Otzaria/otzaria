@@ -144,16 +144,23 @@ class AppSurfaces {
   static Color hoverRow(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.08);
 
   /// שכבת המצב של חצי ב־BarSplitButton — כמו IconButton של BarButton:
-  /// ריחוף 8%, לחיצה ופוקוס 10% מצבע הקדמה.
-  static WidgetStateProperty<Color?> barSplitOverlay(Color fg) =>
-      WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.pressed)) return barSplitPressed(fg);
-        if (states.contains(WidgetState.hovered)) {
-          return fg.withValues(alpha: 0.08);
-        }
-        if (states.contains(WidgetState.focused)) return barSplitPressed(fg);
-        return null;
-      });
+  /// ריחוף 8%, לחיצה ופוקוס 10% מצבע הקדמה. פוקוס שאינו בא מניווט מקלדת
+  /// ([keyboard] false), וגם אינו בריחוף או בלחיצה, לא מצויר (DD-07): InkWell
+  /// נותן ל־overlayColor קדימות על focusColor, ובחזרת פוקוס מתפריט שנסגר
+  /// אחרי עכבר החצי היה נשאר מוכתם.
+  static WidgetStateProperty<Color?> barSplitOverlay(
+    Color fg, {
+    bool keyboard = true,
+  }) => WidgetStateProperty.resolveWith((states) {
+    if (states.contains(WidgetState.pressed)) return barSplitPressed(fg);
+    if (states.contains(WidgetState.hovered)) {
+      return fg.withValues(alpha: 0.08);
+    }
+    if (states.contains(WidgetState.focused)) {
+      return keyboard ? barSplitPressed(fg) : Colors.transparent;
+    }
+    return null;
+  });
 
   /// גל הלחיצה של חצי ב־BarSplitButton.
   static Color barSplitPressed(Color fg) => fg.withValues(alpha: 0.1);

@@ -3,6 +3,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 class AppTokens {
   static const double spaceSM = 8;
+  static const double fontMD = 14;
 }
 
 const EdgeInsets a = EdgeInsets.all(12);
@@ -20,3 +21,24 @@ const Widget spinner = SizedBox.square(
   child: CircularProgressIndicator(strokeWidth: 2),
 );
 const Widget avatar = SizedBox.square(dimension: 40);
+
+class SkeletonLines extends StatelessWidget {
+  const SkeletonLines({super.key, this.spacing = 6});
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Widget wrapOnScale(List<Widget> items) =>
+    Wrap(spacing: 8, runSpacing: 12, children: items);
+Widget rowZero(List<Widget> items) => Row(spacing: 0, children: items);
+Widget columnToken(List<Widget> items, double gap) =>
+    Column(spacing: gap, children: items);
+Widget geometry() => const SkeletonLines(spacing: 6);
+Widget gridOnScale(List<Widget> items) =>
+    GridView.count(crossAxisCount: 2, mainAxisSpacing: 16, children: items);
+EdgeInsets tokenScaled() => const EdgeInsets.all(AppTokens.spaceSM * 2);
+double tokenPlusVariable(double extra) => AppTokens.spaceSM + extra;
+double fontOffset() => AppTokens.fontMD + 1;
+double literalOnly() => 8 + 1;

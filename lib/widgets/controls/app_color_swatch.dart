@@ -92,7 +92,7 @@ class _AppColorSwatchState extends State<AppColorSwatch> {
                     ? Icon(
                         FluentIcons.checkmark_24_regular,
                         color: AppSeedColors.checkColorOn(fill),
-                        size: 20,
+                        size: AppTokens.iconMD,
                       )
                     : widget.color == null
                     ? Icon(
