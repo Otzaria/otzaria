@@ -921,11 +921,12 @@ class _LinksListViewState extends State<LinksListView> {
       subtitle: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
           // קישור עם עוגן-מילה: אות הסימון שבגוף הטקסט מוצגת לפני ההפניה.
-          var markerPrefix = '';
-          if (widget.showAnchorMarkers && link.anchorStart != null) {
-            final markerText = anchorMarkerText(link);
-            if (markerText != null) markerPrefix = '$markerText ';
-          }
+          final marker = widget.showAnchorMarkers && link.anchorStart != null
+              ? anchorMarkerText(link)
+              : null;
+          String withMarker(String reference) => marker == null
+              ? reference
+              : anchoredLinkTitle(link, marker, reference);
           final rawFallback = settingsState.replaceHolyNames
               ? utils.replaceHolyNames(
                   link.fallbackDisplayReference,
@@ -935,7 +936,7 @@ class _LinksListViewState extends State<LinksListView> {
 
           if (!isExpanded) {
             return Text(
-              markerPrefix + rawFallback,
+              withMarker(rawFallback),
               style: TextStyle(
                 fontSize: settingsState.commentatorsFontSize - 4,
                 fontWeight: FontWeight.normal,
@@ -951,8 +952,9 @@ class _LinksListViewState extends State<LinksListView> {
             future: link.displayReference,
             initialData: rawFallback,
             builder: (context, snapshot) {
-              String displaySubtitle =
-                  markerPrefix + (snapshot.data ?? rawFallback);
+              String displaySubtitle = withMarker(
+                snapshot.data ?? rawFallback,
+              );
               if (settingsState.replaceHolyNames) {
                 displaySubtitle = utils.replaceHolyNames(
                   displaySubtitle,
