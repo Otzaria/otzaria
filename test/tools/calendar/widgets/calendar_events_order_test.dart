@@ -1,6 +1,7 @@
 // סדר התצוגה של אירועי המשתמש — בפאנל האירועים ובתא היום שבלוח.
 // האירועים חייבים להופיע לפי שעה, לא לפי סדר א-ב של הכותרת.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -701,6 +702,60 @@ void main() {
       }
       expect(covered, containsAll([1, 2, 3, 4]));
     });
+
+    testWidgets(
+      'ריחוף מציג את "+" ההוספה בלי לדחוק את אירוע המשתמש (issue #4820)',
+      (tester) async {
+        final busyDay = JewishDate.initDate(
+          jewishYear: 5787,
+          jewishMonth: JewishDate.TEVES,
+          jewishDayOfMonth: 1,
+        ).getGregorianCalendar();
+        await cubit.addEvent(
+          title: 'שיעור',
+          baseGregorianDate: busyDay,
+          recurrenceType: RecurrenceType.none,
+          eventTime: const TimeOfDay(hour: 18, minute: 0),
+        );
+        await tester.pumpWidget(
+          cellApp(
+            width: 150,
+            height: 60,
+            date: busyDay,
+            direction: TextDirection.rtl,
+          ),
+        );
+        await tester.pumpAndSettle();
+        double addOpacity() => tester
+            .widget<AnimatedOpacity>(
+              find.ancestor(
+                of: find.byTooltip('הוסף אירוע'),
+                matching: find.byType(AnimatedOpacity),
+              ),
+            )
+            .opacity;
+        int slots() =>
+            tester.widget<DayExtras>(find.byType(DayExtras)).maxVisibleItems;
+
+        expect(addOpacity(), 0.0);
+        // שני מועדים ואירוע אחד בשתי שורות: יום עמוס.
+        final slotsBefore = slots();
+        expect(slotsBefore, 2);
+        expect(find.textContaining('שיעור'), findsOneWidget);
+
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.addPointer(location: Offset.zero);
+        addTearDown(gesture.removePointer);
+        await gesture.moveTo(tester.getCenter(find.byType(DayExtras)));
+        await tester.pumpAndSettle();
+
+        expect(addOpacity(), 1.0);
+        expect(slots(), slotsBefore);
+        expect(find.textContaining('שיעור'), findsOneWidget);
+      },
+    );
 
     testWidgets('+N סופר את הפריטים שאינם מוצגים גם כשהוא מחליף שורה', (
       tester,
