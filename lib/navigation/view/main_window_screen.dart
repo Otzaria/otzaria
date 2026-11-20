@@ -885,31 +885,56 @@ class MainWindowScreenState extends State<MainWindowScreen>
         pendingPane.bloc.state is! TextBookLoaded &&
         pendingPane.bloc.state is! TextBookError;
 
-    if (!shouldWaitForBook) {
+    // מסך הספרייה: שלב טעינה אחד — החלון נחשף כשהקטלוג (שנשלח ב-initState)
+    // זמין או נכשל, ולא חלון ריק ואחריו מחוון הטעינה של הספרייה (#2838).
+    // רשת הביטחון של initState חוסמת את ההמתנה.
+    final libraryBloc = context.read<LibraryBloc>();
+    final shouldWaitForLibrary =
+        navigationState.currentScreen == Screen.library &&
+        !_skipsEagerLibraryLoad &&
+        libraryBloc.state.isLoading;
+
+    if (shouldWaitForBook) {
+      StartupTimeline.instance.mark('waitingForActiveBook');
+      _revealWhen(
+        pendingPane.bloc.stream,
+        (state) => state is TextBookLoaded || state is TextBookError,
+        'activeBookLoaded',
+      );
+    } else if (shouldWaitForLibrary) {
+      StartupTimeline.instance.mark('waitingForLibrary');
+      _revealWhen(
+        libraryBloc.stream,
+        (state) => !state.isLoading,
+        'libraryLoaded',
+      );
+    } else {
       StartupTimeline.instance.mark(
         'reveal:immediate:${pendingPane?.runtimeType ?? currentTab.runtimeType}',
       );
       _revealMainWindowOnce();
-      return;
     }
+  }
 
-    StartupTimeline.instance.mark('waitingForActiveBook');
-    final bloc = pendingPane.bloc;
-    late final StreamSubscription<TextBookState> sub;
+  /// חושף כשמצב ב-[states] עונה על [isReady], כשהזרם נסגר או בשגיאה.
+  void _revealWhen<S>(
+    Stream<S> states,
+    bool Function(S state) isReady,
+    String readyMark,
+  ) {
+    late final StreamSubscription<S> sub;
     var done = false;
     void finish() {
       if (done) return;
       done = true;
       sub.cancel();
-      StartupTimeline.instance.mark('activeBookLoaded');
+      StartupTimeline.instance.mark(readyMark);
       _revealMainWindowOnce();
     }
 
-    sub = bloc.stream.listen(
+    sub = states.listen(
       (state) {
-        if (state is TextBookLoaded || state is TextBookError) {
-          finish();
-        }
+        if (isReady(state)) finish();
       },
       onDone: finish,
       onError: (_) => finish(),
