@@ -11,6 +11,7 @@ import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/models/pdf_index_setting.dart';
+import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -506,6 +507,24 @@ class IndexingRepository {
     onProgress: onProgress,
     onFinalizing: onFinalizing,
   );
+
+  /// המקום הפנוי בכונן שהמנוע כותב אליו בפועל; -1 כשלא ידוע.
+  Future<int> indexDriveFreeBytes() async {
+    final path = _writableIndexPath;
+    if (path == null) return -1;
+    final freeBytes = await _readIndexDriveFreeBytes(path);
+    return _writableIndexPath == path ? freeBytes : -1;
+  }
+
+  String? get _writableIndexPath =>
+      _tantivyDataProvider.isInitialized.value &&
+          !_tantivyDataProvider.isTempFallback
+      ? _tantivyDataProvider.activeIndexPath
+      : null;
+
+  // בדיקות הנתיב ו-GetDiskFreeSpaceEx סינכרוניות ועלולות להמתין לכונן.
+  static Future<int> _readIndexDriveFreeBytes(String path) =>
+      Isolate.run(() async => (await getDiskSpaceInfo(path)).freeBytes);
 
   /// בדיקה ([check]) ← לולאה אחת לספרים חדשים ([books], null לכל הספרייה)
   /// ושהשתנו, שמסמכיהם הישנים נמחקים רגע לפני כתיבתם ← commit ואיחוד אחד.

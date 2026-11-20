@@ -42,6 +42,146 @@ void main() {
   _FakeIndexingRepository repositoryOf(IndexingBloc bloc) =>
       (bloc as _FakeIndexingBloc).repository;
 
+  group('מקום פנוי בכונן האינדקס', () {
+    const mb = 1024 * 1024;
+
+    Future<({List<String> warnings, int checks})> index({
+      required int freeBytes,
+      int runs = 1,
+      int books = 1,
+    }) async {
+      final warnings = <String>[];
+      var checks = 0;
+      final bloc = IndexingBloc(
+        _FakeIndexingRepository(),
+        reportFailures: (result, elapsed) {},
+        indexFreeBytes: () async {
+          checks++;
+          return freeBytes;
+        },
+        showLowIndexDiskSpace: warnings.add,
+      );
+      for (var i = 0; i < runs; i++) {
+        final settled = Completer<void>();
+        bloc.add(
+          StartIndexing(libraryWithBooks(books), onSettled: settled.complete),
+        );
+        await settled.future.timeout(const Duration(seconds: 2));
+      }
+      await pumpEventQueue();
+      await bloc.close();
+      return (warnings: warnings, checks: checks);
+    }
+
+    test('כונן כמעט מלא: אזהרה אחת, גם בכמה ריצות', () async {
+      final result = await index(freeBytes: 189 * mb, runs: 2);
+      expect(result.warnings, hasLength(1));
+      expect(result.warnings.single, contains('189 MB'));
+    });
+
+    test('בלי אזהרה כשיש מקום או כשהמקום לא ידוע', () async {
+      expect((await index(freeBytes: 10 * 1024 * mb)).warnings, isEmpty);
+      expect((await index(freeBytes: -1)).warnings, isEmpty);
+    });
+
+    test('בדיקה מריצה ישנה לא מציגה אזהרה כפולה', () async {
+      final repository = _FakeIndexingRepository();
+      final older = Completer<int>();
+      final newer = Completer<int>();
+      final warnings = <String>[];
+      final secondProbeStarted = Completer<void>();
+      var checks = 0;
+      final bloc = IndexingBloc(
+        repository,
+        indexFreeBytes: () {
+          if (++checks == 1) return older.future;
+          secondProbeStarted.complete();
+          return newer.future;
+        },
+        showLowIndexDiskSpace: warnings.add,
+      );
+      final library = libraryWithBooks();
+      final firstSettled = Completer<void>();
+      bloc.add(StartIndexing(library, onSettled: firstSettled.complete));
+      await firstSettled.future.timeout(const Duration(seconds: 2));
+
+      final gate = repository.finalizeGate = Completer<void>();
+      final secondSettled = Completer<void>();
+      bloc.add(StartIndexing(library, onSettled: secondSettled.complete));
+      await secondProbeStarted.future.timeout(const Duration(seconds: 2));
+      newer.complete(189 * mb);
+      await pumpEventQueue();
+      older.complete(102 * mb);
+      await pumpEventQueue();
+
+      gate.complete();
+      await secondSettled.future.timeout(const Duration(seconds: 2));
+      await bloc.close();
+      expect(warnings, hasLength(1));
+      expect(warnings.single, contains('189 MB'));
+    });
+
+    test('בדיקת כונן שהסתיימה אחרי ביטול אינדוקס לא מציגה אזהרה', () async {
+      final repository = _FakeIndexingRepository();
+      final gate = repository.finalizeGate = Completer<void>();
+      final probe = Completer<int>();
+      final started = Completer<void>();
+      final warnings = <String>[];
+      final bloc = IndexingBloc(
+        repository,
+        indexFreeBytes: () {
+          started.complete();
+          return probe.future;
+        },
+        showLowIndexDiskSpace: warnings.add,
+      );
+      final settled = Completer<void>();
+      bloc.add(StartIndexing(libraryWithBooks(), onSettled: settled.complete));
+      await started.future.timeout(const Duration(seconds: 2));
+      final stopped = bloc.stream.firstWhere(
+        (state) => state is IndexingStopped,
+      );
+      bloc.add(CancelIndexing());
+      await stopped.timeout(const Duration(seconds: 2));
+
+      probe.complete(189 * mb);
+      await pumpEventQueue();
+      gate.complete();
+      await settled.future.timeout(const Duration(seconds: 2));
+      await bloc.close();
+      expect(warnings, isEmpty);
+    });
+
+    test('בדיקת כונן שהסתיימה בזמן סגירת הבלוק לא מציגה אזהרה', () async {
+      final repository = _FakeIndexingRepository();
+      final gate = repository.finalizeGate = Completer<void>();
+      final probe = Completer<int>();
+      final started = Completer<void>();
+      final warnings = <String>[];
+      final bloc = IndexingBloc(
+        repository,
+        indexFreeBytes: () {
+          started.complete();
+          return probe.future;
+        },
+        showLowIndexDiskSpace: warnings.add,
+      );
+      bloc.add(StartIndexing(libraryWithBooks()));
+      await started.future.timeout(const Duration(seconds: 2));
+
+      final closing = bloc.close();
+      probe.complete(189 * mb);
+      await pumpEventQueue();
+      gate.complete();
+      await closing.timeout(const Duration(seconds: 2));
+      expect(warnings, isEmpty);
+    });
+
+    test('אין ספרים לאינדוקס: לא בודקים את הכונן', () async {
+      expect((await index(freeBytes: 189 * mb, books: 0)).checks, 0);
+    });
+  });
+
   group('StartIndexing', () {
     test('בקשת איחוד מפורשת נשמרת בניקוי בתור העבודה', () async {
       final repository = _FakeIndexingRepository();
@@ -1172,6 +1312,9 @@ class _FakeIndexingBloc extends IndexingBloc {
 
 class _FakeIndexingRepository extends IndexingRepository {
   _FakeIndexingRepository() : super(_UnusedTantivyDataProvider());
+
+  @override
+  Future<int> indexDriveFreeBytes() async => -1;
 
   IndexingRunResult result = const IndexingRunResult.completed(
     processedBooks: 1,

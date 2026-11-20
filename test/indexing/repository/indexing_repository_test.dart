@@ -56,6 +56,23 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 void main() {
+  test('בדיקת מקום בכונן האינדקס מתבטלת כשהנתיב הפעיל מתחלף', () async {
+    final directory = await io.Directory.systemTemp.createTemp('index-drive-');
+    addTearDown(() => directory.delete(recursive: true));
+    final provider =
+        TantivyDataProvider.forTesting(
+            Future<SearchEngine>.value(_RecordingSearchEngine()),
+          )
+          ..activeIndexPath = directory.path
+          ..isInitialized.value = true;
+    final repository = IndexingRepository(provider);
+    expect(await repository.indexDriveFreeBytes(), greaterThanOrEqualTo(0));
+
+    final pending = repository.indexDriveFreeBytes();
+    provider.activeIndexPath = null;
+    expect(await pending, -1);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() {
     IndexingCrashCanary.writeLog = (_) {};
