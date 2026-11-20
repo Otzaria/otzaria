@@ -3,6 +3,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
@@ -1141,15 +1142,17 @@ class _LinksListViewState extends State<LinksListView> {
             child: MiddleClickOpen(
               onMiddleClick: () =>
                   ContextMenuUtils.openLinkTargetInBackground(context, link),
-              child: GestureDetector(
+              child: _KeyboardActivatableItem(
                 // הקשה על קישור פנימי מנווטת ליעד שלו, לא ליעד הקטע.
-                onTap: () {
+                onActivate: () {
                   if (_anchorHandledTap) {
                     _anchorHandledTap = false;
                     return;
                   }
                   _navigateToLink(link);
                 },
+                // Enter על פריט ממוקד: אין עוגן שנלחץ, ולכן אין מה לדלג עליו.
+                onKeyboardActivate: () => _navigateToLink(link),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12.0),
@@ -1196,6 +1199,55 @@ class _LinksListViewState extends State<LinksListView> {
           ],
         );
       },
+    );
+  }
+}
+
+/// פריט ברשימה שנפתח בהקשה: מקבל פוקוס ב-Tab, Enter פותח אותו, קורא מסך
+/// מכריז עליו ככפתור, ופוקוס מקלדת מסומן בטבעת (לא אחרי לחיצת עכבר).
+class _KeyboardActivatableItem extends StatefulWidget {
+  final VoidCallback onActivate;
+  final VoidCallback onKeyboardActivate;
+  final Widget child;
+
+  const _KeyboardActivatableItem({
+    required this.onActivate,
+    required this.onKeyboardActivate,
+    required this.child,
+  });
+
+  @override
+  State<_KeyboardActivatableItem> createState() =>
+      _KeyboardActivatableItemState();
+}
+
+class _KeyboardActivatableItemState extends State<_KeyboardActivatableItem> {
+  bool _focusVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      onTap: widget.onKeyboardActivate,
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (visible) =>
+            setState(() => _focusVisible = visible),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onKeyboardActivate();
+              return null;
+            },
+          ),
+        },
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: _focusVisible
+              ? AppSurfaces.focusRingDecoration(Theme.of(context).colorScheme)
+              : const BoxDecoration(),
+          child: GestureDetector(onTap: widget.onActivate, child: widget.child),
+        ),
+      ),
     );
   }
 }

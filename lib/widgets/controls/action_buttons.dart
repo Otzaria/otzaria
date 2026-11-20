@@ -354,6 +354,7 @@ class _BalancedText extends StatelessWidget {
       context,
     ).style.copyWith(inherit: true);
     final textDir = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
@@ -361,6 +362,7 @@ class _BalancedText extends StatelessWidget {
         final singleLinePainter = TextPainter(
           text: TextSpan(text: text, style: effectiveStyle),
           textDirection: textDir,
+          textScaler: textScaler,
           maxLines: 1,
         )..layout(maxWidth: double.infinity);
 
@@ -383,6 +385,7 @@ class _BalancedText extends StatelessWidget {
           final p1 = TextPainter(
             text: TextSpan(text: line1, style: effectiveStyle),
             textDirection: textDir,
+            textScaler: textScaler,
             maxLines: 1,
           )..layout(maxWidth: double.infinity);
 
@@ -391,6 +394,7 @@ class _BalancedText extends StatelessWidget {
           final p2 = TextPainter(
             text: TextSpan(text: line2, style: effectiveStyle),
             textDirection: textDir,
+            textScaler: textScaler,
             maxLines: 1,
           )..layout(maxWidth: double.infinity);
 

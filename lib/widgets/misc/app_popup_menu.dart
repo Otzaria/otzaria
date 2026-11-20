@@ -670,6 +670,7 @@ Future<T?> showAnchoredAppSearchMenu<T>({
     metrics,
     entries,
     maxWidth: overlay.size.width,
+    textScaler: MediaQuery.textScalerOf(context),
   );
   if (!context.mounted ||
       !anchorContext.mounted ||
@@ -713,7 +714,11 @@ Future<T?> showAnchoredAppSearchMenu<T>({
 
   // רוחב התוכן והטריגר מוגבל ל-overlay כדי שלא יגלוש מעבר לחלון.
   final filterRowWidth = hasFilters
-      ? _calculateFilterRowWidth(metrics, filterLabels)
+      ? _calculateFilterRowWidth(
+          metrics,
+          filterLabels,
+          MediaQuery.textScalerOf(context),
+        )
       : 0.0;
   final effectiveWidth = [
     menuMinWidth ?? 0.0,
@@ -1180,7 +1185,11 @@ Widget buildAppMenuRowContent(
   trailingReservedWidth: trailingReservedWidth,
 );
 
-double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
+double _calculateFilterRowWidth(
+  AppMenuMetrics metrics,
+  List<String> labels,
+  TextScaler textScaler,
+) {
   // ריפוד ה-Padding העוטף (EdgeInsets.fromLTRB(8, 0, 8, 4)) + רווח בין צ'יפים.
   const double rowHorizontalPadding = 16.0;
   const double chipGap = 6.0;
@@ -1199,6 +1208,7 @@ double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
     final painter = TextPainter(
       text: TextSpan(text: labels[i], style: chipTextStyle),
       textDirection: TextDirection.rtl,
+      textScaler: textScaler,
       maxLines: 1,
     )..layout();
     total += painter.width + chipChrome;

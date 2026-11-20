@@ -149,22 +149,43 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
       required Color fg,
       required BorderRadiusDirectional borderRadius,
     }) {
+      // InkWell מצייר מילוי פוקוס כל עוד הוא ממוקד, וגם אחרי לחיצת עכבר (בדסקטופ
+      // מצב ההדגשה נשאר traditional, ובחזרת פוקוס מתפריט שנסגר הוא חוזר
+      // לחצי). המילוי מצויר מה-overlayColor, שגובר על focusColor, ולכן כשאין
+      // ניווט מקלדת פוקוס בלי ריחוף ובלי לחיצה לא מצויר כלל (DD-07).
       return ContainedTooltip(
         message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          // מעוגל רק בצד החיצוני, שטוח מול הקו המפריד — חצי של כמוסה אחת.
-          // customBorder חותך את ההדגשה לצורה.
-          customBorder: RoundedRectangleBorder(
-            borderRadius: borderRadius.resolve(direction),
-          ),
-          overlayColor: AppSurfaces.barSplitOverlay(fg),
-          splashColor: AppSurfaces.barSplitPressed(fg),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: Center(child: child),
-          ),
+        child: ListenableBuilder(
+          listenable: AppFocusRing.keyboardFocusChanges,
+          builder: (context, _) {
+            final base = AppSurfaces.barSplitOverlay(fg);
+            final keyboard = AppFocusRing.isKeyboardFocusVisible;
+            return InkWell(
+              onTap: onTap,
+              // מעוגל רק בצד החיצוני, שטוח מול הקו המפריד — חצי של כמוסה אחת.
+              // customBorder חותך את ההדגשה לצורה.
+              customBorder: RoundedRectangleBorder(
+                borderRadius: borderRadius.resolve(direction),
+              ),
+              overlayColor: keyboard
+                  ? base
+                  : WidgetStateProperty.resolveWith((states) {
+                      final focusOnly =
+                          states.contains(WidgetState.focused) &&
+                          !states.contains(WidgetState.hovered) &&
+                          !states.contains(WidgetState.pressed);
+                      return focusOnly
+                          ? Colors.transparent
+                          : base.resolve(states);
+                    }),
+              splashColor: AppSurfaces.barSplitPressed(fg),
+              child: SizedBox(
+                width: width,
+                height: height,
+                child: Center(child: child),
+              ),
+            );
+          },
         ),
       );
     }

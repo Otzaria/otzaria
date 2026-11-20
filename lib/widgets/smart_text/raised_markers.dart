@@ -354,10 +354,15 @@ class RaisedMarkerOverlay extends SingleChildRenderObjectWidget {
   /// צבע האות הפעילה; ברירת המחדל היא onPrimaryContainer.
   final Color? activeForeground;
 
+  /// הגדלת הטקסט שהפסקה שמתחת מציירת בה. בלעדיה האות המורמת נמדדת ומצוירת
+  /// בגודל הגולמי, קטנה מהטקסט שלידה ובגובה שגוי.
+  final TextScaler textScaler;
+
   const RaisedMarkerOverlay({
     super.key,
     required this.markers,
     required this.baseStyle,
+    this.textScaler = const TextScaler.linear(1),
     this.linkColor,
     this.activeBackground,
     this.activeForeground,
@@ -394,6 +399,7 @@ class RaisedMarkerOverlay extends SingleChildRenderObjectWidget {
       linkColor: linkColor ?? AppSurfaces.readerLink(colorScheme),
       activeBackground: activeBackground ?? colorScheme.primaryContainer,
       activeForeground: activeForeground ?? colorScheme.onPrimaryContainer,
+      textScaler: MediaQuery.textScalerOf(context),
       child: child,
     );
   }
@@ -406,6 +412,7 @@ class RaisedMarkerOverlay extends SingleChildRenderObjectWidget {
         linkColor,
         activeBackground,
         activeForeground,
+        textScaler,
       );
 
   @override
@@ -418,7 +425,8 @@ class RaisedMarkerOverlay extends SingleChildRenderObjectWidget {
       ..baseStyle = baseStyle
       ..linkColor = linkColor
       ..activeBackground = activeBackground
-      ..activeForeground = activeForeground;
+      ..activeForeground = activeForeground
+      ..textScaler = textScaler;
   }
 }
 
@@ -456,6 +464,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
     this._linkColor,
     this._activeBackground,
     this._activeForeground,
+    this._textScaler,
   ) : _hasClickableMarkers = _markers.any((marker) => marker.clickable);
 
   List<RaisedMarker> _markers;
@@ -463,6 +472,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   Color? _linkColor;
   Color? _activeBackground;
   Color? _activeForeground;
+  TextScaler _textScaler;
 
   // מחושב פעם אחת: קטע בלי סימונים לחיצים לא משלם דבר על hit-test.
   bool _hasClickableMarkers;
@@ -486,6 +496,14 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   set baseStyle(TextStyle value) {
     if (value == _baseStyle) return;
     _baseStyle = value;
+    _disposePainters();
+    _invalidatePlacements();
+    markNeedsPaint();
+  }
+
+  set textScaler(TextScaler value) {
+    if (value == _textScaler) return;
+    _textScaler = value;
     _disposePainters();
     _invalidatePlacements();
     markNeedsPaint();
@@ -591,6 +609,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       final painter = TextPainter(
         text: marker.textSpan(style),
         textDirection: TextDirection.rtl,
+        textScaler: _textScaler,
         maxLines: 1,
       );
       painter.layout();
@@ -745,7 +764,9 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
         localStart + math.max(visible, 0),
       );
       final painter = _painterFor(marker, glyphStyle);
-      final raise = painter.text!.style!.fontSize! * kRaisedMarkerRaiseFactor;
+      final raise =
+          _textScaler.scale(painter.text!.style!.fontSize!) *
+          kRaisedMarkerRaiseFactor;
       // אותו גופן ואותו גודל: תחתית התיבה ההדוקה מגדירה את קו הבסיס בשניהם, בלי
       // תלות במטריקות ה-ascent של הגופן. הצמדה לראש השכבה מונעת חיתוך.
       final dx = anchorRect.center.dx - painter.width / 2;

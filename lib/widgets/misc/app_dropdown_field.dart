@@ -109,7 +109,11 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     final metrics =
         Theme.of(context).extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
-    final computed = calculateAppMenuPreferredWidth(metrics, widget.entries);
+    final computed = calculateAppMenuPreferredWidth(
+      metrics,
+      widget.entries,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
     return max(computed, widget.menuMinWidth ?? 0.0);
   }
 
