@@ -120,6 +120,7 @@ String injectLinkAnchorMarkers({
       visibleAtRaw[rawOffset] ??= _visibleOffsetAtRaw(rawLine, rawOffset);
   _VisibleChars? visibleChars;
   ({int count, int maxEnd})? rangeBounds;
+  List<Match>? noteMarkers;
   for (var linkIndex = 0; linkIndex < anchorLinks.length; linkIndex++) {
     final link = anchorLinks[linkIndex];
     // continue ולא סינון מראש: האינדקס מזהה את הקישור ב-href של הסמן.
@@ -174,6 +175,12 @@ String injectLinkAnchorMarkers({
               end: rawEnd,
               openTag: '<$tag class="link-anchor-range"$href>',
               closeTag: '</$tag>',
+              // עטיפה של סמן הערה בתוך קישור ציטוט מציירת אותו פעמיים.
+              exclusions: _isLinkerLink(link)
+                  ? (noteMarkers ??= _noteMarkerRegExp
+                        .allMatches(rawLine)
+                        .toList())
+                  : const [],
             ),
           );
         }
@@ -207,6 +214,14 @@ String injectLinkAnchorMarkers({
   var result = ranges.isEmpty ? rawLine : wrapHtmlRanges(rawLine, ranges);
   return _injectAtVisibleOffsets(result, points);
 }
+
+final _noteMarkerRegExp = RegExp(
+  r'<sup\b[^>]*\sclass\s*=\s*"\s*(?:[^\s">]+\s+)*footnote-marker'
+  r'(?:\s+[^\s">]+)*\s*"[^>]*>.*?</sup>'
+  r'|<a\b[^>]*\sclass\s*=\s*"book-note-marker"[^>]*>.*?</a>',
+  caseSensitive: false,
+  dotAll: true,
+);
 
 bool _isLinkerLink(Link link) =>
     LinkTypes.normalize(link.connectionType) == LinkTypes.linker;
