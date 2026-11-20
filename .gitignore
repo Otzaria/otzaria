@@ -48,6 +48,8 @@ windows/runner/*
 !windows/runner/jump_list_manager.h
 !windows/runner/drag_preview_window.cpp
 !windows/runner/drag_preview_window.h
+!windows/runner/accessibility_probe.cpp
+!windows/runner/accessibility_probe.h
 !windows/runner/startup_watchdog.cpp
 !windows/runner/startup_watchdog.h
 !windows/runner/hang_monitor.cpp
@@ -66,8 +68,6 @@ windows/runner/*
 !windows/runner/crash_wer_context.h
 !windows/runner/image_identity.cpp
 !windows/runner/image_identity.h
-!windows/runner/accessibility_probe.cpp
-!windows/runner/accessibility_probe.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה
 # מפורשת כאן. קבצים שכבר tracked ממשיכים להיות tracked ולכן הבעיה אינה
 # נראית — אבל קובץ **חדש** נבלע בשקט: `git add -A` מדלג עליו בלי מילה,
