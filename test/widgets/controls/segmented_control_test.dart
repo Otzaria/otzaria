@@ -84,9 +84,9 @@ void main() {
         find.text('טווח פסוקים'),
       );
       expect(cut.didExceedMaxLines, isTrue);
-      for (final label in labels) {
-        expect(find.byTooltip(label), findsOneWidget, reason: label);
-      }
+      expect(find.byTooltip('טווח פסוקים'), findsOneWidget);
+      // תווית שנכנסת במלואה בלי טולטיפ שחוזר עליה.
+      expect(find.byTooltip('הכל'), findsNothing);
     },
   );
 
@@ -114,7 +114,8 @@ void main() {
 
     expect(find.byTooltip('First option'), findsOneWidget);
     expect(find.byTooltip('One'), findsNothing);
-    expect(find.byTooltip('Two'), findsOneWidget);
+    // טולטיפ שחוזר על התווית הגלויה מיותר.
+    expect(find.byTooltip('Two'), findsNothing);
     expect(find.byKey(const ValueKey('second')), findsOneWidget);
   });
 

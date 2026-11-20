@@ -58,4 +58,51 @@ void main() {
     await tester.pumpWidget(_rows(150, generation: 1));
     expect(debugTextOverflowLayouts, greaterThan(before));
   });
+
+  testWidgets('answers intrinsic sizes like plain Text (menus, dialogs)', (
+    tester,
+  ) async {
+    const style = TextStyle(fontSize: 14);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IntrinsicWidth(
+                    child: IntrinsicHeight(
+                      child: OverflowTooltipText(
+                        key: ValueKey('overflow'),
+                        text: _long,
+                        style: style,
+                      ),
+                    ),
+                  ),
+                  IntrinsicWidth(
+                    child: IntrinsicHeight(
+                      child: Text(
+                        _long,
+                        key: ValueKey('plain'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: style,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('overflow'))),
+      tester.getSize(find.byKey(const ValueKey('plain'))),
+    );
+  });
 }

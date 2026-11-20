@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 /// בודק האם הטקסט גולש מעבר למספר השורות המרבי ברוחב הנתון.
 ///
@@ -88,8 +89,22 @@ class OverflowTooltipText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedStyle = style ?? DefaultTextStyle.of(context).style;
+    // Text merges [style] into the ambient DefaultTextStyle; measure the same
+    // style it renders with.
+    final resolvedStyle = DefaultTextStyle.of(context).style.merge(style);
 
+    return _TextIntrinsics(
+      text: text,
+      style: resolvedStyle,
+      maxLines: maxLines,
+      textAlign: textAlign,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      child: _buildLayout(resolvedStyle),
+    );
+  }
+
+  Widget _buildLayout(TextStyle resolvedStyle) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final hasOverflow =
@@ -128,5 +143,107 @@ class OverflowTooltipText extends StatelessWidget {
             : TooltipTheme(data: theme, child: tooltip);
       },
     );
+  }
+}
+
+/// Answers intrinsic and dry-layout queries for [OverflowTooltipText] by
+/// measuring the text directly. [LayoutBuilder] cannot answer them, and parents
+/// such as menus and dialogs (IntrinsicWidth, AlertDialog) ask for them. The
+/// real layout still goes through the LayoutBuilder child; the tooltip never
+/// changes the size of the text.
+class _TextIntrinsics extends SingleChildRenderObjectWidget {
+  const _TextIntrinsics({
+    required this.text,
+    required this.style,
+    required this.maxLines,
+    required this.textAlign,
+    required this.textDirection,
+    required this.textScaler,
+    required super.child,
+  });
+
+  final String text;
+  final TextStyle style;
+  final int maxLines;
+  final TextAlign textAlign;
+  final TextDirection textDirection;
+  final TextScaler textScaler;
+
+  @override
+  _RenderTextIntrinsics createRenderObject(BuildContext context) =>
+      _RenderTextIntrinsics(_painter());
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderTextIntrinsics renderObject,
+  ) {
+    renderObject.painter = _painter();
+  }
+
+  TextPainter _painter() => TextPainter(
+    text: TextSpan(text: text, style: style),
+    textAlign: textAlign,
+    textDirection: textDirection,
+    maxLines: maxLines,
+    ellipsis: '…',
+    textScaler: textScaler,
+  );
+}
+
+class _RenderTextIntrinsics extends RenderProxyBox {
+  _RenderTextIntrinsics(this._painter);
+
+  TextPainter _painter;
+
+  set painter(TextPainter value) {
+    final old = _painter;
+    _painter = value;
+    final changed =
+        old.text != value.text ||
+        old.textAlign != value.textAlign ||
+        old.textDirection != value.textDirection ||
+        old.maxLines != value.maxLines ||
+        old.textScaler != value.textScaler;
+    old.dispose();
+    if (changed) markNeedsLayout();
+  }
+
+  TextPainter _layoutFor(double maxWidth) =>
+      _painter
+        ..layout(maxWidth: maxWidth.isFinite ? maxWidth : double.infinity);
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      _layoutFor(double.infinity).minIntrinsicWidth;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _layoutFor(double.infinity).maxIntrinsicWidth;
+
+  @override
+  double computeMinIntrinsicHeight(double width) => _layoutFor(width).height;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => _layoutFor(width).height;
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    final painter = _layoutFor(constraints.maxWidth);
+    return constraints.constrain(painter.size);
+  }
+
+  @override
+  double? computeDryBaseline(
+    covariant BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => _layoutFor(
+    constraints.maxWidth,
+  ).computeDistanceToActualBaseline(baseline);
+
+  @override
+  void dispose() {
+    _painter.dispose();
+    super.dispose();
   }
 }

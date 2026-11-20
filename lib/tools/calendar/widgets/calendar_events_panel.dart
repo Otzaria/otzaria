@@ -241,15 +241,11 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                               ),
                             ),
                           Flexible(
-                            child: Tooltip(
-                              message: event.title,
-                              child: Text(
-                                event.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
+                            // ריחוף רק כשהכותרת נקטעת.
+                            child: OverflowTooltipText(
+                              text: event.title,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
                           if (event.googleEventId != null &&
@@ -332,7 +328,6 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                                       event.baseGregorianDate,
                                     ).replaceFirst(' • ', '\n')
                                   : formatEventDate(event.baseGregorianDate),
-                              tooltip: formatEventDate(event.baseGregorianDate),
                               tone: MetaChipTone.primary,
                               maxLines: splitDate ? 2 : 1,
                             ),
@@ -386,7 +381,8 @@ class _DeleteEventAction extends StatelessWidget {
   }
 }
 
-/// תגית מטא של אירוע; הריחוף מציג את הטקסט המלא גם כשהוא נחתך.
+/// תגית מטא של אירוע. ריחוף רק כשנמסר [tooltip] מפורש — הטקסט עצמו כבר
+/// גלוי על התגית.
 Widget _eventChip({
   required IconData icon,
   required String text,
@@ -397,6 +393,6 @@ Widget _eventChip({
   icon: icon,
   label: text,
   tone: tone,
-  tooltip: tooltip ?? text,
+  tooltip: tooltip,
   maxLines: maxLines,
 );
