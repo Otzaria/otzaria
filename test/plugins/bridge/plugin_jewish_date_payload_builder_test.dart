@@ -72,8 +72,8 @@ void main() {
         inIsrael: true,
       );
 
-      final holidays =
-          (payload['holidays'] as List).cast<Map<String, String>>();
+      final holidays = (payload['holidays'] as List)
+          .cast<Map<String, String>>();
       expect(
         holidays,
         contains(
