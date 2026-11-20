@@ -736,10 +736,7 @@ class SeforimRepository {
         includeRelations: true,
       );
     }
-    final dao = _database.bookDao;
-    final bookData =
-        await dao.getBookByTitle(title) ??
-        await dao.getUniqueBookByQuotelessTitle(title);
+    final bookData = await _database.bookDao.getBookByTitle(title);
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);
@@ -763,10 +760,10 @@ class SeforimRepository {
         includeRelations: true,
       );
     }
-    final dao = _database.bookDao;
-    final bookData =
-        await dao.getBookByTitleAndCategory(title, categoryId) ??
-        await dao.getUniqueBookByQuotelessTitle(title, categoryId: categoryId);
+    final bookData = await _database.bookDao.getBookByTitleAndCategory(
+      title,
+      categoryId,
+    );
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);
@@ -779,6 +776,31 @@ class SeforimRepository {
       topics: topics,
       pubPlaces: pubPlaces,
       pubDates: pubDates,
+    );
+  }
+
+  /// ראה [BookDao.getUniqueBookByQuotelessTitle]; רק אחרי שהחיפוש המדויק נכשל.
+  Future<Book?> getUniqueBookByQuotelessTitle(
+    String title, {
+    int? categoryId,
+  }) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byQuotelessTitle,
+        [title, categoryId],
+        includeRelations: true,
+      );
+    }
+    final bookData = await _database.bookDao.getUniqueBookByQuotelessTitle(
+      title,
+      categoryId: categoryId,
+    );
+    if (bookData == null) return null;
+    return bookData.copyWith(
+      authors: await _getBookAuthors(bookData.id),
+      topics: await _getBookTopics(bookData.id),
+      pubPlaces: await _getBookPubPlaces(bookData.id),
+      pubDates: await _getBookPubDates(bookData.id),
     );
   }
 

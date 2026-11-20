@@ -440,14 +440,38 @@ void main() {
     });
 
     group('כותרת שנשמרה בלי גרשיים (#2766)', () {
+      List<ResolvedBookRepositoryCandidate> officialThenUser() => [
+        ResolvedBookRepositoryCandidate(
+          repository: seforimRepo,
+          source: BookSource.official,
+        ),
+        ResolvedBookRepositoryCandidate(
+          repository: userBooksRepo,
+          source: BookSource.user,
+        ),
+      ];
+
       Future<String?> resolvedTitle(String title, {int? categoryId}) async {
-        final book = await BookDatabaseResolver.findBookInRepository(
-          seforimRepo,
-          title,
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: title,
           categoryId: categoryId,
+          candidates: officialThenUser(),
         );
-        return book?.title;
+        return record?.book.title;
       }
+
+      test('התאמה מדויקת במסד מאוחר גוברת על התאמה בלי גרשיים', () async {
+        await insertBookFor(repo: seforimRepo, title: 'שו״ת קיו');
+        await insertBookFor(repo: userBooksRepo, title: 'שות קיו');
+
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: 'שות קיו',
+          candidates: officialThenUser(),
+        );
+
+        expect(record?.source, BookSource.user);
+        expect(record?.book.title, 'שות קיו');
+      });
 
       test('כותרת ישנה בלי גרשיים מוצאת את הספר המתוקן', () async {
         final categoryId = await insertBookFor(

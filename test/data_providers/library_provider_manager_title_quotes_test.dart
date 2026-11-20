@@ -2,8 +2,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/models/book_source.dart';
 
 class _Provider implements LibraryProvider {
+  final requestedTitles = <String>[];
+
+  @override
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    BookSource preferSource = BookSource.official,
+  }) async {
+    requestedTitles.add(title);
+    return 'טקסט';
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -29,6 +43,17 @@ void main() {
         manager.getProviderForBook('שו"ת באר מרדכי', categoryId: 7),
         same(provider),
       );
+    });
+
+    test('הספק מקבל את הכותרת הקטלוגית ולא את הכותרת השמורה', () async {
+      final provider = _Provider();
+      manager.seedMappingsForTesting(
+        mapping: {_key('שו״ת באר מרדכי', 7): provider},
+        providers: [provider],
+      );
+
+      expect(await manager.getBookText('שות  באר מרדכי'), 'טקסט');
+      expect(provider.requestedTitles, ['שו״ת באר מרדכי']);
     });
 
     test('התאמה מדויקת גוברת על התאמה בלי גרשיים', () {

@@ -215,6 +215,16 @@ Future<Object?> _readBooks(
               arguments[1] as int,
               arguments[2] as String,
             ),
+    BookReadOperation.byQuotelessTitle =>
+      includeRelations
+          ? repository.getUniqueBookByQuotelessTitle(
+              arguments[0] as String,
+              categoryId: arguments[1] as int?,
+            )
+          : dao.getUniqueBookByQuotelessTitle(
+              arguments[0] as String,
+              categoryId: arguments[1] as int?,
+            ),
     BookReadOperation.byFilePath => dao.getBookByFilePath(
       arguments[0] as String,
     ),

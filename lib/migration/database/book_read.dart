@@ -8,6 +8,7 @@ enum BookReadOperation {
   byTitle,
   byTitleAndCategory,
   byTitleCategoryAndFileType,
+  byQuotelessTitle,
   byFilePath,
   count,
 }

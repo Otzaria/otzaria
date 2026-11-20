@@ -336,7 +336,16 @@ class BookDao {
   Future<Book?> getUniqueBookByQuotelessTitle(
     String title, {
     int? categoryId,
-  }) async {
+  }) => _read(
+    BookReadOperation.byQuotelessTitle,
+    [title, categoryId],
+    () => _selectUniqueByQuotelessTitle(title, categoryId),
+  );
+
+  Future<Book?> _selectUniqueByQuotelessTitle(
+    String title,
+    int? categoryId,
+  ) async {
     final quoteless = title.replaceAll(_titleQuotes, '');
     final byCategory =
         categoryId != null && (await _capabilities).hasBookCategories;

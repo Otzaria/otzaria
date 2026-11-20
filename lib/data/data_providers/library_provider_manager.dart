@@ -130,6 +130,11 @@ class LibraryProviderManager {
     );
   }
 
+  /// הכותרת בקטלוג של ספר שנשמר בכותרת שאינה בו אך שונה רק בגרשיים, או null.
+  String? catalogTitleFor(String title) => _keysByTitle.containsKey(title)
+      ? null
+      : _uniqueTitleIgnoringQuotes(title);
+
   String? _uniqueTitleIgnoringQuotes(String title) {
     final index = _titleByNormalized ??= () {
       final byNormalized = <String, String?>{};
@@ -393,7 +398,7 @@ class LibraryProviderManager {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
         return await provider.getBookText(
-          title,
+          mappedKey.title,
           mappedKey.categoryId,
           mappedKey.fileType,
           preferSource: preferSource,
@@ -443,7 +448,7 @@ class LibraryProviderManager {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
         return await provider.getBookToc(
-          title,
+          mappedKey.title,
           mappedKey.categoryId,
           mappedKey.fileType,
           preferSource: preferSource,

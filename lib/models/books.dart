@@ -252,6 +252,7 @@ class TextBook extends Book {
   /// יוצר עותק של הספר עם שדות מעודכנים לפי הצורך.
   TextBook copyWith({
     int? id,
+    String? title,
     String? heCategories,
     String? author,
     String? heEra,
@@ -260,7 +261,7 @@ class TextBook extends Book {
   }) {
     return TextBook(
       id: id ?? this.id,
-      title: title,
+      title: title ?? this.title,
       category: category,
       author: author ?? this.author,
       heCategories: heCategories ?? this.heCategories,

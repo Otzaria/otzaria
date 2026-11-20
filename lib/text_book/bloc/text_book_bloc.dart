@@ -41,6 +41,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_se
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
@@ -826,6 +827,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final initial = state as TextBookInitial;
       hasExplicitCommentators = initial.hasExplicitCommentators;
       book = initial.book;
+      // כותרת שנשמרה לפני שהספרייה החזירה לה גרשיים (#2766): מכאן נגזרים
+      // מפתח ההערות, הסימניות והטאב השמור.
+      final catalogTitle = LibraryProviderManager.instance.catalogTitleFor(
+        book.title,
+      );
+      if (catalogTitle != null) book = book.copyWith(title: catalogTitle);
       searchText = initial.searchText;
       highlightText = initial.highlightText;
       permanentHighlightLine = initial.permanentHighlightLine;
