@@ -4,6 +4,13 @@ import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
+
+/// פריטי התוספים כפי שהם בתוך תת-תפריט "תוספים", כשמשתתפים כמה תוספים.
+List<AppContextMenuEntry> _ungrouped(List<AppContextMenuEntry> entries) =>
+    entries.length == 1 && entries.single.label == 'תוספים'
+    ? entries.single.children!
+    : entries;
 
 void main() {
   test('converts submenu, separator, and color row entries', () {
@@ -273,9 +280,8 @@ void main() {
     const selection = {'text': 'selected'};
 
     List<String> shape(List<(String, PluginContextMenuItem)> records) => [
-      for (final entry in buildPluginContextMenuEntries(
-        records: records,
-        selection: selection,
+      for (final entry in _ungrouped(
+        buildPluginContextMenuEntries(records: records, selection: selection),
       ))
         entry.isDivider ? '|' : entry.label!,
     ];
@@ -426,19 +432,17 @@ void main() {
       contexts: ['reader-book'],
     );
 
-    List<String?> labelsFor(Map<String, dynamic> selection) =>
-        buildPluginContextMenuEntries(
-              records: const [
-                ('word', wordOnly),
-                ('report', officialOnly),
-                ('notes', everywhere),
-              ],
-              selection: selection,
-              context: 'reader-book',
-            )
-            .where((entry) => !entry.isDivider)
-            .map((entry) => entry.label)
-            .toList();
+    List<String?> labelsFor(Map<String, dynamic> selection) => _ungrouped(
+      buildPluginContextMenuEntries(
+        records: const [
+          ('word', wordOnly),
+          ('report', officialOnly),
+          ('notes', everywhere),
+        ],
+        selection: selection,
+        context: 'reader-book',
+      ),
+    ).where((entry) => !entry.isDivider).map((entry) => entry.label).toList();
 
     expect(labelsFor({'type': 'docx', 'source': 'user'}), [
       'Edit in Word',
@@ -450,5 +454,53 @@ void main() {
     ]);
     // payload בלי זהות ספר מציג רק פריטים שאינם מסננים.
     expect(labelsFor(const {}), ['Note']);
+  });
+
+  group('תוספים מקובצים בתפריט ההקשר (issue #3160)', () {
+    const a1 = PluginContextMenuItem(id: 'a1', label: 'A1');
+    const a2 = PluginContextMenuItem(id: 'a2', label: 'A2');
+    const b1 = PluginContextMenuItem(id: 'b1', label: 'B1');
+    const selection = {'text': 'selected'};
+
+    test('כמה תוספים — תת-תפריט "תוספים" אחד שמכיל את כולם', () {
+      final entries = buildPluginContextMenuEntries(
+        records: const [('a', a1), ('b', b1), ('a', a2)],
+        selection: selection,
+      );
+
+      final group = entries.single;
+      expect(group.label, 'תוספים');
+      expect(group.icon, isNotNull);
+      expect(
+        [
+          for (final child in group.children!)
+            child.isDivider ? '|' : child.label,
+        ],
+        ['A1', 'A2', '|', 'B1'],
+      );
+    });
+
+    test('תוסף יחיד נשאר בשורה, בלי תת-תפריט', () {
+      final entries = buildPluginContextMenuEntries(
+        records: const [('a', a1), ('a', a2)],
+        selection: selection,
+      );
+
+      expect(entries.map((entry) => entry.label), ['A1', 'A2']);
+    });
+
+    test('תוסף שאינו מוצג בהקשר הזה אינו נספר', () {
+      const hidden = PluginContextMenuItem(
+        id: 'b1',
+        label: 'B1',
+        contexts: ['reader-highlight'],
+      );
+      final entries = buildPluginContextMenuEntries(
+        records: const [('a', a1), ('b', hidden)],
+        selection: selection,
+      );
+
+      expect(entries.map((entry) => entry.label), ['A1']);
+    });
   });
 }
