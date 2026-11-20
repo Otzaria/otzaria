@@ -8,6 +8,7 @@ abstract class CommonMessages {
   static const String formattedTextCopied = 'הטקסט המעוצב הועתק ללוח';
   static const String plainTextCopied = 'הטקסט הועתק ללוח ללא עיצוב';
   static const String textCopyError = 'שגיאה בהעתקת הטקסט';
+  static const String shareFailed = 'השיתוף נכשל, נסו שוב';
   static const String clipboardCopyError = 'שגיאה בהעתקה ללוח';
   static const String clipboardUnavailable = 'לא ניתן לגשת ללוח';
   static const String linkCopied = 'הקישור הועתק';

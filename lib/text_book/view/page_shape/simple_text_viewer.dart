@@ -56,6 +56,8 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart' show ContextMenuUtils;
 import 'package:otzaria/utils/text/global_search_helper.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
+import 'package:otzaria/core/share/shared_selection.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
@@ -2066,6 +2068,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     );
     final sourceText = source.text;
 
+    // נקבע עכשיו, כמו בהעתקה: עד הלחיצה הבחירה כבר עשויה להתאפס. שורות מקור
+    // באותה פסקה ממוזגת מופרדות ברווח, ולכן הספירה לפי הטקסט לבדו חסרה.
+    final shareSegmentCount = selectionSegmentCount(
+      start: _selectionLineStart,
+      end: _selectionLineEnd,
+      text: capturedText ?? '',
+    );
+
     if (widget.isMainText) {
       final menuSelection = ReaderMenuSelection(
         sourceText,
@@ -2086,6 +2096,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           protection: state.protection,
           onCopy: () => _copyFormattedText(capturedText),
           onAddNote: () => _createNoteForCurrentLine(index, capturedText),
+          onShare: DeviceChrome.isMobile
+              ? () => shareSelectedText(
+                  capturedText ?? '',
+                  protection: state.protection,
+                  segmentCount: shareSegmentCount,
+                )
+              : null,
         ),
       );
       entries.add(_copyAsEntry(state, capturedText));

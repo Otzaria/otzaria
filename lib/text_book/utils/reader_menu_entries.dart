@@ -160,7 +160,8 @@ class ReaderMenuSelection {
   }
 }
 
-/// שורת פעולות לטקסט הראשי: חיפוש, העתקה, הערה וקישור.
+/// שורת פעולות לטקסט הראשי: חיפוש, העתקה, שיתוף (כש-[onShare] ניתן: מובייל),
+/// הערה וקישור.
 /// [selectedText] מועתק כפי שהוצג; [sourceSelectedText] משמש להדגשה במקור.
 AppContextMenuEntry buildReaderIconRow({
   required BuildContext context,
@@ -172,6 +173,7 @@ AppContextMenuEntry buildReaderIconRow({
   required VoidCallback onCopy,
   required VoidCallback onAddNote,
   BookProtection protection = BookProtection.none,
+  VoidCallback? onShare,
 }) {
   final bookId = book.id;
   return AppContextMenuEntry.iconRow([
@@ -186,6 +188,13 @@ AppContextMenuEntry buildReaderIconRow({
       enabled: selectedText?.trim().isNotEmpty == true,
       onTap: onCopy,
     ),
+    if (onShare != null)
+      AppContextMenuIconAction(
+        label: 'שיתוף',
+        icon: OtzariaIcons.document_share_24_regular,
+        enabled: selectedText?.trim().isNotEmpty == true,
+        onTap: onShare,
+      ),
     AppContextMenuIconAction(
       label: 'הערה',
       icon: FluentIcons.note_add_24_regular,

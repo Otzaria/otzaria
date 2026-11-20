@@ -58,6 +58,8 @@ import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/bookmarks/utils/section_bookmark.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
+import 'package:otzaria/core/share/shared_selection.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
@@ -1508,6 +1510,14 @@ class _CombinedViewState extends State<CombinedView> {
       lineEnd: _selectionLineEnd,
     );
 
+    // נקבע עכשיו, כמו בהעתקה: עד הלחיצה הבחירה כבר עשויה להתאפס. שורות מקור
+    // באותה פסקה ממוזגת מופרדות ברווח, ולכן הספירה לפי הטקסט לבדו חסרה.
+    final shareSegmentCount = selectionSegmentCount(
+      start: _selectionLineStart,
+      end: _selectionLineEnd,
+      text: selectedText ?? '',
+    );
+
     return [
       // שורת אייקונים עליונה בסגנון Windows 11 — הרשימה המלאה נשארת מתחת.
       buildReaderIconRow(
@@ -1523,6 +1533,13 @@ class _CombinedViewState extends State<CombinedView> {
           selectedText,
           _currentSelectedIndex.value ?? paragraphIndex,
         ),
+        onShare: DeviceChrome.isMobile
+            ? () => shareSelectedText(
+                selectedText ?? '',
+                protection: state.protection,
+                segmentCount: shareSegmentCount,
+              )
+            : null,
       ),
       _copyAsEntry(state, selectedText),
       const AppContextMenuEntry.divider(),
