@@ -17,6 +17,11 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart'
+    show UpdateBookReadingMetrics;
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_commentary_font_slider.dart';
 
 /// אילו הגדרות [TextSettingsTab] מציג.
@@ -50,11 +55,16 @@ class TextSettingsTab extends StatelessWidget {
   /// מוצג במקום המחוון הכללי המחוון של צורת הדף, באותה שורה (#3244).
   final bool pageShapeCommentaryFontSize;
 
+  /// הספר הפתוח. כש"שמירת התאמות לכל ספר בנפרד" מופעלת, מרווח השורות וגודל
+  /// גופן המפרשים משתנים ונשמרים לספר הזה בלבד (#2306).
+  final TextBookBloc? book;
+
   const TextSettingsTab({
     super.key,
     this.isDialog = false,
     this.pageShapeCommentaryFontSize = false,
     this.scope = TextSettingsScope.all,
+    this.book,
   });
 
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
@@ -269,6 +279,23 @@ class TextSettingsTab extends StatelessWidget {
   }
 
   Widget _buildFontSection(BuildContext context, SettingsState state) {
+    final bookState = state.enablePerBookSettings ? book?.state : null;
+    final perBook = bookState is TextBookLoaded ? bookState : null;
+    void setBookMetric({double? commentatorsFontSize, double? lineHeight}) {
+      book!.add(
+        UpdateBookReadingMetrics(
+          commentatorsFontSize: commentatorsFontSize,
+          lineHeight: lineHeight,
+        ),
+      );
+      savePerBookDisplaySettings(
+        context,
+        perBook!,
+        commentatorsFontSize: commentatorsFontSize,
+        lineHeight: lineHeight,
+      );
+    }
+
     final bookFontSize = _FontSizeSlider(
       applyWhileDragging: isDialog,
       icon: OtzariaIcons.alef_near_alef_24_filled,
@@ -298,13 +325,13 @@ class TextSettingsTab extends StatelessWidget {
       applyWhileDragging: isDialog,
       icon: FluentIcons.text_align_distributed_vertical_24_regular,
       label: context.settingsText('מרווח בין שורות'),
-      value: state.lineHeight.clamp(1.0, 3.0),
+      value: (perBook?.lineHeight ?? state.lineHeight).clamp(1.0, 3.0),
       min: 1.0,
       max: 3.0,
       divisions: 20,
-      onChanged: (value) {
-        context.read<SettingsBloc>().add(UpdateLineHeight(value));
-      },
+      onChanged: (value) => perBook != null
+          ? setBookMetric(lineHeight: value)
+          : context.read<SettingsBloc>().add(UpdateLineHeight(value)),
     );
     final resultsFontSize = _FontSizeSlider(
       applyWhileDragging: isDialog,
@@ -341,14 +368,17 @@ class TextSettingsTab extends StatelessWidget {
                   applyWhileDragging: isDialog,
                   icon: OtzariaIcons.beit_near_alef_24_filled,
                   label: context.settingsText('גודל גופן מפרשים'),
-                  value: state.commentatorsFontSize.clamp(10, 40),
+                  value:
+                      (perBook?.commentatorsFontSize ??
+                              state.commentatorsFontSize)
+                          .clamp(10, 40),
                   min: 10,
                   max: 40,
-                  onChanged: (value) {
-                    context.read<SettingsBloc>().add(
-                      UpdateCommentatorsFontSize(value),
-                    );
-                  },
+                  onChanged: (value) => perBook != null
+                      ? setBookMetric(commentatorsFontSize: value)
+                      : context.read<SettingsBloc>().add(
+                          UpdateCommentatorsFontSize(value),
+                        ),
                 ),
           _FontDropdown(
             icon: OtzariaIcons.beit_behind_alef_24_filled,
@@ -543,7 +573,7 @@ class TextSettingsTab extends StatelessWidget {
           title: context.settingsText('שמירת התאמות לכל ספר בנפרד'),
           subtitle: context.settingsText(
             state.enablePerBookSettings
-                ? 'גודל הגופן, הניקוד והמפרשים שנקבעו בספר יישמרו לו בנפרד. סוג הגופן נשאר כללי'
+                ? 'גודל הגופן, גודל המפרשים, מרווח השורות, הניקוד והמפרשים שנקבעו בספר יישמרו לו בנפרד. סוג הגופן נשאר כללי'
                 : 'כל הספרים ישתמשו בהגדרות הכלליות',
           ),
           value: state.enablePerBookSettings,

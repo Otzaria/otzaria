@@ -65,6 +65,7 @@ class CommentaryContent extends StatefulWidget {
     super.key,
     required this.link,
     required this.fontSize,
+    this.lineHeight,
     required this.openBookCallback,
     required this.displayProfile,
     this.searchQuery = '',
@@ -80,6 +81,9 @@ class CommentaryContent extends StatefulWidget {
   final TextDisplayProfile displayProfile;
   final Link link;
   final double fontSize;
+
+  /// מרווח השורות של הספר המקור (#2306); null = ההגדרה הכללית.
+  final double? lineHeight;
   final Function(OpenedTab) openBookCallback;
   final String searchQuery;
   final int currentSearchIndex;
@@ -241,7 +245,7 @@ class _CommentaryContentState extends State<CommentaryContent>
                 fontWeight: settingsState.commentatorsFontBold
                     ? FontWeight.bold
                     : null,
-                lineHeight: settingsState.lineHeight,
+                lineHeight: widget.lineHeight ?? settingsState.lineHeight,
                 partialWordHighlight: true,
               );
 
