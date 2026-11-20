@@ -721,10 +721,11 @@ packages:
   flutter_quill:
     dependency: "direct main"
     description:
-      name: flutter_quill
-      sha256: "1f773f5f75e2628d80361c2c840c592791a0a157ebd587c9e37cf2cb8b8519b7"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "88f594ee8378f403bf308ce57ca83920d2677f8f"
+      resolved-ref: "88f594ee8378f403bf308ce57ca83920d2677f8f"
+      url: "https://github.com/Otzaria/flutter-quill"
+    source: git
     version: "11.6.0"
   flutter_quill_delta_from_html:
     dependency: transitive

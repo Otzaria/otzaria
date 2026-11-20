@@ -161,7 +161,11 @@ dependencies:
   markdown: ^7.3.1
   # המשך מתוחזק של flutter_markdown המקורי, עם API תואם.
   flutter_markdown_plus: ^1.0.12
-  flutter_quill: ^11.6.0
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור singerdmx/flutter-quill#2787 (cursorWidth, #2531).
+  flutter_quill:
+    git:
+      url: https://github.com/Otzaria/flutter-quill
+      ref: 88f594ee8378f403bf308ce57ca83920d2677f8f
   # הפורק Otzaria/flutter_inappwebview מתוחזק אצלנו (upstream אינו פעיל).
   # כל ה-overrides מוצמדים לאותו קומיט.
   flutter_inappwebview:
