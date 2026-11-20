@@ -58,6 +58,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
+import 'package:otzaria/workspaces/workspace.dart';
 import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/fake_view_window.dart';
@@ -181,6 +182,86 @@ void main() {
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+  });
+
+  group('active workspace name in title-bar tooltip (issue #5501)', () {
+    final study = Workspace(id: 'a', name: 'עיון', tabs: const []);
+    final lesson = Workspace(id: 'b', name: 'שיעור', tabs: const []);
+
+    Future<void> pump(
+      WidgetTester tester, {
+      WorkspaceBloc? workspaceBloc,
+    }) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
+    }
+
+    testWidgets('the tooltip names the active workspace and follows a switch', (
+      tester,
+    ) async {
+      final workspaceBloc = _TestWorkspaceBloc(
+        WorkspaceState(workspaces: [study, lesson], activeWorkspaceId: 'a'),
+      );
+      addTearDown(workspaceBloc.close);
+      await pump(tester, workspaceBloc: workspaceBloc);
+
+      expect(
+        find.byTooltip(RegExp('החלף שולחן עבודה.*נוכחי: עיון')),
+        findsOneWidget,
+      );
+
+      workspaceBloc.push(
+        WorkspaceState(workspaces: [study, lesson], activeWorkspaceId: 'b'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip(RegExp('נוכחי: שיעור')), findsOneWidget);
+      expect(find.byTooltip(RegExp('נוכחי: עיון')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets(
+      'without an active workspace or a WorkspaceBloc the tooltip is unchanged',
+      (
+        tester,
+      ) async {
+        final workspaceBloc = _TestWorkspaceBloc(
+          WorkspaceState(workspaces: [study]),
+        );
+        addTearDown(workspaceBloc.close);
+        await pump(tester, workspaceBloc: workspaceBloc);
+        expect(
+          find.byTooltip(RegExp('^החלף שולחן עבודה \\(.*\\)\$')),
+          findsOneWidget,
+        );
+
+        await pump(tester);
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byTooltip(RegExp('^החלף שולחן עבודה \\(.*\\)\$')),
+          findsOneWidget,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
   });
 
   testWidgets(
@@ -4068,7 +4149,10 @@ class _TestPluginSystemBloc extends Cubit<PluginSystemState>
 
 class _TestWorkspaceBloc extends Cubit<WorkspaceState>
     implements WorkspaceBloc {
-  _TestWorkspaceBloc() : super(WorkspaceState.initial());
+  _TestWorkspaceBloc([WorkspaceState? initial])
+    : super(initial ?? WorkspaceState.initial());
+
+  void push(WorkspaceState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
