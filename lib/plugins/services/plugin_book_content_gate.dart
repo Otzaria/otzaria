@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 
 /// הטעינה לא התחילה לפני שתקציב ה-RPC של המתקשר נגמר.
@@ -19,12 +20,17 @@ class PluginBookContentQueueTimeout implements Exception {
 class PluginBookContentGate {
   PluginBookContentGate._();
 
-  /// כל טעינה מחזיקה בזיכרון את הקובץ ואת הטקסט המפוענח שלו; הדיסק לא מרוויח
-  /// מיותר משתיים, וזה גם הגבול של קריאות ה-fallback במסד.
+  /// מקומות משותפים לכל התוספים: כל טעינה מחזיקה את הקובץ ואת הטקסט המפוענח,
+  /// והדיסק לא מרוויח מיותר. תוסף בלי טעינה פעילה עוקף אותם עד [maxRunningLoads].
   static const int maxConcurrentLoads = 2;
 
   /// תקרת הטעינות שרצות בפועל, כולל תקועות ותוסף שעוקף תור של תוסף אחר.
   static const int maxRunningLoads = 4;
+
+  /// נקרא פעם אחת לתהליך כשטעינות תקועות ממלאות את [maxRunningLoads].
+  @visibleForTesting
+  static void Function(Iterable<String> pluginIds) reportStalledCeiling =
+      _logStalledCeiling;
 
   /// טעינה שרצה יותר מזה מפנה את מקומה ונספרת כתקועה עד שתסתיים.
   @visibleForTesting
@@ -33,7 +39,10 @@ class PluginBookContentGate {
   static int _slots = 0;
   static int _running = 0;
   static int _stalled = 0;
+  static bool _stalledCeilingReported = false;
   static final Map<String, int> _slotsByPlugin = {};
+  // תוסף עם טעינה תקועה לא מתחיל טעינה נוספת עד שהיא חוזרת.
+  static final Map<String, int> _stalledByPlugin = {};
   static final Map<String, Queue<_Waiter>> _queues = {};
   // סדר הסבב בין תוספים שיש להם ממתינים.
   static final Queue<String> _turns = Queue();
@@ -70,7 +79,12 @@ class PluginBookContentGate {
     final stall = Timer(stallAfter, () {
       stalled = true;
       _stalled++;
+      _stalledByPlugin[pluginId] = (_stalledByPlugin[pluginId] ?? 0) + 1;
       _freeSlot(pluginId);
+      if (_stalled >= maxRunningLoads && !_stalledCeilingReported) {
+        _stalledCeilingReported = true;
+        reportStalledCeiling(_stalledByPlugin.keys.toList());
+      }
       _pump();
     });
     try {
@@ -96,6 +110,7 @@ class PluginBookContentGate {
   // תוסף שאין לו טעינה פעילה עוקף את התור כל עוד התקרה מאפשרת.
   static bool _canStart(String pluginId) =>
       _running < maxRunningLoads &&
+      !_stalledByPlugin.containsKey(pluginId) &&
       (_slots < maxConcurrentLoads || (_slotsByPlugin[pluginId] ?? 0) == 0) &&
       (_queues[pluginId]?.isEmpty ?? true);
 
@@ -119,6 +134,12 @@ class PluginBookContentGate {
     _running--;
     if (stalled) {
       _stalled--;
+      final left = _stalledByPlugin[pluginId]! - 1;
+      if (left == 0) {
+        _stalledByPlugin.remove(pluginId);
+      } else {
+        _stalledByPlugin[pluginId] = left;
+      }
     } else {
       _freeSlot(pluginId);
     }
@@ -128,9 +149,10 @@ class PluginBookContentGate {
   /// נותן מקומות בסבב בין התוספים, וקודם לתוסף שאין לו טעינה פעילה.
   static void _pump() {
     while (_running < maxRunningLoads && _turns.isNotEmpty) {
+      final eligible = _turns.where((id) => !_stalledByPlugin.containsKey(id));
       final next =
-          _turns.where((id) => (_slotsByPlugin[id] ?? 0) == 0).firstOrNull ??
-          (_slots < maxConcurrentLoads ? _turns.first : null);
+          eligible.where((id) => (_slotsByPlugin[id] ?? 0) == 0).firstOrNull ??
+          (_slots < maxConcurrentLoads ? eligible.firstOrNull : null);
       if (next == null) return;
       final queue = _queues[next]!;
       final waiter = queue.removeFirst();
@@ -204,11 +226,26 @@ class PluginBookContentGate {
     _slots = 0;
     _running = 0;
     _stalled = 0;
+    _stalledCeilingReported = false;
     _slotsByPlugin.clear();
+    _stalledByPlugin.clear();
     _queues.clear();
     _turns.clear();
     _calls.clear();
     stallAfter = kPluginDefaultRpcTimeout;
+    reportStalledCeiling = _logStalledCeiling;
+  }
+
+  static void _logStalledCeiling(Iterable<String> pluginIds) {
+    try {
+      ErrorLogFile.appendInBackground(
+        title: 'Plugin book loads stalled',
+        error:
+            'All $maxRunningLoads plugin book-content loads are stalled; '
+            'getBookContent waits until one returns',
+        details: {'Plugins': pluginIds.join(', ')},
+      );
+    } catch (_) {}
   }
 }
 
