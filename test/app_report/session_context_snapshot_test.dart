@@ -62,7 +62,11 @@ void main() {
             'context': {'screen': 'search'},
           }),
         );
-      return SessionContextSnapshot(path: path, capture: () => {});
+      return SessionContextSnapshot(
+        path: path,
+        capture: () => {},
+        systemEvents: (_) async => const [],
+      );
     }
 
     test('נשמרה בהפעלה שקרסה: מצורפת', () async {
@@ -83,6 +87,32 @@ void main() {
       expect(await snapshot.previousFor(crashed), isNull);
     });
 
+    test('אירועי המערכת מצורפים גם בלי תמונה, ונקראים פעם אחת', () async {
+      var calls = 0;
+      File(path)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode({'savedAt': '2026-11-15T23:00:00.000Z', 'pid': 77}),
+        );
+      final snapshot = SessionContextSnapshot(
+        path: path,
+        capture: () => {},
+        systemEvents: (session) async {
+          calls++;
+          return [
+            {'provider': 'Application Error', 'pid': session.pid},
+          ];
+        },
+      );
+      final first = await snapshot.previousFor(crashed);
+      expect(first?['systemEvents'], [
+        {'provider': 'Application Error', 'pid': 4242},
+      ]);
+      expect(first?.containsKey('context'), isFalse);
+      await snapshot.previousFor(crashed);
+      expect(calls, 1);
+    });
+
     test('בלי נעילה (ANR): אין התאמה אמינה להפעלה', () async {
       final snapshot = saved(pid: 77, at: '2026-11-15T23:00:00.000Z');
       expect(await snapshot.previousFor(null), isNull);
@@ -95,6 +125,32 @@ void main() {
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"pid": 1, "context"');
     expect(await SessionContextSnapshot(path: path).previous, isNull);
+  });
+
+  test('זיכרון ומקום פנוי נדגמים לכל היותר פעם בפרק הזמן', () async {
+    var minute = 0;
+    var samples = 0;
+    final snapshot = SessionContextSnapshot(
+      path: path,
+      capture: () => {
+        'context': {'screen': 'reading'},
+      },
+      clock: () => DateTime.utc(2026, 11, 16, 12, minute),
+      sampleResources: () async => {'processCommitMb': 100 + samples++},
+    );
+
+    await snapshot.record();
+    expect(readSaved()['resources'], {
+      'sampledAt': '2026-11-16T12:00:00.000Z',
+      'processCommitMb': 100,
+    });
+    minute = 4;
+    await snapshot.record();
+    expect(samples, 1);
+    minute = 5;
+    await snapshot.record();
+    expect(samples, 2);
+    expect(readSaved()['resources']['processCommitMb'], 101);
   });
 
   test('נכתב מחדש רק כשהתוכן השתנה', () async {
