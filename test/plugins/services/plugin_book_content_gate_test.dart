@@ -4,16 +4,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 
 const _long = Duration(seconds: 30);
+final _owner = Object();
+
+Future<T> _run<T>(
+  Future<T> Function() load, {
+  String plugin = 'scanner',
+  Object? owner,
+  Duration timeout = _long,
+}) => PluginBookContentGate.runLoad(
+  load,
+  pluginId: plugin,
+  owner: owner ?? _owner,
+  timeout: timeout,
+);
+
+Matcher get _timeout => throwsA(
+  isA<PluginBookContentQueueTimeout>().having(
+    (e) => e.toString(),
+    'message',
+    startsWith('error.timeout'),
+  ),
+);
 
 void main() {
   setUp(PluginBookContentGate.resetForTesting);
   tearDown(PluginBookContentGate.resetForTesting);
 
-  test('לא יותר מ-maxConcurrentLoads טעינות רצות יחד', () async {
+  test('תוסף אחד מריץ לכל היותר maxConcurrentLoads טעינות יחד', () async {
     var running = 0;
     var peak = 0;
     final releases = <Completer<void>>[];
-    Future<int> load(int i) => PluginBookContentGate.runLoad(() async {
+    Future<int> load(int i) => _run(() async {
       running++;
       if (running > peak) peak = running;
       final release = Completer<void>();
@@ -21,7 +42,7 @@ void main() {
       await release.future;
       running--;
       return i;
-    }, timeout: _long);
+    });
 
     final results = Future.wait([for (var i = 0; i < 6; i++) load(i)]);
     await pumpEventQueue();
@@ -42,18 +63,9 @@ void main() {
 
   test('טעינה שנכשלת משחררת את מקומה לממתין הבא', () async {
     final blocker = Completer<void>();
-    final first = PluginBookContentGate.runLoad<void>(
-      () => Future.error(StateError('read failed')),
-      timeout: _long,
-    );
-    final second = PluginBookContentGate.runLoad(
-      () => blocker.future,
-      timeout: _long,
-    );
-    final third = PluginBookContentGate.runLoad(
-      () async => 'done',
-      timeout: _long,
-    );
+    final first = _run<void>(() => Future.error(StateError('read failed')));
+    final second = _run(() => blocker.future);
+    final third = _run(() async => 'done');
 
     await expectLater(first, throwsStateError);
     expect(await third, 'done');
@@ -61,75 +73,126 @@ void main() {
     await second;
   });
 
-  test('ממתין שפג זמנו יוצא מהתור בלי לתפוס מקום', () async {
+  test('ממתין שפג זמנו יוצא מהתור בלי לטעון ובלי לתפוס מקום', () async {
     final blockers = [Completer<void>(), Completer<void>()];
-    final running = [
-      for (final b in blockers)
-        PluginBookContentGate.runLoad(() => b.future, timeout: _long),
-    ];
+    final running = [for (final b in blockers) _run(() => b.future)];
     var timedOutRan = false;
-    final timedOut = PluginBookContentGate.runLoad(() async {
-      timedOutRan = true;
-    }, timeout: const Duration(milliseconds: 10));
     await expectLater(
-      timedOut,
-      throwsA(
-        predicate((e) => e.toString().contains('error.timeout')),
-      ),
+      _run(() async {
+        timedOutRan = true;
+      }, timeout: const Duration(milliseconds: 10)),
+      _timeout,
     );
 
-    final next = PluginBookContentGate.runLoad(
-      () async => 'next',
-      timeout: _long,
-    );
+    final next = _run(() async => 'next');
     blockers.first.complete();
     expect(await next, 'next');
     expect(timedOutRan, isFalse);
     blockers.last.complete();
     await Future.wait(running);
-
-    // כל המקומות התפנו: שתי טעינות חדשות רצות מיד.
-    final started = <int>[];
-    final hold = Completer<void>();
-    final fresh = [
-      for (var i = 0; i < 2; i++)
-        PluginBookContentGate.runLoad(() {
-          started.add(i);
-          return hold.future;
-        }, timeout: Duration.zero),
-    ];
-    await pumpEventQueue();
-    expect(started, [0, 1]);
-    hold.complete();
-    await Future.wait(fresh);
+    expect(PluginBookContentGate.runningLoadsForTesting, 0);
   });
 
-  test('טעינה תקועה מפנה את מקומה בתום ה-timeout שלה', () async {
-    final stuck = Completer<void>();
-    addTearDown(() {
-      if (!stuck.isCompleted) stuck.complete();
-    });
-    final stalled = [
-      for (var i = 0; i < 2; i++)
-        PluginBookContentGate.runLoad(
-          () => stuck.future,
-          timeout: const Duration(milliseconds: 20),
-        ),
-    ];
-    final next = PluginBookContentGate.runLoad(
-      () async => 'next',
-      timeout: _long,
-    );
-    expect(await next, 'next');
-    expect(stuck.isCompleted, isFalse);
+  test('ממתין שקיבל מקום אחרי תום התקציב לא טוען ומשחרר אותו', () async {
+    final blockers = [Completer<void>(), Completer<void>()];
+    final running = [for (final b in blockers) _run(() => b.future)];
+    var lateRan = false;
+    final late = _run(() async {
+      lateRan = true;
+    }, timeout: const Duration(milliseconds: 20));
+    final failed = expectLater(late, _timeout);
+    await pumpEventQueue();
 
-    stuck.complete();
-    await Future.wait(stalled);
-    final fresh = [
-      for (var i = 0; i < 2; i++)
-        PluginBookContentGate.runLoad(() async => i, timeout: Duration.zero),
+    // ה-isolate עסוק עד אחרי ה-deadline, והמקום מתפנה לפני שהטיימר של הממתין רץ.
+    final busy = Stopwatch()..start();
+    while (busy.elapsed < const Duration(milliseconds: 60)) {}
+    blockers.first.complete();
+    await failed;
+    expect(lateRan, isFalse);
+
+    expect(await _run(() async => 'free'), 'free');
+    blockers.last.complete();
+    await Future.wait(running);
+    expect(PluginBookContentGate.runningLoadsForTesting, 0);
+  });
+
+  test('תקיעה נמדדת מתחילת הטעינה, ומפל לא עוקף את התקרה', () async {
+    PluginBookContentGate.stallAfter = const Duration(milliseconds: 20);
+    var running = 0;
+    var peak = 0;
+    var overLimit = false;
+    Future<void> load() => PluginBookContentGate.trackCall(
+      'scanner',
+      () => _run(() async {
+        running++;
+        if (running > peak) peak = running;
+        final stalled =
+            PluginBookContentGate.diagnostics!['stalledLoads']! as int;
+        if (running > PluginBookContentGate.maxConcurrentLoads + stalled) {
+          overLimit = true;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        running--;
+      }, timeout: const Duration(milliseconds: 150)),
+    );
+
+    final results = await Future.wait([
+      for (var i = 0; i < 40; i++)
+        load().then((_) => true, onError: (Object _) => false),
+    ]);
+    expect(overLimit, isFalse);
+    expect(peak, lessThanOrEqualTo(PluginBookContentGate.maxRunningLoads));
+    expect(results, contains(true));
+    expect(results, contains(false), reason: 'השאר פגו בתור');
+    expect(PluginBookContentGate.runningLoadsForTesting, 0);
+    expect(PluginBookContentGate.diagnostics!['stalledLoads'], 0);
+  });
+
+  test('תוסף בלי טעינה פעילה עוקף תור, והמקומות ניתנים בסבב', () async {
+    final starts = <String>[];
+    final releases = <String, Completer<void>>{};
+    Future<void> load(String plugin, String name) => _run(() {
+      starts.add(name);
+      return (releases[name] = Completer<void>()).future;
+    }, plugin: plugin);
+
+    final all = [
+      for (var i = 1; i <= 5; i++) load('a', 'a$i'),
+      for (var i = 1; i <= 3; i++) load('b', 'b$i'),
     ];
-    expect(await Future.wait(fresh), [0, 1]);
+    await pumpEventQueue();
+    expect(starts, ['a1', 'a2', 'b1'], reason: 'b לא ממתין מאחורי התור של a');
+
+    for (final name in ['a1', 'a2', 'b1', 'a3', 'b2', 'a4', 'b3', 'a5']) {
+      releases[name]!.complete();
+      await pumpEventQueue();
+    }
+    await Future.wait(all);
+    expect(starts, ['a1', 'a2', 'b1', 'a3', 'b2', 'a4', 'b3', 'a5']);
+  });
+
+  test('ביטול לפי בעלים מכשיל רק את הממתינים שלו', () async {
+    final closed = Object();
+    final blockers = [Completer<void>(), Completer<void>()];
+    final running = [for (final b in blockers) _run(() => b.future)];
+    var cancelledRan = false;
+    final cancelled = _run(() async {
+      cancelledRan = true;
+    }, owner: closed);
+    final kept = _run(() async => 'kept');
+    final failed = expectLater(
+      cancelled,
+      throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+    );
+
+    PluginBookContentGate.cancelWaiters(closed);
+    await failed;
+    blockers.first.complete();
+    expect(await kept, 'kept');
+    expect(cancelledRan, isFalse);
+    blockers.last.complete();
+    await Future.wait(running);
+    expect(PluginBookContentGate.runningLoadsForTesting, 0);
   });
 
   test('מונה התוסף סופר פעילות ושיא ומתאפס גם בחריגה', () async {

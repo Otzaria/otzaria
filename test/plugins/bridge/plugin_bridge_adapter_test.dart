@@ -2450,10 +2450,14 @@ Future<void> main() async {
       PluginBridgeAdapter buildAdapter(
         TextBookRepository textBooks, {
         String instanceId = PluginInstanceIds.defaultForeground,
+        String pluginId = 'test.plugin',
         Future<BookProtection> Function(Book)? checkProtection,
       }) {
         final adapter = PluginBridgeAdapter(
-          _buildInstalledPlugin(permissions: const ['library.read']),
+          _buildInstalledPlugin(
+            permissions: const ['library.read'],
+            pluginId: pluginId,
+          ),
           instanceId: instanceId,
           dependencies: PluginBridgeDependencies(
             historyBloc: _MockHistoryBloc(),
@@ -2549,7 +2553,7 @@ Future<void> main() async {
         expect(repository.loads, books.length);
       });
 
-      test('טעינות מתוסף לספרים שונים מוגבלות יחד לשתיים', () async {
+      test('תוסף סורק מוגבל, ותוסף אחר לא ממתין מאחורי התור שלו', () async {
         final gate = Completer<void>();
         final blocked = books.take(4);
         for (final book in blocked) {
@@ -2557,20 +2561,91 @@ Future<void> main() async {
         }
         final pending = [for (final book in blocked) load(book)];
         await pumpEventQueue();
-        final fast = load(books.last);
+        final otherRepository = _CountingTextBookRepository();
+        final other = buildAdapter(otherRepository, pluginId: 'other.plugin');
+        String? fastResult;
+        final fast = load(
+          books.last,
+          adapter: other,
+        ).then((result) => fastResult = result);
         try {
           await pumpEventQueue();
           expect(repository.loads, PluginBookContentGate.maxConcurrentLoads);
+          expect(fastResult, 'תוכן של ${books.last.title}');
         } finally {
           gate.complete();
+          await Future.wait([...pending, fast]);
         }
-        expect(await fast, 'תוכן של ${books.last.title}');
-        await Future.wait(pending);
-        expect(repository.loads, 5);
+        expect(repository.loads, 4);
         final plugins =
             PluginBookContentGate.diagnostics!['plugins']
                 as Map<String, Object>;
-        expect(plugins.values.single, {'active': 0, 'peak': 5, 'calls': 5});
+        expect(plugins['test.plugin'], {'active': 0, 'peak': 4, 'calls': 4});
+        expect(plugins['other.plugin'], {'active': 0, 'peak': 1, 'calls': 1});
+      });
+
+      test('מתקשר שהצטרף לטעינה שפגה בתור טוען בתקציב שלו', () async {
+        final gate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final blocked = books.skip(1).take(2).toList();
+        for (final book in blocked) {
+          repository.gates[book.title] = gate.future;
+        }
+        final pending = [for (final book in blocked) load(book)];
+        await pumpEventQueue();
+        final book = books.first;
+        // התקציב של המתקשר הראשון כמעט נגמר כשהוא נכנס לתור.
+        final first = runZoned(
+          () => bookAdapter.execute('library', 'getBookContent', {
+            'bookId': book.title,
+            'rawDivineNames': true,
+          }),
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) =>
+                parent.createTimer(
+                  zone,
+                  duration > const Duration(seconds: 1)
+                      ? const Duration(milliseconds: 20)
+                      : duration,
+                  callback,
+                ),
+          ),
+        );
+        final firstFailed = expectLater(
+          first,
+          throwsA(predicate((e) => e.toString().contains('error.timeout'))),
+        );
+        await pumpEventQueue();
+        final joined = load(book);
+        await firstFailed;
+        gate.complete();
+        expect(await joined, 'תוכן של ${book.title}');
+        await Future.wait(pending);
+      });
+
+      test('שחרור הדף של המתאם (גם ב-dispose) מבטל את הממתינות שלו', () async {
+        final gate = Completer<void>();
+        final blocked = books.take(2).toList();
+        for (final book in blocked) {
+          repository.gates[book.title] = gate.future;
+        }
+        final pending = [for (final book in blocked) load(book)];
+        await pumpEventQueue();
+        final otherRepository = _CountingTextBookRepository();
+        final closing = buildAdapter(otherRepository, instanceId: 'second');
+        final queued = expectLater(
+          load(books[2], adapter: closing),
+          throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+        );
+        await pumpEventQueue();
+        closing.releaseRuntime();
+        await queued;
+        gate.complete();
+        await Future.wait(pending);
+        expect(otherRepository.loads, 0);
+        expect(await load(books[3]), 'תוכן של ${books[3].title}');
       });
 
       test('טעינה משותפת שנכשלה ניתנת לניסיון חוזר', () async {
@@ -2649,14 +2724,12 @@ Future<void> main() async {
         );
         repository.gates[book.title] = gate.future;
         repository.contents[book.title] = 'ישן';
-        Duration? sharingBudget;
-        void Function()? expire;
+        final timers = <(Duration, void Function())>[];
         final old = runZoned(
           () => load(book),
           zoneSpecification: ZoneSpecification(
             createTimer: (self, parent, zone, duration, callback) {
-              sharingBudget = duration;
-              expire = callback;
+              timers.add((duration, callback));
               return parent.createTimer(zone, duration, callback);
             },
           ),
@@ -2668,11 +2741,15 @@ Future<void> main() async {
           protection.complete(BookProtection.none);
           await pumpEventQueue();
           expect(repository.loads, 1);
+          // רק טיימר השיתוף נמדד מהתקציב שנשאר; טיימר התקיעה הוא קבוע.
+          final (sharingBudget, expire) = timers.singleWhere(
+            (timer) => timer.$1 < kPluginDefaultRpcTimeout,
+          );
           expect(
             sharingBudget,
             lessThanOrEqualTo(kPluginDefaultRpcTimeout - preflightTime),
           );
-          expire!();
+          expire();
 
           repository.gates.remove(book.title);
           repository.contents[book.title] = 'חדש';

@@ -2,11 +2,20 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/plugins/plugin_constants.dart';
+
+/// הטעינה לא התחילה לפני שתקציב ה-RPC של המתקשר נגמר.
+class PluginBookContentQueueTimeout implements Exception {
+  const PluginBookContentQueueTimeout();
+
+  @override
+  String toString() => 'error.timeout: book content queue is full';
+}
 
 /// מגביל את טעינות הטקסט המלא של ספרים שמקורן בתוספים, וסופר לכל תוסף את
 /// קריאות `library.getBookContent` שלו לאבחון שבדוח.
 ///
-/// הקורא של התוכנה לא עובר כאן, כך שתוסף שסורק ספרייה לא מעכב ספר פתוח.
+/// הקורא של התוכנה וההדפסה לא עוברים כאן, כך שתוסף שסורק ספרייה לא מעכב אותם.
 class PluginBookContentGate {
   PluginBookContentGate._();
 
@@ -14,50 +23,138 @@ class PluginBookContentGate {
   /// מיותר משתיים, וזה גם הגבול של קריאות ה-fallback במסד.
   static const int maxConcurrentLoads = 2;
 
-  static int _activeLoads = 0;
-  static final Queue<Completer<void>> _waiters = Queue();
+  /// תקרת הטעינות שרצות בפועל, כולל תקועות ותוסף שעוקף תור של תוסף אחר.
+  static const int maxRunningLoads = 4;
+
+  /// טעינה שרצה יותר מזה מפנה את מקומה ונספרת כתקועה עד שתסתיים.
+  @visibleForTesting
+  static Duration stallAfter = kPluginDefaultRpcTimeout;
+
+  static int _slots = 0;
+  static int _running = 0;
+  static int _stalled = 0;
+  static final Map<String, int> _slotsByPlugin = {};
+  static final Map<String, Queue<_Waiter>> _queues = {};
+  // סדר הסבב בין תוספים שיש להם ממתינים.
+  static final Queue<String> _turns = Queue();
   static final Map<String, _CallCounter> _calls = {};
 
-  /// מריץ את [load] כשמתפנה מקום, ומחזיק את המקום עד שהוא מסתיים או עד תום
-  /// [timeout], המוקדם מביניהם: טעינה תקועה לא חוסמת את התור לתמיד. ממתין שלא
-  /// קיבל מקום עד אז יוצא מהתור עם `error.timeout`, כי קריאת ה-RPC שלו פגה.
+  /// מריץ את [load] כשמתפנה מקום ל-[pluginId]. אם המקום לא התפנה תוך
+  /// [timeout], נזרק [PluginBookContentQueueTimeout] בלי לטעון.
   static Future<T> runLoad<T>(
     Future<T> Function() load, {
+    required String pluginId,
+    required Object owner,
     required Duration timeout,
   }) async {
     final clock = Stopwatch()..start();
-    if (_activeLoads < maxConcurrentLoads) {
-      _activeLoads++;
+    if (_canStart(pluginId)) {
+      _take(pluginId);
     } else {
-      final ticket = Completer<void>();
-      _waiters.add(ticket);
-      try {
-        await ticket.future.timeout(timeout);
-      } on TimeoutException {
-        // ticket שכבר הוצא מהתור קיבל את המקום של טעינה שהסתיימה.
-        if (_waiters.remove(ticket)) {
-          throw Exception('error.timeout: book content queue is full');
+      final waiter = _Waiter(pluginId, owner);
+      (_queues[pluginId] ??= Queue()).add(waiter);
+      if (!_turns.contains(pluginId)) _turns.add(pluginId);
+      waiter.expiry = Timer(timeout - clock.elapsed, () {
+        if (_remove(waiter)) {
+          waiter.ticket.completeError(const PluginBookContentQueueTimeout());
         }
-      }
+      });
+      await waiter.ticket.future;
     }
-    var released = false;
-    void release() {
-      if (released) return;
-      released = true;
-      if (_waiters.isNotEmpty) {
-        _waiters.removeFirst().complete();
-      } else {
-        _activeLoads--;
-      }
+    if (clock.elapsed >= timeout) {
+      _release(pluginId, stalled: false);
+      throw const PluginBookContentQueueTimeout();
     }
 
-    final stall = Timer(timeout - clock.elapsed, release);
+    var stalled = false;
+    final stall = Timer(stallAfter, () {
+      stalled = true;
+      _stalled++;
+      _freeSlot(pluginId);
+      _pump();
+    });
     try {
       return await load();
     } finally {
       stall.cancel();
-      release();
+      _release(pluginId, stalled: stalled);
     }
+  }
+
+  /// מבטל את הממתינים של [owner] (מתאם שנסגר או שהדף שלו שוחרר).
+  static void cancelWaiters(Object owner) {
+    for (final queue in _queues.values.toList()) {
+      for (final waiter in queue.toList()) {
+        if (!identical(waiter.owner, owner) || !_remove(waiter)) continue;
+        waiter.ticket.completeError(
+          Exception('error.unavailable: plugin page closed'),
+        );
+      }
+    }
+  }
+
+  // תוסף שאין לו טעינה פעילה עוקף את התור כל עוד התקרה מאפשרת.
+  static bool _canStart(String pluginId) =>
+      _running < maxRunningLoads &&
+      (_slots < maxConcurrentLoads || (_slotsByPlugin[pluginId] ?? 0) == 0) &&
+      (_queues[pluginId]?.isEmpty ?? true);
+
+  static void _take(String pluginId) {
+    _slots++;
+    _running++;
+    _slotsByPlugin[pluginId] = (_slotsByPlugin[pluginId] ?? 0) + 1;
+  }
+
+  static void _freeSlot(String pluginId) {
+    _slots--;
+    final left = (_slotsByPlugin[pluginId] ?? 1) - 1;
+    if (left <= 0) {
+      _slotsByPlugin.remove(pluginId);
+    } else {
+      _slotsByPlugin[pluginId] = left;
+    }
+  }
+
+  static void _release(String pluginId, {required bool stalled}) {
+    _running--;
+    if (stalled) {
+      _stalled--;
+    } else {
+      _freeSlot(pluginId);
+    }
+    _pump();
+  }
+
+  /// נותן מקומות בסבב בין התוספים, וקודם לתוסף שאין לו טעינה פעילה.
+  static void _pump() {
+    while (_running < maxRunningLoads && _turns.isNotEmpty) {
+      final next =
+          _turns.where((id) => (_slotsByPlugin[id] ?? 0) == 0).firstOrNull ??
+          (_slots < maxConcurrentLoads ? _turns.first : null);
+      if (next == null) return;
+      final queue = _queues[next]!;
+      final waiter = queue.removeFirst();
+      _turns.remove(next);
+      if (queue.isEmpty) {
+        _queues.remove(next);
+      } else {
+        _turns.add(next);
+      }
+      waiter.expiry?.cancel();
+      _take(next);
+      waiter.ticket.complete();
+    }
+  }
+
+  static bool _remove(_Waiter waiter) {
+    final queue = _queues[waiter.pluginId];
+    if (queue == null || !queue.remove(waiter)) return false;
+    waiter.expiry?.cancel();
+    if (queue.isEmpty) {
+      _queues.remove(waiter.pluginId);
+      _turns.remove(waiter.pluginId);
+    }
+    return true;
   }
 
   /// סופר את [call] כקריאה פעילה של [pluginId] עד שהיא מסתיימת, גם בשגיאה.
@@ -77,8 +174,13 @@ class PluginBookContentGate {
   static Map<String, Object>? get diagnostics => _calls.isEmpty
       ? null
       : {
-          'activeLoads': _activeLoads,
-          'queuedLoads': _waiters.length,
+          'activeLoads': _slots,
+          'runningLoads': _running,
+          'stalledLoads': _stalled,
+          'queuedLoads': _queues.values.fold<int>(
+            0,
+            (sum, q) => sum + q.length,
+          ),
           'plugins': {
             for (final entry in _calls.entries)
               entry.key: {
@@ -90,11 +192,33 @@ class PluginBookContentGate {
         };
 
   @visibleForTesting
+  static int get runningLoadsForTesting => _running;
+
+  @visibleForTesting
   static void resetForTesting() {
-    _activeLoads = 0;
-    _waiters.clear();
+    for (final queue in _queues.values) {
+      for (final waiter in queue) {
+        waiter.expiry?.cancel();
+      }
+    }
+    _slots = 0;
+    _running = 0;
+    _stalled = 0;
+    _slotsByPlugin.clear();
+    _queues.clear();
+    _turns.clear();
     _calls.clear();
+    stallAfter = kPluginDefaultRpcTimeout;
   }
+}
+
+class _Waiter {
+  _Waiter(this.pluginId, this.owner);
+
+  final String pluginId;
+  final Object owner;
+  final Completer<void> ticket = Completer<void>();
+  Timer? expiry;
 }
 
 class _CallCounter {
