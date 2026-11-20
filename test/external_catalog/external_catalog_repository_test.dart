@@ -1070,11 +1070,11 @@ void main() {
 
           final books = await repository.getOtzarBooksForOtzariaId(1);
 
-          expect(books.map((b) => b.book.id), [12, 11, 10, 13]);
+          expect(books.map((b) => b.id), [12, 11, 10, 13]);
           expect(books.map((b) => b.volume), ['כרך ג', null, 'כרך א', 'כרך ד']);
-          expect(books.first.book.externalLibraryId, 'oh:12');
+          expect(books.first.externalLibraryId, 'oh:12');
           expect(
-            books.first.book.link,
+            books.first.link,
             'https://tablet.otzar.org/book/book.php?book=12',
           );
           expect(await repository.getOtzarBooksForOtzariaId(5), isEmpty);
@@ -1111,7 +1111,7 @@ void main() {
         );
 
         expect(await updater.updateDatabaseIfNeeded(), isTrue);
-        expect((await mapping).map((b) => b.book.id), [
+        expect((await mapping).map((b) => b.id), [
           for (var id = 1; id <= 20; id++) id,
         ]);
         expect(await updater.getCurrentDatabaseVersion(), 4);
@@ -1197,6 +1197,24 @@ void main() {
               .map((book) => PluginBookIdentity.keyOf(book).bookId),
           ['ערוך השלחן', 'ערוך השלחן'],
         );
+        final volume = books.firstWhere((book) => book.id == 1);
+        expect(PluginBookIdentity.toJson(volume)['bookId'], 'ערוך השלחן');
+        expect(
+          PluginBookIdentity.matches(volume, id: 1, bookId: 'ערוך השלחן'),
+          isTrue,
+        );
+      });
+
+      test('שמירה ב-JSON וטעינה ממנו אינן מכפילות את הכרך', () async {
+        createCatalog(withVolume: true);
+        final book = (await repository.getOtzarBooks()).firstWhere(
+          (book) => book.id == 1,
+        );
+
+        final restored = ExternalLibraryBook.fromJson(book.toJson());
+
+        expect(restored.title, 'ערוך השלחן – אורח חיים א');
+        expect(PluginBookIdentity.keyOf(restored).bookId, 'ערוך השלחן');
       });
 
       test('חיפוש בשם הספר מוצא את הכרך לפי מילות הכרך', () async {

@@ -24,9 +24,6 @@ typedef ExternalCatalogExtractor =
       void Function(double)? onProgress,
     });
 
-/// ספר אוצר החכמה הממופה לספר אוצריא, עם שם הכרך כפי שבקטלוג (אם יש).
-typedef OtzarMappedBook = ({ExternalLibraryBook book, String? volume});
-
 /// מנהל את מסד הקטלוגים החיצוניים (אוצר החכמה והיברובוקס).
 class ExternalCatalogRepository {
   static const String releaseApiUrl =
@@ -131,10 +128,10 @@ class ExternalCatalogRepository {
   /// ספרי אוצר החכמה הממופים לספר אוצריא, מסודרים לפי איכות ההתאמה
   /// (`is_best` ואז `confidence`), כל אחד עם שם הכרך כפי שבקטלוג.
   /// מחזיר רשימה ריקה כשאין מיפוי, טבלת מיפוי (קטלוג ישן) או DB.
-  Future<List<OtzarMappedBook>> getOtzarBooksForOtzariaId(int otzariaId) {
+  Future<List<ExternalLibraryBook>> getOtzarBooksForOtzariaId(int otzariaId) {
     return _runMappingQuery(
       (dbPath) => _queryOtzarBooksForOtzariaId(dbPath, otzariaId),
-      const <OtzarMappedBook>[],
+      const <ExternalLibraryBook>[],
     );
   }
 
@@ -175,7 +172,7 @@ class ExternalCatalogRepository {
     }
   }
 
-  static List<OtzarMappedBook> _queryOtzarBooksForOtzariaId(
+  static List<ExternalLibraryBook> _queryOtzarBooksForOtzariaId(
     String dbPath,
     int otzariaId,
   ) {
@@ -191,8 +188,7 @@ class ExternalCatalogRepository {
         [otzariaId],
       );
       return [
-        for (final row in rows)
-          _mapOtzarBookWithVolume(row as Map<String, Object?>),
+        for (final row in rows) _mapOtzarBook(row as Map<String, Object?>),
       ];
     } catch (e) {
       debugPrint('ExternalCatalogRepository: Otzar mapping query failed: $e');
@@ -1063,6 +1059,8 @@ class ExternalCatalogRepository {
 
     return ExternalLibraryBook(
       title: row['title']?.toString() ?? '',
+      // קטלוג ישן בלי עמודת volume: row['volume'] הוא null.
+      volume: _normalizeNullableString(row['volume']),
       id: bookId,
       author: authors.isEmpty ? null : authors.join(', '),
       pubPlace: places,
@@ -1072,11 +1070,6 @@ class ExternalCatalogRepository {
       externalLibraryId: 'oh:$bookId',
     );
   }
-
-  static OtzarMappedBook _mapOtzarBookWithVolume(Map<String, Object?> row) => (
-    book: _mapOtzarBook(row),
-    volume: _normalizeNullableString(row['volume']),
-  );
 
   static ExternalLibraryBook _mapHebrewBook(Map<String, Object?> row) {
     final bookId = (row['id_book'] as num).toInt();
