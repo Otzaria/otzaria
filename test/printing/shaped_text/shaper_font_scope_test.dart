@@ -55,6 +55,18 @@ void main() {
     bytes = File('fonts/TaameyDavidCLM-Medium.ttf').readAsBytesSync();
   });
 
+  test('preloads the library once, then registers fonts', () async {
+    final first = preloadShaperLibrary();
+    expect(identical(preloadShaperLibrary(), first), isTrue);
+    await first;
+    final font = ShaperFont.register(bytes);
+    try {
+      expect(font.shape('בדיקה').glyphCount, greaterThan(0));
+    } finally {
+      font.dispose();
+    }
+  });
+
   test('disposes both owners after success', () async {
     late ShaperFont primary;
     late ShaperFont fallback;
