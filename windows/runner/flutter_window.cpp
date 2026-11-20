@@ -15,6 +15,7 @@
 #include <cstdlib>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "accessibility_probe.h"
 #include "drag_preview_window.h"
 #include "phantom_mouse_button_filter.h"
 #include "shift_key_normalizer.h"
@@ -999,6 +1000,7 @@ bool FlutterWindow::OnCreate() {
   InstallPhantomMouseButtonFilter(
       flutter_controller_->view()->GetNativeWindow());
   InstallShiftKeyNormalizer(flutter_controller_->view()->GetNativeWindow());
+  accessibility_probe::Install(flutter_controller_->view()->GetNativeWindow());
 
   // NOTE: the main window is intentionally NOT shown here. It stays hidden
   // until Dart reveals it (window_manager.show in presentMainWindow) once the

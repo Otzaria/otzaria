@@ -59,6 +59,22 @@ Map<String, Object?> describeAppContext({
   };
 }
 
+/// שורה קצרה לרשומות התקיעה והקריסה הנייטיב: זולה, בלי מעבר על תוכן הספר.
+String describeShortAppContext({
+  required Screen screen,
+  required TabsState tabs,
+}) {
+  final current = tabs.currentTab;
+  final parts = ['screen=${screen.name}', 'tabs=${tabs.tabs.length}'];
+  if (current != null) {
+    parts.add('tab=${current.runtimeType}');
+    if (!leafPanes(current).any(_isPrivateTitle)) {
+      parts.add('title=${current.title}');
+    }
+  }
+  return parts.join('; ');
+}
+
 /// כשל כאן לא יפיל את שאר ההקשר; הודעת השגיאה עלולה להכיל טקסט, ולכן רק הסוג.
 List<Map<String, Object?>> _readersContextOrError(OpenedTab current) {
   try {

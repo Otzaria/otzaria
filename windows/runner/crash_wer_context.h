@@ -15,6 +15,8 @@ struct CrashWerContext {
   wchar_t log_path[1024];
   char version[64];
   char build_commit[64];
+  // מה שהחלון הראשי הציג, UTF-8. Dart מעדכן רק כשההקשר משתנה.
+  char context[256];
 };
 
 // שם ה-DLL ליד otzaria.exe.

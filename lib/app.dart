@@ -9,6 +9,7 @@ import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/diagnostics/app_context_snapshot.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/diagnostics/frame_stats_overlay.dart';
+import 'package:otzaria/core/diagnostics/native_crash_context.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -148,6 +149,10 @@ class App extends StatelessWidget {
                     ),
                     child: content,
                   );
+                  // גלאי התקיעה הנייטיב מנטר את החלון הראשי בלבד.
+                  if (!isViewWindow) {
+                    content = NativeCrashContextScope(child: content);
+                  }
 
                   if (!useVirtualWindowFrame) {
                     return content;
