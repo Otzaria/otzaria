@@ -161,7 +161,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         center: OtzariaSearchField(
           controller: _searchController,
           focusNode: _searchFocusNode,
-          hintText: 'חפש רב לפי שם או כינוי...',
+          hintText: 'חפש רב לפי שם, כינוי או חיבור...',
           icon: OtzariaIcons.search_in_person_24_regular,
           autofocus: true,
           onChanged: _performSearch,
