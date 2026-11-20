@@ -88,6 +88,7 @@ class TikkunKorimView extends StatefulWidget {
 class _TikkunKorimViewState extends State<TikkunKorimView> {
   final ItemScrollController _scrollController = ItemScrollController();
   final ItemPositionsListener _positions = ItemPositionsListener.create();
+  final ScrollOffsetController _offsets = ScrollOffsetController();
   final FocusNode _keyboardFocusNode = FocusNode(
     debugLabel: 'tikkun_korim_shortcuts',
     skipTraversal: true,
@@ -329,6 +330,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
           child: Focus(
             focusNode: _keyboardFocusNode,
             autofocus: true,
+            onKeyEvent: _scrollByKey,
             child: _buildScaffold(context, state),
           ),
         );
@@ -408,6 +410,35 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     return bindings;
   }
 
+  /// חיצים ו-PageUp/PageDown גוללים את טור הקריאה, בצעדים של `ScrollAction`
+  /// ב-Flutter: שורה 50px, עמוד 80% מהחלון. רק כשהמוקד במסך עצמו — לא בשדה,
+  /// בכפתור או בחלונית — ובלי מקש שינוי (Ctrl+חץ מדפדף, Ctrl נועל לזום).
+  KeyEventResult _scrollByKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent ||
+        !node.hasPrimaryFocus ||
+        !_offsets.isAttached ||
+        HardwareKeyboard.instance.logicalKeysPressed.length > 1) {
+      return KeyEventResult.ignored;
+    }
+    final page = (context.size?.height ?? 0) * 0.8;
+    final offset = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowDown => 50.0,
+      LogicalKeyboardKey.arrowUp => -50.0,
+      LogicalKeyboardKey.pageDown => page,
+      LogicalKeyboardKey.pageUp => -page,
+      _ => null,
+    };
+    if (offset == null) return KeyEventResult.ignored;
+    AppMotion.scroll(
+      context,
+      AppTokens.animFast,
+      animate: (duration) =>
+          _offsets.animateScroll(offset: offset, duration: duration),
+      jump: () => _offsets.jumpBy(offset),
+    );
+    return KeyEventResult.handled;
+  }
+
   /// מקפיץ למדרגת הזום הבאה בכיוון [direction].
   void _stepZoom(int direction) {
     if (_isEditing()) return;
@@ -453,7 +484,11 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: _buildReader(context, state, columns),
+                      // לחיצה בטור מחזירה אליו את מקשי הגלילה, גם אחרי שדה.
+                      child: Listener(
+                        onPointerDown: (_) => _keyboardFocusNode.requestFocus(),
+                        child: _buildReader(context, state, columns),
+                      ),
                     ),
                     _buildSettingsPanel(context, state),
                     _buildBookmarksPanel(context, state),
@@ -926,6 +961,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
       headerSubtitle: state.headerSubtitle,
       scrollController: _scrollController,
       positionsListener: _positions,
+      offsetController: _offsets,
       initialLine: _openingLine,
       onZoomChanged: _setZoom,
     );
