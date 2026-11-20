@@ -586,6 +586,73 @@ void main() {
       expect(log.moves, 0);
       expect(log.droppedOutside, 0);
     });
+
+    testWidgets('במגע: גרירה שחזרה לנקודת ההתחלה אינה פותחת תפריט', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א'), _StubTab('ב'), _StubTab('ג')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('ב')),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(-80, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(80, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(log.menusOpened, 0);
+    });
+
+    testWidgets('במגע: אצבע שנייה באמצע גרירה אינה פותחת תפריט', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א'), _StubTab('ב'), _StubTab('ג')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+
+      final start = tester.getCenter(find.text('א'));
+      final first = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.touch,
+        pointer: 7,
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      final second = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.touch,
+        pointer: 8,
+      );
+      await tester.pump();
+      await second.up();
+      await tester.pump();
+      await first.moveBy(const Offset(-125, 0));
+      await tester.pump();
+      await first.moveBy(const Offset(-125, 0));
+      await tester.pump();
+      await first.up();
+      await tester.pumpAndSettle();
+
+      expect(log.moves, 1);
+      expect(log.menusOpened, 0);
+    });
   });
 
   group('ציר אנכי', () {
