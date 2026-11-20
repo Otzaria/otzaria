@@ -176,14 +176,12 @@ class AppThemeData {
           side: BorderSide(color: cs.outlineVariant),
         ),
       ),
-      // כפתור אייקון בלבד עגול (DD-04, q9 שאלה 3). כפתור אייקון עם רקע גלוי
-      // משלו (filled, filledTonal או backgroundColor) קובע roundedShape בעצמו
-      // ונשאר 8 (q10 שאלה 22). components_contract_test בודק את שניהם.
+      // גם כפתור אייקון בלבד בפינות 8, כמו שאר הכפתורים (DD-04).
       iconButtonTheme: IconButtonThemeData(
         style: _hoverButtonStyle(
           cs,
           cs.primary,
-        ).copyWith(shape: const WidgetStatePropertyAll(CircleBorder())),
+        ).copyWith(shape: const WidgetStatePropertyAll(AppTokens.roundedShape)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: _hoverButtonStyle(cs, cs.onPrimary),
