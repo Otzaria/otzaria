@@ -140,6 +140,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
         'reader-commentary-selection',
         'reader-pdf',
         'reader-pdf-selection',
+        'library-book',
       },
     );
 

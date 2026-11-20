@@ -24,6 +24,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart' show bookIdentity;
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/models/library_match_filter.dart';
@@ -42,6 +43,8 @@ import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
+import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -3059,7 +3062,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return AppContextMenuRegion(
       // בלי isSelected: אייקון מוביל יחד עם סימון-נבחר מאפס את תקציב הרוחב
       // של הלייבל, וה-Spacer שבשורת הפריט נופל על רוחב לא-חסום.
-      menuBuilder: (_, _) => [
+      menuBuilder: (menuContext, _) => [
         AppContextMenuEntry(
           label: context.settingsText(
             _selection.contains(book) ? 'הסר מהבחירה' : 'הוסף לבחירה',
@@ -3081,6 +3084,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             onTap: () => _openBookInReader(book, index, forcePdf: true),
           ),
         ],
+        // ספר מספק חיצוני אינו מקבל פריטי תוספים (#4466).
+        if (book is! ExternalLibraryBook)
+          ...buildPluginContextMenuSection(
+            context: 'library-book',
+            selection: {
+              ...PluginBookIdentity.toJsonWithUid(book),
+              'bookTitle': book.title,
+              'categoryPath': FacetHelper.resolveCategoryPath(book),
+              'text': '',
+            },
+            menuContext: menuContext,
+          ),
       ],
       child: Semantics(selected: _selection.contains(book), child: child),
     );
