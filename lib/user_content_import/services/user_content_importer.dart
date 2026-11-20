@@ -146,8 +146,8 @@ class UserContentImporter {
       locateBook: locateBook,
       attachedBooks: attachedBooks,
     );
-    if (ingest.errors.isNotEmpty || ingest.skipped.isNotEmpty) {
-      return UserImportResult(errors: [...ingest.errors, ...ingest.skipped]);
+    if (ingest.errors.isNotEmpty) {
+      return UserImportResult(errors: ingest.errors);
     }
     return applyIngest(ingest, userDb, source: source);
   }
@@ -160,6 +160,7 @@ class UserContentImporter {
     UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
     UserLinkBookLocator locateBook = locateUserLinkBook,
     AttachedLinkBooks? attachedBooks,
+    bool skipStoredAmbiguousLinks = false,
   }) async {
     final attached = attachedBooks ?? AttachedLinkBooks.none;
     final repo = UserContentRepository(userDb);
@@ -243,18 +244,20 @@ class UserContentImporter {
         );
       } else if (lower.endsWith('_links.json')) {
         final baseTitle = name.substring(0, name.length - '_links.json'.length);
+        final skipIfAmbiguous = skipStoredAmbiguousLinks && !file.selected;
         final errorsFrom = errors.length;
         final ambiguous = await _ingestNativeLinks(
           file,
           ingest.links,
           errors,
           baseTitle: baseTitle,
+          skipIfAmbiguous: skipIfAmbiguous,
           locateBook: locateBook,
           attached: attached,
         );
         // קובץ שמור שנעשה דו-משמעי (למשל כשמסד מצורף נוסף אחריו) מדולג כולו,
         // ואינו חוסם בנייה של שאר הקבצים; קובץ חדש נחסם כרגיל.
-        if (ambiguous && !file.selected) {
+        if (ambiguous && skipIfAmbiguous) {
           ingest.links.removeRange(linksFrom, ingest.links.length);
           ingest.skipped.addAll(errors.sublist(errorsFrom));
           errors.removeRange(errorsFrom, errors.length);
@@ -705,6 +708,7 @@ class UserContentImporter {
     List<UserLinkRecord> out,
     List<String> errors, {
     required String baseTitle,
+    required bool skipIfAmbiguous,
     required UserLinkBookLocator locateBook,
     required AttachedLinkBooks attached,
   }) async {
@@ -739,6 +743,13 @@ class UserContentImporter {
         if (found != null && await attached.hasLooseTitle(title)) {
           throw AmbiguousUserLinkBookException(title, normalized: true);
         }
+      } else if (await attached.locate(
+            title,
+            requireKnownAbsence: !skipIfAmbiguous,
+          ) !=
+          null) {
+        // ב-native אין סימון מסד שמכריע בהתנגשות עם ספר אישי או רשמי.
+        throw AmbiguousUserLinkBookException(title);
       }
       if (found == null) return null;
       return (
@@ -751,25 +762,13 @@ class UserContentImporter {
       );
     }
 
-    // לקובץ native אין עמודת מסד, ולכן כותרת שנמצאה באישית/רשמית וקיימת גם
-    // במסד מצורף היא דו-משמעית (#5222).
-    Future<_LocatedLinkBook?> locateUnambiguous(String title) async {
-      final located = await locate(title);
-      if (located != null &&
-          located.db == null &&
-          await attached.locate(title) != null) {
-        throw AmbiguousUserLinkBookException(title);
-      }
-      return located;
-    }
-
     String ambiguity(AmbiguousUserLinkBookException e) => e.normalized
         ? e.details
         : 'קיים ביותר ממקור אחד (אישי, רשמי או מסד מצורף)';
 
     final _LocatedLinkBook? source;
     try {
-      source = await locateUnambiguous(baseTitle);
+      source = await locate(baseTitle);
     } on AmbiguousUserLinkBookException catch (e) {
       errors.add('$fileName: ספר הבסיס "$baseTitle" ${ambiguity(e)}');
       return true;
@@ -788,14 +787,13 @@ class UserContentImporter {
       if (ambiguousTargets.contains(row.targetTitle)) continue;
       if (!targetCache.containsKey(row.targetTitle)) {
         try {
-          targetCache[row.targetTitle] = await locateUnambiguous(
-            row.targetTitle,
-          );
+          targetCache[row.targetTitle] = await locate(row.targetTitle);
         } on AmbiguousUserLinkBookException catch (e) {
-          ambiguousTargets.add(row.targetTitle);
           errors.add(
             '$fileName: ספר היעד "${row.targetTitle}" ${ambiguity(e)}',
           );
+          if (skipIfAmbiguous) return true;
+          ambiguousTargets.add(row.targetTitle);
           continue;
         } on UnavailableUserLinkCatalogException catch (e) {
           errors.add('$fileName: ${e.message}');
@@ -1048,6 +1046,7 @@ Future<UserImportIngest> Function() _backgroundIngestTask(
       sourceExists: resolvers.sourceExists,
       locateBook: resolvers.locateBook,
       attachedBooks: attachedBooks,
+      skipStoredAmbiguousLinks: true,
     );
   } finally {
     userDb.close();

@@ -209,12 +209,15 @@ class UserImportLibrary {
 
   /// שינוי ובנייה מחדש נכתבים יחד, כולל טבלאות הבסיס הידני. הפענוח ארוך ורץ
   /// בלי טרנזקציה פתוחה, ולכן השינוי מוחל פעם כדי לדעת מה ייבנה ופעם לכתיבה.
-  /// [selected]: (שם, מקור) של הקבצים שנוספו עכשיו — רק הם נספרים ב-added.
+  /// [selected] הם הקבצים שנוספו, ו-[reenabledId] נבדק בלי להיספר ב-added.
   Future<UserImportLibraryResult> _changeAndRebuild(
     _Change change, {
     Set<(String, String?)> selected = const {},
+    int? reenabledId,
   }) async {
-    final files = await _onOwnConnection(_enabledFilesAfter(change, selected));
+    final files = await _onOwnConnection(
+      _enabledFilesAfter(change, selected, reenabledId),
+    );
     final ingest = files.isEmpty ? null : await _ingest(files);
     if (ingest != null && ingest.errors.isNotEmpty) {
       return UserImportLibraryResult(
@@ -225,7 +228,9 @@ class UserImportLibrary {
     final rebuild = await _onOwnConnection(_rebuildWith(change, ingest));
     return UserImportLibraryResult(
       rebuild: rebuild,
-      added: ingest?.selectedCounts ?? const UserImportResult(),
+      added: selected.isEmpty
+          ? const UserImportResult()
+          : ingest?.selectedCounts ?? const UserImportResult(),
       skipped: ingest?.skipped ?? const [],
     );
   }
@@ -233,10 +238,11 @@ class UserImportLibrary {
   static Future<List<ImportedFile>> Function(MyDatabase) _enabledFilesAfter(
     _Change change,
     Set<(String, String?)> selected,
+    int? reenabledId,
   ) =>
       (userDb) => _inTransaction(userDb, () async {
         await change(userDb);
-        return _enabledFiles(await userDb.database, selected);
+        return _enabledFiles(await userDb.database, selected, reenabledId);
       }, commit: false);
 
   static Future<UserImportResult> Function(MyDatabase) _rebuildWith(
@@ -301,8 +307,12 @@ class UserImportLibrary {
   }
 
   /// משהה או מחזיר קובץ. השהיה אינה מוחקת אותו — התוכן נשאר לייצוא ולהחזרה.
-  Future<UserImportLibraryResult> setEnabled(int id, bool enabled) =>
-      _serial(() => _changeAndRebuild(_setFileEnabled(id, enabled)));
+  Future<UserImportLibraryResult> setEnabled(int id, bool enabled) => _serial(
+    () => _changeAndRebuild(
+      _setFileEnabled(id, enabled),
+      reenabledId: enabled ? id : null,
+    ),
+  );
 
   static _Change _setFileEnabled(int id, bool enabled) => (userDb) async {
     (await userDb.database).execute(
@@ -339,18 +349,21 @@ class UserImportLibrary {
   static List<ImportedFile> _enabledFiles(
     sqlite3.Database db,
     Set<(String, String?)> selected,
+    int? reenabledId,
   ) => [
     for (final row in db.select(
-      'SELECT name, originPath, content FROM user_import_file '
+      'SELECT id, name, originPath, content FROM user_import_file '
       'WHERE enabled = 1 ORDER BY id',
     ))
       ImportedFile(
         name: row['name'] as String,
         content: row['content'] as String,
-        selected: selected.contains((
-          row['name'] as String,
-          row['originPath'] as String?,
-        )),
+        selected:
+            row['id'] == reenabledId ||
+            selected.contains((
+              row['name'] as String,
+              row['originPath'] as String?,
+            )),
       ),
   ];
 
@@ -368,6 +381,7 @@ class UserImportLibrary {
       sourceExists: sourceExists ?? userLinkSourceBookExists,
       locateBook: locateBook ?? locateUserLinkBook,
       attachedBooks: attachedBooks,
+      skipStoredAmbiguousLinks: true,
     );
   }
 

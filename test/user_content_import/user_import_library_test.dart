@@ -510,11 +510,18 @@ void main() {
         );
       }
 
-      UserImportLibrary libraryWith({required bool attachedVisible}) {
+      UserImportLibrary libraryWith({
+        required bool attachedVisible,
+        bool attachedMissing = false,
+        String? unavailableTitle,
+      }) {
         final attached = AttachedLinkBooks.open([
           (
             slug: 'attached',
-            path: p.join(tempDir.path, 'attached.db'),
+            path: p.join(
+              tempDir.path,
+              attachedMissing ? 'missing.db' : 'attached.db',
+            ),
             immutable: false,
             visible: attachedVisible,
           ),
@@ -531,11 +538,16 @@ void main() {
               }) async => int.tryParse(ref),
           sourceExists:
               ({required title, categoryId, required isUserBook}) async => true,
-          locateBook: (title) => locateUserLinkBookInRepositories(
-            title,
-            userRepository: SeforimRepository(db),
-            officialRepository: SeforimRepository(officialDb),
-          ),
+          locateBook: (title) {
+            if (title == unavailableTitle) {
+              throw const UnavailableUserLinkCatalogException();
+            }
+            return locateUserLinkBookInRepositories(
+              title,
+              userRepository: SeforimRepository(db),
+              officialRepository: SeforimRepository(officialDb),
+            );
+          },
           attachedBooks: attached,
         );
       }
@@ -594,6 +606,89 @@ void main() {
         expect(outcome.ok, isTrue);
         expect(outcome.skipped, isNotEmpty);
         expect(await storedLinks(), isEmpty);
+      });
+
+      test('החזרה לשימוש של קובץ דו-משמעי משאירה אותו מושהה', () async {
+        final native = (await library.list()).firstWhere(
+          (file) => file.name == 'רשמי_links.json',
+        );
+        expect(
+          (await libraryWith(
+            attachedVisible: false,
+          ).setEnabled(native.id, false)).ok,
+          isTrue,
+        );
+
+        final outcome = await libraryWith(
+          attachedVisible: true,
+        ).setEnabled(native.id, true);
+
+        expect(outcome.ok, isFalse);
+        expect(outcome.errors, contains(contains('ביותר ממקור אחד')));
+        expect(
+          (await library.list())
+              .firstWhere((file) => file.id == native.id)
+              .enabled,
+          isFalse,
+        );
+        expect(await nativeLinks(), isEmpty);
+        expect(await storedLinks(), hasLength(1));
+      });
+
+      test('קובץ שמור שכבר נמצא עמום מדולג כולו', () async {
+        await addBook(officialDb, 'יעד תקין');
+        await addBook(officialDb, 'יעד מאוחר');
+        final saved = await libraryWith(attachedVisible: false).addFiles([
+          write(
+            'אישי_links.json',
+            '[{"line_index_1": 1, "line_index_2": 2, "path_2": "יעד תקין.txt"},'
+                '{"line_index_1": 2, "line_index_2": 3, "path_2": "רשמי.txt"},'
+                '{"line_index_1": 3, "line_index_2": 4, "path_2": "יעד מאוחר.txt"}]',
+          ),
+        ]);
+        expect(saved.ok, isTrue);
+
+        final outcome = await libraryWith(
+          attachedVisible: true,
+          unavailableTitle: 'יעד מאוחר',
+        ).addFiles([linksFile('ברכות.links.csv', sourceLine: 5)]);
+
+        expect(outcome.ok, isTrue);
+        expect(outcome.skipped, contains(contains('אישי_links.json')));
+        expect(outcome.added.linksApplied, 1);
+        final raw = await db.database;
+        expect(
+          raw.select(
+            'SELECT 1 FROM user_link WHERE sourceTitle = ? OR targetTitle = ?',
+            ['יעד תקין', 'יעד תקין'],
+          ),
+          isEmpty,
+        );
+        expect(await storedLinks(), hasLength(2));
+      });
+
+      test('מסד מצורף לא זמין חוסם בחירה חדשה ומשאיר קובץ שמור', () async {
+        final current = libraryWith(
+          attachedVisible: true,
+          attachedMissing: true,
+        );
+        final failed = await current.addFiles([nativeFile('אישי', 'רשמי')]);
+
+        expect(failed.ok, isFalse);
+        expect(
+          failed.errors,
+          contains(contains('לא ניתן לבדוק את המסדים המצורפים')),
+        );
+        expect(await nativeLinks(), hasLength(1));
+        expect(await current.list(), hasLength(2));
+
+        final unrelated = await current.addFiles([
+          linksFile('ברכות.links.csv', sourceLine: 5),
+        ]);
+        expect(unrelated.ok, isTrue);
+        expect(unrelated.skipped, isEmpty);
+        expect(await nativeLinks(), hasLength(1));
+        expect(await storedLinks(), hasLength(2));
       });
 
       test('קובץ חדש דו-משמעי נחסם', () async {
