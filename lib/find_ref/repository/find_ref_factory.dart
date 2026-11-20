@@ -64,6 +64,8 @@ FindRefRepository buildFindRefRepository({bool respectHiddenLibrary = true}) {
     },
     prewarmAltTocFlatEntries: () async =>
         (await FindRefDbIsolate.instance()).prewarmAltTocFlat(),
+    loadBookBaseTexts: () async =>
+        (await FindRefDbIsolate.instance()).getBookBaseTexts(),
     getAltStructureBookIds: () async {
       final request = await searchWorker();
       repository.throwIfSearchGenerationCancelled(request.epoch);

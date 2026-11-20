@@ -240,7 +240,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
         baseOffset: 0,
         extentOffset: controller.text.length,
       );
-      if (_findRefBloc.externalService.hasProviders) {
+      // גם סדר מותאם שההעדפות שלו כובו או נמחקו מאז מתבקש מחדש.
+      if (_findRefBloc.externalService.hasProviders ||
+          _findRefBloc.shownOrderIsStale) {
         _dispatchSearch(controller.text);
       }
     }
@@ -311,7 +313,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final text = _focus.findRefSearchController.text;
     if (text.length >= 2) {
       _selectedIndex.value = 0;
-      bloc.add(SearchRefRequested(text, includePersonalBooks: stored));
+      bloc.add(
+        SearchRefRequested(
+          text,
+          includePersonalBooks: stored,
+          personalized: true,
+        ),
+      );
       _openPendingEnterIfCurrent(bloc.state);
     }
   }
@@ -324,6 +332,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       SearchRefRequested(
         text,
         includePersonalBooks: includePersonalBooks ?? _includePersonalBooks,
+        personalized: true,
       ),
     );
   }
@@ -375,6 +384,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         SearchRefRequested(
           query,
           includePersonalBooks: _includePersonalBooks,
+          personalized: true,
         ),
       );
     }
@@ -660,6 +670,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
             );
             tabsBloc.add(OpenOrFocusTab(resolvingTab));
             navigationBloc.add(const NavigateToScreen(Screen.reading));
+            _recordOpenedRef(ref);
             return;
           }
         }
@@ -700,6 +711,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       requiresStableLayout: openAsPdf,
       initialCommentators: initialCommentators,
     );
+    _recordOpenedRef(ref);
   }
 
   /// הכרטיסייה שבה ספר התוצאה כבר פתוח — לפי זהות הספר שבה [TabsBloc] ממחזר
@@ -725,6 +737,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     Navigator.of(context).pop();
     tabsBloc.add(SetCurrentTab(target.index, pane: target.pane));
     navigationBloc.add(const NavigateToScreen(Screen.reading));
+    _recordOpenedRef(ref);
   }
 
   /// פותח תפריט עם רשימת המפרשים הזמינים (כבר preloaded — כולל `Book` לכל
@@ -732,6 +745,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   Future<void> _showCommentatorsMenu(
     GlobalKey buttonKey,
     List<_CommentatorEntry> commentators,
+    DbReferenceResult ref,
   ) async {
     if (commentators.isEmpty) return;
     final visibilityRevision = _visibilityRevision;
@@ -763,7 +777,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         !_bookIndexes.allowsCommentator(selected.title, selected.bookId)) {
       return;
     }
-    _openCommentator(selected);
+    _openCommentator(selected, ref);
   }
 
   /// פותח את ספר המפרש מתוך רשומה שהוכנה מראש: ה-`book` כבר ידוע, וה-
@@ -771,7 +785,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// (row חריג) נפתח בתחילת ספר המפרש — לא ב-`ref.segment`, שהוא אינדקס בספר
   /// המקור וחסר משמעות בספר המפרש. הקליק סינכרוני לחלוטין — אין `await`, אין
   /// שאילתות DB ואין מעבר על עץ הספרייה בזמן הקליק.
-  void _openCommentator(_CommentatorEntry entry) {
+  void _openCommentator(_CommentatorEntry entry, DbReferenceResult ref) {
     _rememberCurrentQuery();
     final segment = entry.targetSegment ?? 0;
     Navigator.of(context).pop();
@@ -782,6 +796,17 @@ class _FindRefDialogState extends State<FindRefDialog> {
       '',
       explicitIndex: true,
       navigateToPositionIfReused: true,
+    );
+    if (_openRecorded) return;
+    _openRecorded = true;
+    // גם ספר התוצאה: בלי זה המפרש לבדו היה נראה מועדף על הספר שעליו נלמד.
+    unawaited(
+      _findRefBloc.findRefRepository.recordFindRefOpen(
+        source: entry.book.source,
+        bookId: entry.bookId,
+        title: entry.title,
+        openedFrom: ref,
+      ),
     );
   }
 
@@ -850,7 +875,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
     _pendingEnter = false;
     final query = context.read<FocusRepository>().findRefSearchController.text;
     context.read<FindRefBloc>().add(
-      SearchRefRequested(query, includePersonalBooks: _includePersonalBooks),
+      SearchRefRequested(
+        query,
+        includePersonalBooks: _includePersonalBooks,
+        personalized: true,
+      ),
     );
   }
 
@@ -860,6 +889,24 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final state = context.read<FindRefBloc>().state;
     if (state is! FindRefSuccess) return;
     FindRefRecentStore.remember(state.query);
+  }
+
+  /// הדיאלוג נסגר בפתיחה, ולכן לחיצה כפולה מהירה לא תירשם פעמיים.
+  bool _openRecorded = false;
+
+  /// רושם בהעדפות האישיות את ספר התוצאה שנפתחה, בלי לעכב את הפתיחה.
+  void _recordOpenedRef(DbReferenceResult ref) {
+    if (_openRecorded) return;
+    _openRecorded = true;
+    unawaited(
+      _findRefBloc.findRefRepository.recordFindRefOpen(
+        source: ref.source,
+        bookId: ref.bookId,
+        title: ref.title,
+        isPdf: ref.isPdf,
+        filePath: ref.filePath,
+      ),
+    );
   }
 
   // ── שכבת התצוגה ─────────────────────────────────────────────────────
@@ -1336,8 +1383,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
                           icon: const Icon(FluentIcons.library_24_regular),
                           tooltip: context.settingsText('הצג מפרשים זמינים'),
                           onPressed: interactive && showButton
-                              ? () =>
-                                    _showCommentatorsMenu(menuButtonKey, cached)
+                              ? () => _showCommentatorsMenu(
+                                  menuButtonKey,
+                                  cached,
+                                  ref,
+                                )
                               : null,
                         ),
                       ),

@@ -20,6 +20,8 @@ import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
 import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/search/active_lexical_searches.dart';
@@ -302,7 +304,44 @@ class AppReportCollector {
               SettingsRepository.keyCommentatorsFontFamily,
             ) ??
             AppFonts.defaultCommentatorsFont,
+        'findRefPersonalOrder': _findRefPersonalOrderOrError(),
       },
+    };
+  }
+
+  static Map<String, Object?> _findRefPersonalOrderOrError() {
+    try {
+      return findRefPersonalOrderSummary();
+    } catch (error) {
+      debugPrint('AppReportCollector: findRefPersonalOrder failed: $error');
+      return {'error': error.runtimeType.toString()};
+    }
+  }
+
+  /// הסדר האישי באיתור: מתג, מונים, כמה ספרים משפיעים על הסדר, ו-3 המובילים.
+  /// הכותרת מוצגת רק לספר רשמי, ולקובץ מהדיסק בלי הנתיב.
+  @visibleForTesting
+  static Map<String, Object?> findRefPersonalOrderSummary() {
+    final summary = FindRefPreferenceStore.summary(top: 3);
+    List<String> describe(
+      List<({String key, String title, double score})> top,
+    ) => [
+      for (final e in top)
+        [
+          e.score.toStringAsFixed(2),
+          e.key.startsWith('f|') ? 'f' : e.key,
+          if (e.key.startsWith('${BookSource.official.wireKey}|')) e.title,
+        ].join(' '),
+    ];
+    return {
+      'enabled': summary.enabled,
+      'books': summary.bookCount,
+      'bases': summary.baseCount,
+      'booksAffecting': summary.booksAffecting,
+      // גם ספר בסיס מעל הסף מזיז את מפרשיו, אף שלא נפתחו בעצמם.
+      'basesAffecting': summary.basesAffecting,
+      if (summary.topBooks.isNotEmpty) 'topBooks': describe(summary.topBooks),
+      if (summary.topBases.isNotEmpty) 'topBases': describe(summary.topBases),
     };
   }
 
