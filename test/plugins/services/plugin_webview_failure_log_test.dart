@@ -103,14 +103,16 @@ void main() {
       expect(diagnosticsRuns, 1, reason: 'נסיגה אמיתית מריצה את האבחון');
     });
 
-    test('מצב כפוי לבדיקה נרשם בלי להריץ אבחון', () async {
+    test('מצב שה-runner כפה מראש אינו נרשם כשגיאה ואינו מריץ אבחון', () async {
       logPluginWebViewHwndFallback(
         const WindowsWebViewHwndFallback(stage: 'forced'),
       );
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
 
-      expect(errorsFile().readAsStringSync(), contains('Stage: forced'));
+      final file = errorsFile();
+      final content = file.existsSync() ? file.readAsStringSync() : '';
+      expect(content, isNot(contains('HWND fallback')));
       expect(diagnosticsRuns, 0);
     });
   });

@@ -42,9 +42,10 @@ bool _hwndFallbackLogged = false;
 void debugResetPluginWebViewHwndFallbackLog() => _hwndFallbackLogged = false;
 
 /// רושם פעם אחת לתהליך שתוסף עלה במצב HWND כי ה-composition נכשל (התוסף עובד,
-/// ואין לכך סימן אחר). נסיגה לא כפויה מריצה גם את [WebView2CreationDiagnostics].
+/// ואין לכך סימן אחר) ומריץ את [WebView2CreationDiagnostics].
+/// מצב שה-runner כפה מראש (RDP, Windows ישן) אינו כשל ואינו נרשם.
 void logPluginWebViewHwndFallback(WindowsWebViewHwndFallback fallback) {
-  if (_hwndFallbackLogged) return;
+  if (_hwndFallbackLogged || fallback.stage == 'forced') return;
   _hwndFallbackLogged = true;
   logPluginWebViewFailure(
     'Plugin WebView HWND fallback',
@@ -56,6 +57,6 @@ void logPluginWebViewHwndFallback(WindowsWebViewHwndFallback fallback) {
       'RequestedUrl': fallback.requestedUrl,
       'EmulatedOnArm': WindowsArchInfo.isEmulatedOnArm ? 'true' : 'false',
     },
-    creationFailure: fallback.stage != 'forced',
+    creationFailure: true,
   );
 }
