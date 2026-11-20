@@ -7,9 +7,12 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
@@ -1133,6 +1136,85 @@ void main() {
       });
     });
 
+    group('Otzar volume shown (issue #2091)', () {
+      void createCatalog({required bool withVolume}) {
+        final db = sqlite3.open(repository.databasePath);
+        db.execute(
+          'CREATE TABLE otzar_hahochma (book_id INTEGER PRIMARY KEY, '
+          'title TEXT, authors TEXT, ${withVolume ? 'volume TEXT, ' : ''}'
+          'from_year TEXT, to_year TEXT, places TEXT, subjects TEXT)',
+        );
+        db.execute(
+          withVolume
+              ? "INSERT INTO otzar_hahochma (book_id, title, volume) VALUES "
+                    "(1, 'ערוך השלחן', 'אורח חיים א'), "
+                    "(2, 'ערוך השלחן', 'אורח חיים ב'), "
+                    "(3, 'ספר', NULL), (4, 'ספר אחר', ' '), "
+                    "(5, 'כרך יחיד', 'כרך יחיד')"
+              : "INSERT INTO otzar_hahochma (book_id, title) VALUES "
+                    "(1, 'ערוך השלחן'), (2, 'ערוך השלחן')",
+        );
+        db.close();
+      }
+
+      test('כרכים של אותו ספר מוצגים בשמות נבדלים', () async {
+        createCatalog(withVolume: true);
+
+        final books = await repository.getOtzarBooks();
+
+        expect(
+          {for (final book in books) book.id: book.title},
+          {
+            1: 'ערוך השלחן – אורח חיים א',
+            2: 'ערוך השלחן – אורח חיים ב',
+            3: 'ספר',
+            4: 'ספר אחר',
+            5: 'כרך יחיד',
+          },
+        );
+        expect(
+          books.firstWhere((book) => book.id == 1).externalLibraryId,
+          'oh:1',
+        );
+      });
+
+      test('קטלוג ישן בלי עמודת volume נטען כרגיל', () async {
+        createCatalog(withVolume: false);
+
+        final books = await repository.getOtzarBooks();
+
+        expect(books.map((book) => book.title), ['ערוך השלחן', 'ערוך השלחן']);
+      });
+
+      test('זהות התוסף נשארת שם הספר בקטלוג, בלי הכרך', () async {
+        createCatalog(withVolume: true);
+
+        final books = await repository.getOtzarBooks();
+
+        expect(
+          books
+              .where((book) => book.id! <= 2)
+              .map((book) => PluginBookIdentity.keyOf(book).bookId),
+          ['ערוך השלחן', 'ערוך השלחן'],
+        );
+      });
+
+      test('חיפוש בשם הספר מוצא את הכרך לפי מילות הכרך', () async {
+        createCatalog(withVolume: true);
+        final data = _CatalogDataRepository(repository);
+        addTearDown(data.bookSearchWorkerForTesting.dispose);
+
+        final found = await data.findBooks(
+          'ערוך השלחן אורח חיים ב',
+          Library(categories: []),
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+        );
+
+        expect(found.map((book) => book.id), [2]);
+      });
+    });
+
     test('שאילתת מיפוי איטית לא חוסמת את ה-isolate הראשי', () async {
       // אלפי התאמות לאותו ספר: המיון לפני LIMIT קורא את כולן.
       const rowCount = 300000;
@@ -1746,4 +1828,13 @@ void _expectCatalogIntegrity(String target) {
   } finally {
     db.close();
   }
+}
+
+class _CatalogDataRepository extends DataRepository {
+  _CatalogDataRepository(this.catalog);
+
+  final ExternalCatalogRepository catalog;
+
+  @override
+  Future<List<ExternalLibraryBook>> getOtzarBooks() => catalog.getOtzarBooks();
 }
