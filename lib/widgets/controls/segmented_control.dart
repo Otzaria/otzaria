@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 /// אפשרות יחידה ב-[AppSegmentedControl]
 ///
@@ -218,72 +219,44 @@ class AppSegmentedControl<T> extends StatelessWidget {
     return !clipped;
   }
 
-  /// האם התווית של [o] נחתכת במקטע ברוחב [segmentWidth] (null = לא חסום),
-  /// באותה מדידה כמו ב-[_fitOf].
-  bool _labelClipped(
-    BuildContext context,
-    SegmentOption<T> o, {
-    required bool narrow,
-    required double? segmentWidth,
-  }) {
-    if (segmentWidth == null) return false;
-    final iconExtra = _iconSegmentExtra(context);
-    final labelOnly = segmentPadding(
-      context,
-    ).resolve(Directionality.of(context)).horizontal;
-    final anyIcons = options.any((o) => o.icon != null || o.rtlIcon != null);
-    final reserved = narrow
-        ? (showSelectedIcon ? iconExtra + AppTokens.iconSM : labelOnly)
-        : (anyIcons || showSelectedIcon
-              ? iconExtra + _iconWidth(o)
-              : labelOnly);
-    final label = narrow ? o.shortLabel ?? o.label : o.label;
-    return !_labelFits(context, label, segmentWidth - reserved);
-  }
-
   List<ButtonSegment<T>> _segments(
-    BuildContext context,
     List<SegmentOption<T>> shown, {
     required bool narrow,
-    required double? segmentWidth,
     bool markSelected = false,
   }) {
     final hasIcons =
         !narrow && options.any((o) => o.icon != null || o.rtlIcon != null);
-    return shown
-        .map(
-          (o) => ButtonSegment<T>(
-            value: o.value,
-            // בלי FittedBox: בתוך לחצן הוא פורס את הטקסט ברוחב מילה אחת,
-            // ואז maxLines חותך אותו למילה הראשונה.
-            label: _markIf(
-              markSelected && o.value == currentValue,
-              Text(
-                narrow ? o.shortLabel ?? o.label : o.label,
-                key: o.labelKey,
-                maxLines: maxLabelLines,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            icon: hasIcons ? _buildOptionIcon(o) : null,
-            // טולטיפ שחוזר על התווית הגלויה מיותר: התווית המלאה מוצגת בריחוף
-            // רק כשהיא לא גלויה במלואה — במקטע הצר מופיעה במקומה התווית
-            // הקצרה, או שהתווית נחתכת ב-ellipsis.
-            tooltip:
-                o.tooltip ??
-                ((narrow && o.shortLabel != null && o.shortLabel != o.label) ||
-                        _labelClipped(
-                          context,
-                          o,
-                          narrow: narrow,
-                          segmentWidth: segmentWidth,
-                        )
-                    ? o.label
-                    : null),
-          ),
-        )
-        .toList();
+    return shown.map((o) {
+      final label = narrow ? o.shortLabel ?? o.label : o.label;
+      // טולטיפ שתלוי בפריסה עוטף את התווית, כדי שהלחצן ישמור על המיקוד.
+      final Widget labelWidget;
+      if (o.tooltip != null || label != o.label) {
+        final text = Text(
+          label,
+          key: o.labelKey,
+          maxLines: maxLabelLines,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+        );
+        labelWidget = o.tooltip == null
+            ? Tooltip(message: o.label, child: text)
+            : text;
+      } else {
+        labelWidget = OverflowTooltipText(
+          key: o.labelKey,
+          text: label,
+          maxLines: maxLabelLines,
+          textAlign: TextAlign.center,
+          waitDuration: null,
+        );
+      }
+      return ButtonSegment<T>(
+        value: o.value,
+        label: _markIf(markSelected && o.value == currentValue, labelWidget),
+        icon: hasIcons ? _buildOptionIcon(o) : null,
+        tooltip: o.tooltip,
+      );
+    }).toList();
   }
 
   static Widget _markIf(bool mark, Widget label) =>
@@ -326,14 +299,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
       builder: (context, constraints) {
         // ברוחב לא חסום (בתוך Row) הבורר ברוחבו הטבעי, ואינו צר.
         if (!constraints.hasBoundedWidth) {
-          return _build(
-            context,
-            cs,
-            isFixed,
-            options,
-            narrow: false,
-            segmentWidth: null,
-          );
+          return _build(context, cs, isFixed, options, narrow: false);
         }
         final segmentWidth = constraints.maxWidth / options.length;
         if (!twoRowsWhenClipped || options.length <= 2) {
@@ -343,7 +309,6 @@ class AppSegmentedControl<T> extends StatelessWidget {
             isFixed,
             options,
             narrow: segmentWidth < narrowBelowSegmentWidth,
-            segmentWidth: segmentWidth,
           );
         }
         final fit = _fitOf(context, options, segmentWidth);
@@ -354,7 +319,6 @@ class AppSegmentedControl<T> extends StatelessWidget {
             isFixed,
             options,
             narrow: fit == _Fit.narrow,
-            segmentWidth: segmentWidth,
           );
         }
         return _buildTwoRows(context, cs, isFixed, constraints.maxWidth);
@@ -382,15 +346,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
         spacing: AppTokens.spaceSM,
         children: [
           for (final row in rows)
-            _build(
-              context,
-              cs,
-              isFixed,
-              row,
-              narrow: narrow,
-              // השורה ממלאת את הרוחב (expandedInsets), במקטעים שווים.
-              segmentWidth: width / row.length,
-            ),
+            _build(context, cs, isFixed, row, narrow: narrow),
         ],
       ),
     );
@@ -402,7 +358,6 @@ class AppSegmentedControl<T> extends StatelessWidget {
     bool isFixed,
     List<SegmentOption<T>> shown, {
     required bool narrow,
-    required double? segmentWidth,
   }) {
     final split = shown.length != options.length;
     // "לבן" בבהיר: המקטע הנבחר מסומן גם בקו דק סביבו (q-white-selected).
@@ -422,10 +377,8 @@ class AppSegmentedControl<T> extends StatelessWidget {
           );
     final button = SegmentedButton<T>(
       segments: _segments(
-        context,
         shown,
         narrow: narrow,
-        segmentWidth: segmentWidth,
         markSelected: selectedBorder != null,
       ),
       // בשתי שורות הנבחר נמצא רק באחת מהן, והשנייה בלי בחירה.

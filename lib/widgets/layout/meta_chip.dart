@@ -122,10 +122,8 @@ class MetaChip extends StatelessWidget {
                   ? OverflowTooltipText(
                       text: label,
                       maxLines: maxLines,
-                      // המדידה בסגנון שהטקסט מצויר בו בפועל.
-                      style: DefaultTextStyle.of(
-                        context,
-                      ).style.merge(labelStyle),
+                      tooltipMessage: tooltip,
+                      style: labelStyle,
                     )
                   : Text(
                       label,

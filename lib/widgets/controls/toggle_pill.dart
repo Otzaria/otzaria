@@ -48,7 +48,7 @@ class AppTogglePill extends StatelessWidget {
             child: repeatsLabel && tooltip != null
                 ? OverflowTooltipText(
                     text: label,
-                    style: DefaultTextStyle.of(context).style.merge(labelStyle),
+                    style: labelStyle,
                   )
                 : Text(
                     label,

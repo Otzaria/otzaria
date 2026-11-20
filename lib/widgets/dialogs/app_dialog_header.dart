@@ -152,9 +152,7 @@ class _AppDialogHeaderState extends State<AppDialogHeader> {
                     OverflowTooltipText(
                       text: widget.title,
                       maxLines: widget.titleMaxLines!,
-                      style: DefaultTextStyle.of(
-                        context,
-                      ).style.merge(theme.textTheme.titleLarge),
+                      style: theme.textTheme.titleLarge,
                     )
                   else
                     Text(widget.title, style: theme.textTheme.titleLarge),

@@ -184,6 +184,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 const iconOnlyDeleteBelow = 560.0, splitDateBelow = 360.0;
                 final iconOnlyDelete = width < iconOnlyDeleteBelow;
                 final splitDate = width < splitDateBelow;
+                final dateLabel = formatEventDate(event.baseGregorianDate);
                 final eventColor = CalendarEventColors.colorForIndex(
                   event.displayColorIndex,
                   Theme.of(context).brightness,
@@ -324,10 +325,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                             child: _eventChip(
                               icon: OtzariaIcons.calendar_24_regular,
                               text: splitDate
-                                  ? formatEventDate(
-                                      event.baseGregorianDate,
-                                    ).replaceFirst(' • ', '\n')
-                                  : formatEventDate(event.baseGregorianDate),
+                                  ? dateLabel.replaceFirst(' • ', '\n')
+                                  : dateLabel,
+                              tooltip: dateLabel,
                               tone: MetaChipTone.primary,
                               maxLines: splitDate ? 2 : 1,
                             ),
@@ -381,8 +381,7 @@ class _DeleteEventAction extends StatelessWidget {
   }
 }
 
-/// תגית מטא של אירוע. ריחוף רק כשנמסר [tooltip] מפורש — הטקסט עצמו כבר
-/// גלוי על התגית.
+/// תגית מטא של אירוע, עם הטקסט המלא בריחוף כשהתווית נחתכת.
 Widget _eventChip({
   required IconData icon,
   required String text,
@@ -393,6 +392,6 @@ Widget _eventChip({
   icon: icon,
   label: text,
   tone: tone,
-  tooltip: tooltip,
+  tooltip: tooltip ?? text,
   maxLines: maxLines,
 );
