@@ -31,23 +31,25 @@ String bookNameSpellingForm(String text) =>
     ? text.replaceAll('וו', 'ו').replaceAll('יי', 'י')
     : text;
 
-/// צורת ההשוואה בין שאילתה לכינוי: [bookNameSpellingForm] בלי "על" ובלי "מסכת"/"מס"
-/// שאחרי המילה הראשונה — הכינויים כוללים אותן לסירוגין (#5599, #5609).
+/// צורת ההשוואה בין שאילתה לכינוי: [bookNameSpellingForm] בלי "על" שבין מילים.
 String bookNameAcronymForm(String text) {
   final t = bookNameSpellingForm(text);
-  if (!t.contains(' על ') && !t.contains(' מס')) return t;
-  final words = t.split(' ');
+  return t.contains(' על ') ? t.replaceAll(' על ', ' ') : t;
+}
+
+/// גיבוי נוסף לכינוי שלא נמצא, גם בלי "מסכת" שבין מילים.
+String bookNameTractateAcronymForm(String acronymForm) {
+  if (!acronymForm.contains(' מסכת ')) return acronymForm;
+  final words = acronymForm.split(' ');
   return [
     for (var i = 0; i < words.length; i++)
-      if (i == 0 ||
-          !(isTractateWord(words[i]) ||
-              (words[i] == 'על' && i < words.length - 1)))
+      if (i == 0 || i == words.length - 1 || !isTractateWord(words[i]))
         words[i],
   ].join(' ');
 }
 
-/// "מסכת" / "מס'" — מילת קישור, ולא חלק מזהה בשם הספר.
-bool isTractateWord(String word) => word == 'מסכת' || word == 'מס';
+/// המילה המפורשת "מסכת". אחרי נרמול "מס'" ו"מס" אינן ניתנות להבחנה.
+bool isTractateWord(String word) => word == 'מסכת';
 
 const int _vav = 0x05D5;
 const int _yod = 0x05D9;

@@ -18,6 +18,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/migration/models/pdf_outline_cache_entry.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
+import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
@@ -55,6 +56,12 @@ class ReferenceBooksCache {
   late final BookTitleIndex _official = BookTitleIndex._official(
     () => debugCatalogScans++,
     _matchFsPdfBooks,
+    (book) =>
+        FoundationalBookClassifier.classify(
+          _categoryPaths[book.id],
+          book.title,
+        ) ==
+        2,
   );
 
   // PDF books from file system (not in DB) — stored as (normalizedTitle, hit)
@@ -1065,7 +1072,11 @@ typedef _ExtraBooksMatcher =
       Set<String> foundExactTitles,
     );
 
-typedef _AcronymForms = ({List<String> direct, List<String> relaxed});
+typedef _AcronymForms = ({
+  List<String> direct,
+  List<String> relaxed,
+  List<String> tractate,
+});
 
 /// מנוע ההתאמה של שמות ספרים לשאילתת איתור: כותרת (זהה/תחילית/מכילה),
 /// ראשי-תיבות והתאמה מקורבת. אותו מנוע משרת את הקטלוג הרשמי ואת המסדים המשניים.
@@ -1080,6 +1091,7 @@ class BookTitleIndex {
        _acronymsOf = acronymsOf ?? _noAcronyms,
        _acronymCandidates = _noAcronymFilter,
        _onCatalogScan = null,
+       _isMishnahTractate = null,
        _extraBooks = null {
     installTitles(normalizedTitles);
     final booksByWord = <String, List<int>>{};
@@ -1087,8 +1099,11 @@ class BookTitleIndex {
     installFuzzyVocabulary(booksByWord);
   }
 
-  BookTitleIndex._official(this._onCatalogScan, this._extraBooks)
-    : _books = (() => BooksCache.instance.books),
+  BookTitleIndex._official(
+    this._onCatalogScan,
+    this._extraBooks,
+    this._isMishnahTractate,
+  ) : _books = (() => BooksCache.instance.books),
       _acronymsOf = AcronymsCache.instance.getAcronymsForBook,
       _acronymCandidates = AcronymsCache.instance.candidatesFor;
 
@@ -1100,6 +1115,7 @@ class BookTitleIndex {
   _acronymCandidates;
   final void Function()? _onCatalogScan;
   final _ExtraBooksMatcher? _extraBooks;
+  final bool Function(BookCacheEntry)? _isMishnahTractate;
 
   static List<String>? _noAcronyms(int bookId) => null;
   static AcronymCandidateBooks? _noAcronymFilter(String normalizedQuery) =>
@@ -1208,10 +1224,13 @@ class BookTitleIndex {
               final aq = sq == spelling && amq == mq
                   ? direct
                   : [sq, if (amq != sq) amq];
+              final tractate = aq.any((form) => form.contains(' מסכת '))
+                  ? aq.map(bookNameTractateAcronymForm).toSet().toList()
+                  : aq;
               return _QueryScan(
                 q,
                 mq,
-                (direct: direct, relaxed: aq),
+                (direct: direct, relaxed: aq, tractate: tractate),
                 words,
                 // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים — כינוי מתאים מכיל כל
                 // ביגרם של השאילתה: אין השמטת ה"א, והשמטת מילה שלמה אינה יוצרת ביגרם חדש.
@@ -1219,6 +1238,9 @@ class BookTitleIndex {
                   for (final form in direct) _acronymCandidates(form),
                   for (final form in aq)
                     if (!direct.contains(form)) _acronymCandidates(form),
+                  for (final form in tractate)
+                    if (!direct.contains(form) && !aq.contains(form))
+                      _acronymCandidates(form),
                 ],
                 // בלעדיה כל שאילתה הייתה מריצה מרחק-עריכה על כל ספר.
                 _fuzzyCandidateBooks(words),
@@ -1305,7 +1327,8 @@ class BookTitleIndex {
     var lastWordTruncated = false;
     var exactAlias = false;
     String? connectorAliasTerm;
-    var connectorAliasInTitle = false;
+    String? tractateAliasTerm;
+    _ExactAcronymMatch? titleAliasMatch;
     var mask = 0;
 
     if (parentMask & _titleMay != 0) {
@@ -1321,9 +1344,8 @@ class BookTitleIndex {
       // ענף הכינויים לא נבדק — אין מידע שמותר לפסול בו.
       mask = _mayMatchAll;
       if (matchRank > 0 && scan.mayHaveAcronymMatch(book.id)) {
-        final match = _exactAcronymMatch(book.id, scan.acronymQueries);
-        exactAlias = match == _ExactAcronymMatch.direct;
-        connectorAliasInTitle = match == _ExactAcronymMatch.relaxed;
+        titleAliasMatch = _exactAcronymMatch(book.id, scan.acronymQueries);
+        exactAlias = titleAliasMatch == _ExactAcronymMatch.direct;
       }
     } else if (parentMask & _acronymMay != 0 &&
         scan.mayHaveAcronymMatch(book.id)) {
@@ -1338,10 +1360,12 @@ class BookTitleIndex {
           final a = normalizedAcronyms[i];
           final direct = matchAcronyms.direct[i];
           final relaxed = matchAcronyms.relaxed[i];
+          final tractate = matchAcronyms.tractate[i];
           if (queries.direct.contains(direct)) {
             matchRank = 3;
             matchedTerm = a;
             connectorAliasTerm = null;
+            tractateAliasTerm = null;
             break;
           }
           if (relaxed != direct ||
@@ -1349,6 +1373,12 @@ class BookTitleIndex {
             // בן יכול להתאים בדיוק אחרי השמטת מילה גם כשהאב הוא רק תחילית.
             if (queries.relaxed.any(relaxed.contains)) mask = _acronymMay;
             if (queries.relaxed.contains(relaxed)) connectorAliasTerm ??= a;
+          }
+          if (connectorAliasTerm == null &&
+              (tractate != relaxed ||
+                  !identical(queries.relaxed, queries.tractate))) {
+            if (queries.tractate.any(tractate.contains)) mask = _acronymMay;
+            if (queries.tractate.contains(tractate)) tractateAliasTerm ??= a;
           }
           final aq = queries.direct.firstWhereOrNull(direct.startsWith);
           if (aq != null) {
@@ -1439,10 +1469,21 @@ class BookTitleIndex {
     if (matchRank != null) {
       scan.add(hit(matchRank, matchedTerm, hasAlias: exactAlias));
     }
-    if (connectorAliasInTitle) {
+    if (titleAliasMatch == _ExactAcronymMatch.relaxed) {
       scan.addConnectorAlias(hit(matchRank!, matchedTerm, hasAlias: true));
     } else if (connectorAliasTerm != null) {
       scan.addConnectorAlias(hit(3, connectorAliasTerm));
+    } else if (titleAliasMatch == _ExactAcronymMatch.tractate) {
+      scan.addTractateAlias(hit(matchRank!, matchedTerm, hasAlias: true));
+    } else if (tractateAliasTerm != null) {
+      scan.addTractateAlias(hit(3, tractateAliasTerm));
+    } else if (scan.tractateName case final name? when mt.startsWith('משנה ')) {
+      final title = mt.substring('משנה '.length);
+      // בקטלוג ישן ייתכן שטרם קיים הכינוי המלא למסכת משנה.
+      if ((title == name || isBookTitleSpellingVariant(title, name)) &&
+          _isMishnahTractate?.call(book) == true) {
+        scan.addTractateAlias(hit(3, scan.q));
+      }
     }
     return mask;
   }
@@ -1454,17 +1495,28 @@ class BookTitleIndex {
     if (forms.direct.any(queries.direct.contains)) {
       return _ExactAcronymMatch.direct;
     }
-    return forms.relaxed.any(queries.relaxed.contains)
-        ? _ExactAcronymMatch.relaxed
+    if (forms.relaxed.any(queries.relaxed.contains)) {
+      return _ExactAcronymMatch.relaxed;
+    }
+    if (identical(forms.tractate, forms.relaxed) &&
+        identical(queries.tractate, queries.relaxed)) {
+      return null;
+    }
+    return forms.tractate.any(queries.tractate.contains)
+        ? _ExactAcronymMatch.tractate
         : null;
   }
 
   _AcronymForms _matchAcronymsFor(int bookId, List<String> acronyms) {
     final cached = _matchAcronyms[bookId];
     if (cached != null && identical(cached.$1, acronyms)) return cached.$2;
+    final relaxed = acronyms.map(bookNameAcronymForm).toList(growable: false);
     final forms = (
       direct: acronyms.map(bookNameSpellingForm).toList(growable: false),
-      relaxed: acronyms.map(bookNameAcronymForm).toList(growable: false),
+      relaxed: relaxed,
+      tractate: relaxed.any((form) => form.contains(' מסכת '))
+          ? relaxed.map(bookNameTractateAcronymForm).toList(growable: false)
+          : relaxed,
     );
     _matchAcronyms[bookId] = (acronyms, forms);
     return forms;
@@ -1831,7 +1883,7 @@ class ReferenceBookSearchBatch {
 }
 
 /// שאילתה אחת בתוך סריקה משותפת: אוספת התאמות ובוחרת רק את הטובות ביותר.
-enum _ExactAcronymMatch { direct, relaxed }
+enum _ExactAcronymMatch { direct, relaxed, tractate }
 
 class _QueryScan {
   _QueryScan(
@@ -1851,6 +1903,9 @@ class _QueryScan {
   /// צורות ההשוואה הישירות והצורות ללא מילת קישור.
   final _AcronymForms acronymQueries;
   final List<String> words;
+  late final String? tractateName = mq.startsWith('מסכת ')
+      ? mq.substring('מסכת '.length)
+      : null;
   late final List<String> matchWords = words
       .map(bookNameMatchToken)
       .toList(growable: false);
@@ -1866,6 +1921,9 @@ class _QueryScan {
       ) &&
       acronymQueries.relaxed.every(
         (form) => parent.acronymQueries.relaxed.any(form.contains),
+      ) &&
+      acronymQueries.tractate.every(
+        (form) => parent.acronymQueries.tractate.any(form.contains),
       );
 
   bool mayHaveAcronymMatch(int bookId) {
@@ -1878,6 +1936,7 @@ class _QueryScan {
   List<ReferenceBookHit> _starts = <ReferenceBookHit>[];
   List<ReferenceBookHit> _contains = <ReferenceBookHit>[];
   final _connectorAliases = <ReferenceBookHit>[];
+  final _tractateAliases = <ReferenceBookHit>[];
   int _startsCount = 0;
   int _containsCount = 0;
   int _selected = 0;
@@ -1887,16 +1946,21 @@ class _QueryScan {
 
   void addConnectorAlias(ReferenceBookHit hit) => _connectorAliases.add(hit);
 
+  void addTractateAlias(ReferenceBookHit hit) => _tractateAliases.add(hit);
+
   void select(int limit) {
     // מילת קישור חסרה יכולה להצביע גם על כינוי שגוי של כרך אחר.
-    if (_connectorAliases.isNotEmpty &&
-        !_starts.any((hit) => hit.namesBookExactly)) {
-      final ids = _connectorAliases.map((hit) => hit.bookId).toSet();
+    final aliases = _connectorAliases.isEmpty
+        ? _tractateAliases
+        : _connectorAliases;
+    if (aliases.isNotEmpty && !_starts.any((hit) => hit.namesBookExactly)) {
+      final ids = aliases.map((hit) => hit.bookId).toSet();
       _starts.removeWhere((hit) => ids.contains(hit.bookId));
       _contains.removeWhere((hit) => ids.contains(hit.bookId));
-      _starts.addAll(_connectorAliases);
+      _starts.addAll(aliases);
     }
     _connectorAliases.clear();
+    _tractateAliases.clear();
     _startsCount = _starts.length;
     _containsCount = _contains.length;
     _selected = limit;

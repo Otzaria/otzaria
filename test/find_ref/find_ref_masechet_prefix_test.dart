@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 
 import 'support/seeded_reference_library.dart';
@@ -113,4 +114,94 @@ void main() {
 
     expect(ReferenceBooksCache.instance.search('מסכת').single.matchRank, 3);
   });
+
+  test('"מס" נשארת מילה בשם הספר ובשאילתה', () {
+    final rank = FindRefRankQuery(['הלכות', 'מס', 'שבח']);
+    expect(rank.titleMatch('הלכות שבח').titleWordMatches, [true, false, false]);
+    seedLibrary(const [
+      (id: 1, title: 'חוקי שבח', acronyms: ['הלכות שבח']),
+    ]);
+    final hits = ReferenceBooksCache.instance.search('הלכות מס שבח');
+    expect(hits.where((hit) => hit.matchesExactAlias), isEmpty);
+  });
+
+  test('משנה מדות נמצאת גם בקטלוג ישן לפי שני הכתיבים', () async {
+    seedLibrary(
+      const [
+        (id: 89, title: 'משנה מדות', acronyms: ['מדות']),
+        (id: 393, title: 'ספר המדות', acronyms: ['מדות', 'מידות']),
+        (
+          id: 6034,
+          title: 'פירוש מיוחס לרבינו שמעיה על מסכת מדות',
+          acronyms: <String>[],
+        ),
+      ],
+      categoryPaths: const {89: 'משנה, סדר קדשים'},
+    );
+
+    final repo = buildFindRefRepo();
+    for (final name in ['מדות', 'מידות']) {
+      final results = await repo.findRefs('מסכת $name');
+      expect(results.first.title, 'משנה מדות');
+    }
+  });
+
+  test('גיבוי למסכת משנה שומר על כינוי מפורש ומוגבל לספרי משנה', () {
+    seedLibrary(
+      const [
+        (id: 89, title: 'משנה מדות', acronyms: ['מדות']),
+        (id: 1, title: 'ספר בעל כינוי', acronyms: ['מסכת מידות']),
+        (id: 2, title: 'משנה תורה', acronyms: <String>[]),
+      ],
+      categoryPaths: const {
+        89: 'משנה, סדר קדשים',
+        2: 'הלכה, משנה תורה',
+      },
+    );
+
+    final cache = ReferenceBooksCache.instance;
+    expect(cache.search('מסכת מידות').first.bookId, 1);
+    expect(
+      cache.search('מסכת תורה').where((h) => h.matchesExactAlias),
+      isEmpty,
+    );
+  });
+
+  for (final (query, found, competing) in [
+    (
+      'רמב"ם מסכת מקואות',
+      (
+        id: 563,
+        title: 'רמב"ם על משנה מקואות',
+        acronyms: ['רמבם על מסכת מקואות'],
+      ),
+      (id: 373, title: 'משנה תורה, הלכות מקואות', acronyms: ['רמב"ם מקואות']),
+    ),
+    (
+      'מהרש"א מסכת נדה',
+      (
+        id: 2939,
+        title: 'מהרש"א - חידושי הלכות על מסכת נדה',
+        acronyms: ['מהרשא על מסכת נדה'],
+      ),
+      (
+        id: 2851,
+        title: 'מהרש"א - חידושי אגדות על נדה',
+        acronyms: ['מהרשא על נדה'],
+      ),
+    ),
+  ]) {
+    test('"$query" שומר כינוי שנמצא בהשמטת "על" בלבד', () async {
+      seedLibrary([competing, found]);
+      expect(
+        ReferenceBooksCache.instance
+            .search(query)
+            .where((hit) => hit.matchesExactAlias)
+            .map((hit) => hit.bookId),
+        [found.id],
+      );
+      final results = await buildFindRefRepo().findRefs(query);
+      expect(results.first.bookId, found.id);
+    });
+  }
 }

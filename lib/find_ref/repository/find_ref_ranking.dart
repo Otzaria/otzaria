@@ -121,10 +121,13 @@ class FindRefRankQuery {
 
   bool get needsTokenWiseRanking => tokens.length >= 2;
 
-  late final List<String> _nameWords = [
-    for (final t in matchTokens)
-      if (!isTractateWord(t)) t,
-  ];
+  late final List<String> _nameWords = matchTokens.any(isTractateWord)
+      ? [
+          for (var i = 0; i < matchTokens.length; i++)
+            if (i == matchTokens.length - 1 || !isTractateWord(matchTokens[i]))
+              matchTokens[i],
+        ]
+      : matchTokens;
 
   /// מפתחות ההתאמה של כותרת מנורמלת לשאילתה — תלויים בספר בלבד.
   ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
@@ -146,7 +149,7 @@ class FindRefRankQuery {
   /// "מסכת" אינה נספרת בשני הצדדים: "מסכת יבמות" היא הגמרא "יבמות" (#5609).
   List<bool> _titleWordMatches(List<String> titleTokens) {
     final words = _nameWords;
-    if (words.isEmpty || words.length == matchTokens.length) {
+    if (words.length == matchTokens.length) {
       final start = _titleAnchor(titleTokens, matchTokens.first);
       return [
         for (var i = 0; i < matchTokens.length; i++)
@@ -154,14 +157,16 @@ class FindRefRankQuery {
       ];
     }
     final title = [
-      for (final t in titleTokens)
-        if (!isTractateWord(t)) t,
+      for (var i = 0; i < titleTokens.length; i++)
+        if (i == titleTokens.length - 1 || !isTractateWord(titleTokens[i]))
+          titleTokens[i],
     ];
     final start = _titleAnchor(title, words.first);
     var k = 0;
     return [
-      for (final t in matchTokens)
-        isTractateWord(t) || _titleTokenAt(title, start + k++, t),
+      for (var i = 0; i < matchTokens.length; i++)
+        (i < matchTokens.length - 1 && isTractateWord(matchTokens[i])) ||
+            _titleTokenAt(title, start + k++, matchTokens[i]),
     ];
   }
 }
