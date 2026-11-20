@@ -31,6 +31,11 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 
 export 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 
+/// מתחת לגובה הזה, בפריסה המוערמת (רוחב צר), שורות החודש נדחסות והתוכן בתאים
+/// גולש מהם. לכן החלונית שמתחת ללוח מוסתרת כברירת מחדל והלוח תופס את כל
+/// הגובה; כפתורי הזמנים והאירועים בסרגל מציגים אותה.
+const double _kStackedSidePanelMinHeight = 600;
+
 class CalendarWidget extends StatefulWidget {
   const CalendarWidget({super.key});
 
@@ -49,6 +54,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   bool _isSidebarExplicitlyClosed = false;
   bool _isSidebarAutoHiddenForNarrow = false;
   bool? _lastHasRoomForSideBySide;
+  bool? _lastShortStacked;
   bool _isSettingsPanelOpen = false;
   double _sidePanelWidth = 360;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
@@ -125,6 +131,11 @@ class CalendarWidgetState extends State<CalendarWidget> {
   KeyEventResult _handleCalendarKeyEvent(FocusNode node, KeyEvent event) {
     final key = event.logicalKey;
     if (!_isNavigationKey(key)) return KeyEventResult.ignored;
+    // Ctrl+חצים הם ניווט חודש/שנה (CallbackShortcuts שמעל); בלי זה הצומת הזה
+    // בולע אותם כמעבר יום/שבוע.
+    if (HardwareKeyboard.instance.isControlPressed) {
+      return KeyEventResult.ignored;
+    }
     final cubit = context.read<CalendarCubit>();
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
     if (event is KeyDownEvent) {
@@ -385,6 +396,26 @@ class CalendarWidgetState extends State<CalendarWidget> {
           _navigateYear(context, forward: false);
         };
 
+        // חלופה ל-Ctrl+חצים בכל הפלטפורמות: ב-macOS הצירופים האלה שמורים
+        // למערכת (Spaces) והאפליקציה כמעט לא מקבלת אותם.
+        // קיצורים קבועים, לא מהגדרות הקיצורים.
+        for (final entry in <(LogicalKeyboardKey, bool, bool)>[
+          (LogicalKeyboardKey.pageDown, false, true),
+          (LogicalKeyboardKey.pageUp, false, false),
+          (LogicalKeyboardKey.pageDown, true, true),
+          (LogicalKeyboardKey.pageUp, true, false),
+        ]) {
+          final (key, byYear, forward) = entry;
+          bindings[SingleActivator(key, shift: byYear)] = () {
+            if (_isTextFieldFocused()) return;
+            if (byYear) {
+              _navigateYear(context, forward: forward);
+            } else {
+              _navigateMonth(context, forward: forward);
+            }
+          };
+        }
+
         return CallbackShortcuts(
           bindings: bindings,
           child: Focus(
@@ -404,6 +435,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   _syncSidebarVisibilityForWidth(
                     hasRoomForSideBySide,
                     isMobile: isMobile,
+                    isShortStacked:
+                        isMobile &&
+                        constraints.maxHeight < _kStackedSidePanelMinHeight,
                   );
                   return Scaffold(
                     backgroundColor: Colors.transparent,
@@ -598,9 +632,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
   void _syncSidebarVisibilityForWidth(
     bool hasRoomForSideBySide, {
     required bool isMobile,
+    required bool isShortStacked,
   }) {
     final previousHasRoomForSideBySide = _lastHasRoomForSideBySide;
     _lastHasRoomForSideBySide = hasRoomForSideBySide;
+    final wasShortStacked = _lastShortStacked;
+    _lastShortStacked = isShortStacked;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -610,6 +647,18 @@ class CalendarWidgetState extends State<CalendarWidget> {
       // ה-auto-hide המיועד לטווח ה-medium (600-840) שבו חלונית הצד הופכת
       // ל-overlay.
       if (isMobile) {
+        // גובה נמוך: החלונית מוסתרת כברירת מחדל והמשתמש מציג אותה בכפתור. עם
+        // הגדלת הגובה היא חוזרת (אלא אם המשתמש סגר אותה בעצמו).
+        if (isShortStacked) {
+          if (wasShortStacked != true &&
+              (_isSidebarVisible || !_isSidebarAutoHiddenForNarrow)) {
+            setState(() {
+              _isSidebarVisible = false;
+              _isSidebarAutoHiddenForNarrow = !_isSidebarExplicitlyClosed;
+            });
+          }
+          return;
+        }
         if (!_isSidebarVisible &&
             !_isSidebarExplicitlyClosed &&
             (_isSidebarAutoHiddenForNarrow ||

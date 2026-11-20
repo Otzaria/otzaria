@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -74,137 +75,201 @@ Widget buildDayCell(
           : baseBackground;
       final elevation = (isHovered || isToday) ? AppTokens.elevation2 : 0.0;
 
-      return GestureDetector(
+      // קורא מסך: כפתור עם התאריך המלא ומצב "נבחר", לא אזור ללא שם.
+      return Semantics(
+        button: true,
+        selected: isSelected,
+        label: formatEventDate(gregorianDate),
         onTap: onTap,
-        child: Opacity(
-          opacity: isFromOtherMonth ? 0.4 : 1.0,
-          child: Material(
-            elevation: elevation,
-            color: Colors.transparent,
-            shadowColor: cs.shadow.withValues(alpha: 0.12),
-            borderRadius: AppTokens.borderRadiusAll,
-            child: Container(
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: tintedBackground,
-                borderRadius: AppTokens.borderRadiusAll,
-                border: Border.all(
-                  color: isSelected
-                      ? cs.primary
-                      : isToday
-                      ? cs.primary
-                      : cs.outlineVariant,
-                  width: isToday ? 2 : 1,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Opacity(
+            opacity: isFromOtherMonth ? 0.4 : 1.0,
+            child: Material(
+              elevation: elevation,
+              color: Colors.transparent,
+              shadowColor: cs.shadow.withValues(alpha: 0.12),
+              borderRadius: AppTokens.borderRadiusAll,
+              child: Container(
+                margin: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: tintedBackground,
+                  borderRadius: AppTokens.borderRadiusAll,
+                  border: Border.all(
+                    color: isSelected
+                        ? cs.primary
+                        : isToday
+                        ? cs.primary
+                        : cs.outlineVariant,
+                    width: isToday ? 2 : 1,
+                  ),
                 ),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compactCell = constraints.maxHeight < 84;
-                  final primaryFontSize =
-                      state.calendarType == CalendarType.combined
-                      ? (compactCell ? 11.0 : 12.0)
-                      : (compactCell ? 12.0 : 14.0);
-                  final secondaryFontSize = compactCell ? 9.0 : 10.0;
-                  final monthLabelFontSize = compactCell ? 7.0 : 8.0;
-                  final hebrewIsPrimary =
-                      state.calendarType != CalendarType.gregorian;
-                  final showGregorian =
-                      state.calendarType != CalendarType.hebrew;
-                  final primaryStyle = TextStyle(
-                    color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontSize: primaryFontSize,
-                  );
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compactCell = constraints.maxHeight < 84;
+                    final primaryFontSize =
+                        state.calendarType == CalendarType.combined
+                        ? (compactCell ? 11.0 : 12.0)
+                        : (compactCell ? 12.0 : 14.0);
+                    final secondaryFontSize = compactCell ? 9.0 : 10.0;
+                    final monthLabelFontSize = compactCell ? 7.0 : 8.0;
+                    final hebrewIsPrimary =
+                        state.calendarType != CalendarType.gregorian;
+                    final showGregorian =
+                        state.calendarType != CalendarType.hebrew;
+                    final primaryStyle = TextStyle(
+                      color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      fontSize: primaryFontSize,
+                    );
 
-                  return Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      4,
-                      compactCell ? 3 : 4,
-                      4,
-                      compactCell ? 3 : 4,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // התאריך העברי תמיד בימין התא והלועזי בשמאלו, בלי
-                        // קשר לכיוון הטקסט; ההגדרה קובעת רק איזה מהם ראשי.
-                        Directionality(
-                          textDirection: TextDirection.ltr,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    // גובה התוכן המינימלי: שורת המספרים (עם הגדלת הטקסט) והרווח
+                    // שמתחתיה, ובתוספת הריפוד. בתא נמוך מזה (חלון נמוך מאוד,
+                    // הגדלת טקסט) התוכן נחתך בתחתית התא ולא גולש ממנו.
+                    final contentMinHeight =
+                        MediaQuery.textScalerOf(
+                              context,
+                            ).scale(primaryFontSize) *
+                            1.5 +
+                        (compactCell ? 2 : 6) +
+                        (compactCell ? 6 : 8);
+                    final cellHeight = math.max(
+                      constraints.maxHeight,
+                      contentMinHeight,
+                    );
+                    return ClipRect(
+                      child: OverflowBox(
+                        alignment: Alignment.topCenter,
+                        minHeight: cellHeight,
+                        maxHeight: cellHeight,
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            4,
+                            compactCell ? 3 : 4,
+                            4,
+                            compactCell ? 3 : 4,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (showGregorian)
-                                Text(
-                                  '${gregorianDate.day}',
-                                  style: hebrewIsPrimary
-                                      ? TextStyle(
-                                          color: isSelected
-                                              ? cs.onPrimaryContainer
-                                                    .withValues(alpha: 0.85)
-                                              : cs.onSurfaceVariant,
-                                          fontSize: secondaryFontSize,
-                                        )
-                                      : primaryStyle,
-                                ),
-                              const Spacer(),
-                              if (hebrewIsPrimary)
-                                ContentDirectionality(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        formatHebrewDay(
-                                          jewishDate.getJewishDayOfMonth(),
-                                        ),
-                                        style: primaryStyle,
+                              // התאריך העברי תמיד בימין התא והלועזי בשמאלו, בלי
+                              // קשר לכיוון הטקסט; ההגדרה קובעת רק איזה מהם ראשי.
+                              // בתא צר (320) ובהגדלת טקסט שני המספרים לא נכנסים בשורה:
+                              // הם מוקטנים כיחידה, ובמקום פנוי נשארים בקצוות.
+                              Directionality(
+                                textDirection: TextDirection.ltr,
+                                child: LayoutBuilder(
+                                  builder: (context, rowConstraints) => FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minWidth: rowConstraints.maxWidth,
                                       ),
-                                      if (jewishDate.isJewishLeapYear() &&
-                                          (jewishDate.getJewishMonth() == 12 ||
-                                              jewishDate.getJewishMonth() ==
-                                                  13) &&
-                                          jewishDate.getJewishDayOfMonth() == 1)
-                                        Text(
-                                          getHebrewMonthNameFor(jewishDate),
-                                          style: TextStyle(
-                                            fontSize: monthLabelFontSize,
-                                            color: isSelected
-                                                ? cs.onPrimaryContainer
-                                                : cs.onSurfaceVariant,
-                                          ),
-                                        ),
-                                    ],
+                                      child: Row(
+                                        mainAxisAlignment: showGregorian
+                                            ? (hebrewIsPrimary
+                                                  ? MainAxisAlignment
+                                                        .spaceBetween
+                                                  : MainAxisAlignment.start)
+                                            : MainAxisAlignment.end,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (showGregorian)
+                                            Text(
+                                              '${gregorianDate.day}',
+                                              style: hebrewIsPrimary
+                                                  ? TextStyle(
+                                                      color: isSelected
+                                                          ? cs.onPrimaryContainer
+                                                                .withValues(
+                                                                  alpha: 0.85,
+                                                                )
+                                                          : cs.onSurfaceVariant,
+                                                      fontSize:
+                                                          secondaryFontSize,
+                                                    )
+                                                  : primaryStyle,
+                                            ),
+                                          if (hebrewIsPrimary)
+                                            ContentDirectionality(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    formatHebrewDay(
+                                                      jewishDate
+                                                          .getJewishDayOfMonth(),
+                                                    ),
+                                                    style: primaryStyle,
+                                                  ),
+                                                  if (jewishDate
+                                                          .isJewishLeapYear() &&
+                                                      (jewishDate
+                                                                  .getJewishMonth() ==
+                                                              12 ||
+                                                          jewishDate
+                                                                  .getJewishMonth() ==
+                                                              13) &&
+                                                      jewishDate
+                                                              .getJewishDayOfMonth() ==
+                                                          1)
+                                                    Text(
+                                                      getHebrewMonthNameFor(
+                                                        jewishDate,
+                                                      ),
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            monthLabelFontSize,
+                                                        color: isSelected
+                                                            ? cs.onPrimaryContainer
+                                                            : cs.onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
+                              ),
+                              SizedBox(height: compactCell ? 2 : 6),
+                              Expanded(
+                                child: LayoutBuilder(
+                                  builder: (context, extrasConstraints) =>
+                                      Align(
+                                        alignment:
+                                            AlignmentDirectional.topStart,
+                                        child: DayExtras(
+                                          jewishCalendar: jewishCalendar,
+                                          date: gregorianDate,
+                                          maxVisibleItems:
+                                              DayExtras.linesThatFit(
+                                                context,
+                                                extrasConstraints.maxHeight,
+                                                compact: compactCell,
+                                              ),
+                                          compact: compactCell,
+                                          additionalInfoLines:
+                                              additionalInfoLines,
+                                          isSelected: isSelected,
+                                        ),
+                                      ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                        SizedBox(height: compactCell ? 2 : 6),
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, extrasConstraints) => Align(
-                              alignment: AlignmentDirectional.topStart,
-                              child: DayExtras(
-                                jewishCalendar: jewishCalendar,
-                                date: gregorianDate,
-                                maxVisibleItems: DayExtras.linesThatFit(
-                                  context,
-                                  extrasConstraints.maxHeight,
-                                  compact: compactCell,
-                                ),
-                                compact: compactCell,
-                                additionalInfoLines: additionalInfoLines,
-                                isSelected: isSelected,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -448,7 +513,7 @@ class DayExtras extends StatelessWidget {
         size: AppDialogSize.small,
         scrollable: true,
         actions: [
-          ActionButton.recommended(
+          ActionButton.neutral(
             text: 'סגור',
             autofocus: true,
             onPressed: () => Navigator.of(dialogContext).pop(),

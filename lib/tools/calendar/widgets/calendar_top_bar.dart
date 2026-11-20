@@ -758,9 +758,12 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                   constraints.maxWidth >= _kTopBarNarrowBreakpoint &&
                   constraints.maxWidth < _kTopBarMediumBreakpoint;
 
-              // isNarrow ו-isMedium — אותו layout דו-שורתי:
+              // medium — layout דו-שורתי:
               // שורה 1: viewSwitcher + trailingActions
               // שורה 2: todayBtn | jumpBtn | ← תאריך → (dateNavGroup כולל הכל)
+              // narrow — שלוש שורות: ארבעת הכפתורים לא נכנסים לצד
+              // ה-viewSwitcher, וב-Wrap הם יורדים לשורה שנייה שנחתכת בגובה
+              // הסרגל ונסתרת מאחורי שורת התאריך. ה-viewSwitcher עובר לשורה משלו.
               if (isNarrow || isMedium) {
                 final dateRow = Padding(
                   padding: const EdgeInsets.symmetric(
@@ -775,6 +778,32 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                     ),
                   ),
                 );
+
+                if (isNarrow) {
+                  return AppTopBar(
+                    center: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: trailingActions,
+                      ),
+                    ),
+                    secondaryRow: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            AppTokens.spaceSM,
+                            AppTokens.spaceSM,
+                            AppTokens.spaceSM,
+                            0,
+                          ),
+                          child: Center(child: viewSwitcher),
+                        ),
+                        dateRow,
+                      ],
+                    ),
+                  );
+                }
 
                 return AppTopBar(
                   center: Wrap(
