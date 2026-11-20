@@ -89,12 +89,7 @@ dependencies:
   # The Unicode bidi algorithm, used to order the runs of a mixed line before
   # they are placed. Already in the graph through `pdf`; declared for direct use.
   bidi: ^2.0.13
-  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור yakir8/kosher_dart#68, #69, #70, #71, #72, #73, #74, #75, #76, #77
-  # ו-#64 (שם הקובץ CLAUDE.md עם רווח בסוף, שמכשיל clone ב-Windows). עד אז: master של הפורק המשולב.
-  kosher_dart:
-    git:
-      url: https://github.com/Otzaria/kosher_dart
-      ref: 75938458c8c0cf5b288ce529a4fe4ab2cbec24c0
+  kosher_dart: ^2.1.0
   archive: ^4.6.0
   posix: ^6.5.4
   package_info_plus: ^10.2.2
