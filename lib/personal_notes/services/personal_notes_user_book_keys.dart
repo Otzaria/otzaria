@@ -65,7 +65,11 @@ class PersonalNotesUserBookKeys {
     final stored = await _database.listBooksWithNotes();
     final complete =
         stored.isEmpty || await _moveRenamedTitles(library, stored);
-    if (complete && version != 'unknown') {
+    // קטלוג בלי ספרי המסד הרשמי (טעינה שנכשלה) אינו מכריע דבר על הגרסה הזו.
+    final hasOfficialCatalog = library.getIndexableBooks().any(
+      (book) => book.source.isOfficial && book.id != null,
+    );
+    if (complete && hasOfficialCatalog && version != 'unknown') {
       await _database.setMetaValue(_renamedTitlesMetaKey, marker);
     }
   }

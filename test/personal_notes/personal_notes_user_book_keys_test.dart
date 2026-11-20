@@ -345,6 +345,16 @@ void main() {
       expect(await idsUnder('שו״ת באר מרדכי'), {'late'});
     });
 
+    test('קטלוג בלי ספרי המסד הרשמי אינו מסמן את הגרסה כטופלה', () async {
+      await database.insertNote(_note('a', 'שות באר מרדכי', 1, 'שורה'));
+      await migration(catalogVersion: 'v1').assignPending(_library([userOnly]));
+
+      await migration(
+        catalogVersion: 'v1',
+      ).assignPending(_library([TextBook(id: 3, title: 'שו״ת באר מרדכי')]));
+      expect(await idsUnder('שו״ת באר מרדכי'), {'a'});
+    });
+
     test('כותרת ישנה שהיא גם ספר אישי — מכריעים לפי הטקסט', () async {
       await database.insertNote(_note('mine', 'שות קיו', 1, 'שורה אישית'));
       await database.insertNote(_note('official', 'שות קיו', 1, 'שורה רשמית'));

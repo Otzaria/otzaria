@@ -182,7 +182,8 @@ class TextBookTab extends OpenedTab {
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
   }) : book = book.withCatalogTitle(),
        _index = initialReadingAnchor?.line ?? index,
-       super(_tabTitle(book.withCatalogTitle())) {
+       super('') {
+    title = _tabTitle(this.book);
     lines = LineScrollController(initialAnchor: initialReadingAnchor);
     // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
     final bool effectiveSplitedView =

@@ -1402,6 +1402,7 @@ void main() {
 
         expect(refreshed.book.title, 'שו״ת באר מרדכי');
         expect(refreshed.title, 'שו״ת באר מרדכי');
+        expect(refreshed.index, 3);
         bloc.add(const SaveTabs());
         await pumpEventQueue();
         expect(repo._tabsJson.single['book']['title'], 'שו״ת באר מרדכי');
