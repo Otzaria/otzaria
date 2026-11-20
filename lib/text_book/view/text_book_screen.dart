@@ -3,6 +3,7 @@ import 'package:otzaria/text_book/view/reader_export_actions.dart';
 import 'package:otzaria/text_book/view/reader_print_actions.dart';
 import 'package:otzaria/text_book/view/reader_shamor_zachor_actions.dart';
 import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
@@ -2346,9 +2347,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         host: _searchHost,
         child: _NavPanelTourTargetBuilder(child: _buildLeftPaneContent(state)),
       ),
-      mainContent: CtrlWheelZoom(
-        onZoom: _zoomFromWheel,
-        child: _buildHTMLViewer(state),
+      mainContent: ReaderPageScope(
+        child: CtrlWheelZoom(
+          onZoom: _zoomFromWheel,
+          child: _buildHTMLViewer(state),
+        ),
       ),
       isResizable: true,
       minPaneWidth: 200,

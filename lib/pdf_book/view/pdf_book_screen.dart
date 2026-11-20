@@ -1286,6 +1286,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         coverPage: layoutMode.hasCoverPage,
       );
     }
+    final page = ReaderPageTheme.of(context);
+    final pageScheme = page.colorScheme;
 
     return PdfViewerParams(
       isVisible: _isPdfVisible,
@@ -1348,7 +1350,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         );
       },
       backgroundColor: _pdfViewerBgColor(),
-      pageImageColorFilter: pdfPageColorFilter(Theme.of(context).brightness),
+      pageImageColorFilter: pdfPageColorFilter(page.brightness),
       pageDropShadow: _pageDropShadow,
       sizeDelegateProvider: pdfSizeDelegateProviderForLayoutMode(layoutMode),
       maxImageBytesCachedOnMemory: pdfImageCacheBytesForPanes(
@@ -1430,14 +1432,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ),
       ),
       // קישורים מצוירים על הקנבס: ווידג'ט לכל קישור נבנה מחדש בכל פריים גלילה.
-      matchTextColor: AppSurfaces.pdfSearchHit(Theme.of(context).colorScheme),
-      activeMatchTextColor: AppSurfaces.pdfSearchHitCurrent(
-        Theme.of(context).colorScheme,
-      ),
+      // הסימונים על העמוד בגווני הדף, שבהיר גם בממשק כהה כשההגדרה דולקת.
+      matchTextColor: AppSurfaces.pdfSearchHit(pageScheme),
+      activeMatchTextColor: AppSurfaces.pdfSearchHitCurrent(pageScheme),
       linkHandlerParams: PdfLinkHandlerParams(
         onLinkTap: _onPdfLinkTap,
         linkColor: Colors.transparent,
-        linkHoverColor: AppSurfaces.pdfLinkHover(Theme.of(context).colorScheme),
+        linkHoverColor: AppSurfaces.pdfLinkHover(pageScheme),
       ),
       pagePaintCallbacks: textSearcher != null
           ? [textSearcher!.pageTextMatchPaintCallback]
@@ -2007,7 +2008,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         child: CustomPaint(
           painter: _BookViewViewportMaskPainter(
             spreadViewportRect,
-            color: pdfPageColor(Theme.of(context).brightness),
+            color: pdfPageColor(ReaderPageTheme.of(context).brightness),
           ),
         ),
       ),
@@ -3186,7 +3187,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     canvas.clipRect(canvasRect, doAntiAlias: false);
 
     // רק תוכן העמודים עובר את מסנן המצב הכהה, כמו בצפיין החי.
-    final brightness = Theme.of(context).brightness;
+    final brightness = ReaderPageTheme.of(context).brightness;
 
     canvas.drawRect(canvasRect, Paint()..color = _pdfViewerBgColor());
 
@@ -4529,7 +4530,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                               state is PdfBookLoading && state.isSlow;
                           return Positioned.fill(
                             child: ColoredBox(
-                              color: pdfPageColor(Theme.of(context).brightness),
+                              color: pdfPageColor(
+                                ReaderPageTheme.of(context).brightness,
+                              ),
                               child: Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,

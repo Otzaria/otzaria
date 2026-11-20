@@ -14,6 +14,10 @@ import 'dart:convert';
 class SettingsRepository {
   static const String keyDarkMode = 'key-dark-mode';
   static const String keyFollowSystemTheme = 'key-follow-system-theme';
+
+  /// דף הספר בהיר גם כשהממשק כהה (issue #2435).
+  static const String keyLightReaderPageInDarkMode =
+      'key-light-reader-page-in-dark-mode';
   static const String keySwatchColor = 'key-swatch-color';
   static const String keyDarkSwatchColor = 'key-dark-swatch-color';
   // לא key-text-max-width: ערכיו (אחוזים/פיקסלים יחסיים למסך) אינם רוחב יעד.
@@ -292,6 +296,7 @@ class SettingsRepository {
   static const List<String> allKeys = [
     keyDarkMode,
     keyFollowSystemTheme,
+    keyLightReaderPageInDarkMode,
     keySwatchColor,
     keyDarkSwatchColor,
     keyTextColumnWidth,
@@ -446,6 +451,10 @@ class SettingsRepository {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
       'followSystemTheme': _settings.getValue<bool>(
         keyFollowSystemTheme,
+        defaultValue: false,
+      ),
+      'lightReaderPageInDarkMode': _settings.getValue<bool>(
+        keyLightReaderPageInDarkMode,
         defaultValue: false,
       ),
       'seedColor': Color(
@@ -803,6 +812,10 @@ class SettingsRepository {
 
   Future<void> updateFollowSystemTheme(bool value) async {
     await _settings.setValue(keyFollowSystemTheme, value);
+  }
+
+  Future<void> updateLightReaderPageInDarkMode(bool value) async {
+    await _settings.setValue(keyLightReaderPageInDarkMode, value);
   }
 
   Future<void> updateSeedColor(Color value) async {
@@ -1412,6 +1425,7 @@ class SettingsRepository {
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
+    await _settings.setValue(keyLightReaderPageInDarkMode, false);
     await _settings.setValue(
       keySwatchColor,
       AppSeedColors.defaultLight.toARGB32(),

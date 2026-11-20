@@ -22,6 +22,16 @@ class UpdateDarkMode extends SettingsEvent {
   List<Object?> get props => [isDarkMode];
 }
 
+/// דף הספר בהיר גם כשהממשק כהה (issue #2435).
+class UpdateLightReaderPageInDarkMode extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateLightReaderPageInDarkMode(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 class UpdateFollowSystemTheme extends SettingsEvent {
   final bool followSystemTheme;
 

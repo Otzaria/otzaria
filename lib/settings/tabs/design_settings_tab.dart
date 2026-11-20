@@ -57,6 +57,14 @@ class DesignSettingsTab extends StatelessWidget {
       ],
     ),
     SettingsSearchEntry(
+      id: 'design.theme.light_reader_page',
+      title: 'דף הספר בהיר גם במצב כהה',
+      subtitle: 'רקע לבן וטקסט כהה בדף הספר, והממשק שסביבו כהה',
+      tab: SettingsTab.design,
+      cardId: 'design.theme',
+      keywords: ['ערכת נושא', 'מצב כהה', 'רקע לבן', 'דף', 'PDF'],
+    ),
+    SettingsSearchEntry(
       id: 'design.theme.seed_color',
       title: 'צבע בסיס',
       subtitle: 'צבע ראשי של ערכת הנושא',
@@ -267,6 +275,23 @@ class DesignSettingsTab extends StatelessWidget {
                           _ThemeMode.system => ThemeMode.system,
                           _ThemeMode.dark => ThemeMode.dark,
                         }),
+                      ),
+                    ),
+                    // רלוונטי רק כשהממשק כהה בפועל, גם במצב "מערכת".
+                    SettingsSwitchTile(
+                      icon: FluentIcons.document_24_regular,
+                      title: context.settingsText('דף הספר בהיר גם במצב כהה'),
+                      subtitle: context.settingsText(
+                        Theme.of(context).brightness != Brightness.dark
+                            ? 'פעיל רק כשהממשק כהה'
+                            : state.lightReaderPageInDarkMode
+                            ? 'דף הספר בהיר, והסרגלים והחלוניות כהים'
+                            : 'דף הספר כהה כמו שאר הממשק',
+                      ),
+                      value: state.lightReaderPageInDarkMode,
+                      enabled: Theme.of(context).brightness == Brightness.dark,
+                      onChanged: (value) => context.read<SettingsBloc>().add(
+                        UpdateLightReaderPageInDarkMode(value),
                       ),
                     ),
                     ColorPickerTile(

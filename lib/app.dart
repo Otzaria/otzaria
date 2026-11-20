@@ -40,6 +40,8 @@ class App extends StatelessWidget {
             previous.compactMenuMode != current.compactMenuMode ||
             previous.compactMenuModeIsSet != current.compactMenuModeIsSet ||
             previous.followSystemTheme != current.followSystemTheme ||
+            previous.lightReaderPageInDarkMode !=
+                current.lightReaderPageInDarkMode ||
             previous.isDarkMode != current.isDarkMode;
       },
       builder: (context, settingsState) {
@@ -65,6 +67,11 @@ class App extends StatelessWidget {
             final compact = state.compactMenuModeFor(
               isSmallWindow: isSmallWindow,
             );
+            final lightTheme = AppThemeData.light(
+              lightColorScheme,
+              compactMenuMode: compact,
+              variant: AppThemeVariant.ofSeed(state.seedColor),
+            );
             return ValueListenableBuilder<bool>(
               valueListenable: DeveloperDiagnostics.instance.performanceOverlay,
               builder: (context, showPerformanceOverlay, _) => MaterialApp(
@@ -82,11 +89,7 @@ class App extends StatelessWidget {
                 title: 'אוצריא',
                 // פס הגלילה בימין הפיזי, ברצועה משלו, בכל האפליקציה (AppScrollbar).
                 scrollBehavior: const EdgeScrollbarBehavior.right(),
-                theme: AppThemeData.light(
-                  lightColorScheme,
-                  compactMenuMode: compact,
-                  variant: AppThemeVariant.ofSeed(state.seedColor),
-                ),
+                theme: lightTheme,
                 darkTheme: AppThemeData.dark(
                   darkColorScheme,
                   compactMenuMode: compact,
@@ -113,6 +116,10 @@ class App extends StatelessWidget {
                           child: navigator,
                         ),
                       );
+                  content = ReaderPageTheme(
+                    light: state.lightReaderPageInDarkMode ? lightTheme : null,
+                    child: content,
+                  );
 
                   // קביעת צבע אייקוני פס הסטטוס לפי התמה הפעילה.
                   // האפליקציה אינה משתמשת ב-AppBar רגיל, ולכן systemOverlayStyle
