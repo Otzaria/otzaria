@@ -67,6 +67,7 @@ Future<Uint8List> createCalendarPdf(
     'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
   );
   final fallbackBytes = await _loadFont('fonts/Tinos-Regular.ttf');
+  await preloadShaperLibrary();
   return withShaperFontPair(
     createPrimary: () => ShaperFont.register(primaryBytes),
     createFallback: () => ShaperFont.register(fallbackBytes),
