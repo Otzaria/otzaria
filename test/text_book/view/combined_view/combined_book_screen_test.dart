@@ -330,13 +330,13 @@ void main() {
           );
           await tester.pump();
           expect((await latestSnapshot())['revision'], 3);
-          for (final rejected in ['שתי\nפסקאות', '<b>תגית</b>']) {
+          for (final rejected in ['שתי\n<b>פסקאות</b>', '<b>תגית</b>']) {
             await tester.enterText(firstEditor, rejected);
             await tester.pump();
             expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
             expect((await latestSnapshot())['revision'], 3);
           }
-          editor.controller!.text = 'הדבקה ידנית\nשאינה פסקה אחת';
+          editor.controller!.text = 'הדבקה ידנית\n<i>עם תגית</i>';
           editor.onChanged!(editor.controller!.text);
           await tester.pump();
           expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
