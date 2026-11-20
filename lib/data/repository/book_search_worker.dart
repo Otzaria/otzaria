@@ -187,6 +187,22 @@ class BookSearchWorker {
     _takeReply()?.completeError(error);
   }
 
+  /// מצב ה-worker לדוח האבחון.
+  Map<String, Object?> describe() => {
+    'mode': _failed
+        ? 'fallback'
+        : _toWorker != null
+        ? 'running'
+        : _starting != null
+        ? 'starting'
+        : 'idle',
+    'queued': _queue.length,
+    'inFlight': _inFlight != null,
+    'awaitingReply': _reply != null,
+    'indexUploads': indexUploads,
+    'indexedEntries': _workerEntries?.length,
+  };
+
   static bool _sameEntries(
     List<BookSearchEntry>? previous,
     List<BookSearchEntry> next,

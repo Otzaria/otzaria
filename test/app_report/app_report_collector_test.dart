@@ -15,6 +15,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/app_context_snapshot.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/info/os_version.dart';
+import 'package:otzaria/data/repository/book_title_search_diagnostics.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -97,6 +98,37 @@ void main() {
         'prefixes': true,
       }),
     );
+  });
+
+  test('אבחון: מצב חיפוש שמות הספרים נכלל', () async {
+    final previous = BookTitleSearchDiagnostics.instance;
+    final searches = BookTitleSearchDiagnostics.instance =
+        BookTitleSearchDiagnostics(stallThreshold: null);
+    addTearDown(() => BookTitleSearchDiagnostics.instance = previous);
+    final search = searches.start(
+      words: 2,
+      wholeLibrary: true,
+      repositoryState: () => {'acronymsLoaded': true},
+    )..enter(BookTitleSearchStage.generations);
+    addTearDown(search.finish);
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    final collected = diagnostics['bookTitleSearch'] as Map;
+    expect(
+      (collected['active'] as List).single,
+      containsPair('stage', 'generations'),
+    );
+    expect(collected['repository'], {'acronymsLoaded': true});
+
+    final previousRun = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+      includeCurrentContext: false,
+    ).collectDiagnostics();
+    expect(previousRun, isNot(contains('bookTitleSearch')));
   });
 
   test('אבחון: יומן החלונות נכלל', () async {
