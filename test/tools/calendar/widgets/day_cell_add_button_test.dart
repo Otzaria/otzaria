@@ -1,11 +1,9 @@
 // כפתור "הוסף אירוע" בתא היום נשמר כאותו מופע בין בנייה לבנייה, כדי
-// שבחירת יום (בנייה מחדש של 42 תאים) לא תעדכן 42 כפתורים. הוא גלוי רק
-// בריחוף על התא, בנגיעה בו או במיקוד מקלדת.
+// שבחירת יום (בנייה מחדש של 42 תאים) לא תעדכן 42 כפתורים.
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
@@ -28,10 +26,7 @@ void main() {
                 height: 100,
                 child: HoverableDayCell(
                   onAdd: onAdd,
-                  // כמו התא האמיתי: התוכן נבדק בלחיצה (hit test).
-                  builder: (isHovered) => const SizedBox.expand(
-                    child: ColoredBox(color: Colors.transparent),
-                  ),
+                  builder: (isHovered) => const SizedBox.expand(),
                 ),
               ),
             ),
@@ -104,47 +99,15 @@ void main() {
     expect(iconColor, scheme.onSurfaceVariant);
   });
 
-  double addOpacity(WidgetTester tester) => tester
-      .widget<AnimatedOpacity>(
-        find.ancestor(
-          of: find.byType(AppIconButton),
-          matching: find.byType(AnimatedOpacity),
-        ),
-      )
-      .opacity;
-
-  testWidgets('הכפתור מוסתר ואינו לחיץ עד ריחוף על התא, ונעלם כשהעכבר יוצא', (
+  testWidgets('הכפתור תמיד גלוי ולחיץ, ובריחוף עליו מקבל מילוי עגול', (
     tester,
   ) async {
     var calls = 0;
     onAdd = () => calls++;
     await pumpCell(tester);
 
-    expect(addOpacity(tester), 0.0);
-    await tester.tap(find.byType(IconButton), warnIfMissed: false);
-    expect(calls, 0);
-
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
-    await gesture.moveTo(
-      tester.getTopLeft(find.byType(HoverableDayCell)) + const Offset(4, 90),
-    );
-    await tester.pumpAndSettle();
-    expect(addOpacity(tester), 1.0);
-
-    await tester.tap(find.byType(IconButton));
-    expect(calls, 1);
-
-    await gesture.moveTo(const Offset(400, 400));
-    await tester.pumpAndSettle();
-    expect(addOpacity(tester), 0.0);
-    await tester.tap(find.byType(IconButton), warnIfMissed: false);
-    expect(calls, 1);
-  });
-
-  testWidgets('בריחוף על הכפתור עצמו מקבל מילוי עגול', (tester) async {
-    await pumpCell(tester);
+    // אין הסתרה בהתאם לריחוף על התא.
+    expect(find.byType(AnimatedOpacity), findsNothing);
     BoxDecoration fill() =>
         tester
                 .widget<AnimatedContainer>(
@@ -156,7 +119,9 @@ void main() {
                 .decoration!
             as BoxDecoration;
     expect(fill().shape, BoxShape.circle);
+    expect(fill().color, Colors.transparent);
 
+    // ריחוף על התא בלבד לא ממלא את הכפתור.
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
@@ -166,46 +131,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(fill().color, Colors.transparent);
 
+    // ריחוף על הכפתור עצמו ממלא אותו.
     await gesture.moveTo(tester.getCenter(find.byType(AppIconButton)));
     await tester.pumpAndSettle();
     expect(fill().color, scheme.surfaceContainerHighest);
-  });
-
-  testWidgets('מעבר מקלדת (Tab) לכפתור מציג אותו, ו-Enter מוסיף אירוע', (
-    tester,
-  ) async {
-    var calls = 0;
-    onAdd = () => calls++;
-    await pumpCell(tester);
-    expect(addOpacity(tester), 0.0);
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pumpAndSettle();
-    expect(addOpacity(tester), 1.0);
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pump();
-    expect(calls, 1);
-
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    expect(addOpacity(tester), 0.0);
-  });
-
-  testWidgets('במגע: נגיעה בתא מציגה את הכפתור, ונגיעה בו מוסיפה אירוע', (
-    tester,
-  ) async {
-    var calls = 0;
-    onAdd = () => calls++;
-    await pumpCell(tester);
-    expect(addOpacity(tester), 0.0);
-
-    await tester.tapAt(
-      tester.getTopLeft(find.byType(HoverableDayCell)) + const Offset(4, 90),
-    );
-    await tester.pumpAndSettle();
-    expect(addOpacity(tester), 1.0);
-    expect(calls, 0);
 
     await tester.tap(find.byType(IconButton));
     expect(calls, 1);
