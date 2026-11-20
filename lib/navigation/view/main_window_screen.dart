@@ -3860,6 +3860,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               child: KeyboardShortcuts(
                 onFindRefRequested: () => _handleFindRefOpen(context),
                 onNewSearchRequested: () => _handleSearchTabOpen(context),
+                settingsController: _settingsScreenController,
                 child: MyUpdatWidget(
                   child: PopScope(
                     canPop: !Platform.isAndroid,

@@ -47,11 +47,15 @@ class KeyboardShortcuts extends StatefulWidget {
   /// פתיחת/סגירת דיאלוג חיפוש חדש דרך MainWindowScreen (מעקב `_isSearchOpen`).
   final VoidCallback? onNewSearchRequested;
 
+  /// בוחר את לשונית ההגדרות שתוצג במעבר למסך ההגדרות.
+  final SettingsScreenController? settingsController;
+
   const KeyboardShortcuts({
     super.key,
     required this.child,
     required this.onFindRefRequested,
     this.onNewSearchRequested,
+    this.settingsController,
   });
 
   @override
@@ -258,6 +262,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     );
     final appReportShortcut = shortcutOf(ShortcutValidator.openAppReportKey);
     final settingsShortcut = shortcutOf('key-shortcut-open-settings');
+    final shortcutsListShortcut = shortcutOf(
+      ShortcutValidator.openShortcutsListKey,
+    );
     final moreShortcut = shortcutOf('key-shortcut-open-more');
     final bookmarksShortcut = shortcutOf('key-shortcut-open-bookmarks');
     final historyShortcut = shortcutOf('key-shortcut-open-history');
@@ -538,9 +545,17 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       return KeyEventResult.handled;
     }
 
-    // הגדרות
-    if (ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
+    // הגדרות; רשימת קיצורי המקשים — הגדרות בלשונית הקיצורים
+    final opensShortcutsList = ShortcutHelper.matchesShortcut(
+      event,
+      shortcutsListShortcut,
+    );
+    if (opensShortcutsList ||
+        ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
       if (!closeOverlayRoutes()) return KeyEventResult.handled;
+      if (opensShortcutsList) {
+        widget.settingsController?.openTab(SettingsTab.shortcuts);
+      }
       context.read<NavigationBloc>().add(
         const NavigateToScreen(Screen.settings),
       );
