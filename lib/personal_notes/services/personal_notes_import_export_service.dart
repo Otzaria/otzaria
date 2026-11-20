@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
@@ -77,10 +78,13 @@ class PersonalNotesImportExportService {
 
     for (var i = 0; i < notes.length; i++) {
       final note = notes[i];
+      final bookTitle = note.isGeneralNote
+          ? personalNotesBookDisplayTitle(note.bookId)
+          : note.bookId;
       final title = (note.displayTitle?.trim().isNotEmpty ?? false)
           ? note.displayTitle!.trim()
-          : note.bookId;
-      final meta = <String>['ספר: ${note.bookId}'];
+          : bookTitle;
+      final meta = <String>[if (!note.isGeneralNote) 'ספר: $bookTitle'];
       if (note.lineNumber != null) meta.add('שורה: ${note.lineNumber}');
       meta.add('עודכן: ${_formatDate(note.updatedAt)}');
 
@@ -170,7 +174,7 @@ class PersonalNotesImportExportService {
           PrintBlock(
             kind: PrintBlockKind.heading,
             headingLevel: 1,
-            text: _escapeHtml(parsePersonalNotesBookKey(note.bookId).title),
+            text: _escapeHtml(personalNotesBookDisplayTitle(note.bookId)),
           ),
         );
       }
@@ -179,7 +183,7 @@ class PersonalNotesImportExportService {
       final refLabel = (ref?.isNotEmpty ?? false)
           ? ref
           : note.isBookNote
-          ? 'על הספר כולו'
+          ? (note.isGeneralNote ? null : 'על הספר כולו')
           : (note.hasLocation ? null : 'הערות ללא מיקום');
       final link = note.hasLocation ? sourceLink?.call(note) : null;
       if (refLabel != null &&
@@ -326,11 +330,13 @@ class PersonalNotesImportExportService {
               json.containsKey('pdfAnchor'),
             ),
     ];
+    if (strategy == NotesImportConflictStrategy.keepBoth) {
+      return _importKeepingBoth([for (final (note, _, _) in notes) note]);
+    }
     return _database.batchNotifications((batch) async {
       int inserted = 0;
       int updated = 0;
       int skipped = 0;
-      int duplicated = 0;
 
       for (final (note, hasAnchorText, hasPdfAnchor) in notes) {
         final existing = await _database.getNote(note.id);
@@ -388,23 +394,72 @@ class PersonalNotesImportExportService {
             updated++;
             break;
           case NotesImportConflictStrategy.keepBoth:
-            await batch.insertNote(note.copyWith(id: _generateId()));
-            duplicated++;
-            break;
+            throw StateError('keepBoth requires transactional import');
         }
       }
 
       // קובץ מגרסה ישנה מחזיק הערות של ספר אישי תחת הכותרת בלבד.
-      if (inserted + updated + duplicated > 0) {
+      if (inserted + updated > 0) {
         await _database.setUserBookKeysPending(true);
       }
       return NotesImportSummary(
         inserted: inserted,
         updated: updated,
         skipped: skipped,
-        duplicated: duplicated,
+        duplicated: 0,
       );
     });
+  }
+
+  Future<NotesImportSummary> _importKeepingBoth(
+    List<PersonalNote> notes,
+  ) async {
+    var duplicated = 0;
+    final count = await _database.batchInsertNotes(
+      notes,
+      resolveIds: (exists) {
+        final reserved = {for (final note in notes) note.id};
+        final stored = <String, bool>{};
+        final seen = <String>{};
+        final copies = <PersonalNote>[];
+        final targets = <String, String>{};
+        for (final note in notes) {
+          final id = note.id;
+          final alreadyStored = stored[id] ??= exists(id);
+          if (seen.add(id) && !alreadyStored) {
+            copies.add(note);
+            continue;
+          }
+          final generated = _generateId();
+          var copyId = generated;
+          for (
+            var suffix = 1;
+            reserved.contains(copyId) || exists(copyId);
+            suffix++
+          ) {
+            copyId = '${generated}_$suffix';
+          }
+          reserved.add(copyId);
+          copies.add(note.copyWith(id: copyId));
+          if (alreadyStored) targets.putIfAbsent(id, () => copyId);
+          duplicated++;
+        }
+        if (targets.isEmpty) return copies;
+        return [
+          for (final note in copies)
+            note.copyWith(
+              content: remapPersonalNoteLinks(note.content, targets),
+              contentPlain: remapPersonalNoteLinks(note.contentPlain, targets),
+            ),
+        ];
+      },
+    );
+    return NotesImportSummary(
+      inserted: count - duplicated,
+      updated: 0,
+      skipped: 0,
+      duplicated: duplicated,
+    );
   }
 
   String _generateId() {

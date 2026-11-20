@@ -1027,9 +1027,6 @@
       "lib/personal_notes/widgets/personal_note_editor.dart": [
         {"scope":"_PersonalNoteEditorBodyState._insertLink","fp":"3e6ca19c","n":1}
       ],
-      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
-        {"scope":"openNoteLink","fp":"3e6ca19c","n":1}
-      ],
       "lib/plugins/bridge/plugin_bridge_adapter.dart": [
         {"scope":"PluginBridgeAdapter._defaultPrintBookRange","fp":"3e6ca19c","n":1},
         {"scope":"PluginBridgeAdapter._defaultPrintPluginFile","fp":"3e6ca19c","n":1}

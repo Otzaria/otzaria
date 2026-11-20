@@ -58,7 +58,8 @@ class PersonalNotesUserBookKeys {
 
     for (final info in await _database.listBooksWithNotes()) {
       final key = info.bookId;
-      if (!userBooks.containsKey(key) ||
+      if (key == PersonalNote.generalBookId ||
+          !userBooks.containsKey(key) ||
           parsePersonalNotesBookKey(key).source != null) {
         continue;
       }
