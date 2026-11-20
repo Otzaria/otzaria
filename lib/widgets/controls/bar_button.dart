@@ -173,11 +173,8 @@ class BarButton extends StatelessWidget {
           child: Text(label!),
         ),
       );
-      // ל-FilledButton.icon אין פרמטר tooltip. טולטיפ שחוזר על התווית
-      // הגלויה מיותר, ומוצג רק כשהוא מוסיף עליה (הסבר, קיצור מקשים).
-      if (!tooltipRepeatsLabel(tooltip, label)) {
-        button = ContainedTooltip(message: tooltip, child: button);
-      }
+      // ל-FilledButton.icon אין פרמטר tooltip.
+      button = ContainedTooltip(message: tooltip, child: button);
     } else {
       button = IconButton(
         onPressed: onPressed,
