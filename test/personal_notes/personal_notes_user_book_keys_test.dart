@@ -322,6 +322,30 @@ void main() {
       expect(await idsUnder('שו״ת באר מרדכי'), {'a'});
       expect(await idsUnder('שות באר מרדכי'), isEmpty);
       expect(await idsUnder('יומן|user'), {'b'});
+      final moves = (await database.database).select(
+        'SELECT from_key, to_key, note_ids FROM personal_notes_key_moves',
+      );
+      expect(moves.map((row) => [...row.values]), [
+        ['שות באר מרדכי', 'שו״ת באר מרדכי', '["a"]'],
+      ]);
+    });
+
+    test('כותרת ישנה שהיא גם ספר אישי — מכריעים לפי הטקסט', () async {
+      await database.insertNote(_note('mine', 'שות קיו', 1, 'שורה אישית'));
+      await database.insertNote(_note('official', 'שות קיו', 1, 'שורה רשמית'));
+
+      await migration(
+        content: {'שו״ת קיו': 'שורה רשמית', 'שות קיו|user': 'שורה אישית'},
+      ).assignPending(
+        _library([
+          TextBook(id: 8, title: 'שו״ת קיו'),
+          TextBook(id: 9, title: 'שות קיו', source: BookSource.user),
+        ]),
+      );
+
+      expect(await idsUnder('שות קיו|user'), {'mine'});
+      expect(await idsUnder('שו״ת קיו'), {'official'});
+      expect(await idsUnder('שות קיו'), isEmpty);
     });
 
     test('ספר שעדיין בקטלוג או התאמה כפולה — ההערות נשארות', () async {
