@@ -2820,6 +2820,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       final composed = await _composeCachedSpreadSnapshot(
         targetSpreadStartPage,
         focusPage: targetPage,
+        sourceSnapshot: captureResult,
       );
       if (!mounted || token != _interactiveTurnToken || composed == null) {
         _disposeBudgetedSnapshot(composed);
@@ -3122,6 +3123,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Future<ui.Image?> _composeCachedSpreadSnapshot(
     int spreadStartPage, {
     int? focusPage,
+    required ({ui.Image image, Size viewportLogicalSize}) sourceSnapshot,
   }) async {
     final entry = _spreadCache[spreadStartPage];
     if (entry == null || entry.pageImages.isEmpty) return null;
@@ -3173,18 +3175,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       spreadStartPage: spreadStartPage,
     );
 
-    final pixelRatio = pdfSpreadSnapshotPixelRatio(
-      viewSize: viewSize,
-      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-    );
-
+    final width = sourceSnapshot.image.width;
+    final height = sourceSnapshot.image.height;
+    final viewportSize = sourceSnapshot.viewportLogicalSize;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.scale(pixelRatio);
+    // הצילומים מכסים את אותה שכבה, אבל הצפיין אינו מצייר בתעלת הגלילה.
+    final canvasRect = Offset.zero & viewSize;
+    canvas.scale(width / viewportSize.width, height / viewportSize.height);
+    canvas.clipRect(canvasRect, doAntiAlias: false);
 
-    // מראה של הצפיין החי: רק תוכן העמודים עובר את מסנן מצב כהה — אחרת
-    // הצילום היה נבדל מהתצוגה בסיום האנימציה.
-    final canvasRect = Rect.fromLTWH(0, 0, viewSize.width, viewSize.height);
+    // רק תוכן העמודים עובר את מסנן המצב הכהה, כמו בצפיין החי.
     final brightness = Theme.of(context).brightness;
 
     canvas.drawRect(canvasRect, Paint()..color = _pdfViewerBgColor());
@@ -3258,12 +3259,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     entry.budgetEntry?.touch(isPinned: true);
     try {
       return await _createBudgetedSnapshot(
-        (viewSize.width * pixelRatio).round(),
-        (viewSize.height * pixelRatio).round(),
-        () => picture.toImage(
-          (viewSize.width * pixelRatio).round(),
-          (viewSize.height * pixelRatio).round(),
-        ),
+        width,
+        height,
+        () => picture.toImage(width, height),
       );
     } finally {
       picture.dispose();
@@ -3486,6 +3484,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         final composed = await _composeCachedSpreadSnapshot(
           targetSpreadStartPage,
           focusPage: targetPage,
+          sourceSnapshot: captureResult,
         );
 
         if (!_isPdfGenerationCurrent(generation)) {
@@ -4498,7 +4497,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 key: _pdfViewportBoundaryKey,
                 child: Stack(
                   children: [
-                    _buildPdfViewerFromFile(),
+                    // תעלה לפס הגלילה האנכי (מימין בכל כיוון, כמו הפס), כדי
+                    // שלא יכסה את הדף.
+                    Row(
+                      textDirection: TextDirection.ltr,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildPdfViewerFromFile()),
+                        const SizedBox(width: _verticalScrollbarGutter),
+                      ],
+                    ),
                     BlocBuilder<PdfBookBloc, PdfBookState>(
                       buildWhen: (prev, curr) {
                         if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
