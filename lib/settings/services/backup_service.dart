@@ -532,23 +532,14 @@ class BackupService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> _backupBookmarks() async {
-    final repo = BookmarkRepository();
-    final bookmarks = await repo.loadBookmarks();
-    return bookmarks.map((b) => b.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupBookmarks() =>
+      BookmarkRepository().loadJson();
 
-  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() async {
-    final groups = await BookmarkRepository().loadGroups();
-    return groups.map((g) => g.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() =>
+      BookmarkRepository().loadGroupsJson();
 
-  /// Backup history
-  static Future<List<Map<String, dynamic>>> _backupHistory() async {
-    final repo = HistoryRepository();
-    final history = await repo.loadHistory();
-    return history.map((h) => h.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupHistory() =>
+      HistoryRepository().loadJson();
 
   /// Backup notes from SQLite database
   static Future<List<Map<String, dynamic>>> _backupNotes() async {
@@ -709,7 +700,9 @@ class BackupService {
       }
       return store != null
           ? await store.putFile(file)
-          : base64Encode(await file.readAsBytes());
+          : await Isolate.run(
+              () => base64Encode(File(snapshot).readAsBytesSync()),
+            );
     } catch (e) {
       _logger.warning('Skipping user_books.db backup: $e');
       skippedSections.add('userBooks');
@@ -951,8 +944,7 @@ class BackupService {
       throw Exception('קובץ הגיבוי לא נמצא');
     }
 
-    final content = await file.readAsString();
-    final backupData = json.decode(content) as Map<String, dynamic>;
+    final backupData = await _decodeBackupFile(backupPath);
 
     // Validate backup version
     final version = backupData['version'] as String?;
@@ -2013,12 +2005,7 @@ class BackupService {
       Map<String, dynamic> backupData;
       try {
         // גיבוי של כמה MB חוסם את ה-UI עשרות ms בפתיחת לשונית "מערכת".
-        final path = latestFile.path;
-        backupData = await Isolate.run(
-          () =>
-              json.decode(File(path).readAsStringSync())
-                  as Map<String, dynamic>,
-        );
+        backupData = await _decodeBackupFile(latestFile.path);
       } catch (_) {
         return BackupStatus(
           lastBackupDate: backupDate,
@@ -2099,6 +2086,13 @@ class BackupService {
       return false;
     }
   }
+
+  // קובץ של עשרות MB מפוענח ב-isolate; התוצאה חוזרת ב-Isolate.exit בלי העתקה.
+  static Future<Map<String, dynamic>> _decodeBackupFile(String path) =>
+      Isolate.run(
+        () =>
+            json.decode(File(path).readAsStringSync()) as Map<String, dynamic>,
+      );
 
   /// Checks if shamor zachor data changed meaningfully since the backup:
   /// new books added, a book newly marked, or a review cycle crossed 50% for any book.

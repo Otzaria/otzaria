@@ -1993,6 +1993,24 @@ void main() {
       expect(spy.mainIsolateReads, isEmpty);
     });
 
+    test('שחזור אינו קורא ומפענח את קובץ הגיבוי ב-UI isolate', () async {
+      writeOldBackup({
+        'version': '2.0',
+        'includes': <String, dynamic>{},
+      });
+      final backup = Directory(
+        p.join(tempDir.path, 'backups'),
+      ).listSync().whereType<File>().single;
+      final spy = _BackupReadSpy();
+
+      await IOOverrides.runWithIOOverrides(
+        () => BackupService.restoreFromBackup(backup.path),
+        spy,
+      );
+
+      expect(spy.mainIsolateReads, isEmpty);
+    });
+
     test('שינוי בהגדרות מסומן, והגדרות זהות אינן מסומנות', () async {
       await Settings.setValue<String>('key-analyze-probe', 'same');
       writeOldBackup({
@@ -2057,6 +2075,12 @@ class _SpyFile implements File {
 
   @override
   Future<FileStat> stat() => _file.stat();
+
+  @override
+  Future<bool> exists() => _file.exists();
+
+  @override
+  Directory get parent => _file.parent;
 
   @override
   Future<String> readAsString({Encoding encoding = utf8}) {

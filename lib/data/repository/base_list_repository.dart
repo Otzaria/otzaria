@@ -23,6 +23,9 @@ abstract class BaseListRepository<T> {
 
   Future<List<T>> load() async => _repo.load();
 
+  /// הרשימה כ-JSON. ראו [UserStateListRepository.loadJson].
+  Future<List<Map<String, dynamic>>> loadJson() => _repo.loadJson();
+
   /// נתיב הכתיבה. ראו [UserStateListRepository.mutate] — [apply] חייב להיות
   /// טהור.
   Future<List<T>> mutate(List<T> Function(List<T> current) apply) async =>

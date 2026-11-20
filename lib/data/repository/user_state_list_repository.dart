@@ -59,6 +59,25 @@ class UserStateListRepository<T> {
     return _decode(raw).items;
   }
 
+  /// [load] ואחריו [toJson] לכל פריט. עם [decodeInBackground] שניהם רצים
+  /// ב-isolate, כדי שגיבוי של אלפי פריטים לא יבנה את ה-JSON על ה-UI.
+  Future<List<Map<String, dynamic>>> loadJson() async {
+    if (!decodeInBackground) return (await load()).map(toJson).toList();
+    return _store.readDecoded(
+      boxName,
+      key,
+      _jsonDecoder(fromJson, toJson, '$boxName/$key'),
+    );
+  }
+
+  static List<Map<String, dynamic>> Function(String? payload) _jsonDecoder<T>(
+    T Function(Map<String, dynamic>) fromJson,
+    Map<String, dynamic> Function(T) toJson,
+    String label,
+  ) =>
+      (payload) =>
+          _entriesDecoder(fromJson, label)(payload).map(toJson).toList();
+
   // static: closure במתודת מופע הייתה לוכדת את this, שאינו נשלח ל-isolate.
   static List<T> Function(String? payload) _entriesDecoder<T>(
     T Function(Map<String, dynamic>) fromJson,

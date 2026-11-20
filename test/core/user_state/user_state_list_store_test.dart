@@ -212,6 +212,30 @@ void main() {
       db.close();
     });
 
+    test(
+      'loadJson של רשימה גדולה בונה את ה-JSON מחוץ ל-isolate הנוכחי',
+      () async {
+        final db = UserStateDatabase.openAt(dbPath);
+        final store = UserStateListStore(database: db);
+        await store.write('history', 'history', entries(2000));
+        final here = Isolate.current.debugName;
+
+        final json = await UserStateListRepository<int>(
+          boxName: 'history',
+          key: 'history',
+          fromJson: (json) => json['v'] as int,
+          toJson: (value) => {'v': value, 'at': Isolate.current.debugName},
+          decodeInBackground: true,
+          store: store,
+        ).loadJson();
+
+        expect(json, hasLength(2000));
+        expect(json.first['v'], 0);
+        expect(json.first['at'], isNot(here));
+        db.close();
+      },
+    );
+
     test('רשימה קטנה נשארת בפענוח מקומי', () async {
       final db = UserStateDatabase.openAt(dbPath);
       final store = UserStateListStore(database: db);
