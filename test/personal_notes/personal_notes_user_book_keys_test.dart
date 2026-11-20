@@ -309,4 +309,36 @@ void main() {
       }
     },
   );
+
+  group('כותרת שתוקנה בגרשיים (#2766)', () {
+    test('הערות תחת הכותרת הישנה עוברות לספר המתוקן', () async {
+      await database.insertNote(_note('a', 'שות באר מרדכי', 1, 'שורה'));
+      await database.insertNote(_note('b', 'יומן|user', 1, 'רשימה ראשונה'));
+
+      await migration().assignPending(
+        _library([TextBook(id: 3, title: 'שו״ת באר מרדכי'), userOnly]),
+      );
+
+      expect(await idsUnder('שו״ת באר מרדכי'), {'a'});
+      expect(await idsUnder('שות באר מרדכי'), isEmpty);
+      expect(await idsUnder('יומן|user'), {'b'});
+    });
+
+    test('ספר שעדיין בקטלוג או התאמה כפולה — ההערות נשארות', () async {
+      await database.insertNote(_note('kept', 'שות חכם', 1, 'שורה'));
+      await database.insertNote(_note('ambiguous', 'שות דברי חיים', 1, 'שורה'));
+
+      await migration().assignPending(
+        _library([
+          TextBook(id: 4, title: 'שות חכם'),
+          TextBook(id: 5, title: 'שו״ת חכם'),
+          TextBook(id: 6, title: 'שו״ת דברי חיים'),
+          TextBook(id: 7, title: 'שו"ת דברי חיים'),
+        ]),
+      );
+
+      expect(await idsUnder('שות חכם'), {'kept'});
+      expect(await idsUnder('שות דברי חיים'), {'ambiguous'});
+    });
+  });
 }
