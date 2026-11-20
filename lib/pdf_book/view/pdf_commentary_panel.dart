@@ -1156,9 +1156,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       autofocus: widget.isFullScreen,
       scrollController: _itemScrollController,
       onNavigationStart: _cancelPendingNavigation,
-      maxSpeed: 10000.0,
-      curve: 10.0,
-      accelerationFactor: 312.5,
       onKeyEvent: (_, event) => ContextMenuUtils.reportCommentaryErrorShortcut(
         context,
         event,
