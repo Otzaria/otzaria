@@ -193,6 +193,11 @@ class AppSurfaces {
   /// מילות החיפוש בטקסט הספר — האדום של קטעי תוצאות החיפוש.
   static Color searchHit(ColorScheme cs) => cs.error;
 
+  /// רקע מילות החיפוש (#3127), בגוון של [searchHit] ולא הצהוב של
+  /// [searchHitCurrentBackground] ו-[permanentMark]. שקוף 80% כמותם.
+  static Color searchHitBackground(ColorScheme cs) =>
+      cs.errorContainer.withValues(alpha: 0.8);
+
   /// טקסט התוצאה הנוכחית, על [searchHitCurrentBackground].
   static Color searchHitCurrent(ColorScheme cs) =>
       cs.isDark ? const Color(0xFFFFEEDA) : const Color(0xFF281900);

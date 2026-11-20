@@ -10,7 +10,7 @@ import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 // הייחוס הוא אותו HTML כשהוא מוצג בכפייה ב-HtmlWidget.
 const _needle = 'ברכה';
 const _opens = [
-  '<span style="color: otzaria-search-hit">',
+  '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">',
   '<span style="color: otzaria-search-current; background-color: otzaria-search-current-bg">',
   '<span style="background-color: otzaria-mark; color: otzaria-on-mark">',
 ];

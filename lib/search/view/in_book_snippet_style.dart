@@ -1,4 +1,5 @@
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -16,6 +17,9 @@ class InBookSnippetStyle {
         fontWeight: FontWeight.bold,
         fontSize: 18,
         color: Theme.of(context).colorScheme.error,
+        backgroundColor: AppSurfaces.searchHitBackground(
+          Theme.of(context).colorScheme,
+        ),
       );
 
   /// The style of the snippet's text.

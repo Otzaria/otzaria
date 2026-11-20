@@ -5,6 +5,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 
@@ -97,6 +98,7 @@ class _CommentarySearchResultsListState
         ),
         fontSize: 16,
         color: colorScheme.error,
+        backgroundColor: AppSurfaces.searchHitBackground(colorScheme),
       ),
     );
 

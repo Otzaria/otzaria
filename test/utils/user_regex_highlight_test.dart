@@ -11,7 +11,7 @@ Future<void> main() async {
 
   List<String> painted(String html) => [
     for (final match in RegExp(
-      r'<span style="color: otzaria-search-hit">([^<]*)</span>',
+      r'<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">([^<]*)</span>',
     ).allMatches(html))
       match.group(1)!,
   ];

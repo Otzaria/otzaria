@@ -873,7 +873,9 @@ void main() {
       );
       expect(
         html,
-        contains('<span style="color: ${SearchHighlightCss.hit}">1</span>'),
+        contains(
+          '<span style="color: ${SearchHighlightCss.hit}; background-color: ${SearchHighlightCss.hitBackground}">1</span>',
+        ),
       );
       final markers = RaisedMarkers.extract(html);
       expect(markers.map((marker) => marker.text), [

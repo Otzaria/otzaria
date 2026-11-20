@@ -176,11 +176,15 @@ Future<void> main() async {
       expect(highlighted, contains('־'));
       expect(
         highlighted,
-        contains('<span style="color: otzaria-search-hit">כי</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">כי</span>',
+        ),
       );
       expect(
         highlighted,
-        contains('<span style="color: otzaria-search-hit">גר</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">גר</span>',
+        ),
       );
     });
   }, skip: engineReady ? false : searchEngineSkipReason);

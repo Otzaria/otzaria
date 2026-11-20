@@ -319,7 +319,11 @@ Future<void> main() async {
         );
         expect(
           TextRendererService.processText(text, settings),
-          isNot(contains('<span style="color: otzaria-search-hit">')),
+          isNot(
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">',
+            ),
+          ),
         );
       });
 
@@ -337,11 +341,15 @@ Future<void> main() async {
         final out = TextRendererService.processText(text, settings);
         expect(
           out,
-          contains('<span style="color: otzaria-search-hit">תדע</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">תדע</span>',
+          ),
         );
         expect(
           out,
-          contains('<span style="color: otzaria-search-hit">זרעך</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">זרעך</span>',
+          ),
         );
       });
 
@@ -355,7 +363,11 @@ Future<void> main() async {
         );
         expect(
           TextRendererService.processText(text, settings),
-          isNot(contains('<span style="color: otzaria-search-hit">')),
+          isNot(
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">',
+            ),
+          ),
         );
       });
 

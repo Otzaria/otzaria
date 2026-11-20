@@ -1627,7 +1627,9 @@ List<_HighlightMatch> _withoutOverlaps(List<_HighlightMatch> matches) {
 }
 
 // צבעי ההדגשה נפתרים לפי ערכת הנושא בזמן הרינדור ([SearchHighlightCss]).
-const _searchHitStyle = 'color: ${SearchHighlightCss.hit}';
+const _searchHitStyle =
+    'color: ${SearchHighlightCss.hit}; '
+    'background-color: ${SearchHighlightCss.hitBackground}';
 const _searchCurrentStyle =
     'color: ${SearchHighlightCss.current}; '
     'background-color: ${SearchHighlightCss.currentBackground}';

@@ -36,7 +36,9 @@ Future<void> main() async {
         final marked = highLight('ידע תדע כי גר יהיה זרעך', query);
         expect(
           marked,
-          contains('<span style="color: otzaria-search-hit">זרעך</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">זרעך</span>',
+          ),
           reason: 'בהיעדר תבנית מהמנוע ה-fallback חייב להמשיך לשרת',
         );
       });
@@ -71,7 +73,9 @@ Future<void> main() async {
         final marked = highLight('קרובה ישועה לבוא', query);
         expect(
           marked,
-          contains('<span style="color: otzaria-search-hit">ישועה</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ישועה</span>',
+          ),
           reason: 'רשומת null אסור לה לחסום הזנה מוצלחת מאוחרת יותר',
         );
       });
@@ -95,7 +99,9 @@ Future<void> main() async {
         final marked = highLight('נשא תחינה ובקשה', query);
         expect(
           marked,
-          contains('<span style="color: otzaria-search-hit">תחינה</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">תחינה</span>',
+          ),
         );
       });
     },
