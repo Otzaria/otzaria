@@ -720,6 +720,77 @@ void main() {
     });
   });
 
+  group('@ also scopes by exact author (issue #5502)', () {
+    setUp(AcronymsCache.instance.clear);
+    tearDown(AcronymsCache.instance.clear);
+
+    String facetOf(Book book) =>
+        FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
+
+    late TextBook torah;
+    late TextBook kadHakemach;
+    late TextBook other;
+    late Library library;
+
+    setUp(() {
+      torah = TextBook(
+        title: 'רבינו בחיי על התורה',
+        id: 1,
+        author: 'רבינו בחיי',
+        categoryPath: '/מפרשים',
+      );
+      kadHakemach = TextBook(
+        title: 'כד הקמח',
+        id: 2,
+        author: 'רבינו בחיי',
+        categoryPath: '/מחשבה',
+      );
+      other = TextBook(
+        title: 'חובות הלבבות',
+        id: 3,
+        author: 'רבינו בחיי אבן פקודה',
+        categoryPath: '/מחשבה',
+      );
+      library = Library(
+        categories: [
+          _category('מפרשים', [torah]),
+          _category('מחשבה', [kadHakemach, other]),
+        ],
+      );
+      for (final category in library.subCategories) {
+        category.parent = library;
+      }
+    });
+
+    test('@שם מוסיף ספרים שהמחבר שלהם הוא השם בדיוק', () {
+      final parsed = parseCategoryQuery('שלום@רבינו בחיי', library);
+      expect(parsed.categoryFound, isTrue);
+      expect(parsed.facets, [facetOf(torah), facetOf(kadHakemach)]);
+    });
+
+    test('ההשוואה מנורמלת (ניקוד), אבל לא חלקית', () {
+      final parsed = parseCategoryQuery('שלום@רבינו בְּחיי', library);
+      expect(parsed.facets, isNot(contains(facetOf(other))));
+      expect(parsed.facets, contains(facetOf(kadHakemach)));
+    });
+
+    test('מחבר בלבד, בלי ספר או קטגוריה בשם — השם נמצא', () {
+      final parsed = parseCategoryQuery('שלום@רבינו בחיי אבן פקודה', library);
+      expect(parsed.notFoundNames, isEmpty);
+      expect(parsed.facets, [facetOf(other)]);
+    });
+
+    test('בנתיב, המחבר מוגבל לתחום החלק הקודם', () {
+      final parsed = parseCategoryQuery('שלום@מחשבה/רבינו בחיי', library);
+      expect(parsed.facets, [facetOf(kadHakemach)]);
+    });
+
+    test('התאמת כותרת בלי מחבר תואם — ללא שינוי', () {
+      final parsed = parseCategoryQuery('שלום@חובות הלבבות', library);
+      expect(parsed.facets, [facetOf(other)]);
+    });
+  });
+
   group('categoryQueryPart', () {
     test('ללא @ — מחזיר את הטקסט כמות שהוא', () {
       expect(categoryQueryPart('שלום עולם'), 'שלום עולם');
