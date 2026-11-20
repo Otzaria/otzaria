@@ -8,6 +8,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
 import 'package:otzaria/user_content_import/services/user_links_loader.dart';
@@ -323,6 +324,165 @@ void main() {
         expect((inverse.index2, inverse.index2End), (4, 6));
       }
     });
+
+    test('רשומות בכיוונים מנוגדים שומרות טווח ועוגן מקומי בכל חלון', () async {
+      final ucr = await repository();
+      await ucr.upsertUserLink(
+        const UserLinkRecord(
+          sourceTitle: 'בסיס',
+          sourceIsUserBook: false,
+          sourceLineIndex: 3,
+          targetTitle: 'מפרש',
+          targetIsUserBook: true,
+          targetLineIndex: 9,
+          targetRef: 'מפרש ג',
+          anchorStart: 2,
+          connectionType: 'REFERENCE',
+        ),
+        source: 'ידני',
+      );
+      await ucr.upsertUserLink(
+        const UserLinkRecord(
+          sourceTitle: 'מפרש',
+          sourceIsUserBook: true,
+          sourceLineIndex: 9,
+          sourceLineIndexEnd: 11,
+          targetTitle: 'בסיס',
+          targetIsUserBook: false,
+          targetLineIndex: 3,
+          targetLineIndexEnd: 5,
+          targetRef: 'בסיס ד',
+          anchorStart: 9,
+          connectionType: 'REFERENCE',
+        ),
+        source: 'תיקייה',
+      );
+
+      final first = await load('בסיס', BookSource.official, 3, 3);
+      final end = await load('בסיס', BookSource.official, 5, 5);
+      expect(mergeLinksByIdentity(first, end), hasLength(1));
+      expect(first.single.heRef, 'מפרש ג');
+      expect(first.single.anchorStart, 2);
+      expect((first.single.index1End, first.single.index2End), (6, 12));
+      expect(linkIdentityKey(end.single), linkIdentityKey(first.single));
+
+      final inverseFirst = await load('מפרש', BookSource.user, 9, 9);
+      final inverseEnd = await load('מפרש', BookSource.user, 11, 11);
+      expect(mergeLinksByIdentity(inverseFirst, inverseEnd), hasLength(1));
+      expect(inverseEnd.single.heRef, 'בסיס ד');
+      expect(inverseEnd.single.anchorStart, 9);
+      expect(
+        (inverseEnd.single.index1End, inverseEnd.single.index2End),
+        (12, 6),
+      );
+
+      await ucr.forgetSidecar('תיקייה');
+      expect(await load('בסיס', BookSource.official, 5, 5), isEmpty);
+      final remaining = (await load('בסיס', BookSource.official, 3, 3)).single;
+      expect((remaining.anchorStart, remaining.index1End), (2, null));
+    });
+
+    test('טווח מקור קצר ועשיר אינו מעלים את הקישור מסוף הטווח הארוך', () async {
+      final ucr = await repository();
+      await ucr.upsertUserLink(
+        const UserLinkRecord(
+          sourceTitle: 'בסיס',
+          sourceIsUserBook: false,
+          sourceLineIndex: 3,
+          sourceLineIndexEnd: 4,
+          targetTitle: 'מפרש',
+          targetIsUserBook: true,
+          targetLineIndex: 9,
+          targetLineIndexEnd: 10,
+          targetRef: 'מפרש ג',
+          targetRefEnd: 'מפרש ד',
+          connectionType: 'REFERENCE',
+        ),
+        source: 'ידני',
+      );
+      await ucr.upsertUserLink(ranged, source: 'תיקייה');
+
+      final first = (await load('בסיס', BookSource.official, 3, 3)).single;
+      final end = (await load('בסיס', BookSource.official, 5, 5)).single;
+      expect(linkIdentityKey(end), linkIdentityKey(first));
+      expect(buildLinksByLineMap([end])[6], [end]);
+      expect((end.index2End, end.heRefEnd), (11, 'מפרש ד'));
+    });
+
+    test('מסד מצורף וקטגוריות נשארים נפרדים ובסדר הרשומות', () async {
+      final ucr = await repository();
+      await ucr.replaceUserLinks([
+        const UserLinkRecord(
+          sourceTitle: 'בסיס',
+          sourceCategoryId: 7,
+          sourceIsUserBook: false,
+          sourceLineIndex: 3,
+          targetTitle: 'משותף',
+          targetDb: 'attached',
+          targetLineIndex: 9,
+          connectionType: 'REFERENCE',
+        ),
+        for (final category in [12, 13])
+          UserLinkRecord(
+            sourceTitle: 'בסיס',
+            sourceCategoryId: 7,
+            sourceIsUserBook: false,
+            sourceLineIndex: 3,
+            targetTitle: 'משותף',
+            targetCategoryId: category,
+            targetLineIndex: 9,
+            connectionType: 'REFERENCE',
+          ),
+        const UserLinkRecord(
+          sourceTitle: 'בסיס',
+          sourceCategoryId: 8,
+          sourceIsUserBook: false,
+          sourceLineIndex: 3,
+          targetTitle: 'לא שייך',
+          targetLineIndex: 9,
+          connectionType: 'REFERENCE',
+        ),
+      ], source: 'ידני');
+      await ucr.upsertUserLink(
+        const UserLinkRecord(
+          sourceTitle: 'משותף',
+          sourceIsUserBook: false,
+          sourceDb: 'attached',
+          sourceLineIndex: 9,
+          sourceLineIndexEnd: 11,
+          targetTitle: 'בסיס',
+          targetCategoryId: 7,
+          targetLineIndex: 3,
+          targetLineIndexEnd: 5,
+          connectionType: 'REFERENCE',
+        ),
+        source: 'תיקייה',
+      );
+
+      Future<List<Link>> at(int line) => loadUserLinksForBook(
+        bookTitle: 'בסיס',
+        bookCategoryId: 7,
+        source: BookSource.official,
+        startLineIndex: line,
+        endLineIndex: line,
+      );
+      final first = await at(3);
+      expect(
+        first.map((link) => (link.targetSource.wireKey, link.targetCategoryId)),
+        [('d:attached', null), ('o', 12), ('o', 13)],
+      );
+      expect(
+        linkIdentityKey((await at(5)).single),
+        linkIdentityKey(first.first),
+      );
+      final inverse = (await load(
+        'משותף',
+        BookSource.attached('attached'),
+        11,
+        11,
+      )).single;
+      expect((inverse.targetCategoryId, inverse.index2End), (7, 6));
+    });
   });
 
   group('מחזור החיים של קריאות המשתמש', () {
@@ -498,6 +658,19 @@ void main() {
       );
 
       expect(dedupeUserLinks([anchored(), anchored()]), hasLength(1));
+    });
+
+    test('כתובת ריקה ברשומת טווח אינה מוחקת את שם ספר היעד', () {
+      Link toBook(String reference, {int? end}) => Link(
+        heRef: reference,
+        index1: 3,
+        path2: 'מפרש',
+        index2: 5,
+        index2End: end,
+        connectionType: 'REFERENCE',
+      );
+      final merged = dedupeUserLinks([toBook('מפרש'), toBook('', end: 7)]);
+      expect((merged.single.heRef, merged.single.index2End), ('מפרש', 7));
     });
 
     test('הצד ההפוך (בלי עוגן) נבלע ברשומה המעוגנת ואינו מוצג פעמיים', () {

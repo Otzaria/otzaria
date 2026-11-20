@@ -562,18 +562,18 @@ class UserContentRepository {
         : '';
     final startsClause = startLines == null
         ? ''
-        : 'AND sourceLineIndex IN (${List.filled(startLines.length, '?').join(',')})';
+        : 'AND sourceLineIndex IN (SELECT value FROM json_each(?))';
     final rows = db.select(
       'SELECT * FROM user_link WHERE sourceTitle = ? AND sourceIsUserBook = ? '
       'AND sourceDb IS ? $categoryClause $rangeClause $startsClause '
-      'ORDER BY sourceLineIndex',
+      'ORDER BY sourceLineIndex, id',
       [
         sourceTitle,
         sourceIsUserBook ? 1 : 0,
         sourceDb,
         ?sourceCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
-        ...?startLines,
+        if (startLines != null) '[${startLines.join(',')}]',
       ],
     );
     return rows.map(_fromRow).toList();
@@ -605,19 +605,19 @@ class UserContentRepository {
         : '';
     final startsClause = startLines == null
         ? ''
-        : 'AND ul.targetLineIndex IN (${List.filled(startLines.length, '?').join(',')})';
+        : 'AND ul.targetLineIndex IN (SELECT value FROM json_each(?))';
     final rows = db.select(
       'SELECT ul.* FROM user_link ul '
       'WHERE ul.targetTitle = ? AND ul.targetIsUserBook = ? '
       'AND ul.targetDb IS ? $categoryClause $rangeClause $startsClause '
-      'ORDER BY ul.targetLineIndex',
+      'ORDER BY ul.targetLineIndex, ul.id',
       [
         targetTitle,
         targetIsUserBook ? 1 : 0,
         targetDb,
         ?targetCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
-        ...?startLines,
+        if (startLines != null) '[${startLines.join(',')}]',
       ],
     );
     return rows.map(_fromRow).toList();
