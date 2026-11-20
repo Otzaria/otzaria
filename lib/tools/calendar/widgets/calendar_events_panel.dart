@@ -28,31 +28,36 @@ class CalendarEventsPanel extends StatefulWidget {
 class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
   final TextEditingController _searchController = TextEditingController();
 
-  List<CustomEvent> _resolveVisibleCalendarEvents(
+  /// האירועים להצגה, כל אחד עם התאריך שמוצג בשורה שלו.
+  List<({CustomEvent event, DateTime date})> _resolveVisibleCalendarEvents(
     CalendarState state,
     CalendarCubit cubit,
   ) {
+    if (state.eventSearchQuery.isEmpty &&
+        state.eventsView == CalendarEventsView.upcoming) {
+      return cubit.upcomingEvents();
+    }
+    final List<CustomEvent> events;
     if (state.eventSearchQuery.isNotEmpty) {
-      return cubit.getFilteredEvents(state.eventSearchQuery);
+      events = cubit.getFilteredEvents(state.eventSearchQuery);
+    } else if (state.eventsView == CalendarEventsView.all) {
+      events = List<CustomEvent>.from(state.events)
+        ..sort(compareCalendarEventsChronologically);
+    } else {
+      events = cubit.eventsForDate(state.selectedGregorianDate);
     }
-
-    if (state.showAllEvents) {
-      final events = List<CustomEvent>.from(state.events);
-      events.sort(compareCalendarEventsChronologically);
-      return events;
-    }
-
-    return cubit.eventsForDate(state.selectedGregorianDate);
+    return [for (final e in events) (event: e, date: e.baseGregorianDate)];
   }
 
   String _resolveEmptyEventsMessage(CalendarState state) {
     if (state.eventSearchQuery.isNotEmpty) {
       return 'לא נמצאו אירועים מתאימים';
     }
-    if (state.showAllEvents) {
-      return 'אין אירועים במערכת';
-    }
-    return 'אין אירועים ביום זה';
+    return switch (state.eventsView) {
+      CalendarEventsView.day => 'אין אירועים ביום זה',
+      CalendarEventsView.upcoming => 'אין אירועים קרובים',
+      CalendarEventsView.all => 'אין אירועים במערכת',
+    };
   }
 
   @override
@@ -145,14 +150,29 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                           }
                         },
                 ),
-              ActionButton.neutral(
-                text: widget.state.showAllEvents ? 'הצג יום נוכחי' : 'הצג הכל',
-                icon: widget.state.showAllEvents
-                    ? FluentIcons.calendar_month_24_regular
-                    : FluentIcons.calendar_day_24_regular,
-                onPressed: () => context
-                    .read<CalendarCubit>()
-                    .toggleShowAllEvents(!widget.state.showAllEvents),
+              AppSegmentedControl<CalendarEventsView>(
+                currentValue: widget.state.eventsView,
+                onChanged: context.read<CalendarCubit>().setEventsView,
+                options: const [
+                  SegmentOption(
+                    value: CalendarEventsView.day,
+                    label: 'יום',
+                    tooltip: 'אירועי היום הנבחר',
+                    icon: FluentIcons.calendar_day_24_regular,
+                  ),
+                  SegmentOption(
+                    value: CalendarEventsView.upcoming,
+                    label: 'קרובים',
+                    tooltip: 'אירועים מהיום והלאה, לפי המועד הקרוב',
+                    icon: FluentIcons.calendar_clock_24_regular,
+                  ),
+                  SegmentOption(
+                    value: CalendarEventsView.all,
+                    label: 'הכל',
+                    tooltip: 'כל האירועים, כולל שעברו',
+                    icon: FluentIcons.calendar_month_24_regular,
+                  ),
+                ],
               ),
             ],
           ),
@@ -166,6 +186,10 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
   Widget _buildEventsList(BuildContext context) {
     final cubit = context.read<CalendarCubit>();
     final events = _resolveVisibleCalendarEvents(widget.state, cubit);
+    // בקרובים התאריך שבשורה הוא מופע, ואליו עוברים בלחיצה.
+    final showsOccurrence =
+        widget.state.eventSearchQuery.isEmpty &&
+        widget.state.eventsView == CalendarEventsView.upcoming;
 
     if (events.isEmpty) {
       return OtzariaEmptyState(
@@ -178,7 +202,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
     final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
-        for (final event in events)
+        for (final (:event, :date) in events)
           Padding(
             padding: const EdgeInsets.only(bottom: AppTokens.listItemGap),
             child: LayoutBuilder(
@@ -187,7 +211,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 const iconOnlyDeleteBelow = 560.0, splitDateBelow = 360.0;
                 final iconOnlyDelete = width < iconOnlyDeleteBelow;
                 final splitDate = width < splitDateBelow;
-                final dateLabel = formatEventDate(event.baseGregorianDate);
+                final dateLabel = formatEventDate(date);
                 final eventColor = CalendarEventColors.colorForIndex(
                   event.displayColorIndex,
                   Theme.of(context).brightness,
@@ -346,7 +370,11 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 return AppCard(
                   padding: AppTokens.cardPadding,
                   onTap: () => cubit.jumpToDate(
-                    event.nextOccurrenceFrom(cubit.state.selectedGregorianDate),
+                    showsOccurrence
+                        ? date
+                        : event.nextOccurrenceFrom(
+                            cubit.state.selectedGregorianDate,
+                          ),
                   ),
                   child: content,
                 );
