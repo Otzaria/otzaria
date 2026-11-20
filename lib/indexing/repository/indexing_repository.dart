@@ -510,10 +510,21 @@ class IndexingRepository {
 
   /// המקום הפנוי בכונן שהמנוע כותב אליו בפועל; -1 כשלא ידוע.
   Future<int> indexDriveFreeBytes() async {
-    final path = _tantivyDataProvider.activeIndexPath;
+    final path = _writableIndexPath;
     if (path == null) return -1;
-    return (await getDiskSpaceInfo(path)).freeBytes;
+    final freeBytes = await _readIndexDriveFreeBytes(path);
+    return _writableIndexPath == path ? freeBytes : -1;
   }
+
+  String? get _writableIndexPath =>
+      _tantivyDataProvider.isInitialized.value &&
+          !_tantivyDataProvider.isTempFallback
+      ? _tantivyDataProvider.activeIndexPath
+      : null;
+
+  // בדיקות הנתיב ו-GetDiskFreeSpaceEx סינכרוניות ועלולות להמתין לכונן.
+  static Future<int> _readIndexDriveFreeBytes(String path) =>
+      Isolate.run(() async => (await getDiskSpaceInfo(path)).freeBytes);
 
   /// בדיקה ([check]) ← לולאה אחת לספרים חדשים ([books], null לכל הספרייה)
   /// ושהשתנו, שמסמכיהם הישנים נמחקים רגע לפני כתיבתם ← commit ואיחוד אחד.

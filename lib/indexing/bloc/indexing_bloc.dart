@@ -296,7 +296,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         onWorkListReady: (total) {
           if (_activeWorkId != workId) return;
           emit(_inProgress(booksProcessed: 0, totalBooks: total));
-          unawaited(_warnIfIndexDiskLow());
+          unawaited(_warnIfIndexDiskLow(workId));
         },
         onActualIndexingStarted: () => add(ActualIndexingStarted(workId)),
         onProgress: _progressOf(workId),
@@ -310,11 +310,18 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   static const lowIndexDiskSpaceBytes = 3 * 1024 * 1024 * 1024;
 
   /// פעם אחת לכל הפעלה, כדי שכל עדכון ספרייה לא יחזור על אותה אזהרה.
-  Future<void> _warnIfIndexDiskLow() async {
+  Future<void> _warnIfIndexDiskLow(int workId) async {
     if (_lowIndexDiskSpaceShown) return;
     try {
       final freeBytes = await _indexFreeBytes();
-      if (freeBytes < 0 || freeBytes >= lowIndexDiskSpaceBytes) return;
+      if (isClosed ||
+          _activeWorkId != workId ||
+          !_repository.isIndexing() ||
+          _lowIndexDiskSpaceShown ||
+          freeBytes < 0 ||
+          freeBytes >= lowIndexDiskSpaceBytes) {
+        return;
+      }
       _lowIndexDiskSpaceShown = true;
       _showLowIndexDiskSpace(
         LibraryMessages.indexDiskSpaceLow(
