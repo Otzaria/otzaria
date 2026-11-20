@@ -428,6 +428,15 @@ class UpdatePersonalNotesCollapsedByDefault extends SettingsEvent {
   List<Object?> get props => [collapsedByDefault];
 }
 
+class UpdateCommentaryOpensOnTextTap extends SettingsEvent {
+  final bool opensOnTextTap;
+
+  const UpdateCommentaryOpensOnTextTap(this.opensOnTextTap);
+
+  @override
+  List<Object?> get props => [opensOnTextTap];
+}
+
 class UpdateAutoSync extends SettingsEvent {
   final bool enabled;
 
