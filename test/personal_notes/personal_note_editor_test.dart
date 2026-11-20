@@ -56,6 +56,17 @@ void main() {
     return writes;
   }
 
+  testWidgets('סמן ההקלדה בעורך דק כמו בשאר שדות הטקסט (#2531)', (
+    tester,
+  ) async {
+    await pumpEditorWith(tester, 'שלום');
+
+    final rawEditor = tester.widget<quill.QuillRawEditor>(
+      find.byType(quill.QuillRawEditor),
+    );
+    expect(rawEditor.config.cursorStyle.width, 1);
+  });
+
   // תפריט העריכה הוא הדרך לגזור ולהדביק בלי מקלדת.
   testWidgets('לחיצה ימנית בעורך פותחת תפריט עריכה של אוצריא', (tester) async {
     await pumpEditorWith(tester, 'שלום עולם');
