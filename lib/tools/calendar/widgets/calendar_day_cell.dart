@@ -499,24 +499,16 @@ class HoverableDayCell extends StatefulWidget {
 
 class _HoverableDayCellState extends State<HoverableDayCell> {
   bool _isHovered = false;
-  bool _addFocused = false;
   Widget? _addButton;
 
   // אותו מופע בין בנייה לבנייה: בבחירת יום ובריחוף כל התאים נבנים מחדש,
   // ועדכון 42 הכפתורים היה רוב הזמן.
   Widget _buildAddButton() {
-    return _addButton ??= Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onFocusChange: (focused) => setState(() => _addFocused = focused),
-      child: _AddEventButton(onAdd: () => widget.onAdd()),
-    );
+    return _addButton ??= _AddEventButton(onAdd: () => widget.onAdd());
   }
 
   @override
   Widget build(BuildContext context) {
-    // גלוי רק בריחוף על התא, במגע בו (onPointerDown) או במעבר מקלדת אליו.
-    final showAdd = _isHovered || _addFocused;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -527,23 +519,17 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
             onPointerDown: (_) => setState(() => _isHovered = true),
             child: widget.builder(_isHovered),
           ),
-          // בשורת התאריכים, בין המספרים: מתחת לה באים החגים והאירועים.
-          AnimatedOpacity(
-            opacity: showAdd ? 1.0 : 0.0,
-            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-            child: IgnorePointer(
-              ignoring: !showAdd,
-              child: _buildAddButton(),
-            ),
-          ),
+          // בשורת התאריכים, בין המספרים: מתחת לה באים החגים והאירועים, ושם
+          // כפתור גלוי תמיד היה מכסה אותם.
+          _buildAddButton(),
         ],
       ),
     );
   }
 }
 
-/// כפתור "הוסף אירוע" בתא יום: אייקון "+" שקט, ובריחוף עליו מקבל מילוי עגול
-/// (כמו כפתורי אייקון אחרים) ו־tooltip.
+/// כפתור "הוסף אירוע" בתא יום: תמיד גלוי כאייקון "+" שקט, ובריחוף עליו מקבל
+/// מילוי עגול (כמו כפתורי אייקון אחרים) ו־tooltip.
 class _AddEventButton extends StatefulWidget {
   const _AddEventButton({required this.onAdd});
 
@@ -559,8 +545,8 @@ class _AddEventButtonState extends State<_AddEventButton> {
   // אותו מופע בין בניות: ריחוף משנה רק את המילוי שמסביב, לא את הכפתור.
   late final Widget _button = AppIconButton(
     size: AppIconButtonSize.small,
-    // בלי שטח מגע מורחב (48): שטח כזה היה בולע לחיצות על שורת האירוע
-    // הראשונה שמתחתיו בזמן שהכפתור גלוי.
+    // בלי שטח מגע מורחב (48): הכפתור גלוי תמיד, ושטח כזה היה בולע לחיצות על
+    // שורת האירוע הראשונה שמתחתיו.
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     tooltip: 'הוסף אירוע',
     icon: const Icon(FluentIcons.add_24_regular),
