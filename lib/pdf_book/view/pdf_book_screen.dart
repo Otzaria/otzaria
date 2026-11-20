@@ -64,6 +64,7 @@ import 'package:otzaria/pdf_book/utils/pdf_context_menu_builders.dart';
 import 'package:otzaria/pdf_book/utils/pdf_rendering_policy.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
+import 'package:otzaria/pdf_book/utils/trackpad_fling.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
 import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/pdf_book/view/widgets/open_url_confirmation.dart';
@@ -320,6 +321,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // ולכן כל מסלול צריך נעילת ציר נפרדת.
   final TrackpadAxisLock _trackpadAxisLock = TrackpadAxisLock();
   final TrackpadAxisLock _trackpadPanAxisLock = TrackpadAxisLock();
+  late final _trackpadFling = TrackpadFling(
+    onDelta: _scrollPhysicsProvider.pan,
+    onInterrupt: _scrollPhysicsProvider.stop,
+  );
 
   // Pre-rendered spread cache: lets the page-turn animation start instantly
   // because the target spread snapshot is already in memory at click time.
@@ -489,6 +494,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         scrollDelta: scrollDelta,
       ),
     );
+  }
+
+  /// הרמת האצבעות: החלקה בהמשך התנועה, על הציר הנעול אם יש (#3491).
+  void _handleTrackpadPanEnd(Offset velocity) {
+    final axis = _trackpadPanAxisLock.lockedAxis;
+    _trackpadPanAxisLock.reset();
+    if (HardwareKeyboard.instance.isControlPressed) return;
+    _trackpadFling.start(this, switch (axis) {
+      Axis.vertical => Offset(0, velocity.dy),
+      Axis.horizontal => Offset(velocity.dx, 0),
+      null => velocity,
+    });
   }
 
   late final PdfSearchIndexRestorer _searchIndexRestorer;
@@ -1617,7 +1634,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       >(
                         () => TrackpadPanRecognizer(
                           onPanDelta: _handleTrackpadPanDelta,
-                          onPanEnd: _trackpadPanAxisLock.reset,
+                          onPanEnd: _handleTrackpadPanEnd,
                           onPanZoomEvent: (event) {
                             final controller = widget.tab.pdfViewerController;
                             if (controller.isReady) {
@@ -3821,6 +3838,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _nextFitIsPage.dispose();
+    _trackpadFling.stop();
     _pageTurnController.stop(canceled: false);
     _stopContinuousScroll();
     _disposePageTurnSnapshot();

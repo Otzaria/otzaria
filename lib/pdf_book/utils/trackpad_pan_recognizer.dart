@@ -14,8 +14,9 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
   /// תזוזת pan (בכיוון תנועת האצבעות) יחד עם מיקום המצביע הגלובלי.
   final void Function(Offset panDelta, Offset globalPosition) onPanDelta;
 
-  /// סוף מחווה שנתבעה - כאן מאפסים את נעילת הציר.
-  final void Function() onPanEnd;
+  /// סוף מחווה שנתבעה - כאן מאפסים את נעילת הציר. [velocity] היא מהירות
+  /// האצבעות בהרמתן (פיקסלים לשנייה), או אפס כשהמחווה לא הסתיימה כגלילה.
+  final void Function(Offset velocity) onPanEnd;
 
   /// מחווה שנתבעה כ-pan והופכת ל-pinch מועברת למסלול הזום המקורי.
   final void Function(PointerEvent event)? onPanZoomEvent;
@@ -38,6 +39,9 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
   Offset _scaleOriginPan = Offset.zero;
   double _scaleOrigin = 1;
   double _rotationOrigin = 0;
+  VelocityTracker _velocity = VelocityTracker.withKind(
+    PointerDeviceKind.trackpad,
+  );
 
   @override
   void addAllowedPointerPanZoom(PointerPanZoomStartEvent event) {
@@ -51,11 +55,13 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
     _claim = _PanClaim.undecided;
     _pendingPan = Offset.zero;
     _lastUpdate = null;
+    _velocity = VelocityTracker.withKind(PointerDeviceKind.trackpad);
   }
 
   @override
   void handleEvent(PointerEvent event) {
     if (event is PointerPanZoomUpdateEvent) {
+      _velocity.addPosition(event.timeStamp, event.pan);
       switch (_claim) {
         case _PanClaim.rejected:
           return;
@@ -94,7 +100,14 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
       _claim = _PanClaim.rejected;
       if (claim == _PanClaim.scaling) onPanZoomEvent?.call(event);
       if (claim == _PanClaim.accepted || claim == _PanClaim.scaling) {
-        onPanEnd();
+        onPanEnd(
+          claim == _PanClaim.accepted && event is PointerPanZoomEndEvent
+              ? _velocity
+                    .getVelocity()
+                    .clampMagnitude(0, kMaxFlingVelocity)
+                    .pixelsPerSecond
+              : Offset.zero,
+        );
       }
       stopTrackingPointer(event.pointer);
     }
@@ -154,7 +167,7 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
       );
     }
     if (claim == _PanClaim.accepted || claim == _PanClaim.scaling) {
-      onPanEnd();
+      onPanEnd(Offset.zero);
     }
     super.dispose();
   }
