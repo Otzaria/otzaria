@@ -331,6 +331,40 @@ class BookDao {
     ]);
   }
 
+  /// הספר היחיד שכותרתו זהה ל-[title] בהתעלם מגרשיים — ב-[categoryId], ואם אין
+  /// בה כזה בכל המסד — או null כשאין או כשיש כמה (#2766).
+  Future<Book?> getUniqueBookByQuotelessTitle(
+    String title, {
+    int? categoryId,
+  }) => _read(
+    BookReadOperation.byQuotelessTitle,
+    [title, categoryId],
+    () => _selectUniqueByQuotelessTitle(title, categoryId),
+  );
+
+  Future<Book?> _selectUniqueByQuotelessTitle(
+    String title,
+    int? categoryId,
+  ) async {
+    final quoteless = title.replaceAll(_titleQuotes, '');
+    final byCategory =
+        categoryId != null && (await _capabilities).hasBookCategories;
+    var books = byCategory
+        ? await _selectMany(_queries['selectByQuotelessTitleAndCategory']!, [
+            categoryId,
+            quoteless,
+          ])
+        : const <Book>[];
+    if (books.isEmpty) {
+      books = await _selectMany(_queries['selectByQuotelessTitle']!, [
+        quoteless,
+      ]);
+    }
+    return books.length == 1 ? books.single : null;
+  }
+
+  static final _titleQuotes = RegExp('["\'׳״]');
+
   Future<Book?> getBookByTitleCategoryAndFileType(
     String title,
     int categoryId,

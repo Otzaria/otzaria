@@ -25,12 +25,16 @@ class LibraryProviderManager {
   /// מפתחות לפי כותרת בסדר ההכנסה — לאיתור ספרים ויעדי קישורים.
   final Map<String, List<BookCompositeKey>> _keysByTitle = {};
 
+  /// כותרת ממופה לפי [normalizeBookTitle]; null כשכמה כותרות חולקות נרמול.
+  Map<String, String?>? _titleByNormalized;
+
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
 
   void _mapBook(BookCompositeKey key, LibraryProvider provider) {
     if (!_bookToProvider.containsKey(key)) {
       (_keysByTitle[key.title] ??= []).add(key);
+      _titleByNormalized = null;
     }
     _bookToProvider[key] = provider;
   }
@@ -38,6 +42,7 @@ class LibraryProviderManager {
   void _clearBookMapping() {
     _bookToProvider.clear();
     _keysByTitle.clear();
+    _titleByNormalized = null;
   }
 
   /// Singleton instance
@@ -105,7 +110,56 @@ class LibraryProviderManager {
     );
   }
 
+  /// כותרת שמורה שאינה בקטלוג נפתרת לכותרת היחידה ששונה ממנה רק בגרשיים
+  /// ובריווח — ספרייה חדשה מחזירה גרשיים שנשמטו משמות הקבצים (#2766).
   BookCompositeKey? _resolveBookKey(
+    String title, {
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource = BookSource.official,
+  }) {
+    final mappedTitle = _keysByTitle.containsKey(title)
+        ? title
+        : _uniqueTitleIgnoringQuotes(title);
+    if (mappedTitle == null) return null;
+    return _resolveMappedBookKey(
+      mappedTitle,
+      categoryId: categoryId,
+      fileType: fileType,
+      preferSource: preferSource,
+    );
+  }
+
+  /// הכותרת בקטלוג של ספר מ-[source] שנשמר בכותרת שאינה בו אך שונה רק
+  /// בגרשיים, או null.
+  String? catalogTitleFor(String title, {required BookSource source}) {
+    final exact = _keysByTitle[title];
+    if (exact != null && exact.any((key) => key.source == source)) return null;
+    return _uniqueTitleIgnoringQuotes(title, source: source);
+  }
+
+  /// בלי [source] — מכל המקורות.
+  String? _uniqueTitleIgnoringQuotes(String title, {BookSource? source}) {
+    final index = _titleByNormalized ??= () {
+      final byNormalized = <String, String?>{};
+      void add(String key, String mapped) =>
+          byNormalized[key] = byNormalized.containsKey(key) ? null : mapped;
+      for (final MapEntry(key: mapped, value: keys) in _keysByTitle.entries) {
+        final normalized = normalizeBookTitle(mapped);
+        add(normalized, mapped);
+        for (final wireKey in {for (final key in keys) key.source.wireKey}) {
+          add('$wireKey\u0000$normalized', mapped);
+        }
+      }
+      return byNormalized;
+    }();
+    final normalized = normalizeBookTitle(title);
+    return index[source == null
+        ? normalized
+        : '${source.wireKey}\u0000$normalized'];
+  }
+
+  BookCompositeKey? _resolveMappedBookKey(
     String title, {
     int? categoryId,
     String? fileType,
@@ -354,7 +408,7 @@ class LibraryProviderManager {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
         return await provider.getBookText(
-          title,
+          mappedKey.title,
           mappedKey.categoryId,
           mappedKey.fileType,
           preferSource: preferSource,
@@ -404,7 +458,7 @@ class LibraryProviderManager {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
         return await provider.getBookToc(
-          title,
+          mappedKey.title,
           mappedKey.categoryId,
           mappedKey.fileType,
           preferSource: preferSource,

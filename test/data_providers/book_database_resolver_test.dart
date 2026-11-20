@@ -438,6 +438,93 @@ void main() {
 
       expect(result, isNull);
     });
+
+    group('כותרת שנשמרה בלי גרשיים (#2766)', () {
+      List<ResolvedBookRepositoryCandidate> officialThenUser() => [
+        ResolvedBookRepositoryCandidate(
+          repository: seforimRepo,
+          source: BookSource.official,
+        ),
+        ResolvedBookRepositoryCandidate(
+          repository: userBooksRepo,
+          source: BookSource.user,
+        ),
+      ];
+
+      Future<String?> resolvedTitle(String title, {int? categoryId}) async {
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: title,
+          categoryId: categoryId,
+          candidates: officialThenUser(),
+        );
+        return record?.book.title;
+      }
+
+      test('התאמה מדויקת במסד מאוחר גוברת על התאמה בלי גרשיים', () async {
+        await insertBookFor(repo: seforimRepo, title: 'שו״ת קיו');
+        await insertBookFor(repo: userBooksRepo, title: 'שות קיו');
+
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: 'שות קיו',
+          candidates: officialThenUser(),
+        );
+
+        expect(record?.source, BookSource.user);
+        expect(record?.book.title, 'שות קיו');
+      });
+
+      test('כותרת ישנה בלי גרשיים מוצאת את הספר המתוקן', () async {
+        final categoryId = await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו״ת באר מרדכי',
+        );
+
+        expect(await resolvedTitle('שות באר מרדכי'), 'שו״ת באר מרדכי');
+        expect(
+          await resolvedTitle('שות באר מרדכי', categoryId: categoryId),
+          'שו״ת באר מרדכי',
+        );
+        expect(await resolvedTitle('שו"ת באר מרדכי'), 'שו״ת באר מרדכי');
+      });
+
+      test('התאמה מדויקת גוברת על התאמה בלי גרשיים', () async {
+        await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו״ת חכם',
+          categoryTitle: 'א',
+        );
+        final plainCategoryId = await insertBookFor(
+          repo: seforimRepo,
+          title: 'שות חכם',
+          categoryTitle: 'ב',
+        );
+
+        expect(await resolvedTitle('שות חכם'), 'שות חכם');
+        expect(
+          await resolvedTitle('שות חכם', categoryId: plainCategoryId),
+          'שות חכם',
+        );
+      });
+
+      test('כמה מועמדים בלי קטגוריה מכריעה — לא מנחשים', () async {
+        final quotedCategoryId = await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו״ת דברי חיים',
+          categoryTitle: 'א',
+        );
+        await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו"ת דברי חיים',
+          categoryTitle: 'ב',
+        );
+
+        expect(await resolvedTitle('שות דברי חיים'), isNull);
+        expect(
+          await resolvedTitle('שות דברי חיים', categoryId: quotedCategoryId),
+          'שו״ת דברי חיים',
+        );
+      });
+    });
   });
 
   group('BookDatabaseResolver — integration (resolveBook / resolveBookById)', () {

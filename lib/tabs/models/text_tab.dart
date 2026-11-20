@@ -151,8 +151,10 @@ class TextBookTab extends OpenedTab {
   // StreamSubscription לניהול ה-listener
   StreamSubscription<TextBookState>? _stateSubscription;
 
+  /// [book] שנשמר בכותרת ישנה מקבל את הכותרת שבקטלוג, כדי שהטאב, ההערות
+  /// והשמירה יחלקו אותה כותרת.
   TextBookTab({
-    required this.book,
+    required TextBook book,
     required int index,
     ReadingAnchor? initialReadingAnchor,
     this.searchText = '',
@@ -178,12 +180,10 @@ class TextBookTab extends OpenedTab {
     this._linkSelectedLine,
     @visibleForTesting TextBookBloc? blocOverride,
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
-  }) : _index = initialReadingAnchor?.line ?? index,
-       super(
-         book.versionDisplayTitle == null
-             ? book.title
-             : '${book.title} (${book.versionDisplayTitle})',
-       ) {
+  }) : book = book.withCatalogTitle(),
+       _index = initialReadingAnchor?.line ?? index,
+       super('') {
+    title = _tabTitle(this.book);
     lines = LineScrollController(initialAnchor: initialReadingAnchor);
     // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
     final bool effectiveSplitedView =
@@ -192,14 +192,14 @@ class TextBookTab extends OpenedTab {
     // כשאין בחירה מפורשת, גם פתיחה מהיסטוריה ומקישורים מכבדת את העדפת הספר.
     final bool effectiveShowPageShapeView =
         showPageShapeView ??
-        PageShapeSettingsManager.getViewModePreference(book.title) ??
+        PageShapeSettingsManager.getViewModePreference(this.book.title) ??
         false;
 
     _lastSplitView = effectiveSplitedView;
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
     _initialState = TextBookInitial.named(
-      book,
+      this.book,
       _index,
       openLeftPane,
       commentators ?? [],
@@ -231,6 +231,10 @@ class TextBookTab extends OpenedTab {
     // ה‑blocOverride קיים רק לטסטים שצריכים להזריק bloc עם repository מזויף.
     if (blocOverride != null) _bloc = _attachBloc(blocOverride);
   }
+
+  static String _tabTitle(TextBook book) => book.versionDisplayTitle == null
+      ? book.title
+      : '${book.title} (${book.versionDisplayTitle})';
 
   TextBookBloc _createBloc() {
     final created = _attachBloc(

@@ -188,6 +188,23 @@ class BookDatabaseResolver {
       }
     }
 
+    // רק כשאין התאמה מדויקת באף מסד: כותרת שנשמרה לפני שהספרייה החזירה
+    // לה גרשיים (#2766). התאמה מדויקת במסד מאוחר יותר גוברת עליה.
+    for (final candidate in candidates) {
+      final repository = candidate.repository;
+      final book = await repository.getUniqueBookByQuotelessTitle(
+        title,
+        categoryId: categoryId,
+      );
+      if (book != null) {
+        return ResolvedDbBookRecord(
+          book: book,
+          repository: repository,
+          source: candidate.source,
+        );
+      }
+    }
+
     return null;
   }
 

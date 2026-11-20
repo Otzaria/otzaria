@@ -247,6 +247,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
        super(TabsState.initial()) {
     on<LoadTabs>(_onLoadTabs, transformer: sequential());
     on<RemapBookPaths>(_onRemapBookPaths, transformer: sequential());
+    on<RefreshCatalogTitles>(
+      _onRefreshCatalogTitles,
+      transformer: sequential(),
+    );
     on<ReplaceAllTabs>(_onReplaceAllTabs, transformer: sequential());
     on<AddTab>((event, emit) async {
       try {
@@ -441,6 +445,28 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         rethrow;
       }
     }
+  }
+
+  Future<void> _onRefreshCatalogTitles(
+    RefreshCatalogTitles event,
+    Emitter<TabsState> emit,
+  ) async {
+    final refreshed = _repository.refreshCatalogTitles(state.tabs);
+    final replaced = [
+      for (var i = 0; i < refreshed.length; i++)
+        if (!identical(refreshed[i], state.tabs[i])) i,
+    ];
+    if (replaced.isEmpty) return;
+    final previous = state.tabs;
+    for (final i in replaced) {
+      _inheritViewTime(previous[i], refreshed[i]);
+    }
+    emit(state.copyWith(tabs: refreshed));
+    for (final i in replaced) {
+      _disposeTabLater(previous[i]);
+    }
+    await _saveDrain;
+    await _repository.saveTabs(refreshed, state.currentTabIndex);
   }
 
   Future<void> _onReplaceAllTabs(

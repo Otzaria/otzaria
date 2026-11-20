@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -1368,6 +1371,45 @@ void main() {
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
+
+    test(
+      'RefreshCatalogTitles מעדכן טאב ששוחזר לפני בניית הקטלוג (#2766)',
+      () async {
+        final repo = _FakeTabsRepository();
+        final bloc = _newBloc(repo);
+        final restored = TextBookTab(
+          book: TextBook(title: 'שות באר מרדכי', categoryId: 7),
+          index: 3,
+        );
+        bloc.add(AddTab(restored));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+        final provider = _CatalogProvider();
+        LibraryProviderManager.instance.seedMappingsForTesting(
+          mapping: {
+            BookCompositeKey.create(title: 'שו״ת באר מרדכי', categoryId: 7):
+                provider,
+          },
+          providers: [provider],
+        );
+        addTearDown(LibraryProviderManager.instance.resetForTesting);
+
+        bloc.add(const RefreshCatalogTitles());
+        final state = await bloc.stream.firstWhere(
+          (s) => !identical(s.tabs.single, restored),
+        );
+        final refreshed = state.tabs.single as TextBookTab;
+
+        expect(refreshed.book.title, 'שו״ת באר מרדכי');
+        expect(refreshed.title, 'שו״ת באר מרדכי');
+        expect(refreshed.index, 3);
+        bloc.add(const SaveTabs());
+        await pumpEventQueue();
+        expect(repo._tabsJson.single['book']['title'], 'שו״ת באר מרדכי');
+
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      },
+    );
 
     test(
       'remapBookPathsAwaitable ממתין לסיום המיפוי (זיכרון + שמירה)',
@@ -3277,6 +3319,11 @@ Future<void> _afterDeferredDispose() => Future<void>.delayed(Duration.zero);
 Future<void> _closeBlocAndAllowDeferredDispose(TabsBloc bloc) async {
   await bloc.close();
   await _afterDeferredDispose();
+}
+
+class _CatalogProvider implements LibraryProvider {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeTabsRepository extends TabsRepository {

@@ -779,6 +779,31 @@ class SeforimRepository {
     );
   }
 
+  /// ראה [BookDao.getUniqueBookByQuotelessTitle]; רק אחרי שהחיפוש המדויק נכשל.
+  Future<Book?> getUniqueBookByQuotelessTitle(
+    String title, {
+    int? categoryId,
+  }) async {
+    if (_database.bookReadDelegate != null) {
+      return _database.readBooks(
+        BookReadOperation.byQuotelessTitle,
+        [title, categoryId],
+        includeRelations: true,
+      );
+    }
+    final bookData = await _database.bookDao.getUniqueBookByQuotelessTitle(
+      title,
+      categoryId: categoryId,
+    );
+    if (bookData == null) return null;
+    return bookData.copyWith(
+      authors: await _getBookAuthors(bookData.id),
+      topics: await _getBookTopics(bookData.id),
+      pubPlaces: await _getBookPubPlaces(bookData.id),
+      pubDates: await _getBookPubDates(bookData.id),
+    );
+  }
+
   Future<Book?> getBookByTitleCategoryAndFileType(
     String title,
     int categoryId,

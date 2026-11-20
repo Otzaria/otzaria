@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
@@ -38,6 +39,8 @@ class PersonalNotesDatabase {
   static const _columnUpdatedAt = 'updated_at';
 
   static const _tableUserBookKeys = 'personal_notes_user_book_keys';
+  static const _tableKeyMoves = 'personal_notes_key_moves';
+  static const _tableMeta = 'personal_notes_meta';
 
   PersonalNotesDatabase._();
 
@@ -77,6 +80,18 @@ class PersonalNotesDatabase {
       )
     ''');
     db.execute('INSERT OR IGNORE INTO $_tableUserBookKeys VALUES (1, 0, -1)');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS $_tableMeta '
+      '(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+    );
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS $_tableKeyMoves (
+        from_key TEXT NOT NULL,
+        to_key TEXT NOT NULL,
+        note_ids TEXT NOT NULL,
+        moved_at TEXT NOT NULL
+      )
+    ''');
     db.execute('''
       CREATE TABLE IF NOT EXISTS $_tableNotes (
         $_columnId TEXT PRIMARY KEY,
@@ -318,6 +333,52 @@ class PersonalNotesDatabase {
     });
     _notifyChanges(changedBooks);
     return complete;
+  }
+
+  Future<String?> metaValue(String key) async {
+    final db = await database;
+    final rows = db.select('SELECT value FROM $_tableMeta WHERE key = ?', [
+      key,
+    ]);
+    return rows.isEmpty ? null : rows.first['value'] as String;
+  }
+
+  Future<void> setMetaValue(String key, String value) async {
+    final db = await database;
+    db.execute('INSERT OR REPLACE INTO $_tableMeta VALUES (?, ?)', [
+      key,
+      value,
+    ]);
+  }
+
+  /// מעביר את כל הערות [fromKey] אל [toKey] ורושם את המעבר, כדי שאפשר יהיה
+  /// לשחזר אותו. מחזיר את מספר ההערות שהועברו.
+  Future<int> moveBookNotes(String fromKey, String toKey) async {
+    final db = await database;
+    var moved = 0;
+    withTransaction(db, () {
+      final ids = db
+          .select(
+            'SELECT $_columnId FROM $_tableNotes WHERE $_columnBookId = ?',
+            [fromKey],
+          )
+          .map((row) => row[_columnId] as String)
+          .toList();
+      if (ids.isEmpty) return;
+      db.execute(
+        'UPDATE $_tableNotes SET $_columnBookId = ? WHERE $_columnBookId = ?',
+        [toKey, fromKey],
+      );
+      db.execute('INSERT INTO $_tableKeyMoves VALUES (?, ?, ?, ?)', [
+        fromKey,
+        toKey,
+        jsonEncode(ids),
+        DateTime.now().toIso8601String(),
+      ]);
+      moved = ids.length;
+    });
+    if (moved > 0) _notifyChanges([fromKey, toKey]);
+    return moved;
   }
 
   /// Batch insert multiple notes (for bulk restore/import)

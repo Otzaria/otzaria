@@ -68,11 +68,14 @@ void main() {
     'יומן|user': 'רשימה ראשונה',
   };
 
-  PersonalNotesUserBookKeys migration({Map<String, String>? content}) =>
-      PersonalNotesUserBookKeys(
-        loadContent: (book) async =>
-            (content ?? contents)[personalNotesBookKey(book)] ?? '',
-      );
+  PersonalNotesUserBookKeys migration({
+    Map<String, String>? content,
+    String catalogVersion = 'unknown',
+  }) => PersonalNotesUserBookKeys(
+    loadContent: (book) async =>
+        (content ?? contents)[personalNotesBookKey(book)] ?? '',
+    catalogVersion: () async => catalogVersion,
+  );
 
   Future<Set<String>> idsUnder(String key) async =>
       (await database.loadNotes(key)).map((n) => n.id).toSet();
@@ -309,4 +312,82 @@ void main() {
       }
     },
   );
+
+  group('כותרת שתוקנה בגרשיים (#2766)', () {
+    test('הערות תחת הכותרת הישנה עוברות לספר המתוקן', () async {
+      await database.insertNote(_note('a', 'שות באר מרדכי', 1, 'שורה'));
+      await database.insertNote(_note('b', 'יומן|user', 1, 'רשימה ראשונה'));
+
+      await migration().assignPending(
+        _library([TextBook(id: 3, title: 'שו״ת באר מרדכי'), userOnly]),
+      );
+
+      expect(await idsUnder('שו״ת באר מרדכי'), {'a'});
+      expect(await idsUnder('שות באר מרדכי'), isEmpty);
+      expect(await idsUnder('יומן|user'), {'b'});
+      final moves = (await database.database).select(
+        'SELECT from_key, to_key, note_ids FROM personal_notes_key_moves',
+      );
+      expect(moves.map((row) => [...row.values]), [
+        ['שות באר מרדכי', 'שו״ת באר מרדכי', '["a"]'],
+      ]);
+    });
+
+    test('נבדק פעם אחת לכל גרסת ספרייה', () async {
+      final library = [TextBook(id: 3, title: 'שו״ת באר מרדכי')];
+      await migration(catalogVersion: 'v1').assignPending(_library(library));
+      await database.insertNote(_note('late', 'שות באר מרדכי', 1, 'שורה'));
+
+      await migration(catalogVersion: 'v1').assignPending(_library(library));
+      expect(await idsUnder('שות באר מרדכי'), {'late'});
+
+      await migration(catalogVersion: 'v2').assignPending(_library(library));
+      expect(await idsUnder('שו״ת באר מרדכי'), {'late'});
+    });
+
+    test('קטלוג בלי ספרי המסד הרשמי אינו מסמן את הגרסה כטופלה', () async {
+      await database.insertNote(_note('a', 'שות באר מרדכי', 1, 'שורה'));
+      await migration(catalogVersion: 'v1').assignPending(_library([userOnly]));
+
+      await migration(
+        catalogVersion: 'v1',
+      ).assignPending(_library([TextBook(id: 3, title: 'שו״ת באר מרדכי')]));
+      expect(await idsUnder('שו״ת באר מרדכי'), {'a'});
+    });
+
+    test('כותרת ישנה שהיא גם ספר אישי — מכריעים לפי הטקסט', () async {
+      await database.insertNote(_note('mine', 'שות קיו', 1, 'שורה אישית'));
+      await database.insertNote(_note('official', 'שות קיו', 1, 'שורה רשמית'));
+
+      await migration(
+        content: {'שו״ת קיו': 'שורה רשמית', 'שות קיו|user': 'שורה אישית'},
+      ).assignPending(
+        _library([
+          TextBook(id: 8, title: 'שו״ת קיו'),
+          TextBook(id: 9, title: 'שות קיו', source: BookSource.user),
+        ]),
+      );
+
+      expect(await idsUnder('שות קיו|user'), {'mine'});
+      expect(await idsUnder('שו״ת קיו'), {'official'});
+      expect(await idsUnder('שות קיו'), isEmpty);
+    });
+
+    test('ספר שעדיין בקטלוג או התאמה כפולה — ההערות נשארות', () async {
+      await database.insertNote(_note('kept', 'שות חכם', 1, 'שורה'));
+      await database.insertNote(_note('ambiguous', 'שות דברי חיים', 1, 'שורה'));
+
+      await migration().assignPending(
+        _library([
+          TextBook(id: 4, title: 'שות חכם'),
+          TextBook(id: 5, title: 'שו״ת חכם'),
+          TextBook(id: 6, title: 'שו״ת דברי חיים'),
+          TextBook(id: 7, title: 'שו"ת דברי חיים'),
+        ]),
+      );
+
+      expect(await idsUnder('שות חכם'), {'kept'});
+      expect(await idsUnder('שות דברי חיים'), {'ambiguous'});
+    });
+  });
 }

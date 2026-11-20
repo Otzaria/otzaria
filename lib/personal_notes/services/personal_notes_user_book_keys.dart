@@ -1,4 +1,5 @@
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
@@ -6,22 +7,30 @@ import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/utils/note_text_utils.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
+import 'package:otzaria/services/data_collection_service.dart';
 
 typedef PersonalNotesBookContentLoader = Future<String> Function(Book book);
 
-/// משייך הערות ישנות לספר האישי רק כשהכותרת בלעדית לו או שהטקסט מתאים לו בלבד.
+/// משייך הערות ישנות לספר האישי רק כשהכותרת בלעדית לו או שהטקסט מתאים לו בלבד,
+/// והערות של כותרת שתוקנה בגרשיים לכותרת החדשה.
 class PersonalNotesUserBookKeys {
   PersonalNotesUserBookKeys({
     PersonalNotesDatabase? database,
     PersonalNotesService? service,
     PersonalNotesBookContentLoader? loadContent,
+    Future<String> Function()? catalogVersion,
   }) : _database = database ?? PersonalNotesDatabase.instance,
        _service = service ?? PersonalNotesService(),
-       _loadContent = loadContent ?? _loadFromRepository;
+       _loadContent = loadContent ?? _loadFromRepository,
+       _catalogVersion =
+           catalogVersion ?? DataCollectionService().readLibraryVersion;
 
   final PersonalNotesDatabase _database;
   final PersonalNotesService _service;
   final PersonalNotesBookContentLoader _loadContent;
+  final Future<String> Function() _catalogVersion;
+
+  static const _renamedTitlesMetaKey = 'renamed_titles_checked';
 
   static Future<void>? _running;
 
@@ -36,12 +45,94 @@ class PersonalNotesUserBookKeys {
     while (_running != null) {
       await _running;
     }
-    final running = _running = _assign(library);
+    final running = _running = _assign(
+      library,
+    ).then((_) => _assignRenamedTitles(library));
     try {
       await running;
     } finally {
       _running = null;
     }
+  }
+
+  /// מפתח שאין לו ספר בקטלוג עובר לספר היחיד שכותרתו שונה רק בגרשיים —
+  /// הספרייה מחזירה גרשיים לכותרות שנוצרו משמות קבצים (#2766).
+  Future<void> _assignRenamedTitles(Library library) async {
+    // פעם אחת לכל גרסת ספרייה ולכל ייבוא הערות (שמעלה את הדור).
+    final version = await _catalogVersion();
+    final marker = '$version|${await _database.userBookKeysGeneration()}';
+    if (await _database.metaValue(_renamedTitlesMetaKey) == marker) return;
+    final stored = await _database.listBooksWithNotes();
+    final complete =
+        stored.isEmpty || await _moveRenamedTitles(library, stored);
+    // קטלוג בלי ספרי המסד הרשמי (טעינה שנכשלה) אינו מכריע דבר על הגרסה הזו.
+    final hasOfficialCatalog = library.getIndexableBooks().any(
+      (book) => book.source.isOfficial && book.id != null,
+    );
+    if (complete && hasOfficialCatalog && version != 'unknown') {
+      await _database.setMetaValue(_renamedTitlesMetaKey, marker);
+    }
+  }
+
+  /// false כשמפתח נדחה עד להכרעת השיוך לספר האישי.
+  Future<bool> _moveRenamedTitles(
+    Library library,
+    List<BookNotesInfo> stored,
+  ) async {
+    final keys = <String>{};
+    final userTitles = <String>{};
+    for (final book in library.getIndexableBooks()) {
+      keys.add(personalNotesBookKey(book));
+      if (book.source.isUser) userTitles.add(book.title);
+    }
+    // הערות בכותרת של ספר אישי ממתינות עדיין להכרעת השיוך לספר האישי.
+    final userKeysPending = await _database.userBookKeysPending();
+    var complete = true;
+    Map<String, String?>? byNormalized;
+    for (final info in stored) {
+      final key = info.bookId;
+      if (keys.contains(key)) continue;
+      final parsed = parsePersonalNotesBookKey(key);
+      if (userKeysPending &&
+          parsed.source == null &&
+          userTitles.contains(parsed.title)) {
+        complete = false;
+        continue;
+      }
+      byNormalized ??= _keysByNormalized(keys);
+      final target = byNormalized[_normalizedNotesKey(key)];
+      if (target != null) await _database.moveBookNotes(key, target);
+    }
+    return complete;
+  }
+
+  static Book? _bookForRenamedKey(
+    Library library,
+    String key,
+    Map<String, String?> byNormalized,
+  ) {
+    final target = byNormalized[_normalizedNotesKey(key)];
+    return target == null ? null : findBookForPersonalNotesKey(library, target);
+  }
+
+  /// [keys] לפי נרמול; null כשכמה ספרים חולקים נרמול.
+  static Map<String, String?> _keysByNormalized(Set<String> keys) {
+    final byNormalized = <String, String?>{};
+    for (final key in keys) {
+      final normalized = _normalizedNotesKey(key);
+      byNormalized[normalized] = byNormalized.containsKey(normalized)
+          ? null
+          : key;
+    }
+    return byNormalized;
+  }
+
+  static String _normalizedNotesKey(String key) {
+    final parsed = parsePersonalNotesBookKey(key);
+    return personalNotesBookKeyFor(
+      normalizeBookTitle(parsed.title),
+      parsed.source ?? BookSource.official,
+    );
   }
 
   Future<void> _assign(Library library) async {
@@ -55,6 +146,7 @@ class PersonalNotesUserBookKeys {
     if (userBooks.isEmpty) return;
     final generation = await _database.userBookKeysGeneration();
     var complete = true;
+    Map<String, String?>? renamed;
 
     for (final info in await _database.listBooksWithNotes()) {
       final key = info.bookId;
@@ -67,7 +159,17 @@ class PersonalNotesUserBookKeys {
         personalNotesBookKey(userBooks[key]!),
       )!;
       final notes = await _database.loadNotes(key);
-      final officialBook = findBookForPersonalNotesKey(library, key);
+      // ספר רשמי שכותרתו תוקנה בגרשיים עדיין מכריע לפי הטקסט (#2766).
+      final officialBook =
+          findBookForPersonalNotesKey(library, key) ??
+          _bookForRenamedKey(
+            library,
+            key,
+            renamed ??= _keysByNormalized({
+              for (final book in library.getIndexableBooks())
+                personalNotesBookKey(book),
+            }),
+          );
       final moved = officialBook == null
           ? notes
           : await _userBookNotes(notes, key, officialBook, userBook);
