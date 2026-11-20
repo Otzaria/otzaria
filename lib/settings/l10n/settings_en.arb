@@ -1879,5 +1879,14 @@
   "אין סימניות לספר בודד": "No single-book bookmarks",
   "ידית שינוי גודל — גרירה או חצים": "Resize handle — drag or use the arrow keys",
   "עריכה": "Edit",
-  "בצע שוב": "Redo"
+  "בצע שוב": "Redo",
+  "לתצוגה בלבד": "Display only",
+  "גופן מערכת שמוצג בקריאה בלבד: בהדפסה, בייצוא PDF, בטיקון ובתוספים יוחלף בגופן מובנה": "System font shown for reading only: printing, PDF export, Tikkun and plugins use a built-in font instead",
+  "הוסף גופן מקובץ…": "Add font from file…",
+  "הגופן {font} נוסף לרשימה": "The font {font} was added to the list",
+  "הגופן {font} כבר ברשימה": "The font {font} is already in the list",
+  "הקובץ שנבחר אינו קובץ גופן (ttf, otf, ttc או otc)": "The selected file is not a font file (ttf, otf, ttc or otc)",
+  "בגופן הזה אין אותיות עבריות": "This font has no Hebrew letters",
+  "קובץ הגופן גדול מדי": "The font file is too large",
+  "לא ניתן היה להעתיק את הגופן": "Could not copy the font"
 }

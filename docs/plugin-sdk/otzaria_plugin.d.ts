@@ -1565,6 +1565,14 @@ export interface SectionTextMapResult {
 export interface HighlightStyle {
   /** Safe CSS color: #RRGGBB or #RRGGBBAA. */
   backgroundColor: string;
+  /**
+   * Text colour over the highlight. When it is omitted and the highlight paints
+   * a background (`markerMode: 'text-background'`, the default), the app picks
+   * dark (`#1F1F1F`) or white from the luminance of `backgroundColor`, so the
+   * text stays readable in every theme, dark included. A very transparent
+   * background (low `opacity`) keeps the theme colour, because readability then
+   * depends on the reading background. A value set here always wins.
+   */
   foregroundColor?: string;
   opacity?: number;
   underline?: boolean;
@@ -2566,8 +2574,15 @@ export interface InstalledFontFamily {
  * Result of `fonts.listInstalled`: the font families present on this machine.
  *
  * Lets a plugin see what actually exists before it picks a substitute, instead
- * of guessing or probing `fonts.resolveFamilies` family by family. A platform
- * with no implementation returns an empty `families` — that is not an error.
+ * of guessing or probing `fonts.resolveFamilies` family by family. On Windows
+ * the list comes from GDI; on macOS and Linux from the app's own font scanner
+ * (`.ttf`/`.otf` files and `.ttc`/`.otc` collections in the font folders; each
+ * face in a collection counts as a family of its own, and legacy `.dfont` files
+ * are not scanned), where `scripts` is derived from the cmap coverage of that
+ * face and `monospace` from the `post` table. Android returns an empty `families` — that is not an
+ * error. On iOS the list holds only fonts the user imported as a file
+ * (ttf/otf/ttc/otc in the app folder); the iOS system fonts are not listed and
+ * cannot be given to plugins (there are no bytes).
  *
  * Legacy Windows raster fonts (`.fon`) are excluded: a WebView cannot render
  * them, so their names would not be usable in CSS.
@@ -2575,7 +2590,7 @@ export interface InstalledFontFamily {
 export interface ListInstalledFontsResult {
   /** The installed families, sorted by name, each name appearing once. */
   families: InstalledFontFamily[];
-  /** The host platform, e.g. `'windows'`. */
+  /** The host platform, e.g. `'windows'`, `'macos'`, `'linux'`. */
   platform: string;
 }
 

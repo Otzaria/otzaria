@@ -256,8 +256,7 @@ Map<String, dynamic> buildThemePayloadFromScheme(
       22.0;
   final lineHeight =
       Settings.getValue<double>(SettingsRepository.keyLineHeight) ?? 1.5;
-  final surface =
-      surfaces ?? AppSurfaceColors.fromScheme(cs, variant: variant);
+  final surface = surfaces ?? AppSurfaceColors.fromScheme(cs, variant: variant);
   String? hexOrNull(Color? c) => c == null ? null : hex(c);
 
   return {
@@ -1359,6 +1358,8 @@ class PluginBridgeAdapter {
         }
         return await resolvePluginFontFamilies(families);
       case 'listInstalled':
+        // ב-macOS ובלינוקס הרשימה באה מהסריקה; מחכים לה (אם היא כבר חמה, מיידי).
+        await AppFonts.warmUpSystemFontsCache();
         return InstalledFonts.list();
       default:
         throw Exception('error.not_supported: fonts.$action');

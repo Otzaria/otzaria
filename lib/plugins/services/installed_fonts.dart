@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:win32/win32.dart';
 
 /// שורה גולמית אחת כפי ש-GDI מוסר אותה — קריאת callback אחת.
@@ -59,16 +60,51 @@ class InstalledFonts {
     final cached = _cache;
     if (cached != null) return cached;
 
+    // ב-Windows: GDI. ב-macOS ובלינוקס: הסורק של האפליקציה (AppFonts), שכבר
+    // קורא את קובצי הגופנים לבחירת גופן הקריאה. שם אין מנייה ברמת המערכת.
+    final scanned = Platform.isMacOS || Platform.isLinux;
     final result = Platform.isWindows
         ? _enumerateWindows()
+        : scanned
+        ? fromScan(
+            AppFonts.installedFamilies() ?? const [],
+            platform: Platform.operatingSystem,
+          )
         : buildResult(const [], platform: Platform.operatingSystem);
 
-    // כשל חולף — מיצוי GDI handles, תחנת חלונות לא-אינטראקטיבית — מחזיר
-    // רשימה ריקה. שמירתה הייתה נועלת כל תוסף על "אין גופנים" עד סוף הריצה.
-    if (!Platform.isWindows || (result['families'] as List).isNotEmpty) {
+    // רשימה ריקה היא כשל חולף — מיצוי GDI handles, תחנת חלונות
+    // לא-אינטראקטיבית, או סריקה שעוד לא הסתיימה. שמירתה הייתה נועלת כל תוסף
+    // על "אין גופנים" עד סוף הריצה.
+    if (!(Platform.isWindows || scanned) ||
+        (result['families'] as List).isNotEmpty) {
       _cache = result;
     }
     return result;
+  }
+
+  /// בונה את התשובה ממשפחות שהסורק של האפליקציה מצא (macOS, לינוקס).
+  @visibleForTesting
+  static Map<String, dynamic> fromScan(
+    Iterable<SystemFontFamilyFaces> families, {
+    required String platform,
+  }) {
+    final usable =
+        families
+            .where((f) => f.family.isNotEmpty && !f.family.startsWith('@'))
+            .toList()
+          ..sort((a, b) => a.family.compareTo(b.family));
+    return {
+      'families': [
+        for (final f in usable)
+          {
+            'name': f.family,
+            // משפחה בלי אף סקריפט מזוהה נחשבת לטינית, כמו ב-GDI.
+            'scripts': f.scripts.isEmpty ? ['latin'] : f.scripts,
+            'monospace': f.monospace,
+          },
+      ],
+      'platform': platform,
+    };
   }
 
   /// בונה את התשובה משורות גולמיות. הלוגיקה כולה כאן ולא ב-callback, כדי

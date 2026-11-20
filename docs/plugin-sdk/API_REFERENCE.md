@@ -811,7 +811,7 @@ const hebrew = data.families.filter(f => f.scripts.includes('hebrew'));
 | שדה | טיפוס | הסבר |
 |---|---|---|
 | `families` | array | המשפחות המותקנות, ממוינות לפי שם. כל שם מופיע פעם אחת. |
-| `platform` | string | הפלטפורמה, למשל `windows`. |
+| `platform` | string | הפלטפורמה, למשל `windows`, `macos`, `linux`. |
 
 כל פריט ב-`families`:
 
@@ -821,7 +821,7 @@ const hebrew = data.families.filter(f => f.scripts.includes('hebrew'));
 | `scripts` | string[] | מתוך `latin` `hebrew` `arabic` `cyrillic` `greek` `cjk` `thai` `symbol`. משפחה מרובת-שפות נושאת כמה. |
 | `monospace` | boolean | `true` לגופן ברוחב קבוע, למשל `Consolas`. |
 
-פלטפורמה שאין בה מימוש מחזירה `families: []` — זו אינה שגיאה, ועליכם ליפול חזרה למדיניות התחליפים שלכם.
+ב-Windows הרשימה מ-GDI. ב-macOS ובלינוקס היא מהסורק של אוצריא (קבצי `.ttf`/`.otf` ואוספי `.ttc`/`.otc` בתיקיות הגופנים): כל face באוסף נחשב משפחה בנפרד; `scripts` נגזר מכיסוי ה-cmap של אותו face, ו-`monospace` מטבלת `post`. גופני `.dfont` (macOS ישנים) אינם נסרקים. ב-Android מוחזר `families: []` — זו אינה שגיאה, ועליכם ליפול חזרה למדיניות התחליפים שלכם. ב-iOS הרשימה כוללת רק גופנים שהמשתמש ייבא כקובץ (ttf/otf/ttc/otc, בתיקיית האפליקציה); גופני המערכת של iOS אינם ברשימה ואינם ניתנים לתוספים (אין בתים).
 
 שתי מגבלות ב-Windows, שנובעות מ-GDI עצמו:
 
@@ -7702,6 +7702,8 @@ await Otzaria.call('reader.setHighlight', {
 ```
 
 הצבעים חייבים להיות `#RRGGBB` או `#RRGGBBAA`. ההדגשה ממופה מחדש אל הטקסט המוצג לאחר שינויי ניקוד, טעמים והחלפות תצוגה. ההדגשות אינן נשמרות בדיסק: התוסף אחראי להתמדה ולהקמה מחדש לאחר `plugin.boot`.
+
+**צבע האותיות בהדגשה.** כשההדגשה צובעת רקע (`markerMode: "text-background"`, ברירת המחדל) ואין `foregroundColor`, אוצריא בוחרת לאותיות כהה (`#1F1F1F`) או לבן לפי בהירות `backgroundColor`, כך שהן קריאות בכל ערכה, כולל כהה. רקע שקוף מאוד (`opacity` נמוך) נשאר בצבע הערכה, כי הקריאות תלויה ברקע הקריאה. מומלץ בכל זאת לקבוע `foregroundColor` כשהצבע חשוב לכם; הוא תמיד גובר על החישוב. הדגשה במצב `box`, `underline` ו-`line-marker` לא נוגעת בצבע האותיות (חוץ מהדגשה חשופה, שמצוירת ברקע אטום בכל מצב).
 
 ---
 

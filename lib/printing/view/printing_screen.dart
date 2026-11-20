@@ -2961,9 +2961,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // שימוש בקבועים מ-AppFonts
   Map<String, String> get fonts => AppFonts.fontPaths;
   Map<String, String> get fontNames {
-    // כולל את כל הגופנים הזמינים, גם מהמערכת.
+    // כולל את כל הגופנים הזמינים, גם מהמערכת, אך לא גופנים לתצוגה בלבד
+    // (iOS): להדפסה צריך את בתי הגופן.
     final Map<String, String> allFonts = {};
-    for (final font in AppFonts.availableFonts) {
+    for (final font in AppFonts.fontsWithFiles) {
       allFonts[font.value] = font.label;
     }
     return allFonts;
