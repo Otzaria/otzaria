@@ -20,6 +20,35 @@ class ProgressService {
       '${_keyPrefix}column_completion_dates';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
   static const String _bookColumnsKey = '${_keyPrefix}book_columns';
+  static const String _lastTouchedKey = '${_keyPrefix}last_touched_by_id';
+
+  /// הפריט שסומן אחרון בכל ספר (bookId → absoluteIndex), לפתיחה במקומו.
+  Future<Map<int, int>> loadLastTouchedById() async {
+    try {
+      final jsonString = Settings.getValue<String>(_lastTouchedKey);
+      if (jsonString == null || jsonString.isEmpty) return {};
+      final Map<String, dynamic> decoded = json.decode(jsonString);
+      return {
+        for (final entry in decoded.entries)
+          if (entry.value is int) int.parse(entry.key): entry.value as int,
+      };
+    } catch (e, stackTrace) {
+      _logger.warning('Failed to load last touched items', e, stackTrace);
+      return {};
+    }
+  }
+
+  /// שגיאה כאן אינה חוסמת את שמירת הסימון עצמו.
+  Future<void> saveLastTouchedById(Map<int, int> lastTouched) async {
+    try {
+      await Settings.setValue<String>(
+        _lastTouchedKey,
+        json.encode(lastTouched.map((id, index) => MapEntry('$id', index))),
+      );
+    } catch (e, stackTrace) {
+      _logger.warning('Failed to save last touched items', e, stackTrace);
+    }
+  }
 
   /// טוען את הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות).
   /// ספר שאינו מופיע יקבל את עמודות ברירת המחדל בשכבת ה-Provider.

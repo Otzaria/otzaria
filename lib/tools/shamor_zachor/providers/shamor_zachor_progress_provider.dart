@@ -44,6 +44,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות)
   Map<int, List<ProgressColumn>> _columnsByBookId = {};
 
+  /// הפריט שסומן (או שסימונו הוסר) אחרון בכל ספר — "ה-V האחרון בזמן".
+  Map<int, int> _lastTouchedById = {};
+
   final Map<int, BookProgressSummary> _progressSummaryCache = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
@@ -171,6 +174,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       _completionDatesById = await _progressService.loadCompletionDatesById();
       _columnsByBookId = await _progressService.loadColumnsByBookId();
       _columnDatesById = await _progressService.loadColumnCompletionDates();
+      _lastTouchedById = await _progressService.loadLastTouchedById();
 
       _logger.info(
         'Successfully loaded progress: ${_progressById.length} books',
@@ -205,6 +209,15 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// Get progress for a specific item by book ID
   PageProgress getProgressForItemById(int bookId, int absoluteIndex) {
     return _progressById[bookId]?[absoluteIndex.toString()] ?? PageProgress();
+  }
+
+  /// הפריט שסומן אחרון בספר, או null אם לא סומן בו דבר.
+  int? lastTouchedIndexById(int bookId) => _lastTouchedById[bookId];
+
+  Future<void> _rememberTouched(int bookId, int absoluteIndex) async {
+    if (_lastTouchedById[bookId] == absoluteIndex) return;
+    _lastTouchedById[bookId] = absoluteIndex;
+    await _progressService.saveLastTouchedById(_lastTouchedById);
   }
 
   /// Get completion date for a book by ID (synchronous)
@@ -281,6 +294,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         bookDetails,
         wasComplete: wasComplete,
       );
+      if (!isBulkUpdate) await _rememberTouched(bookId, absoluteIndex);
 
       _invalidateSummaryCache(bookId);
 
@@ -392,6 +406,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         .where((index) => index >= start && index <= end);
     if (indices.isEmpty) return;
 
+    await _rememberTouched(bookId, indices.last);
     await _applyBulkColumnUpdate(
       bookId,
       bookDetails,
