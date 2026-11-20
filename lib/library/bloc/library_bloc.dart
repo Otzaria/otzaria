@@ -103,6 +103,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     on<SearchBooks>(_onSearchBooks);
     on<SelectTopics>(_onSelectTopics);
     on<SelectMatchFilters>(_onSelectMatchFilters);
+    on<ShowAuthorBooks>(_onShowAuthorBooks);
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
     on<SelectBookForPreview>(_onSelectBookForPreview);
     on<SelectCategoryForPreview>(_onSelectCategoryForPreview);
@@ -675,6 +676,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         currentCategory: event.category,
         searchQuery: null,
         searchResults: null,
+        clearAuthorFilter: true,
         isSearching: false,
         selectedTopics: null,
         previewCategory: event.category,
@@ -730,6 +732,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         currentCategory: parent,
         searchQuery: null,
         searchResults: null,
+        clearAuthorFilter: true,
         isSearching: false,
         selectedTopics: null,
         previewCategory: parent,
@@ -763,6 +766,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       emit(
         state.copyWith(
           searchResults: null,
+          clearAuthorFilter: true,
           isSearching: false,
           previewCategory: state.searchResults == null
               ? null
@@ -784,6 +788,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           isSearching: true,
           searchResults: state.searchResults,
           searchCategoryResults: state.searchCategoryResults,
+          clearAuthorFilter: true,
         ),
       );
 
@@ -868,6 +873,35 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         ),
       );
     }
+  }
+
+  void _onShowAuthorBooks(
+    ShowAuthorBooks event,
+    Emitter<LibraryState> emit,
+  ) {
+    final author = event.author?.trim() ?? '';
+    final library = state.library;
+    _searchGeneration++;
+    if (author.isEmpty || library == null) {
+      emit(state.copyWith(clearAuthorFilter: true, isSearching: false));
+      return;
+    }
+    final books = library
+        .getAllBooks()
+        .where((book) => book.author?.trim() == author)
+        .toList();
+    emit(
+      state.copyWith(
+        searchQuery: '',
+        searchResults: books,
+        searchCategoryResults: const [],
+        authorFilter: author,
+        selectedTopics: const [],
+        selectedMatchFilters: const {},
+        isSearching: false,
+        previewBook: books.firstOrNull,
+      ),
+    );
   }
 
   void _onSelectTopics(

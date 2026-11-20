@@ -171,6 +171,16 @@ class UpdateSearchQuery extends LibraryEvent {
   List<Object?> get props => [query];
 }
 
+/// כל ספרי המחבר בספרייה, במקום תוצאות החיפוש; null חוזר לתיקייה.
+class ShowAuthorBooks extends LibraryEvent {
+  final String? author;
+
+  const ShowAuthorBooks(this.author);
+
+  @override
+  List<Object?> get props => [author];
+}
+
 class SelectTopics extends LibraryEvent {
   final List<String> topics;
 
