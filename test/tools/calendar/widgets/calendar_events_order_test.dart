@@ -215,7 +215,7 @@ void main() {
         recurrenceType: RecurrenceType.none,
         eventTime: const TimeOfDay(hour: 8, minute: 0),
       );
-      cubit.toggleShowAllEvents(true);
+      cubit.setEventsView(CalendarEventsView.all);
 
       await pumpEventsPanel(tester);
 
@@ -281,7 +281,7 @@ void main() {
         recurrenceType: RecurrenceType.annualGregorian,
       );
       await pumpEventsPanel(tester);
-      await tester.tap(find.text('הצג הכל'));
+      await tester.tap(find.text('הכל'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('ערוך אירוע').first);

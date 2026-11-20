@@ -977,8 +977,8 @@ class CalendarCubit extends Cubit<CalendarState> {
     emit(state.copyWith(searchInDescriptions: value));
   }
 
-  void toggleShowAllEvents(bool value) {
-    emit(state.copyWith(showAllEvents: value));
+  void setEventsView(CalendarEventsView view) {
+    emit(state.copyWith(eventsView: view));
   }
 
   Map<String, String> shortTimesFor(DateTime date) =>
@@ -1516,6 +1516,22 @@ class CalendarCubit extends Cubit<CalendarState> {
       _eventsByDate[day] = matches;
     }
     return List<CustomEvent>.of(matches);
+  }
+
+  /// אירועים שמופעם הקרוב היום או אחריו, כל אחד פעם אחת במועד המופע.
+  List<({CustomEvent event, DateTime date})> upcomingEvents() {
+    final today = state.todayGregorianDate;
+    return [
+      for (final event in state.events)
+        if (event.nextOccurrenceFrom(today) case final date
+            when !date.isBefore(today) && event.occursOn(date))
+          (event: event, date: date),
+    ]..sort((a, b) {
+      final dateDiff = a.date.compareTo(b.date);
+      return dateDiff != 0
+          ? dateDiff
+          : compareCalendarEventsByTime(a.event, b.event);
+    });
   }
 
   List<CustomEvent> getFilteredEvents(String query) {
