@@ -18,9 +18,19 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 /// (במקום תפריט ברירת המחדל של Flutter). לתוכן קריא כללי —
 /// דיאלוגים, חלוניות וכותרות.
 class AppSelectionArea extends StatefulWidget {
-  const AppSelectionArea({super.key, required this.child, this.protection});
+  const AppSelectionArea({
+    super.key,
+    required this.child,
+    this.protection,
+    this.extraMenuEntries,
+  });
 
   final Widget child;
+
+  /// פעולות של האזור עצמו שמופיעות בתפריט ההקשר לפני "העתק" (לחיצה ימנית,
+  /// לחיצה ארוכה, או Shift+F10). הפרמטר השני הוא נקודת הלחיצה הגלובלית.
+  final List<AppContextMenuEntry> Function(BuildContext, Offset)?
+  extraMenuEntries;
 
   /// הגבלת המו"ל של הטקסט שבאזור, כשהוא תוכן ספר.
   final Future<BookProtection> Function()? protection;
@@ -163,13 +173,23 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
               },
               menuBuilder: (menuContext, position) {
                 final text = _textToCopyAt(position);
+                final extras =
+                    widget.extraMenuEntries?.call(menuContext, position) ??
+                    const <AppContextMenuEntry>[];
+                final copyEntry = AppContextMenuEntry(
+                  label: context.settingsText('העתק'),
+                  icon: FluentIcons.copy_24_regular,
+                  enabled: text != null,
+                  onTap: () => _copy(text!),
+                );
+                if (extras.isEmpty) return [copyEntry];
+                // פעולות האזור הן העיקר; "העתק" של בחירה רק כשיש מה להעתיק.
                 return [
-                  AppContextMenuEntry(
-                    label: context.settingsText('העתק'),
-                    icon: FluentIcons.copy_24_regular,
-                    enabled: text != null,
-                    onTap: () => _copy(text!),
-                  ),
+                  ...extras,
+                  if (text != null) ...[
+                    const AppContextMenuEntry.divider(),
+                    copyEntry,
+                  ],
                 ];
               },
               child: widget.child,

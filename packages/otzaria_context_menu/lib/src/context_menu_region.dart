@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'menu_metrics.dart';
 import 'menu_models.dart';
+import 'menu_placement.dart';
 import 'menu_presentation.dart';
 import 'menu_rows.dart';
 import 'submenu_button.dart';
@@ -14,6 +15,12 @@ part 'context_menu_gestures.dart';
 part 'context_menu_entries.dart';
 part 'context_menu_rows.dart';
 part 'lazy_submenu_button.dart';
+
+/// פותח את תפריט ההקשר של האזור הקרוב ביותר לרכיב הממוקד (מקש Menu או
+/// Shift+F10), כמקבילה למקלדת ללחיצה ימנית.
+class _OpenContextMenuIntent extends Intent {
+  const _OpenContextMenuIntent();
+}
 
 class ContextMenuRegion extends StatefulWidget {
   final MenuPresentation presentation;
@@ -37,6 +44,11 @@ class ContextMenuRegion extends StatefulWidget {
   final bool Function(Offset globalPosition)?
   shouldPreserveSelectionOnSecondaryTap;
 
+  /// האזור הזה (למשל שורה נבחרת בקורא) קודם לאחרים כשמקש התפריט נלחץ והפוקוס
+  /// על רכיב שמעל כמה אזורים: נפתח האזור הנראה העליון מבין המועדפים, ורק אם
+  /// אין אחד כזה (או שאינו נראה) האזור הנראה העליון מכולם.
+  final bool keyboardPreferred;
+
   const ContextMenuRegion({
     super.key,
     required this.child,
@@ -51,6 +63,7 @@ class ContextMenuRegion extends StatefulWidget {
     this.onHoverEnter,
     this.shouldPreserveSelectionOnSecondaryTap,
     this.openOnLongPress = true,
+    this.keyboardPreferred = false,
   });
 
   @override
@@ -67,13 +80,136 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
   bool _isMenuOpen = false;
   bool _isMenuVisible = false;
   OverlayEntry? _menuOverlayEntry;
+
+  // נקודת הנגיעה (בקואורדינטות ה-overlay) כשהתפריט נפתח באצבע; אחרת null.
+  // התפריט נפתח לצד האצבע ולא מתחתיה, כדי שהיא לא תכסה את הפריטים.
+  Offset? _fingerAnchor;
+
+  // סוג ההתקן של הנגיעה האחרונה באזור: onLongPressStart לא מדווח אותו.
+  PointerDeviceKind? _lastPointerKind;
   final GlobalKey _menuPanelKey = GlobalKey();
   Offset? _currentMenuOffset;
   double? _menuAnchorX;
 
   VoidCallback? _unregisterEscape;
 
+  // תפריט שנפתח במקלדת מקבל פוקוס (חיצים/Enter) ומחזיר אותו לפותח בסגירה.
+  // תפריט שנפתח בעכבר/מגע לא לוקח פוקוס, כדי לשמור את הבחירה בטקסט.
+  FocusScopeNode? _menuFocusScope;
+  FocusNode? _restoreFocusTo;
+  bool _isDisposing = false;
+
+  static const _keyboardShortcuts = <ShortcutActivator, Intent>{
+    SingleActivator(LogicalKeyboardKey.contextMenu): _OpenContextMenuIntent(),
+    SingleActivator(LogicalKeyboardKey.f10, shift: true):
+        _OpenContextMenuIntent(),
+  };
+
+  late final Map<Type, Action<Intent>> _keyboardActions = {
+    _OpenContextMenuIntent: CallbackAction<_OpenContextMenuIntent>(
+      onInvoke: (_) {
+        _openFromKeyboard();
+        return null;
+      },
+    ),
+  };
+
   MenuPresentation get presentation => widget.presentation;
+
+  // אזורים מחוברים, לטיפול ב-Shift+F10/Menu כשהפוקוס יושב על רכיב שמעליהם
+  // (למשל ה-Focus של הקורא כולו): Shortcuts שבתוך האזור לא רואה אז את המקש.
+  static final Set<ContextMenuRegionState> _mountedRegions = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (_mountedRegions.isEmpty) {
+      FocusManager.instance.addEarlyKeyEventHandler(_openFromAncestorFocus);
+    }
+    _mountedRegions.add(this);
+  }
+
+  /// מקש התפריט (Menu או Shift+F10) כשהפוקוס על צומת שהאזורים בתוכו, לא
+  /// מעליו: פותח את האזור הנראה העליון בתוכו. כשהפוקוס בתוך אזור, או כשאין
+  /// בתוכו אזור, לא עושה כלום ו-Shortcuts של האזור מטפל כרגיל.
+  static KeyEventResult _openFromAncestorFocus(KeyEvent event) {
+    final keyboard = HardwareKeyboard.instance;
+    final isMenuKey =
+        event.logicalKey == LogicalKeyboardKey.contextMenu ||
+        (event.logicalKey == LogicalKeyboardKey.f10 &&
+            keyboard.isShiftPressed &&
+            !keyboard.isControlPressed &&
+            !keyboard.isAltPressed &&
+            !keyboard.isMetaPressed);
+    if (event is! KeyDownEvent || !isMenuKey) return KeyEventResult.ignored;
+    final focused = FocusManager.instance.primaryFocus;
+    final focusContext = focused?.context;
+    if (focused == null ||
+        focused is FocusScopeNode ||
+        focusContext == null ||
+        !focusContext.mounted ||
+        focusContext.findAncestorStateOfType<ContextMenuRegionState>() !=
+            null) {
+      return KeyEventResult.ignored;
+    }
+    final focusElement = focusContext as Element;
+    ContextMenuRegionState? top;
+    Rect? topRect;
+    var topPreferred = false;
+    for (final region in _mountedRegions) {
+      if (!region.mounted ||
+          !(ModalRoute.isCurrentOf(region.context) ?? true)) {
+        continue;
+      }
+      var inside = false;
+      region.context.visitAncestorElements((ancestor) {
+        inside = identical(ancestor, focusElement);
+        return !inside;
+      });
+      final rect = inside ? region._visibleRect(region.context) : null;
+      if (rect == null || rect.isEmpty) continue;
+      // מועדף (שורה נבחרת) קודם לכל לא-מועדף; בין שווים, העליון קודם.
+      final preferred = region.widget.keyboardPreferred;
+      final better = top == null
+          ? true
+          : preferred != topPreferred
+          ? preferred
+          : rect.top < topRect!.top ||
+                (rect.top == topRect.top && rect.left < topRect.left);
+      if (better) {
+        top = region;
+        topRect = rect;
+        topPreferred = preferred;
+      }
+    }
+    if (top == null) return KeyEventResult.ignored;
+    top._openFromKeyboard(
+      anchor: topRect!.center,
+      restoreFocusTo: focused,
+    );
+    return KeyEventResult.handled;
+  }
+
+  /// החלק הנראה (בתוך ה-overlay) של [target], או null כשאינו נראה.
+  Rect? _visibleRect(BuildContext target) {
+    final overlayBox = Overlay.maybeOf(
+      context,
+      rootOverlay: true,
+    )?.context.findRenderObject();
+    final box = target.findRenderObject();
+    if (box is! RenderBox ||
+        !box.attached ||
+        !box.hasSize ||
+        overlayBox is! RenderBox ||
+        !overlayBox.hasSize) {
+      return null;
+    }
+    final viewport = overlayBox.localToGlobal(Offset.zero) & overlayBox.size;
+    final visible = (box.localToGlobal(Offset.zero) & box.size).intersect(
+      viewport,
+    );
+    return visible.width < 0 || visible.height < 0 ? null : visible;
+  }
 
   @override
   void didUpdateWidget(ContextMenuRegion oldWidget) {
@@ -105,6 +241,11 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
 
   @override
   void dispose() {
+    _isDisposing = true;
+    _mountedRegions.remove(this);
+    if (_mountedRegions.isEmpty) {
+      FocusManager.instance.removeEarlyKeyEventHandler(_openFromAncestorFocus);
+    }
     _removeContextMenuOverlay();
     super.dispose();
   }
@@ -147,8 +288,51 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     overlayEntry?.dispose();
     _currentMenuOffset = null;
     _menuAnchorX = null;
+    _fingerAnchor = null;
     _isMenuVisible = false;
+    _releaseMenuFocus();
     if (hadOpenMenu) widget.onMenuClosed?.call();
+  }
+
+  void _releaseMenuFocus() {
+    final scope = _menuFocusScope;
+    final restoreTo = _isDisposing ? null : _restoreFocusTo;
+    _menuFocusScope = null;
+    _restoreFocusTo = null;
+    if (scope == null) return;
+    // רק אחרי שהפריים הסיר את התפריט מהעץ: צמתי פוקוס לא נפטרים כשעדיין מחוברים.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      scope.dispose();
+      _restoreFocus(restoreTo);
+    });
+  }
+
+  void _restoreFocus(FocusNode? target) {
+    final targetContext = target?.context;
+    if (target == null ||
+        targetContext == null ||
+        // פעולה בתפריט יכולה להסיר את הפותח מהעץ (סגירת כרטיסייה, מחיקת הערה).
+        !targetContext.mounted ||
+        !target.canRequestFocus ||
+        target.hasPrimaryFocus) {
+      return;
+    }
+    // פעולה בתפריט שפתחה דיאלוג/מסך או העבירה פוקוס בעצמה גוברת על ההחזרה.
+    if (!(ModalRoute.isCurrentOf(targetContext) ?? true)) return;
+    final current = FocusManager.instance.primaryFocus;
+    if (current != null && current is! FocusScopeNode) return;
+    target.requestFocus();
+  }
+
+  void _focusFirstMenuItem() {
+    final scope = _menuFocusScope;
+    if (!mounted || !_isMenuOpen || scope == null) return;
+    final scopeContext = scope.context;
+    if (scopeContext == null) return;
+    final policy =
+        FocusTraversalGroup.maybeOf(scopeContext) ??
+        ReadingOrderTraversalPolicy();
+    (policy.findFirstFocus(scope) ?? scope).requestFocus();
   }
 
   void _closeContextMenu() {
@@ -168,8 +352,41 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     );
   }
 
-  Future<void> openMenuAt(Offset globalPosition) =>
-      _openContextMenu(globalPosition);
+  /// פותח את התפריט ב-[globalPosition]. [kind] הוא סוג המצביע שגרם לפתיחה:
+  /// במגע התפריט נפתח לצד האצבע ולא מתחתיה.
+  Future<void> openMenuAt(Offset globalPosition, {PointerDeviceKind? kind}) =>
+      _openContextMenu(globalPosition, kind: kind);
+
+  /// פתיחה במקלדת: התפריט נפתח ליד הרכיב הממוקד (בקצה ההתחלה שלו לפי
+  /// כיוון הקריאה), מקבל פוקוס, וסגירתו מחזירה את הפוקוס לרכיב. כמו בלחיצה
+  /// ימנית, [ContextMenuRegion.onSecondaryTapDown] נקרא עם נקודת העוגן, כי
+  /// אתרים מכינים בו את הקשר התפריט (השורה, הבחירה).
+  ///
+  /// [anchor] ו-[restoreFocusTo] נקבעים כשהפוקוס על רכיב שמעל האזור, ולא
+  /// בתוכו.
+  Future<void> _openFromKeyboard({
+    Offset? anchor,
+    FocusNode? restoreFocusTo,
+  }) async {
+    final regionBox = context.findRenderObject();
+    if (regionBox is! RenderBox || !regionBox.hasSize) return;
+    final focused = restoreFocusTo ?? FocusManager.instance.primaryFocus;
+    var position = anchor;
+    if (position == null) {
+      var target = _visibleRect(focused?.context ?? context) ?? Rect.zero;
+      if (target.isEmpty) target = _visibleRect(context) ?? Rect.zero;
+      if (target.isEmpty) return;
+      final isRtl = Directionality.of(context) == TextDirection.rtl;
+      position = Offset(isRtl ? target.right : target.left, target.bottom);
+    }
+    widget.onSecondaryTapDown?.call(
+      TapDownDetails(
+        globalPosition: position,
+        localPosition: regionBox.globalToLocal(position),
+      ),
+    );
+    await _openContextMenu(position, restoreFocusTo: focused);
+  }
 
   double _resolveContextMenuMaxWidth(double overlayWidth) {
     // On very narrow windows, the available viewport takes precedence over
@@ -212,6 +429,25 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
                   : metrics.itemHeight),
         ) +
         8;
+    if (_fingerAnchor != null) {
+      // הרוחב עוד לא ידוע (התפריט נמדד אחרי הבנייה הראשונה) — מעריכים במקסימום.
+      final placement = placeMenuAwayFromFinger(
+        overlay: overlayRenderBox.size,
+        anchor: overlayPosition,
+        panel: Size(
+          _resolveContextMenuMaxWidth(overlayRenderBox.size.width),
+          estimatedHeight,
+        ),
+        isRtl: Directionality.of(context) == TextDirection.rtl,
+        screenPadding: _contextMenuScreenPadding,
+      );
+      return (
+        placement.topLeft,
+        placement.side == TouchMenuSide.above ||
+            (placement.side == TouchMenuSide.fallback &&
+                placement.topLeft.dy < overlayPosition.dy),
+      );
+    }
     final spaceAbove = overlayPosition.dy;
     final spaceBelow = overlayRenderBox.size.height - overlayPosition.dy;
     final shouldOpenAbove =
@@ -264,6 +500,19 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     }
 
     final panelSize = renderObject.size;
+    final finger = _fingerAnchor;
+    if (finger != null) {
+      _currentMenuOffset = placeMenuAwayFromFinger(
+        overlay: overlaySize,
+        anchor: finger,
+        panel: panelSize,
+        isRtl: Directionality.of(context) == TextDirection.rtl,
+        screenPadding: _contextMenuScreenPadding,
+      ).topLeft;
+      _isMenuVisible = true;
+      _menuOverlayEntry?.markNeedsBuild();
+      return;
+    }
     final maxDx =
         (overlaySize.width - panelSize.width - _contextMenuScreenPadding)
             .clamp(_contextMenuScreenPadding, double.infinity)
@@ -299,6 +548,8 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
   Future<void> _openContextMenu(
     Offset globalPosition, {
     PointerEvent? trigger,
+    FocusNode? restoreFocusTo,
+    PointerDeviceKind? kind,
   }) async {
     final entries = _normalizeEntries(
       widget.menuBuilder(context, globalPosition),
@@ -318,7 +569,13 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
 
     final overlayPosition = overlayRenderObject.globalToLocal(globalPosition);
     if (!overlayPosition.dx.isFinite || !overlayPosition.dy.isFinite) return;
+    final focusScope = restoreFocusTo == null
+        ? null
+        : FocusScopeNode(debugLabel: 'ContextMenu');
+    _menuFocusScope = focusScope;
+    _restoreFocusTo = restoreFocusTo;
     _menuAnchorX = overlayPosition.dx;
+    _fingerAnchor = kind == PointerDeviceKind.touch ? overlayPosition : null;
     final metrics = presentation.metrics;
     final (menuOffset, openAbove) = _calculateMenuOffset(
       overlayRenderObject,
@@ -412,6 +669,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
                           menuStyle: menuStyle,
                           maxWidth: maxMenuWidth,
                           maxHeight: maxMenuHeight,
+                          focusScopeNode: focusScope,
                           buildChildren: (panelContext, panelEntries) =>
                               _buildMenuPanelChildren(
                                 panelContext,
@@ -439,6 +697,11 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_isMenuOpen) return;
       _repositionContextMenuWithinOverlay(overlayRenderObject.size);
+      if (focusScope != null) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _focusFirstMenuItem(),
+        );
+      }
     });
   }
 
@@ -451,6 +714,13 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
 
   @override
   Widget build(BuildContext context) {
+    return Shortcuts(
+      shortcuts: _keyboardShortcuts,
+      child: Actions(actions: _keyboardActions, child: _buildGestures()),
+    );
+  }
+
+  Widget _buildGestures() {
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
       // לחיצה ארוכה פותחת תפריט הקשר רק במגע/עט; בעכבר/trackpad משתמשים בלחיצה
@@ -461,7 +731,10 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
         PointerDeviceKind.invertedStylus,
       },
       onLongPressStart: widget.openOnLongPress
-          ? (details) => _openContextMenu(details.globalPosition)
+          ? (details) => _openContextMenu(
+              details.globalPosition,
+              kind: _lastPointerKind,
+            )
           : null,
       child: RawGestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -494,7 +767,8 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
                           globalPosition,
                         ) ??
                         false,
-                    onOpenMenu: _openContextMenu,
+                    onOpenMenu: (position, kind) =>
+                        _openContextMenu(position, kind: kind),
                     startScroll: _startPreservedSelectionScroll,
                   ),
                   (instance) {},
@@ -503,6 +777,7 @@ class ContextMenuRegionState extends State<ContextMenuRegion> {
         child: Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (event) {
+            _lastPointerKind = event.kind;
             // כל Listener מקבל עותק מותמר של האירוע; original משותף לכולם.
             final original = event.original ?? event;
             if (event.buttons == kSecondaryButton &&

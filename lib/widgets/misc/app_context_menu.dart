@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:otzaria_context_menu/otzaria_context_menu.dart' as menu;
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -54,6 +55,9 @@ class AppContextMenuRegion extends StatefulWidget {
   final bool openOnLongPress;
   final bool Function(Offset)? shouldPreserveSelectionOnSecondaryTap;
 
+  /// מקש התפריט במקלדת פותח אזור מועדף (שורה נבחרת) לפני האזור העליון.
+  final bool keyboardPreferred;
+
   const AppContextMenuRegion({
     super.key,
     required this.child,
@@ -63,6 +67,7 @@ class AppContextMenuRegion extends StatefulWidget {
     this.onHoverEnter,
     this.shouldPreserveSelectionOnSecondaryTap,
     this.openOnLongPress = true,
+    this.keyboardPreferred = false,
   });
 
   @override
@@ -94,8 +99,11 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
 
   Future<void> showMenu() async => _menuKey.currentState?.showMenu();
 
-  Future<void> openMenuAt(Offset globalPosition) async =>
-      _menuKey.currentState?.openMenuAt(globalPosition);
+  /// [kind] הוא סוג המצביע שגרם לפתיחה; במגע התפריט נפתח לצד האצבע.
+  Future<void> openMenuAt(
+    Offset globalPosition, {
+    PointerDeviceKind? kind,
+  }) async => _menuKey.currentState?.openMenuAt(globalPosition, kind: kind);
 
   @override
   void dispose() {
@@ -119,6 +127,7 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
           widget.openOnLongPress &&
           context.getInheritedWidgetOfExactType<ContextMenuLongPressOwner>() ==
               null,
+      keyboardPreferred: widget.keyboardPreferred,
       shouldPreserveSelectionOnSecondaryTap:
           widget.shouldPreserveSelectionOnSecondaryTap,
       onMenuOpening: (context, position) {

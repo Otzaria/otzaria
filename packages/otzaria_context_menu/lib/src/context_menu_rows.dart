@@ -7,6 +7,9 @@ class _AppContextMenuPanel extends StatelessWidget {
   final MenuStyle? menuStyle;
   final double maxWidth;
   final double maxHeight;
+
+  /// null: התפריט לא מקבל פוקוס (עכבר/מגע). אחרת נפתח במקלדת וניתן לניווט.
+  final FocusScopeNode? focusScopeNode;
   final List<Widget> Function(BuildContext, List<AppContextMenuEntry>)
   buildChildren;
 
@@ -18,6 +21,7 @@ class _AppContextMenuPanel extends StatelessWidget {
     required this.menuStyle,
     required this.maxWidth,
     required this.maxHeight,
+    required this.focusScopeNode,
     required this.buildChildren,
   });
 
@@ -26,9 +30,11 @@ class _AppContextMenuPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return FocusScope(
-      skipTraversal: true,
-      descendantsAreFocusable: false,
+    final keyboardNavigable = focusScopeNode != null;
+    final panel = FocusScope(
+      node: focusScopeNode,
+      skipTraversal: keyboardNavigable ? null : true,
+      descendantsAreFocusable: keyboardNavigable ? null : false,
       child: Material(
         color:
             menuStyle?.backgroundColor?.resolve(const <WidgetState>{}) ??
@@ -58,6 +64,14 @@ class _AppContextMenuPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (!keyboardNavigable) return panel;
+    // Flutter מטפל בחצי פתיחה/סגירה של שורת תת־תפריט רק כשמעליה יש MenuAnchor
+    // (שם נקבע כיוון הציר). הפאנל כאן הוא Column רגיל, ולכן העוגן הריק הזה
+    // נחוץ רק כשהתפריט נפתח במקלדת; בעכבר ובמגע השורות לא מקבלות פוקוס.
+    return MenuAnchor(
+      menuChildren: const [],
+      builder: (context, controller, child) => panel,
     );
   }
 }

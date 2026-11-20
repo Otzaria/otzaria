@@ -3482,6 +3482,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             }
           },
           child: AppContextMenuRegion(
+            // מקש התפריט במקלדת פותח את השורה הנבחרת (סעיף 10), לא את העליונה.
+            keyboardPreferred: isSelected,
             // שמירת האינדקס דרך ה-Listener של AppContextMenuRegion (מחוסן מהזירה),
             // כך שגם כשלחיצה ימנית חוסמת את SelectableRegion ושומרת בחירה — האינדקס
             // עדיין נשמר עבור פעולות התפריט.

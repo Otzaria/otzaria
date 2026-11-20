@@ -1432,7 +1432,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           final globalPosition = renderBox is RenderBox
               ? renderBox.localToGlobal(details.localPosition)
               : details.localPosition;
-          _pdfContextMenuKey.currentState?.openMenuAt(globalPosition);
+          // לחיצה ארוכה של ה-PDF מגיעה ממגע: התפריט נפתח לצד האצבע.
+          _pdfContextMenuKey.currentState?.openMenuAt(
+            globalPosition,
+            kind: PointerDeviceKind.touch,
+          );
           return true;
         }
         return false;

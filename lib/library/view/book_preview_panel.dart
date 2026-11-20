@@ -867,6 +867,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               box is RenderBox
                   ? box.localToGlobal(details.localPosition)
                   : details.localPosition,
+              kind: PointerDeviceKind.touch,
             );
             return true;
           },

@@ -2992,6 +2992,8 @@ class _CombinedViewState extends State<CombinedView> {
                   ),
                   builder: (context, child) {
                     return AppContextMenuRegion(
+                      // מקש התפריט במקלדת פותח את השורה הנבחרת (סעיף 10), לא העליונה.
+                      keyboardPreferred: isSelected,
                       // לחיצה ימנית על הטקסט המסומן (כולל הרווח שבין שורות-תצוגה של
                       // שורת-מקור שנשברה) לא תשחרר את הבחירה; לחיצה על חלק לא-מסומן
                       // מבטלת כרגיל.

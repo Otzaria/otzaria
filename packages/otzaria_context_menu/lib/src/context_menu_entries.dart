@@ -233,6 +233,9 @@ extension _ContextMenuEntries on ContextMenuRegionState {
       maxWidth: submenuMaxWidth,
       menuStyle: _menuStyle(context),
       controller: controller,
+      // רק תפריט שנפתח במקלדת (יש לו scope פוקוס) צריך שורות שאפשר להגיע
+      // אליהן; בעכבר ובמגע הפוקוס נשאר אצל בעל הבחירה, למשל שדה הטקסט.
+      preserveFocus: _menuFocusScope == null,
       onControllerUnmounted: () => _submenuControllers.remove(controller),
       onOpen: submenuControllers == null
           ? null

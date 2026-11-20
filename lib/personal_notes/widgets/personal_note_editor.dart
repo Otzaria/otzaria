@@ -356,6 +356,7 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody>
         editorState.hideToolbar(false);
         _editMenuKey.currentState?.openMenuAt(
           editorState.contextMenuAnchors.primaryAnchor,
+          kind: _lastPointerKind,
         );
       });
     }
