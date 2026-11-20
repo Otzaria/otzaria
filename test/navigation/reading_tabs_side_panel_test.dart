@@ -767,11 +767,9 @@ void main() {
     );
   });
 
-  testWidgets('במגע לחיצה ארוכה פותחת את תפריט ההקשר ואינה מסדרת מחדש', (
+  testWidgets('במגע לחיצה ארוכה וגרירה מסדרות מחדש ואינן פותחות תפריט', (
     tester,
   ) async {
-    // תפריט ההקשר זוכה בזירת המחוות מול הגרירה — התנהגות זהה לזו של הרצועה
-    // העליונה, שגם בה לחיצה ארוכה במגע פותחת תפריט.
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await pumpPanel(tester);
 
@@ -782,6 +780,27 @@ void main() {
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await gesture.moveTo(target);
     await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final moves = tabsBloc.addedEvents.whereType<MoveTab>().toList();
+    final menuOpen = find.text('הצמד כרטיסייה').evaluate().isNotEmpty;
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(menuOpen, isFalse);
+    expect(moves, hasLength(1));
+  });
+
+  testWidgets('במגע לחיצה ארוכה ושחרור במקום פותחים את תפריט ההקשר', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await pumpPanel(tester);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('ספר א')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await gesture.up();
     await tester.pumpAndSettle();
 
