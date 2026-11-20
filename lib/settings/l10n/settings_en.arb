@@ -1075,6 +1075,8 @@
   "הסתר תצוגה מקדימה": "Hide preview",
   "סגור הגדרות ספרייה": "Close library settings",
   "הגדרות ספרייה": "Library settings",
+  "חזרה לעיון": "Back to reading",
+  "חזרה לעיון: {title}": "Back to reading: {title}",
   "איתור ספר או מחבר ב{category}": "Find a book or author in {category}",
   "מציג את כולם": "Showing all",
   "מציג רק ספרי התוסף": "Showing plugin books only",

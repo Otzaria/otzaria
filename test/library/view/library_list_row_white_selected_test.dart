@@ -25,6 +25,9 @@ import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import '../../test_helpers/stub_tabs_bloc.dart';
 
 /// השורה הנבחרת ברשימת הספרייה ב"לבן" בבהיר (סקירה רביעית 4.11,
 /// q-white-selected): מילוי E0 וקו 9F ברוחב borderThin. שורה עצמאית (תוצאות
@@ -153,6 +156,9 @@ Future<void> _pump(
           BlocProvider<LibraryBloc>.value(value: libraryBloc),
           BlocProvider<SettingsBloc>.value(value: settingsBloc),
           BlocProvider<NavigationBloc>.value(value: navigationBloc),
+          BlocProvider<TabsBloc>(
+            create: (_) => StubTabsBloc(TabsState.initial()),
+          ),
           BlocProvider<LibraryUpdateBloc>.value(value: updateBloc),
           BlocProvider<CalendarCubit>.value(value: calendarCubit),
           BlocProvider<CustomFoldersBloc>(

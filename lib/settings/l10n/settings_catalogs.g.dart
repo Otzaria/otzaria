@@ -825,6 +825,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חזרה לברירת מחדל': 'Restore default',
     'חזרה למיקום הקודם': 'Back to previous location',
     'חזרה למיקום הקודם (PDF)': 'Back to Previous Location (PDF)',
+    'חזרה לעיון': 'Back to reading',
+    'חזרה לעיון: {title}': 'Back to reading: {title}',
     'חזרה לשורש הספרייה, ניקוי החיפוש וכיווץ הקטגוריות': 'Back to the library root, clearing the search and collapsing categories',
     'חזרה לתיקיה הראשית': 'Back to the main folder',
     'חזרה לתצוגה רגילה': 'Back to the regular view',
