@@ -114,6 +114,9 @@ class _CommentaryContentState extends State<CommentaryContent>
   bool get highlightsLinkedAnchor => true;
 
   @override
+  bool get showsCommentatorAnchors => true;
+
+  @override
   void openPanelAnchor(Link link) => _openAnchorTarget(link);
 
   @override
