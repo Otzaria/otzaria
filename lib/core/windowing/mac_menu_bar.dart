@@ -106,6 +106,7 @@ class MacMenuBar extends StatelessWidget {
           ),
         ],
       ),
+      buildMacEditMenu(language: language),
       PlatformMenu(
         label: t('מעבר'),
         menus: <PlatformMenuItem>[
@@ -222,6 +223,88 @@ class MacMenuBar extends StatelessWidget {
     }
     return !blocked;
   }
+}
+
+/// תפריט "עריכה" של מק: בלעדיו שורת התפריט של המערכת חסרה גזור/העתק/הדבק/בחר
+/// הכל, ו-macOS לא מציעה לשדות האפליקציה את אמצעי העריכה שלה.
+///
+/// הפריטים שולחים את הפעולה לרכיב שבפוקוס, בדיוק כמו המקשים הרגילים של
+/// Flutter. הם **לא מצהירים על מקש**: מקש שמוצהר בתפריט נתפס בידי macOS לפני
+/// Flutter, ובתצוגת WebView של תוסף אין Action של Flutter שיטפל בו, כך ש-Cmd+C
+/// היה נבלע. המקשים נשארים בידי Flutter, כמו עד היום.
+@visibleForTesting
+PlatformMenu buildMacEditMenu({
+  required SettingsLanguage language,
+  @visibleForTesting bool shortcutsEnabled = kMacEditMenuShortcutsEnabled,
+}) {
+  String t(String hebrew) => resolveSettingsText(hebrew, language: language);
+  PlatformMenuItem item(
+    String hebrew,
+    Intent intent,
+    LogicalKeyboardKey key, {
+    bool shift = false,
+  }) => PlatformMenuItem(
+    label: t(hebrew),
+    shortcut: shortcutsEnabled
+        ? SingleActivator(key, meta: true, shift: shift)
+        : null,
+    onSelected: () => _invokeOnFocus(intent),
+  );
+  const cause = SelectionChangedCause.toolbar;
+  return PlatformMenu(
+    label: t('עריכה'),
+    menus: <PlatformMenuItem>[
+      PlatformMenuItemGroup(
+        members: <PlatformMenuItem>[
+          item('בטל', const UndoTextIntent(cause), LogicalKeyboardKey.keyZ),
+          item(
+            'בצע שוב',
+            const RedoTextIntent(cause),
+            LogicalKeyboardKey.keyZ,
+            shift: true,
+          ),
+        ],
+      ),
+      PlatformMenuItemGroup(
+        members: <PlatformMenuItem>[
+          item(
+            'גזור',
+            const CopySelectionTextIntent.cut(cause),
+            LogicalKeyboardKey.keyX,
+          ),
+          item('העתק', CopySelectionTextIntent.copy, LogicalKeyboardKey.keyC),
+          item('הדבק', const PasteTextIntent(cause), LogicalKeyboardKey.keyV),
+        ],
+      ),
+      PlatformMenuItemGroup(
+        members: <PlatformMenuItem>[
+          item(
+            'בחר הכל',
+            const SelectAllTextIntent(cause),
+            LogicalKeyboardKey.keyA,
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+/// האם פריטי תפריט "עריכה" מצהירים על מקשי קיצור (Cmd+X/C/V/A/Z).
+///
+/// כבוי בכוונה. TODO(q114): להדליק רק אחרי בדיקה על Mac אמיתי. החשש: מקש
+/// שמוצהר בתפריט המערכת נתפס בידי macOS לפני Flutter, ולכן Cmd+C עלול להיבלע
+/// לפני תצוגת WebView של תוסף (שאין לה Action של Flutter שיטפל בו) ולא להגיע
+/// אליה. בלי המקשים התפריט עובד בלחיצה בלבד, והמקשים ממשיכים להגיע לרכיבים
+/// כמו עד היום. כל עוד הדגל כבוי הקוד של המקשים לא פעיל; בדיקות מפעילות אותו
+/// דרך הפרמטר `shortcutsEnabled` של [buildMacEditMenu].
+const bool kMacEditMenuShortcutsEnabled = false;
+
+/// מפעיל את [intent] על הרכיב שבפוקוס. בלי פוקוס, או בלי Action שמטפל בו
+/// (למשל כשהפוקוס בתוך WebView), לא קורה דבר.
+void _invokeOnFocus(Intent intent) {
+  final context = primaryFocus?.context;
+  if (context == null) return;
+  Actions.maybeInvoke(context, intent);
 }
 
 /// ממיר מחרוזת קיצור בפורמט ההגדרות ל-activator שניתן להצהיר עליו בתפריט.

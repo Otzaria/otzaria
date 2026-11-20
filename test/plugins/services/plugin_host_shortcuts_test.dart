@@ -87,6 +87,26 @@ void main() {
       expect(ctrlTab.meta, isFalse);
       expect(ctrlTab.codes, ['Tab']);
     });
+
+    test('ב-Mac גם Cmd+1..9 מועבר לתוסף; מחוץ ל-Mac לא', () {
+      PluginHostShortcuts.isMacForTesting = true;
+      final mac = PluginHostShortcuts.build(const {});
+      for (var digit = 1; digit <= 9; digit++) {
+        final cmd = byId(mac, 'fixed:meta+$digit');
+        expect(cmd.meta, isTrue, reason: 'Cmd+$digit');
+        expect(cmd.ctrl, isFalse, reason: 'Cmd+$digit');
+        expect(cmd.codes, ['Digit$digit', 'Numpad$digit']);
+        // Ctrl+ספרה נשאר מועבר גם ב-Mac.
+        expect(byId(mac, 'fixed:ctrl+$digit').ctrl, isTrue);
+      }
+
+      PluginHostShortcuts.isMacForTesting = false;
+      final other = PluginHostShortcuts.build(const {});
+      expect(
+        other.map((s) => s.id),
+        isNot(contains('fixed:meta+1')),
+      );
+    });
   });
 
   group('PluginHostShortcuts.dispatch', () {

@@ -1,0 +1,111 @@
+name: Apple platforms weekly
+
+# כיסוי אמיתי ל-macOS ול-iOS בלי לשלם דקות Mac בכל PR (החלטה pf8, אפשרות ג).
+# ב-PR רגיל רצה על Mac רק בדיקה אחת (native_sha256), ואין בנייה של iOS. כאן:
+#   1. flutter test על תת-קבוצה שרגישה לפלטפורמה (ליבה, קיצורי מקלדת, רכיבים),
+#      על macOS אמיתי ולא על דימוי של TargetPlatform מ-Linux.
+#   2. בניית iOS בלי חתימה, כדי שקריסת קומפילציה, תלות נייטיבית או Podfile
+#      יתגלו תוך שבוע ולא ביום הפריסה ל-App Store.
+# רצה בלוח זמנים מענף ברירת המחדל וביד (workflow_dispatch), ואינה חוסמת PR.
+# אותם קבצי בדיקה רצים גם ב-Linux/Windows ב-flutter_tests.yml; כשל כאן בלבד
+# פירושו הבדל התנהגות של macOS.
+
+on:
+  schedule:
+    # יום ראשון 03:00 UTC.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: להריץ את בדיקות ה-Flutter על macOS
+        type: boolean
+        default: true
+      run_ios_build:
+        description: לבנות את iOS בלי חתימה
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-platforms-weekly
+  cancel-in-progress: false
+
+jobs:
+  macos_tests:
+    name: Flutter tests on macOS (core, shortcuts, widgets)
+    # בהרצה מתוזמנת inputs ריק, ולכן ברירת המחדל היא להריץ.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests }}
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          # ב-macOS ה-cache (~2.5GB) כמעט לא נמצא בין ריצות, ושמירתו איטית מהתקנה.
+          cache: false
+
+      # הבדיקות מריצות את build hooks של מנוע החיפוש; בלי בינארי מפורסם ל-hash
+      # שלו הוא מתקמפל ממקור.
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # הבדיקות תלויות בקבצים המחוללים, כמו בכל shard ב-flutter_tests.yml.
+      - name: Generate settings search index
+        run: dart run tool/generate_search_index.dart
+
+      - name: Generate settings translation catalog
+        run: dart run tool/generate_settings_l10n.dart
+
+      - name: Run platform-sensitive tests
+        run: |
+          flutter test test/core test/shortcuts test/widgets \
+            --reporter expanded --timeout 60s
+
+  ios_build:
+    name: Build iOS (no codesign)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_ios_build }}
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+
+      # אותו יעד Rust כמו ב-deploy-app-store.yml.
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Add cargo to PATH
+        run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: |
+          flutter pub get --enforce-lockfile
+          dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
+
+      # debug ולא release: מוודא קומפילציה ו-Pods בזול יחסית. בניית ה-release
+      # המלאה והחתימה נבדקות ב-deploy-app-store.yml.
+      - name: Build iOS (debug, unsigned)
+        run: flutter build ios --debug --no-codesign

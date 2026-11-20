@@ -674,13 +674,13 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
 
     // Ctrl+1..9 - מעבר ישיר לטאב לפי מיקומו, כמו בדפדפן: 1-8 לטאבים הראשונים
     // ו-9 תמיד לטאב האחרון. נבדק אחרי כל קיצורי matchesShortcut כדי שקיצור
-    // מותאם-אישית שהמשתמש שייך ל-Ctrl+ספרה יקבל קדימות. ללא matchesShortcut
-    // (כמו Ctrl+Tab) כדי לא להפוך ל-Cmd ב-Mac.
+    // מותאם-אישית שהמשתמש שייך ל-Ctrl+ספרה יקבל קדימות. ב-Mac מתקבל גם
+    // Cmd+ספרה (המוסכמה בדפדפנים; Ctrl+ספרה שם הוא מעבר שולחן עבודה של המערכת),
+    // וב-Ctrl+Tab נשארים עם Ctrl פיזי.
     if (isReadingScreen &&
-        HardwareKeyboard.instance.isControlPressed &&
+        ShortcutHelper.isCtrlOrMacCmdOnly &&
         !HardwareKeyboard.instance.isShiftPressed &&
-        !HardwareKeyboard.instance.isAltPressed &&
-        !HardwareKeyboard.instance.isMetaPressed) {
+        !HardwareKeyboard.instance.isAltPressed) {
       final digit = _tabDigitForKey(event.logicalKey);
       if (digit != null) {
         final tabsBloc = context.read<TabsBloc>();

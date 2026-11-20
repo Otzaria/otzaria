@@ -1234,6 +1234,138 @@ void main() {
     });
   });
 
+  group('KeyboardShortcuts - Cmd+1..9 מעבר לטאב ב-Mac', () {
+    late MockSettingsBloc settingsBlocLocal;
+    late StreamController<SettingsState> settingsControllerLocal;
+
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+    });
+
+    setUp(() {
+      FocusRepository().resetForTesting();
+      settingsBlocLocal = MockSettingsBloc();
+      settingsControllerLocal = StreamController<SettingsState>.broadcast();
+      whenListen(
+        settingsBlocLocal,
+        settingsControllerLocal.stream,
+        initialState: SettingsState.initial(),
+      );
+    });
+
+    tearDown(() async {
+      await settingsControllerLocal.close();
+      FocusRepository().resetForTesting();
+    });
+
+    Future<TabsBloc> pumpWithTabs(WidgetTester tester, int tabCount) async {
+      final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+      final historyBloc = _StubHistoryBloc();
+      final navigationBloc = _StubNavigationBloc();
+      addTearDown(() async {
+        await tabsBloc.close();
+        await historyBloc.close();
+        await navigationBloc.close();
+      });
+
+      for (var i = 1; i <= tabCount; i++) {
+        tabsBloc.add(AddTab(SearchingTab('חיפוש $i', '$i')));
+        await tester.pump();
+      }
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return tabsBloc;
+    }
+
+    Future<void> sendWith(
+      WidgetTester tester,
+      List<LogicalKeyboardKey> modifiers,
+      LogicalKeyboardKey key,
+    ) async {
+      for (final m in modifiers) {
+        await tester.sendKeyDownEvent(m);
+      }
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      for (final m in modifiers.reversed) {
+        await tester.sendKeyUpEvent(m);
+      }
+      await tester.pump();
+    }
+
+    group('ב-Mac', () {
+      setUp(() => ShortcutHelper.isMacForTesting = true);
+
+      testWidgets('Cmd+3 עובר לטאב השלישי', (tester) async {
+        final tabsBloc = await pumpWithTabs(tester, 5);
+        await sendWith(tester, [
+          LogicalKeyboardKey.metaLeft,
+        ], LogicalKeyboardKey.digit3);
+        expect(tabsBloc.state.currentTabIndex, 2);
+      });
+
+      testWidgets('Cmd+9 עובר לטאב האחרון', (tester) async {
+        final tabsBloc = await pumpWithTabs(tester, 5);
+        tabsBloc.add(const SetCurrentTab(0));
+        await tester.pump();
+        await sendWith(tester, [
+          LogicalKeyboardKey.metaLeft,
+        ], LogicalKeyboardKey.digit9);
+        expect(tabsBloc.state.currentTabIndex, 4);
+      });
+
+      testWidgets('Ctrl+3 ממשיך לעבוד', (tester) async {
+        final tabsBloc = await pumpWithTabs(tester, 5);
+        await sendWith(tester, [
+          LogicalKeyboardKey.controlLeft,
+        ], LogicalKeyboardKey.digit3);
+        expect(tabsBloc.state.currentTabIndex, 2);
+      });
+
+      testWidgets('Cmd+Shift+3 אינו מחליף טאב', (tester) async {
+        final tabsBloc = await pumpWithTabs(tester, 5);
+        final before = tabsBloc.state.currentTabIndex;
+        await sendWith(tester, [
+          LogicalKeyboardKey.metaLeft,
+          LogicalKeyboardKey.shiftLeft,
+        ], LogicalKeyboardKey.digit3);
+        expect(tabsBloc.state.currentTabIndex, before);
+      });
+    });
+
+    group('שלא ב-Mac', () {
+      setUp(() => ShortcutHelper.isMacForTesting = false);
+
+      testWidgets('Win+3 אינו מחליף טאב', (tester) async {
+        final tabsBloc = await pumpWithTabs(tester, 5);
+        final before = tabsBloc.state.currentTabIndex;
+        await sendWith(tester, [
+          LogicalKeyboardKey.metaLeft,
+        ], LogicalKeyboardKey.digit3);
+        expect(tabsBloc.state.currentTabIndex, before);
+      });
+    });
+  });
+
   group('KeyboardShortcuts - ניווט קטע/דף-פרק (Alt+חיצים, Alt+Page)', () {
     late MockSettingsBloc settingsBlocLocal;
     late StreamController<SettingsState> settingsControllerLocal;
