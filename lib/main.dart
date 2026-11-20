@@ -25,6 +25,7 @@ import 'package:otzaria/attached_libraries/repository/attached_libraries_reposit
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/android_anr_source.dart';
+import 'package:otzaria/app_report/services/android_hang_monitor.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
@@ -1139,7 +1140,8 @@ Future<void> _runDeferredCrashCheck() async {
   }
 }
 
-/// ANR של הפעלה קודמת באנדרואיד, מ-ApplicationExitInfo של המערכת.
+/// גלאי התקיעות של אנדרואיד, ותקיעה של הפעלה קודמת: ANR מ-ApplicationExitInfo
+/// של המערכת, או תקיעה שהגלאי רשם ולא השתחררה.
 Future<void> _runDeferredAnrCheck() async {
   if (kIsWeb || !Platform.isAndroid) return;
   try {
@@ -1149,20 +1151,29 @@ Future<void> _runDeferredAnrCheck() async {
   } on TimeoutException {
     // ממשיכים בכל זאת — אחרת ה-ANR לא ידווח כלל.
   }
+  final hangMonitor = AndroidHangMonitor();
+  try {
+    await hangMonitor.start();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Hang monitor', error, stackTrace);
+  }
   try {
     if (CrashReportFlow.currentMode() == AppCrashReportMode.never) return;
     final anr = await AndroidAnrSource().takeNewAnr();
-    if (anr == null) return;
+    // נבדקת גם כשיש ANR, כדי שאותה תקיעה לא תוצע שוב בהפעלה הבאה.
+    final hang = await hangMonitor.takeUnrecoveredHang();
+    final candidate = anr == null
+        ? hang
+        : CrashCandidate.hang(
+            signature: anr.signature,
+            details: anr.details,
+            occurredInPreviousRun: true,
+          );
+    if (candidate == null) return;
     await CrashReportFlow(
       showPrompt: showCrashPromptOnNavigator,
       collector: AppReportCollector(includeCurrentContext: false),
-    ).handle(
-      CrashCandidate.hang(
-        signature: anr.signature,
-        details: anr.details,
-        occurredInPreviousRun: true,
-      ),
-    );
+    ).handle(candidate);
   } catch (error, stackTrace) {
     _logNonFatalInitializationError('ANR report check', error, stackTrace);
   }

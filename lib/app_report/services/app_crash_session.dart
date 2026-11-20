@@ -31,11 +31,12 @@ abstract class AppCrashSession {
   }
 
   /// מועמד לתקיעה שהשתחררה בהפעלה הנוכחית, לפי רשומת `App hang` האחרונה.
+  /// גם באנדרואיד: הרשומה נכתבת שם מ-`HangMonitorChannel.kt`, בלי נעילת הפעלה.
   static Future<CrashCandidate?> detectRecoveredHang({
     required Duration duration,
     UncleanExitDetector? detector,
   }) async {
-    if (!isSupported) return null;
+    if (!isSupported && (kIsWeb || !Platform.isAndroid)) return null;
     return (detector ??
             UncleanExitDetector(processStartedAt: processStartTime()))
         .detectRecoveredHang(duration: duration);
