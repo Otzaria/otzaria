@@ -2168,6 +2168,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         maxFontSize: widget.fontSize,
         onNavigate: (link) =>
             openLinkTarget(link, (tab) => widget.openBookCallback(tab)),
+        onOpenAll: (link, commentators) => openLinkTarget(
+          link,
+          (tab) => widget.openBookCallback(tab),
+          commentators: [state.book.title, ...commentators],
+        ),
       );
       final sourceEntry = _siblingController!.buildSourceEntry(
         sourceLink: sourceLink,
