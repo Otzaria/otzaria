@@ -18,6 +18,32 @@ VoidCallback _registerMenuEscape(OnKeyEventCallback handler) {
   return () => EscapeLayers.remove(handler);
 }
 
+/// לחיצה ארוכה בתוך האזור שייכת לאב (למשל גרירה), ולא פותחת תפריט הקשר.
+/// האב פותח את התפריט בעצמו דרך [openContextMenuWithin].
+class ContextMenuLongPressOwner extends InheritedWidget {
+  const ContextMenuLongPressOwner({super.key, required super.child});
+
+  @override
+  bool updateShouldNotify(ContextMenuLongPressOwner oldWidget) => false;
+}
+
+/// פותח את תפריט ההקשר הראשון שבתת-העץ של [context].
+void openContextMenuWithin(BuildContext context, Offset globalPosition) {
+  AppContextMenuRegionState? region;
+  void visit(Element element) {
+    if (region != null) return;
+    if (element is StatefulElement &&
+        element.state is AppContextMenuRegionState) {
+      region = element.state as AppContextMenuRegionState;
+      return;
+    }
+    element.visitChildren(visit);
+  }
+
+  context.visitChildElements(visit);
+  region?.openMenuAt(globalPosition);
+}
+
 /// תפריט הקשר עם עיצוב האפליקציה ותצוגה מקדימה של ספרים.
 class AppContextMenuRegion extends StatefulWidget {
   final Widget child;
@@ -89,7 +115,10 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
       menuItemKeysByLabel: widget.menuItemKeysByLabel,
       onSecondaryTapDown: widget.onSecondaryTapDown,
       onHoverEnter: widget.onHoverEnter,
-      openOnLongPress: widget.openOnLongPress,
+      openOnLongPress:
+          widget.openOnLongPress &&
+          context.getInheritedWidgetOfExactType<ContextMenuLongPressOwner>() ==
+              null,
       shouldPreserveSelectionOnSecondaryTap:
           widget.shouldPreserveSelectionOnSecondaryTap,
       onMenuOpening: (context, position) {
