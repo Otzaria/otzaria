@@ -99,6 +99,7 @@ String injectLinkAnchorMarkers({
   bool rangesOnly = false,
   List<BookNote> notes = const [],
   int? note,
+  bool printLike = false,
 }) {
   final points = <({int at, int order, String html})>[];
   final ranges = <HtmlWrapRange>[];
@@ -125,7 +126,9 @@ String injectLinkAnchorMarkers({
     // continue ולא סינון מראש: האינדקס מזהה את הקישור ב-href של הסמן.
     if (skipLinker && _isLinkerLink(link)) continue;
     final spans = spansByLink[linkIndex];
-    final styleIndex = styleIndexByCommentator[link.path2] ?? 0;
+    final styleIndex = printLike
+        ? kLinkAnchorPrintStyleIndex
+        : styleIndexByCommentator[link.path2] ?? 0;
     for (final span in spans) {
       if (span.start < 0) continue;
       final end = span.end;

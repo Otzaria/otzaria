@@ -460,6 +460,10 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
         }}',
       if (patch.anchorMarkers case final v?)
         '${t('ציוני המפרשים')}: ${visibility(v)}',
+      if (patch.anchorMarkerStyle case final v?)
+        v == AnchorMarkerStyle.print
+            ? t('ציוני המפרשים כבדפוס')
+            : '${t('ציוני המפרשים כבדפוס')}: ${t('כבוי')}',
     ];
     return parts.join(' · ');
   }

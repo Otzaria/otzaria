@@ -1494,6 +1494,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             patch.anchorMarkers,
             retained.anchorMarkers,
           ),
+          clearAnchorMarkerStyle: wasReverted(
+            previous.anchorMarkerStyle,
+            patch.anchorMarkerStyle,
+            retained.anchorMarkerStyle,
+          ),
           clearDivineNames: wasReverted(
             previous.divineNames,
             patch.divineNames,

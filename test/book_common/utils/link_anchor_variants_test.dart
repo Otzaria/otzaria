@@ -149,7 +149,8 @@ void main() {
     });
 
     test('אף וריאנט אינו "ריק" — לכל אחד יש סימן מבחין', () {
-      for (final variant in kLinkAnchorVariants) {
+      // וריאנט "כבדפוס" (issue #4394) פשוט בכוונה, ואינו מוקצה למפרש.
+      for (final variant in kLinkAnchorVariants.take(kLinkAnchorStyleCount)) {
         expect(
           variant.bold ||
               variant.italic ||

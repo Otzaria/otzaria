@@ -654,6 +654,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       lineIndex: lineIndex,
       activeIndex: lineIndex == _activeAnchorLine ? _activeAnchorIndex : null,
       notes: widget.anchorBookNotes.notesAt(lineIndex),
+      printLike: state.commentaryDisplayProfile.printLikeAnchorMarkers,
     );
   }
 
@@ -698,6 +699,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       activeIndex: lineIndex == _activeAnchorLine ? _activeAnchorIndex : null,
       notes: state.bookNotes.notesAt(lineIndex),
       note: note,
+      printLike: state.bodyDisplayProfile.printLikeAnchorMarkers,
     );
   }
 

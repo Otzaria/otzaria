@@ -448,6 +448,7 @@ String noteBodyWithAnchors(
     lineIndex: lineIndex,
     notes: state.bookNotes.notesAt(lineIndex),
     note: note,
+    printLike: state.bodyDisplayProfile.printLikeAnchorMarkers,
   );
 }
 
