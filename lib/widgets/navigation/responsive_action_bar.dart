@@ -6,6 +6,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar_overflow.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// זהות לוגית של פעולה שיכולה להופיע בשורת הכלים של הקורא.
@@ -180,6 +181,11 @@ class ResponsiveActionBar extends StatefulWidget {
   final bool openOverflowMenu;
   final Map<String, GlobalKey>? menuItemKeysByTooltip;
 
+  /// true: בראש התפריט נוספות הפעולות שפריטי ההתחלה של `AppTopBar`
+  /// (עם `mergeFoldedIntoTrailingMenu`) קיפלו, ובשבילן יש תפריט גם כשאין בו
+  /// דבר אחר.
+  final bool absorbTopBarFolds;
+
   const ResponsiveActionBar({
     super.key,
     required this.actions,
@@ -193,6 +199,7 @@ class ResponsiveActionBar extends StatefulWidget {
     this.overflowButtonKey,
     this.openOverflowMenu = false,
     this.menuItemKeysByTooltip,
+    this.absorbTopBarFolds = false,
   }) : assert(
          alwaysInMenu != null || originalOrder != null,
          'Either alwaysInMenu or originalOrder must be provided',
@@ -385,7 +392,11 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
     final hasAlwaysInMenu =
         widget.alwaysInMenu != null && widget.alwaysInMenu!.isNotEmpty;
 
-    if (widget.actions.isEmpty && !hasAlwaysInMenu && _headerActions.isEmpty) {
+    final folded = _topBarFolds(context);
+    if (widget.actions.isEmpty &&
+        !hasAlwaysInMenu &&
+        _headerActions.isEmpty &&
+        folded.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -397,14 +408,32 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
         widget.alwaysInMenu != null && widget.originalOrder == null;
 
     if (isNewMode) {
-      return _buildNewMode(context);
+      return _buildNewMode(context, folded);
     } else {
-      return _buildOldMode(context);
+      return _buildOldMode(context, folded);
     }
   }
 
+  /// הפעולות שפריטי ההתחלה של הסרגל קיפלו, כשורות תפריט (ראו
+  /// [ResponsiveActionBar.absorbTopBarFolds]).
+  List<ActionButtonData> _topBarFolds(BuildContext context) {
+    if (!widget.absorbTopBarFolds) return const [];
+    return [
+      for (final action in AppTopBarFoldedActions.of(context))
+        ActionButtonData(
+          widget: const SizedBox.shrink(),
+          icon: action.icon,
+          tooltip: action.label,
+          onPressed: action.onPressed,
+        ),
+    ];
+  }
+
   /// מצב חדש: כפתורים נעלמים לפי רוחב אמיתי ועדיפות, תמיד יש תפריט עם כפתורים קבועים
-  Widget _buildNewMode(BuildContext context) {
+  Widget _buildNewMode(
+    BuildContext context,
+    List<ActionButtonData> topBarFolds,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = AppDensity.of(context).isCompact;
@@ -424,7 +453,9 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
           standardButtonWidth: standardButtonWidth,
           overflowButtonWidth: standardButtonWidth,
           overflowAlreadyRequired:
-              widget.alwaysInMenu!.isNotEmpty || _headerActions.isNotEmpty,
+              widget.alwaysInMenu!.isNotEmpty ||
+              _headerActions.isNotEmpty ||
+              topBarFolds.isNotEmpty,
           maxVisibleButtons: widget.maxVisibleButtons,
           minButtonWidth: touch ? standardButtonWidth : 0,
         );
@@ -432,7 +463,11 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
         final visibleActions = partition.visible;
         final hiddenActions = partition.hidden;
 
-        final allHiddenActions = [...hiddenActions, ...widget.alwaysInMenu!];
+        final allHiddenActions = [
+          ...topBarFolds,
+          ...hiddenActions,
+          ...widget.alwaysInMenu!,
+        ];
 
         final visibleWidgets = visibleActions
             .map((action) => action.widget)
@@ -456,7 +491,10 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
   }
 
   /// מצב ישן: כפתורים נעלמים לפי עדיפות, ותפריט רק אם צריך
-  Widget _buildOldMode(BuildContext context) {
+  Widget _buildOldMode(
+    BuildContext context,
+    List<ActionButtonData> topBarFolds,
+  ) {
     final totalButtons = widget.originalOrder!.length;
     final configuredMaxVisible = widget.maxVisibleButtons ?? totalButtons;
     int effectiveMaxVisible = configuredMaxVisible;
@@ -501,7 +539,11 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
     final List<Widget> children = [];
 
     final alwaysInMenu = widget.alwaysInMenu ?? const <ActionButtonData>[];
-    final allHiddenActions = [...hiddenActions, ...alwaysInMenu];
+    final allHiddenActions = [
+      ...topBarFolds,
+      ...hiddenActions,
+      ...alwaysInMenu,
+    ];
 
     final showOverflow =
         allHiddenActions.isNotEmpty || _headerActions.isNotEmpty;
@@ -663,21 +705,25 @@ class _MenuIconActionRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          // Flexible: כשהתפריט צר מסכום הכפתורים (חלון ברוחב 210: 194 מול 200)
+          // הכפתורים מצטמצמים קצת במקום לגלוש מהקצה. ברוחב מספיק הם 48 כרגיל.
           for (final action in actions)
-            IconButton(
-              onPressed: action.onPressed,
-              tooltip: action.tooltip,
-              icon: RtlIcon(action.icon!, size: _iconSize),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: _buttonSize,
-                minHeight: _buttonSize,
-              ),
-              style: IconButton.styleFrom(
-                // צבע פריט תפריט רגיל, לא הגוון המושתק של כפתור סרגל.
-                foregroundColor: colorScheme.onSurface,
-                shape: AppTokens.roundedShape,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Flexible(
+              child: IconButton(
+                onPressed: action.onPressed,
+                tooltip: action.tooltip,
+                icon: RtlIcon(action.icon!, size: _iconSize),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: _buttonSize,
+                  minHeight: _buttonSize,
+                ),
+                style: IconButton.styleFrom(
+                  // צבע פריט תפריט רגיל, לא הגוון המושתק של כפתור סרגל.
+                  foregroundColor: colorScheme.onSurface,
+                  shape: AppTokens.roundedShape,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ),
         ],

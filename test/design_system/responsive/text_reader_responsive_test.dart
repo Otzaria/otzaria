@@ -22,6 +22,7 @@ import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/navigation_repository.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -478,6 +479,73 @@ Future<void> main() async {
     verify: _topBarChecks(),
   );
 
+  // סרגל מלא (ידית גרירה, ניווט, חזרה, נעיצה, צורת דף) בחלונית צרה: נעיצה
+  // וצורת דף עוברות ל"עוד ⋮" כשאין להן מקום, ואינן גולשות מהסרגל. 210 הוא
+  // חלונית של פיצול בחלון הצר ביותר במחשב (420 לשתי חלוניות).
+  testResponsive(
+    'קורא: סרגל מלא בחלונית צרה, נעיצה וצורת דף ב"עוד"',
+    wrapApp: _wrapWith(
+      () => _Rig.create(
+        showLeftPane: true,
+        pinLeftPane: true,
+        pageShape: true,
+        toc: _longToc(),
+        title: _longBookTitle,
+        author: _longAuthor,
+      ),
+    ),
+    build: (context) {
+      final tab = context.read<TabsBloc>().state.tabs.single;
+      return PaneDragHandleScope(
+        pane: tab,
+        enabled: true,
+        child: const _ReaderHost(),
+      );
+    },
+    scaffold: false,
+    horizontalScroll: true,
+    viewports: const [
+      ResponsiveViewport(210, 800),
+      ResponsiveViewport(260, 800),
+      ResponsiveViewport(320, 800, touch: true),
+      ResponsiveViewport(380, 800, touch: true),
+      ResponsiveViewport(420, 800),
+    ],
+    verify: (tester, run) async {
+      expectVisible(
+        tester,
+        run,
+        find.byType(NavPanelToggleButton),
+        name: 'כפתור חלונית הניווט',
+      );
+      // כל אחת משתי הפעולות נגישה: בסרגל, או כשורה ב"עוד ⋮" של הקורא (בו
+      // נכנסות גם פעולות ההתחלה שקופלו).
+      final more = find.descendant(
+        of: find.byType(ResponsiveActionBar),
+        matching: find.byTooltip('עוד פעולות'),
+      );
+      for (final label in const ['בטל נעיצה', 'הגדרות צורת הדף']) {
+        if (tester.any(find.byTooltip(label).hitTestable())) continue;
+        if (!tester.any(more.hitTestable())) {
+          run.add(
+            ResponsiveIssue(
+              'unreachable',
+              '"$label" לא בסרגל, ואין "עוד ⋮" שמגיע אליה',
+            ),
+          );
+          continue;
+        }
+        await tester.tap(more);
+        await tester.pumpAndSettle();
+        if (find.text(label).evaluate().isEmpty) {
+          run.add(ResponsiveIssue('unreachable', '"$label" לא ב"עוד ⋮"'));
+        }
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
   testResponsive(
     'קורא: טקסט ארוך בלי רווחים ושורות רבות',
     wrapApp: _wrapWith(
@@ -543,9 +611,9 @@ Future<void> main() async {
     ),
     viewports: [..._panelViewports, ..._textScaleViewports],
     verify: (tester, run) async {
-      // כותרות שורות ההגדרה הן maxLines=1 עם ellipsis בכל מסך הגדרות
-      // (settings_card.dart), ובחלון של 320 בהגדלה הן נקטעות. זו התנהגות
-      // משותפת של רכיבי ההגדרות; כאן נדרש שבגודל רגיל שום טקסט לא נחתך.
+      // כותרות שורות ההגדרה הן עד שתי שורות (maxLines=2 ב-settings_card.dart,
+      // בכל מסכי ההגדרות). בחלון של 320 בהגדלה גדולה כותרת ארוכה עדיין יכולה
+      // להיקטע אחרי שתי שורות, ולכן כאן נדרש רק שבגודל רגיל שום טקסט לא נחתך.
       if (run.viewport.textScale == 1.0) {
         expectNoClippedText(
           tester,

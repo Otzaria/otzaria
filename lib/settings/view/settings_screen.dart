@@ -522,15 +522,17 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                         ],
                         center: Align(
                           alignment: AlignmentDirectional.centerStart,
-                          child: Text(
-                            context.settingsText(
-                              isSearching
-                                  ? 'תוצאות חיפוש'
-                                  : _tabsData[_selectedIndex].label,
+                          child: AppTopBarTitle(
+                            child: Text(
+                              context.settingsText(
+                                isSearching
+                                    ? 'תוצאות חיפוש'
+                                    : _tabsData[_selectedIndex].label,
+                              ),
+                              style: AppTopBar.titleStyle(context),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            style: AppTopBar.titleStyle(context),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),

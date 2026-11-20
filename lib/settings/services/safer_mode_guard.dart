@@ -207,9 +207,11 @@ class _SaferModeGuardState extends State<SaferModeGuard> {
                   AppTopBar(
                     center: Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        context.settingsText('הגדרות'),
-                        style: AppTopBar.titleStyle(context),
+                      child: AppTopBarTitle(
+                        child: Text(
+                          context.settingsText('הגדרות'),
+                          style: AppTopBar.titleStyle(context),
+                        ),
                       ),
                     ),
                   ),

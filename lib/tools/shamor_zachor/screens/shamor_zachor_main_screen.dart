@@ -493,15 +493,17 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                     const SizedBox(width: 16),
                                   ],
                                   Expanded(
-                                    child: OtzariaSearchField(
-                                      icon: OtzariaIcons
-                                          .search_in_library_24_regular,
-                                      controller: _searchController,
-                                      focusNode: _searchFocusNode,
-                                      hintText: 'חפש...',
-                                      onChanged: _onSearchChanged,
-                                      onSubmitted: (_) => _focusWindow(),
-                                      onClear: () => _onSearchChanged(''),
+                                    child: AppTopBarField(
+                                      child: OtzariaSearchField(
+                                        icon: OtzariaIcons
+                                            .search_in_library_24_regular,
+                                        controller: _searchController,
+                                        focusNode: _searchFocusNode,
+                                        hintText: 'חפש...',
+                                        onChanged: _onSearchChanged,
+                                        onSubmitted: (_) => _focusWindow(),
+                                        onClear: () => _onSearchChanged(''),
+                                      ),
                                     ),
                                   ),
                                 ],

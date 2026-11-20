@@ -5718,11 +5718,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           displayTitle = '${widget.tab.book.title}, $value';
         }
         return AppSelectionArea(
-          child: Text(
-            displayTitle,
-            style: AppTopBar.titleStyle(context),
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
+          child: AppTopBarTitle(
+            child: Text(
+              displayTitle,
+              style: AppTopBar.titleStyle(context),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         );
       },

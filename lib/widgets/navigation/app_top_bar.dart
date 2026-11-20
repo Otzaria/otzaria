@@ -4,9 +4,14 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar_overflow.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+
+export 'package:otzaria/widgets/navigation/app_top_bar_overflow.dart'
+    show AppTopBarFoldedActions, AppTopBarMenuAction, AppTopBarPriority;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  AppTopBarItem
@@ -17,11 +22,65 @@ class AppTopBarItem {
   final bool dividerBefore;
   final bool flexible;
 
+  /// עד כמה הפריט חיוני. כשפריטי ההתחלה (או הסיום) לא נכנסים ברוחב הסרגל,
+  /// הפריטים ב-[AppTopBarPriority.low] ואז ב-[AppTopBarPriority.normal] עוברים
+  /// לתפריט "עוד ⋮". ברירת המחדל [AppTopBarPriority.critical]: הפריט נשאר
+  /// בסרגל תמיד.
+  final AppTopBarPriority priority;
+
+  /// איך הפריט נראה בתפריט "עוד ⋮". חובה לפריט שאינו critical.
+  final AppTopBarMenuAction? menuAction;
+
   const AppTopBarItem({
     required this.widget,
     this.dividerBefore = false,
     this.flexible = false,
-  });
+    this.priority = AppTopBarPriority.critical,
+    this.menuAction,
+  }) : assert(
+         priority == AppTopBarPriority.critical || menuAction != null,
+         'פריט שיכול לעבור ל"עוד" חייב menuAction',
+       ),
+       assert(
+         priority == AppTopBarPriority.critical || !flexible,
+         'פריט גמיש אינו יכול לעבור ל"עוד"',
+       );
+
+  bool get foldable => priority != AppTopBarPriority.critical;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  AppTopBarTitle
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// כותרת בסרגל העליון. גובה הסרגל קבוע, ולכן הטקסט של הכותרת גדל עם הגדלת
+/// הטקסט של המערכת רק עד [AppTopBar.maxTextScale]. שדות חיפוש עטופים ב-[AppTopBarField]
+/// (תקרה 1.6), וכפתורים גדלים כרגיל.
+class AppTopBarTitle extends StatelessWidget {
+  final Widget child;
+
+  const AppTopBarTitle({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) => MediaQuery.withClampedTextScaling(
+    maxScaleFactor: AppTopBar.maxTextScale,
+    child: child,
+  );
+}
+
+/// שדה בסרגל העליון (חיפוש, מיקום דף ב-PDF). הטקסט בו גדל עם הטקסט של המערכת
+/// עד [AppTopBar.maxFieldTextScale] — תקרה גבוהה מזו של הכותרת, כי זה טקסט
+/// שהמשתמש מקליד וקורא, והשדה גמיש בגובהו.
+class AppTopBarField extends StatelessWidget {
+  final Widget child;
+
+  const AppTopBarField({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) => MediaQuery.withClampedTextScaling(
+    maxScaleFactor: AppTopBar.maxFieldTextScale,
+    child: child,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +198,12 @@ class AppTopBar extends StatefulWidget {
   /// ועלולים לגלוש מתחתיהם. ברירת המחדל: לחצן אחד.
   final double? minTrailingWidth;
 
+  /// true: פריטי ההתחלה שעוברים ל"עוד ⋮" לא מקבלים כפתור ⋮ משלהם אלא נוספים
+  /// בראש תפריט ה-⋮ של פריטי הסיום, כך שבסרגל יש כפתור אחד. מותנה בכך שבין
+  /// [trailingItems] יש `ResponsiveActionBar(absorbTopBarFolds: true)`;
+  /// בלעדיו הפריטים המקופלים לא יופיעו בשום מקום.
+  final bool mergeFoldedIntoTrailingMenu;
+
   const AppTopBar({
     super.key,
     this.leadingItems = const [],
@@ -151,6 +216,7 @@ class AppTopBar extends StatefulWidget {
     this.backgroundColor,
     this.minCenterWidth,
     this.minTrailingWidth,
+    this.mergeFoldedIntoTrailingMenu = false,
   });
 
   /// גובה הסרגל לפי מצב compact
@@ -163,6 +229,15 @@ class AppTopBar extends StatefulWidget {
 
   /// הרווח בין פריטים סמוכים בסרגל.
   static double itemSpacing(bool isCompact) => isCompact ? 4.0 : 8.0;
+
+  /// הגדלת הטקסט המרבית של כותרת הסרגל ([AppTopBarTitle]). גובה הסרגל קבוע,
+  /// ולכן הכותרת גדלה עם הגדלת הטקסט של המערכת רק עד פי 1.3 — כמו תוויות
+  /// הסרגל התחתון. שדות בסרגל מוגבלים בנפרד ([maxFieldTextScale]); כפתורים לא מוגבלים.
+  static const double maxTextScale = 1.3;
+
+  /// הגדלת הטקסט המרבית של שדה בסרגל ([AppTopBarField]): שדות חיפוש ושדה מיקום
+  /// הדף ב-PDF. גבוהה מ-[maxTextScale] של הכותרת.
+  static const double maxFieldTextScale = 1.6;
 
   /// סגנון טקסט אחיד לכותרת הסרגל העליון (titleLarge) — בכל מסכי הקריאה.
   static TextStyle titleStyle(BuildContext context) {
@@ -211,6 +286,9 @@ class _AppTopBarState extends State<AppTopBar>
   Timer? _debounceTimer;
   bool _pendingVisible = true;
   bool? _isCompact;
+
+  /// האינדקסים (ב-leadingItems המאוחדים) שהשורה המתקפלת קיפלה, במצב ממוזג.
+  Set<int> _mergedFolded = const {};
 
   @override
   void initState() {
@@ -341,6 +419,45 @@ class _AppTopBarState extends State<AppTopBar>
     return result;
   }
 
+  /// שורת פריטים (התחלה או סיום), או null כשאין פריטים. עם פריט שיכול לעבור
+  /// ל"עוד" היא מקפלת לפי עדיפות; בלעדיו היא [Row] רגיל, כמו תמיד.
+  Widget? _buildItemsRow(
+    BuildContext context,
+    List<AppTopBarItem> items, {
+    bool merged = false,
+  }) {
+    if (items.isEmpty) return null;
+    if (!items.any((i) => i.foldable)) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _itemsToWidgets(context, items),
+      );
+    }
+    final isCompact = AppDensity.of(context).isCompact;
+    return AppTopBarFoldingRow(
+      spacing: AppTopBar.itemSpacing(isCompact),
+      showOverflowButton: !merged,
+      onFoldedChanged: merged ? _onMergedFolded : null,
+      entries: [
+        for (final item in items)
+          AppTopBarFoldEntry(
+            widget: item.widget,
+            divider: item.dividerBefore
+                ? _buildDivider(context, isCompact)
+                : null,
+            flexible: item.flexible,
+            priority: item.priority,
+            menuAction: item.menuAction,
+          ),
+      ],
+    );
+  }
+
+  void _onMergedFolded(Set<int> folded) {
+    if (!mounted || setEquals(folded, _mergedFolded)) return;
+    setState(() => _mergedFolded = folded);
+  }
+
   Widget _buildDivider(BuildContext context, bool isCompact) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
@@ -393,33 +510,17 @@ class _AppTopBarState extends State<AppTopBar>
       ...AppTopBarScope._collect(context, isCompact, leading: false),
     ];
 
-    // בחלונית צרה (פיצול במינימום) הפריטים לא נכנסים: הם נגללים, ולא נחתכים
-    // ומשאירים את הפעולה בלי גישה. מתחת לרוחב הפנוי אין הבדל מראה.
-    final leadingWidget = leadingItems.isEmpty
-        ? null
-        : SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: _itemsToWidgets(context, leadingItems),
-            ),
-          );
-
-    final trailingWidget = trailingItems.isEmpty
-        ? null
-        : SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: _itemsToWidgets(
-                context,
-                trailingItems,
-              ),
-            ),
-          );
+    final merged = widget.mergeFoldedIntoTrailingMenu;
+    final leadingWidget = _buildItemsRow(context, leadingItems, merged: merged);
+    final trailingWidget = _buildItemsRow(context, trailingItems);
+    final hasFoldable =
+        leadingItems.any((i) => i.foldable) ||
+        trailingItems.any((i) => i.foldable);
 
     final Widget toolbar =
-        widget.minCenterWidth == null && widget.minTrailingWidth == null
+        widget.minCenterWidth == null &&
+            widget.minTrailingWidth == null &&
+            !hasFoldable
         ? NavigationToolbar(
             middleSpacing: 8.0,
             leading: leadingWidget,
@@ -441,6 +542,19 @@ class _AppTopBarState extends State<AppTopBar>
                       ),
           );
 
+    // במצב ממוזג הפריטים שקופלו נחשפים לתפריט ה-⋮ של פריטי הסיום.
+    final Widget toolbarBody = merged
+        ? AppTopBarFoldedActions(
+            actions: [
+              for (final i in _mergedFolded.toList()..sort())
+                if (i < leadingItems.length &&
+                    leadingItems[i].menuAction != null)
+                  leadingItems[i].menuAction!,
+            ],
+            child: toolbar,
+          )
+        : toolbar;
+
     final mainBar = ClipRect(
       clipper: const _ShadowBelowOnlyClipper(),
       child: Material(
@@ -453,7 +567,7 @@ class _AppTopBarState extends State<AppTopBar>
           height: barH,
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-            child: toolbar,
+            child: toolbarBody,
           ),
         ),
       ),

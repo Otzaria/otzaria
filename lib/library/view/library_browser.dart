@@ -1038,63 +1038,65 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               _handleSearchFieldKey(event, state, context),
           child: KeyedSubtree(
             key: _tourLibrarySearchKey,
-            child: OtzariaSearchField(
-              icon: OtzariaIcons.search_in_library_24_regular,
-              controller: focusRepository.librarySearchController,
-              focusNode: focusRepository.librarySearchFocusNode,
-              autofocus: shouldAutofocusLibrarySearch(defaultTargetPlatform),
-              slim: isCompact,
-              hintText: context.settingsText(
-                'איתור ספר או מחבר ב{category}',
-                args: {'category': state.currentCategory?.title ?? ''},
-              ),
-              compactHintText: context.settingsText('איתור ספר או מחבר'),
-              maxWidth: isCompact ? 500 : 400,
-              extraActions: PluginSearchFieldExtraActions(
-                PluginSearchField.library,
-                invocationContext: () {
-                  final current = context.read<LibraryBloc>().state;
-                  return {
-                    PluginSearchFieldContext.categoryPathKey:
-                        pluginCategoryPath(
-                          current.currentCategory,
-                          root: current.library,
-                        ),
-                  };
+            child: AppTopBarField(
+              child: OtzariaSearchField(
+                icon: OtzariaIcons.search_in_library_24_regular,
+                controller: focusRepository.librarySearchController,
+                focusNode: focusRepository.librarySearchFocusNode,
+                autofocus: shouldAutofocusLibrarySearch(defaultTargetPlatform),
+                slim: isCompact,
+                hintText: context.settingsText(
+                  'איתור ספר או מחבר ב{category}',
+                  args: {'category': state.currentCategory?.title ?? ''},
+                ),
+                compactHintText: context.settingsText('איתור ספר או מחבר'),
+                maxWidth: isCompact ? 500 : 400,
+                extraActions: PluginSearchFieldExtraActions(
+                  PluginSearchField.library,
+                  invocationContext: () {
+                    final current = context.read<LibraryBloc>().state;
+                    return {
+                      PluginSearchFieldContext.categoryPathKey:
+                          pluginCategoryPath(
+                            current.currentCategory,
+                            root: current.library,
+                          ),
+                    };
+                  },
+                ),
+                onChanged: (value) {
+                  context.read<LibraryBloc>().add(UpdateSearchQuery(value));
+                  context.read<LibraryBloc>().add(const SelectTopics([]));
+                  _scheduleSearchWithSettings(context, settingsState);
+                },
+                onSubmitted: (value) async {
+                  if (await _tryHandleDeepLink(context, value)) return;
+                  if (!context.mounted) return;
+                  if (_selection.isNotEmpty) {
+                    await _openSelectedBooks();
+                    return;
+                  }
+                  // Enter על תוצאה מסומנת פותח אותה; החיפוש כבר רץ בהקלדה (#4468).
+                  final marked = _markedSearchResult(
+                    context.read<LibraryBloc>().state,
+                    settingsState,
+                  );
+                  if (marked != null) {
+                    _openBookInReader(marked, marked is PdfBook ? 1 : 0);
+                    return;
+                  }
+                  context.read<LibraryBloc>().add(const SelectTopics([]));
+                  _scheduleSearchWithSettings(context, settingsState);
+                },
+                onClear: () {
+                  _update(
+                    context,
+                    state,
+                    settingsState,
+                    restoreSearchFocus: true,
+                  );
                 },
               ),
-              onChanged: (value) {
-                context.read<LibraryBloc>().add(UpdateSearchQuery(value));
-                context.read<LibraryBloc>().add(const SelectTopics([]));
-                _scheduleSearchWithSettings(context, settingsState);
-              },
-              onSubmitted: (value) async {
-                if (await _tryHandleDeepLink(context, value)) return;
-                if (!context.mounted) return;
-                if (_selection.isNotEmpty) {
-                  await _openSelectedBooks();
-                  return;
-                }
-                // Enter על תוצאה מסומנת פותח אותה; החיפוש כבר רץ בהקלדה (#4468).
-                final marked = _markedSearchResult(
-                  context.read<LibraryBloc>().state,
-                  settingsState,
-                );
-                if (marked != null) {
-                  _openBookInReader(marked, marked is PdfBook ? 1 : 0);
-                  return;
-                }
-                context.read<LibraryBloc>().add(const SelectTopics([]));
-                _scheduleSearchWithSettings(context, settingsState);
-              },
-              onClear: () {
-                _update(
-                  context,
-                  state,
-                  settingsState,
-                  restoreSearchFocus: true,
-                );
-              },
             ),
           ),
         );
@@ -1424,16 +1426,20 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         child: Center(
           child: Container(
             width: 200,
-            height: 144,
+            // גובה מינימלי ולא קבוע: בהגדלת טקסט ההודעה נשברת ליותר שורות.
+            constraints: const BoxConstraints(minHeight: 144),
+            padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceMD),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: AppTokens.borderRadiusAll,
               boxShadow: AppShadows.floating(Theme.of(context).colorScheme),
             ),
-            child: LoadingIndicator(
-              strokeWidth: 3,
-              icon: OtzariaIcons.bookshelf_24_regular,
-              message: context.settingsText('טוען את הספרייה'),
+            child: IntrinsicHeight(
+              child: LoadingIndicator(
+                strokeWidth: 3,
+                icon: OtzariaIcons.bookshelf_24_regular,
+                message: context.settingsText('טוען את הספרייה'),
+              ),
             ),
           ),
         ),

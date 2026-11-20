@@ -271,19 +271,21 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
       loadError: _loadFailed ? 'טעינת המילון נכשלה' : null,
       onRetry: _loadDictionary,
       topBar: AppTopBar(
-        center: OtzariaSearchField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          icon: OtzariaIcons.search_in_text_24_regular,
-          hintText: _isHebrewToAramaic
-              ? 'חפש מילה בעברית...'
-              : 'חפש מילה בארמית...',
-          autofocus: true,
-          onChanged: _performSearch,
-          onClear: () => setState(() {
-            _query = '';
-            _filteredResults = [];
-          }),
+        center: AppTopBarField(
+          child: OtzariaSearchField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            icon: OtzariaIcons.search_in_text_24_regular,
+            hintText: _isHebrewToAramaic
+                ? 'חפש מילה בעברית...'
+                : 'חפש מילה בארמית...',
+            autofocus: true,
+            onChanged: _performSearch,
+            onClear: () => setState(() {
+              _query = '';
+              _filteredResults = [];
+            }),
+          ),
         ),
       ),
       body: Column(

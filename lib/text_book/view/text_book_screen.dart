@@ -985,11 +985,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                           ),
                         ),
                       ],
-                      center: Text(
-                        widget.tab.book.title,
-                        style: AppTopBar.titleStyle(context),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      center: AppTopBarTitle(
+                        child: Text(
+                          widget.tab.book.title,
+                          style: AppTopBar.titleStyle(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                     Expanded(
@@ -1110,16 +1112,31 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   Widget _buildAppBar(BuildContext context, TextBookLoaded state) =>
       ListenableBuilder(
-        listenable: PluginTextReaderRegistry.instance,
+        // ההיסטוריה: שורת "חזרה" ב"עוד ⋮" פעילה רק כשיש לאן לחזור.
+        listenable: Listenable.merge([
+          PluginTextReaderRegistry.instance,
+          widget.tab.lines.history,
+        ]),
         builder: (context, _) => _buildReaderAppBar(context, state),
       );
 
   Widget _buildReaderAppBar(BuildContext context, TextBookLoaded state) {
     return AppTopBar(
       minCenterWidth: ReaderNavCenter.minTitleWidth,
+      // פעולות ההתחלה שמקופלות ב"עוד ⋮" נכנסות לתפריט פעולות הקורא (כפתור ⋮
+      // אחד), ולא לכפתור ⋮ שני לידו.
+      mergeFoldedIntoTrailingMenu: true,
       leadingItems: [
         AppTopBarItem(widget: _buildMenuButton(context, state)),
         AppTopBarItem(
+          priority: AppTopBarPriority.normal,
+          menuAction: AppTopBarMenuAction(
+            label: context.settingsText('חזרה למיקום הקודם'),
+            icon: FluentIcons.arrow_left_24_regular,
+            onPressed: widget.tab.lines.history.value.back == null
+                ? null
+                : () => unawaited(widget.tab.lines.goBack()),
+          ),
           widget: ReaderBackButton(
             lines: widget.tab.lines,
             describe: (anchor) =>
@@ -1134,19 +1151,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   paneWidth: _sidebarWidth.value,
                   minMainContentWidth: _kNavMinMainContentWidth,
                 )))
-          AppTopBarItem(
-            widget: NavPanelPinButton(
-              isPinned: state.pinLeftPane,
-              isGloballyPinned:
-                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
-                  false,
-              onToggle: () => context.read<TextBookBloc>().add(
-                TogglePinLeftPane(!state.pinLeftPane),
-              ),
-            ),
-          ),
+          _buildPinItem(context, state),
         if (state.showPageShapeView)
-          AppTopBarItem(widget: _buildPageShapeSettingsButton(context, state)),
+          AppTopBarItem(
+            // בחלונית צרה מאוד זה הראשון שעובר ל"עוד ⋮": הניווט והנעיצה קודמים.
+            priority: AppTopBarPriority.low,
+            menuAction: AppTopBarMenuAction(
+              label: 'הגדרות צורת הדף',
+              icon: FluentIcons.settings_24_regular,
+              onPressed: () => _pageShapeOpenSettingsNotifier.value++,
+            ),
+            widget: _buildPageShapeSettingsButton(context, state),
+          ),
       ],
       center: widget.isInCombinedView
           ? _buildTitle(state, textAlign: TextAlign.center)
@@ -1168,6 +1184,37 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
+  /// כפתור נעיצת חלונית הניווט. בחלונית צרה מאוד הוא עובר ל"עוד ⋮" אחרי
+  /// כפתור הגדרות צורת הדף.
+  AppTopBarItem _buildPinItem(BuildContext context, TextBookLoaded state) {
+    final isGloballyPinned =
+        Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ?? false;
+    void toggle() => context.read<TextBookBloc>().add(
+      TogglePinLeftPane(!state.pinLeftPane),
+    );
+    return AppTopBarItem(
+      priority: AppTopBarPriority.normal,
+      menuAction: AppTopBarMenuAction(
+        label: context.settingsText(
+          isGloballyPinned
+              ? 'החלונית נעוצה לפי ההגדרות'
+              : state.pinLeftPane
+              ? 'בטל נעיצה'
+              : 'נעץ את החלונית',
+        ),
+        icon: state.pinLeftPane || isGloballyPinned
+            ? FluentIcons.pin_24_filled
+            : FluentIcons.pin_24_regular,
+        onPressed: isGloballyPinned ? null : toggle,
+      ),
+      widget: NavPanelPinButton(
+        isPinned: state.pinLeftPane,
+        isGloballyPinned: isGloballyPinned,
+        onToggle: toggle,
+      ),
+    );
+  }
+
   /// כפתור הגדרות צורת הדף.
   /// הדיאלוג נפתח ע"י PageShapeScreen עצמו (דרך ה-notifier), כדי שכל שינוי
   /// בדיאלוג יוחל על המסך בעדכון חי בלי להמתין לסגירתו.
@@ -1184,9 +1231,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
+  /// כותרת הסרגל. גובה הסרגל קבוע, ולכן היא גדלה עם הגדלת הטקסט רק עד
+  /// [AppTopBar.maxTextScale].
   Widget _buildTitle(
     TextBookLoaded state, {
     TextAlign textAlign = TextAlign.end,
+  }) => AppTopBarTitle(child: _buildTitleContent(state, textAlign: textAlign));
+
+  Widget _buildTitleContent(
+    TextBookLoaded state, {
+    required TextAlign textAlign,
   }) {
     if (state.currentTitle == null) {
       return const SizedBox.shrink();
@@ -1337,6 +1391,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       builder: (context, _) => Consumer<ShamorZachorDataProvider>(
         builder: (context, _, _) => ResponsiveActionBar(
           key: const ValueKey('responsive_actions'),
+          absorbTopBarFolds: true,
           overflowMenuOffset: const Offset(0, 8),
           overflowButtonKey: TourTargetsScope.enabledOf(context)
               ? tourKeys.textBookOverflow

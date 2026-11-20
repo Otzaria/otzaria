@@ -498,14 +498,16 @@ class _PersonalNotesManagerScreenState
               ),
             ),
           ],
-          center: OtzariaSearchField(
-            controller: _searchController,
-            focusNode: _searchFocusNode,
-            icon: OtzariaIcons.search_in_notes_24_regular,
-            hintText: 'חפש בהערות...',
-            onSubmitted: (_) => requestKeyboardFocus(),
-            onChanged: (value) => _searchQuery.value = value,
-            onClear: () => _searchQuery.value = '',
+          center: AppTopBarField(
+            child: OtzariaSearchField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              icon: OtzariaIcons.search_in_notes_24_regular,
+              hintText: 'חפש בהערות...',
+              onSubmitted: (_) => requestKeyboardFocus(),
+              onChanged: (value) => _searchQuery.value = value,
+              onClear: () => _searchQuery.value = '',
+            ),
           ),
           trailingItems: [
             AppTopBarItem(

@@ -167,12 +167,14 @@ class CommentatorsTabTopBar extends StatelessWidget {
       ],
       center: ReaderNavCenter(
         placement: navPlacement,
-        title: Text(
-          title,
-          style: AppTopBar.titleStyle(context),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: titleMaxLines,
+        title: AppTopBarTitle(
+          child: Text(
+            title,
+            style: AppTopBar.titleStyle(context),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            maxLines: titleMaxLines,
+          ),
         ),
         prevMajorTooltip: prevMajorTooltip,
         prevMinorTooltip: _prevMinorTooltip,

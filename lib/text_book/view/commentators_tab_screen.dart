@@ -774,11 +774,13 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                             ),
                           ),
                         ],
-                        center: Text(
-                          'מפרשים על ${widget.tab.sourceTab.book.title}',
-                          style: AppTopBar.titleStyle(context),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        center: AppTopBarTitle(
+                          child: Text(
+                            'מפרשים על ${widget.tab.sourceTab.book.title}',
+                            style: AppTopBar.titleStyle(context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                       const Expanded(

@@ -371,16 +371,18 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
       // חלונית ההגדרות מכסה את כל רוחב הגוף; רק התוצאות ממורכזות.
       centerContent: false,
       topBar: AppTopBar(
-        center: OtzariaSearchField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          hintText: 'חפש גימטריה...',
-          autofocus: true,
-          onSubmitted: (_) => _performSearch(),
-          onClear: _clearResults,
-          icon: OtzariaIcons.search_in_numbered_list_24_regular,
-          onIconPressed: _performSearch,
-          iconTooltip: 'חפש',
+        center: AppTopBarField(
+          child: OtzariaSearchField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            hintText: 'חפש גימטריה...',
+            autofocus: true,
+            onSubmitted: (_) => _performSearch(),
+            onClear: _clearResults,
+            icon: OtzariaIcons.search_in_numbered_list_24_regular,
+            onIconPressed: _performSearch,
+            iconTooltip: 'חפש',
+          ),
         ),
         trailingItems: [
           AppTopBarItem(

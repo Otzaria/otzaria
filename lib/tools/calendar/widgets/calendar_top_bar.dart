@@ -515,18 +515,20 @@ class _CalendarTopBarState extends State<CalendarTopBar>
         child: SizedBox(
           key: _jumpSearchBarKey,
           width: width,
-          child: OtzariaSearchField(
-            controller: _jumpDateController,
-            focusNode: _jumpDateFocusNode,
-            autofocus: true,
-            slim: AppDensity.of(context).isCompact,
-            hintText: _buildCurrentDateHint(),
-            onChanged: _handleJumpDateChanged,
-            onSubmitted: (_) => _submitJumpDateSearch(),
-            onClear: () {
-              _handleJumpDateChanged('');
-              _jumpDateFocusNode.requestFocus();
-            },
+          child: AppTopBarField(
+            child: OtzariaSearchField(
+              controller: _jumpDateController,
+              focusNode: _jumpDateFocusNode,
+              autofocus: true,
+              slim: AppDensity.of(context).isCompact,
+              hintText: _buildCurrentDateHint(),
+              onChanged: _handleJumpDateChanged,
+              onSubmitted: (_) => _submitJumpDateSearch(),
+              onClear: () {
+                _handleJumpDateChanged('');
+                _jumpDateFocusNode.requestFocus();
+              },
+            ),
           ),
         ),
       ),
