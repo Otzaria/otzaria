@@ -232,9 +232,17 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     ).forQuery(searchableInBookQuery(searchTextController.text) ?? '');
   }
 
+  /// שאילתות שהשדה שלח ל-BLoC וההד שלהן עוד לא חזר, לפי סדר השליחה.
+  final List<String> _pendingEchoes = [];
+
+  void _sendSearchText(UpdateSearchText event) {
+    _pendingEchoes.add(event.text);
+    context.read<TextBookBloc>().add(event);
+  }
+
   void _syncBlocSearchTextState() {
     final activeParameters = _activeSearchParameters;
-    context.read<TextBookBloc>().add(
+    _sendSearchText(
       UpdateSearchText(
         searchTextController.text,
         searchOptions: activeParameters.searchOptions,
@@ -310,14 +318,17 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     // עדכון שדה החיפוש אם initialQuery השתנה
     final queryChanged = widget.initialQuery != oldWidget.initialQuery;
-    // ה-BLoC מקבל את השאילתה המנורמלת (בלי ניקוד ורווחים), וערך שתואם לה
-    // הוא הד של השדה עצמו, לא שינוי חיצוני שדורס את ההקלדה (issue #1430).
-    final controllerQuery = searchTextController.text;
+    // ערך שהשדה עצמו שלח הוא הד, גם כשהוא מנורמל (issue #1430) וגם כשבינתיים
+    // הוקלדו אותיות נוספות (issue #5711) — לא שינוי חיצוני שדורס את ההקלדה.
+    final echoIndex = _pendingEchoes.indexOf(widget.initialQuery);
+    // הדים מגיעים לפי סדר השליחה; אחרי שינוי חיצוני הד ישן כבר לא יגיע.
+    if (echoIndex >= 0) {
+      _pendingEchoes.removeRange(0, echoIndex + 1);
+    } else if (queryChanged) {
+      _pendingEchoes.clear();
+    }
     final needsControllerSync =
-        widget.initialQuery != controllerQuery &&
-        widget.initialQuery != (searchableInBookQuery(controllerQuery) ?? '') &&
-        widget.initialQuery !=
-            (searchableInBookQueryWithEdges(controllerQuery) ?? '');
+        widget.initialQuery != searchTextController.text && echoIndex < 0;
     final normalizedSearchMode = widget.initialSearchMode;
     // ה-bloc מחזיר את המדיניות האפקטיבית, ו"בכל סדר" אינו חל על מילה אחת.
     final widgetQuery = searchableInBookQuery(widget.initialQuery) ?? '';
@@ -1209,7 +1220,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         }
         _settings = _settings.forQuery(query ?? '');
         final activeParameters = _activeSearchParameters;
-        context.read<TextBookBloc>().add(
+        _sendSearchText(
           UpdateSearchText(
             _searchableQuery(searchTextController.text) ?? '',
             searchOptions: activeParameters.searchOptions,
@@ -1235,7 +1246,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _carriedInQuery = null;
           _settings = InBookSearchSettings.savedDefaults();
         });
-        context.read<TextBookBloc>().add(
+        _sendSearchText(
           UpdateSearchText(
             '',
             searchOptions: const {},
@@ -1298,7 +1309,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           controller: searchTextController,
           query: result.query,
           onQueryChanged: (value) {
-            context.read<TextBookBloc>().add(
+            _sendSearchText(
               UpdateSearchText(
                 value,
                 searchOptions: settings.searchOptions,
