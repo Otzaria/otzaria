@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/window_messages.dart';
+import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/external_tab_drag.dart';
@@ -370,6 +371,43 @@ void main() {
       drops.setMainShown(false);
       final hidden = await fromView();
       expect(hidden.any((e) => e.label == 'העבר לחלון קיים'), isFalse);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('"יציאה מכל החלונות" יוצא דרך AppQuit, רק כשיש חלון נוסף', (
+      tester,
+    ) async {
+      var quits = 0;
+      AppQuit.install(() async => quits++);
+      addTearDown(AppQuit.resetForTest);
+      windows = FakeViewWindows(tester);
+      final a = windows.registry.open(size: const Size(800, 600))!;
+      drops = InProcessTabDrops(registry: windows.registry);
+      InProcessTabDrops.debugOverride = drops;
+      drops.register(AppWindowId.primary, target(1, 'ראשי'));
+      drops.register(a.id, target(a.slot, 'חלון א'));
+      final tab = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+
+      Future<List<AppContextMenuEntry>> fromView() => buildEntries(
+        tester,
+        tab: tab,
+        state: TabsState(tabs: [tab], currentTabIndex: 0),
+        wrap: (child) => AppWindowScope(
+          controller: a.controller,
+          geometry: a.controller,
+          keys: a.keys,
+          child: child,
+        ),
+      );
+
+      entryOf(await fromView(), 'יציאה מכל החלונות').onTap!();
+      await tester.pump();
+      expect(quits, 1);
+
+      // החלון היחיד שנשאר: סגירתו כבר שומרת את הכרטיסיות.
+      drops.setMainShown(false);
+      final alone = await fromView();
+      expect(alone.any((e) => e.label == 'יציאה מכל החלונות'), isFalse);
       await tester.pumpWidget(const SizedBox());
     });
   });
