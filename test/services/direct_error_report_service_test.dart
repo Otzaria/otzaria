@@ -230,6 +230,87 @@ void main() {
     });
   });
 
+  group('DirectErrorReportService.lookupReportStatus', () {
+    test('queued בתור, sent אחרי שליחה, ו-unknown כשאינו קיים', () async {
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      await repository.overwrite([
+        _buildReport(
+          id: 'plugin:queued-1',
+          queueType: DirectErrorReportQueueType.automaticRetry,
+        ),
+      ]);
+      final service = DirectErrorReportService(
+        client: MockClient((_) async => http.Response('', 200)),
+        reportStore: store,
+        sentCounter: SentReportsCounter.inMemory(),
+      );
+      addTearDown(service.closeHttpClient);
+      expect(await service.lookupReportStatus('plugin:queued-1'), 'queued');
+      expect(await service.lookupReportStatus('plugin:other'), 'unknown');
+      await service.flushPendingReports();
+      expect(await service.lookupReportStatus('plugin:queued-1'), 'sent');
+    });
+
+    test('sent נשאר סופי אם חלון אחר עוד שולח מאותו תור', () async {
+      final otherDb = UserStateDatabase.openAt(
+        '${tmp.path}${Platform.pathSeparator}user_state.db',
+      );
+      addTearDown(otherDb.close);
+      final inFlight = Completer<void>();
+      final finish = Completer<http.Response>();
+      final flushingService = DirectErrorReportService(
+        reportStore: store,
+        client: MockClient((_) {
+          inFlight.complete();
+          return finish.future;
+        }),
+        sentCounter: SentReportsCounter.inMemory(),
+      );
+      final otherWindow = DirectErrorReportService(
+        reportStore: PendingReportStore(database: otherDb),
+        client: MockClient((_) async => http.Response('', 200)),
+        sentCounter: SentReportsCounter.inMemory(),
+      );
+      addTearDown(flushingService.closeHttpClient);
+      addTearDown(otherWindow.closeHttpClient);
+
+      final report = _buildReport(id: 'plugin:retry-1');
+      await flushingService.queueReport(
+        report,
+        queueType: DirectErrorReportQueueType.automaticRetry,
+      );
+      final flush = flushingService.flushPendingReports();
+      try {
+        await inFlight.future;
+        expect((await otherWindow.submitReport(report)).isSent, isTrue);
+        expect(await flushingService.getPendingReportsCount(), 1);
+        expect(await otherWindow.lookupReportStatus(report.id), 'sent');
+      } finally {
+        finish.complete(http.Response('', 503));
+        await flush;
+      }
+    });
+
+    test('rejected אחרי דחייה סופית של השרת', () async {
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      await repository.overwrite([
+        _buildReport(
+          id: 'plugin:bad-1',
+          queueType: DirectErrorReportQueueType.automaticRetry,
+        ),
+      ]);
+      final service = DirectErrorReportService(
+        client: MockClient((_) async => http.Response('{}', 422)),
+        reportStore: store,
+      );
+      addTearDown(service.closeHttpClient);
+      await service.flushPendingReports();
+      expect(await service.lookupReportStatus('plugin:bad-1'), 'rejected');
+      await service.queueReport(_buildReport(id: 'plugin:bad-1'));
+      expect(await service.lookupReportStatus('plugin:bad-1'), 'queued');
+    });
+  });
+
   group('DirectErrorReportService.flushPendingReports', () {
     test('automatic flush sends only retryable queued reports', () async {
       final repository = _Queue(store, DirectErrorReportService.pendingKind);

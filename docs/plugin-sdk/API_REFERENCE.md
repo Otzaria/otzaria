@@ -399,6 +399,7 @@ if (response.success) {
 | `feedback.sendEmail` | 0.9.89 |
 | `feedback.report` | 0.9.97 |
 | `feedback.submitBookCorrection` | 0.9.98.1 |
+| `feedback.getBookCorrectionStatus` | 0.9.99 |
 | `feedback.hasReporterEmail` | 0.9.97 |
 | `history.list` | 0.9.89 |
 | `history.listSearches` | 0.9.89 |
@@ -4596,6 +4597,23 @@ const result = await Otzaria.call('feedback.submitBookCorrection', {
   - `correctionSupported` — עבור `sent` בלבד: true כשנשלח `text_correction` והשרת לא דיווח שאינו תומך בו; false עבור `free_text` או כשהשרת דחה את סוג התיקון. ב־`queued` הערך null, כי עדיין אין תשובת שרת.
 - **אישור כתובת השולח:** בקריאה הראשונה בכל מופע של התוסף אוצריא מציגה למשתמש חלון עם שם התוסף וכתובת החזרה השמורה, וניתן לערוך בו את הכתובת. האישור תקף כל עוד התוסף פתוח וכתובת החזרה נשארת אותה כתובת, כך שתיקון שמפוצל לחלקים אינו מקפיץ חלון לכל חלק. ביטול מחזיר `error.report_email_required` ושום דיווח אינו נשלח.
 - `error.report_id_conflict` מציין התנגשות בתור המקומי או HTTP 409: יש ליצור `reportId` חדש לפני ניסיון נוסף. כשל זמני משתמש באותו מזהה ובאותו תוכן.
+
+### `feedback.getBookCorrectionStatus`
+**הרשאה:** `feedback.send_email` (כמו `feedback.submitBookCorrection`). קריאה בלבד.
+
+דיווח שהוחזר עבורו `status: 'queued'` נשלח בהמשך על ידי התור של אוצריא, בלי שהתוסף מקבל על כך הודעה. כדי לעדכן את המצב שמציג התוסף:
+
+```js
+const response = await Otzaria.call('feedback.getBookCorrectionStatus', { reportId });
+if (response.success && response.data) {
+  const { status } = response.data;
+}
+```
+
+- פרמטר: `reportId` — אותו מזהה שהועבר ל־`feedback.submitBookCorrection` (אותם תווים ואותה מגבלת אורך). תוסף יכול לשאול רק על דיווחים שהוא עצמו שלח, ושום תוכן אינו נחשף.
+- `response.data`: `{status: 'queued'|'sent'|'rejected'|'unknown', reportId, nativeReportId}`. `queued` — עדיין בתור המקומי; `sent` — רשום כנשלח, גם אם ניסיון חוזר עדיין בתור; `rejected` — נדחה סופית על ידי השרת.
+- `unknown` אינו סופי: הדיווח לא נמצא (נמחק, נחתך מהיסטוריית הנשלחים — נשמרים 100 אחרונים — שוחזר מגיבוי, הוחלף מזהה אחרי התנגשות, או שנתפס ברגע ההעברה מהתור להיסטוריה). יש להשאיר את המצב הקודם ולנסות שוב מאוחר יותר.
+- שגיאה `error.invalid_params` על `reportId` לא תקין.
 
 ### `feedback.hasReporterEmail`
 **הרשאה:** אינה נדרשת — מוחזר ביט קיום בלבד, בלי הכתובת עצמה.
