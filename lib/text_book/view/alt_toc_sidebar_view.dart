@@ -499,7 +499,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
 
   /// מבנים שכותרותיהם מוזרקות לגוף הטקסט ([buildSectionHeadings]).
   bool _hasInjectedHeadings(int structureId) => _structures.any(
-    (s) => s.id == structureId && (s.key == 'Topic' || s.key == 'Parasha'),
+    (s) => s.id == structureId && injectsSectionHeadings(s.key),
   );
 
   Future<int?> _entryIdForLine(int lineIndex, int structureId) async {

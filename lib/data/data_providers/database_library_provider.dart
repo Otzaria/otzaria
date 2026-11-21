@@ -1155,8 +1155,9 @@ Future<T> _runBookLoadInIsolate<T>(
 /// סמני חלוקה וכותרות נושא בגוף הטקסט של ספר, ממופתחים לפי `lineIndex`.
 /// [markers] — עלי `Simanim` (אותיות פסקה במדרש רבה, "א") ו-`Seifim`
 /// (סעיפים בנושאי-כלים, "סעיף ג"; מגרסת ספרייה 24).
-/// [headings] — רשומות `Topic` ("הלכות ציצית") ושמות פרשה (`Parasha` ברמה 0,
-/// בלי העליות), רק כשאינם כבר גלויים בטקסט.
+/// [headings] — רשומות `Topic` ("הלכות ציצית"), שמות פרשה (`Parasha` ברמה 0,
+/// בלי העליות) וימי החודש בתהלים ("יום ד׳ לחודש"), רק כשאינם כבר גלויים
+/// בטקסט.
 InlineSectionMarks _loadInlineSectionMarksInIsolate({
   required ReadOnlyDbTarget target,
   required String bookTitle,
@@ -1221,7 +1222,7 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       JOIN line l ON l.id = e.lineId
       LEFT JOIN line_content lc ON lc.id = l.id
       WHERE s.bookId = ?
-        AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.level = 0))
+        AND (s.key = 'Topic' OR (s.key IN ('Parasha', ?) AND e.level = 0))
       ORDER BY l.lineIndex, e.level
       '''
           : '''
@@ -1236,10 +1237,10 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       JOIN tocText t ON t.id = e.textId
       JOIN line l ON l.id = e.lineId
       WHERE s.bookId = ?
-        AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.level = 0))
+        AND (s.key = 'Topic' OR (s.key IN ('Parasha', ?) AND e.level = 0))
       ORDER BY l.lineIndex, e.level
       ''',
-      [bookId],
+      [bookId, kMonthlyCycleStructureKey],
     ).toMapList();
 
     // השאילתה מביאה לכל כותרת את שורתה ושתיים שלפניה — חלון הבדיקה כולו.
@@ -1250,9 +1251,11 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       final lineIndex = row['lineIndex'];
       final rawLabel = row['label'];
       if (lineIndex is! int || rawLabel is! String) continue;
-      final label = row['structureKey'] == 'Parasha'
-          ? parashaHeadingLabel(rawLabel)
-          : rawLabel;
+      final label = switch (row['structureKey']) {
+        'Parasha' => parashaHeadingLabel(rawLabel),
+        kMonthlyCycleStructureKey => monthlyCycleHeadingLabel(rawLabel),
+        _ => rawLabel,
+      };
       if (label == null) continue;
       rawByIndex[lineIndex] = row['line0'];
       rawByIndex[lineIndex - 1] ??= row['line1'];
