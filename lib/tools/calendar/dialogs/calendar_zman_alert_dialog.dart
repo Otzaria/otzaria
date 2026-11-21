@@ -80,8 +80,25 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
             const SizedBox(height: AppTokens.spaceMD),
             Row(
               children: [
+                // הדקות ראשונות — בצד ימין בעברית, השעות משמאלן
                 Expanded(
                   // SpinBox needs value updates to keep its blur cache in sync.
+                  child: StatefulBuilder(
+                    builder: (context, setSpinBoxState) => SpinBox(
+                      min: 0,
+                      max: 59,
+                      value: minutes.toDouble(),
+                      emptyValue: 0,
+                      decimals: 0,
+                      step: 1,
+                      decoration: const InputDecoration(labelText: 'דקות'),
+                      onChanged: (v) =>
+                          setSpinBoxState(() => minutes = v.toInt()),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppTokens.spaceMD),
+                Expanded(
                   child: StatefulBuilder(
                     builder: (context, setSpinBoxState) => SpinBox(
                       // שומרים ערך משוחזר גם מחוץ לטווח ברירת המחדל.
@@ -94,22 +111,6 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
                       decoration: const InputDecoration(labelText: 'שעות'),
                       onChanged: (v) =>
                           setSpinBoxState(() => hours = v.toInt()),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppTokens.spaceMD),
-                Expanded(
-                  child: StatefulBuilder(
-                    builder: (context, setSpinBoxState) => SpinBox(
-                      min: 0,
-                      max: 59,
-                      value: minutes.toDouble(),
-                      emptyValue: 0,
-                      decimals: 0,
-                      step: 1,
-                      decoration: const InputDecoration(labelText: 'דקות'),
-                      onChanged: (v) =>
-                          setSpinBoxState(() => minutes = v.toInt()),
                     ),
                   ),
                 ),

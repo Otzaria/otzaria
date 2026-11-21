@@ -485,7 +485,8 @@ class CalendarWidgetState extends State<CalendarWidget> {
             _sidePanelWidth = nextWidth;
           },
           widePaneBuilder: (context, paneContent, paneWidth) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            // ui-lint: allow UIL-021 — בימין הפיזי מרווח קטן בכוונה: שם פס הגלילה של חלונית הזמנים (EdgeScrollbarBehavior.right)
+            padding: const EdgeInsets.only(left: 16, right: 4),
             child: paneContent,
           ),
           narrowPaneBuilder: (context, paneContent) => Material(

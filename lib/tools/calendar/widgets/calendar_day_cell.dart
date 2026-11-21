@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/settings/l10n/chrome_directionality.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -104,6 +105,17 @@ Widget buildDayCell(
                       : (compactCell ? 12.0 : 14.0);
                   final secondaryFontSize = compactCell ? 9.0 : 10.0;
                   final monthLabelFontSize = compactCell ? 7.0 : 8.0;
+                  final hebrewIsPrimary =
+                      state.calendarType != CalendarType.gregorian;
+                  final showGregorian =
+                      state.calendarType != CalendarType.hebrew;
+                  final primaryStyle = TextStyle(
+                    color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontSize: primaryFontSize,
+                  );
 
                   return Padding(
                     padding: EdgeInsets.fromLTRB(
@@ -115,63 +127,58 @@ Widget buildDayCell(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (state.calendarType == CalendarType.combined)
-                              Text(
-                                '${gregorianDate.day}',
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? cs.onPrimaryContainer.withValues(
-                                          alpha: 0.85,
-                                        )
-                                      : cs.onSurfaceVariant,
-                                  fontSize: secondaryFontSize,
-                                ),
-                              ),
-                            const Spacer(),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
+                        // התאריך העברי תמיד בימין התא והלועזי בשמאלו, בלי
+                        // קשר לכיוון הטקסט; ההגדרה קובעת רק איזה מהם ראשי.
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (showGregorian)
                                 Text(
-                                  (state.calendarType == CalendarType.hebrew ||
-                                          state.calendarType ==
-                                              CalendarType.combined)
-                                      ? formatHebrewDay(
-                                          jewishDate.getJewishDayOfMonth(),
+                                  '${gregorianDate.day}',
+                                  style: hebrewIsPrimary
+                                      ? TextStyle(
+                                          color: isSelected
+                                              ? cs.onPrimaryContainer
+                                                    .withValues(alpha: 0.85)
+                                              : cs.onSurfaceVariant,
+                                          fontSize: secondaryFontSize,
                                         )
-                                      : '${gregorianDate.day}',
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? cs.onPrimaryContainer
-                                        : cs.onSurface,
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    fontSize: primaryFontSize,
+                                      : primaryStyle,
+                                ),
+                              const Spacer(),
+                              if (hebrewIsPrimary)
+                                ContentDirectionality(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        formatHebrewDay(
+                                          jewishDate.getJewishDayOfMonth(),
+                                        ),
+                                        style: primaryStyle,
+                                      ),
+                                      if (jewishDate.isJewishLeapYear() &&
+                                          (jewishDate.getJewishMonth() == 12 ||
+                                              jewishDate.getJewishMonth() ==
+                                                  13) &&
+                                          jewishDate.getJewishDayOfMonth() == 1)
+                                        Text(
+                                          getHebrewMonthNameFor(jewishDate),
+                                          style: TextStyle(
+                                            fontSize: monthLabelFontSize,
+                                            color: isSelected
+                                                ? cs.onPrimaryContainer
+                                                : cs.onSurfaceVariant,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
-                                if ((state.calendarType ==
-                                            CalendarType.hebrew ||
-                                        state.calendarType ==
-                                            CalendarType.combined) &&
-                                    jewishDate.isJewishLeapYear() &&
-                                    (jewishDate.getJewishMonth() == 12 ||
-                                        jewishDate.getJewishMonth() == 13) &&
-                                    jewishDate.getJewishDayOfMonth() == 1)
-                                  Text(
-                                    getHebrewMonthNameFor(jewishDate),
-                                    style: TextStyle(
-                                      fontSize: monthLabelFontSize,
-                                      color: isSelected
-                                          ? cs.onPrimaryContainer
-                                          : cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         SizedBox(height: compactCell ? 2 : 6),
                         Expanded(
@@ -314,17 +321,46 @@ class DayExtras extends StatelessWidget {
           ),
         ),
       for (final info in additionalInfoLines)
-        (inDialog) => Text(
-          info,
-          maxLines: inDialog ? null : 1,
-          overflow: inDialog ? null : TextOverflow.ellipsis,
-          strutStyle: inDialog ? null : strut,
-          style: TextStyle(
+        (inDialog) {
+          final style = TextStyle(
             fontSize: inDialog ? 14 : (compact ? 9 : 10),
             color: isSelected && !inDialog ? cs.onPrimaryContainer : cs.primary,
             fontWeight: FontWeight.w600,
-          ),
-        ),
+            fontFeatures: const [FontFeature.tabularFigures()],
+          );
+          final lastSpace = info.lastIndexOf(' ');
+          if (inDialog || lastSpace == -1) {
+            return Text(
+              info,
+              maxLines: inDialog ? null : 1,
+              overflow: inDialog ? null : TextOverflow.ellipsis,
+              strutStyle: inDialog ? null : strut,
+              style: style,
+            );
+          }
+          // "זריחה 06:08": השם בתחילת השורה והשעה בסופה, בספרות ברוחב קבוע
+          // — כך השעות של כל השורות בתא עומדות זו מתחת לזו.
+          return Row(
+            children: [
+              Expanded(
+                child: Text(
+                  info.substring(0, lastSpace),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  strutStyle: strut,
+                  style: style,
+                ),
+              ),
+              const SizedBox(width: AppTokens.spaceXS),
+              Text(
+                info.substring(lastSpace + 1),
+                maxLines: 1,
+                strutStyle: strut,
+                style: style,
+              ),
+            ],
+          );
+        },
     ];
 
     final showMore = items.length > maxVisibleItems;

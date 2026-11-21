@@ -14,6 +14,7 @@
 // החיצים ותאריך תמיד בשורה עליונה, במיקום קבוע שלא זז עם שינוי אורך התאריך.
 
 import 'dart:math' as math;
+import 'package:otzaria/settings/l10n/chrome_directionality.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
@@ -222,23 +223,26 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
     return FittedBox(
       fit: BoxFit.scaleDown,
-      child: RichText(
-        textScaler: MediaQuery.textScalerOf(context),
-        overflow: TextOverflow.visible,
-        maxLines: 1,
-        text: TextSpan(
-          style: baseStyle,
-          children: [
-            TextSpan(
-              text: heb,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const TextSpan(text: '  •  '),
-            TextSpan(
-              text: greg,
-              style: const TextStyle(fontWeight: FontWeight.normal),
-            ),
-          ],
+      // עברי ראשון ב-RTL: העברי תמיד בימין והלועזי בשמאל, גם בממשק LTR.
+      child: ContentDirectionality(
+        child: RichText(
+          textScaler: MediaQuery.textScalerOf(context),
+          overflow: TextOverflow.visible,
+          maxLines: 1,
+          text: TextSpan(
+            style: baseStyle,
+            children: [
+              TextSpan(
+                text: heb,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const TextSpan(text: '  •  '),
+              TextSpan(
+                text: greg,
+                style: const TextStyle(fontWeight: FontWeight.normal),
+              ),
+            ],
+          ),
         ),
       ),
     );
