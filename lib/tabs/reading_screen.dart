@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderIgnorePointer;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/tab_drag_preview.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
@@ -90,10 +91,10 @@ class _ReadingScreenState extends State<ReadingScreen>
 
   /// שדה הקלט שבחר המשתמש אחרון. לחיצה מחוץ לשדה (גם על לשונית) מסירה ממנו
   /// את הפוקוס עוד לפני מעבר הטאב, ולכן הוא נזכר עד שרכיב אחר מקבל פוקוס.
-  FocusNode? _lastTextInput;
+  (WeakReference<OpenedTab>, WeakReference<FocusNode>)? _lastTextInput;
 
-  /// שדה הקלט שהיה פעיל ביציאה מטאב; החזרה לטאב ממקדת אותו (#5127).
-  final _textInputOnLeave = Expando<FocusNode>();
+  /// הפניה חלשה כדי לא להחזיק בעץ של חלונית שנסגרה.
+  final _textInputOnLeave = Expando<WeakReference<FocusNode>>();
 
   /// מדכא את [_syncPageController] בזמן החלקה והתיישבות, כדי
   /// ש-jumpToPage של הסנכרון לא יקפיץ את התצוגה באמצע.
@@ -115,25 +116,27 @@ class _ReadingScreenState extends State<ReadingScreen>
     final node = FocusManager.instance.primaryFocus;
     // הסרת הפוקוס משדה מעבירה אותו ל-scope, ואין בה בחירה ברכיב אחר.
     if (node == null || node is FocusScopeNode) return;
-    _lastTextInput = isTextInputFocusNode(node) ? node : null;
+    final inputContext = node.context;
+    if (inputContext == null ||
+        !inputContext.mounted ||
+        !identical(AppWindowKeys.of(inputContext), AppWindowKeys.of(context))) {
+      return;
+    }
+
+    final pane = inputContext.findAncestorWidgetOfExactType<ActivePaneMarker>();
+    _lastTextInput = pane != null && isTextInputFocusNode(node)
+        ? (WeakReference(pane.pane), WeakReference(node))
+        : null;
   }
 
-  /// זוכר את שדה הקלט של הטאב שעוזבים, ומחזיר את השדה שנזכר לטאב שנכנסים.
-  FocusNode? _swapTextInputOnTabChange(OpenedTab? entered) {
-    final input = _lastTextInput;
-    input?.context?.visitAncestorElements((element) {
-      if (element.widget case ExcludeFocus(
-        key: ObjectKey(value: final OpenedTab left),
-      )) {
-        if (!identical(left, entered)) _textInputOnLeave[left] = input;
-        return false;
-      }
-      return true;
-    });
-    if (entered == null) return null;
-    final restored = _textInputOnLeave[entered];
-    _textInputOnLeave[entered] = null;
-    return restored;
+  void _rememberTextInputOnTabChange(OpenedTab? enteredPane) {
+    final last = _lastTextInput;
+    _lastTextInput = null;
+    if (last == null) return;
+    final left = last.$1.target;
+    if (left != null && !identical(left, enteredPane)) {
+      _textInputOnLeave[left] = last.$2;
+    }
   }
 
   /// חלונית שנסגרה נשארת בעץ, ושדה בתוכה עדיין יכול לקבל פוקוס — אבל היא
@@ -181,7 +184,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     _syncVisiblePluginTabs(context.read<TabsBloc>().state);
   }
 
-  void _requestTabContentFocus(OpenedTab pane, {FocusNode? textInput}) {
+  void _requestTabContentFocus(OpenedTab pane) {
     final focusRepository = context.read<FocusRepository>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
@@ -189,6 +192,8 @@ class _ReadingScreenState extends State<ReadingScreen>
           !identical(context.read<TabsBloc>().state.activePane, pane)) {
         return;
       }
+      final textInput = _textInputOnLeave[pane]?.target;
+      _textInputOnLeave[pane] = null;
       if (textInput != null &&
           textInput.canRequestFocus &&
           _isShowing(textInput)) {
@@ -197,12 +202,14 @@ class _ReadingScreenState extends State<ReadingScreen>
         final controller = textInput.context!
             .findAncestorWidgetOfExactType<EditableText>()
             ?.controller;
-        final selection = controller?.selection;
+        final value = controller?.value;
         textInput.requestFocus();
         FocusManager.instance.applyFocusChangesIfNeeded();
-        if (selection != null) {
+        if (controller != null && value != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (textInput.hasFocus) controller!.selection = selection;
+            if (textInput.hasPrimaryFocus && controller.text == value.text) {
+              controller.selection = value.selection;
+            }
           });
           WidgetsBinding.instance.ensureVisualUpdate();
         }
@@ -367,13 +374,6 @@ class _ReadingScreenState extends State<ReadingScreen>
               // בלי SaveTabs: כל פעולה שמשנה את הטאבים כבר שומרת ב-TabsBloc,
               // וקריאה נוספת מקודדת שוב את כל הטאבים בכל מעבר טאב.
               _syncPageController();
-              // הטאבים חיים (initState לא רץ שוב), ולכן ממקדים כאן את החלונית
-              // הפעילה כדי שהחיצים יגללו מיד; המסכים נרשמים לפוקוס לפי חלונית.
-              final textInput = _swapTextInputOnTabChange(state.currentTab);
-              final focusTarget = state.activePane;
-              if (focusTarget != null) {
-                _requestTabContentFocus(focusTarget, textInput: textInput);
-              }
             }
           },
           listenWhen: (previous, current) =>
@@ -381,17 +381,14 @@ class _ReadingScreenState extends State<ReadingScreen>
               previous.tabs.length != current.tabs.length,
         ),
         BlocListener<TabsBloc, TabsState>(
-          // שינוי מבנה בתוך אותו טאב (סגירת חלונית, החלפת צדדים, פיצול) מותיר
-          // את פוקוס המקלדת על חלונית שנעלמה או זזה. לחיצה בתוך חלונית אינה
-          // נכנסת לכאן — שם הפוקוס שייך למה שנלחץ.
+          // מעבר לטאב אחר או שינוי המבנה שלו דורש מיקוד מחדש. בסידור
+          // הטאבים או בסגירת טאב רקע, השדה בטאב הפעיל נשאר ממוקד.
           listenWhen: (previous, current) =>
-              previous.currentTabIndex == current.currentTabIndex &&
-              previous.tabs.length == current.tabs.length &&
               !identical(previous.currentTab, current.currentTab),
           listener: (context, state) {
             final pane = state.activePane;
-            if (pane == null) return;
-            _requestTabContentFocus(pane);
+            _rememberTextInputOnTabChange(pane);
+            if (pane != null) _requestTabContentFocus(pane);
           },
         ),
         BlocListener<TabsBloc, TabsState>(

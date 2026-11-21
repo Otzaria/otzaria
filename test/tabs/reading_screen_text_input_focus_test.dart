@@ -18,6 +18,8 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -50,6 +52,7 @@ void main() {
   Future<void> pumpReadingScreen(
     WidgetTester tester, {
     int tabCount = 3,
+    bool splitFirstTab = false,
     TextDirection direction = TextDirection.rtl,
   }) async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -78,7 +81,10 @@ void main() {
           );
         }(),
     ];
-    tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+    final List<OpenedTab> visibleTabs = splitFirstTab
+        ? [CombinedTab(rightTab: tabs[0], leftTab: tabs[1]), ...tabs.skip(2)]
+        : tabs;
+    tabsBloc = _TestTabsBloc(TabsState(tabs: visibleTabs, currentTabIndex: 0));
 
     tester.view.physicalSize = const Size(1600, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -149,7 +155,7 @@ void main() {
     }
     await tester.pump();
     // ביקור בכל טאב כדי שייבנה ויישמר חי ברקע.
-    for (var i = tabCount - 1; i >= 0; i--) {
+    for (var i = visibleTabs.length - 1; i >= 0; i--) {
       await showTab(tester, i);
     }
   }
@@ -245,6 +251,33 @@ void main() {
       await showTab(tester, 0);
       expect(field.hasFocus, isTrue);
     });
+    testWidgets('סגירת טאב רקע משאירה את השדה הפעיל ממוקד', (tester) async {
+      await pumpReadingScreen(tester, tabCount: 2);
+      final field = searchFieldOf(tester, tabs[0]);
+      field.requestFocus();
+      await tester.pump();
+
+      tabsBloc.emit(tabsBloc.state.copyWith(tabs: [tabs[0]]));
+      await tester.pump();
+      await tester.pump();
+
+      expect(field.hasFocus, isTrue);
+    });
+
+    testWidgets('חזרה לטאב מפוצל מכבדת את החלונית שנבחרה', (tester) async {
+      await pumpReadingScreen(tester, splitFirstTab: true);
+      await showTab(tester, 0, pane: tabs[1]);
+      final field = searchFieldOf(tester, tabs[1]);
+      field.requestFocus();
+      await tester.pump();
+
+      await showTab(tester, 1);
+      await showTab(tester, 0, pane: tabs[0]);
+
+      expect(tabsBloc.state.activePane, same(tabs[0]));
+      expect(field.hasFocus, isFalse);
+    });
+
     for (final pinned in [true, false]) {
       testWidgets(
         'חלונית החיפוש נסגרה (נעוצה: $pinned) — החזרה לא ממקדת שדה מוסתר',
@@ -276,14 +309,20 @@ void main() {
   });
 }
 
-Future<void> showTab(WidgetTester tester, int index) async {
+Future<void> showTab(WidgetTester tester, int index, {OpenedTab? pane}) async {
   final controller = tester
       .widget<PageView>(find.byKey(const ValueKey('normal_tab_view')))
       .controller!;
   final bloc =
       tester.element(find.byType(ReadingScreen)).read<TabsBloc>()
           as _TestTabsBloc;
-  bloc.emit(TabsState(tabs: bloc.state.tabs, currentTabIndex: index));
+  bloc.emit(
+    TabsState(
+      tabs: bloc.state.tabs,
+      currentTabIndex: index,
+      rawActivePane: pane,
+    ),
+  );
   await tester.pump();
   controller.jumpToPage(index);
   await tester.pump();
