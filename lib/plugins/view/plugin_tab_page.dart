@@ -127,15 +127,66 @@ Set<Factory<OneSequenceGestureRecognizer>>? pluginTabWebViewGestureRecognizers({
 
 /// ה-WebView ומעליו מחוון טעינה. רשימת הילדים קבועה, כך שהסתרת המחוון אינה
 /// מחליפה את ההורה של ה-WebView — החלפה כזו הורסת אותו וטוענת מאפס.
+///
+/// ב-Windows וב-Linux ה-WebView מקבל את הגלילה דרך Listener ולא מתחרה בזירת
+/// המחוות, ולכן החלקת הכרטיסיות זכתה גם בגלילה אופקית בתוך התוסף (issue #3640).
+/// כשהדף דיווח שמתחת לסמן יש אלמנט שנגלל לרוחב
+/// ([contentScrollsHorizontally]), המזהה כאן זוכה לפניה, כמו רכיב Flutter
+/// שנגלל לרוחב. מעל תוכן אחר ההחלקה עוברת כרטיסייה כרגיל.
 @visibleForTesting
-Widget buildPluginTabBody({required Widget webView, required bool loading}) =>
-    Stack(
-      fit: StackFit.passthrough,
-      children: [
-        webView,
-        Visibility(visible: loading, child: const LoadingIndicator()),
-      ],
-    );
+Widget buildPluginTabBody({
+  required Widget webView,
+  required bool loading,
+  bool Function() contentScrollsHorizontally = _never,
+}) => Stack(
+  fit: StackFit.passthrough,
+  children: [
+    switch (defaultTargetPlatform) {
+      TargetPlatform.windows || TargetPlatform.linux => RawGestureDetector(
+        gestures: {
+          _PluginHorizontalScrollRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                _PluginHorizontalScrollRecognizer
+              >(
+                () => _PluginHorizontalScrollRecognizer(
+                  contentScrollsHorizontally,
+                ),
+                (recognizer) => recognizer.onStart = (_) {},
+              ),
+        },
+        child: webView,
+      ),
+      _ => webView,
+    },
+    Visibility(visible: loading, child: const LoadingIndicator()),
+  ],
+);
+
+bool _never() => false;
+
+class _PluginHorizontalScrollRecognizer
+    extends HorizontalDragGestureRecognizer {
+  _PluginHorizontalScrollRecognizer(this.contentScrollsHorizontally)
+    : super(
+        supportedDevices: const {
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.touch,
+        },
+      );
+
+  final bool Function() contentScrollsHorizontally;
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) =>
+      contentScrollsHorizontally() &&
+      super.hasSufficientGlobalDistanceToAccept(
+        pointerDeviceKind,
+        deviceTouchSlop,
+      );
+}
 
 class PluginTabPage extends StatefulWidget {
   final InstalledPlugin plugin;
@@ -201,6 +252,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// נבדק פעם אחת, אסינכרונית (null עד לתשובה): existsSync על דיסק איטי עוצר את
   /// ה-UI לשניות, וכשל חולף בכל build היה מפיל את ה-WebView.
   bool? _entrypointMissing;
+
+  /// הדף דיווח שמתחת לסמן יש אלמנט שנגלל לרוחב (issue #3640). דף חדש מתחיל
+  /// בלי דיווח.
+  bool _contentScrollsX = false;
 
   /// צורת העץ של build ננעלת לכל חיי ה-State: מעבר FutureBuilder ↔ ישיר
   /// היה מייצר הורה חדש ל-WebView והורס אותו.
@@ -786,6 +841,10 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             },
           );
           controller.addJavaScriptHandler(
+            handlerName: 'otzaria_scrolls_x',
+            callback: (args) => _contentScrollsX = args.firstOrNull == true,
+          );
+          controller.addJavaScriptHandler(
             handlerName: 'otzaria_host_shortcut',
             callback: (args) {
               if (!mounted || args.isEmpty) return;
@@ -824,7 +883,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       shouldInterceptRequest: (controller, request) =>
           interceptPluginRequest(request),
       onLoadStart: (controller, url) {
-        if (currentAttempt()) _loadGeneration.invalidate();
+        if (!currentAttempt()) return;
+        _loadGeneration.invalidate();
+        _contentScrollsX = false;
       },
       onLoadStop: (controller, url) async {
         if (!currentAttempt()) return;
@@ -1020,6 +1081,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         child: buildPluginTabBody(
           webView: webView,
           loading: _awaitingFirstBoot,
+          contentScrollsHorizontally: () => _contentScrollsX,
         ),
       ),
     );
