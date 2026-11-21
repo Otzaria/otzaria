@@ -106,12 +106,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final editor = _focus?.context
           ?.findAncestorStateOfType<EditableTextState>();
-      if (!mounted || _controller == null || editor == null) return;
+      if (!mounted || editor == null) return;
       final render = editor.renderEditable;
       final half = render.preferredLineHeight / 2;
       final y = handoff.movedDown ? half : render.size.height - half;
       final top = render.localToGlobal(Offset(0, y));
-      _controller!.selection = TextSelection.fromPosition(
+      editor.widget.controller.selection = TextSelection.fromPosition(
         render.getPositionForPoint(Offset(handoff.dx, top.dy)),
       );
     });

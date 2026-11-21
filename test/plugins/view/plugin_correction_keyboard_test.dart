@@ -227,6 +227,26 @@ void main() {
   });
 
   group('חצים', () {
+    testWidgets('מעבר מעלה לשורה האחרונה של תיקון רב שורתי', (tester) async {
+      const texts = ['אבגד', 'אבגד'];
+      final service = await begin(tester, texts);
+      service.editParagraph('tab', 0, texts[0], 'אבגד\nאבגד');
+      await tester.pumpWidget(paragraphs(service, texts));
+      await activateCorrectionParagraph(tester, find.text('קריאה 1'));
+      await tester.pump();
+      final editors = find.byType(EditableText);
+      final second = tester.widget<EditableText>(editors.last);
+      expect(second.focusNode.hasFocus, isTrue);
+      second.controller.selection = const TextSelection.collapsed(offset: 4);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      final first = tester.widget<EditableText>(editors.first);
+      expect(first.focusNode.hasFocus, isTrue);
+      expect(first.controller.selection.baseOffset, 10);
+      await finish(tester, service);
+    });
+
     testWidgets('חץ מטה ומעלה עוברים בין פסקאות ושומרים את העמודה', (
       tester,
     ) async {
