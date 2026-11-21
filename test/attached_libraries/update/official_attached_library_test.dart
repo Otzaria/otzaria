@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -20,6 +21,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_update_fet
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_signature.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -48,6 +50,7 @@ class _FakeFetcher extends AttachedUpdateFetcher {
 /// Copies a prepared database to the output instead of downloading.
 class _FakeDownloader extends AttachedUpdateDownloader {
   String? source;
+  Future<void> Function(AttachedUpdateCancelToken? cancel)? hold;
   final artifacts = <AttachedUpdateArtifact>[];
   final basePaths = <String?>[];
 
@@ -65,6 +68,7 @@ class _FakeDownloader extends AttachedUpdateDownloader {
     artifacts.add(artifact);
     basePaths.add(basePath);
     onProgress?.call(1, 2);
+    await hold?.call(cancel);
     await File(source!).copy(outputPath);
   }
 }
@@ -534,6 +538,42 @@ void main() {
     );
     expect(downloader.artifacts.length, downloadsBefore);
     expect(repository.libraries.single.fingerprint!.dbVersion, '2');
+  });
+
+  test('removing a library stops its running update and clears it', () async {
+    final library = (await repository.importFile(database())).library!;
+    publish(database(version: '2'), version: 2);
+    final svc = service();
+    expect(await svc.check(library), isA<AttachedUpdateAvailable>());
+    final started = Completer<void>();
+    downloader.hold = (cancel) async {
+      started.complete();
+      while (!cancel!.isCancelled) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      throw const AttachedUpdateCancelled();
+    };
+    final bloc = AttachedLibrariesBloc(
+      addLibraryEvent: (_) {},
+      repository: repository,
+      updates: svc,
+    );
+    addTearDown(bloc.close);
+    final installing = svc.install(library);
+    await started.future;
+    expect(svc.statusOf(library).isRunning, isTrue);
+
+    bloc.add(RemoveAttachedLibrary(library));
+    await installing;
+    expect(repository.libraries, isEmpty);
+    expect(svc.statuses.value.containsKey(library.path), isFalse);
+    expect(
+      Settings.getValue<String>(
+            SettingsRepository.keyAttachedLibraryPendingUpdates,
+          ) ??
+          '',
+      isNot(contains(jsonEncode(library.path).replaceAll('"', ''))),
+    );
   });
 
   group('the download offer', () {

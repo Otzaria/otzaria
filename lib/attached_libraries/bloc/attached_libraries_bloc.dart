@@ -155,6 +155,8 @@ class AttachedLibrariesBloc
     Emitter<AttachedLibrariesState> emit,
   ) => _run(emit, () async {
     await _repository.remove(event.library);
+    // אחרי ההסרה: עדכון שייעצר מעכשיו כבר לא ימצא את המסד ולא ישאיר מצב.
+    await _updates.forget(event.library);
     if (event.library.official case final official?) {
       await _updates.setOfficialDeclined(official.libraryId, declined: true);
     }

@@ -397,7 +397,7 @@ class AttachedLibraryUpdateService {
       await _savePending(path, null);
       _set(path, AttachedUpdateInstalled(manifest.dbVersion));
     } on AttachedUpdateCancelled {
-      _set(path, AttachedUpdateAvailable(offer));
+      _settle(path, AttachedUpdateAvailable(offer));
     } catch (e, st) {
       _log('install ${library.slug}', e, st);
       final error = errorOf(e);
@@ -406,7 +406,7 @@ class AttachedLibraryUpdateService {
           error != AttachedUpdateError.notApplicable &&
           error != AttachedUpdateError.badSignature;
       if (!stillValid) await _savePending(path, null);
-      _set(
+      _settle(
         path,
         AttachedUpdateFailed(
           error,
@@ -423,6 +423,28 @@ class AttachedLibraryUpdateService {
 
   /// Stops a running download; the offer stays available.
   void cancel(AttachedLibrary library) => _cancelTokens[library.path]?.cancel();
+
+  /// מסד שהוסר: עוצר עדכון או הורדה רשמית לאותו נתיב ומוחק את מצבם.
+  Future<void> forget(AttachedLibrary library) async {
+    final path = library.path;
+    _cancelTokens[path]?.cancel();
+    for (final entry in OfficialAttachedLibraries.catalog) {
+      if (p.equals(await _repository.officialPathFor(entry.libraryId), path)) {
+        cancelOfficial(entry.libraryId);
+      }
+    }
+    _statuses.value = {..._statuses.value}..remove(path);
+    await _savePending(path, null);
+  }
+
+  /// עדכון שהסתיים אחרי שהמסד הוסר אינו משאיר מצב.
+  void _settle(String path, AttachedUpdateStatus status) {
+    if (_repository.libraries.any((l) => p.equals(l.path, path))) {
+      _set(path, status);
+    } else {
+      _statuses.value = {..._statuses.value}..remove(path);
+    }
+  }
 
   /// מפתח המצב של הצעת הורדה למסד רשמי שאינו מותקן; אינו מתנגש בנתיב.
   static String officialKey(String libraryId) => 'official:$libraryId';
