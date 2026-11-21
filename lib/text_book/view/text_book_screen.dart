@@ -1206,6 +1206,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         TextPainter measure(String text) => TextPainter(
           text: TextSpan(text: text, style: titleStyle),
           textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
           maxLines: 1,
         )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
 
@@ -1222,6 +1223,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             measure(displayText.substring(namePrefix.length)).width +
                     measure('…').width <=
                 constraints.maxWidth;
+        // כשגם המיקום לבדו אינו נכנס, משמיטים מתחילתו ולא מסופו — הכותרת
+        // העמוקה היא שמראה היכן הקורא נמצא (#5712).
+        final shownText = !hasSeparateLocation && textPainter.didExceedMaxLines
+            ? startTruncatedTitle(
+                    displayText,
+                    (text) => !measure(text).didExceedMaxLines,
+                  ) ??
+                  displayText
+            : displayText;
         final rowAlignment = switch (textAlign) {
           TextAlign.center => MainAxisAlignment.center,
           TextAlign.start => MainAxisAlignment.start,
@@ -1249,7 +1259,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   ],
                 )
               : Text(
-                  displayText,
+                  shownText,
                   style: titleStyle,
                   textAlign: textAlign,
                   maxLines: 1,
@@ -3258,4 +3268,21 @@ class _NavPanelTourTargetBuilder extends StatelessWidget {
     isActiveTab: TourTargetsScope.enabledOf(context),
     child: child,
   );
+}
+
+/// מקצרת כותרת "שם הספר, כותרת, ..., כותרת עמוקה" מתחילתה: מחזירה "…, " ואחריו
+/// הסיפא הארוכה ביותר שנכנסת לפי [fits]. כשאין מקום אף ל"…, " ולכותרת העמוקה
+/// מוחזרת הכותרת העמוקה לבדה (ותיחתך מסופה אם צריך). כותרת בלי פסיקים — null.
+@visibleForTesting
+String? startTruncatedTitle(String title, bool Function(String text) fits) {
+  final segments = title.split(', ');
+  if (segments.length < 2) return null;
+  var shown = '…, ${segments.last}';
+  if (!fits(shown)) return segments.last;
+  for (var i = segments.length - 2; i >= 1; i--) {
+    final candidate = '…, ${segments.sublist(i).join(', ')}';
+    if (!fits(candidate)) break;
+    shown = candidate;
+  }
+  return shown;
 }
