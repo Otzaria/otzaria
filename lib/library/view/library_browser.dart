@@ -576,9 +576,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         ),
         BlocListener<LibraryBloc, LibraryState>(
           listenWhen: (previous, current) =>
-              previous.isLoading &&
-              !current.isLoading &&
-              current.library != null,
+              current.error == null &&
+              LibraryState.reloadCompleted(previous, current),
           listener: (context, state) {
             context.read<LibraryBloc>().add(
               SelectCategoryForPreview(state.currentCategory ?? state.library!),
