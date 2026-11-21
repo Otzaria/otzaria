@@ -78,12 +78,13 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      // ui-lint: allow UIL-021 — החלונית מרופדת בימין רק 4px (בשביל פס הגלילה של חלונית הזמנים); כאן משלימים את המרווח בימין הפיזי
-      padding: const EdgeInsets.only(
+      // החלונית מרופדת ב-start (ימין, התוכן תמיד RTL) רק 4px בשביל פס הגלילה
+      // של חלונית הזמנים; כאן משלימים את המרווח בצד הזה.
+      padding: const EdgeInsetsDirectional.only(
         top: AppTokens.spaceSM,
         bottom: AppTokens.spaceSM,
-        left: AppTokens.spaceSMD,
-        right: 12,
+        start: AppTokens.spaceSMD,
+        end: AppTokens.spaceSMD,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
