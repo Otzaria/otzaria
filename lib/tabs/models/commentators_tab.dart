@@ -32,6 +32,9 @@ class CommentatorsTab extends OpenedTab {
   /// נשמר ב-toJson — בלעדיו הבחירה אבדה בסגירת התוכנה ושוחזרו "כל המפרשים".
   List<String>? selectedCommentators;
 
+  /// בחירת השורות מהקורא עד לפעולת הבחירה הראשונה בכרטיסייה.
+  List<int>? openingSelection;
+
   /// מיקום הפתיחה של הכרטיסיה הזו. עצמאי מזה של [sourceTab] — זו כל מטרתה.
   final int startIndex;
 
@@ -63,6 +66,10 @@ class CommentatorsTab extends OpenedTab {
     if (sourceState is TextBookLoaded &&
         sourceState.activeCommentators.isNotEmpty) {
       selectedCommentators = List<String>.from(sourceState.activeCommentators);
+    }
+    if (sourceState is TextBookLoaded &&
+        sourceState.selectedIndices.length > 1) {
+      openingSelection = List.unmodifiable(sourceState.selectedIndices);
     }
 
     _initialState = TextBookInitial.named(
