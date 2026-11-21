@@ -349,7 +349,12 @@ ContinuousReadingParagraphLine readerParagraphLine(
     htmlText: html,
     style: AppFonts.taamimSafeStyle(baseStyle, html),
     frameRanges: ranges,
-    background: readerLineBackgroundColor(spec.marks.background, theme),
+    // בפסקה ממוזגת סמן השוליים לבדו אינו מראה איזה פסוק נבחר.
+    background:
+        readerLineBackgroundColor(spec.marks.background, theme) ??
+        (ctx.isMainText && spec.marks.isSelected
+            ? AppSurfaces.selectedReaderLine(theme.colorScheme)
+            : null),
     selected: spec.marks.isSelected,
     heading: readerInlineHeading(spec.sectionHeadings),
   );

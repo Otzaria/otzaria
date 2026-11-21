@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
+import 'package:otzaria/text_display/models/text_display_profile.dart';
 
 TextBookLoaded _state({Set<int> selected = const {}}) => TextBookLoaded(
   book: TextBook(title: 'ספר בדיקה'),
@@ -47,5 +49,28 @@ void main() {
     final state = _state(selected: {1});
     expect(readerLineMarks(state, 1, isRelated: true).isSelected, isTrue);
     expect(readerLineMarks(state, 0, isRelated: true).isSelected, isFalse);
+  });
+
+  // issue #4665, #3492 — רקע הבחירה בפסקה רציפה שמור לטקסט הראשי.
+  test('שורת מפרש קשורה בפסקה רציפה: בלי רקע', () {
+    final state = _state();
+    final ctx = ReaderLineContext(
+      state: state,
+      lines: state.content,
+      profile: TextDisplayProfile.defaults,
+      lineHtml: (index) => state.content[index],
+      fontSize: 18,
+      lineHeight: 1.5,
+      isMainText: false,
+      isRelated: (_) => true,
+    );
+    final line = readerParagraphLine(
+      buildReaderLineSpec(1, ctx),
+      ctx,
+      baseStyle: const TextStyle(),
+      theme: ThemeData.light(),
+    );
+    expect(line.selected, isTrue);
+    expect(line.background, isNull);
   });
 }
