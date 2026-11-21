@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -374,6 +375,115 @@ void main() {
 
       final title = tester.widget<Text>(find.text('ספר בדיקה').first);
       expect(title.textAlign, TextAlign.center);
+    });
+  });
+
+  group('כותרת צרה שומרת את הכותרת העמוקה (issue #5712)', () {
+    const bookTitle = 'שמירת שבת כהלכתה';
+    const location = 'חלק א, פרק כ - דיני הוצאה, סעיף יג';
+    const fullTitle = '$bookTitle, $location';
+
+    /// טקסט הכותרת הגלוי שמסתיים במיקום הנוכחי, אם יש כזה.
+    Text? deepestTitleText(WidgetTester tester) => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(AppSelectionArea),
+            matching: find.byType(Text),
+          ),
+        )
+        .where((t) => t.data?.endsWith('סעיף יג') ?? false)
+        .firstOrNull;
+
+    // בגופן הבדיקות כל אות היא ריבוע ברוחב גודל הגופן (22px), ולכן מרכז
+    // הסרגל ב-1400px (340px) צר עבור הכותרת הזאת כמו סרגל של כ-500px בגופן
+    // עברי אמיתי.
+    testWidgets('בסרגל צר הכותרת מסתיימת בכותרת העמוקה ואינה נחתכת', (
+      tester,
+    ) async {
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: fullTitle,
+      );
+
+      expect(tester.takeException(), isNull);
+      final text = deepestTitleText(tester);
+      expect(text, isNotNull, reason: 'הכותרת העמוקה "סעיף יג" אינה גלויה');
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(
+          of: find.byWidget(text!),
+          matching: find.byType(RichText),
+        ),
+      );
+      expect(
+        paragraph.didExceedMaxLines,
+        isFalse,
+        reason: 'הכותרת העמוקה נחתכה',
+      );
+      expect(text.data, startsWith('…, '));
+
+      final tooltips = tester
+          .widgetList<Tooltip>(find.byType(Tooltip))
+          .map((t) => t.message)
+          .whereType<String>();
+      expect(tooltips.any((m) => m.contains(fullTitle)), isTrue);
+    });
+
+    testWidgets('כשאין מקום ל"…, " — מוצגת הכותרת העמוקה לבדה', (
+      tester,
+    ) async {
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: fullTitle,
+        size: const Size(900, 900),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(deepestTitleText(tester)?.data, 'סעיף יג');
+    });
+
+    testWidgets('כותרת שנכנסת במלואה מוצגת ללא השמטה', (tester) async {
+      await pumpWithTitle(
+        tester,
+        bookTitle: 'ספר',
+        currentTitle: 'ספר, א, ב',
+      );
+
+      expect(find.textContaining('…'), findsNothing);
+      expect(find.textContaining('א, ב'), findsOneWidget);
+    });
+
+    testWidgets('הגדלת טקסט פי 2 אינה גורמת לחריגה', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: fullTitle,
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(deepestTitleText(tester), isNotNull);
+    });
+
+    test('startTruncatedTitle שומר את הסיפא הארוכה ביותר שנכנסת', () {
+      bool fitsUpTo(String text, int max) => text.length <= max;
+
+      expect(startTruncatedTitle('שם בלבד', (_) => true), isNull);
+      expect(
+        startTruncatedTitle('א, ב, ג, ד', (t) => fitsUpTo(t, 9)),
+        '…, ג, ד',
+      );
+      expect(
+        startTruncatedTitle('א, ב, ג, ד', (_) => true),
+        '…, ב, ג, ד',
+      );
+      expect(
+        startTruncatedTitle('א, ב, ג, ד', (_) => false),
+        'ד',
+        reason: 'גם כשדבר אינו נכנס — הכותרת העמוקה היא שמוצגת',
+      );
     });
   });
 
