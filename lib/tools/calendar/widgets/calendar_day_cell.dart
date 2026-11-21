@@ -19,6 +19,7 @@ Color? getDayBackgroundColor(
   if (isSelected || isToday) return null;
   if (jc.getDayOfWeek() == 7 ||
       jc.isYomTov() ||
+      jc.isErevYomTov() ||
       jc.isTaanis() ||
       jc.isRoshChodesh()) {
     return AppSurfaces.calendarSpecialDay(Theme.of(context).colorScheme);

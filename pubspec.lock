@@ -1043,12 +1043,11 @@ packages:
   kosher_dart:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "75938458c8c0cf5b288ce529a4fe4ab2cbec24c0"
-      resolved-ref: "75938458c8c0cf5b288ce529a4fe4ab2cbec24c0"
-      url: "https://github.com/Otzaria/kosher_dart"
-    source: git
-    version: "2.0.20"
+      name: kosher_dart
+      sha256: "538d7e152d1b8d2700320848f0163a4b6459862324e8bdadf353958706378b8e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   leak_tracker:
     dependency: transitive
     description:

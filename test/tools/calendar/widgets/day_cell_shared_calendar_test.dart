@@ -105,6 +105,39 @@ void main() {
         reason: 'תא נבחר מקבל את צבע הבחירה, לא את רקע המועד',
       );
     });
+    testWidgets('ערבי חג שומרים על צבע הרקע של יום מיוחד', (tester) async {
+      final colors = <Color?>[];
+      Color? shabbatColor;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              shabbatColor = getDayBackgroundColor(
+                context,
+                JewishCalendar.fromDateTime(_shabbat),
+                false,
+                false,
+              );
+              for (final (month, day) in [
+                (4, 1),
+                (5, 21),
+                (9, 11),
+                (9, 20),
+                (9, 25),
+              ]) {
+                final eve = JewishCalendar.fromDateTime(
+                  DateTime(2026, month, day),
+                );
+                colors.add(getDayBackgroundColor(context, eve, false, false));
+              }
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      expect(shabbatColor, isNotNull);
+      expect(colors, everyElement(shabbatColor));
+    });
   });
 
   group('DayExtras — inIsrael מגיע מה-JewishCalendar המשותף', () {
