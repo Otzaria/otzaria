@@ -6,16 +6,18 @@ import 'package:otzaria/models/book_source.dart';
 /// null — מטמון הכינויים עוד לא נטען, והרשימה תנסה שוב.
 List<String>? bookmarkSearchAliases(dynamic item) {
   final bookmark = item as Bookmark;
+  if (bookmark.isSearch) return const [];
   final id = bookmark.book.id;
-  if (bookmark.isSearch || id == null) return const [];
   final cache = AcronymsCache.instance;
   final source = bookmark.book.source;
-  if (source is AttachedBookSource) {
+  if (id == null) {
+    // אין כינויים מילוליים לחכות להם — רק הנגזרים מהכותרת.
+  } else if (source is AttachedBookSource) {
     if (cache.attachedAcronymsOf(source.slug) == null) return null;
   } else if (!cache.isLoaded) {
     return null;
   }
-  return cache.acronymsFor(source, id) ?? const [];
+  return cache.aliasesFor(source, id, bookmark.book.title);
 }
 
 /// חיפושים שמורים מכילים שאילתה, ולא שם ספר שניתן לשנות את כתיבו.
