@@ -49,9 +49,11 @@ class ProgressiveScroll extends StatefulWidget {
     super.key,
     required this.child,
     required this.scrollController,
-    this.maxSpeed = 5000.0,
-    this.accelerationFactor = 6.25,
-    this.curve = 2.0,
+    // ברירות המחדל הן כוונון הקוראים (issue #5638): 600 פיקסלים לשנייה
+    // בהתחלה, האצה עדינה, ותקרה של כ-3 מסכים לשנייה אחרי כשנייה וחצי.
+    this.maxSpeed = 2500.0,
+    this.accelerationFactor = 600.0,
+    this.curve = 1.0,
     this.focusNode,
     this.autofocus = false,
     this.onNavigationStart,
@@ -170,8 +172,13 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
       }
     }
     if (_scrollDirection != direction) {
-      _timePressedInSeconds = 0;
-      _lastFrameTime = SchedulerBinding.instance.currentSystemFrameTimeStamp;
+      // הלחיצה מזיזה צעד מיד, והגלילה הרציפה מתחילה רק כשהצעד מסתיים —
+      // כך הקשה קצרה היא צעד אחד בדיוק.
+      _timePressedInSeconds =
+          -AppTokens.animFast.inMicroseconds / Duration.microsecondsPerSecond;
+      // הזמן נספר מהפריים הראשון, כמו אנימציית הצעד.
+      _lastFrameTime = null;
+      _step(direction);
     }
     _scrollDirection = direction;
     final position = _position;
@@ -182,7 +189,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
       return;
     }
     if (!_ticker.isActive) {
-      _lastFrameTime = SchedulerBinding.instance.currentSystemFrameTimeStamp;
+      _lastFrameTime = null;
       _ticker.start();
     }
   }
@@ -203,8 +210,11 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
     if (previous == null || _scrollDirection == 0) return;
     final seconds = ((now - previous).inMicroseconds / 1000000).clamp(0.0, 0.1);
     if (seconds == 0) return;
-    final distance = _distanceForInterval(seconds);
+    final start = math.max(_timePressedInSeconds, 0.0);
     _timePressedInSeconds += seconds;
+    final active = math.min(seconds, _timePressedInSeconds);
+    if (active <= 0) return;
+    final distance = _distanceForInterval(start, active);
     if (distance > 0) {
       final target = (position.pixels + distance * _scrollDirection).clamp(
         position.minScrollExtent,
@@ -218,24 +228,41 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
     }
   }
 
-  double _distanceForInterval(double seconds) {
+  void _step(int direction) {
+    final position = _position;
+    if (position == null) return;
+    final target = (position.pixels + 100 * direction).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target == position.pixels) return;
+    unawaited(
+      AppMotion.scrollPosition(
+        position,
+        target,
+        AppTokens.animFast,
+        curve: Curves.linear,
+      ),
+    );
+  }
+
+  double _distanceForInterval(double pressed, double seconds) {
     // אינטגרציה של המהירות שומרת מרחק זהה גם בקצבי פריימים שונים.
     final initial = widget.accelerationFactor;
     final maximum = widget.maxSpeed;
     if (initial == 0 || maximum == 0) return 0;
     final curve = widget.curve;
     if (curve == 0) return math.min(initial, maximum) * seconds;
-    final start = initial * math.exp(curve * _timePressedInSeconds);
-    final end = initial * math.exp(curve * (_timePressedInSeconds + seconds));
+    final start = initial * math.exp(curve * pressed);
+    final end = initial * math.exp(curve * (pressed + seconds));
     if (start >= maximum && end >= maximum) return maximum * seconds;
     if (start <= maximum && end <= maximum) return (end - start) / curve;
     final cappedAt = math.log(maximum / initial) / curve;
     if (curve > 0) {
       return (maximum - start) / curve +
-          maximum * (_timePressedInSeconds + seconds - cappedAt);
+          maximum * (pressed + seconds - cappedAt);
     }
-    return maximum * (cappedAt - _timePressedInSeconds) +
-        (end - maximum) / curve;
+    return maximum * (cappedAt - pressed) + (end - maximum) / curve;
   }
 
   void _stopScrolling() {
@@ -289,23 +316,6 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
         if (HardwareKeyboard.instance.logicalKeysPressed.contains(other)) {
           _startScrolling(-direction);
         } else {
-          final position = _position;
-          if (position != null) {
-            final target = (position.pixels + 100 * direction).clamp(
-              position.minScrollExtent,
-              position.maxScrollExtent,
-            );
-            if (target != position.pixels) {
-              unawaited(
-                AppMotion.scrollPosition(
-                  position,
-                  target,
-                  AppTokens.animFast,
-                  curve: Curves.linear,
-                ),
-              );
-            }
-          }
           _stopScrolling();
         }
       }

@@ -2341,9 +2341,6 @@ class _CombinedViewState extends State<CombinedView> {
                                     onKeyEvent: widget.isPreviewMode
                                         ? null
                                         : _handleSideArrowNavigation,
-                                    maxSpeed: 10000.0,
-                                    curve: 10.0,
-                                    accelerationFactor: 312.5,
                                     scrollController:
                                         widget.tab.lines.itemController,
                                     onNavigationStart:
@@ -2436,9 +2433,6 @@ class _CombinedViewState extends State<CombinedView> {
       onNavigationStart: widget.tab.lines.beginUserNavigation,
       child: ProgressiveScroll(
         focusNode: _focusNode,
-        maxSpeed: 10000.0,
-        curve: 10.0,
-        accelerationFactor: 312.5,
         scrollController: widget.tab.lines.itemController,
         onNavigationStart: widget.tab.lines.beginUserNavigation,
         child: SmoothWheelScroll(
