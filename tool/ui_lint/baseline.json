@@ -208,9 +208,6 @@
         {"scope":"buildDayCell","fp":"0f736c3f","n":1},
         {"scope":"buildDayCell","fp":"72466283","n":1}
       ],
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_OverflowAwareTooltipText.build","fp":"d2aa3949","n":1}
-      ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"17cb6f38","n":1},
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"4f0c3e16","n":1},
@@ -493,11 +490,6 @@
       "lib/tools/calendar/widgets/calendar_main_panel.dart": [
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"a7c1dfe6","n":1}
       ],
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_AlertControl.build","fp":"a6c1de53","n":1},
-        {"scope":"_CompositeLabelValue.build","fp":"a6c1de53","n":1},
-        {"scope":"_ZmanCard.build","fp":"a6c1de53","n":1}
-      ],
       "lib/tools/gematria/widgets/gematria_result_card.dart": [
         {"scope":"GematriaResultCard.build","fp":"2d3a28a0","n":1},
         {"scope":"_NumberBadge.build","fp":"1a491541","n":1}
@@ -728,12 +720,8 @@
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"66ff54ff","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_CalendarTimesPanelState.build","fp":"de1701d4","n":1},
         {"scope":"_MoladCard.build","fp":"3bee9d82","n":1},
-        {"scope":"_MoladCard.build","fp":"7a5f6425","n":2},
-        {"scope":"_OverflowAwareTooltipText.build","fp":"05d6e3d9","n":1},
-        {"scope":"_ZmanCard._buildCompositeSegment","fp":"d1a84c0b","n":1},
-        {"scope":"_ZmanCard.build","fp":"3bee9d82","n":1}
+        {"scope":"_MoladCard.build","fp":"7a5f6425","n":2}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"920fa78d","n":1},
