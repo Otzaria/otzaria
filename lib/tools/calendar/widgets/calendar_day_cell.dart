@@ -340,25 +340,38 @@ class DayExtras extends StatelessWidget {
           }
           // "זריחה 06:08": השם בתחילת השורה והשעה בסופה, בספרות ברוחב קבוע
           // — כך השעות של כל השורות בתא עומדות זו מתחת לזו.
-          return Row(
-            children: [
-              Expanded(
-                child: Text(
-                  info.substring(0, lastSpace),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  strutStyle: strut,
-                  style: style,
+          // בתא צר מאוד (שעון 12 שעות, הגדלת טקסט) השעה נחתכת במקום לגלוש.
+          return LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    info.substring(0, lastSpace),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    strutStyle: strut,
+                    style: style,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppTokens.spaceXS),
-              Text(
-                info.substring(lastSpace + 1),
-                maxLines: 1,
-                strutStyle: strut,
-                style: style,
-              ),
-            ],
+                const SizedBox(width: AppTokens.spaceXS),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (constraints.maxWidth - AppTokens.spaceXS).clamp(
+                      0.0,
+                      double.infinity,
+                    ),
+                  ),
+                  child: Text(
+                    info.substring(lastSpace + 1),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    strutStyle: strut,
+                    style: style,
+                  ),
+                ),
+              ],
+            ),
           );
         },
     ];

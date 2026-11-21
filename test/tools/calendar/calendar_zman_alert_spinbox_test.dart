@@ -24,16 +24,16 @@ void main() {
           initialMinutesBefore: preference.minutesBefore,
         );
         expect(
-          tester.widget<TextField>(_field(0)).controller!.text,
+          tester.widget<TextField>(_field(_hours)).controller!.text,
           '${initialMinutesBefore ~/ 60}',
         );
         expect(
-          tester.widget<TextField>(_field(1)).controller!.text,
+          tester.widget<TextField>(_field(_minutes)).controller!.text,
           '${initialMinutesBefore % 60}',
         );
         if (editHours) {
           await tester.enterText(
-            _field(0),
+            _field(_hours),
             initialMinutesBefore > 0 ? '23' : '0',
           );
           await tester.pump();
@@ -60,22 +60,22 @@ void main() {
       final boxes = find.byType(SpinBox);
       expect(boxes, findsNWidgets(2));
       final dialog = tester.widget<AppDialogFrame>(find.byType(AppDialogFrame));
-      final minutes = tester.widget<SpinBox>(boxes.last);
+      final hours = tester.widget<SpinBox>(boxes.at(_hours));
 
-      await tester.enterText(_field(0), '2');
+      await tester.enterText(_field(_minutes), '2');
       await tester.pump();
 
-      expect(tester.widget<SpinBox>(boxes.last), same(minutes));
+      expect(tester.widget<SpinBox>(boxes.at(_hours)), same(hours));
       expect(
         tester.widget<AppDialogFrame>(find.byType(AppDialogFrame)),
         same(dialog),
       );
 
-      final hours = tester.widget<SpinBox>(boxes.first);
-      await tester.enterText(_field(1), '7');
+      final minutes = tester.widget<SpinBox>(boxes.at(_minutes));
+      await tester.enterText(_field(_hours), '7');
       await tester.pump();
 
-      expect(tester.widget<SpinBox>(boxes.first), same(hours));
+      expect(tester.widget<SpinBox>(boxes.at(_minutes)), same(minutes));
       expect(
         tester.widget<AppDialogFrame>(find.byType(AppDialogFrame)),
         same(dialog),
@@ -89,9 +89,9 @@ void main() {
     ZmanAlertDialogResult? result;
     await _openDialog(tester, (value) => result = value);
 
-    await tester.enterText(_field(0), '2');
+    await tester.enterText(_field(_hours), '2');
     await tester.pump();
-    await tester.enterText(_field(1), '7');
+    await tester.enterText(_field(_minutes), '7');
     await tester.pump();
     await tester.tap(find.text('הפעל'));
     await tester.pumpAndSettle();
@@ -102,8 +102,8 @@ void main() {
   });
 
   for (final (name, index, expectedMinutes) in [
-    ('hours', 0, 5),
-    ('minutes', 1, 60),
+    ('hours', _hours, 5),
+    ('minutes', _minutes, 60),
   ]) {
     testWidgets('clearing $name stays zero after tabbing away and saving', (
       tester,
@@ -168,10 +168,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);
-      expect(result!.minutesBefore, index == 0 ? 125 : 62);
+      expect(result!.minutesBefore, index == _hours ? 125 : 62);
     });
   }
 }
+
+// הדקות ראשונות בעץ (בימין ב-RTL) והשעות אחריהן.
+const _minutes = 0;
+const _hours = 1;
 
 Finder _field(int index) => find.descendant(
   of: find.byType(SpinBox).at(index),

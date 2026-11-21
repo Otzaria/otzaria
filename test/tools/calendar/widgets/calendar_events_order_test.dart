@@ -795,7 +795,12 @@ void main() {
                           widget is Text &&
                           ((widget.textSpan?.toPlainText().contains('אירוע ') ??
                                   false) ||
-                              info.contains(widget.data)),
+                              // שורת מידע מוצגת כשם ושעה בנפרד; סופרים את השם
+                              info.any(
+                                (line) =>
+                                    widget.data ==
+                                    line.substring(0, line.lastIndexOf(' ')),
+                              )),
                     )
                     .evaluate()
                     .length;
@@ -835,6 +840,11 @@ void main() {
             for (final info in [
               const <String>[],
               const ['זריחה 06:12', 'שקיעה 19:45'],
+              // שעון 12 שעות (כפי ש-zmanTimeForDisplay מחזיר): השעה רחבה יותר
+              const [
+                'זריחה \u20666:12.\u200e\u00a0AM\u2069',
+                'שקיעה \u20667:45:\u200e\u00a0PM\u2069',
+              ],
             ]) {
               await tester.pumpWidget(
                 cellApp(
