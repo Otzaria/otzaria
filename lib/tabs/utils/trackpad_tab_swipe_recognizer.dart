@@ -11,6 +11,9 @@ class TrackpadTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
   Offset _pan = Offset.zero;
   bool _accepted = false;
 
+  /// מבטל מעבר טאב כשקנה המידה משתנה אחרי הזכייה בזירת המחוות.
+  void Function()? onPinchAfterAcceptance;
+
   @override
   void addAllowedPointerPanZoom(PointerPanZoomStartEvent event) {
     _pan = Offset.zero;
@@ -22,10 +25,13 @@ class TrackpadTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
   void handleEvent(PointerEvent event) {
     if (event is PointerPanZoomUpdateEvent) {
       // צביטה שייכת לתוכן גם כשמרכזה זז לרוחב (#3972).
-      if (!_accepted &&
-          (event.scale - 1).abs() >
-              TouchPinchScaleRecognizer.trackpadScaleSlop) {
-        resolve(GestureDisposition.rejected);
+      if ((event.scale - 1).abs() >
+          TouchPinchScaleRecognizer.trackpadScaleSlop) {
+        if (_accepted) {
+          onPinchAfterAcceptance?.call();
+        } else {
+          resolve(GestureDisposition.rejected);
+        }
         return;
       }
       // localPan כולל גם את הזזת הרכיב; דלתאות שומרות רק את התנועה.
