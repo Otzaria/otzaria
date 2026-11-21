@@ -327,6 +327,7 @@ class BackupService {
     SettingsRepository.keyDbEffectivePath,
     SettingsRepository.keyAndroidLibraryRoot,
     SettingsRepository.keyAttachedLibraryPendingUpdates,
+    SettingsRepository.keyOfficialAdoptionAttempts,
     // חותמות זמן ומזהים תפעוליים: שחזור ערך ישן מבלבל את התזמון.
     'key-last-auto-backup',
     _kLastPartialAutoBackupKey,

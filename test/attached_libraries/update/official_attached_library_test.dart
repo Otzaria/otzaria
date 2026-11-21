@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
@@ -20,6 +21,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_update_dow
 import 'package:otzaria/attached_libraries/repository/update/attached_update_fetcher.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_signature.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
@@ -31,11 +33,16 @@ import '../../test_helpers/memory_cache_provider.dart';
 
 const _id = 'otzaria.zmanenu';
 const _url = 'https://official.example.org/zmanenu/manifest.json';
+const _releasePrefix = 'https://official.example.org/zmanenu/releases/v';
 
 class _FakeFetcher extends AttachedUpdateFetcher {
   Uint8List manifest = Uint8List(0);
   Uint8List signature = Uint8List(0);
   final urls = <String>[];
+
+  /// מניפסטים של רילייס לפי גרסה; גרסה שאינה כאן מחזירה 404.
+  final releases = <int, ({Uint8List manifest, Uint8List signature})>{};
+  bool offline = false;
 
   @override
   Future<({Uint8List manifest, Uint8List signature})> fetchSignedManifest(
@@ -43,6 +50,16 @@ class _FakeFetcher extends AttachedUpdateFetcher {
     AttachedUpdateCancelToken? cancel,
   }) async {
     urls.add(manifestUrl);
+    if (offline) {
+      throw const AttachedUpdateNetworkException('no route to host');
+    }
+    if (manifestUrl.startsWith(_releasePrefix)) {
+      final version = int.parse(
+        manifestUrl.substring(_releasePrefix.length).split('/').first,
+      );
+      return releases[version] ??
+          (throw const AttachedUpdateHttpException(HttpStatus.notFound));
+    }
     return (manifest: manifest, signature: signature);
   }
 }
@@ -88,6 +105,9 @@ void main() {
   late OfficialAttachedLibrary entry;
   var counter = 0;
 
+  var now = DateTime(2026, 11, 21);
+  late String dropDirectory;
+
   AttachedLibraryUpdateService service() => AttachedLibraryUpdateService(
     repository: repository,
     fetcher: fetcher,
@@ -100,6 +120,8 @@ void main() {
     areUpdatesEnabled: () => true,
     isAutoCheckDue: () => true,
     recordCheck: () async {},
+    now: () => now,
+    dropDirectory: () async => dropDirectory,
   );
 
   /// A fixture database that declares [libraryId] and an update source.
@@ -194,6 +216,34 @@ void main() {
     downloader.source = newDb;
   }
 
+  /// The signed manifest that a tagged release publishes for [db].
+  ({Uint8List manifest, Uint8List signature}) signedRelease(
+    String db, {
+    required int version,
+    String? signWith,
+  }) {
+    final bytes = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode(
+          AttachedUpdateManifest(
+            libraryId: _id,
+            dbVersion: version,
+            full: artifactOf(db, 'v$version'),
+            deltas: const [],
+          ).toJson(),
+        ),
+      ),
+    );
+    return (
+      manifest: bytes,
+      signature: Uint8List.fromList(
+        ascii.encode(
+          AttachedUpdateSignature.sign(bytes, signWith ?? privateKey),
+        ),
+      ),
+    );
+  }
+
   Future<AttachedLibrary> installOfficial(
     AttachedLibraryUpdateService svc,
   ) async {
@@ -207,6 +257,8 @@ void main() {
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     temp = await Directory.systemTemp.createTemp('otzaria_official');
+    now = DateTime(2026, 11, 21);
+    dropDirectory = p.join(temp.path, 'drop');
     registry = AttachedLibraryRegistry(idleTimeout: null);
     repository = AttachedLibrariesRepository(
       registry: registry,
@@ -223,6 +275,8 @@ void main() {
       displayName: 'מחברי זמננו',
       manifestUrl: _url,
       publicKey: publicKey,
+      releaseManifestUrlTemplate: '$_releasePrefix{version}/manifest.json',
+      offlineName: 'zmanenu',
     );
     OfficialAttachedLibraries.catalogForTesting = [entry];
     AttachedUpdateArtifactPlanner.clearCacheForTesting();
@@ -244,6 +298,12 @@ void main() {
       builtIn.manifestUrl,
       'https://github.com/Otzaria/zmanenu-library/releases/latest/download/manifest.json',
     );
+    expect(
+      builtIn.releaseManifestUrlFor(3),
+      'https://github.com/Otzaria/zmanenu-library/releases/download/v3/manifest.json',
+    );
+    expect(builtIn.offlinePackageName, 'zmanenu-offline.zip');
+    expect(builtIn.offlineDatabaseName, 'zmanenu.db');
     expect(builtIn.isActive, zmanenuPublicKey.isNotEmpty);
     if (!builtIn.isActive) {
       expect(
@@ -297,9 +357,15 @@ void main() {
       expect(byPath[manual.path]!.status, AttachedLibraryStatus.duplicateSlug);
       expect(repository.libraries.where((l) => l.isOk).single.isOfficial, true);
 
-      // And a further manual copy is refused as a duplicate.
+      // A further manual copy is attached too, and marked as a duplicate.
       final again = await repository.importFile(database());
-      expect(again.problem, AttachedLibraryProblem.duplicateSlug);
+      expect(again.isOk, isTrue);
+      expect(
+        repository.libraries
+            .singleWhere((l) => l.path == again.library!.path)
+            .status,
+        AttachedLibraryStatus.duplicateSlug,
+      );
     });
   });
 
@@ -624,5 +690,298 @@ void main() {
         isEmpty,
       );
     });
+  });
+
+  group('a manually attached copy of a published release is identified', () {
+    test('a byte-identical copy is adopted and then updates itself, '
+        'without writing to the user\'s file', () async {
+      final manual = database();
+      fetcher.releases[1] = signedRelease(manual, version: 1);
+      final userSha = _sha(manual);
+      final attached = (await repository.importFile(manual)).library!;
+      expect(attached.mode, AttachedLibraryMode.link);
+      expect(attached.isOfficial, isFalse);
+
+      final svc = service();
+      await svc.adoptManualCopies();
+      expect(fetcher.urls, ['${_releasePrefix}1/manifest.json']);
+      final adopted = repository.libraries.single;
+      expect(adopted.path, manual);
+      expect(adopted.isOfficial, isTrue);
+      expect(adopted.official!.sha256, userSha);
+
+      // A newer release is installed unasked, as a managed copy.
+      final next = database(version: '2');
+      publish(next, version: 2);
+      await svc.runScheduledCheck();
+      final managed = repository.libraries.singleWhere((l) => l.isOk);
+      expect(managed.isOfficial, isTrue);
+      expect(managed.mode, AttachedLibraryMode.copy);
+      expect(managed.path, await repository.officialPathFor(_id));
+      expect(managed.fingerprint!.dbVersion, '2');
+      expect(managed.priority, adopted.priority);
+      expect(svc.statusOf(managed), const AttachedUpdateInstalled(2));
+      final old = repository.libraries.singleWhere((l) => l.path == manual);
+      expect(old.official, isNull);
+      expect(old.status, AttachedLibraryStatus.duplicateSlug);
+      expect(_sha(manual), userSha);
+    });
+
+    test('a changed copy is not adopted, and is retried only when the file '
+        'changes or after a week', () async {
+      final manual = database();
+      fetcher.releases[1] = signedRelease(database(), version: 1);
+      final db = sqlite3.sqlite3.open(manual);
+      db.execute('CREATE TABLE edited (x INTEGER)');
+      db.close();
+      await repository.importFile(manual);
+
+      final svc = service();
+      await svc.adoptManualCopies();
+      expect(repository.libraries.single.isOfficial, isFalse);
+      expect(
+        svc.statusOf(repository.libraries.single),
+        isA<AttachedUpdateIdle>(),
+      );
+      expect(fetcher.urls, hasLength(1));
+
+      await svc.adoptManualCopies();
+      now = now.add(const Duration(days: 6));
+      await service().adoptManualCopies();
+      expect(fetcher.urls, hasLength(1));
+
+      now = now.add(const Duration(days: 2));
+      await service().adoptManualCopies();
+      expect(fetcher.urls, hasLength(2));
+      expect(repository.libraries.single.isOfficial, isFalse);
+    });
+
+    test('a version without a release (404) stays a regular database, '
+        'and a network failure is retried next time', () async {
+      final manual = database(version: '7');
+      await repository.importFile(manual);
+
+      fetcher.offline = true;
+      await service().adoptManualCopies();
+      fetcher.offline = false;
+      await service().adoptManualCopies();
+      expect(fetcher.urls, [
+        '${_releasePrefix}7/manifest.json',
+        '${_releasePrefix}7/manifest.json',
+      ]);
+      final library = repository.libraries.single;
+      expect(library.isOfficial, isFalse);
+      expect(library.isOk, isTrue);
+
+      // The 404 was recorded: no request until the week has passed.
+      await service().adoptManualCopies();
+      expect(fetcher.urls, hasLength(2));
+    });
+
+    test('nothing is fetched in offline mode', () async {
+      await repository.importFile(database());
+      await AttachedLibraryUpdateService(
+        repository: repository,
+        fetcher: fetcher,
+        isOfflineMode: () => true,
+      ).adoptManualCopies();
+      expect(fetcher.urls, isEmpty);
+    });
+
+    test(
+      'two copies: the verified one is active, then the managed one',
+      () async {
+        final published = database();
+        publish(published);
+        final svc = service();
+        final managed = await installOfficial(svc);
+
+        // Same release attached by hand: attached, but inactive and untouched.
+        final manualPath = p.join(temp.path, 'manual', 'zmanenu.db');
+        File(manualPath)
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(File(published).readAsBytesSync());
+        final manual = (await repository.importFile(manualPath)).library!;
+        fetcher.releases[1] = signedRelease(published, version: 1);
+        await svc.adoptManualCopies();
+        expect(
+          fetcher.urls.where((u) => u.startsWith(_releasePrefix)),
+          isEmpty,
+        );
+        AttachedLibrary byPath(String path) =>
+            repository.libraries.singleWhere((l) => l.path == path);
+        expect(byPath(manual.path).status, AttachedLibraryStatus.duplicateSlug);
+        expect(byPath(managed.path).isOk, isTrue);
+
+        // The managed copy changes on disk: the verified manual copy wins.
+        await registry.closeAll();
+        final db = sqlite3.sqlite3.open(managed.path);
+        db.execute('CREATE TABLE edited (x INTEGER)');
+        db.close();
+        File(managed.path).setLastModifiedSync(
+          DateTime.now().add(const Duration(minutes: 1)),
+        );
+        await repository.rescan();
+        expect(byPath(managed.path).isOfficial, isFalse);
+        await svc.adoptManualCopies();
+        expect(byPath(manual.path).isOfficial, isTrue);
+        expect(byPath(manual.path).isOk, isTrue);
+        expect(
+          byPath(managed.path).status,
+          AttachedLibraryStatus.duplicateSlug,
+        );
+      },
+    );
+  });
+
+  group('offline package', () {
+    /// `zmanenu-offline.zip` with [db] and a manifest signed by [signWith].
+    String package(
+      String db, {
+      int version = 1,
+      String? signWith,
+      String? manifestOf,
+      String name = 'zmanenu-offline.zip',
+      String? folder,
+    }) {
+      final signed = signedRelease(
+        manifestOf ?? db,
+        version: version,
+        signWith: signWith,
+      );
+      final archive = Archive()
+        ..addFile(
+          ArchiveFile.bytes('zmanenu.db', File(db).readAsBytesSync())
+            ..compression = CompressionType.none,
+        )
+        ..addFile(ArchiveFile.bytes('manifest.json', signed.manifest))
+        ..addFile(ArchiveFile.bytes('manifest.json.sig', signed.signature));
+      final path = p.join(folder ?? p.join(temp.path, 'pkg${counter++}'), name);
+      File(path)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(ZipEncoder().encodeBytes(archive));
+      return path;
+    }
+
+    /// A database of [version] whose content differs from [database]'s.
+    String different({String version = '1'}) {
+      final path = database(version: version);
+      final db = sqlite3.sqlite3.open(path);
+      db.execute('CREATE TABLE other (x INTEGER)');
+      db.close();
+      return path;
+    }
+
+    test('a valid package installs a verified managed copy', () async {
+      final db = database(version: '3');
+      final svc = service();
+      expect(
+        await svc.importOfflinePackage(package(db, version: 3)),
+        OfficialPackageResult.installed,
+      );
+      final library = repository.libraries.single;
+      expect(library.isOfficial, isTrue);
+      expect(library.mode, AttachedLibraryMode.copy);
+      expect(library.path, await repository.officialPathFor(_id));
+      expect(library.official!.dbVersion, 3);
+      expect(_sha(library.path), _sha(db));
+      expect(fetcher.urls, isEmpty);
+      expect(downloader.artifacts, isEmpty);
+
+      // The same package again changes nothing.
+      expect(
+        await svc.importOfflinePackage(package(db, version: 3)),
+        OfficialPackageResult.alreadyInstalled,
+      );
+    });
+
+    test('a newer package updates the installed copy in place', () async {
+      final svc = service();
+      await svc.importOfflinePackage(package(database()));
+      final path = repository.libraries.single.path;
+      final next = database(version: '2');
+      expect(
+        await svc.importOfflinePackage(package(next, version: 2)),
+        OfficialPackageResult.installed,
+      );
+      expect(repository.libraries.single.path, path);
+      expect(repository.libraries.single.official!.dbVersion, 2);
+      expect(_sha(path), _sha(next));
+    });
+
+    test('a wrong signature, a wrong hash and an older version are '
+        'rejected', () async {
+      final svc = service();
+      final other = AttachedUpdateSignature.generatePrivateKey();
+      expect(
+        await svc.importOfflinePackage(package(database(), signWith: other)),
+        OfficialPackageResult.badSignature,
+      );
+      expect(
+        await svc.importOfflinePackage(
+          package(database(), manifestOf: different()),
+        ),
+        OfficialPackageResult.hashMismatch,
+      );
+      expect(repository.libraries, isEmpty);
+      expect(
+        Directory(p.dirname(await repository.officialPathFor(_id))).existsSync()
+            ? Directory(
+                p.dirname(await repository.officialPathFor(_id)),
+              ).listSync()
+            : const [],
+        isEmpty,
+      );
+
+      await svc.importOfflinePackage(
+        package(database(version: '2'), version: 2),
+      );
+      expect(
+        await svc.importOfflinePackage(package(database())),
+        OfficialPackageResult.olderVersion,
+      );
+      expect(repository.libraries.single.official!.dbVersion, 2);
+      expect(
+        await svc.importOfflinePackage(p.join(temp.path, 'missing.zip')),
+        OfficialPackageResult.notPackage,
+      );
+    });
+
+    test('the drop location: an installed package is deleted, a bad one '
+        'stays', () async {
+      final good = package(database(), folder: dropDirectory);
+      final svc = service();
+      final results = await svc.importDroppedPackages();
+      expect(results, {entry: OfficialPackageResult.installed});
+      expect(File(good).existsSync(), isFalse);
+      expect(repository.libraries.single.isOfficial, isTrue);
+
+      final bad = package(
+        database(version: '2'),
+        version: 2,
+        manifestOf: different(version: '2'),
+        folder: dropDirectory,
+      );
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.hashMismatch,
+      });
+      expect(File(bad).existsSync(), isTrue);
+      expect(repository.libraries.single.official!.dbVersion, 1);
+    });
+
+    test(
+      'the default drop location is in the attached databases folder',
+      () async {
+        AppPaths.debugOverrideDataRootPath(temp.path);
+        try {
+          expect(
+            await AttachedLibraryUpdateService.defaultDropDirectory(),
+            p.join(temp.path, 'מסדים אישיים', 'להתקנה'),
+          );
+        } finally {
+          AppPaths.debugOverrideDataRootPath(null);
+        }
+      },
+    );
   });
 }

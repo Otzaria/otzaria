@@ -9,11 +9,29 @@ class OfficialAttachedLibrary {
     required this.displayName,
     required this.manifestUrl,
     required this.publicKey,
+    this.releaseManifestUrlTemplate,
+    this.offlineName,
   });
 
   final String libraryId;
   final String displayName;
   final String manifestUrl;
+
+  /// כתובת המניפסט החתום של גרסה מסוימת; `{version}` מוחלף ב-`db_version`.
+  /// מזהה עותק שצורף ידנית גם כשאינו הגרסה האחרונה.
+  final String? releaseManifestUrlTemplate;
+
+  /// בסיס שמות החבילה הלא-מקוונת: `<name>-offline.zip` ובתוכה `<name>.db`.
+  final String? offlineName;
+
+  String? releaseManifestUrlFor(int dbVersion) =>
+      releaseManifestUrlTemplate?.replaceAll('{version}', '$dbVersion');
+
+  String? get offlinePackageName =>
+      offlineName == null ? null : '$offlineName-offline.zip';
+
+  String? get offlineDatabaseName =>
+      offlineName == null ? null : '$offlineName.db';
 
   /// מפתח ed25519 ציבורי ב-base64. ערך לא תקין ⇒ הרשומה אינה פעילה.
   final String publicKey;
@@ -40,6 +58,9 @@ abstract final class OfficialAttachedLibraries {
       manifestUrl:
           'https://github.com/Otzaria/zmanenu-library/releases/latest/download/manifest.json',
       publicKey: zmanenuPublicKey,
+      releaseManifestUrlTemplate:
+          'https://github.com/Otzaria/zmanenu-library/releases/download/v{version}/manifest.json',
+      offlineName: 'zmanenu',
     ),
   ];
 

@@ -45,6 +45,7 @@ class AttachedLibrariesBloc
     on<InstallOfficialLibrary>(_onInstallOfficial);
     on<CancelOfficialLibrary>(_onCancelOfficial);
     on<SetOfficialLibraryDeclined>(_onSetOfficialDeclined);
+    on<ImportOfficialLibraryPackage>(_onImportOfficialPackage);
     on<_AttachedUpdatesChanged>(_onUpdatesChanged);
     _subscription = _repository.changes.listen(
       (slugs) => add(_AttachedLibrariesChanged(slugs)),
@@ -125,6 +126,7 @@ class AttachedLibrariesBloc
   ) => _run(emit, () async {
     final result = await _repository.importFile(event.path);
     if (result.isOk) {
+      _identifyManualCopies();
       return AttachedLibrariesNotice(
         ++_noticeId,
         SettingsMessages.attachedLibraryAdded(result.library!.displayName),
@@ -139,6 +141,7 @@ class AttachedLibrariesBloc
     Emitter<AttachedLibrariesState> emit,
   ) => _run(emit, () async {
     await _repository.addFolder(event.path);
+    _identifyManualCopies();
     return _notice(SettingsMessages.attachedLibraryFolderAdded);
   });
 
@@ -192,6 +195,7 @@ class AttachedLibrariesBloc
     Emitter<AttachedLibrariesState> emit,
   ) => _run(emit, () async {
     await _repository.rescan();
+    _identifyManualCopies();
     return _notice(SettingsMessages.attachedLibrariesRescanned);
   });
 
@@ -249,6 +253,46 @@ class AttachedLibrariesBloc
     emit(_loaded(state));
     if (!event.declined) await _updates.checkOfficialOffers();
   }
+
+  /// עותק ידני של מסד רשמי מזוהה ברקע; כשל אינו מגיע למשתמש.
+  void _identifyManualCopies() => unawaited(
+    _updates.adoptManualCopies().catchError((Object e) {
+      debugPrint('[AttachedLibrariesBloc] identification failed: $e');
+    }),
+  );
+
+  Future<void> _onImportOfficialPackage(
+    ImportOfficialLibraryPackage event,
+    Emitter<AttachedLibrariesState> emit,
+  ) => _run(emit, () async {
+    final result = await _updates.importOfflinePackage(event.path);
+    final message = packageMessage(result);
+    return _notice(
+      message,
+      isError:
+          result != OfficialPackageResult.installed &&
+          result != OfficialPackageResult.alreadyInstalled,
+    );
+  });
+
+  /// ההודעה למשתמש על חבילה לא-מקוונת של מסד רשמי.
+  static String packageMessage(
+    OfficialPackageResult result,
+  ) => switch (result) {
+    OfficialPackageResult.installed =>
+      SettingsMessages.officialPackageInstalled,
+    OfficialPackageResult.alreadyInstalled =>
+      SettingsMessages.officialPackageAlreadyInstalled,
+    OfficialPackageResult.notPackage =>
+      SettingsMessages.officialPackageNotPackage,
+    OfficialPackageResult.badSignature =>
+      SettingsMessages.officialPackageBadSignature,
+    OfficialPackageResult.hashMismatch =>
+      SettingsMessages.officialPackageCorrupt,
+    OfficialPackageResult.olderVersion => SettingsMessages.officialPackageOlder,
+    OfficialPackageResult.noSpace => SettingsMessages.officialPackageNoSpace,
+    OfficialPackageResult.failed => SettingsMessages.officialPackageFailed,
+  };
 
   void _onUpdatesChanged(
     _AttachedUpdatesChanged event,

@@ -196,6 +196,10 @@ class SettingsRepository {
   /// מסדים רשמיים שהמשתמש סירב להורדתם או הסיר (JSON).
   static const String keyDeclinedOfficialLibraries =
       'key-declined-official-libraries';
+
+  /// ניסיונות זיהוי של עותק ידני כרשמי (JSON: נתיב ⇒ טביעת הקובץ ומועד).
+  static const String keyOfficialAdoptionAttempts =
+      'key-official-adoption-attempts';
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
@@ -393,6 +397,7 @@ class SettingsRepository {
     keyAttachedLibraryPendingUpdates,
     keyLastAttachedLibraryUpdateCheck,
     keyDeclinedOfficialLibraries,
+    keyOfficialAdoptionAttempts,
     keyEnableHtmlLinks,
     keyPersonalNotesCollapsedByDefault,
     keyCompactMenuMode,

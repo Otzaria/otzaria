@@ -88,6 +88,24 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
     }
   }
 
+  /// חבילה לא-מקוונת של מסד רשמי: התקנה ראשונה או עדכון ידני.
+  Future<void> _importOfficialPackage() async {
+    final bloc = context.read<AttachedLibrariesBloc>();
+    final file = await withFilePickerOwner(
+      context,
+      (picker) => picker.pickFile(
+        type: widget.supportsLinking ? FileType.custom : FileType.any,
+        allowedExtensions: widget.supportsLinking ? const ['zip'] : null,
+        dialogTitle: context.settingsText('בחר חבילת מסד רשמי'),
+        windowsOptions: modalWindowsOptions(context),
+        linuxOptions: kModalLinuxOptions,
+      ),
+    );
+    if (file?.path case final String path) {
+      bloc.add(ImportOfficialLibraryPackage(path));
+    }
+  }
+
   Future<void> _addFolder() async {
     final bloc = context.read<AttachedLibrariesBloc>();
     final path = await withFilePickerOwner(
@@ -211,6 +229,12 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
         icon: FluentIcons.arrow_down_24_regular,
         enabled: index < count - 1,
       ),
+      if (library.official != null)
+        AppMenuEntry(
+          value: _MenuAction.importPackage,
+          label: context.settingsText('עדכון מקובץ'),
+          icon: FluentIcons.folder_open_24_regular,
+        ),
       AppMenuEntry(
         value: _MenuAction.release,
         label: context.settingsText('שחרר קובץ'),
@@ -236,6 +260,8 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
         bloc.add(MoveAttachedLibrary(library, -1));
       case _MenuAction.moveDown:
         bloc.add(MoveAttachedLibrary(library, 1));
+      case _MenuAction.importPackage:
+        await _importOfficialPackage();
       case _MenuAction.release:
         bloc.add(ReleaseAttachedLibrary(library));
       case _MenuAction.copyPath:
@@ -391,6 +417,7 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
           onDownload: () => bloc.add(InstallOfficialLibrary(entry)),
           onCancel: () => bloc.add(CancelOfficialLibrary(entry.libraryId)),
           onRetry: () => bloc.add(const CheckOfficialLibraries()),
+          onImportPackage: _importOfficialPackage,
           onDecline: () => bloc.add(
             SetOfficialLibraryDeclined(entry.libraryId, declined: true),
           ),
@@ -425,7 +452,15 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
   }
 }
 
-enum _MenuAction { toggleHidden, moveUp, moveDown, release, copyPath, remove }
+enum _MenuAction {
+  toggleHidden,
+  moveUp,
+  moveDown,
+  importPackage,
+  release,
+  copyPath,
+  remove,
+}
 
 class _AttachedLibraryTile extends StatelessWidget {
   const _AttachedLibraryTile({

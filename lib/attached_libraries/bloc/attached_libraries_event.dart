@@ -137,6 +137,16 @@ class CancelOfficialLibrary extends AttachedLibrariesEvent {
   List<Object?> get props => [libraryId];
 }
 
+/// התקנת מסד רשמי מחבילה לא-מקוונת (`<name>-offline.zip`) שהמשתמש בחר.
+class ImportOfficialLibraryPackage extends AttachedLibrariesEvent {
+  final String path;
+
+  const ImportOfficialLibraryPackage(this.path);
+
+  @override
+  List<Object?> get props => [path];
+}
+
 /// "לא תודה" על הצעה, או החזרתה להצגה.
 class SetOfficialLibraryDeclined extends AttachedLibrariesEvent {
   final String libraryId;

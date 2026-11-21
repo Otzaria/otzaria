@@ -21,6 +21,7 @@ class OfficialLibraryOfferTile extends StatelessWidget {
     required this.onCancel,
     required this.onRetry,
     required this.onDecline,
+    required this.onImportPackage,
   });
 
   final OfficialAttachedLibrary entry;
@@ -29,6 +30,9 @@ class OfficialLibraryOfferTile extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onRetry;
   final VoidCallback onDecline;
+
+  /// התקנה מחבילה לא-מקוונת (`<name>-offline.zip`).
+  final VoidCallback onImportPackage;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +82,11 @@ class OfficialLibraryOfferTile extends StatelessWidget {
       text: context.settingsText('לא תודה'),
       onPressed: onDecline,
     );
+    final importPackage = ActionButton.ghost(
+      text: context.settingsText('ייבוא מקובץ'),
+      icon: FluentIcons.folder_open_24_regular,
+      onPressed: onImportPackage,
+    );
     final status = this.status;
     final List<Widget> children = switch (status) {
       AttachedUpdateIdle() || AttachedUpdateUpToDate() => [
@@ -86,6 +95,7 @@ class OfficialLibraryOfferTile extends StatelessWidget {
           icon: FluentIcons.arrow_sync_24_regular,
           onPressed: onRetry,
         ),
+        importPackage,
         decline,
       ],
       AttachedUpdateChecking() => [
@@ -98,6 +108,7 @@ class OfficialLibraryOfferTile extends StatelessWidget {
           icon: FluentIcons.arrow_download_24_regular,
           onPressed: onDownload,
         ),
+        importPackage,
         decline,
       ],
       AttachedUpdateInProgress() => [
@@ -129,6 +140,7 @@ class OfficialLibraryOfferTile extends StatelessWidget {
           icon: FluentIcons.arrow_sync_24_regular,
           onPressed: offer != null ? onDownload : onRetry,
         ),
+        importPackage,
         decline,
       ],
     };

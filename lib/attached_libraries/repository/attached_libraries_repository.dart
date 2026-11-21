@@ -351,15 +351,27 @@ class AttachedLibrariesRepository {
       p.join(await _copyDirectory(), 'official', '$libraryId.db');
 
   /// מכניס מסד רשמי שהורד ואומת ל-[officialPathFor] ומצרף אותו כעותק מנוהל.
-  /// [accept] בודק את הקובץ במקומו; כשל מוחק אותו.
+  /// [accept] בודק את הקובץ במקומו; כשל מוחק אותו. [replacing] — עותק רשמי
+  /// מקושר שהקובץ שלו אינו נכתב: מאבד את הסימון, והעותק המנוהל תופס את מקומו.
   Future<AttachedLibrary> installOfficial(
     String stagedPath, {
     required AttachedOfficialInstall official,
     required bool Function(AttachedLibraryProbeResult result) accept,
+    AttachedLibrary? replacing,
   }) => _serial(() async {
     final libraries = [..._registry.libraries];
-    if (libraries.any((l) => l.official?.libraryId == official.libraryId)) {
-      throw FileSystemException('already installed', official.libraryId);
+    final replaced = replacing == null
+        ? -1
+        : libraries.indexWhere((l) => p.equals(l.path, replacing.path));
+    for (var i = 0; i < libraries.length; i++) {
+      if (i != replaced &&
+          libraries[i].official?.libraryId == official.libraryId) {
+        throw FileSystemException('already installed', official.libraryId);
+      }
+    }
+    final previous = replaced < 0 ? null : libraries[replaced];
+    if (previous != null) {
+      libraries[replaced] = previous.copyWith(clearOfficial: true);
     }
     final target = await officialPathFor(official.libraryId);
     // רשומה קודמת באותו נתיב (סימון שנמחק בשחזור גיבוי) מוחלפת.
@@ -374,28 +386,39 @@ class AttachedLibrariesRepository {
       await _deleteDatabaseFiles(target);
       throw const AttachedUpdateVerificationFailed();
     }
-    final library = _fromProbe(
+    var library = _fromProbe(
       target,
       result,
       mode: AttachedLibraryMode.copy,
-      priority: _nextPriority(libraries),
+      priority: previous?.priority ?? _nextPriority(libraries),
       official: official,
     );
-    await _commit([...libraries, library]);
+    if (previous != null) {
+      library = library.copyWith(
+        placement: previous.placement,
+        hidden: previous.hidden,
+      );
+    }
+    await _commit(
+      [...libraries, library],
+      alsoChanged: {if (previous != null) library.slug},
+    );
     return library;
   });
 
-  /// מסמן את הקובץ שב-[path] כעותק רשמי מאומת, בלי להחליף אותו. [accept]
-  /// בודק את הקובץ במקומו; קובץ בלי רשומה מצורף רק בנתיב הרשמי.
+  /// מסמן את הקובץ שב-[path] כעותק רשמי מאומת, בלי להחליף אותו ובלי לכתוב
+  /// אליו. [accept] בודק את הקובץ במקומו; קובץ בלי רשומה מצורף רק בנתיב הרשמי.
   Future<AttachedLibrary?> adoptOfficial(
     String path, {
     required AttachedOfficialInstall official,
     required bool Function(AttachedLibraryProbeResult result) accept,
   }) => _serial(() async {
     final libraries = [..._registry.libraries];
+    // עותק מאומת אחר כבר קיים; עותק רשמי שאינו מאומת אינו חוסם.
     if (libraries.any(
       (l) =>
-          l.official?.libraryId == official.libraryId &&
+          l.isOfficial &&
+          l.official!.libraryId == official.libraryId &&
           !p.equals(l.path, path),
     )) {
       return null;
@@ -531,20 +554,32 @@ class AttachedLibrariesRepository {
   });
 
   /// שומר, מעדכן את ה-registry ומשדר כשהרשימה השתנתה. מסדים עם slug זהה —
-  /// הראשון בסדר תקין והשאר מסומנים כפולים; כפול שבן-זוגו הוסר חוזר לתקין.
-  Future<bool> _commit(List<AttachedLibrary> libraries) async {
+  /// אחד תקין ([_slugRank], ואז הראשון בסדר) והשאר מסומנים כפולים; כפול
+  /// שבן-זוגו הוסר חוזר לתקין. [alsoChanged] — slugs שהקובץ שלהם הוחלף בנתיב אחר.
+  Future<bool> _commit(
+    List<AttachedLibrary> libraries, {
+    Set<String> alsoChanged = const {},
+  }) async {
     final sorted = [...libraries]
       ..sort((a, b) => a.priority.compareTo(b.priority));
-    // מסד רשמי גובר על קובץ ידני עם אותו מזהה, בלי קשר לסדר.
-    final seen = {
-      for (final library in sorted)
-        if (library.official != null && _isSlugCandidate(library)) library.slug,
-    };
+    final winners = <String, AttachedLibrary>{};
+    for (final library in sorted.where(_isSlugCandidate)) {
+      final current = winners[library.slug];
+      if (current == null || _slugRank(library) > _slugRank(current)) {
+        winners[library.slug] = library;
+      }
+    }
     final resolved = [
       for (final library in sorted)
-        library.official != null
-            ? _asResolved(library)
-            : _resolveDuplicate(library, seen),
+        if (!_isSlugCandidate(library))
+          library
+        else if (identical(winners[library.slug], library))
+          _asResolved(library)
+        else
+          library.copyWith(
+            status: AttachedLibraryStatus.duplicateSlug,
+            problem: AttachedLibraryProblem.duplicateSlug,
+          ),
     ];
     final before = _registry.libraries;
     final changed =
@@ -557,7 +592,10 @@ class AttachedLibrariesRepository {
       await _registry.syncEngineSources();
       return false;
     }
-    final contentChanged = _contentChangedSlugs(before, resolved);
+    final contentChanged = {
+      ..._contentChangedSlugs(before, resolved),
+      ...alsoChanged,
+    };
     await _store.saveLibraries(resolved);
     _registry.update(resolved);
     _clearStoredLineCaches();
@@ -589,26 +627,23 @@ class AttachedLibrariesRepository {
       library.status == AttachedLibraryStatus.ok ||
       library.status == AttachedLibraryStatus.duplicateSlug;
 
-  static AttachedLibrary _resolveDuplicate(
-    AttachedLibrary library,
-    Set<String> seen,
-  ) {
-    if (!_isSlugCandidate(library)) return library;
-    if (!seen.add(library.slug)) {
-      return library.copyWith(
-        status: AttachedLibraryStatus.duplicateSlug,
-        problem: AttachedLibraryProblem.duplicateSlug,
-      );
-    }
-    return _asResolved(library);
-  }
+  /// בין עותקים של אותו מסד: רשמי מאומת, אחר כך רשמי שאינו מאומת, ובכל
+  /// אחד מהם העותק המנוהל קודם. שאר המסדים — לפי הסדר בלבד.
+  static int _slugRank(AttachedLibrary library) => switch (library.official) {
+    null => 0,
+    final official =>
+      (official.verified ? 4 : 2) +
+          (library.mode == AttachedLibraryMode.copy ? 1 : 0),
+  };
 
   static AttachedLibrary _asResolved(AttachedLibrary library) =>
       library.status == AttachedLibraryStatus.duplicateSlug
       ? library.copyWith(status: AttachedLibraryStatus.ok, clearProblem: true)
       : library;
 
+  /// מזהה של מסד רשמי אינו נדחה: העותק מצורף, ואחד העותקים מסומן כפול.
   static bool _slugTaken(List<AttachedLibrary> libraries, String slug) =>
+      OfficialAttachedLibraries.byId(slug) == null &&
       libraries.any((l) => l.slug == slug && (l.isOk || l.official != null));
 
   static bool _inFolder(AttachedLibrary library, String folder) =>
