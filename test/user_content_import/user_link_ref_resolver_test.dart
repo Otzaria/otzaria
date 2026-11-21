@@ -621,4 +621,76 @@ void main() {
       expect(result.linksApplied, 0);
     });
   });
+
+  group('גבולות שורות בספר מתיקייה אישית (issue #5220)', () {
+    // ספר מתיקייה אישית נרשם עם totalLines 0 — תוכנו בקובץ ולא בשורות `line`.
+    Future<void> addFileBook(
+      String title,
+      String fileName,
+      String content,
+    ) async {
+      final file = File(p.join(directory.path, fileName));
+      await file.writeAsString(content);
+      final raw = await userDb.database;
+      raw.execute('PRAGMA foreign_keys = OFF');
+      raw.execute("INSERT OR IGNORE INTO source (id, name) VALUES (1, 'test')");
+      raw.execute(
+        'INSERT INTO book (categoryId, sourceId, title, totalLines, '
+        'isContentExternal, filePath, fileType) VALUES (1, 1, ?, 0, 1, ?, ?)',
+        [title, file.path, p.extension(fileName).substring(1)],
+      );
+    }
+
+    Future<UserImportResult> importRow(String row) =>
+        UserContentImporter.importContents(
+          [ImportedFile(name: 'בסיס_links.json', content: '[$row]')],
+          userDb,
+          locateBook: locate,
+        );
+
+    setUp(() async {
+      await addBook(officialDb, 'בסיס', isBaseBook: true);
+      await addFileBook('אישי', 'אישי.txt', 'שורה ראשונה\nשורה שנייה');
+    });
+
+    test('קישור לשורה מעבר לסוף הספר נדחה ואינו נשמר', () async {
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 40, "path_2": "אישי.txt"}',
+      );
+      expect(result.errors.single, contains('"אישי" (2 שורות)'));
+      expect(result.linksApplied, 0);
+      expect(
+        await UserContentRepository(
+          userDb,
+        ).forwardUserLinks('בסיס', sourceIsUserBook: false),
+        isEmpty,
+      );
+    });
+
+    test('קישור לשורה האחרונה נקלט', () async {
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 2, "path_2": "אישי.txt"}',
+      );
+      expect(result.errors, isEmpty);
+      expect(result.linksApplied, 1);
+    });
+
+    test('קישור לשורה הראשונה בקובץ ריק נדחה', () async {
+      await addFileBook('ריק', 'ריק.txt', '');
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 1, "path_2": "ריק.txt"}',
+      );
+      expect(result.errors.single, contains('"ריק" (0 שורות)'));
+      expect(result.linksApplied, 0);
+    });
+
+    test('ספר PDF אישי אינו נבדק לפי שורות', () async {
+      await addFileBook('סרוק', 'סרוק.pdf', '%PDF-1.4');
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 40, "path_2": "סרוק.pdf"}',
+      );
+      expect(result.errors, isEmpty);
+      expect(result.linksApplied, 1);
+    });
+  });
 }

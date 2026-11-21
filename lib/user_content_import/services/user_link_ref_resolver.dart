@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -5,6 +7,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart';
+import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// פותר כתובת (ref) טקסטואלית — כמו "ב ע\"א" בגמרא או "רטו א" בשו"ע — לאינדקס
@@ -108,7 +111,7 @@ typedef LocatedUserLinkBook = ({
   String title,
   bool isUserBook,
   int? categoryId,
-  int totalLines,
+  int? totalLines,
   bool isDependentOnly,
 });
 
@@ -227,9 +230,31 @@ Future<LocatedUserLinkBook?> _locateIn(
     title: book.title,
     isUserBook: isUserBook,
     categoryId: book.categoryId,
-    totalLines: book.totalLines,
+    totalLines: isUserBook && book.isFileBacked && book.totalLines <= 0
+        ? await _fileBookLines(book)
+        : book.totalLines > 0
+        ? book.totalLines
+        : null,
     isDependentOnly: _isDependentOnly(book),
   );
+}
+
+/// ספר מתיקייה אישית נרשם עם totalLines 0 (תוכנו בקובץ ולא בשורות `line`),
+/// ולכן נספרות שורותיו מהטקסט שהקורא מציג — אחרת גבולות הקישור אינם נבדקים.
+/// מספר שורות לא ידוע מיוצג ב-null, ובקובץ טקסט ריק המספר הוא 0.
+Future<int?> _fileBookLines(Book book) async {
+  try {
+    final text = await readFileBackedBookText(
+      File(book.filePath!),
+      book.fileType,
+      book.title,
+    );
+    if (text == null || text.isEmpty) return text?.length;
+    return '\n'.allMatches(text).length + 1;
+  } on Exception catch (e) {
+    debugPrint('⚠️ [UserLinkBookLocator] ${book.title}: $e');
+    return null;
+  }
 }
 
 // ספר תלוי יכול להיות מסומן גם כספר בסיס בפני עצמו.
