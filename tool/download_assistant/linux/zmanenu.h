@@ -16,8 +16,8 @@
 
 typedef struct {
   char *name;
-  gint64 size;
-  char *sha256;
+  gint64 size;  /* 0: unknown */
+  char *sha256; /* "": not verified by the assistant, nor taken from its cache */
   char *url;
 } OtzZmanenuFile;
 
@@ -39,8 +39,8 @@ char *otz_zmanenu_asset_url(const char *tag, const char *name);
 /* Where to read the parts manifest, or NULL when not needed or not there.
  * release NULL means the API did not answer. */
 char *otz_zmanenu_parts_manifest_url(const OtzJson *release);
-/* The whole archive only with a sha256 digest from the API; otherwise the parts
- * of the parts manifest. NULL when nothing can be verified. */
+/* The whole archive with a sha256 digest from the API; else the parts of the
+ * parts manifest; with no parts manifest, the whole archive without a sha256. */
 OtzZmanenuOffer *otz_zmanenu_offer(const OtzJson *release, GBytes *parts_manifest);
 
 gint64 otz_zmanenu_download_size(const OtzZmanenuOffer *offer);
@@ -50,5 +50,5 @@ GPtrArray *otz_zmanenu_output_files(const OtzZmanenuOffer *offer);
 /* $HOME/.local/share/otzaria/מסדים אישיים/להתקנה — getDataRootPath in the app. */
 char *otz_zmanenu_drop_dir(void);
 
-/* Never fails: no repository, no release, or nothing verifiable is NULL. */
+/* Never fails: no repository, no release, or no package is NULL. */
 OtzZmanenuOffer *otz_zmanenu_load(GCancellable *cancellable);

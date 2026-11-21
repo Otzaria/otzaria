@@ -877,6 +877,19 @@ static const OtzZmanenuOffer *selected_zmanenu(Ui *ui) {
   return ui->zmanenu_checked && zmanenu_available(ui) ? ui->zmanenu : NULL;
 }
 
+/* A portable copy keeps its data beside itself, in a folder the assistant
+ * does not know, so the files go beside the selection as for another computer. */
+static gboolean zmanenu_to_drop_folder(Ui *ui, const Target *target) {
+  return ui->mode == MODE_THIS &&
+         g_strcmp0(target->format, OTZ_PORTABLE_PACKAGE_FORMAT) != 0;
+}
+
+/* "" when the size is unknown (no API reply). */
+static char *zmanenu_size_text(const OtzZmanenuOffer *offer) {
+  gint64 size = otz_zmanenu_download_size(offer);
+  return size > 0 ? otz_size_text(size) : g_strdup("");
+}
+
 static void on_preset(GtkToggleButton *card, Ui *ui) {
   if (ui->building || !gtk_toggle_button_get_active(card)) return;
   g_free(ui->preset_id);
@@ -975,11 +988,11 @@ static GtkWidget *presets_page(Ui *ui) {
     g_object_set_data_full(G_OBJECT(card), "otz-id", g_strdup(id), g_free);
   }
   if (zmanenu_available(ui)) {
-    g_autofree char *size = otz_size_text(otz_zmanenu_download_size(ui->zmanenu));
-    g_autofree char *side = otz_trf(S_CARD_SIZE, size, NULL);
+    g_autofree char *size = zmanenu_size_text(ui->zmanenu);
+    g_autofree char *side = *size != '\0' ? otz_trf(S_CARD_SIZE, size, NULL) : NULL;
+    gboolean drop = zmanenu_to_drop_folder(ui, current_target(ui));
     OtzCardSpec spec = {.title = otz_tr(S_ZMANENU_TITLE),
-                        .desc = otz_tr(ui->mode == MODE_THIS ? S_ZMANENU_DESC_THIS
-                                                             : S_ZMANENU_DESC_OTHER),
+                        .desc = otz_tr(drop ? S_ZMANENU_DESC_THIS : S_ZMANENU_DESC_OTHER),
                         .side = side,
                         .icon = "component",
                         .check = TRUE};
@@ -1146,8 +1159,7 @@ static GtkWidget *ready_page(Ui *ui) {
     rows[count++] = (OtzSummaryRow){.icon = "preset_update", .label = otz_tr(S_ROW_VERSION), .value = version};
   g_autoptr(GPtrArray) ids = selected_ids(ui);
   const OtzZmanenuOffer *zmanenu = selected_zmanenu(ui);
-  g_autofree char *zmanenu_size =
-      zmanenu != NULL ? otz_size_text(otz_zmanenu_download_size(zmanenu)) : NULL;
+  g_autofree char *zmanenu_size = zmanenu != NULL ? zmanenu_size_text(zmanenu) : NULL;
   gboolean custom = find_preset(ui, ui->preset_id) == NULL;
   g_autofree char *size = otz_size_text(otz_members_download_size(ui->manifest, ids));
   g_autofree char *what =
@@ -1396,7 +1408,9 @@ static void finish_guide(Ui *ui, GtkWidget *box) {
   for (guint i = 0; i < ui->result_notes->len; i++)
     paragraph(box, g_ptr_array_index(ui->result_notes, i), 8);
   if (ui->job_zmanenu)
-    paragraph(box, otz_tr(ui->mode == MODE_THIS ? S_GUIDE_ZMANENU_THIS : S_GUIDE_ZMANENU_OTHER),
+    paragraph(box,
+              otz_tr(zmanenu_to_drop_folder(ui, &ui->job_target) ? S_GUIDE_ZMANENU_THIS
+                                                                 : S_GUIDE_ZMANENU_OTHER),
               8);
 }
 
@@ -2027,8 +2041,9 @@ static OtzJob *new_job(Ui *ui, GError **error) {
   g_autofree char *cache = otz_cache_dir();
   g_autofree char *subfolder = subfolder_name(ui, &ui->job_target);
   const OtzZmanenuOffer *zmanenu = selected_zmanenu(ui);
-  g_autofree char *drop =
-      zmanenu != NULL && ui->mode == MODE_THIS ? otz_zmanenu_drop_dir() : NULL;
+  g_autofree char *drop = zmanenu != NULL && zmanenu_to_drop_folder(ui, &ui->job_target)
+                               ? otz_zmanenu_drop_dir()
+                               : NULL;
   ui->job_zmanenu = zmanenu != NULL;
   return otz_job_new_with_zmanenu(ui->manifest, ui->job_ids, &target, cache, ui->base_dir,
                                   subfolder, zmanenu, drop, error);

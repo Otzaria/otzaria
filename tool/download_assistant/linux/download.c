@@ -17,8 +17,8 @@
 typedef struct {
   char *name;
   char *url;
-  char *sha256;
-  gint64 size;
+  char *sha256; /* "": not verified, never taken from the cache or resumed */
+  gint64 size;  /* 0: unknown until the reply */
   char *cache_path;
   char *partial_path; /* <name>.<sha12>.download: bound to this exact file */
   gboolean cached; /* verified in the cache */
@@ -125,6 +125,7 @@ static gboolean not_newer(const struct stat *file, const struct stat *marker) {
 
 gboolean otz_marker_matches(const char *file_path, const char *sha256,
                             gint64 size) {
+  if (*sha256 == '\0') return FALSE;
   g_autofree char *marker = g_strconcat(file_path, ".sha256", NULL);
   struct stat file_stat, marker_stat;
   if (stat(file_path, &file_stat) != 0 || stat(marker, &marker_stat) != 0)
@@ -449,6 +450,10 @@ static gboolean check_cache(OtzJob *job, GCancellable *cancellable,
   for (guint i = 0; i < job->items->len; i++) {
     Item *item = g_ptr_array_index(job->items, i);
     if (item->skip) continue;
+    if (*item->sha256 == '\0') {
+      g_unlink(item->cache_path);
+      continue;
+    }
     if (otz_marker_matches(item->cache_path, item->sha256, item->size)) {
       item->cached = TRUE;
       continue;
@@ -574,7 +579,12 @@ static OtzHttpResponse *open_body(OtzJob *job, Item *item, int fd,
       if (from > 0)
         g_debug("%s: server ignored Range; writing the same body from 0",
                 item->name);
-      if (head->content_length >= 0 && head->content_length != item->size) {
+      if (item->size == 0 && head->content_length > 0) {
+        g_mutex_lock(&job->lock);
+        job->progress.download_total += head->content_length;
+        g_mutex_unlock(&job->lock);
+        item->size = head->content_length;
+      } else if (head->content_length >= 0 && head->content_length != item->size) {
         g_set_error(error, OTZ_ERROR, OTZ_ERROR_CORRUPT,
                     "%s: server size %" G_GINT64_FORMAT " != %" G_GINT64_FORMAT,
                     item->name, head->content_length, item->size);
@@ -612,7 +622,11 @@ static gboolean promote(Item *item, GError **error) {
                 item->partial_path, g_strerror(errno));
     return FALSE;
   }
-  return otz_marker_write(item->cache_path, item->sha256, error);
+  if (*item->sha256 != '\0')
+    return otz_marker_write(item->cache_path, item->sha256, error);
+  g_autofree char *marker = g_strconcat(item->cache_path, ".sha256", NULL);
+  g_unlink(marker);
+  return TRUE;
 }
 
 /* *resumed tells the caller whether this attempt continued an existing prefix. */
@@ -635,7 +649,8 @@ static gboolean fetch_once(OtzJob *job, Item *item, gboolean *resumed,
 
   struct stat st;
   gint64 offset = fstat(fd, &st) == 0 ? st.st_size : 0;
-  if (offset == item->size) {
+  gboolean verified = *item->sha256 != '\0';
+  if (verified && offset == item->size) {
     /* A complete download whose rename never happened: hash it once instead of
      * fetching it again. */
     PrefixContext context = {job, item, 0};
@@ -653,7 +668,7 @@ static gboolean fetch_once(OtzJob *job, Item *item, gboolean *resumed,
     g_checksum_reset(checksum);
     account(job, item, 0, 0, 0);
   }
-  if (offset >= item->size) {
+  if (!verified || offset >= item->size) {
     if (!truncate_partial(fd, error)) goto out;
     offset = 0;
   }
@@ -666,7 +681,7 @@ static gboolean fetch_once(OtzJob *job, Item *item, gboolean *resumed,
                                       error);
     if (n < 0) goto out;
     if (n == 0) break;
-    if (offset + n > item->size) {
+    if (item->size > 0 && offset + n > item->size) {
       g_set_error(error, OTZ_ERROR, OTZ_ERROR_CORRUPT, "%s is longer than expected",
                   item->name);
       corrupt = TRUE;
@@ -677,13 +692,18 @@ static gboolean fetch_once(OtzJob *job, Item *item, gboolean *resumed,
     offset += n;
     account(job, item, offset, n, n);
   }
-  if (offset != item->size) {
+  if (item->size == 0) {
+    g_mutex_lock(&job->lock);
+    job->progress.download_total += offset;
+    g_mutex_unlock(&job->lock);
+    item->size = offset;
+  } else if (offset != item->size) {
     g_set_error(error, OTZ_ERROR, OTZ_ERROR_NETWORK,
                 "%s ended at %" G_GINT64_FORMAT " of %" G_GINT64_FORMAT " bytes",
                 item->name, offset, item->size);
     goto out;
   }
-  if (strcmp(g_checksum_get_string(checksum), item->sha256) != 0) {
+  if (verified && strcmp(g_checksum_get_string(checksum), item->sha256) != 0) {
     g_set_error(error, OTZ_ERROR, OTZ_ERROR_CORRUPT, "%s: sha256 mismatch",
                 item->name);
     corrupt = TRUE;
@@ -893,7 +913,7 @@ static void begin_output(OtzJob *job, const Output *output, OtzPhase phase,
   g_mutex_unlock(&job->lock);
 }
 
-static gboolean produce_outputs(OtzJob *job, GError **error) {
+static gboolean place_outputs(OtzJob *job, GError **error) {
   if (g_mkdir_with_parents(job->output_dir, 0755) != 0) {
     job->failure = OTZ_FAILURE_PLACE;
     g_set_error(error, OTZ_ERROR, OTZ_ERROR_IO, "cannot create %s: %s",
@@ -925,6 +945,7 @@ static gboolean produce_outputs(OtzJob *job, GError **error) {
     }
     if (!output->assemble) {
       Item *item = g_ptr_array_index(output->items, 0);
+      output->size = item->size;
       begin_output(job, output, OTZ_PHASE_PLACE, 0);
       if (!otz_place_file(item->cache_path, dest, item->size, add_phase_bytes, job,
                           job->inner, error)) {
@@ -967,6 +988,19 @@ static gboolean produce_outputs(OtzJob *job, GError **error) {
     }
   }
   return TRUE;
+}
+
+/* A failed or cancelled run leaves no <name>.tmp behind. */
+static gboolean produce_outputs(OtzJob *job, GError **error) {
+  if (place_outputs(job, error)) return TRUE;
+  for (guint i = 0; i < job->outputs->len; i++) {
+    Output *output = g_ptr_array_index(job->outputs, i);
+    if (!output->staged) continue;
+    g_autofree char *dest = g_build_filename(output->dir, output->name, NULL);
+    g_autofree char *tmp = g_strconcat(dest, ".tmp", NULL);
+    g_unlink(tmp);
+  }
+  return FALSE;
 }
 
 static void cancel_inner(GCancellable *outer, gpointer inner) {

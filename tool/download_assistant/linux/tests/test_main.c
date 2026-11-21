@@ -657,6 +657,10 @@ static void test_marker(void) {
 
   g_unlink(marker);
   g_assert_false(otz_marker_matches(file, sha, 5));
+  /* A file without a sha256 (Contemporary Authors) is never taken as cached. */
+  g_assert_true(otz_marker_write(file, "", &error));
+  g_assert_false(otz_marker_matches(file, "", 5));
+  g_unlink(marker);
   g_unlink(file);
   g_rmdir(dir);
 }
@@ -1300,6 +1304,48 @@ static void test_zmanenu_job_drop_folder(void) {
                                                     f.out, NULL, offer, NULL, &error);
   g_assert_no_error(error);
   g_assert_cmpuint(otz_job_output_files(none)->len, ==, 1);
+
+  job_fixture_clear(&f);
+}
+
+/* A run that fails while placing leaves no <name>.tmp in the drop folder. */
+static void test_zmanenu_failure_removes_tmp(void) {
+  static const char *const ids[] = {"hello", NULL};
+  JobFixture f;
+  job_fixture_init(&f, ids);
+  otz_set_allowed_owner("SomeoneElse");
+  static const char manifest_json[] =
+      "{\"archive\":\"" OTZ_ZMANENU_ARCHIVE "\",\"size\":5,\"parts\":["
+      "{\"name\":\"" OTZ_ZMANENU_ARCHIVE ".part-000\",\"size\":5,\"sha256\":\"" HELLO_SHA
+      "\"}]}";
+  g_autoptr(GBytes) bytes = g_bytes_new_static(manifest_json, strlen(manifest_json));
+  g_autoptr(OtzZmanenuOffer) offer = otz_zmanenu_offer(NULL, bytes);
+  g_assert_nonnull(offer);
+  g_autofree char *part_download = g_build_filename(
+      f.cache, OTZ_ZMANENU_ARCHIVE ".part-000.2cf24dba5fb0.download", NULL);
+  write_file(part_download, "hello", 5);
+  g_autofree char *hello_download =
+      g_build_filename(f.cache, "hello.bin.2cf24dba5fb0.download", NULL);
+  write_file(hello_download, "hello", 5);
+  g_autofree char *drop = g_build_filename(f.root, "data", OTZ_ZMANENU_DROP_FOLDER, NULL);
+  /* The manifest's final name is taken by a folder, so its rename fails. */
+  g_autofree char *blocker = g_build_filename(drop, OTZ_ZMANENU_PARTS_MANIFEST, "x", NULL);
+  g_assert_cmpint(g_mkdir_with_parents(blocker, 0755), ==, 0);
+
+  OtzTarget target = {"linux", "x64", "deb"};
+  g_autoptr(GError) error = NULL;
+  g_autoptr(OtzJob) job = otz_job_new_with_zmanenu(f.manifest, f.ids, &target, f.cache,
+                                                   f.out, NULL, offer, drop, &error);
+  g_assert_no_error(error);
+  g_assert_false(otz_job_run(job, NULL, &error));
+  g_assert_nonnull(error);
+  GDir *listing = g_dir_open(drop, 0, NULL);
+  g_assert_nonnull(listing);
+  const char *name;
+  while ((name = g_dir_read_name(listing)) != NULL)
+    g_assert_false(g_str_has_suffix(name, ".tmp"));
+  g_dir_close(listing);
+  g_rmdir(blocker);
 
   job_fixture_clear(&f);
 }
@@ -2157,6 +2203,7 @@ int main(int argc, char **argv) {
   g_test_add_func("/zmanenu/fixtures", test_zmanenu_fixtures);
   g_test_add_func("/zmanenu/other-computer", test_zmanenu_other_computer);
   g_test_add_func("/zmanenu/job-drop-folder", test_zmanenu_job_drop_folder);
+  g_test_add_func("/zmanenu/failure-removes-tmp", test_zmanenu_failure_removes_tmp);
   g_test_add_func("/texts/complete", test_texts_complete);
   g_test_add_func("/texts/format", test_texts_format);
   g_test_add_func("/eta/work-rates", test_eta_work_rates);

@@ -63,14 +63,15 @@ static const OtzJson *find_asset(const OtzJson *release, const char *name) {
   return NULL;
 }
 
-static const OtzJson *whole_asset(const OtzJson *release) {
+/* verified: only with a sha256 digest. */
+static const OtzJson *whole_asset(const OtzJson *release, gboolean verified) {
   const OtzJson *assets = otz_json_get(release, "assets");
   for (guint i = 0; i < otz_json_array_length(assets); i++) {
     const OtzJson *asset = otz_json_array_get(assets, i);
     gint64 size;
     if (g_strcmp0(otz_json_get_string(asset, "name"), OTZ_ZMANENU_ARCHIVE) == 0 &&
         otz_json_get_int(asset, "size", &size) && size > 0 &&
-        asset_sha256(asset) != NULL)
+        (!verified || asset_sha256(asset) != NULL))
       return asset;
   }
   return NULL;
@@ -84,7 +85,7 @@ static const char *release_tag(const OtzJson *release) {
 char *otz_zmanenu_parts_manifest_url(const OtzJson *release) {
   if (release == NULL) return otz_zmanenu_asset_url("", OTZ_ZMANENU_PARTS_MANIFEST);
   const char *tag = release_tag(release);
-  if (tag == NULL || whole_asset(release) != NULL ||
+  if (tag == NULL || whole_asset(release, TRUE) != NULL ||
       find_asset(release, OTZ_ZMANENU_PARTS_MANIFEST) == NULL)
     return NULL;
   return otz_zmanenu_asset_url(tag, OTZ_ZMANENU_PARTS_MANIFEST);
@@ -107,21 +108,29 @@ static void add_file(OtzZmanenuOffer *offer, const char *name, gint64 size,
   g_ptr_array_add(offer->downloads, file);
 }
 
+/* sha256 "" — not verified here; the app checks the signature and sha256. */
+static OtzZmanenuOffer *whole_offer(const char *tag, const OtzJson *asset,
+                                    const char *sha256) {
+  gint64 size = 0;
+  if (asset != NULL) otz_json_get_int(asset, "size", &size);
+  OtzZmanenuOffer *offer = new_offer(tag);
+  add_file(offer, OTZ_ZMANENU_ARCHIVE, size, sha256);
+  return offer;
+}
+
 OtzZmanenuOffer *otz_zmanenu_offer(const OtzJson *release, GBytes *parts_manifest) {
   const char *tag = "";
   if (release != NULL) {
     tag = release_tag(release);
     if (tag == NULL) return NULL;
-    const OtzJson *whole = whole_asset(release);
-    if (whole != NULL) {
-      gint64 size = 0;
-      otz_json_get_int(whole, "size", &size);
-      OtzZmanenuOffer *offer = new_offer(tag);
-      add_file(offer, OTZ_ZMANENU_ARCHIVE, size, asset_sha256(whole));
-      return offer;
-    }
+    const OtzJson *whole = whole_asset(release, TRUE);
+    if (whole != NULL) return whole_offer(tag, whole, asset_sha256(whole));
   }
-  if (parts_manifest == NULL) return NULL;
+  if (parts_manifest == NULL) {
+    if (release == NULL) return whole_offer(tag, NULL, "");
+    const OtzJson *unverified = whole_asset(release, FALSE);
+    return unverified != NULL ? whole_offer(tag, unverified, "") : NULL;
+  }
   gsize length;
   const char *data = g_bytes_get_data(parts_manifest, &length);
   g_autoptr(OtzJson) manifest = otz_json_parse(data, length, NULL);
