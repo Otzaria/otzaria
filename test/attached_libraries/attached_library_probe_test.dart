@@ -196,8 +196,8 @@ void main() {
         '""',
         'ספרים אישיים',
         'א' * 65,
-        '​‏',
-        '‮﻿⁦',
+        '\u200B\u200F',
+        '\u202E\uFEFF\u2066',
         '\t\u0007',
       ]) {
         expect(AttachedLibraryProbe.folderNameOf(raw), isNull, reason: raw);
@@ -207,11 +207,11 @@ void main() {
 
     test('תווים בלתי נראים מוסרים משם התיקייה', () {
       expect(
-        AttachedLibraryProbe.folderNameOf('‏ספריית​ רני‬\u0000'),
+        AttachedLibraryProbe.folderNameOf('\u200Fספריית\u200B רני\u202C\u0000'),
         'ספריית רני',
       );
       expect(
-        AttachedLibraryProbe.folderNameOf('﻿ספרים אישיים⁩'),
+        AttachedLibraryProbe.folderNameOf('\uFEFFספרים אישיים\u2069'),
         isNull,
       );
     });

@@ -192,7 +192,7 @@ abstract final class AttachedLibraryProbe {
   }
 
   static final _invisibleChars = RegExp(
-    '[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁦-⁩﻿]',
+    '[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]',
   );
 
   static String? _nonEmpty(String? value) {
