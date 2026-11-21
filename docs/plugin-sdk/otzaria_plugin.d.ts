@@ -741,6 +741,29 @@ export interface BookLink {
   targetCategoryId: number | null;
   /** מוחזר רק כאשר `includeAnchors: true` ולקישור יש עוגן. */
   anchor?: LinkAnchor;
+  /** רק עם `direction: 'both'` (מ-0.9.99). */
+  direction?: 'outgoing';
+}
+
+/**
+ * קישור נכנס מ-`library.getLinks` עם `direction: 'incoming'` או `'both'`
+ * (מ-0.9.99): הקישור כפי שנשמר בספר האחר, בסוג החיבור המקורי. כל השורות 0-based.
+ */
+export interface IncomingBookLink {
+  direction: 'incoming';
+  /** הספר ששומר את הקישור. */
+  sourceTitle: string;
+  sourceLine: number;
+  /** סוף טווח בצד הספר האחר, או `null`. */
+  sourceLineEnd: number | null;
+  sourceHeRef: string;
+  /** מקור הספר האחר: `'o'` רשמי או `'d:<slug>'` למסד ספרים מצורף. */
+  sourceSource: string;
+  sourceCategoryId: number | null;
+  /** השורה בחלון שהקישור מצביע אליה. */
+  targetLine: number;
+  connectionType: string;
+  isCommentary: boolean;
 }
 
 /** הערת שוליים אחת, כפי שמוחזרת מ-`library.getLineNotes`. */
@@ -762,6 +785,10 @@ export interface GetLineNotesResult {
 }
 
 export interface GetLinksResult {
+  /**
+   * עם `direction: 'incoming'`/`'both'` הרשומות שבהן `direction === 'incoming'`
+   * הן `IncomingBookLink` (הטיפוס נשאר `BookLink[]` כדי לא לשבור קוד קיים).
+   */
   links: BookLink[];
   /** `true` כשהתשובה נחתכה בתקרת 2,000 הרשומות. */
   truncated: boolean;

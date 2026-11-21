@@ -2032,18 +2032,30 @@ class PluginBridgeAdapter {
     );
     final includeAnchors = args['includeAnchors'] as bool? ?? false;
     final rawAnchorNames = _rawDivineNamesArg(args);
+    // 'outgoing' (ברירת המחדל) — התשובה של היום בלי שינוי; 'incoming' — קישורים
+    // שספרים אחרים שומרים אל החלון; 'both' — שתיהן, עם direction בכל רשומה.
+    final direction = args['direction'] ?? 'outgoing';
+    if (direction is! String ||
+        !const {'outgoing', 'incoming', 'both'}.contains(direction)) {
+      throw Exception(
+        "error.invalid_params: direction must be 'outgoing', 'incoming' or "
+        "'both'",
+      );
+    }
 
     final book = _findLinksTextBook(library, args);
     if (book == null) throw Exception('error.not_found: book not found');
 
-    final links = await _linksRepository.getBookLinksInRange(
-      book,
-      startIndex: startLine,
-      endIndex: endLine,
-      // צמצום ב-SQL רק כשאין תחיליות — SQL מכיר רק כותרות מלאות, וצמצום
-      // לפי targetTitles לבדו היה מפיל את התאמות התחילית.
-      targetBookTitles: targetTitlePrefixes == null ? targetTitles : null,
-    );
+    final links = direction == 'incoming'
+        ? const <Link>[]
+        : await _linksRepository.getBookLinksInRange(
+            book,
+            startIndex: startLine,
+            endIndex: endLine,
+            // צמצום ב-SQL רק כשאין תחיליות — SQL מכיר רק כותרות מלאות, וצמצום
+            // לפי targetTitles לבדו היה מפיל את התאמות התחילית.
+            targetBookTitles: targetTitlePrefixes == null ? targetTitles : null,
+          );
 
     // העוגנים נמדדים על השורה המלאה; התוסף מקבל את הטקסט השמור, בלי גופי ההערות.
     final notes = includeAnchors
@@ -2072,6 +2084,7 @@ class PluginBridgeAdapter {
       // index1/index2 הם 1-based במודל; ה-wire של getLinks 0-based — זו
       // נקודת ההמרה. getRawLinks נשאר 1-based, כמוסכמת links.json.
       toRecord: (link, targetTitle) => {
+        if (direction != 'outgoing') 'direction': 'outgoing',
         'sourceLine': link.index1 - 1,
         'targetTitle': targetTitle,
         'targetLine': link.index2 - 1,
@@ -2090,7 +2103,45 @@ class PluginBridgeAdapter {
           ),
       },
     );
-    return {'links': filtered.records, 'truncated': filtered.truncated};
+    if (direction == 'outgoing') {
+      return {'links': filtered.records, 'truncated': filtered.truncated};
+    }
+
+    // הקישור כפי שנשמר: source הוא הספר האחר, target — שורה בחלון. סינוני
+    // הכותרת חלים על הספר האחר, כמו ביוצאים; includeAnchors אינו חל עליהם.
+    final incoming = filtered.truncated
+        ? null
+        : _filterLinkRecords(
+            await _linksRepository.getIncomingLinksInRange(
+              book,
+              startIndex: startLine,
+              endIndex: endLine,
+            ),
+            targetTitles: targetTitles,
+            targetTitlePrefixes: targetTitlePrefixes,
+            connectionTypes: connectionTypes,
+            maxRecords: _pluginLinksMaxRecords - filtered.records.length,
+            toRecord: (link, sourceTitle) => {
+              'direction': 'incoming',
+              'sourceTitle': sourceTitle,
+              'sourceLine': link.index2 - 1,
+              'sourceLineEnd': link.index2End == null
+                  ? null
+                  : link.index2End! - 1,
+              'sourceHeRef': link.heRef,
+              'sourceSource': link.targetSource.wireKey,
+              'sourceCategoryId': link.targetCategoryId,
+              'targetLine': link.index1 - 1,
+              'connectionType': link.connectionType,
+              'isCommentary': LinkTypes.isDependentTextLink(
+                link.connectionType,
+              ),
+            },
+          );
+    return {
+      'links': [...filtered.records, ...?incoming?.records],
+      'truncated': filtered.truncated || (incoming?.truncated ?? false),
+    };
   }
 
   /// `library.getLineNotes` — הערות השוליים של טווח שורות, מטבלת `line_note`.

@@ -466,7 +466,7 @@ Otzaria.on('plugin.boot', (payload) => {
 | `library.listBookAltStructures` | `library.content.read` | `{ bookId, rawDivineNames? }` | `AltStructure[]` |
 | `library.getBookAltToc` | `library.content.read` | `{ bookId, structureKey?, rawDivineNames? }` | `TocEntry[]` |
 | `library.getCommentators` | `library.links.read` | `{ bookId, categoryId?, startLine?, endLine?, grouped? }` | `{ commentators }` או `{ groups }` |
-| `library.getLinks` | `library.links.read` | `{ bookId, categoryId?, startLine, endLine, connectionTypes?, targetTitles?, includeAnchors?, rawDivineNames? }` (חלון עד 200 שורות) | `{ links, truncated }` |
+| `library.getLinks` | `library.links.read` | `{ bookId, categoryId?, startLine, endLine, connectionTypes?, targetTitles?, includeAnchors?, rawDivineNames?, direction? }` (חלון עד 200 שורות) | `{ links, truncated }` |
 | `library.getRawLinks` | `library.links.read` | `{ bookId, categoryId?, startLine?, endLine?, connectionTypes?, targetTitles? }` (הטווח חובה יחד; חלון עד 1000 שורות) | `{ links, truncated, startLine, endLine }` — אותם קישורים של `getLinks`, בחמשת המפתחות של `links.json` |
 | `library.getLinkTargetsSummary` | `library.links.read` | `{ bookId, categoryId? }` | `{ targets, maxSourceLine }` |
 | `library.getLinkContent` | `library.content.read` | `{ links, rawDivineNames? }` (עד 25) | `{ items }` |
