@@ -34,7 +34,7 @@ void main() {
     final entries = ShortcutsSettingsTab.searchEntries
         .where((entry) => entry.id != 'shortcuts.reset')
         .toList();
-    expect(entries, hasLength(52));
+    expect(entries, hasLength(53));
     expect(
       entries.map((entry) => entry.expandSection).toSet(),
       hasLength(entries.length),

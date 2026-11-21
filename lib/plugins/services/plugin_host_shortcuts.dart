@@ -70,6 +70,7 @@ class PluginHostShortcuts {
     ShortcutValidator.openAppReportKey,
     ShortcutValidator.openNewWindowKey,
     'key-shortcut-open-settings',
+    ShortcutValidator.openShortcutsListKey,
     'key-shortcut-open-more',
     'key-shortcut-open-bookmarks',
     'key-shortcut-open-history',
