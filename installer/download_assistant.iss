@@ -1193,7 +1193,8 @@ var
   Marker: String;
 begin
   Result := False;
-  if not FileSize64(Path, Actual) or (Actual <> Size) then
+  { בלי sha256 (מחברי זמננו בלי digest) אין מה לאמת מולו: הקובץ יורד מחדש. }
+  if (Sha = '') or not FileSize64(Path, Actual) or (Actual <> Size) then
     exit;
   Marker := ReadMarkerHex(Name);
   if (Marker <> '') and (Marker <> Lowercase(Sha)) then
@@ -1215,8 +1216,8 @@ begin
   Result := FileMatchesMarker(CachePath(Name), Name, Size, Sha);
 end;
 
-{ עמוד ההורדה כבר אימת את ה-sha256 (הוא מועבר אליו תמיד), ולכן כאן נבדק
-  גודל בלבד. הקובץ מקבל את שמו הסופי רק אחרי הבדיקה, והחותם — אחריו. }
+{ עמוד ההורדה כבר אימת את ה-sha256 כשיש, ולכן כאן נבדק גודל בלבד (0 — לא ידוע).
+  הקובץ מקבל את שמו הסופי רק אחרי הבדיקה, והחותם — אחריו, ורק עם sha256. }
 function PromoteToCache(const TempPath, Name: String; Size: Int64;
   const Sha: String): Boolean;
 var
@@ -1230,12 +1231,12 @@ begin
   if not RenameFile(TempPath, Staged) then
     if not CopyFile(TempPath, Staged, False) then
       exit;
-  if FileSize64(Staged, Actual) and (Actual = Size) then
+  if FileSize64(Staged, Actual) and ((Size = 0) or (Actual = Size)) then
   begin
     DeleteFile(MarkerPath(Name));
     DeleteFile(CachePath(Name));
     Result := RenameFile(Staged, CachePath(Name));
-    if Result then
+    if Result and (Sha <> '') then
       WriteMarker(Name, Sha);
   end;
   { כישלון מחזיר את הקובץ לשמו הקודם: ב-curl זה הקובץ החלקי המאומת. }
@@ -1678,13 +1679,12 @@ begin
   Result := (Index > 0) and (JInt(Raw, 1, 'size') = Total);
 end;
 
-{ ה-release האחרון של מחברי זמננו, אחרי שהמניפסט של אוצריא נטען. לעולם אינו
-  נכשל: בלי release, או בלי חבילה שאפשר לאמת, האפשרות פשוט אינה מוצגת. קובץ
-  שלם רק עם sha256 מה-API; בלי ה-API — חלקים לפי מניפסט החלקים, כמו הספרייה. }
+{ ה-release האחרון של מחברי זמננו; לעולם אינו נכשל. קובץ שלם עם sha256 מה-API,
+  אחרת חלקים לפי מניפסט החלקים, ובלעדיו הקובץ השלם בלי sha256 (האפליקציה מאמתת). }
 procedure LoadZmanenu();
 var
   ApiRaw, PartsRaw: AnsiString;
-  ApiOk, NotFound: Boolean;
+  ApiOk, NotFound, PartsRead: Boolean;
   ElemPos: Integer;
   Digest: String;
   Size: Int64;
@@ -1693,6 +1693,9 @@ begin
   ZmanenuTag := '';
   ApiOk := False;
   NotFound := False;
+  PartsRead := False;
+  ElemPos := 0;
+  Size := 0;
   try
     FetchToTemp('https://api.github.com/repos/Otzaria/zmanenu-library/releases/latest',
       'zmanenu-release.json');
@@ -1725,17 +1728,27 @@ begin
         exit;
       end;
     end;
-    if ZmanenuFindAsset(ApiRaw, ZmanenuPartsManifest) = 0 then
-      exit;
   end;
-  try
-    FetchToTemp(ZmanenuAssetUrl(ZmanenuTag, ZmanenuPartsManifest), ZmanenuPartsFile);
-  except
-    Log('DownloadAssistant: zmanenu parts manifest: ' + GetExceptionMessage);
+  if not ApiOk or (ZmanenuFindAsset(ApiRaw, ZmanenuPartsManifest) > 0) then
+  begin
+    try
+      FetchToTemp(ZmanenuAssetUrl(ZmanenuTag, ZmanenuPartsManifest), ZmanenuPartsFile);
+      PartsRead := LoadStringFromFile(ExpandConstant('{tmp}\') + ZmanenuPartsFile, PartsRaw);
+    except
+      Log('DownloadAssistant: zmanenu parts manifest: ' + GetExceptionMessage);
+    end;
+  end;
+  if not PartsRead then
+  begin
+    { בלי API: ה-release האחרון, בגודל לא ידוע (0). }
+    if not ApiOk then
+      ZmanenuAdd(ZmanenuArchive, 0, '')
+    else if (ElemPos > 0) and (Size > 0) then
+      ZmanenuAdd(ZmanenuArchive, Size, '');
+    if GetArrayLength(ZmanenuName) > 0 then
+      Log('DownloadAssistant: zmanenu ' + ZmanenuTag + ' whole, without sha256');
     exit;
   end;
-  if not LoadStringFromFile(ExpandConstant('{tmp}\') + ZmanenuPartsFile, PartsRaw) then
-    exit;
   if ZmanenuReadParts(ApiRaw, PartsRaw, ApiOk) then
   begin
     ZmanenuSplit := True;
@@ -1804,7 +1817,7 @@ begin
   Result := Result + '\' + CustomMessage('ZmanenuDropFolder');
 end;
 
-{ הנסיגה היחידה כשאין מניפסט: עמוד ההורדות בדפדפן. המסייע לא יוריד דבר בלי hash. }
+{ הנסיגה היחידה כשאין מניפסט: עמוד ההורדות בדפדפן. המסייע לא יוריד את אוצריא בלי hash. }
 procedure OpenDownloadsPage();
 var
   ErrorCode: Integer;
@@ -2597,6 +2610,7 @@ end;
 procedure RefreshPresetPage();
 var
   I: Integer;
+  SizeText: String;
 begin
   BuildPresets();
   PresetPage.CheckListBox.Items.Clear;
@@ -2619,9 +2633,14 @@ begin
     הראשון, ולכן היא אינה נספרת כהצעה. }
   ZmanenuIndex := -1;
   if ZmanenuOffered() then
+  begin
+    SizeText := '';
+    if ZmanenuDownloadSize() > 0 then
+      SizeText := HumanSize(ZmanenuDownloadSize());
     ZmanenuIndex := PresetPage.CheckListBox.AddCheckBox(
-      CustomMessage('ZmanenuTitle'), HumanSize(ZmanenuDownloadSize()), 0,
+      CustomMessage('ZmanenuTitle'), SizeText, 0,
       ZmanenuChecked, True, False, False, nil);
+  end;
 end;
 
 function ZmanenuDescription(): String;
@@ -3649,7 +3668,7 @@ end;
 
 function RunDownloads(): Boolean;
 var
-  I, Attempt: Integer;
+  I, Attempt, Outcome: Integer;
   Started: Int64;
   Failure: String;
 begin
@@ -3672,7 +3691,11 @@ begin
     for I := 0 to GetArrayLength(QueueUrl) - 1 do
     begin
       Started := NowMs();
-      case CurlDownloadItem(I) of
+      { curl ממשיך קבצים חלקיים לפי sha256 וגודל; קובץ בלי sha256 יורד בעמוד מאפס. }
+      Outcome := CurlFallback;
+      if QueueSha[I] <> '' then
+        Outcome := CurlDownloadItem(I);
+      case Outcome of
         CurlDone:
           begin
             Log('DownloadAssistant: ' + QueueFile[I] + ' done by curl in ' +
@@ -3700,7 +3723,7 @@ begin
         CurrentProgress := 0;
         CurrentFileSize := QueueSize[I];
         Started := NowMs();
-        { ה-hash מהמניפסט מועבר תמיד — קובץ שאינו תואם נדחה כאן ולא נשמר. }
+        { ה-hash מהמניפסט מועבר — קובץ שאינו תואם נדחה כאן ולא נשמר. '' — בלי אימות. }
         DownloadPage.Add(QueueUrl[I], QueueFile[I], QueueSha[I]);
         SpeedResume();
         try
@@ -3971,6 +3994,7 @@ end;
 function PlaceZmanenu(const Dir: String; var Done: Int64; Total: Int64): Boolean;
 var
   I: Integer;
+  Size: Int64;
   Tmp, Status: String;
   Names: TArrayOfString;
 begin
@@ -3989,14 +4013,18 @@ begin
       WorkPage.SetProgress(MegaBytes(Done), MegaBytes(Total));
       Tmp := ZmanenuTmpPath(Dir, ZmanenuName[I]);
       DeleteFile(Tmp);
+      { גודל 0 — לא היה ידוע לפני ההורדה: הגודל של מה שירד. }
+      Size := ZmanenuSize[I];
+      if (Size = 0) and not FileSize64(CachePath(ZmanenuName[I]), Size) then
+        Size := 0;
       if not CreateHardLink(Tmp, CachePath(ZmanenuName[I]), 0) then
-        if not WriteFileTo(Tmp, CachePath(ZmanenuName[I]), fmCreate, ZmanenuSize[I],
+        if not WriteFileTo(Tmp, CachePath(ZmanenuName[I]), fmCreate, Size,
           Done, Total, Status) then
         begin
           LoadErrorTech := 'cannot copy ' + ZmanenuName[I] + ' to ' + Dir;
           exit;
         end;
-      Done := Done + ZmanenuSize[I];
+      Done := Done + Size;
     end;
     if ZmanenuSplit then
     begin
