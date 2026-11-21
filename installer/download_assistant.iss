@@ -3959,20 +3959,20 @@ begin
     Log('DownloadAssistant: copied ' + Name);
 end;
 
-{ שם זמני ואז שינוי שם: האפליקציה סורקת את תיקיית האיסוף, ואסור שתמצא חבילה חלקית. }
-function ZmanenuPublish(const Tmp, Dest: String): Boolean;
+{ הקובץ הזמני של Name בתיקייה Dir. האפליקציה מתעלמת ממנו: הסיומת אינה part-NNN או manifest.json. }
+function ZmanenuTmpPath(const Dir, Name: String): String;
 begin
-  DeleteFile(Dest);
-  Result := RenameFile(Tmp, Dest);
-  if not Result then
-    DeleteFile(Tmp);
+  Result := Dir + '\' + Name + '.tmp';
 end;
 
-{ מחברי זמננו לתיקייה Dir, בלי חילוץ: החלקים (או הקובץ השלם) ואחריהם מניפסט החלקים. }
+{ מחברי זמננו לתיקייה Dir, בלי חילוץ: קודם כל הקבצים בשמות זמניים, ואז שינוי שם
+  בזה אחר זה ומניפסט החלקים אחרון — האפליקציה סורקת את תיקיית האיסוף, ואסור
+  שתמצא חבילה חלקית. }
 function PlaceZmanenu(const Dir: String; var Done: Int64; Total: Int64): Boolean;
 var
   I: Integer;
   Tmp, Status: String;
+  Names: TArrayOfString;
 begin
   Result := False;
   if not ForceDirectories(Dir) then
@@ -3980,45 +3980,49 @@ begin
     LoadErrorTech := 'cannot create ' + Dir;
     exit;
   end;
+  Names := ZmanenuOutputNames();
   Status := Msg1('CopyingTo', CustomMessage('ZmanenuName'));
-  for I := 0 to GetArrayLength(ZmanenuName) - 1 do
-  begin
-    WorkPage.SetText(Status, ZmanenuName[I]);
-    WorkPage.SetProgress(MegaBytes(Done), MegaBytes(Total));
-    Tmp := Dir + '\' + ZmanenuName[I] + '.tmp';
-    DeleteFile(Tmp);
-    if not CreateHardLink(Tmp, CachePath(ZmanenuName[I]), 0) then
-      if not WriteFileTo(Tmp, CachePath(ZmanenuName[I]), fmCreate, ZmanenuSize[I],
-        Done, Total, Status) then
+  try
+    for I := 0 to GetArrayLength(ZmanenuName) - 1 do
+    begin
+      WorkPage.SetText(Status, ZmanenuName[I]);
+      WorkPage.SetProgress(MegaBytes(Done), MegaBytes(Total));
+      Tmp := ZmanenuTmpPath(Dir, ZmanenuName[I]);
+      DeleteFile(Tmp);
+      if not CreateHardLink(Tmp, CachePath(ZmanenuName[I]), 0) then
+        if not WriteFileTo(Tmp, CachePath(ZmanenuName[I]), fmCreate, ZmanenuSize[I],
+          Done, Total, Status) then
+        begin
+          LoadErrorTech := 'cannot copy ' + ZmanenuName[I] + ' to ' + Dir;
+          exit;
+        end;
+      Done := Done + ZmanenuSize[I];
+    end;
+    if ZmanenuSplit then
+    begin
+      Tmp := ZmanenuTmpPath(Dir, ZmanenuPartsManifest);
+      DeleteFile(Tmp);
+      if not CopyFile(ExpandConstant('{tmp}\') + ZmanenuPartsFile, Tmp, False) then
       begin
-        DeleteFile(Tmp);
-        LoadErrorTech := 'cannot copy ' + ZmanenuName[I] + ' to ' + Dir;
+        LoadErrorTech := 'cannot write ' + Tmp;
         exit;
       end;
-    if not ZmanenuPublish(Tmp, Dir + '\' + ZmanenuName[I]) then
-    begin
-      LoadErrorTech := 'cannot rename ' + Tmp;
-      exit;
     end;
-    Done := Done + ZmanenuSize[I];
+    for I := 0 to GetArrayLength(Names) - 1 do
+    begin
+      DeleteFile(Dir + '\' + Names[I]);
+      if not RenameFile(ZmanenuTmpPath(Dir, Names[I]), Dir + '\' + Names[I]) then
+      begin
+        LoadErrorTech := 'cannot rename ' + ZmanenuTmpPath(Dir, Names[I]);
+        exit;
+      end;
+    end;
+    Log('DownloadAssistant: zmanenu placed in ' + Dir);
+    Result := True;
+  finally
+    for I := 0 to GetArrayLength(Names) - 1 do
+      DeleteFile(ZmanenuTmpPath(Dir, Names[I]));
   end;
-  if ZmanenuSplit then
-  begin
-    Tmp := Dir + '\' + ZmanenuPartsManifest + '.tmp';
-    DeleteFile(Tmp);
-    if not CopyFile(ExpandConstant('{tmp}\') + ZmanenuPartsFile, Tmp, False) then
-    begin
-      LoadErrorTech := 'cannot write ' + Tmp;
-      exit;
-    end;
-    if not ZmanenuPublish(Tmp, Dir + '\' + ZmanenuPartsManifest) then
-    begin
-      LoadErrorTech := 'cannot rename ' + Tmp;
-      exit;
-    end;
-  end;
-  Log('DownloadAssistant: zmanenu placed in ' + Dir);
-  Result := True;
 end;
 
 { ==================== הרכבה והכנת תיקיית היעד ==================== }

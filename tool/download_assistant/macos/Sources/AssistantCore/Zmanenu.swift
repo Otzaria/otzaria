@@ -211,8 +211,8 @@ public final class ZmanenuLoader {
     }
 }
 
-/// כותב את הקבצים ל-directory: כל אחד לשם זמני ואז שינוי שם, ומניפסט החלקים אחרון —
-/// האפליקציה סורקת את תיקיית האיסוף, ואסור שתמצא חבילה חלקית.
+/// כותב את הקבצים ל-directory: קודם כולם בשמות זמניים, ואז שינוי שם בזה אחר זה ומניפסט
+/// החלקים אחרון — האפליקציה סורקת את תיקיית האיסוף, ואסור שתמצא חבילה חלקית.
 public func placeZmanenu(
     _ offer: ZmanenuOffer, in directory: URL, sourceURL: (DownloadItem) -> URL,
     progress: ((Int64) -> Void)? = nil, isCancelled: () -> Bool = { false }
@@ -223,30 +223,21 @@ public func placeZmanenu(
     } catch {
         throw AssistantError(AssistantError.copyFailed, technical: "\(directory.path): \(error)")
     }
-    var produced: [URL] = []
-    var done: Int64 = 0
-
-    func publish(_ temporary: URL, as name: String) throws -> URL {
-        let destination = directory.appendingPathComponent(name)
-        do {
-            if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
-            }
-            try fileManager.moveItem(at: temporary, to: destination)
-        } catch {
-            try? fileManager.removeItem(at: temporary)
-            throw AssistantError(AssistantError.copyFailed, technical: "\(name): \(error)")
-        }
-        return destination
+    func temporaryURL(_ name: String) -> URL {
+        directory.appendingPathComponent(".\(name).tmp")
     }
-
+    var staged: [String] = []
+    defer {
+        for name in staged { try? fileManager.removeItem(at: temporaryURL(name)) }
+    }
+    var done: Int64 = 0
     for item in offer.downloads {
         if isCancelled() { throw OperationCancelled() }
-        let temporary = directory.appendingPathComponent(".\(item.name).tmp")
         let base = done
+        staged.append(item.name)
         do {
             try placeFile(
-                from: sourceURL(item), to: temporary,
+                from: sourceURL(item), to: temporaryURL(item.name),
                 progress: { progress?(base + $0) }, isCancelled: isCancelled
             )
         } catch let error as OperationCancelled {
@@ -254,18 +245,30 @@ public func placeZmanenu(
         } catch {
             throw AssistantError(AssistantError.copyFailed, technical: "\(item.name): \(error)")
         }
-        produced.append(try publish(temporary, as: item.name))
         done += item.size
         progress?(done)
     }
     if let manifest = offer.partsManifest {
-        let temporary = directory.appendingPathComponent(".\(Zmanenu.partsManifestName).tmp")
+        staged.append(Zmanenu.partsManifestName)
         do {
-            try manifest.write(to: temporary)
+            try manifest.write(to: temporaryURL(Zmanenu.partsManifestName))
         } catch {
             throw AssistantError(AssistantError.copyFailed, technical: "\(Zmanenu.partsManifestName): \(error)")
         }
-        produced.append(try publish(temporary, as: Zmanenu.partsManifestName))
     }
+    var produced: [URL] = []
+    for name in offer.outputFiles {
+        let destination = directory.appendingPathComponent(name)
+        do {
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.moveItem(at: temporaryURL(name), to: destination)
+        } catch {
+            throw AssistantError(AssistantError.copyFailed, technical: "\(name): \(error)")
+        }
+        produced.append(destination)
+    }
+    staged.removeAll()
     return produced
 }

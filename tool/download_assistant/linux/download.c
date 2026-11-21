@@ -36,6 +36,7 @@ typedef struct {
   guint first_part;
   char *partial_path; /* <name>.<sha12>.partial in the output folder */
   GBytes *data;       /* written as is, with no download (a parts manifest) */
+  gboolean staged;    /* written as <name>.tmp, renamed after all the staged ones */
 } Output;
 
 struct OtzJob {
@@ -260,20 +261,24 @@ static gboolean plan_asset(OtzJob *job, const char *dir, const OtzAsset *asset,
   return TRUE;
 }
 
-/* The files go to dir in the order of otz_zmanenu_output_files: the parts
- * manifest is the last output, so the app never finds a partial package. */
+/* The files go to dir in the order of otz_zmanenu_output_files, all staged
+ * first and the parts manifest renamed last: the app scans its drop folder and
+ * must never find a partial package. */
 static gboolean plan_zmanenu(OtzJob *job, const OtzZmanenuOffer *offer,
                              const char *dir, GError **error) {
   for (guint i = 0; i < offer->downloads->len; i++) {
     const OtzZmanenuFile *file = g_ptr_array_index(offer->downloads, i);
     Item *item = get_item_at(job, file->url, file->name, file->size, file->sha256, error);
     if (item == NULL) return FALSE;
-    g_ptr_array_add(add_output(job, dir, FALSE, file->name, file->size)->items, item);
+    Output *output = add_output(job, dir, FALSE, file->name, file->size);
+    output->staged = TRUE;
+    g_ptr_array_add(output->items, item);
   }
   if (offer->parts_manifest != NULL) {
     Output *output = add_output(job, dir, FALSE, OTZ_ZMANENU_PARTS_MANIFEST,
                                 (gint64)g_bytes_get_size(offer->parts_manifest));
     output->data = g_bytes_ref(offer->parts_manifest);
+    output->staged = TRUE;
   }
   return TRUE;
 }
@@ -903,7 +908,9 @@ static gboolean produce_outputs(OtzJob *job, GError **error) {
                   output->dir, g_strerror(errno));
       return FALSE;
     }
-    g_autofree char *dest = g_build_filename(output->dir, output->name, NULL);
+    g_autofree char *final_dest = g_build_filename(output->dir, output->name, NULL);
+    g_autofree char *dest =
+        output->staged ? g_strconcat(final_dest, ".tmp", NULL) : g_strdup(final_dest);
     if (output->data != NULL) {
       /* g_file_set_contents writes a temporary file and renames it. */
       begin_output(job, output, OTZ_PHASE_PLACE, 0);
@@ -944,6 +951,18 @@ static gboolean produce_outputs(OtzJob *job, GError **error) {
                       job->inner, error)) {
       job->failure = g_error_matches(*error, OTZ_ERROR, OTZ_ERROR_CORRUPT)
                          ? OTZ_FAILURE_CORRUPT : OTZ_FAILURE_ASSEMBLE;
+      return FALSE;
+    }
+  }
+  for (guint i = 0; i < job->outputs->len; i++) {
+    Output *output = g_ptr_array_index(job->outputs, i);
+    if (!output->staged) continue;
+    g_autofree char *dest = g_build_filename(output->dir, output->name, NULL);
+    g_autofree char *tmp = g_strconcat(dest, ".tmp", NULL);
+    if (g_rename(tmp, dest) != 0) {
+      job->failure = OTZ_FAILURE_PLACE;
+      g_set_error(error, OTZ_ERROR, OTZ_ERROR_IO, "cannot rename %s: %s", tmp,
+                  g_strerror(errno));
       return FALSE;
     }
   }
