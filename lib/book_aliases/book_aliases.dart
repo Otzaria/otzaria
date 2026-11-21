@@ -155,7 +155,7 @@ collectBookAliasTerms(
 class AcronymCandidateBooks {
   const AcronymCandidateBooks._(this._sortedBookIds);
 
-  final Int32List _sortedBookIds;
+  final List<int> _sortedBookIds;
 
   /// האם ייתכן שכינוי של [bookId] מתאים לשאילתה. ההכרעה נשארת בידי הקורא —
   /// זו קבוצת-על.
@@ -192,7 +192,7 @@ class AcronymCacheData {
 
   /// לכל צמד תווים סמוכים שמופיע במונח כלשהו — מזהי הספרים שלהם יש מונח כזה,
   /// ממוינים. המפתח הוא `(תו ראשון << 16) | תו שני`.
-  final Map<int, Int32List> bookIdsByBigram;
+  final Map<int, List<int>> bookIdsByBigram;
   final int rowCount;
 
   /// מילים שכינוי של הספר כותב בגרשיים ("רמב"ם"), בצורתן המנורמלת — הנרמול
@@ -217,7 +217,7 @@ class AcronymCacheData {
     // הייתה משתיקה כל התאמת כינויים, בלי שגיאה.
     if (bookIdsByBigram.isEmpty || normalizedQuery.length < 2) return null;
 
-    Int32List? rarestBookIds;
+    List<int>? rarestBookIds;
     for (var i = 0; i + 1 < normalizedQuery.length; i++) {
       final bookIds =
           bookIdsByBigram[_bigramKey(
@@ -249,7 +249,7 @@ AcronymCacheData buildAcronymCacheData(
 }
 
 /// אינדקס הביגרמים של [AcronymCacheData.bookIdsByBigram] לכינויים מנורמלים.
-Map<int, Int32List> buildBookAliasBigrams(
+Map<int, List<int>> buildBookAliasBigrams(
   Map<int, List<String>> aliasesByBookId,
 ) {
   final postings = <int, List<int>>{};
@@ -273,8 +273,11 @@ Map<int, Int32List> buildBookAliasBigrams(
     }
   }
   return {
-    for (final entry in postings.entries)
-      entry.key: Int32List.fromList(entry.value),
+    for (final MapEntry(key: bigram, value: ids) in postings.entries)
+      // במסד מצורף מזהה SQLite יכול לחרוג מטווח Int32.
+      bigram: ids.first >= -0x80000000 && ids.last <= 0x7fffffff
+          ? Int32List.fromList(ids)
+          : ids,
   };
 }
 

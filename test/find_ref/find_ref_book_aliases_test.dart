@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 
 import 'support/seeded_reference_library.dart';
@@ -142,5 +143,29 @@ void main() {
     ]);
 
     expect(titles.first, _mishnehTorahShevuot.title);
+  });
+
+  test('חיפוש קבוצתי במסד מצורף עם מזהה SQLite רחב', () {
+    const id = 4294967297;
+    final index = BookTitleIndex(
+      books: const [
+        BookCacheEntry(
+          id: id,
+          title: 'פירוש על קורבן תודה',
+          filePath: '',
+          fileType: 'txt',
+          categoryId: 0,
+          orderIndex: 0,
+        ),
+      ],
+      normalizedTitles: const {id: 'פירוש על קורבן תודה'},
+    );
+    const query = 'פירוש קורבן תודה';
+    final book = index
+        .searchBatch(['פירוש', query], limit: 20)
+        .hitsFor(query, limit: 20)!
+        .single;
+    expect(book.bookId, id);
+    expect(book.namesBookExactly, isTrue);
   });
 }

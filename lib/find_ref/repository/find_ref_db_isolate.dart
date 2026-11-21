@@ -475,7 +475,7 @@ class FindRefDbIsolate {
     return AcronymCacheData(
       acronymsByBookId: (raw['acronymsByBookId'] as Map)
           .cast<int, List<String>>(),
-      bookIdsByBigram: (raw['bookIdsByBigram'] as Map).cast<int, Int32List>(),
+      bookIdsByBigram: (raw['bookIdsByBigram'] as Map).cast<int, List<int>>(),
       rowCount: raw['rowCount'] as int,
       quotedWordsByBookId: (raw['quotedWordsByBookId'] as Map)
           .cast<int, Set<String>>(),

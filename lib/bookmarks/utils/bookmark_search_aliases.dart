@@ -10,12 +10,12 @@ List<String>? bookmarkSearchAliases(dynamic item) {
   final id = bookmark.book.id;
   final cache = AcronymsCache.instance;
   final source = bookmark.book.source;
-  if (id == null) {
-    // אין כינויים מילוליים לחכות להם — רק הנגזרים מהכותרת.
-  } else if (source is AttachedBookSource) {
-    if (cache.attachedAcronymsOf(source.slug) == null) return null;
-  } else if (!cache.isLoaded) {
-    return null;
+  if (id != null && !source.isUser) {
+    if (source is AttachedBookSource) {
+      if (cache.attachedAcronymsOf(source.slug) == null) return null;
+    } else if (!cache.isLoaded) {
+      return null;
+    }
   }
   return cache.aliasesFor(source, id, bookmark.book.title);
 }

@@ -129,15 +129,19 @@ void main() {
   for (final listBook in [
     book,
     TextBook(title: _title, source: BookSource.user),
+    TextBook(id: _bookId, title: _title, source: BookSource.user),
   ]) {
-    test('חיפוש ברשימות ההיסטוריה והסימניות (${listBook.source})', () {
-      final aliases = bookmarkSearchAliases(
-        Bookmark(ref: '$_title א', book: listBook, index: 0),
-      );
-      final key = ListSearchKey('$_title א', bookTitle: _title)
-        ..setAliases(aliases);
-      expect(aliases, contains('פיהמ סוכה'));
-      expect(listSearchRank(ListSearchQuery(_query), key), isNotNull);
-    });
+    test(
+      'חיפוש ברשימות ההיסטוריה והסימניות (${listBook.source}, id=${listBook.id})',
+      () {
+        final aliases = bookmarkSearchAliases(
+          Bookmark(ref: '$_title א', book: listBook, index: 0),
+        );
+        final key = ListSearchKey('$_title א', bookTitle: _title)
+          ..setAliases(aliases);
+        expect(aliases, contains('פיהמ סוכה'));
+        expect(listSearchRank(ListSearchQuery(_query), key), isNotNull);
+      },
+    );
   }
 }
