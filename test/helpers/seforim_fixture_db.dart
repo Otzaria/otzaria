@@ -129,6 +129,32 @@ abstract final class SeforimFixtureDb {
     }
   }
 
+  /// יוצר במסד [dbPath] את `external_default_commentator` (אם חסרה) ומוסיף
+  /// לה [rows]: (targetSource, targetTitle, commentatorBookId, kind, position).
+  static void addExternalDefaultCommentators(
+    String dbPath,
+    List<(String?, String, int, String, int)> rows,
+  ) {
+    final db = sqlite3.sqlite3.open(dbPath);
+    try {
+      db.execute(
+        'CREATE TABLE IF NOT EXISTS external_default_commentator ('
+        'targetSource TEXT, targetTitle TEXT NOT NULL, '
+        'commentatorBookId INTEGER NOT NULL, '
+        "kind TEXT NOT NULL DEFAULT 'commentator', position INTEGER NOT NULL, "
+        'PRIMARY KEY (targetSource, targetTitle, commentatorBookId, kind))',
+      );
+      for (final (source, title, bookId, kind, position) in rows) {
+        db.execute(
+          'INSERT INTO external_default_commentator VALUES (?, ?, ?, ?, ?)',
+          [source, title, bookId, kind, position],
+        );
+      }
+    } finally {
+      db.close();
+    }
+  }
+
   /// ממלא את `line_ref` של מסד מלא מתוך `line.heRef`, כמו בונה המסד.
   static void fillLineRef(String dbPath) {
     final db = sqlite3.sqlite3.open(dbPath);

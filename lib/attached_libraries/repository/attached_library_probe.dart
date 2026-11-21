@@ -238,7 +238,8 @@ abstract final class AttachedLibraryProbe {
     if (c.hasGenerations) AttachedLibraryCapability.generations,
     if (c.hasAcronyms) AttachedLibraryCapability.acronyms,
     if (c.hasLineRef) AttachedLibraryCapability.lineRef,
-    if (c.hasDefaultCommentators) AttachedLibraryCapability.defaultCommentators,
+    if (c.hasDefaultCommentators || c.hasExternalDefaultCommentators)
+      AttachedLibraryCapability.defaultCommentators,
     if (c.hasExternalLinks) AttachedLibraryCapability.externalLinks,
   };
 }

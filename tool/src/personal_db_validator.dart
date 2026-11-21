@@ -56,6 +56,7 @@ const Set<String> kValidatorKnownTables = {
   'schema_meta',
   'db_meta',
   'external_link',
+  'external_default_commentator',
   'banner',
   'book_banner',
   'book_protection',
@@ -86,6 +87,13 @@ const Map<String, List<String>> kValidatorCoreColumns = {
   'line_ref': ['bookId', 'lineIndex', 'refKeyHash'],
   'schema_meta': ['key', 'value'],
   'external_link': ['sourceBookId', 'sourceLineIndex', 'targetTitle'],
+  'external_default_commentator': [
+    'targetSource',
+    'targetTitle',
+    'commentatorBookId',
+    'kind',
+    'position',
+  ],
   'book_version_link': ['versionBookId', 'primaryTitle'],
 };
 
@@ -225,6 +233,13 @@ class _Caps {
           col('external_link', 'sourceBookId') &&
           col('external_link', 'sourceLineIndex') &&
           col('external_link', 'targetTitle'),
+      'hasExternalDefaultCommentators':
+          books &&
+          col('external_default_commentator', 'targetSource') &&
+          col('external_default_commentator', 'targetTitle') &&
+          col('external_default_commentator', 'commentatorBookId') &&
+          col('external_default_commentator', 'kind') &&
+          col('external_default_commentator', 'position'),
     };
   }
 }
@@ -407,6 +422,7 @@ PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
     }
     _checkFilePaths(db, caps, report, checkFiles: checkFiles);
     _checkExternalLinks(db, caps, report);
+    _checkExternalDefaultCommentators(db, caps, report);
     _checkVersionLinks(db, caps, report);
   } on SqliteException catch (e) {
     report._add(Severity.error, 'sqlite_error', e.message);
@@ -812,6 +828,84 @@ void _checkExternalLinks(Database db, _Caps caps, PersonalDbReport report) {
         'targetSource value(s) that match no database: ${invalid.join(', ')}.',
       );
     }
+  }
+}
+
+/// שורה נקראת רק כשהספר המפרש קיים, הכותרת אינה ריקה וה-kind מוכר; והיא
+/// משפיעה רק כשהספר מקושר ליעד ב-`external_link`.
+void _checkExternalDefaultCommentators(
+  Database db,
+  _Caps caps,
+  PersonalDbReport report,
+) {
+  const table = 'external_default_commentator';
+  if (caps.has(table) &&
+      report.capabilities['hasExternalDefaultCommentators'] != true) {
+    report._add(
+      Severity.warning,
+      'incomplete_group',
+      'Table "$table" is ignored: it needs targetSource, targetTitle, '
+          'commentatorBookId, kind and position.',
+    );
+    return;
+  }
+  if (report.capabilities['hasExternalDefaultCommentators'] != true) return;
+  final invalid = _count(
+    db,
+    'SELECT COUNT(*) FROM $table e '
+    'WHERE NOT EXISTS (SELECT 1 FROM book b WHERE b.id = e.commentatorBookId) '
+    "OR COALESCE(TRIM(e.targetTitle), '') = '' "
+    "OR e.kind IS NULL OR e.kind NOT IN ('commentator', 'targum')",
+  );
+  if (invalid > 0) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_invalid_rows',
+      '$invalid row(s) have no matching commentator book, an empty '
+          "targetTitle or a kind other than 'commentator'/'targum'; they are "
+          'ignored.',
+    );
+  }
+  final badSources = [
+    for (final row in db.select(
+      'SELECT DISTINCT targetSource AS s FROM $table LIMIT 50',
+    ))
+      if (row['s'] case final value?)
+        if (value.toString().trim() case final s
+            when s.isNotEmpty &&
+                s.toLowerCase() != 'official' &&
+                validatorSanitizeSlug(s).isEmpty)
+          s,
+  ];
+  if (badSources.isNotEmpty) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_bad_target_source',
+      'targetSource value(s) that match no database: ${badSources.join(', ')}.',
+    );
+  }
+  if (report.capabilities['hasExternalLinks'] != true) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_without_links',
+      '$table has no effect without external_link: a commentator is a '
+          'default only where it is linked to the target book.',
+    );
+    return;
+  }
+  final unlinked = _count(
+    db,
+    'SELECT COUNT(*) FROM $table e WHERE NOT EXISTS ('
+    'SELECT 1 FROM external_link l WHERE l.sourceBookId = e.commentatorBookId '
+    'AND l.targetTitle = e.targetTitle)',
+  );
+  if (unlinked > 0) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_unlinked',
+      '$unlinked row(s) name a commentator with no external_link to its '
+          'target book; they are ignored.',
+    );
   }
 }
 
