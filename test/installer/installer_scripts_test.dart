@@ -11,6 +11,9 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../../tool/release/download_assistant_selection.dart'
+    show kZmanenuArchiveName, kZmanenuDropFolder;
+
 /// טסטים על סקריפטי ה-Inno Setup. הם אינם נבנים ב-CI של הטסטים, ולכן ההגנה
 /// היחידה עליהם היא קריאת הטקסט ואימות האינוריאנטות שמקשרות ביניהם לבין
 /// [AppPaths] — שם האפליקציה קוראת את אותם מסמנים ומפתחות.
@@ -734,6 +737,33 @@ void main() {
         ),
       );
     });
+  });
+
+  group('חבילת מחברי זמננו לצד המתקין', () {
+    for (final name in [_regular, _full]) {
+      test('$name: מועתקת למיקום האיסוף של שורש הנתונים, גם בהתקנה ניידת', () {
+        final script = _script(name);
+        final files = _squeeze(
+          _sections(script, 'Files').join().replaceAll('\\\n', ' '),
+        );
+        expect(
+          files,
+          contains(
+            'Source: "{src}\\$kZmanenuArchiveName*"; '
+            'DestDir: "{code:GetOfficialDropDir}"; Flags: external '
+            'skipifsourcedoesntexist',
+          ),
+        );
+        final routine = _routine(script, 'function GetOfficialDropDir(');
+        expect(routine, contains('if PortableMode then'));
+        expect(routine, contains("ExpandConstant('{app}') + '\\otzaria_data'"));
+        expect(routine, contains("ExpandConstant('{userappdata}\\otzaria')"));
+        expect(
+          routine,
+          contains("'\\${kZmanenuDropFolder.replaceAll('/', '\\')}'"),
+        );
+      });
+    }
   });
 
   group('חלקי הספרייה והאינדקס לצד המתקין הרגיל', () {
@@ -4739,6 +4769,7 @@ void main() {
           r'{localappdata}\אוצריא',
           'תלמוד בבלי',
           r'{autopf}\אוצריא',
+          r'\מסדים אישיים\להתקנה',
         ];
         final offenders = [
           for (final l in _codeLiterals(_script(name)))
