@@ -27,6 +27,7 @@ import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -329,17 +330,17 @@ void main() {
       tester.widget<ExpandableSettingsTile>(backupSection()).isExpanded,
       isTrue,
     );
-    final mode = find.byWidgetPredicate(
-      (widget) =>
-          widget is SegmentedButton &&
-          widget.segments.any(
-            (segment) =>
-                segment.label is Text &&
-                (segment.label as Text).data == 'גבה הכל',
-          ),
+    final mode = find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) =>
+            widget is SettingsAnchor && widget.cardId == 'system.backup.mode',
+      ),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is AppSegmentedControl,
+      ),
     );
     expect(
-      tester.widget<SegmentedButton>(mode).selected.single.toString(),
+      tester.widget<AppSegmentedControl<Object?>>(mode).currentValue.toString(),
       endsWith('.all'),
     );
     final target = find.byWidgetPredicate(
