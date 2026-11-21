@@ -171,13 +171,79 @@ void main() {
         expect(find.text('סגור הכל'), findsOneWidget);
         expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
       },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      variant: const TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
     );
   }
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
+
+  testWidgets(
+    'שחרור במקום פותח תפריט של כרטיסייה לא פעילה; תזוזה מסדרת כרטיסיות',
+    (tester) async {
+      final tabs = [
+        _makeTextTab('ספר א'),
+        _makeTextTab('ספר ב'),
+        _makeTextTab('ספר ג'),
+      ];
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: tabs, currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final workspaceBloc = _TestWorkspaceBloc();
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await workspaceBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
+
+      final secondTab = find.text('ספר ב');
+      final first = await tester.startGesture(tester.getCenter(secondTab));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      expect(secondTab, findsOneWidget);
+      await first.up();
+      await tester.pumpAndSettle();
+      expect(find.text('סגור הכל'), findsOneWidget);
+      expect(tabsBloc.state.currentTabIndex, 1);
+      expect(tabsBloc.addedEvents.whereType<MoveTab>(), isEmpty);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final target = tester.getCenter(find.text('ספר ג'));
+      final second = await tester.startGesture(
+        tester.getCenter(find.text('ספר א')),
+      );
+      await tester.pump(kLongPressTimeout);
+      await second.moveTo(target);
+      await tester.pump();
+      await second.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('סגור הכל'), findsNothing);
+      expect(tabsBloc.addedEvents.whereType<MoveTab>(), hasLength(1));
+    },
+    variant: TargetPlatformVariant.mobile(),
+  );
 
   testWidgets(
     'adding a tab without plugins keeps correct width on its first frame',
@@ -2074,7 +2140,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.byType(LongPressDraggable<OpenedTab>),
+          find.bySubtype<LongPressDraggable<OpenedTab>>(),
           findsNothing,
         );
       },
@@ -2109,7 +2175,7 @@ void main() {
         );
 
         expect(
-          find.byType(LongPressDraggable<OpenedTab>),
+          find.bySubtype<LongPressDraggable<OpenedTab>>(),
           findsOneWidget,
         );
       },

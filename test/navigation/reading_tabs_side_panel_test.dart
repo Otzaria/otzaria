@@ -755,7 +755,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await pumpPanel(tester);
     final draggables = find
-        .byType(LongPressDraggable<OpenedTab>)
+        .bySubtype<LongPressDraggable<OpenedTab>>()
         .evaluate()
         .length;
     debugDefaultTargetPlatformOverride = null;

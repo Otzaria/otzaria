@@ -49,6 +49,7 @@ void main() {
     TextDirection textDirection = TextDirection.rtl,
     bool requireLongPress = false,
     bool withContextMenu = false,
+    bool scrollable = false,
     // רוחב הרצועה. ברירת המחדל צמודה לכרטיסיות, אך במסך אמיתי היא רחבה
     // מהן — ואז מדידה מול גבולותיה במקום מול השורה מטה את מיקום ההכנסה.
     double? stripWidth,
@@ -72,6 +73,7 @@ void main() {
                   tabs: tabs,
                   widths: widths,
                   requireLongPressToDrag: requireLongPress,
+                  scrollable: scrollable,
                   onReorder: log.reorder,
                   onDragStarted: (_, _) => log.dragStarts++,
                   onSpringOpen: log.springOpened.add,
@@ -515,7 +517,7 @@ void main() {
         find.byWidgetPredicate((w) => w is Draggable<OpenedTab>),
         findsOneWidget,
       );
-      expect(find.byType(LongPressDraggable<OpenedTab>), findsNothing);
+      expect(find.bySubtype<LongPressDraggable<OpenedTab>>(), findsNothing);
     });
 
     testWidgets('במגע נדרשת לחיצה ארוכה', (tester) async {
@@ -524,7 +526,7 @@ void main() {
         host(log: log, tabs: [_StubTab('א')], requireLongPress: true),
       );
 
-      expect(find.byType(LongPressDraggable<OpenedTab>), findsOneWidget);
+      expect(find.bySubtype<LongPressDraggable<OpenedTab>>(), findsOneWidget);
     });
 
     Future<void> touchLongPress(
@@ -586,6 +588,99 @@ void main() {
       expect(log.moves, 0);
       expect(log.droppedOutside, 0);
     });
+
+    testWidgets('החזקה ללא תזוזה בשפת רצועה נגללת אינה מזיזה כרטיסייה', (
+      tester,
+    ) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: List.generate(10, (index) => _StubTab('כרטיסייה ${index + 1}')),
+          stripWidth: 200,
+          requireLongPress: true,
+          withContextMenu: true,
+          scrollable: true,
+        ),
+      );
+      final strip = tester.getRect(find.byKey(stripKey));
+      final gesture = await tester.startGesture(
+        Offset(strip.left + 3, strip.center.dy),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(seconds: 1));
+
+      final scrollableWidget = find.descendant(
+        of: find.byKey(stripKey),
+        matching: find.byType(Scrollable),
+      );
+      expect(
+        tester.state<ScrollableState>(scrollableWidget).position.pixels,
+        0,
+      );
+      expect(log.dragStarts, 0);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(log.menusOpened, 1);
+      expect(log.moves, 0);
+      expect(log.springOpened, isEmpty);
+    });
+
+    testWidgets('אצבע שנייה לפני תום ההשהיה אינה נגררת', (tester) async {
+      final log = _StripLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: [_StubTab('א')],
+          requireLongPress: true,
+          withContextMenu: true,
+        ),
+      );
+      final center = tester.getCenter(find.text('א'));
+      final first = await tester.startGesture(center);
+      await tester.pump(const Duration(milliseconds: 100));
+      final second = await tester.startGesture(center + const Offset(10, 0));
+      await tester.pump(kLongPressTimeout);
+      await second.moveBy(const Offset(0, 40));
+      await tester.pump();
+      expect(log.dragStarts, 0);
+      await first.moveBy(const Offset(0, 40));
+      await tester.pump();
+      expect(log.dragStarts, 1);
+      await second.up();
+      await first.up();
+      await tester.pumpAndSettle();
+      expect(log.menusOpened, 0);
+    });
+
+    for (final moveBeforeCancel in [false, true]) {
+      testWidgets('ביטול לחיצה ארוכה (תזוזה: $moveBeforeCancel) אינו הפלה', (
+        tester,
+      ) async {
+        final log = _StripLog();
+        await tester.pumpWidget(
+          host(
+            log: log,
+            tabs: [_StubTab('א')],
+            requireLongPress: true,
+            withContextMenu: true,
+          ),
+        );
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('א')),
+        );
+        await tester.pump(kLongPressTimeout);
+        if (moveBeforeCancel) {
+          await gesture.moveBy(const Offset(0, 40));
+          await tester.pump();
+        }
+        await gesture.cancel();
+        await tester.pumpAndSettle();
+        expect(log.dragStarts, moveBeforeCancel ? 1 : 0);
+        expect(log.menusOpened, 0);
+        expect(log.droppedOutside, 0);
+      });
+    }
 
     testWidgets('במגע: גרירה שחזרה לנקודת ההתחלה אינה פותחת תפריט', (
       tester,
