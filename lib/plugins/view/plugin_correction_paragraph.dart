@@ -210,32 +210,27 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       return false;
     }
     if (_controller == null) {
-      _controller = PluginCorrectionController(widget.sourceText);
+      _controller = PluginCorrectionController(
+        widget.sourceText,
+        removeNikud: widget.settings.removeNikud,
+        removeTeamim: widget.settings.removeTeamim,
+      );
       _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
+    controller.setHiding(
+      nikud: widget.settings.removeNikud,
+      teamim: widget.settings.removeTeamim,
+    );
     controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
       widget.sectionIndex,
       widget.sourceText,
     );
-    if (controller.forService(controller.text) == canonical) return false;
-    final text = controller.forEditor(canonical);
-    if (controller.text == text) return false;
-    final selection = controller.selection;
-    controller.restoreDraftValue(
-      TextEditingValue(
-        text: text,
-        selection: selection.isValid
-            ? selection.copyWith(
-                baseOffset: selection.baseOffset.clamp(0, text.length),
-                extentOffset: selection.extentOffset.clamp(0, text.length),
-              )
-            : TextSelection.collapsed(offset: text.length),
-      ),
-    );
+    if (controller.canonical == canonical) return false;
+    controller.restoreCanonical(canonical);
     return true;
   }
 
@@ -282,7 +277,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        _controller!.forService(newValue.text),
+        _controller!.canonicalAfter(newValue),
       );
       return newValue;
     } on PluginCorrectionException catch (error) {
@@ -297,7 +292,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        _controller!.forService(text),
+        _controller!.canonical,
       );
     } on PluginCorrectionException catch (error) {
       _showRejection(error);
