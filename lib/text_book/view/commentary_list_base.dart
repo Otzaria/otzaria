@@ -426,6 +426,10 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   // סדר הקישורים המוצגים, שעליו מבוססים היסטי החיפוש.
   List<Link> _orderedLinks = [];
+
+  /// ההערות המוצגות מעל המפרשים — תוצאות החיפוש שלהן קודמות למפרשים.
+  List<String> _searchNotes = const [];
+  final List<GlobalKey> _noteKeys = [];
   Map<String, int>? _searchResultOffsets;
 
   /// היעד שממתין לגלילה: שם המפרש, ואופציונלית מפתח הקטע המדויק.
@@ -722,10 +726,11 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     return commentarySearchRelativeIndex(
       key: linkKey,
       currentIndex: _currentSearchIndexNotifier.value,
-      offsets: _searchResultOffsets ??= commentarySearchOffsets(
-        _orderedLinks.map(_getLinkKey),
-        _searchResultsPerLink,
-      ),
+      offsets: _searchResultOffsets ??= commentarySearchOffsets([
+        for (var i = 0; i < _searchNotes.length; i++)
+          commentaryNoteSearchKey(i),
+        ..._orderedLinks.map(_getLinkKey),
+      ], _searchResultsPerLink),
       countsByKey: _searchResultsPerLink,
     );
   }
@@ -1496,8 +1501,16 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     final generation = ++_searchScrollGeneration;
     _commentatorScrollGeneration++;
     _pendingScrollTarget = null;
-    if (_totalSearchResultsNotifier.value == 0 || _orderedLinks.isEmpty) return;
+    if (_totalSearchResultsNotifier.value == 0) return;
     var cumulativeIndex = 0;
+    for (var i = 0; i < _searchNotes.length; i++) {
+      cumulativeIndex += _searchResultsPerLink[commentaryNoteSearchKey(i)] ?? 0;
+      if (_currentSearchIndexNotifier.value < cumulativeIndex) {
+        final note = _noteKeys[i].currentContext;
+        if (note != null) Scrollable.ensureVisible(note, alignment: 0.1);
+        return;
+      }
+    }
     Link? targetLink;
     for (final link in _orderedLinks) {
       final results = _searchResultsPerLink[_getLinkKey(link)] ?? 0;
@@ -1581,6 +1594,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         : null;
   }
 
+  /// כמו `partialWordHighlight` של `_NotesCommentaryWidget._renderSettings`:
+  /// ההערות נספרות באותה התאמה שבה הן מודגשות.
+  bool _notesPartialWordMatch() {
+    final book = _bookSearchState(context);
+    return book == null ||
+        literalPartialWordMatch(
+          _activeSearchQuery,
+          wholeWord: book.searchWholeWord,
+        );
+  }
+
   void _scheduleSearchCompute() {
     final blocState = context.read<TextBookBloc>().state;
     _searchBloc.add(
@@ -1591,6 +1615,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             ? blocState.commentaryDisplayProfile
             : TextDisplayProfile.defaults,
         includeSnippets: widget.externalSearchSnippetsNotifier != null,
+        notes: _searchNotes,
+        notesPartialWordMatch: _notesPartialWordMatch(),
       ),
     );
   }
@@ -1923,6 +1949,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               final currentIndexes = _currentIndexes(state);
 
               Widget? notesWidget;
+              _searchNotes = const [];
               if (notesIsActive) {
                 final relevantNotes = inline_notes.notesForLines(
                   state.content,
@@ -1931,6 +1958,10 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   decorateBody: (line, note, body) =>
                       noteBodyWithAnchors(state, line, note, body),
                 );
+                _searchNotes = relevantNotes;
+                while (_noteKeys.length < relevantNotes.length) {
+                  _noteKeys.add(GlobalKey());
+                }
                 if (relevantNotes.isNotEmpty) {
                   notesWidget = ListenableBuilder(
                     listenable: Listenable.merge([
@@ -1939,6 +1970,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                     ]),
                     builder: (context, _) => _NotesCommentaryWidget(
                       notes: relevantNotes,
+                      noteKeys: _noteKeys,
                       searchQuery: _activeSearchQuery,
                       searchedBook: _bookSearchState(context),
                       fontSize: widget.fontSize,

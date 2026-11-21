@@ -456,6 +456,9 @@ String noteBodyWithAnchors(
 class _NotesCommentaryWidget extends StatefulWidget {
   final List<String> notes;
 
+  /// מפתח לכל הערה — יעד הניווט לתוצאת חיפוש שבה.
+  final List<GlobalKey> noteKeys;
+
   /// מונח החיפוש של הרשימה — גם תוצאת חיפוש בספר שנחתה בהערה.
   final String searchQuery;
 
@@ -478,6 +481,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
 
   const _NotesCommentaryWidget({
     required this.notes,
+    required this.noteKeys,
     required this.searchQuery,
     required this.searchedBook,
     required this.fontSize,
@@ -754,8 +758,10 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                           ),
                         ),
                       ),
-                      ...widget.notes.map((note) {
+                      ...widget.notes.indexed.map((entry) {
+                        final (index, note) = entry;
                         return Padding(
+                          key: widget.noteKeys[index],
                           padding: const EdgeInsets.only(
                             right: 32.0,
                             left: 16.0,
