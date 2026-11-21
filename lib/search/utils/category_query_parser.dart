@@ -1,3 +1,4 @@
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/repository/data_repository.dart'
     show bookSearchWordMatchesFuzzy;
@@ -272,10 +273,14 @@ class _BookCandidate {
     FacetHelper.resolveCategoryPath(book),
     book,
   );
-  late final acronyms = book.id == null
-      ? const <String>[]
-      : AcronymsCache.instance.acronymsFor(book.source, book.id!) ??
-            const <String>[];
+  late final acronyms =
+      bookAliasesOf(
+        book.id == null
+            ? null
+            : AcronymsCache.instance.acronymsFor(book.source, book.id!),
+        title,
+      ) ??
+      const <String>[];
 }
 
 class _CategoryCandidate {

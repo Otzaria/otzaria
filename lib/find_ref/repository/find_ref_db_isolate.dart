@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/core/error_log_file.dart';
-import 'package:otzaria/data/cache/acronym_cache_data.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/find_ref/repository/alt_toc_flat_entry.dart';
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
@@ -14,7 +14,10 @@ import 'package:otzaria/migration/models/toc_entry.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
-    show hebrewTokenAlternatives, parseDafCitationFromDafToken;
+    show
+        hebrewTokenAlternatives,
+        normalizeForFindRefMatch,
+        parseDafCitationFromDafToken;
 
 /// נזרק כשבקשה נזרקה מתור ה-worker בגלל הקלדה חדשה. אינו שגיאה — הקורא
 /// אמור לנטוש בשקט את השאילתה שהתיישנה.
@@ -1186,6 +1189,7 @@ void _workerMain(_Bootstrap bootstrap) {
               (row['term'] as String?) ?? '',
             ),
           ),
+          normalizeForFindRefMatch,
         );
         return {
           'acronymsByBookId': data.acronymsByBookId,

@@ -2,6 +2,7 @@
 /// התאמות ה-AltToc הגלובלי ב-worker (isolate-safe).
 library;
 
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/find_ref/book_name_match.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
 

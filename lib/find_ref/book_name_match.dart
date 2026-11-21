@@ -1,7 +1,8 @@
 /// צורת ההשוואה של שמות ספרים וכינויים באיתור מקורות, מעל [normalizeForFindRefMatch].
 ///
 /// חלה רק בהחלטה אם יש התאמה; התוצאה נושאת את הצורה הרגילה, כי בחיפוש הכותרות
-/// הפנימיות "דיינים" אינו "דינים". כינויים מושווים ב-[bookNameAcronymForm] בלבד.
+/// הפנימיות "דיינים" אינו "דינים". כינויים מושווים בצורות של
+/// `book_aliases/book_aliases.dart`.
 library;
 
 /// ראשי-תיבות שה"א הידיעה באה לפניהם ("הרמב"ם"), כפי שהכריע מחקר השמות של הספרייה.
@@ -30,26 +31,6 @@ String bookNameSpellingForm(String text) =>
     text.contains('וו') || text.contains('יי')
     ? text.replaceAll('וו', 'ו').replaceAll('יי', 'י')
     : text;
-
-/// צורת ההשוואה בין שאילתה לכינוי: [bookNameSpellingForm] בלי "על" שבין מילים.
-String bookNameAcronymForm(String text) {
-  final t = bookNameSpellingForm(text);
-  return t.contains(' על ') ? t.replaceAll(' על ', ' ') : t;
-}
-
-/// גיבוי נוסף לכינוי שלא נמצא, גם בלי "מסכת" שבין מילים.
-String bookNameTractateAcronymForm(String acronymForm) {
-  if (!acronymForm.contains(' מסכת ')) return acronymForm;
-  final words = acronymForm.split(' ');
-  return [
-    for (var i = 0; i < words.length; i++)
-      if (i == 0 || i == words.length - 1 || !isTractateWord(words[i]))
-        words[i],
-  ].join(' ');
-}
-
-/// המילה המפורשת "מסכת". אחרי נרמול "מס'" ו"מס" אינן ניתנות להבחנה.
-bool isTractateWord(String word) => word == 'מסכת';
 
 const int _vav = 0x05D5;
 const int _yod = 0x05D9;
