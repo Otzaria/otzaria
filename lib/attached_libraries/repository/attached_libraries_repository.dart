@@ -470,7 +470,13 @@ class AttachedLibrariesRepository {
         library.status != AttachedLibraryStatus.invalid) {
       return library;
     }
-    return _applyProbe(library, await _probe(library.path));
+    final refreshed = _applyProbe(library, await _probe(library.path));
+    // קובץ רשמי שהשתנה שלא דרך ההתקנה אינו מאומת עוד.
+    final official = refreshed.official;
+    if (!unchanged && official != null) {
+      return refreshed.copyWith(official: official.unverified);
+    }
+    return refreshed;
   }
 
   Future<void> _update(
@@ -491,11 +497,11 @@ class AttachedLibrariesRepository {
     // מסד רשמי גובר על קובץ ידני עם אותו מזהה, בלי קשר לסדר.
     final seen = {
       for (final library in sorted)
-        if (library.isOfficial && _isSlugCandidate(library)) library.slug,
+        if (library.official != null && _isSlugCandidate(library)) library.slug,
     };
     final resolved = [
       for (final library in sorted)
-        library.isOfficial
+        library.official != null
             ? _asResolved(library)
             : _resolveDuplicate(library, seen),
     ];
@@ -562,7 +568,7 @@ class AttachedLibrariesRepository {
       : library;
 
   static bool _slugTaken(List<AttachedLibrary> libraries, String slug) =>
-      libraries.any((l) => l.slug == slug && (l.isOk || l.isOfficial));
+      libraries.any((l) => l.slug == slug && (l.isOk || l.official != null));
 
   static bool _inFolder(AttachedLibrary library, String folder) =>
       library.folderPath != null && p.equals(library.folderPath!, folder);

@@ -144,7 +144,7 @@ class AttachedLibraryUpdateService {
   static bool isEligible(AttachedLibrary library) =>
       library.isOk &&
       sourceOf(library) != null &&
-      (library.isOfficial || !library.updateSourceMismatch);
+      (library.official != null || !library.updateSourceMismatch);
 
   /// הבדיקה האוטומטית (אחרי חשיפת החלון). Same gates as the official library
   /// check: not offline, updates enabled, auto-sync on, and due by cadence.
@@ -186,9 +186,9 @@ class AttachedLibraryUpdateService {
       if (offer.manifest.libraryId != source.libraryId || installed == null) {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
       }
-      // עותק רשמי שמצהיר על גרסה אחרת מזו שהותקנה שונה מחוץ לתוכנה.
+      // עותק רשמי שהשתנה מחוץ לתוכנה.
       if (library.official case final official?
-          when official.dbVersion != installed) {
+          when official.dbVersion != installed || !official.verified) {
         await _savePending(library.path, null);
         return _set(
           library.path,
@@ -648,7 +648,7 @@ class AttachedLibraryUpdateService {
 
   AttachedUpdateError? _blockedReason(AttachedLibrary library) {
     if (sourceOf(library) == null) return AttachedUpdateError.noSource;
-    if (!library.isOfficial && library.updateSourceMismatch) {
+    if (library.official == null && library.updateSourceMismatch) {
       return AttachedUpdateError.sourceMismatch;
     }
     if (!library.isOk) return AttachedUpdateError.fileMissing;

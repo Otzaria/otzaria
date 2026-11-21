@@ -556,7 +556,7 @@ class _AttachedLibraryTile extends StatelessWidget {
               onCheck: onCheckUpdate,
               onInstall: onInstallUpdate,
               onCancel: onCancelUpdate,
-              onInstallFull: library.isOfficial ? onInstallFull : null,
+              onInstallFull: library.official != null ? onInstallFull : null,
             ),
           ],
         ],

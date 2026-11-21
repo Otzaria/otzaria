@@ -385,7 +385,14 @@ void main() {
         library.path,
       ).setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
       await repository.rescan();
-      expect(repository.libraries.single.isOfficial, isTrue);
+      // Changed on disk outside the installer: no longer shown as official.
+      final unverified = repository.libraries.single;
+      expect(unverified.isOfficial, isFalse);
+      expect(unverified.official!.verified, isFalse);
+      expect(
+        const AttachedLibraryStore().loadLibrariesOrNull()!.single.isOfficial,
+        isFalse,
+      );
 
       final next = database(version: '2');
       publish(next, version: 2, deltaFrom: next);
@@ -409,6 +416,7 @@ void main() {
         AttachedUpdateCompression.none,
       );
       expect(repository.libraries.single.official!.sha256, _sha(next));
+      expect(repository.libraries.single.isOfficial, isTrue);
     },
   );
 

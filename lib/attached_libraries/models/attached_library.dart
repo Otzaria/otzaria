@@ -100,21 +100,32 @@ class AttachedLibraryFingerprint extends Equatable {
 }
 
 /// עותק של מסד רשמי שהתוכנה הורידה ואימתה: הגרסה וה-sha256 שהותקנו.
+/// [verified] כבוי כשהקובץ השתנה בדיסק שלא דרך ההתקנה.
 class AttachedOfficialInstall extends Equatable {
   final String libraryId;
   final int dbVersion;
   final String sha256;
+  final bool verified;
 
   const AttachedOfficialInstall({
     required this.libraryId,
     required this.dbVersion,
     required this.sha256,
+    this.verified = true,
   });
+
+  AttachedOfficialInstall get unverified => AttachedOfficialInstall(
+    libraryId: libraryId,
+    dbVersion: dbVersion,
+    sha256: sha256,
+    verified: false,
+  );
 
   Map<String, dynamic> toJson() => {
     'libraryId': libraryId,
     'dbVersion': dbVersion,
     'sha256': sha256,
+    if (!verified) 'unverified': true,
   };
 
   static AttachedOfficialInstall? fromJson(Object? json) {
@@ -127,11 +138,12 @@ class AttachedOfficialInstall extends Equatable {
       libraryId: id,
       dbVersion: version,
       sha256: digest,
+      verified: json['unverified'] != true,
     );
   }
 
   @override
-  List<Object?> get props => [libraryId, dbVersion, sha256];
+  List<Object?> get props => [libraryId, dbVersion, sha256, verified];
 }
 
 /// מסד ספרים מצורף בפורמט seforim.db.
@@ -204,7 +216,9 @@ class AttachedLibrary extends Equatable {
     this.official,
   });
 
-  bool get isOfficial => official != null;
+  /// עותק רשמי מאומת: תגית "רשמי" ועדכון אוטומטי. עותק שהשתנה בדיסק נשאר
+  /// עם [official] אך אינו מאומת עד הורדה מלאה או אימוץ לפי sha256.
+  bool get isOfficial => official?.verified ?? false;
 
   bool get isImported => folderPath == null;
   bool get isOk => status == AttachedLibraryStatus.ok;
