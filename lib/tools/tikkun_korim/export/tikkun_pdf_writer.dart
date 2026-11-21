@@ -13,6 +13,7 @@ import 'package:flutter/rendering.dart' show Matrix4;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
+import 'package:otzaria/printing/shaped_text/shaper_font_scope.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_pdf_exporter.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_vector_ops.dart';
@@ -393,6 +394,7 @@ class TikkunVectorPdfWriter {
     _ExportFont? font;
     final bytes = await loadFont(family, bold: bold);
     if (bytes != null) {
+      await preloadShaperLibrary();
       final shaper = ShaperFont.register(bytes);
       try {
         font = _ExportFont(
