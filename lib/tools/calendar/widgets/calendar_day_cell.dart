@@ -327,51 +327,61 @@ class DayExtras extends StatelessWidget {
         ),
     ];
 
-    final hiddenCount = items.length - maxVisibleItems;
-    // מועדי היום לא דוחקים מהתא את כל האירועים של המשתמש; הנותרים ב-+N.
-    final shownJewish = (maxVisibleItems - (events.isEmpty ? 0 : 1)).clamp(
-      0,
-      jewishEvents.length,
-    );
-    final lines = [
-      for (final item in [
-        ...items.take(shownJewish),
-        ...items.skip(jewishEvents.length),
-      ].take(maxVisibleItems))
-        item(false),
-    ];
-    if (hiddenCount > 0) {
-      final lastItem = lines.last;
-      final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
-      lines.last = LayoutBuilder(
-        builder: (context, constraints) {
-          final replacesLastItem = constraints.maxWidth < minRowWidth;
-          final moreLabel = _MoreItemsLabel(
-            hiddenCount: hiddenCount + (replacesLastItem ? 1 : 0),
-            compact: compact,
-            isSelected: isSelected,
-            strut: strut,
-            onTap: () => _showAllItems(context, items),
+    final showMore = items.length > maxVisibleItems;
+    Widget buildLines(bool moreTakesRow) {
+      final itemRows = maxVisibleItems - (moreTakesRow ? 1 : 0);
+      // משאירים שורה לאירוע משתמש מתוך השורות הפנויות לפריטים.
+      final shownJewish = (itemRows - (events.isEmpty ? 0 : 1)).clamp(
+        0,
+        jewishEvents.length,
+      );
+      final lines = [
+        for (final item in items.take(shownJewish)) item(false),
+        for (final item
+            in items
+                .skip(jewishEvents.length)
+                .take(
+                  itemRows - shownJewish,
+                ))
+          item(false),
+      ];
+      if (showMore) {
+        final moreLabel = _MoreItemsLabel(
+          hiddenCount: items.length - lines.length,
+          compact: compact,
+          isSelected: isSelected,
+          strut: strut,
+          onTap: () => _showAllItems(context, items),
+        );
+        if (moreTakesRow) {
+          lines.add(
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: moreLabel,
+            ),
           );
-          return replacesLastItem
-              ? FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerStart,
-                  child: moreLabel,
-                )
-              : Row(
-                  children: [
-                    Expanded(child: lastItem),
-                    moreLabel,
-                  ],
-                );
-        },
+        } else {
+          lines.last = Row(
+            children: [
+              Expanded(child: lines.last),
+              moreLabel,
+            ],
+          );
+        }
+      }
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: lines,
       );
     }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: lines,
+
+    if (!showMore) return buildLines(false);
+    final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          buildLines(constraints.maxWidth < minRowWidth),
     );
   }
 
@@ -498,10 +508,24 @@ class HoverableDayCell extends StatefulWidget {
 }
 
 class _HoverableDayCellState extends State<HoverableDayCell> {
-  bool _showButton = false;
+  final _addButtonFocus = FocusNode();
   bool _isHovered = false;
   Widget? _addButton;
   ColorScheme? _addButtonScheme;
+
+  @override
+  void initState() {
+    super.initState();
+    _addButtonFocus.addListener(_handleAddButtonFocus);
+  }
+
+  void _handleAddButtonFocus() => setState(() {});
+
+  @override
+  void dispose() {
+    _addButtonFocus.dispose();
+    super.dispose();
+  }
 
   // אותו מופע בין בנייה לבנייה: בבחירת יום ובריחוף כל התאים נבנים מחדש,
   // ועדכון 42 הכפתורים הנסתרים היה רוב הזמן.
@@ -512,6 +536,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
       data: TooltipTheme.of(context).copyWith(verticalOffset: -40.0),
       child: IconButton.filled(
         tooltip: 'צור אירוע',
+        focusNode: _addButtonFocus,
         icon: const Icon(FluentIcons.add_24_regular, size: AppTokens.iconSM),
         onPressed: () => widget.onAdd(),
         style: IconButton.styleFrom(
@@ -529,32 +554,24 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final showButton = _isHovered || _addButtonFocus.hasFocus;
     return MouseRegion(
-      onEnter: (_) => setState(() {
-        _showButton = true;
-        _isHovered = true;
-      }),
-      onExit: (_) => setState(() {
-        _showButton = false;
-        _isHovered = false;
-      }),
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
       child: Stack(
         alignment: Alignment.topCenter,
         children: [
           Listener(
-            onPointerDown: (_) => setState(() {
-              _showButton = true;
-              _isHovered = true;
-            }),
+            onPointerDown: (_) => setState(() => _isHovered = true),
             child: widget.builder(_isHovered),
           ),
           AnimatedOpacity(
-            opacity: _showButton ? 1.0 : 0.0,
+            opacity: showButton ? 1.0 : 0.0,
             duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
             child: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: IgnorePointer(
-                ignoring: !_showButton,
+                ignoring: !showButton,
                 child: _buildAddButton(cs),
               ),
             ),

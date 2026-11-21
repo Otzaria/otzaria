@@ -3,6 +3,7 @@
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
 
@@ -109,5 +110,21 @@ void main() {
       tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
       1.0,
     );
+  });
+  testWidgets('Tab חושף את כפתור ההוספה ו-Enter מפעיל אותו', (tester) async {
+    var calls = 0;
+    onAdd = () => calls++;
+    await pumpCell(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+      1.0,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(calls, 1);
   });
 }

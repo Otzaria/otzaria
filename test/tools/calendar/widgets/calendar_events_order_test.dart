@@ -702,6 +702,49 @@ void main() {
       expect(covered, containsAll([1, 2, 3, 4]));
     });
 
+    testWidgets('בתא צר השורה שמעל +N מציגה את אירוע המשתמש', (tester) async {
+      final busyDay = JewishDate.initDate(
+        jewishYear: 5787,
+        jewishMonth: JewishDate.TEVES,
+        jewishDayOfMonth: 1,
+      ).getGregorianCalendar();
+      await cubit.addEvent(
+        title: 'שיעור',
+        baseGregorianDate: busyDay,
+        recurrenceType: RecurrenceType.none,
+      );
+
+      for (var height = 50.0; height <= 88; height += 2) {
+        await tester.pumpWidget(
+          cellApp(
+            width: 56,
+            height: height,
+            date: busyDay,
+            textScale: 1.3,
+            direction: TextDirection.rtl,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final slots = tester
+            .widget<DayExtras>(find.byType(DayExtras))
+            .maxVisibleItems;
+        if (slots != 2) continue;
+
+        expect(
+          find.textContaining('שיעור', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.text('+2'), findsOneWidget);
+        await tester.tap(find.text('+2'));
+        await tester.pumpAndSettle();
+        expect(find.text('כל הפריטים ביום'), findsOneWidget);
+        expect(find.text('ר"ח'), findsOneWidget);
+        expect(find.textContaining('דחנוכה'), findsOneWidget);
+        return;
+      }
+      fail('לא נמצא גובה שמתאים לשתי שורות בתא');
+    });
+
     testWidgets('+N סופר את הפריטים שאינם מוצגים גם כשהוא מחליף שורה', (
       tester,
     ) async {
