@@ -222,6 +222,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // גודל הגופן שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת שינוי גודל (issue #915).
   double? _lastFontSizeForReanchor;
+  int? _lastReportedLinkHighlightLine;
 
   /// מונה כמה פעמים רץ ה-reanchor בעקבות שינוי גודל גופן. לבדיקת הרגרסיה.
   @visibleForTesting
@@ -888,6 +889,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           buildWhen: shouldRebuildReader,
           listener: (context, state) {
             if (state is TextBookLoaded) {
+              // הדגשה מקישור נשארת עד Esc; הסיור מציג על כך טיפ פעם אחת.
+              final linkHighlightLine = state.permanentHighlightLine;
+              if (linkHighlightLine != _lastReportedLinkHighlightLine) {
+                _lastReportedLinkHighlightLine = linkHighlightLine;
+                if (linkHighlightLine != null) {
+                  context.read<TourCubit>().recordInteraction(
+                    TourInteraction(
+                      type: TourInteractionType.linkHighlightShown,
+                    ),
+                  );
+                }
+              }
               // איתור ה-PDF המלווה נדחה עד שהתוכן נטען, כדי שלא יחנוק את
               // שאילתת התוכן בעלייה (ראו _resolveCompanionPdf).
               _resolveCompanionPdf();
@@ -2961,6 +2974,9 @@ bool _handleGlobalKeyEvent(
         }
         if (state.permanentHighlightLine != null) {
           context.read<TextBookBloc>().add(const ApplyMarkHighlight());
+          context.read<TourCubit>().recordInteraction(
+            TourInteraction(type: TourInteractionType.linkHighlightCleared),
+          );
           return true;
         }
         if (!Platform.isAndroid && !Platform.isIOS) {
