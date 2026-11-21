@@ -767,8 +767,20 @@ enum _FolderMenuAction {
 
 /// ייבוא ידני של דורות וקישורים מקבצי CSV/JSON שהמשתמש בוחר, ומחיקת כל
 /// המיובא. הייבוא קבוע (לא תלוי בנוכחות הקבצים) ומצטבר בדריסה.
-class UserContentImportTile extends StatelessWidget {
+class UserContentImportTile extends StatefulWidget {
   const UserContentImportTile({super.key});
+
+  @override
+  State<UserContentImportTile> createState() => _UserContentImportTileState();
+}
+
+class _UserContentImportTileState extends State<UserContentImportTile> {
+  @override
+  void initState() {
+    super.initState();
+    // כדי ש"נקה הכל" יידע אם יש מה למחוק.
+    context.read<CustomFoldersBloc>().add(const LoadUserImportFiles());
+  }
 
   Future<void> _import(BuildContext context) async {
     final bloc = context.read<CustomFoldersBloc>();
@@ -807,7 +819,8 @@ class UserContentImportTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CustomFoldersBloc, CustomFoldersState>(
-      buildWhen: (p, c) => p.isSyncing != c.isSyncing,
+      buildWhen: (p, c) =>
+          p.isSyncing != c.isSyncing || p.hasUserContent != c.hasUserContent,
       builder: (context, state) {
         final isSyncing =
             state.isSyncing || DatabaseLibraryProvider.operationQueue.isBusy;
@@ -825,7 +838,9 @@ class UserContentImportTile extends StatelessWidget {
           actions: [
             ActionButton.warningSoft(
               text: context.settingsText('נקה הכל'),
-              onPressed: isSyncing ? null : () => _clear(context),
+              onPressed: isSyncing || !state.hasUserContent
+                  ? null
+                  : () => _clear(context),
             ),
             ActionButton.neutral(
               text: context.settingsText('ניהול קבצים'),

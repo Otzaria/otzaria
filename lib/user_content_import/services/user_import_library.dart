@@ -127,6 +127,13 @@ class UserImportLibrary {
     return rows.map(_fromRow).toList();
   });
 
+  /// האם יש מה למחוק ב-[removeAll]: קבצים, או נתונים ידניים שקדמו לספרייה.
+  Future<bool> hasContent() => _serial(() async {
+    final db = await _db.database;
+    return db.select('SELECT 1 FROM user_import_file LIMIT 1').isNotEmpty ||
+        await UserContentRepository(_db).hasManualContent();
+  });
+
   /// תוכן הקובץ כפי שיובא, או null אם הוסר בינתיים.
   Future<String?> contentOf(int id) => _serial(() async {
     final db = await _db.database;
