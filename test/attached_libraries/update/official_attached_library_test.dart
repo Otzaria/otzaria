@@ -1034,6 +1034,82 @@ void main() {
       expect(repository.libraries.single.official!.dbVersion, 3);
     });
 
+    test('a rejected dropped package is unpacked and reported once, until '
+        'it changes; an older one is deleted', () async {
+      final svc = service();
+      final bad = package(
+        database(),
+        manifestOf: different(),
+        folder: dropDirectory,
+      );
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.hashMismatch,
+      });
+      expect(await svc.importDroppedPackages(), isEmpty);
+      expect(await svc.importDroppedPackages(), isEmpty);
+      expect(File(bad).existsSync(), isTrue);
+
+      File(bad).setLastModifiedSync(DateTime(2020));
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.hashMismatch,
+      });
+      File(bad).deleteSync();
+
+      await svc.importOfflinePackage(
+        package(database(version: '2'), version: 2),
+      );
+      final older = package(database(), folder: dropDirectory);
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.olderVersion,
+      });
+      expect(File(older).existsSync(), isFalse);
+    });
+
+    test(
+      'unpack folders left by a crash are deleted on the next import',
+      () async {
+        final leftover = Directory(
+          p.join(
+            p.dirname(await repository.officialPathFor(_id)),
+            '.offline-1',
+          ),
+        )..createSync(recursive: true);
+        File(p.join(leftover.path, 'zmanenu.db')).writeAsStringSync('x');
+        expect(
+          await service().importOfflinePackage(package(database())),
+          OfficialPackageResult.installed,
+        );
+        expect(leftover.existsSync(), isFalse);
+      },
+    );
+
+    test('an offline import waits for a running official download', () async {
+      publish(database());
+      final svc = service();
+      await svc.checkOfficialOffers();
+      final started = Completer<void>();
+      final release = Completer<void>();
+      downloader.hold = (_) async {
+        started.complete();
+        await release.future;
+      };
+      final downloading = svc.installOfficial(entry);
+      await started.future;
+      final next = database(version: '2');
+      var imported = false;
+      final importing = svc
+          .importOfflinePackage(package(next, version: 2))
+          .whenComplete(() => imported = true);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(imported, isFalse);
+
+      release.complete();
+      await downloading;
+      expect(await importing, OfficialPackageResult.installed);
+      expect(repository.libraries.single.official!.dbVersion, 2);
+      expect(_sha(repository.libraries.single.path), _sha(next));
+    });
+
     test(
       'the default drop location is in the attached databases folder',
       () async {

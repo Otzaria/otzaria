@@ -115,6 +115,7 @@ class AttachedLibraryUpdateService {
   final _statuses = ValueNotifier<Map<String, AttachedUpdateStatus>>(const {});
   final _cancelTokens = <String, AttachedUpdateCancelToken>{};
   bool _pendingRestored = false;
+  Future<void> _installQueue = Future.value();
 
   AttachedLibrariesRepository get _repository =>
       _repositoryOverride ?? AttachedLibrariesRepository.instance;
@@ -233,7 +234,17 @@ class AttachedLibraryUpdateService {
 
   /// מתקין את העדכון שהמשתמש אישר, או עדכון של עותק רשמי (בלי אישור).
   /// [forceFull] — עותק רשמי שאינו תואם לגרסתו מוחלף בקובץ המלא.
-  Future<void> install(
+  Future<void> install(AttachedLibrary requested, {bool forceFull = false}) =>
+      _oneAtATime(() => _install(requested, forceFull: forceFull));
+
+  /// עדכון, הורדה רשמית וייבוא לא-מקוון עשויים לכתוב לאותו קובץ staged.
+  Future<T> _oneAtATime<T>(Future<T> Function() run) {
+    final result = _installQueue.then((_) => run());
+    _installQueue = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<void> _install(
     AttachedLibrary requested, {
     bool forceFull = false,
   }) async {
@@ -524,7 +535,10 @@ class AttachedLibraryUpdateService {
 
   /// מוריד את המסד הרשמי ומתקין אותו כעותק מנוהל, אחרי אימות החתימה
   /// במפתח שבקוד וה-sha256 שבמניפסט.
-  Future<void> installOfficial(OfficialAttachedLibrary entry) async {
+  Future<void> installOfficial(OfficialAttachedLibrary entry) =>
+      _oneAtATime(() => _installOfficial(entry));
+
+  Future<void> _installOfficial(OfficialAttachedLibrary entry) async {
     final key = officialKey(entry.libraryId);
     final status = officialStatusOf(entry.libraryId);
     final offer = status.offer;
@@ -764,37 +778,85 @@ class AttachedLibraryUpdateService {
   static Future<String> defaultDropDirectory() async =>
       p.join(await AppPaths.getAttachedLibrariesCopyPath(), 'להתקנה');
 
-  /// חבילות במיקום האיסוף: חבילה שהותקנה (או שכבר מותקנת) נמחקת; חבילה
-  /// שנדחתה נשארת, והתוצאה מוחזרת להודעה למשתמש.
+  /// חבילות במיקום האיסוף: חבילה שהותקנה, שכבר מותקנת או ישנה מהמותקנת
+  /// נמחקת. חבילה שנדחתה נשארת, ואינה נפרסת שוב עד שקובציה משתנים.
   Future<Map<OfficialAttachedLibrary, OfficialPackageResult>>
   importDroppedPackages() async {
     final results = <OfficialAttachedLibrary, OfficialPackageResult>{};
     final directory = await _dropDirectory();
+    final rejected = _loadRejectedPackages();
+    var changed = false;
     for (final entry in OfficialAttachedLibraries.catalog) {
       final name = entry.offlinePackageName;
       if (name == null || !entry.isActive) continue;
       final files = await offlinePackageFiles(directory, name);
-      if (files.isEmpty) continue;
+      if (files.isEmpty) {
+        changed |= rejected.remove(name) != null;
+        continue;
+      }
+      final stamp = await _packageStamp(files);
+      if (rejected[name] == stamp) continue;
       final result = await importOfflinePackage(p.join(directory, name));
       results[entry] = result;
       if (result == OfficialPackageResult.installed ||
-          result == OfficialPackageResult.alreadyInstalled) {
+          result == OfficialPackageResult.alreadyInstalled ||
+          result == OfficialPackageResult.olderVersion) {
         for (final file in files) {
           await _deleteQuietly(file);
         }
+        changed |= rejected.remove(name) != null;
+      } else {
+        rejected[name] = stamp;
+        changed = true;
       }
     }
+    if (changed) {
+      await Settings.setValue<String>(
+        SettingsRepository.keyRejectedOfficialPackages,
+        jsonEncode(rejected),
+      );
+    }
     return results;
+  }
+
+  /// גודל ומועד שינוי של כל קובצי החבילה.
+  static Future<String> _packageStamp(List<String> files) async {
+    final parts = <String>[];
+    for (final file in files) {
+      final stat = await File(file).stat();
+      parts.add(
+        '${p.basename(file)}:${stat.size}:'
+        '${stat.modified.millisecondsSinceEpoch}',
+      );
+    }
+    return (parts..sort()).join('|');
+  }
+
+  static Map<String, Object?> _loadRejectedPackages() {
+    final raw = Settings.getValue<String>(
+      SettingsRepository.keyRejectedOfficialPackages,
+    );
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? Map<String, Object?>.from(decoded) : {};
+    } on FormatException {
+      return {};
+    }
   }
 
   /// מתקין חבילה לא-מקוונת של מסד רשמי בלי רשת. [path] הוא חלק, מניפסט
   /// החלקים או הארכיון השלם של `<name>-offline.tar.zst`. חתימת המניפסט
   /// נבדקת במפתח שבקוד, וה-sha256 של המסד מול המניפסט; רק אז המסד מותקן
   /// כעותק מנוהל רשמי ומאומת. גרסה ישנה מהמותקנת נדחית.
-  Future<OfficialPackageResult> importOfflinePackage(String path) async {
+  Future<OfficialPackageResult> importOfflinePackage(String path) =>
+      _oneAtATime(() => _importOfflinePackage(path));
+
+  Future<OfficialPackageResult> _importOfflinePackage(String path) async {
     final officialDirectory = p.dirname(
       await _repository.officialPathFor('_'),
     );
+    await _deleteLeftoverUnpacked(officialDirectory);
     final unpacked = p.join(
       officialDirectory,
       '.offline-${DateTime.now().microsecondsSinceEpoch}',
@@ -905,6 +967,21 @@ class AttachedLibraryUpdateService {
       } catch (e) {
         debugPrint('[AttachedUpdates] could not delete $unpacked: $e');
       }
+    }
+  }
+
+  /// תיקיות פריסה שנשארו מקריסה. הייבוא רץ בתור, ולכן אף אחת אינה בשימוש.
+  static Future<void> _deleteLeftoverUnpacked(String directory) async {
+    if (!await Directory(directory).exists()) return;
+    try {
+      await for (final entity in Directory(directory).list()) {
+        if (entity is Directory &&
+            p.basename(entity.path).startsWith('.offline-')) {
+          await entity.delete(recursive: true);
+        }
+      }
+    } on FileSystemException catch (e) {
+      debugPrint('[AttachedUpdates] leftover unpack folders: $e');
     }
   }
 
