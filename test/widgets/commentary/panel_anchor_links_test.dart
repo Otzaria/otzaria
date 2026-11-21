@@ -745,6 +745,88 @@ void main() {
       expect(smartText.text, isNot(contains('book-note')));
     });
   });
+
+  group('commentary-of-commentary markers in the pane (issue #4287)', () {
+    // משנה ברורה כמפרש: שורה 3 בספר, ובה ציון שער הציון (א) אחרי האות השנייה.
+    Link mishnaBerura() => Link(
+      heRef: 'משנה ברורה א, א',
+      index1: 1,
+      path2: 'משנה ברורה',
+      index2: 3,
+      connectionType: LinkTypes.commentary,
+      targetCategoryId: 7,
+    );
+    Link shaarHatziyun() => Link(
+      heRef: 'שער הציון א, א',
+      index1: 3,
+      path2: 'שער הציון',
+      index2: 1,
+      connectionType: LinkTypes.commentary,
+      targetCategoryId: 7,
+      anchorStart: 2,
+      anchorLabel: 'א',
+    );
+
+    Future<SmartTextWidget> pumpPane(
+      WidgetTester tester,
+      TextDisplayProfile profile,
+    ) async {
+      CommentaryService.seedEraCache({'שער הציון': CommentaryEra.other});
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: const {},
+        providers: [
+          _TestLibraryProvider(contentByPath: {'משנה ברורה': 'אבגדהוזחטי'}),
+        ],
+      );
+      TargetLineLinksService.instance = TargetLineLinksService(
+        loader: (_, _, _) async => [shaarHatziyun()],
+      );
+      final settings = StubSettingsBloc(SettingsState.initial());
+      addTearDown(settings.close);
+      await tester.pumpWidget(
+        BlocProvider<SettingsBloc>.value(
+          value: settings,
+          child: MaterialApp(
+            home: CommentaryContent(
+              link: mishnaBerura(),
+              fontSize: 18,
+              openBookCallback: (_) {},
+              displayProfile: profile,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester.widget<SmartTextWidget>(
+        find.byType(SmartTextWidget).first,
+      );
+    }
+
+    testWidgets('shown as in the book when markers in commentaries are shown', (
+      tester,
+    ) async {
+      final text = await pumpPane(tester, TextDisplayProfile.defaults);
+
+      expect(text.text, contains('class="link-anchor link-anchor-'));
+      expect(text.text, contains('href="otzaria://anchor?ref=2_0"'));
+      text.onAnchorHover!('otzaria://anchor?ref=2_0', const Offset(100, 100));
+      await tester.pump(const Duration(milliseconds: 280));
+      expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+    });
+
+    testWidgets('hidden when markers in commentaries are hidden', (
+      tester,
+    ) async {
+      final text = await pumpPane(
+        tester,
+        TextDisplayProfile.defaults.copyWith(
+          anchorMarkers: MarkVisibility.hide,
+        ),
+      );
+
+      expect(text.text, isNot(contains('link-anchor')));
+    });
+  });
 }
 
 class _TestLibraryProvider extends Fake implements LibraryProvider {

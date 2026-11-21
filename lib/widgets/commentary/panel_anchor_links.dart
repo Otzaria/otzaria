@@ -54,6 +54,10 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// האם הקטע מדגיש את הציטוט המקושר ([Link.linkedAnchorStart]); אז גם בהערה.
   bool get highlightsLinkedAnchor => false;
 
+  /// גם סמני-האות של מפרש-על (שער הציון במשנה ברורה), ולא רק ציטוטי
+  /// הלינקר — כמו בצורת הדף, לפי "ציוני המפרשים" במפרשים.
+  bool get showsCommentatorAnchors => false;
+
   bool get hasPanelLinks =>
       _anchorLinks.isNotEmpty || _noteLinks.isNotEmpty || _hasStoredNotes;
 
@@ -214,9 +218,9 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
         : injectLinkAnchorMarkers(
             rawLine: body,
             anchorLinks: anchors,
-            styleIndexByCommentator: const {},
+            styleIndexByCommentator: anchorStyleIndexByCommentator(anchors),
             lineIndex: lineIndex,
-            rangesOnly: true,
+            rangesOnly: !showsCommentatorAnchors,
             notes: notes,
             note: note,
           );
@@ -341,7 +345,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
       for (final link in cached.anchored)
         if (link.index1 >= line &&
             link.index1 <= (anchorSourceLink.index2End ?? line) &&
-            _hasRangeSpan(link))
+            (showsCommentatorAnchors || _hasRangeSpan(link)))
           link,
     ];
     final nextNotes = numberedNoteLinks([
@@ -403,9 +407,9 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
         : injectLinkAnchorMarkers(
             rawLine: rawLine,
             anchorLinks: anchors,
-            styleIndexByCommentator: const {},
+            styleIndexByCommentator: anchorStyleIndexByCommentator(anchors),
             lineIndex: lineIndex,
-            rangesOnly: true,
+            rangesOnly: !showsCommentatorAnchors,
             notes: _targetNotes.notesAt(lineIndex),
           );
     final marked = injectDivineNameMarkers(html, _targetNames, lineIndex);
