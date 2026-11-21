@@ -859,8 +859,35 @@ void main() {
       expect(offer.downloads.single.sha256, sha);
     });
 
-    test('בלי API, קובץ שלם אינו מוצע: אין hash לאמת מולו', () {
-      expect(zmanenuOffer(null), isNull);
+    test('בלי API ובלי מניפסט חלקים: הקובץ השלם האחרון, בלי sha וגודל', () {
+      final offer = zmanenuOffer(null)!;
+      expect(offer.split, isFalse);
+      expect(offer.downloads.single, (
+        name: kZmanenuArchiveName,
+        size: 0,
+        sha256: '',
+        url: zmanenuAssetUrl('', kZmanenuArchiveName),
+      ));
+    });
+
+    test('קובץ שלם בלי digest מוצע בלי sha, וחלקים גוברים עליו', () {
+      final r = release([
+        {'name': kZmanenuArchiveName, 'size': 10},
+      ]);
+      expect(zmanenuPartsManifestUrl(r), isNull);
+      final offer = zmanenuOffer(r)!;
+      expect(offer.downloads.single.sha256, '');
+      expect(offer.downloadSize, 10);
+
+      final manifest = buildZmanenuPartsManifest();
+      final withParts = release([
+        {'name': kZmanenuArchiveName, 'size': 10},
+        for (final p in (manifest['parts'] as List).cast<Map>())
+          {'name': p['name'], 'size': p['size']},
+        {'name': kZmanenuPartsManifestName, 'size': 1},
+      ]);
+      expect(zmanenuPartsManifestUrl(withParts), isNotNull);
+      expect(zmanenuOffer(withParts, partsManifest: manifest)!.split, isTrue);
     });
 
     test('מניפסט החלקים אחרון בסדר הכתיבה', () {
