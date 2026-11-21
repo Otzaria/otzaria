@@ -134,4 +134,24 @@ void main() {
     await tester.pump();
     expect(clearAll(tester), isNull);
   });
+
+  test('ייבוא דרך bloc בחלון אחר מרענן את מצב התוכן', () async {
+    final otherWindowBloc = CustomFoldersBloc(addLibraryEvent: (_) {});
+    addTearDown(otherWindowBloc.close);
+    final refreshed = bloc.stream.firstWhere((s) => s.hasUserContent);
+    bloc.add(const LoadUserImportFiles());
+    await Future<void>.delayed(Duration.zero);
+
+    final path = File(p.join(tempDir.path, 'דורות.csv'));
+    await path.writeAsString('ספר,דור,מחבר\n');
+    final imported = otherWindowBloc.stream.firstWhere(
+      (s) => s.hasUserContent,
+    );
+    otherWindowBloc.add(ImportUserContentFiles([path.path]));
+    await imported.timeout(const Duration(seconds: 20));
+    await refreshed.timeout(const Duration(seconds: 5));
+
+    expect(otherWindowBloc.state.hasUserContent, isTrue);
+    expect(bloc.state.hasUserContent, isTrue);
+  });
 }

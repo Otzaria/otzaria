@@ -41,6 +41,8 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
   final SaveCustomFoldersFn? _saveFoldersOverride;
   final SyncCustomFoldersFn? _syncFoldersOverride;
   final DeleteCustomFolderFromDbFn? _deleteFolderFromDbOverride;
+  final Object _userContentChangeSource = Object();
+  StreamSubscription<Object?>? _userImportChangesSubscription;
 
   CustomFoldersBloc({
     required this._addLibraryEvent,
@@ -65,6 +67,12 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     on<LoadUserImportFiles>(_onLoadUserImportFiles);
     on<SetUserImportFileEnabled>(_onSetUserImportFileEnabled);
     on<RemoveUserImportFile>(_onRemoveUserImportFile);
+  }
+
+  @override
+  Future<void> close() async {
+    await _userImportChangesSubscription?.cancel();
+    await super.close();
   }
 
   void _onLoad(LoadCustomFolders event, Emitter<CustomFoldersState> emit) {
@@ -406,7 +414,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
-      final library = UserImportLibrary(userDb);
+      final library = UserImportLibrary(
+        userDb,
+        changeSource: _userContentChangeSource,
+      );
       // הקבצים נשמרים בספרייה ואז הנתונים נבנים מחדש מכל הפעילים, כדי
       // שהמשתמש יוכל לנהל אותם אחר כך (השהיה/ייצוא/מחיקה).
       final outcome = await library.addFiles(event.paths);
@@ -445,6 +456,13 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     LoadUserImportFiles event,
     Emitter<CustomFoldersState> emit,
   ) async {
+    _userImportChangesSubscription ??= UserImportLibrary.changes.listen(
+      (source) {
+        if (!identical(source, _userContentChangeSource)) {
+          add(const LoadUserImportFiles());
+        }
+      },
+    );
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
@@ -503,7 +521,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
-      final library = UserImportLibrary(userDb);
+      final library = UserImportLibrary(
+        userDb,
+        changeSource: _userContentChangeSource,
+      );
       final outcome = await action(library);
       _invalidateUserContentCaches();
       emit(
