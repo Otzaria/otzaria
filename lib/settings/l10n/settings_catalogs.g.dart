@@ -502,6 +502,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'החלף צדדים': 'Swap sides',
     'החלף שולחן עבודה': 'Switch Workspace',
     'החלף שולחן עבודה ({shortcut})': 'Switch workspace ({shortcut})',
+    'החלף שולחן עבודה ({shortcut}) · נוכחי: {name}': 'Switch workspace ({shortcut}) · current: {name}',
     'החלף|shortcut': 'Replace',
     'החלפת הספרייה בספרייה אחרת': 'Replace Library with a Different One',
     'החרגת תוצאות': 'Exclude results',
