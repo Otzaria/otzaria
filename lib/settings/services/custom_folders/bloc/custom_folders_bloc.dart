@@ -70,9 +70,12 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
   }
 
   @override
-  Future<void> close() async {
-    await _userImportChangesSubscription?.cancel();
-    await super.close();
+  Future<void> close() {
+    final closing = super.close();
+    final subscription = _userImportChangesSubscription;
+    _userImportChangesSubscription = null;
+    if (subscription == null) return closing;
+    return Future.wait<void>([closing, subscription.cancel()]);
   }
 
   void _onLoad(LoadCustomFolders event, Emitter<CustomFoldersState> emit) {
@@ -456,13 +459,15 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     LoadUserImportFiles event,
     Emitter<CustomFoldersState> emit,
   ) async {
-    _userImportChangesSubscription ??= UserImportLibrary.changes.listen(
-      (source) {
-        if (!identical(source, _userContentChangeSource)) {
-          add(const LoadUserImportFiles());
-        }
-      },
-    );
+    if (!isClosed) {
+      _userImportChangesSubscription ??= UserImportLibrary.changes.listen(
+        (source) {
+          if (!isClosed && !identical(source, _userContentChangeSource)) {
+            add(const LoadUserImportFiles());
+          }
+        },
+      );
+    }
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
