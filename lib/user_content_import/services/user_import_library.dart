@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -76,8 +77,21 @@ class UserImportLibraryResult {
 /// קובצי הייבוא נשמרים על תוכנם, וכל שינוי בונה מחדש מכלל הפעילים — כך ייצוא
 /// והשהיה אינם דורשים מעקב פר-שורה, והמקור יכול להימחק או לזוז.
 class UserImportLibrary {
+  static final StreamController<Object?> _changes =
+      StreamController<Object?>.broadcast(sync: true);
+
+  /// מודיע לחלונות אחרים אחרי שינוי שהסתיים בהצלחה.
+  static Stream<Object?> get changes => _changes.stream;
+
+  static void _notifyChanged(Object? source) {
+    if (_changes.hasListener) _changes.add(source);
+  }
+
   final MyDatabase _db;
   final UserBooksDatabaseHolder? _holder;
+
+  /// מזהה את ה־bloc שיזם את השינוי, כדי שלא ירענן את עצמו שוב.
+  final Object? changeSource;
 
   /// תלויות פתירת-הספרים של הייבוא, להזרקה בבדיקות. בלי הזרקה הפתירה
   /// האמיתית רצה ב-isolate ([UserContentImporter.ingestContentsInBackground]).
@@ -88,6 +102,7 @@ class UserImportLibrary {
 
   UserImportLibrary(
     this._db, {
+    this.changeSource,
     this.resolveRef,
     this.sourceExists,
     this.locateBook,
@@ -125,6 +140,13 @@ class UserImportLibrary {
       'FROM user_import_file ORDER BY importedAt DESC, id DESC',
     );
     return rows.map(_fromRow).toList();
+  });
+
+  /// האם יש מה למחוק ב-[removeAll]: קבצים, או נתונים ידניים שקדמו לספרייה.
+  Future<bool> hasContent() => _serial(() async {
+    final db = await _db.database;
+    return db.select('SELECT 1 FROM user_import_file LIMIT 1').isNotEmpty ||
+        await UserContentRepository(_db).hasManualContent();
   });
 
   /// תוכן הקובץ כפי שיובא, או null אם הוסר בינתיים.
@@ -226,6 +248,7 @@ class UserImportLibrary {
       );
     }
     final rebuild = await _onOwnConnection(_rebuildWith(change, ingest));
+    _notifyChanged(changeSource);
     return UserImportLibraryResult(
       rebuild: rebuild,
       added: selected.isEmpty
@@ -335,6 +358,7 @@ class UserImportLibrary {
   /// מסיר את כל הקבצים ומנקה את כל הנתונים הידניים, גם אלה שקדמו לספרייה.
   Future<UserImportLibraryResult> removeAll() => _serial(() async {
     await _onOwnConnection(_removeAllFiles);
+    _notifyChanged(changeSource);
     return const UserImportLibraryResult(rebuild: UserImportResult());
   });
 
