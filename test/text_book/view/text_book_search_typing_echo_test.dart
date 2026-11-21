@@ -41,14 +41,19 @@ void main() {
   Future<_EchoTextBookBloc> pumpSearchView(
     WidgetTester tester, {
     required String existingQuery,
+    Duration echoDelay = Duration.zero,
   }) async {
-    final textBookBloc = _EchoTextBookBloc(_loadedState(existingQuery));
+    final textBookBloc = _EchoTextBookBloc(
+      _loadedState(existingQuery),
+      echoDelay: echoDelay,
+    );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
+      // הדים מושהים שעוד בדרך חייבים להסתיים לפני סגירת ה-BLoC.
+      await tester.pump(echoDelay);
       await textBookBloc.close();
       await settingsBloc.close();
       focusNode.dispose();
@@ -129,6 +134,75 @@ void main() {
       expect(fieldText(tester), 'שלום');
     });
   });
+  // issue #5711: הקשה שנוחתת אחרי שהדיבאונס שלח את השאילתה ולפני שההד חזר
+  // לחלונית — ההד הישן נחשב לשינוי חיצוני ודרס את האות החדשה.
+  group('הקלדה מהירה בחיפוש בספר אינה מאבדת אותיות (issue #5711)', () {
+    const echoDelay = Duration(milliseconds: 30);
+
+    testWidgets('אות שהוקלדה לפני שהד ה-BLoC חזר נשארת בשדה', (tester) async {
+      final bloc = await pumpSearchView(
+        tester,
+        existingQuery: '',
+        echoDelay: echoDelay,
+      );
+
+      await tester.enterText(find.byType(TextField), 'אב');
+      await tester.pump(kSearchFieldDebounce);
+      await tester.enterText(find.byType(TextField), 'אבג');
+      await tester.pump(echoDelay);
+      await tester.pump();
+
+      expect(fieldText(tester), 'אבג');
+
+      await tester.pump(kSearchFieldDebounce);
+      await tester.pump(echoDelay);
+      await tester.pump();
+      expect(fieldText(tester), 'אבג');
+      expect((bloc.state as TextBookLoaded).searchText, 'אבג');
+    });
+
+    testWidgets('הקשות רצופות שכל אחת מקדימה את ההד הקודם נשמרות כולן', (
+      tester,
+    ) async {
+      final bloc = await pumpSearchView(
+        tester,
+        existingQuery: '',
+        echoDelay: echoDelay,
+      );
+
+      // כל הקשה נוחתת אחרי שהדיבאונס שלח את הקודמת ולפני שההד שלה חזר.
+      for (final typed in ['אב', 'אבג', 'אבגד', 'אבגד ה', 'אבגד הו']) {
+        await tester.enterText(find.byType(TextField), typed);
+        await tester.pump(kSearchFieldDebounce);
+        expect(fieldText(tester), typed);
+      }
+      await tester.pump(echoDelay);
+      await tester.pump();
+
+      expect(fieldText(tester), 'אבגד הו');
+      expect((bloc.state as TextBookLoaded).searchText, 'אבגד הו');
+    });
+
+    testWidgets('שינוי חיצוני אחרי הקלדה עדיין מסונכרן לשדה', (tester) async {
+      final bloc = await pumpSearchView(
+        tester,
+        existingQuery: '',
+        echoDelay: echoDelay,
+      );
+      await tester.enterText(find.byType(TextField), 'אב');
+      await tester.pump(kSearchFieldDebounce);
+      await tester.pump(echoDelay);
+      await tester.pump();
+
+      bloc.add(const UpdateSearchText('שלום'));
+      await tester.pump(echoDelay);
+      await tester.pump();
+      expect(fieldText(tester), 'שלום');
+
+      // הסנכרון שולח את השאילתה שוב; ממתינים להד שלה.
+      await tester.pump(echoDelay);
+    });
+  });
 }
 
 TextBookLoaded _loadedState(String searchText) {
@@ -156,8 +230,11 @@ TextBookLoaded _loadedState(String searchText) {
 /// BLoC שמהדהד את טקסט החיפוש חזרה ל-state, כמו TextBookBloc האמיתי.
 class _EchoTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
-  _EchoTextBookBloc(super.initialState) {
-    on<UpdateSearchText>((event, emit) {
+  _EchoTextBookBloc(super.initialState, {Duration echoDelay = Duration.zero}) {
+    on<UpdateSearchText>((event, emit) async {
+      // ההד של ה-BLoC האמיתי מגיע לחלונית רק בפריים הבא; השהיה מדמה הקשה
+      // שנוחתת בינתיים.
+      if (echoDelay > Duration.zero) await Future<void>.delayed(echoDelay);
       final current = state as TextBookLoaded;
       emit(current.copyWith(searchText: event.text));
     });
