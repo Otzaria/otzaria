@@ -10,14 +10,12 @@ import '../ui_lint.dart';
 ///   `Radius.circular(n)` ליטרלי;
 /// - `StadiumBorder(...)`: הגלולה מאושרת רק ל־BarSplitButton (q8 שאלה 7),
 ///   והחריג נרשם ב־config;
-/// - `CircleBorder(...)`: מותר רק לכפתור אייקון בלבד (DD-04, q9 שאלה 3) —
-///   בתוך `IconButton(...)`/`IconButton.styleFrom(...)`, או בקבצים שב־config.
-///   רכיב עגול מטבעו (נקודה, עיגול צבע) מסומן ב־allow.
+/// - `CircleBorder(...)`: גם כפתור אייקון בלבד בפינות 8 (DD-04). רכיב עגול
+///   מטבעו (נקודה, עיגול צבע) מסומן ב־allow.
 class LiteralRadiusRule extends UiLintRule {
   const LiteralRadiusRule();
 
   static const _types = {'BorderRadius', 'BorderRadiusDirectional', 'Radius'};
-  static const _iconButtons = {'IconButton', 'AppIconButton'};
 
   @override
   String get id => 'UIL-019';
@@ -26,13 +24,12 @@ class LiteralRadiusRule extends UiLintRule {
   int get stage => 3;
 
   @override
-  String get title =>
-      'רדיוס ליטרלי, StadiumBorder, או CircleBorder שאינו כפתור אייקון';
+  String get title => 'רדיוס ליטרלי, StadiumBorder או CircleBorder';
 
   @override
   String get hint =>
-      'AppTokens.borderRadiusAll / AppTokens.roundedShape; עיגול רק לכפתור '
-      'אייקון בלבד (DESIGN_SYSTEM.md §2.3, DD-04)';
+      'AppTokens.borderRadiusAll / AppTokens.roundedShape; עיגול רק לרכיב '
+      'עגול מטבעו, עם allow (DESIGN_SYSTEM.md §2.3, DD-04)';
 
   @override
   void check(UiLintFile file) => file.unit.accept(_Visitor(this, file));
@@ -44,13 +41,6 @@ class _Visitor extends RecursiveAstVisitor<void> {
   final LiteralRadiusRule rule;
   final UiLintFile file;
 
-  bool _inIconButton(AstNode node) =>
-      enclosingCtorCall(
-        node,
-        (c) => LiteralRadiusRule._iconButtons.contains(c.typeName),
-      ) !=
-      null;
-
   void _check(Expression node) {
     final call = asCtorCall(node);
     if (call == null ||
@@ -58,8 +48,7 @@ class _Visitor extends RecursiveAstVisitor<void> {
         isInsideClassExtending(node, const {'CustomPainter'})) {
       return;
     }
-    if (call.typeName == 'StadiumBorder' ||
-        (call.typeName == 'CircleBorder' && !_inIconButton(node))) {
+    if (call.typeName == 'StadiumBorder' || call.typeName == 'CircleBorder') {
       file.report(rule, node, identity: call.head);
       return;
     }

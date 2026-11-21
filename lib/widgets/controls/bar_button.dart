@@ -185,13 +185,12 @@ class BarButton extends StatelessWidget {
         tooltip: tooltip,
         padding: const EdgeInsets.all(8.0),
         constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
-        // הרקע של מצב נבחר על הכפתור עצמו: במגע הוא נשאר עיגול 40 בתוך
-        // שטח המגע 48.
+        // הרקע של מצב נבחר על הכפתור עצמו: במגע הוא נשאר 40 בתוך שטח המגע 48.
         style: IconButton.styleFrom(
           backgroundColor: bg,
           animationDuration: AppMotion.duration(context, AppTokens.animFast),
           foregroundColor: fg,
-          shape: const CircleBorder(),
+          shape: AppTokens.roundedShape,
           // שטח המגע של ערכת הנושא: 48 במגע, צמוד במחשב (שאלה פתוחה 1).
         ),
       );
@@ -204,11 +203,9 @@ class BarButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: AppMotion.duration(context, AppTokens.animFast),
         curve: Curves.easeInOut,
-        // עם תווית: פינות 8. אייקון בלבד: עיגול, כמו IconButton (DD-04).
         decoration: BoxDecoration(
           color: label != null ? bg : Colors.transparent,
-          shape: label != null ? BoxShape.rectangle : BoxShape.circle,
-          borderRadius: label != null ? AppTokens.borderRadiusAll : null,
+          borderRadius: AppTokens.borderRadiusAll,
         ),
         child: button,
       ),
