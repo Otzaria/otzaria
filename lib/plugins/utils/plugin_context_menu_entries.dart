@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
@@ -139,7 +140,15 @@ List<AppContextMenuEntry> buildPluginContextMenuEntries({
       entries.add(entry);
     }
   }
-  return entries;
+  // כמה תוספים יחד מקובצים לתת-תפריט אחד, כדי שלא יעמיסו על התפריט.
+  if (byPlugin.length < 2) return entries;
+  return [
+    AppContextMenuEntry(
+      label: 'תוספים',
+      icon: FluentIcons.puzzle_piece_24_regular,
+      children: entries,
+    ),
+  ];
 }
 
 String _selectedTextOf(Map<String, dynamic> selection) =>
