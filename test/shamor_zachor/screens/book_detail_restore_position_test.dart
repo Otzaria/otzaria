@@ -42,6 +42,11 @@ class _ReadyDataProvider extends ShamorZachorDataProvider {
 
   _ReadyDataProvider(this.books);
 
+  void replaceNestedBook(BookDetails book) {
+    books[1] = book;
+    notifyListeners();
+  }
+
   @override
   (BookDetails, String, String)? getBookById(int bookId) {
     for (final book in books) {
@@ -254,6 +259,56 @@ void main() {
       expectRowVisible(tester, 'סעיף 0-0');
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+      'refreshing an open nested book after its sections shrink is safe',
+      (tester) async {
+        final book = data.books[1];
+        await mark(book, 157);
+        await openBook(tester, book);
+        expectRowVisible(tester, 'סעיף 15-7');
+        data.replaceNestedBook(
+          BookDetails(
+            id: book.id,
+            contentType: book.contentType,
+            parts: book.parts,
+            sections: book.sections!.take(3).toList(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('a negative stored position opens a nested book at the top', (
+      tester,
+    ) async {
+      final book = data.books[1];
+      await ProgressService().saveLastTouchedIndex(book.id!, -1);
+      await openBook(tester, book);
+      expect(tester.takeException(), isNull);
+      expectRowVisible(tester, 'סעיף 0-0');
+    });
+
+    testWidgets(
+      'restores the saved row when earlier rows have taller headings',
+      (tester) async {
+        final longHeading = List.filled(40, 'כותרת משנה').join(' ');
+        final book = BookDetails(
+          id: 7,
+          contentType: 'פרק',
+          parts: const [],
+          sections: [
+            for (var i = 0; i < 300; i++)
+              _leaf('$i', i < 60 ? 'פרק $i $longHeading' : 'פרק $i'),
+          ],
+        );
+        data.books[0] = book;
+        await mark(book, 80);
+        await openBook(tester, book);
+        expectRowVisible(tester, 'פרק 80');
+      },
+    );
 
     test('position survives a new provider (app restart)', () async {
       final book = data.books[0];

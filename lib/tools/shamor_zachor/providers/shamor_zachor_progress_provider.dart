@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
@@ -44,8 +45,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות)
   Map<int, List<ProgressColumn>> _columnsByBookId = {};
 
-  /// הפריט שסומן (או שסימונו הוסר) אחרון בכל ספר — "ה-V האחרון בזמן".
-  Map<int, int> _lastTouchedById = {};
+  Future<void>? _progressUpdates;
 
   final Map<int, BookProgressSummary> _progressSummaryCache = {};
   bool _isLoading = false;
@@ -174,7 +174,6 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       _completionDatesById = await _progressService.loadCompletionDatesById();
       _columnsByBookId = await _progressService.loadColumnsByBookId();
       _columnDatesById = await _progressService.loadColumnCompletionDates();
-      _lastTouchedById = await _progressService.loadLastTouchedById();
 
       _logger.info(
         'Successfully loaded progress: ${_progressById.length} books',
@@ -211,13 +210,24 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     return _progressById[bookId]?[absoluteIndex.toString()] ?? PageProgress();
   }
 
-  /// הפריט שסומן אחרון בספר, או null אם לא סומן בו דבר.
-  int? lastTouchedIndexById(int bookId) => _lastTouchedById[bookId];
+  /// הפריט שסומן אחרון בספר, או null אם אין מיקום שמור.
+  int? lastTouchedIndexById(int bookId) =>
+      _progressService.loadLastTouchedIndex(bookId);
 
-  Future<void> _rememberTouched(int bookId, int absoluteIndex) async {
-    if (_lastTouchedById[bookId] == absoluteIndex) return;
-    _lastTouchedById[bookId] = absoluteIndex;
-    await _progressService.saveLastTouchedById(_lastTouchedById);
+  Future<void> _queueProgressUpdate(Future<void> Function() update) {
+    final previous = _progressUpdates;
+    final result = previous == null ? update() : previous.then((_) => update());
+    late final Future<void> tail;
+    void finish() {
+      if (identical(_progressUpdates, tail)) _progressUpdates = null;
+    }
+
+    tail = result.then(
+      (_) => finish(),
+      onError: (Object _, StackTrace _) => finish(),
+    );
+    _progressUpdates = tail;
+    return result;
   }
 
   /// Get completion date for a book by ID (synchronous)
@@ -260,7 +270,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     bool value,
     BookDetails bookDetails, {
     bool isBulkUpdate = false,
-  }) async {
+  }) => _queueProgressUpdate(() async {
     try {
       final itemIndexKey = absoluteIndex.toString();
 
@@ -288,13 +298,15 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       }
 
       await _progressService.saveProgressDataById(_progressById);
+      if (!isBulkUpdate) {
+        await _progressService.saveLastTouchedIndex(bookId, absoluteIndex);
+      }
       await _syncColumnCompletionDate(
         bookId,
         columnName,
         bookDetails,
         wasComplete: wasComplete,
       );
-      if (!isBulkUpdate) await _rememberTouched(bookId, absoluteIndex);
 
       _invalidateSummaryCache(bookId);
 
@@ -314,7 +326,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       );
       notifyListeners();
     }
-  }
+  });
 
   /// Handle completion events when progress is updated (by ID)
   ///
@@ -406,7 +418,6 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         .where((index) => index >= start && index <= end);
     if (indices.isEmpty) return;
 
-    await _rememberTouched(bookId, indices.last);
     await _applyBulkColumnUpdate(
       bookId,
       bookDetails,
@@ -414,6 +425,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       columnName,
       value,
       errorMessage: 'Failed to update range progress',
+      lastTouchedIndex: indices.last,
     );
   }
 
@@ -425,7 +437,8 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     String columnName,
     bool value, {
     required String errorMessage,
-  }) async {
+    int? lastTouchedIndex,
+  }) => _queueProgressUpdate(() async {
     try {
       final wasComplete = _isColumnCompleteById(
         bookId,
@@ -442,6 +455,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       }
 
       await _progressService.saveProgressDataById(_progressById);
+      if (lastTouchedIndex != null) {
+        await _progressService.saveLastTouchedIndex(bookId, lastTouchedIndex);
+      }
       await _syncColumnCompletionDate(
         bookId,
         columnName,
@@ -474,7 +490,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       );
       notifyListeners();
     }
-  }
+  });
 
   /// Toggle section column by book ID
   Future<void> toggleSectionColumnById(
@@ -498,33 +514,35 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   }
 
   /// Clear all progress for a specific book by ID
-  Future<void> clearBookProgressById(int bookId) async {
-    try {
-      _progressById.remove(bookId);
-      _completionDatesById.remove(bookId);
-      _columnDatesById.remove(bookId);
+  Future<void> clearBookProgressById(int bookId) =>
+      _queueProgressUpdate(() async {
+        try {
+          _progressById.remove(bookId);
+          _completionDatesById.remove(bookId);
+          _columnDatesById.remove(bookId);
 
-      await _progressService.saveProgressDataById(_progressById);
-      await _progressService.saveCompletionDatesById(_completionDatesById);
-      await _progressService.saveColumnCompletionDates(_columnDatesById);
+          await _progressService.saveProgressDataById(_progressById);
+          await _progressService.saveLastTouchedIndex(bookId, null);
+          await _progressService.saveCompletionDatesById(_completionDatesById);
+          await _progressService.saveColumnCompletionDates(_columnDatesById);
 
-      _invalidateSummaryCache(bookId);
+          _invalidateSummaryCache(bookId);
 
-      notifyListeners();
-    } catch (e, stackTrace) {
-      _error = ShamorZachorError.fromException(
-        e,
-        stackTrace: stackTrace,
-        customMessage: 'Failed to clear book progress by ID',
-      );
-      _logger.severe(
-        'Error clearing progress by ID: ${_error!.message}',
-        e,
-        stackTrace,
-      );
-      notifyListeners();
-    }
-  }
+          notifyListeners();
+        } catch (e, stackTrace) {
+          _error = ShamorZachorError.fromException(
+            e,
+            stackTrace: stackTrace,
+            customMessage: 'Failed to clear book progress by ID',
+          );
+          _logger.severe(
+            'Error clearing progress by ID: ${_error!.message}',
+            e,
+            stackTrace,
+          );
+          notifyListeners();
+        }
+      });
 
   /// Get column selection states by book ID (all/none/partial)
   Map<String, bool?> getColumnSelectionStatesById(

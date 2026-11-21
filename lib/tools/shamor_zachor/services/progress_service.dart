@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:logging/logging.dart';
 
@@ -20,33 +21,24 @@ class ProgressService {
       '${_keyPrefix}column_completion_dates';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
   static const String _bookColumnsKey = '${_keyPrefix}book_columns';
-  static const String _lastTouchedKey = '${_keyPrefix}last_touched_by_id';
+  static String _lastTouchedKey(int bookId) =>
+      '${_keyPrefix}last_touched:$bookId';
 
-  /// הפריט שסומן אחרון בכל ספר (bookId → absoluteIndex), לפתיחה במקומו.
-  Future<Map<int, int>> loadLastTouchedById() async {
-    try {
-      final jsonString = Settings.getValue<String>(_lastTouchedKey);
-      if (jsonString == null || jsonString.isEmpty) return {};
-      final Map<String, dynamic> decoded = json.decode(jsonString);
-      return {
-        for (final entry in decoded.entries)
-          if (entry.value is int) int.parse(entry.key): entry.value as int,
-      };
-    } catch (e, stackTrace) {
-      _logger.warning('Failed to load last touched items', e, stackTrace);
-      return {};
-    }
-  }
+  /// הפריט שסומן אחרון בספר, לפתיחה במקומו.
+  int? loadLastTouchedIndex(int bookId) => Settings.isInitialized
+      ? Settings.getValue<int>(_lastTouchedKey(bookId))
+      : null;
 
   /// שגיאה כאן אינה חוסמת את שמירת הסימון עצמו.
-  Future<void> saveLastTouchedById(Map<int, int> lastTouched) async {
+  Future<void> saveLastTouchedIndex(int bookId, int? index) async {
     try {
-      await Settings.setValue<String>(
-        _lastTouchedKey,
-        json.encode(lastTouched.map((id, index) => MapEntry('$id', index))),
-      );
+      await Settings.setValue<int?>(_lastTouchedKey(bookId), index);
     } catch (e, stackTrace) {
-      _logger.warning('Failed to save last touched items', e, stackTrace);
+      _logger.warning(
+        'Failed to save last touched item for $bookId',
+        e,
+        stackTrace,
+      );
     }
   }
 

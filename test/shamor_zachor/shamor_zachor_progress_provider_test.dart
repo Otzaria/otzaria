@@ -1,8 +1,23 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
 import 'package:otzaria/tools/shamor_zachor/models/progress_model.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/services/progress_service.dart';
+
+import '../test_helpers/memory_cache_provider.dart';
+
+class _FailingProgressCache extends MemoryCacheProvider {
+  bool failProgressWrite = false;
+
+  @override
+  Future<void> setObject<T>(String key, T? value) async {
+    if (failProgressWrite && key == 'sz:progress_by_id') {
+      throw StateError('progress write failed');
+    }
+    await super.setObject<T>(key, value);
+  }
+}
 
 class _FakeProgressService extends ProgressService {
   _FakeProgressService({
@@ -68,6 +83,86 @@ BookDetails _singleItemBook() => BookDetails(
 );
 
 void main() {
+  group('saved position', () {
+    BookDetails book(int id) => BookDetails(
+      id: id,
+      contentType: 'chapter',
+      parts: const [BookPart(name: 'book', startPage: 1, endPage: 100)],
+    );
+    final firstBook = book(1);
+    late _FailingProgressCache cache;
+    late ShamorZachorProgressProvider provider;
+
+    setUp(() async {
+      cache = _FailingProgressCache();
+      await Settings.init(cacheProvider: cache);
+      provider = ShamorZachorProgressProvider();
+      addTearDown(provider.dispose);
+      await provider.ensureLoaded();
+      await provider.updateProgressById(1, 10, 'learn', true, firstBook);
+    });
+
+    test('a later range wins over an overlapping single update', () async {
+      final first = provider.updateProgressById(
+        1,
+        20,
+        'learn',
+        true,
+        firstBook,
+      );
+      final second = provider.toggleRangeForColumnById(
+        1,
+        firstBook,
+        'learn',
+        35,
+        40,
+        true,
+      );
+      await Future.wait([first, second]);
+      expect(
+        (await ProgressService().loadProgressDataById())[1]!['40']!.getProperty(
+          'learn',
+        ),
+        isTrue,
+      );
+      expect(provider.lastTouchedIndexById(1), 40);
+    });
+
+    test('failed range progress leaves the previous saved position', () async {
+      cache.failProgressWrite = true;
+      await provider.toggleRangeForColumnById(
+        1,
+        firstBook,
+        'learn',
+        35,
+        40,
+        true,
+      );
+      expect(provider.error, isNotNull);
+      expect(
+        (await ProgressService().loadProgressDataById())[1]!['40'],
+        isNull,
+      );
+      expect(provider.lastTouchedIndexById(1), 10);
+    });
+
+    test(
+      'a mark from the reader before loading preserves other books',
+      () async {
+        final reader = ShamorZachorProgressProvider();
+        addTearDown(reader.dispose);
+        await reader.updateProgressById(2, 20, 'learn', true, book(2));
+        expect(reader.lastTouchedIndexById(1), 10);
+        expect(reader.lastTouchedIndexById(2), 20);
+      },
+    );
+
+    test('clearing progress removes the saved position', () async {
+      await provider.clearBookProgressById(1);
+      expect(provider.lastTouchedIndexById(1), isNull);
+    });
+  });
+
   group('ShamorZachorProgressProvider', () {
     test('clearBookProgressById clears id-based progress', () async {
       final service = _FakeProgressService(
