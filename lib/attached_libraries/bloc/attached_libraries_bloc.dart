@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_status.dart';
+import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
@@ -40,6 +41,10 @@ class AttachedLibrariesBloc
     on<CheckAttachedLibraryUpdate>(_onCheckUpdate);
     on<InstallAttachedLibraryUpdate>(_onInstallUpdate);
     on<CancelAttachedLibraryUpdate>(_onCancelUpdate);
+    on<CheckOfficialLibraries>(_onCheckOfficial);
+    on<InstallOfficialLibrary>(_onInstallOfficial);
+    on<CancelOfficialLibrary>(_onCancelOfficial);
+    on<SetOfficialLibraryDeclined>(_onSetOfficialDeclined);
     on<_AttachedUpdatesChanged>(_onUpdatesChanged);
     _subscription = _repository.changes.listen(
       (slugs) => add(_AttachedLibrariesChanged(slugs)),
@@ -60,6 +65,10 @@ class AttachedLibrariesBloc
       state.copyWith(
         libraries: _repository.libraries,
         folders: _repository.folders,
+        officialOffers: AttachedLibraryUpdateService.notInstalledOfficial(
+          _repository.libraries,
+        ),
+        declinedOfficial: _updates.declinedOfficial(),
       );
 
   AttachedLibrariesNotice _notice(String text, {bool isError = false}) =>
@@ -146,6 +155,9 @@ class AttachedLibrariesBloc
     Emitter<AttachedLibrariesState> emit,
   ) => _run(emit, () async {
     await _repository.remove(event.library);
+    if (event.library.official case final official?) {
+      await _updates.setOfficialDeclined(official.libraryId, declined: true);
+    }
     return _notice(SettingsMessages.attachedLibraryRemoved);
   });
 
@@ -202,12 +214,39 @@ class AttachedLibrariesBloc
   void _onInstallUpdate(
     InstallAttachedLibraryUpdate event,
     Emitter<AttachedLibrariesState> emit,
-  ) => unawaited(_updates.install(event.library));
+  ) => unawaited(_updates.install(event.library, forceFull: event.forceFull));
 
   void _onCancelUpdate(
     CancelAttachedLibraryUpdate event,
     Emitter<AttachedLibrariesState> emit,
   ) => _updates.cancel(event.library);
+
+  Future<void> _onCheckOfficial(
+    CheckOfficialLibraries event,
+    Emitter<AttachedLibrariesState> emit,
+  ) => _updates.checkOfficialOffers();
+
+  void _onInstallOfficial(
+    InstallOfficialLibrary event,
+    Emitter<AttachedLibrariesState> emit,
+  ) => unawaited(_updates.installOfficial(event.entry));
+
+  void _onCancelOfficial(
+    CancelOfficialLibrary event,
+    Emitter<AttachedLibrariesState> emit,
+  ) => _updates.cancelOfficial(event.libraryId);
+
+  Future<void> _onSetOfficialDeclined(
+    SetOfficialLibraryDeclined event,
+    Emitter<AttachedLibrariesState> emit,
+  ) async {
+    await _updates.setOfficialDeclined(
+      event.libraryId,
+      declined: event.declined,
+    );
+    emit(_loaded(state));
+    if (!event.declined) await _updates.checkOfficialOffers();
+  }
 
   void _onUpdatesChanged(
     _AttachedUpdatesChanged event,
@@ -216,8 +255,9 @@ class AttachedLibrariesBloc
     AttachedLibrariesNotice? notice;
     for (final library in state.libraries) {
       final now = event.updates[library.path];
+      final before = state.updateOf(library);
       if (now is AttachedUpdateInstalled &&
-          state.updateOf(library) is! AttachedUpdateInstalled) {
+          before is! AttachedUpdateInstalled) {
         notice = _notice(
           SettingsMessages.attachedUpdateInstalled(
             library.displayName,
@@ -225,8 +265,29 @@ class AttachedLibrariesBloc
           ),
         );
       }
+      if (now case AttachedUpdateFailed(
+        error: AttachedUpdateError.integrityMismatch,
+      ) when before != now) {
+        notice = _notice(
+          SettingsMessages.officialLibraryIntegrityMismatch(
+            library.displayName,
+          ),
+          isError: true,
+        );
+      }
     }
-    emit(state.copyWith(updates: event.updates, notice: notice));
+    for (final entry in OfficialAttachedLibraries.catalog) {
+      final key = AttachedLibraryUpdateService.officialKey(entry.libraryId);
+      if (event.updates[key] is AttachedUpdateInstalled &&
+          state.updates[key] is! AttachedUpdateInstalled) {
+        notice = _notice(
+          SettingsMessages.officialLibraryInstalled(entry.displayName),
+        );
+      }
+    }
+    emit(
+      _loaded(state).copyWith(updates: event.updates, notice: notice),
+    );
   }
 
   /// ההודעה למשתמש על מסד שלא צורף.

@@ -286,6 +286,10 @@ abstract class SettingsMessages {
   static String attachedUpdateInstalled(String name, int version) =>
       'המסד "$name" עודכן לגרסה $version';
   static const String attachedLibrariesRescanned = 'המסדים נבדקו מחדש';
+  static String officialLibraryInstalled(String name) =>
+      'המסד הרשמי "$name" הותקן';
+  static String officialLibraryIntegrityMismatch(String name) =>
+      'המסד "$name" שונה מהגרסה הרשמית ולא יעודכן. נדרשת הורדה מלאה בהגדרות.';
   static String attachedLibraryError(Object error) =>
       'שגיאה בטיפול במסד: $error';
 

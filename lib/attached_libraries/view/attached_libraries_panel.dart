@@ -10,8 +10,10 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_status.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
+import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
 import 'package:otzaria/attached_libraries/view/attached_library_update_view.dart';
 import 'package:otzaria/attached_libraries/view/external_link_index_tile.dart';
+import 'package:otzaria/attached_libraries/view/official_library_offer_tile.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
@@ -43,7 +45,9 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
   @override
   void initState() {
     super.initState();
-    context.read<AttachedLibrariesBloc>().add(const LoadAttachedLibraries());
+    context.read<AttachedLibrariesBloc>()
+      ..add(const LoadAttachedLibraries())
+      ..add(const CheckOfficialLibraries());
     _repository.loadingPaths.addListener(_rebuild);
     _links.tooLargeSlugs.addListener(_rebuild);
     _links.buildingSlugs.addListener(_rebuild);
@@ -137,11 +141,15 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
 
   Future<void> _install(
     AttachedLibrary library,
-    AttachedUpdateOffer offer,
-  ) async {
+    AttachedUpdateOffer offer, {
+    bool forceFull = false,
+  }) async {
     final bloc = context.read<AttachedLibrariesBloc>();
-    if (await confirmAttachedUpdate(context, library, offer)) {
-      bloc.add(InstallAttachedLibraryUpdate(library));
+    final shown = forceFull
+        ? offer.withPlannedDownloadSize(offer.manifest.full.compressedSize)
+        : offer;
+    if (await confirmAttachedUpdate(context, library, shown)) {
+      bloc.add(InstallAttachedLibraryUpdate(library, forceFull: forceFull));
     }
   }
 
@@ -285,6 +293,7 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
                 ),
           children: [
             _buildActionsTile(context, state),
+            ..._buildOfficialOffers(context, state),
             for (final folder in state.folders) _buildFolderTile(folder),
             for (var i = 0; i < libraries.length; i++)
               _AttachedLibraryTile(
@@ -310,6 +319,8 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
                   CheckAttachedLibraryUpdate(libraries[i]),
                 ),
                 onInstallUpdate: (offer) => _install(libraries[i], offer),
+                onInstallFull: (offer) =>
+                    _install(libraries[i], offer, forceFull: true),
                 onCancelUpdate: () => context.read<AttachedLibrariesBloc>().add(
                   CancelAttachedLibraryUpdate(libraries[i]),
                 ),
@@ -363,6 +374,37 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
     );
   }
 
+  List<Widget> _buildOfficialOffers(
+    BuildContext context,
+    AttachedLibrariesState state,
+  ) {
+    final bloc = context.read<AttachedLibrariesBloc>();
+    final declined = [
+      for (final entry in state.officialOffers)
+        if (state.declinedOfficial.contains(entry.libraryId)) entry,
+    ];
+    return [
+      for (final entry in state.shownOfficialOffers)
+        OfficialLibraryOfferTile(
+          entry: entry,
+          status: state.officialUpdateOf(entry.libraryId),
+          onDownload: () => bloc.add(InstallOfficialLibrary(entry)),
+          onCancel: () => bloc.add(CancelOfficialLibrary(entry.libraryId)),
+          onRetry: () => bloc.add(const CheckOfficialLibraries()),
+          onDecline: () => bloc.add(
+            SetOfficialLibraryDeclined(entry.libraryId, declined: true),
+          ),
+        ),
+      if (declined.isNotEmpty)
+        DeclinedOfficialLibrariesTile(
+          entries: declined,
+          onShow: (entry) => bloc.add(
+            SetOfficialLibraryDeclined(entry.libraryId, declined: false),
+          ),
+        ),
+    ];
+  }
+
   Widget _buildFolderTile(String folder) {
     return SettingsActionTile.path(
       icon: FluentIcons.folder_24_regular,
@@ -398,6 +440,7 @@ class _AttachedLibraryTile extends StatelessWidget {
     required this.onCheckUpdate,
     required this.onInstallUpdate,
     required this.onCancelUpdate,
+    required this.onInstallFull,
     required this.onPlacementChanged,
     required this.onMenu,
   });
@@ -417,6 +460,7 @@ class _AttachedLibraryTile extends StatelessWidget {
   final VoidCallback onCheckUpdate;
   final void Function(AttachedUpdateOffer offer) onInstallUpdate;
   final VoidCallback onCancelUpdate;
+  final void Function(AttachedUpdateOffer offer) onInstallFull;
   final ValueChanged<AttachedLibraryPlacement> onPlacementChanged;
   final void Function(BuildContext anchor) onMenu;
 
@@ -453,7 +497,11 @@ class _AttachedLibraryTile extends StatelessWidget {
             runSpacing: 4,
             children: [
               _statusChip(context),
-              if (library.isOk) AttachedUpdateSourceChip(library: library),
+              // במסד רשמי מקור העדכון קבוע בקוד: אין נעיצה ואין אי-התאמה להציג.
+              if (library.isOfficial)
+                const OfficialLibraryChip()
+              else if (library.isOk)
+                AttachedUpdateSourceChip(library: library),
               if (library.isOk && library.rootFolder != null)
                 MetaChip(
                   size: MetaChipSize.small,
@@ -501,15 +549,14 @@ class _AttachedLibraryTile extends StatelessWidget {
               text: context.settingsText('בנה אינדקס מחדש'),
             ),
           ],
-          if (library.isOk &&
-              library.updateSource != null &&
-              !library.updateSourceMismatch) ...[
+          if (AttachedLibraryUpdateService.isEligible(library)) ...[
             const SizedBox(height: 4),
             AttachedLibraryUpdateRow(
               status: update,
               onCheck: onCheckUpdate,
               onInstall: onInstallUpdate,
               onCancel: onCancelUpdate,
+              onInstallFull: library.isOfficial ? onInstallFull : null,
             ),
           ],
         ],
