@@ -10,10 +10,13 @@ import 'package:otzaria/app_scope/external_activation_service.dart';
 import 'package:otzaria/app_scope/process_duties.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -45,6 +48,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
@@ -85,11 +89,48 @@ void main() {
     });
 
     testWidgets('שגיאת טעינת הספרייה חושפת מיד את מצב השגיאה', (tester) async {
+      final catalog = Completer<Library>();
+      final library = LibraryBloc(
+        repository: _FailingRepository(catalog.future),
+      );
+      final harness = await _pumpMainWindow(tester, realLibrary: library);
+      expect(harness.calls, isNot(contains('show')));
+
+      catalog.completeError(StateError('כשל קטלוג'));
+      await tester.pump(Duration.zero);
+      await tester.pump(Duration.zero);
+      await tester.pump();
+      await tester.pump();
+      expect(harness.calls, containsAllInOrder(['show', 'splash:close']));
+      expect(library.state.error, contains('כשל קטלוג'));
+      expect(find.byType(OtzariaErrorState), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('ספרייה חסרה חושפת את מסך ההגדרה בזמן הטעינה', (tester) async {
       final harness = await _pumpMainWindow(tester);
       expect(harness.calls, isNot(contains('show')));
 
-      harness.libraryChanges.add(
-        const LibraryState(error: 'כשל', isLoading: false),
+      harness.navigationChanges.add(
+        const NavigationState(
+          currentScreen: Screen.library,
+          hasCheckedLibrary: true,
+          isLibraryEmpty: true,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(harness.calls, contains('show'));
+      expect(find.byType(LibrarySetupView), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('מעבר לחיפוש משחרר את ההמתנה לקטלוג', (tester) async {
+      final harness = await _pumpMainWindow(tester);
+      expect(harness.calls, isNot(contains('show')));
+
+      harness.navigationChanges.add(
+        const NavigationState(currentScreen: Screen.search),
       );
       await tester.pump();
       await tester.pump();
@@ -117,22 +158,39 @@ void main() {
       expect(harness.calls, contains('show'));
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('בלי מסך פתיחה נייטיבי אין המתנה לקטלוג', (tester) async {
+      final harness = await _pumpMainWindow(tester, nativeSplashActive: false);
+      expect(harness.calls, contains('show'));
+      expect(tester.takeException(), isNull);
+    });
   });
 }
 
+class _FailingRepository extends Fake implements DataRepository {
+  _FailingRepository(this.library);
+
+  @override
+  final Future<Library> library;
+}
+
 class _Harness {
-  _Harness(this.calls, this.libraryChanges);
+  _Harness(this.calls, this.libraryChanges, this.navigationChanges);
 
   final List<String> calls;
   final StreamController<LibraryState> libraryChanges;
+  final StreamController<NavigationState> navigationChanges;
 }
 
 Future<_Harness> _pumpMainWindow(
   WidgetTester tester, {
   LibraryState? initialLibrary,
+  LibraryBloc? realLibrary,
+  bool nativeSplashActive = true,
 }) async {
   await Settings.init(cacheProvider: MemoryCacheProvider());
   await tester.binding.setSurfaceSize(const Size(1200, 900));
+  WindowPersistence.splashMode = nativeSplashActive;
   // כמו חלון שאינו בעל התהליך: בלי ניקוז הפעלות חיצוניות ועבודות רקע.
   if (ProcessDuties.current.isProcessOwner) {
     ProcessDuties.debugOverride = ProcessDuties(isProcessOwner: () => false);
@@ -155,9 +213,10 @@ Future<_Harness> _pumpMainWindow(
     return null;
   });
   final navigation = _NavigationBloc();
+  final navigationChanges = StreamController<NavigationState>.broadcast();
   whenListen(
     navigation,
-    const Stream<NavigationState>.empty(),
+    navigationChanges.stream,
     initialState: const NavigationState(currentScreen: Screen.library),
   );
   final focus = FocusRepository();
@@ -181,12 +240,14 @@ Future<_Harness> _pumpMainWindow(
     initialState: HistoryLoaded([]),
   );
   final libraryChanges = StreamController<LibraryState>.broadcast();
-  final library = _LibraryBloc();
-  whenListen(
-    library,
-    libraryChanges.stream,
-    initialState: initialLibrary ?? LibraryState.initial(),
-  );
+  final library = realLibrary ?? _LibraryBloc();
+  if (realLibrary == null) {
+    whenListen(
+      library,
+      libraryChanges.stream,
+      initialState: initialLibrary ?? LibraryState.initial(),
+    );
+  }
   final tabs = _TabsBloc();
   whenListen(
     tabs,
@@ -216,12 +277,13 @@ Future<_Harness> _pumpMainWindow(
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await libraryChanges.close();
+    await navigationChanges.close();
     for (final bloc in [
       navigation,
       settings,
       indexing,
       history,
-      library,
+      if (realLibrary == null) library,
       tabs,
       workspace,
       pluginSystem,
@@ -238,6 +300,7 @@ Future<_Harness> _pumpMainWindow(
       const MethodChannel('otzaria/splash'),
       null,
     );
+    WindowPersistence.splashMode = false;
     await tester.binding.setSurfaceSize(null);
   });
   const window = _FakeWindow(AppWindowId('test-window'));
@@ -258,7 +321,10 @@ Future<_Harness> _pumpMainWindow(
             ),
             BlocProvider<IndexingBloc>.value(value: indexing),
             BlocProvider<HistoryBloc>.value(value: history),
-            BlocProvider<LibraryBloc>.value(value: library),
+            if (realLibrary == null)
+              BlocProvider<LibraryBloc>.value(value: library)
+            else
+              BlocProvider<LibraryBloc>(create: (_) => realLibrary),
             BlocProvider<TabsBloc>.value(value: tabs),
             BlocProvider<WorkspaceBloc>.value(value: workspace),
             BlocProvider<PluginSystemBloc>.value(value: pluginSystem),
@@ -292,7 +358,7 @@ Future<_Harness> _pumpMainWindow(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
   await tester.pump();
-  return _Harness(calls, libraryChanges);
+  return _Harness(calls, libraryChanges, navigationChanges);
 }
 
 class _ShamorData extends ShamorZachorDataProvider {

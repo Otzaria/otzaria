@@ -36,6 +36,8 @@ class WindowPersistence {
   /// החלון הראשי; לכל חלון Dart נוסף [WindowPersistenceBinding] משלו.
   static final WindowPersistenceBinding current = WindowPersistenceBinding();
 
+  /// האם החלון הראשי עדיין בשלב הפתיחה הנייטיבי.
+  static bool get splashMode => current._splashMode;
   static set splashMode(bool value) => current.splashMode = value;
 
   /// קושר את החלון הראשי. נקרא פעם אחת מ-`main`, עם אותו מופע

@@ -16,6 +16,7 @@ import 'package:otzaria/app_scope/process_duties.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/startup_timeline.dart';
+import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
@@ -406,6 +407,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _revealStarted = false;
   bool _hasScheduledSplashReveal = false;
   Timer? _splashFailsafeTimer;
+  StreamSubscription<Object?>? _splashReadinessSubscription;
   bool _isShowingStartupManualReindexDialog = false;
   // בקשות רענון שממתינות להחלטת אינדוקס (עדכון ספרייה, otzaria://library/
   // reindex). המזהה נישא ב-RefreshLibrary ומדווח ב-completedRefreshRequestIds
@@ -885,15 +887,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
         pendingPane.bloc.state is! TextBookLoaded &&
         pendingPane.bloc.state is! TextBookError;
 
-    // מסך הספרייה: שלב טעינה אחד — החלון נחשף כשהקטלוג (שנשלח ב-initState)
-    // זמין או נכשל, ולא חלון ריק ואחריו מחוון הטעינה של הספרייה (#2838).
-    // רשת הביטחון של initState חוסמת את ההמתנה.
-    final libraryBloc = context.read<LibraryBloc>();
-    final shouldWaitForLibrary =
-        navigationState.currentScreen == Screen.library &&
-        !_skipsEagerLibraryLoad &&
-        libraryBloc.state.isLoading;
-
     if (shouldWaitForBook) {
       StartupTimeline.instance.mark('waitingForActiveBook');
       _revealWhen(
@@ -901,7 +894,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
         (state) => state is TextBookLoaded || state is TextBookError,
         'activeBookLoaded',
       );
-    } else if (shouldWaitForLibrary) {
+      return;
+    }
+
+    final libraryBloc = context.read<LibraryBloc>();
+    if (_role.isPrimaryView &&
+        WindowPersistence.splashMode &&
+        navigationState.currentScreen == Screen.library &&
+        !navigationState.isLibraryEmpty &&
+        libraryBloc.state.isLoading) {
       StartupTimeline.instance.mark('waitingForLibrary');
       _revealWhen(
         libraryBloc.stream,
@@ -922,17 +923,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
     bool Function(S state) isReady,
     String readyMark,
   ) {
-    late final StreamSubscription<S> sub;
-    var done = false;
     void finish() {
-      if (done) return;
-      done = true;
-      sub.cancel();
       StartupTimeline.instance.mark(readyMark);
       _revealMainWindowOnce();
     }
 
-    sub = states.listen(
+    _splashReadinessSubscription = states.listen(
       (state) {
         if (isReady(state)) finish();
       },
@@ -948,6 +944,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _revealStarted = true;
     _splashFailsafeTimer?.cancel();
     _splashFailsafeTimer = null;
+    _splashReadinessSubscription?.cancel();
+    _splashReadinessSubscription = null;
 
     if (!mounted) {
       _initialContentReady = true;
@@ -1982,6 +1980,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       appWindowListener?.onWindowResizeOccurred = null;
     }
     _splashFailsafeTimer?.cancel();
+    _splashReadinessSubscription?.cancel();
     _pluginInstallDialogQueue.clear();
     _externalActivationService
       ?..detachWindow(_handleExternalActivationUriString)
@@ -3145,8 +3144,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
         listeners: [
           BlocListener<NavigationBloc, NavigationState>(
             listenWhen: (previous, current) =>
-                previous.currentScreen != current.currentScreen,
+                previous.currentScreen != current.currentScreen ||
+                (!previous.isLibraryEmpty && current.isLibraryEmpty),
             listener: (context, state) {
+              if (_lastScreen == Screen.library &&
+                  _splashReadinessSubscription != null &&
+                  (state.currentScreen != Screen.library ||
+                      state.isLibraryEmpty)) {
+                _splashReadinessSubscription?.cancel();
+                _splashReadinessSubscription = null;
+                _hasScheduledSplashReveal = false;
+                _scheduleSplashReveal();
+              }
+              if (state.currentScreen == _lastScreen) return;
               PluginRuntimeDispatcher.instance.dispatchEvent(
                 'navigation.changed',
                 {'screen': state.currentScreen.name},
