@@ -2648,6 +2648,83 @@ Future<void> main() async {
         expect(await load(books[3]), 'תוכן של ${books[3].title}');
       });
 
+      test('בקשה מדף שנסגר בזמן בדיקת ההגנה אינה מתחילה קריאה', () async {
+        final protectionStarted = Completer<void>();
+        final protection = Completer<BookProtection>();
+        final closing = buildAdapter(
+          repository,
+          checkProtection: (_) {
+            protectionStarted.complete();
+            return protection.future;
+          },
+        );
+        final request = load(books.first, adapter: closing);
+        await protectionStarted.future;
+
+        closing.releaseRuntime();
+        protection.complete(BookProtection.none);
+
+        await expectLater(
+          request,
+          throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+        );
+        expect(repository.loads, 0);
+      });
+
+      test('טעינה מחדש בזמן בדיקת הרשאה מבטלת את הקריאה הישנה', () async {
+        final permission = Completer<void>();
+        final request = bookAdapter.withWindowDependencies(
+          () async {
+            await permission.future;
+            return load(books.first);
+          },
+          domain: 'library',
+          rpcAction: 'getBookContent',
+        );
+
+        bookAdapter.releaseBookContentPage();
+        permission.complete();
+
+        await expectLater(
+          request,
+          throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+        );
+        expect(repository.loads, 0);
+        expect(await load(books.first), 'תוכן של ${books.first.title}');
+      });
+
+      test(
+        'טעינה מחדש מבטלת ממתינים ושומרת את המכסה של הקריאות שרצות',
+        () async {
+          final gate = Completer<void>();
+          final blocked = books.take(2).toList();
+          for (final book in blocked) {
+            repository.gates[book.title] = gate.future;
+          }
+          final active = [for (final book in blocked) load(book)];
+          final queued = expectLater(
+            load(books[2]),
+            throwsA(
+              predicate((e) => e.toString().contains('error.unavailable')),
+            ),
+          );
+          await pumpEventQueue();
+
+          bookAdapter.releaseBookContentPage();
+          await queued;
+
+          final fresh = load(books[3]);
+          await pumpEventQueue();
+          expect(repository.loads, 2);
+          expect(PluginBookContentGate.runningLoadsForTesting, 2);
+
+          gate.complete();
+          await Future.wait([...active, fresh]);
+          expect(repository.loads, 3);
+          expect(PluginBookContentGate.runningLoadsForTesting, 0);
+        },
+      );
+
       test('טעינה משותפת שנכשלה ניתנת לניסיון חוזר', () async {
         final book = books.first;
         final gate = Completer<void>();

@@ -641,6 +641,7 @@ class PluginBridgeAdapter {
   final PluginBridgeWindowDependencies Function()? windowDependenciesResolver;
   late final _defaultWindowDependencies = _dependencies.window;
   final _windowScopeKey = Object();
+  final _bookContentPageScopeKey = Object();
   PluginBridgeWindowDependencies get _windowDependencies =>
       Zone.current[_windowScopeKey] as PluginBridgeWindowDependencies? ??
       _defaultWindowDependencies;
@@ -668,10 +669,23 @@ class PluginBridgeAdapter {
       return action();
     }
     final resolve = windowDependenciesResolver;
-    if (resolve == null || Zone.current[_windowScopeKey] != null) {
-      return action();
-    }
-    return runZoned(action, zoneValues: {_windowScopeKey: resolve()});
+    final window = resolve != null && Zone.current[_windowScopeKey] == null
+        ? resolve()
+        : null;
+    final bookContentPage =
+        domain == 'library' &&
+            rpcAction == 'getBookContent' &&
+            Zone.current[_bookContentPageScopeKey] == null
+        ? _bookContentPage
+        : null;
+    if (window == null && bookContentPage == null) return action();
+    return runZoned(
+      action,
+      zoneValues: {
+        _windowScopeKey: ?window,
+        _bookContentPageScopeKey: ?bookContentPage,
+      },
+    );
   }
 
   final CalendarAlertsClient _alerts;
@@ -872,8 +886,12 @@ class PluginBridgeAdapter {
 
   // LRU קצר לכל מופע; bookUid מפריד ספרים זהים ממסדים מצורפים שונים.
   final Map<String, String> _bookContentCache = {};
-  final Map<String, ({Future<String> result, Timer expiry})> _pendingBookLoads =
-      {};
+  final Map<
+    ({String book, bool gated}),
+    ({Future<String> result, Timer expiry})
+  >
+  _pendingBookLoads = {};
+  Object _bookContentPage = Object();
   final List<({String raw, Object key, Future<String> content})>
   _filteredContents = [];
   static const int _bookContentCacheMaxEntries = 4;
@@ -963,8 +981,15 @@ class PluginBridgeAdapter {
     }
     _activeNetworkFetchStreams.clear();
     _pendingNetworkFetchCancellations.clear();
+    releaseBookContentPage();
+  }
+
+  /// מפסיק את ההמתנה לטעינות ספר שהדף היוצא ביקש.
+  void releaseBookContentPage() {
+    final page = _bookContentPage;
+    _bookContentPage = Object();
     _clearPendingBookLoads();
-    PluginBookContentGate.cancelWaiters(this);
+    PluginBookContentGate.cancelWaiters(page);
   }
 
   void dispose({bool removeRegistrations = true}) {
@@ -1030,13 +1055,38 @@ class PluginBridgeAdapter {
     _pendingBookLoads.clear();
   }
 
-  /// משתף טעינות מקבילות לפי UID ושומר טעינות שהסתיימו ב-LRU קצר.
-  /// [gated] = false להדפסה: לא נכנסת לתור ולא מצטרפת לטעינה של תוסף.
+  void _requireBookContentPage(Object page) {
+    if (_disposed || !identical(page, _bookContentPage)) {
+      throw Exception('error.unavailable: plugin page closed');
+    }
+  }
+
+  Future<String> _readQueuedBookText(
+    Object page,
+    Duration timeout,
+    Future<String> Function() read,
+  ) => PluginBookContentGate.runLoad(
+    () {
+      _requireBookContentPage(page);
+      return read();
+    },
+    pluginId: plugin.pluginId,
+    owner: page,
+    timeout: timeout,
+  );
+
+  /// משתף טעינות לפי UID. הדפסה וקריאה מתוסף חולקות רק תוכן שכבר נטען.
   Future<String> _loadBookRawText(
     Book book, {
     Duration shareFor = kPluginDefaultRpcTimeout,
-    bool gated = true,
+    Object? page,
   }) async {
+    if (page != null) {
+      _requireBookContentPage(page);
+      if (shareFor <= Duration.zero) {
+        throw const PluginBookContentQueueTimeout();
+      }
+    }
     final revision = _bookContentRevision;
     if (_seenBookContentRevision != revision) {
       _bookContentCache.clear();
@@ -1049,40 +1099,37 @@ class PluginBridgeAdapter {
       _bookContentCache[key] = cached;
       return cached;
     }
-    final pending = _pendingBookLoads[key];
-    if (pending != null && gated) {
+    final pendingKey = (book: key, gated: page != null);
+    final pending = _pendingBookLoads[pendingKey];
+    if (pending != null) {
       final clock = Stopwatch()..start();
       try {
         return await pending.result;
       } on PluginBookContentQueueTimeout {
         // התור פג לפי התקציב של המתקשר הראשון; למתקשר הזה יש תקציב משלו.
-        if (identical(_pendingBookLoads[key]?.result, pending.result)) {
-          _pendingBookLoads.remove(key)!.expiry.cancel();
+        if (identical(_pendingBookLoads[pendingKey]?.result, pending.result)) {
+          _pendingBookLoads.remove(pendingKey)!.expiry.cancel();
         }
         return _loadBookRawText(
           book,
           shareFor: shareFor - clock.elapsed,
-          gated: gated,
+          page: page,
         );
       }
     }
-    final load = gated
-        ? PluginBookContentGate.runLoad(
-            () => _readBookRawText(book),
-            pluginId: plugin.pluginId,
-            owner: this,
-            timeout: shareFor,
-          )
-        : _readBookRawText(book);
-    if (shareFor <= Duration.zero) return load;
+    final load = page == null
+        ? _readBookRawText(book)
+        : _readQueuedBookText(page, shareFor, () => _readBookRawText(book));
     // ניסיון חוזר אחרי timeout יכול לטעון גם כשהקריאה הקודמת עדיין תקועה.
     final expiry = Timer(shareFor, () {
-      _pendingBookLoads.remove(key);
+      if (identical(_pendingBookLoads[pendingKey]?.result, load)) {
+        _pendingBookLoads.remove(pendingKey);
+      }
     });
-    _pendingBookLoads[key] = (result: load, expiry: expiry);
+    _pendingBookLoads[pendingKey] = (result: load, expiry: expiry);
     try {
       final text = await load;
-      if (identical(_pendingBookLoads[key]?.result, load) &&
+      if (identical(_pendingBookLoads[pendingKey]?.result, load) &&
           revision == _bookContentRevision) {
         _bookContentCache[key] = text;
         if (_bookContentCache.length > _bookContentCacheMaxEntries) {
@@ -1092,8 +1139,8 @@ class PluginBridgeAdapter {
       return text;
     } finally {
       expiry.cancel();
-      if (identical(_pendingBookLoads[key]?.result, load)) {
-        _pendingBookLoads.remove(key);
+      if (identical(_pendingBookLoads[pendingKey]?.result, load)) {
+        _pendingBookLoads.remove(pendingKey);
       }
     }
   }
@@ -1763,24 +1810,24 @@ class PluginBridgeAdapter {
             )
             .toList();
       case 'getBookContent':
+        final page = Zone.current[_bookContentPageScopeKey]!;
+        _requireBookContentPage(page);
         final book = _findPluginBook(library, args);
         final bookId = (args['bookId'] ?? args['title']) as String?;
         if (book == null && bookId == null) {
           throw Exception('error.not_found: book not found');
         }
         await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
+        _requireBookContentPage(page);
         final rawNames = _rawDivineNamesArg(args);
+        final remaining = kPluginDefaultRpcTimeout - bookContentClock!.elapsed;
         final rawText = book == null
-            ? await PluginBookContentGate.runLoad(
+            ? await _readQueuedBookText(
+                page,
+                remaining,
                 () => DataRepository.instance.getBookText(bookId!),
-                pluginId: plugin.pluginId,
-                owner: this,
-                timeout: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
               )
-            : await _loadBookRawText(
-                book,
-                shareFor: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
-              );
+            : await _loadBookRawText(book, shareFor: remaining, page: page);
         final contentBook = book ?? TextBook(title: bookId!);
         TextDisplayProfile? displayProfile;
         TextBookLoaded? readerState;
@@ -5437,11 +5484,12 @@ class PluginBridgeAdapter {
     if (context == null || !context.mounted) {
       throw Exception('error.unavailable: No window to show the print screen');
     }
+    final data = _loadBookRawText(book);
     final printed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(
-        data: _loadBookRawText(book, gated: false),
+        data: data,
         bookId: book.title,
         book: book,
         startLine: startLine,

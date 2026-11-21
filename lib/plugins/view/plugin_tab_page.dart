@@ -824,7 +824,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
       shouldInterceptRequest: (controller, request) =>
           interceptPluginRequest(request),
       onLoadStart: (controller, url) {
-        if (currentAttempt()) _loadGeneration.invalidate();
+        if (!currentAttempt()) return;
+        _loadGeneration.invalidate();
+        adapter.releaseBookContentPage();
       },
       onLoadStop: (controller, url) async {
         if (!currentAttempt()) return;

@@ -526,6 +526,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
       onLoadStart: (controller, url) {
         if (mounted && isCurrentWebView(controller)) {
           _loadGeneration.invalidate();
+          adapter.releaseBookContentPage();
         }
       },
       onLoadStop: (controller, url) async {

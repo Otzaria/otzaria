@@ -56,6 +56,7 @@ class PluginBookContentGate {
     required Object owner,
     required Duration timeout,
   }) async {
+    if (timeout <= Duration.zero) throw const PluginBookContentQueueTimeout();
     final clock = Stopwatch()..start();
     if (_canStart(pluginId)) {
       _take(pluginId);
