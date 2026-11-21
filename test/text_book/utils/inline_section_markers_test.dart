@@ -208,6 +208,8 @@ void main() {
 
     test('כותרת שאינה יום בחודש נשארת כמות שהיא', () {
       expect(monthlyCycleHeadingLabel('Day 31'), 'Day 31');
+      final largeLabel = 'Day ${'9' * 30}';
+      expect(monthlyCycleHeadingLabel(largeLabel), largeLabel);
       expect(monthlyCycleHeadingLabel(' ספר ראשון '), 'ספר ראשון');
     });
   });
