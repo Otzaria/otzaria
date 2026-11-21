@@ -192,6 +192,10 @@ class SettingsRepository {
       'key-attached-library-pending-updates';
   static const String keyLastAttachedLibraryUpdateCheck =
       'key-last-attached-library-update-check';
+
+  /// מסדים רשמיים שהמשתמש סירב להורדתם או הסיר (JSON).
+  static const String keyDeclinedOfficialLibraries =
+      'key-declined-official-libraries';
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
@@ -388,6 +392,7 @@ class SettingsRepository {
     keyAttachedLibraryFolders,
     keyAttachedLibraryPendingUpdates,
     keyLastAttachedLibraryUpdateCheck,
+    keyDeclinedOfficialLibraries,
     keyEnableHtmlLinks,
     keyPersonalNotesCollapsedByDefault,
     keyCompactMenuMode,

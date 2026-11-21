@@ -99,6 +99,41 @@ class AttachedLibraryFingerprint extends Equatable {
   List<Object?> get props => [size, modifiedMs, dbVersion];
 }
 
+/// עותק של מסד רשמי שהתוכנה הורידה ואימתה: הגרסה וה-sha256 שהותקנו.
+class AttachedOfficialInstall extends Equatable {
+  final String libraryId;
+  final int dbVersion;
+  final String sha256;
+
+  const AttachedOfficialInstall({
+    required this.libraryId,
+    required this.dbVersion,
+    required this.sha256,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'libraryId': libraryId,
+    'dbVersion': dbVersion,
+    'sha256': sha256,
+  };
+
+  static AttachedOfficialInstall? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['libraryId'];
+    final version = json['dbVersion'];
+    final digest = json['sha256'];
+    if (id is! String || version is! int || digest is! String) return null;
+    return AttachedOfficialInstall(
+      libraryId: id,
+      dbVersion: version,
+      sha256: digest,
+    );
+  }
+
+  @override
+  List<Object?> get props => [libraryId, dbVersion, sha256];
+}
+
 /// מסד ספרים מצורף בפורמט seforim.db.
 ///
 /// הזהות ברשימה היא [path]; [slug] הוא זהות הספרים (`BookSource.attached`)
@@ -142,6 +177,9 @@ class AttachedLibrary extends Equatable {
   /// נבדק כבר עם קריאת [rootFolder]; כמו [updateSourceProbed].
   final bool rootFolderProbed;
 
+  /// עותק רשמי שהתוכנה הורידה. נקבע רק במסלול ההורדה, לא מתוכן הקובץ.
+  final AttachedOfficialInstall? official;
+
   const AttachedLibrary({
     required this.slug,
     required this.displayName,
@@ -163,7 +201,10 @@ class AttachedLibrary extends Equatable {
     this.updateSourceMismatch = false,
     this.updateSourceProbed = false,
     this.rootFolderProbed = false,
+    this.official,
   });
+
+  bool get isOfficial => official != null;
 
   bool get isImported => folderPath == null;
   bool get isOk => status == AttachedLibraryStatus.ok;
@@ -181,7 +222,7 @@ class AttachedLibrary extends Equatable {
       : null;
 
   /// [clearProblem] מאפס את [problem] — `problem: null` לבדו פירושו "אל תשנה";
-  /// כך גם [clearUpdateSource] ו-[clearRootFolder].
+  /// כך גם [clearUpdateSource], [clearRootFolder] ו-[clearOfficial].
   AttachedLibrary copyWith({
     String? slug,
     String? displayName,
@@ -204,6 +245,8 @@ class AttachedLibrary extends Equatable {
     bool? updateSourceMismatch,
     bool? updateSourceProbed,
     bool? rootFolderProbed,
+    AttachedOfficialInstall? official,
+    bool clearOfficial = false,
   }) {
     return AttachedLibrary(
       slug: slug ?? this.slug,
@@ -228,6 +271,7 @@ class AttachedLibrary extends Equatable {
       updateSourceMismatch: updateSourceMismatch ?? this.updateSourceMismatch,
       updateSourceProbed: updateSourceProbed ?? this.updateSourceProbed,
       rootFolderProbed: rootFolderProbed ?? this.rootFolderProbed,
+      official: clearOfficial ? null : (official ?? this.official),
     );
   }
 
@@ -252,6 +296,7 @@ class AttachedLibrary extends Equatable {
     if (updateSourceMismatch) 'updateSourceMismatch': true,
     if (updateSourceProbed) 'updateSourceProbed': true,
     if (rootFolderProbed) 'rootFolderProbed': true,
+    if (official != null) 'official': official!.toJson(),
   };
 
   /// זורק על רשומה בלי השדות ההכרחיים; ערך לא מוכר בשדה אחר נופל לברירת מחדל.
@@ -289,6 +334,7 @@ class AttachedLibrary extends Equatable {
       updateSourceMismatch: json['updateSourceMismatch'] == true,
       updateSourceProbed: json['updateSourceProbed'] == true,
       rootFolderProbed: json['rootFolderProbed'] == true,
+      official: AttachedOfficialInstall.fromJson(json['official']),
     );
   }
 
@@ -316,5 +362,6 @@ class AttachedLibrary extends Equatable {
     updateSourceMismatch,
     updateSourceProbed,
     rootFolderProbed,
+    official,
   ];
 }

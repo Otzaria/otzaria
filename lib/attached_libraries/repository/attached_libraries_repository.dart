@@ -8,6 +8,7 @@ import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_store.dart';
@@ -306,6 +307,7 @@ class AttachedLibrariesRepository {
     String stagedPath, {
     required bool Function(AttachedLibraryProbeResult result) accept,
     AttachedUpdateFileSwap swap = const AttachedUpdateFileSwap(),
+    AttachedOfficialInstall? official,
   }) => _serial(() async {
     final current = _registry.libraries
         .where((l) => p.equals(l.path, library.path))
@@ -333,7 +335,7 @@ class AttachedLibrariesRepository {
     // [accept] checked the key and library_id, so a moved manifest URL is
     // re-pinned instead of being flagged as a changed source.
     final updated = _applyProbe(
-      current.copyWith(clearUpdateSource: true),
+      current.copyWith(clearUpdateSource: true, official: official),
       result,
     );
     await _commit([
@@ -341,6 +343,46 @@ class AttachedLibrariesRepository {
         p.equals(other.path, current.path) ? updated : other,
     ]);
     return updated;
+  });
+
+  /// מיקום העותק המנוהל של מסד רשמי — בתיקייה נפרדת, כדי שעותק ידני של קובץ
+  /// עם אותו `library_id` לא יתנגש בו.
+  Future<String> officialPathFor(String libraryId) async =>
+      p.join(await _copyDirectory(), 'official', '$libraryId.db');
+
+  /// מכניס מסד רשמי שהורד ואומת ל-[officialPathFor] ומצרף אותו כעותק מנוהל.
+  /// [accept] בודק את הקובץ במקומו; כשל מוחק אותו.
+  Future<AttachedLibrary> installOfficial(
+    String stagedPath, {
+    required AttachedOfficialInstall official,
+    required bool Function(AttachedLibraryProbeResult result) accept,
+  }) => _serial(() async {
+    final libraries = [..._registry.libraries];
+    if (libraries.any((l) => l.official?.libraryId == official.libraryId)) {
+      throw FileSystemException('already installed', official.libraryId);
+    }
+    final target = await officialPathFor(official.libraryId);
+    // רשומה קודמת באותו נתיב (סימון שנמחק בשחזור גיבוי) מוחלפת.
+    for (final stale in libraries.where((l) => p.equals(l.path, target))) {
+      await _registry.close(stale.slug);
+    }
+    libraries.removeWhere((l) => p.equals(l.path, target));
+    await _deleteDatabaseFiles(target);
+    await File(stagedPath).rename(target);
+    final result = await _probe(target);
+    if (!result.isOk || !accept(result)) {
+      await _deleteDatabaseFiles(target);
+      throw const AttachedUpdateVerificationFailed();
+    }
+    final library = _fromProbe(
+      target,
+      result,
+      mode: AttachedLibraryMode.copy,
+      priority: _nextPriority(libraries),
+      official: official,
+    );
+    await _commit([...libraries, library]);
+    return library;
   });
 
   /// Restores databases left mid-swap by a crash. Runs before [rescan] at
@@ -446,9 +488,16 @@ class AttachedLibrariesRepository {
   Future<bool> _commit(List<AttachedLibrary> libraries) async {
     final sorted = [...libraries]
       ..sort((a, b) => a.priority.compareTo(b.priority));
-    final seen = <String>{};
+    // מסד רשמי גובר על קובץ ידני עם אותו מזהה, בלי קשר לסדר.
+    final seen = {
+      for (final library in sorted)
+        if (library.isOfficial && _isSlugCandidate(library)) library.slug,
+    };
     final resolved = [
-      for (final library in sorted) _resolveDuplicate(library, seen),
+      for (final library in sorted)
+        library.isOfficial
+            ? _asResolved(library)
+            : _resolveDuplicate(library, seen),
     ];
     final before = _registry.libraries;
     final changed =
@@ -489,30 +538,31 @@ class AttachedLibrariesRepository {
             library.slug,
   };
 
+  static bool _isSlugCandidate(AttachedLibrary library) =>
+      library.status == AttachedLibraryStatus.ok ||
+      library.status == AttachedLibraryStatus.duplicateSlug;
+
   static AttachedLibrary _resolveDuplicate(
     AttachedLibrary library,
     Set<String> seen,
   ) {
-    final candidate =
-        library.status == AttachedLibraryStatus.ok ||
-        library.status == AttachedLibraryStatus.duplicateSlug;
-    if (!candidate) return library;
+    if (!_isSlugCandidate(library)) return library;
     if (!seen.add(library.slug)) {
       return library.copyWith(
         status: AttachedLibraryStatus.duplicateSlug,
         problem: AttachedLibraryProblem.duplicateSlug,
       );
     }
-    return library.status == AttachedLibraryStatus.ok
-        ? library
-        : library.copyWith(
-            status: AttachedLibraryStatus.ok,
-            clearProblem: true,
-          );
+    return _asResolved(library);
   }
 
+  static AttachedLibrary _asResolved(AttachedLibrary library) =>
+      library.status == AttachedLibraryStatus.duplicateSlug
+      ? library.copyWith(status: AttachedLibraryStatus.ok, clearProblem: true)
+      : library;
+
   static bool _slugTaken(List<AttachedLibrary> libraries, String slug) =>
-      libraries.any((l) => l.isOk && l.slug == slug);
+      libraries.any((l) => l.slug == slug && (l.isOk || l.isOfficial));
 
   static bool _inFolder(AttachedLibrary library, String folder) =>
       library.folderPath != null && p.equals(library.folderPath!, folder);
@@ -526,6 +576,7 @@ class AttachedLibrariesRepository {
     String? folderPath,
     required AttachedLibraryMode mode,
     required int priority,
+    AttachedOfficialInstall? official,
   }) {
     final baseName = p.basenameWithoutExtension(path);
     final placeholder = AttachedLibrary(
@@ -536,6 +587,7 @@ class AttachedLibrariesRepository {
       mode: mode,
       priority: priority,
       addedAt: DateTime.now(),
+      official: official,
     );
     return _applyProbe(placeholder, result);
   }
@@ -552,18 +604,42 @@ class AttachedLibrariesRepository {
         problem: result.problem,
       );
     }
+    final official = library.official?.libraryId == result.slug
+        ? library.official
+        : null;
+    if (official != null) {
+      // מקור העדכון של מסד רשמי בא מהקוד בלבד, לא מהקובץ.
+      final entry = OfficialAttachedLibraries.byId(official.libraryId);
+      final source = entry?.source;
+      return _withProbe(library, result).copyWith(
+        displayName: entry?.displayName,
+        updateSource: source,
+        clearUpdateSource: source == null,
+        updateSourceMismatch: false,
+      );
+    }
     final declared = result.updateSource;
     // נעיצה (TOFU): לאותו slug הנעוץ נשמר, וסטייה רק מסומנת. slug אחר הוא
     // מסד אחר, ונעוץ מחדש כמו בצירוף.
     final pinned = library.slug == result.slug ? library.updateSource : null;
+    return _withProbe(library, result).copyWith(
+      updateSource: pinned ?? declared,
+      clearUpdateSource: pinned == null && declared == null,
+      updateSourceMismatch: pinned != null && pinned != declared,
+    );
+  }
+
+  static AttachedLibrary _withProbe(
+    AttachedLibrary library,
+    AttachedLibraryProbeResult result,
+  ) {
+    final keepsOfficial = library.official?.libraryId == result.slug;
     return library.copyWith(
+      clearOfficial: !keepsOfficial,
       slug: result.slug,
       displayName: result.displayName,
       rootFolder: result.rootFolder,
       clearRootFolder: result.rootFolder == null,
-      updateSource: pinned ?? declared,
-      clearUpdateSource: pinned == null && declared == null,
-      updateSourceMismatch: pinned != null && pinned != declared,
       updateSourceProbed: true,
       rootFolderProbed: true,
       status: AttachedLibraryStatus.ok,
