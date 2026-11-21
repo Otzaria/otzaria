@@ -1408,6 +1408,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     TimeOfDay? endTime,
     int? colorIndex,
     int? notificationMinutes,
+    int? leapAdarMonth,
   }) async {
     final baseJewish = JewishDate.fromDateTime(baseGregorianDate);
     final newEvent = CustomEvent(
@@ -1445,6 +1446,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       colorIndex: colorIndex,
       googleColorId: CalendarEventColors.googleColorIdForIndex(colorIndex),
       notificationMinutes: notificationMinutes,
+      leapAdarMonth: leapAdarMonth,
     );
     final updated = List<CustomEvent>.from(state.events)..add(newEvent);
     emit(state.copyWith(events: updated));
