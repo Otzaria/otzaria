@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -51,7 +52,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
 
   final TextEditingController _searchController = TextEditingController();
   final Map<String, bool> _expansionState = {};
-  final Map<int, Book> _selectedBooks = {};
+  final Map<Object, Book> _selectedBooks = {};
   bool _isAdding = false;
 
   String get _query => _searchController.text.trim();
@@ -82,8 +83,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
           .where((b) => !isTalmudBavliPdfLibraryDuplicate(b, talmudTextTitles))
           .toList();
 
-  bool _isTracked(Book book) =>
-      book.id != null && widget.dataProvider.isBookTrackedById(book.id!);
+  bool _isTracked(Book book) => book is PdfBook && !_isOfficialSeforimBook(book)
+      ? widget.dataProvider.isPdfBookTracked(book)
+      : widget.dataProvider.isBookTrackedById(book.id!);
 
   /// שמור וזכור נשען על מזהי seforim.db בלבד; ספר אישי/חיצוני מחזיק מזהה
   /// ממרחב אחר שעלול להתנגש עם ספר רשמי אקראי, ולכן אינו נתמך.
@@ -94,13 +96,24 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
         book.externalLibraryId,
       );
 
+  /// ספר PDF שאינו ב-seforim.db נשמר במעקב לפי זהות הקובץ שלו.
+  bool _isSelectable(Book book) =>
+      _isOfficialSeforimBook(book) ||
+      (book is PdfBook &&
+          !DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
+            book.externalLibraryId,
+          ));
+
+  Object _selectionKey(Book book) =>
+      _isOfficialSeforimBook(book) ? book.id! : (book as PdfBook).path;
+
   void _toggleBook(Book book, bool selected) {
-    if (!_isOfficialSeforimBook(book)) return;
+    if (!_isSelectable(book)) return;
     setState(() {
       if (selected) {
-        _selectedBooks[book.id!] = book;
+        _selectedBooks[_selectionKey(book)] = book;
       } else {
-        _selectedBooks.remove(book.id);
+        _selectedBooks.remove(_selectionKey(book));
       }
     });
   }
@@ -114,10 +127,26 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     setState(() => _isAdding = true);
 
     try {
-      final result = await widget.dataProvider.addCustomBooks(
-        _selectedBooks.values
-            .map((b) => (id: b.id, bookName: b.title, categoryId: b.categoryId))
-            .toList(),
+      final official = _selectedBooks.values.where(_isOfficialSeforimBook);
+      final pdfs = _selectedBooks.values
+          .whereNot(_isOfficialSeforimBook)
+          .cast<PdfBook>();
+      final officialResult = official.isEmpty
+          ? (added: 0, failed: 0)
+          : await widget.dataProvider.addCustomBooks(
+              official
+                  .map(
+                    (b) =>
+                        (id: b.id, bookName: b.title, categoryId: b.categoryId),
+                  )
+                  .toList(),
+            );
+      final pdfResult = pdfs.isEmpty
+          ? (added: 0, failed: 0)
+          : await widget.dataProvider.addPdfBooks(pdfs.toList());
+      final result = (
+        added: officialResult.added + pdfResult.added,
+        failed: officialResult.failed + pdfResult.failed,
       );
 
       if (!mounted) return;
@@ -319,9 +348,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
   }
 
   Widget _buildBookTile(Book book, ColorScheme colorScheme, int level) {
-    final isSelectable = _isOfficialSeforimBook(book);
+    final isSelectable = _isSelectable(book);
     final alreadyTracked = isSelectable && _isTracked(book);
-    final isSelected = isSelectable && _selectedBooks.containsKey(book.id);
+    final isSelected =
+        isSelectable && _selectedBooks.containsKey(_selectionKey(book));
     final external = book.externalLibraryId;
     final isExternalCatalog =
         external != null &&
@@ -351,7 +381,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
       title: Row(
         children: [
           Icon(
-            OtzariaIcons.book_24_regular,
+            book is PdfBook
+                ? OtzariaIcons.book_pdf_24_regular
+                : OtzariaIcons.book_24_regular,
             size: AppTokens.iconSM,
             color: colorScheme.onSurfaceVariant,
           ),
