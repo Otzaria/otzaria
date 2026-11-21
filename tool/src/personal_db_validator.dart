@@ -124,6 +124,7 @@ class PersonalDbReport {
   String? dbVersion;
   String? updateManifestUrl;
   String? updatePublicKey;
+  String? libraryFolder;
 
   /// שני שדות העדכון קיימים ותקינים, ויש library_id ו-db_version שלם.
   bool updatesEnabled = false;
@@ -348,8 +349,13 @@ String validatorSlugFor({String? libraryId, required String fileName}) {
 }
 
 /// בודק את [path] בלי לכתוב אליו. [checkFiles] — בודק גם שקובצי
-/// `book.filePath` קיימים בדיסק.
-PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
+/// `book.filePath` קיימים בדיסק. [officialLibrary] — seforim.db, להשוואת
+/// `library_folder` לקטגוריות העליונות שלו.
+PersonalDbReport validatePersonalDb(
+  String path, {
+  bool checkFiles = true,
+  String? officialLibrary,
+}) {
   final report = PersonalDbReport(path);
   final file = File(path);
   if (!file.existsSync()) {
@@ -408,6 +414,7 @@ PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
       return report;
     }
     _readMeta(db, caps, report);
+    if (officialLibrary != null) _checkFolderName(report, officialLibrary);
     report.bookCount = _count(db, 'SELECT COUNT(*) FROM book');
     if (report.bookCount == 0) {
       report._add(Severity.warning, 'empty', 'The "book" table is empty.');
@@ -602,7 +609,7 @@ void _readMeta(Database db, _Caps caps, PersonalDbReport report) {
     final rows = db.select(
       'SELECT key, value FROM schema_meta '
       "WHERE key IN ('library_id', 'library_name', 'db_version', "
-      "'update_manifest_url', 'update_public_key')",
+      "'update_manifest_url', 'update_public_key', 'library_folder')",
     );
     for (final row in rows) {
       final value = row['value']?.toString().trim();
@@ -617,6 +624,7 @@ void _readMeta(Database db, _Caps caps, PersonalDbReport report) {
   report.dbVersion = meta['db_version'];
   report.updateManifestUrl = meta['update_manifest_url'];
   report.updatePublicKey = meta['update_public_key'];
+  report.libraryFolder = meta['library_folder'];
   _checkUpdateSource(report);
   report.slug = validatorSlugFor(
     libraryId: report.libraryId,
@@ -644,6 +652,48 @@ void _readMeta(Database db, _Caps caps, PersonalDbReport report) {
       'no_db_version',
       'No schema_meta.db_version — changes are detected by size and date only.',
     );
+  }
+}
+
+/// כמו `_mergeTitleKey` בספק הספרייה: מרכאות וגרשיים אינם חלק מהשם.
+String validatorMergeTitleKey(String title) =>
+    title.replaceAll(RegExp('''['"״׳’”“`]'''), '').trim();
+
+/// תיקייה מוצהרת אינה מתמזגת לקטגוריה רשמית באותו שם: יוצגו שתי תיקיות.
+void _checkFolderName(PersonalDbReport report, String officialLibrary) {
+  final folder = report.libraryFolder;
+  if (folder == null) return;
+  final db = _tryOpen(officialLibrary, immutable: true);
+  if (db == null) {
+    report._add(
+      Severity.warning,
+      'official_library_unreadable',
+      'Could not open the official library $officialLibrary.',
+    );
+    return;
+  }
+  try {
+    final key = validatorMergeTitleKey(folder);
+    final roots = db.select(
+      'SELECT title FROM category WHERE parentId IS NULL',
+    );
+    for (final row in roots) {
+      final title = row['title']?.toString() ?? '';
+      if (validatorMergeTitleKey(title) == key) {
+        report._add(
+          Severity.warning,
+          'library_folder_matches_official',
+          'library_folder "$folder" has the name of the official top-level '
+              'category "$title". It is not merged into it: the tree shows '
+              'two folders with the same name.',
+        );
+        return;
+      }
+    }
+  } on SqliteException catch (e) {
+    report._add(Severity.warning, 'official_library_unreadable', e.message);
+  } finally {
+    db.close();
   }
 }
 

@@ -299,6 +299,8 @@ dart run tool/validate_personal_db.dart <path-to-db>
 לטבלה, ה-slug שנגזר, מצב WAL, מספר שורות `external_link` מול המגבלה, והפרות
 `filePath`. ב-`external_default_commentator` הוא מזהיר על שורות בלי ספר מפרש, עם
 `kind` לא מוכר או `targetSource` לא תקין, ועל שורות שאין להן `external_link` ליעד.
+עם `--library=<seforim.db>` הוא מזהיר גם כש-`library_folder` הוא שם של קטגוריה עליונה
+בספרייה הרשמית (בלי הבדל של גרשיים): התיקייה אינה מתמזגת לקטגוריה, ובעץ יופיעו שתיים.
 יוצא בקוד שאינו 0 כשיש בעיה חוסמת.
 
 ## פתרון תקלות

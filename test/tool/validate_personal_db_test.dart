@@ -126,6 +126,33 @@ void main() {
     });
   });
 
+  test('library_folder named like an official top-level category warns '
+      'only when the official library is given', () {
+    final official = build('seforim.db', '''
+      CREATE TABLE category(id INTEGER PRIMARY KEY, parentId INTEGER, title TEXT);
+      INSERT INTO category VALUES (1, NULL, 'שו"ת'), (2, 1, 'מחברי זמננו');
+    ''');
+    String personal(String folder) => build('p${folder.hashCode}.db', '''
+      CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
+      INSERT INTO schema_meta VALUES ('library_folder', '$folder');
+      CREATE TABLE book(id INTEGER PRIMARY KEY, title TEXT NOT NULL);
+      INSERT INTO book VALUES (1, 'Book A');
+    ''');
+    const code = 'library_folder_matches_official';
+    final same = personal('שו״ת');
+    expect(codes(validatePersonalDb(same, officialLibrary: official)), {
+      ...codes(validatePersonalDb(same)),
+      code,
+    });
+    expect(codes(validatePersonalDb(same)), isNot(contains(code)));
+    expect(
+      codes(
+        validatePersonalDb(personal('מחברי זמננו'), officialLibrary: official),
+      ),
+      isNot(contains(code)),
+    );
+  });
+
   test('minimal database passes and takes its slug from library_id', () {
     final path = build('file-name.db', '''
       CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
