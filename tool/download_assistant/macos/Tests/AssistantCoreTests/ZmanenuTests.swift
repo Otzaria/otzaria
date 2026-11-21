@@ -118,6 +118,31 @@ final class ZmanenuTests: XCTestCase {
         XCTAssertEqual(drop.path, "/Users/test/Library/Application Support/otzaria/מסדים אישיים/להתקנה")
     }
 
+    /// קובץ בלי sha256 לעולם אינו נלקח מהמטמון, וגודל 0 (לא ידוע) מקבל כל אורך.
+    func testUnverifiedFileIsNeverCachedAndAcceptsAnyLength() throws {
+        XCTAssertEqual(cacheStatus(
+            fileSize: 10, fileModified: Date(timeIntervalSince1970: 1), markerText: "  \(Zmanenu.archiveName)\n",
+            markerModified: Date(timeIntervalSince1970: 2), expectedSize: 10, expectedSha256: ""
+        ), .invalid)
+        XCTAssertEqual(cacheStatus(
+            fileSize: nil, fileModified: nil, markerText: nil, markerModified: nil,
+            expectedSize: 0, expectedSha256: ""
+        ), .missing)
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("zmanenu-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let sink = TransferSink(url: url, expectedSize: 0, expectedSha256: "")
+        try sink.begin(.writeFromStart)
+        try sink.write(Data(count: 5))
+        XCTAssertTrue(sink.finishAndVerify())
+        XCTAssertEqual(sink.written, 5)
+
+        let known = TransferSink(url: url, expectedSize: 4, expectedSha256: "")
+        try known.begin(.writeFromStart)
+        XCTAssertThrowsError(try known.write(Data(count: 5)))
+        known.close()
+    }
+
     func testPlacementWritesTheManifestLastWithoutLeftovers() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("zmanenu-\(UUID().uuidString)", isDirectory: true)

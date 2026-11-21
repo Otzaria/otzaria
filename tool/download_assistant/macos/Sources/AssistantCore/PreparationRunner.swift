@@ -350,7 +350,11 @@ public final class PreparationRunner {
     private func produceOutput() throws -> PreparationResult {
         let directory = outputDirectory
         var produced: [URL] = []
-        let total = plan.actions.reduce(plan.zmanenu?.downloadSize ?? 0) { sum, action in
+        // גודל לא ידוע מראש (0) נלקח מהקובץ שירד.
+        let zmanenuBytes = plan.zmanenu?.downloads.reduce(Int64(0)) {
+            $0 + (fileSize(cache.fileURL($1.name)) ?? $1.size)
+        } ?? 0
+        let total = plan.actions.reduce(zmanenuBytes) { sum, action in
             switch action {
             case .place(let item, _): return sum + item.size
             case .assemble(_, let size, _, _, _, _): return sum + size

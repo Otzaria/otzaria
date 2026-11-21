@@ -388,7 +388,8 @@ struct PresetsPage: View {
                     OptionCard(content: CardContent(
                         title: s(.zmanenuTitle),
                         desc: model.mode == .thisComputer ? s(.zmanenuDescThis) : s(.zmanenuDescOther),
-                        side: s(.cardSize, humanSize(offer.downloadSize, english: s.english)),
+                        side: offer.downloadSize > 0
+                            ? s(.cardSize, humanSize(offer.downloadSize, english: s.english)) : "",
                         icon: "component", mark: .check, selected: model.zmanenuChecked
                     )) { model.zmanenuChecked.toggle() }
                 }
@@ -526,7 +527,8 @@ struct ReadyPage: View {
         ))
         if let zmanenu = model.selectedZmanenu {
             rows.append(SummaryRow(
-                icon: "component", label: s(.rowZmanenu), value: humanSize(zmanenu.downloadSize, english: s.english)
+                icon: "component", label: s(.rowZmanenu),
+                value: zmanenu.downloadSize > 0 ? humanSize(zmanenu.downloadSize, english: s.english) : ""
             ))
         }
         let target = model.target

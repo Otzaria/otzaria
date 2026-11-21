@@ -35,6 +35,8 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
         var discard = false
         var httpStatus: Int?
         var retryableHTTP = false
+        /// Content-Length של קובץ בגודל לא ידוע, שנוסף ל-totalBytes.
+        var countedSize: Int64 = 0
         init(job: Job, sink: TransferSink, requestedOffset: Int64) {
             self.job = job
             self.sink = sink
@@ -117,9 +119,9 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
         }
     }
 
-    private func jobDone(_ job: Job) {
+    private func jobDone(_ job: Job, bytes: Int64? = nil) {
         present[job.item.name] = nil
-        finishedBytes += job.item.size
+        finishedBytes += bytes ?? job.item.size
         running -= 1
         pump()
     }
@@ -171,14 +173,15 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
         let sink = TransferSink(
             url: cache.partialURL(item.name, sha256: item.sha256), expectedSize: item.size, expectedSha256: item.sha256
         )
-        if job.fresh {
+        // קובץ בלי sha256 אינו ממשיך קובץ חלקי: אין במה לוודא שהוא של אותה גרסה.
+        if job.fresh || item.sha256.isEmpty {
             sink.discard()
             job.fresh = false
         }
         let existing = sink.existingSize
         if existing > item.size {
             sink.discard()
-        } else if existing == item.size {
+        } else if existing == item.size, !item.sha256.isEmpty {
             verifyCompletePartial(job, sink: sink)
             return
         }
@@ -284,6 +287,10 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
         case .writeFromStart:
             do {
                 try transfer.sink.begin(.writeFromStart)
+                if item.size == 0, http.expectedContentLength > 0 {
+                    transfer.countedSize = http.expectedContentLength
+                    totalBytes += transfer.countedSize
+                }
                 present[item.name] = 0
                 completionHandler(.allow)
             } catch {
@@ -347,6 +354,7 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
         guard let transfer = transfers.removeValue(forKey: task.taskIdentifier), !ended else { return }
         let job = transfer.job
         let item = job.item
+        totalBytes -= transfer.countedSize
 
         if let fatal = transfer.fatal {
             if transfer.discard { transfer.sink.discard() } else { transfer.sink.close() }
@@ -385,7 +393,8 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
         if transfer.sink.finishAndVerify() {
             do {
                 try cache.promotePartial(name: item.name, sha256: item.sha256)
-                jobDone(job)
+                if item.size == 0 { totalBytes += transfer.sink.written }
+                jobDone(job, bytes: transfer.sink.written)
             } catch {
                 fail(AssistantError(AssistantError.fileUnavailable, technical: "\(error)"))
             }

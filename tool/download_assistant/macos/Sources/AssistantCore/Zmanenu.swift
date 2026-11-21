@@ -44,11 +44,20 @@ public enum Zmanenu {
         return isSha256Hex(hex) ? hex : nil
     }
 
-    private static func wholeAsset(_ release: [String: Any]) -> [String: Any]? {
+    /// הנכס של הארכיון השלם; verified — רק עם sha256 ב-`digest`.
+    private static func wholeAsset(_ release: [String: Any], verified: Bool = true) -> [String: Any]? {
         assets(release).first { asset in
             asset["name"] as? String == archiveName
-                && (int64(asset["size"]) ?? 0) > 0 && assetSha256(asset) != nil
+                && (int64(asset["size"]) ?? 0) > 0 && (!verified || assetSha256(asset) != nil)
         }
+    }
+
+    /// sha256 ריק — בלי אימות ובלי מטמון (האפליקציה מאמתת בייבוא); size 0 — לא ידוע.
+    private static func wholeOffer(tag: String, size: Int64, sha256: String, caption: String) -> ZmanenuOffer? {
+        guard let url = assetURL(tag: tag, name: archiveName) else { return nil }
+        return ZmanenuOffer(tag: tag, downloads: [
+            DownloadItem(name: archiveName, size: size, sha256: sha256, url: url, caption: caption),
+        ], partsManifest: nil)
     }
 
     private static func releaseTag(_ release: [String: Any]) -> String? {
@@ -64,22 +73,24 @@ public enum Zmanenu {
         return assetURL(tag: tag, name: partsManifestName)
     }
 
-    /// קובץ שלם רק עם sha256 מה-API; אחרת חלקים לפי מניפסט החלקים. אין פריסה ואין בדיקת חתימה.
+    /// קובץ שלם עם sha256 מה-API; אחרת חלקים לפי מניפסט החלקים; בלעדיו — הקובץ השלם בלי sha256.
+    /// אין פריסה ואין בדיקת חתימה: האפליקציה עושה זאת בייבוא.
     public static func offer(release: [String: Any]?, partsManifest: Data?, english: Bool = false) -> ZmanenuOffer? {
         let caption = displayName(english: english)
         var tag = ""
         if let release = release {
             guard let found = releaseTag(release) else { return nil }
             tag = found
-            if let whole = wholeAsset(release), let size = int64(whole["size"]), let sha = assetSha256(whole),
-               let url = assetURL(tag: tag, name: archiveName) {
-                return ZmanenuOffer(tag: tag, downloads: [
-                    DownloadItem(name: archiveName, size: size, sha256: sha, url: url, caption: caption),
-                ], partsManifest: nil)
+            if let whole = wholeAsset(release), let size = int64(whole["size"]), let sha = assetSha256(whole) {
+                return wholeOffer(tag: tag, size: size, sha256: sha, caption: caption)
             }
         }
-        guard let data = partsManifest,
-              let manifest = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+        guard let data = partsManifest else {
+            guard let release = release else { return wholeOffer(tag: tag, size: 0, sha256: "", caption: caption) }
+            guard let whole = wholeAsset(release, verified: false), let size = int64(whole["size"]) else { return nil }
+            return wholeOffer(tag: tag, size: size, sha256: "", caption: caption)
+        }
+        guard let manifest = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               manifest["archive"] as? String == archiveName,
               let parts = manifest["parts"] as? [Any], !parts.isEmpty
         else { return nil }
@@ -136,7 +147,7 @@ public struct ZmanenuOffer: Equatable {
     }
 }
 
-/// מוריד את פרטי ה-release. לעולם אינו נכשל: בלי release, או בלי חבילה שאפשר לאמת — nil.
+/// מוריד את פרטי ה-release. לעולם אינו נכשל: בלי release (404) או בלי חבילה — nil.
 public final class ZmanenuLoader {
     private let session: URLSession
 
@@ -245,7 +256,7 @@ public func placeZmanenu(
         } catch {
             throw AssistantError(AssistantError.copyFailed, technical: "\(item.name): \(error)")
         }
-        done += item.size
+        done += fileSize(sourceURL(item)) ?? item.size
         progress?(done)
     }
     if let manifest = offer.partsManifest {
