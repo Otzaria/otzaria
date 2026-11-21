@@ -196,10 +196,24 @@ void main() {
         '""',
         'ספרים אישיים',
         'א' * 65,
+        '​‏',
+        '‮﻿⁦',
+        '\t\u0007',
       ]) {
         expect(AttachedLibraryProbe.folderNameOf(raw), isNull, reason: raw);
       }
       expect(AttachedLibraryProbe.folderNameOf('ספריית "רני"'), 'ספריית "רני"');
+    });
+
+    test('תווים בלתי נראים מוסרים משם התיקייה', () {
+      expect(
+        AttachedLibraryProbe.folderNameOf('‏ספריית​ רני‬\u0000'),
+        'ספריית רני',
+      );
+      expect(
+        AttachedLibraryProbe.folderNameOf('﻿ספרים אישיים⁩'),
+        isNull,
+      );
     });
 
     test('שם קובץ מנוקה לצורה חוקית', () {

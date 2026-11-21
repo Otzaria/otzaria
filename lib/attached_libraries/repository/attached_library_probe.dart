@@ -176,9 +176,10 @@ abstract final class AttachedLibraryProbe {
   }
 
   /// שם תיקייה עליונה תקין, או null: בלי מפרידי נתיב, עד 64 תווים, לא
-  /// גרשיים בלבד ולא "ספרים אישיים" (שהעץ מאתר לפי שמו).
+  /// גרשיים בלבד ולא "ספרים אישיים" (שהעץ מאתר לפי שמו). תווים בלתי נראים
+  /// מוסרים, כדי שלא ייצרו תיקייה שנראית זהה לאחרת.
   static String? folderNameOf(String? raw) {
-    final name = _nonEmpty(raw);
+    final name = _nonEmpty(raw?.replaceAll(_invisibleChars, ''));
     if (name == null ||
         name.length > 64 ||
         name.contains('/') ||
@@ -189,6 +190,10 @@ abstract final class AttachedLibraryProbe {
     }
     return name;
   }
+
+  static final _invisibleChars = RegExp(
+    '[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁦-⁩﻿]',
+  );
 
   static String? _nonEmpty(String? value) {
     final trimmed = value?.trim();
