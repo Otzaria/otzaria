@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -427,7 +428,8 @@ class _BookSearchCatalog {
   }
 }
 
-/// בונה רשומת חיפוש; כינויים ודור נקראים רק במרחב המזהים של מסד הספר.
+/// בונה רשומת חיפוש; כינויים מילוליים ודור נקראים רק במרחב המזהים של מסד הספר,
+/// והכינויים הנגזרים מהכותרת ([bookAliasesOf]) חלים על כל ספר שאינו מקטלוג חיצוני.
 @visibleForTesting
 BookSearchEntry buildBookSearchEntry(
   int index,
@@ -445,7 +447,12 @@ BookSearchEntry buildBookSearchEntry(
     title: book.title,
     author: book.author ?? '',
     topics: book.topics,
-    acronyms: id == null ? const [] : acronymsFor(book.source, id) ?? const [],
+    acronyms: isExternalCatalog
+        ? const []
+        : bookAliasesForTitle(
+            id == null ? null : acronymsFor(book.source, id),
+            book.title,
+          ),
     eraOrder: eraOrderForId(id, book.source),
     source: book.source,
     isExternalCatalog: isExternalCatalog,
@@ -460,7 +467,8 @@ class BookSearchEntry {
   final String author;
   final String topics;
 
-  /// כינויים מנורמלים מראש מטבלת book_acronym (ראה [AcronymsCache]).
+  /// כינויים מנורמלים מראש: מטבלת book_acronym ([AcronymsCache]) ומהכותרת
+  /// ([bookAliasesOf]).
   final List<String> acronyms;
 
   /// סדר הדור של הספר (נמוך = מוקדם). ראה [GenerationCache]; ברירת מחדל = סוף.
