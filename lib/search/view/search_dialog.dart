@@ -2173,10 +2173,10 @@ class _BottomAlignedSubmenuButtonState
           child: widget.child,
         ),
         // עותק נסתר למדידה: נפרס אבל לא מצויר, לא נלחץ ולא מקבל פוקוס.
-        // ממוקם (Positioned) ולכן לא משפיע על גודל השורה ועל רוחב התפריט.
-        Positioned(
+        // ממוקם (PositionedDirectional) ולכן לא משפיע על גודל השורה ועל רוחב התפריט.
+        PositionedDirectional(
           top: 0,
-          left: 0,
+          start: 0,
           child: Offstage(
             child: ExcludeFocus(
               child: IntrinsicWidth(
