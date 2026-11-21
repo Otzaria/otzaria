@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -697,7 +699,7 @@ class _SearchDialogState extends State<SearchDialog> {
           child: Text(context.settingsText('קבע מצב זה כברירת מחדל')),
         ),
         if (hasWordOptions)
-          SubmenuButton(
+          _BottomAlignedSubmenuButton(
             menuChildren: [
               for (final key in keys)
                 CheckboxMenuButton(
@@ -2027,6 +2029,168 @@ class _IndexMissingGate extends StatelessWidget {
                 ? missingBuilder(state)
                 : child,
           ),
+    );
+  }
+}
+
+/// [SubmenuButton] שתת־התפריט שלו לא מכסה את השורה שפתחה אותו.
+///
+/// תפריט ברירות המחדל נפתח מכפתור בתחתית הדיאלוג, ולכן השורה שפותחת את תת־
+/// התפריט קרובה לתחתית החלון. ב-`_MenuLayout._positionChild` (menu_anchor.dart)
+/// Flutter מיישר את ראש תת־התפריט לראש השורה. כשאין מקום מתחת הוא מעביר את
+/// כולו אל מעל השורה, באלכסון ממנה. וכשאין מקום לא משמאל ולא מימין הוא דוחף
+/// אותו לקצה החלון, על השורה עצמה.
+///
+/// לכן מודדים מראש עותק נסתר של תת־התפריט, כבר כשהתפריט הראשי נפתח, וקובעים
+/// את המיקום דרך [SubmenuButton.alignmentOffset] (API ציבורי), עוד לפני
+/// שתת־התפריט מוצג:
+/// - יש מקום בצד: תחתית תת־התפריט בגובה תחתית השורה, והוא גדל כלפי מעלה.
+/// - אין מקום בצד: תת־התפריט צמוד מעל השורה, מיושר לקצה ההתחלה שלה. כך העכבר
+///   עולה מהשורה ישר אל תוכו, בלי לעבור על שורה אחרת שהייתה סוגרת אותו.
+///   אם גם מעל השורה אין מספיק מקום, הלוח מוגבל לגובה שיש ונגלל.
+///
+/// ההתנהגות במקלדת וב-Esc נשארת של [SubmenuButton] עצמו.
+class _BottomAlignedSubmenuButton extends StatefulWidget {
+  const _BottomAlignedSubmenuButton({
+    required this.menuChildren,
+    required this.child,
+    this.leadingIcon,
+  });
+
+  final List<Widget> menuChildren;
+  final Widget child;
+  final Widget? leadingIcon;
+
+  @override
+  State<_BottomAlignedSubmenuButton> createState() =>
+      _BottomAlignedSubmenuButtonState();
+}
+
+class _BottomAlignedSubmenuButtonState
+    extends State<_BottomAlignedSubmenuButton> {
+  final _measureKey = GlobalKey();
+  Offset _offset = Offset.zero;
+
+  /// תקרת הגובה של הלוח כשהוא מעל השורה ואין לו מספיק מקום. null = בלי.
+  double? _maxHeight;
+
+  @override
+  void initState() {
+    super.initState();
+    // התפריט הראשי נבנה עכשיו. אחרי הפריים הראשון שלו השורה והעותק הנסתר
+    // כבר פרוסים, ואפשר לחשב.
+    _scheduleAlign();
+  }
+
+  void _scheduleAlign([int attempt = 0]) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!_align() && attempt < 2) _scheduleAlign(attempt + 1);
+    });
+  }
+
+  static Rect _globalRect(RenderBox box) =>
+      box.localToGlobal(Offset.zero) & box.size;
+
+  /// מחזיר false כשהשורה או העותק הנסתר עוד לא פרוסים.
+  bool _align() {
+    final row = context.findRenderObject();
+    final measured = _measureKey.currentContext?.findRenderObject();
+    final overlay = Overlay.maybeOf(context)?.context.findRenderObject();
+    if (row is! RenderBox ||
+        !row.hasSize ||
+        measured is! RenderBox ||
+        !measured.hasSize ||
+        overlay is! RenderBox) {
+      return false;
+    }
+
+    // כמו ש-SubmenuButton ו-_MenuPanel מחשבים (בלי menuStyle משלו).
+    final style = MenuTheme.of(context).style;
+    final pad =
+        (style?.padding?.resolve(const {}) ??
+                const EdgeInsetsDirectional.symmetric(vertical: 8))
+            .resolve(Directionality.of(context));
+    final minWidth = style?.minimumSize?.resolve(const {})?.width ?? 0;
+    final width = max(measured.size.width + pad.horizontal, minWidth);
+    final height = measured.size.height + pad.vertical;
+
+    final rowRect = _globalRect(row);
+    final screen = _globalRect(overlay);
+    final fitsBeside =
+        width <= max(rowRect.left - screen.left, screen.right - rowRect.right);
+
+    // מעל השורה אין מספיק מקום: הלוח מוגבל לגובה שיש ונגלל. אחרת Flutter
+    // מצמיד אותו לראש החלון, והוא יורד על השורה.
+    final above = rowRect.top - screen.top;
+    final maxHeight =
+        !fitsBeside &&
+            height > above &&
+            above >= _kMinCappedRows * rowRect.height
+        ? above
+        : null;
+
+    // ראש הלוח = ראש השורה - pad.top + dy (את pad.top מוריד SubmenuButton).
+    final next = fitsBeside
+        // תחתית הלוח = תחתית השורה + pad.bottom.
+        ? Offset(0, rowRect.height - measured.size.height)
+        // תחתית הלוח = ראש השורה. dx = -רוחב השורה מיישר את הלוח לקצה
+        // ההתחלה של השורה, בשני הכיוונים.
+        : Offset(-rowRect.width, pad.top - (maxHeight ?? height));
+    if ((next - _offset).distance > 0.5 || maxHeight != _maxHeight) {
+      setState(() {
+        _offset = next;
+        _maxHeight = maxHeight;
+      });
+    }
+    return true;
+  }
+
+  /// מתחת לכמה שורות לא מגבילים את הגובה: לוח כזה קטן מכדי להיות שימושי,
+  /// ועדיף המיקום של Flutter.
+  static const int _kMinCappedRows = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SubmenuButton(
+          leadingIcon: widget.leadingIcon,
+          alignmentOffset: _offset,
+          // רק maximumSize: שאר המאפיינים, כולל הריפוד, ממשיכים להגיע
+          // מה-MenuTheme.
+          menuStyle: _maxHeight == null
+              ? null
+              : MenuStyle(
+                  maximumSize: WidgetStatePropertyAll(
+                    Size(double.infinity, _maxHeight!),
+                  ),
+                ),
+          // רשת ביטחון, למשל אם החלון שינה גודל מאז שהתפריט נפתח.
+          onOpen: _scheduleAlign,
+          menuChildren: widget.menuChildren,
+          child: widget.child,
+        ),
+        // עותק נסתר למדידה: נפרס אבל לא מצויר, לא נלחץ ולא מקבל פוקוס.
+        // ממוקם (PositionedDirectional) ולכן לא משפיע על גודל השורה ועל רוחב התפריט.
+        PositionedDirectional(
+          top: 0,
+          start: 0,
+          child: Offstage(
+            child: ExcludeFocus(
+              child: IntrinsicWidth(
+                key: _measureKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: widget.menuChildren,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
