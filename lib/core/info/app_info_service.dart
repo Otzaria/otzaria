@@ -229,6 +229,7 @@ class AppInfoService {
           if (library.problem != null) 'problem': library.problem!.name,
           'mode': library.mode.name,
           'placement': library.placement.name,
+          if (library.rootFolder != null) 'rootFolder': library.rootFolder,
           'hidden': library.hidden,
           'origin': library.isImported ? 'imported' : 'folder',
           'bookCount': library.bookCount,

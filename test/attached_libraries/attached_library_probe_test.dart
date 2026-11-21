@@ -177,6 +177,31 @@ void main() {
       expect(result.displayName, 'הספרייה שלי');
     });
 
+    test('library_folder מ-schema_meta נקרא כתיקייה ברמה העליונה', () {
+      final path = SeforimFixtureDb.create(tempDir, SeforimFixtureVariant.full);
+      expect(AttachedLibraryProbe.probeSync(path).rootFolder, isNull);
+      execute(
+        path,
+        "INSERT INTO schema_meta VALUES ('library_folder', ' ספריית רני ')",
+      );
+      expect(AttachedLibraryProbe.probeSync(path).rootFolder, 'ספריית רני');
+    });
+
+    test('שם תיקייה לא תקין אינו נחשב', () {
+      for (final raw in [
+        '',
+        '  ',
+        'ספריות/רני',
+        r'ספריות\רני',
+        '""',
+        'ספרים אישיים',
+        'א' * 65,
+      ]) {
+        expect(AttachedLibraryProbe.folderNameOf(raw), isNull, reason: raw);
+      }
+      expect(AttachedLibraryProbe.folderNameOf('ספריית "רני"'), 'ספריית "רני"');
+    });
+
     test('שם קובץ מנוקה לצורה חוקית', () {
       expect(
         AttachedLibraryProbe.slugFor(fileName: 'My DB (1)'),

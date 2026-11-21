@@ -641,7 +641,9 @@ class _AttachedLibraryTile extends StatelessWidget {
               ),
               MetaChip(
                 icon: FluentIcons.folder_24_regular,
-                label: library['placement'] == 'mergeIntoLibrary'
+                label: library['rootFolder'] != null
+                    ? 'בתיקייה "${library['rootFolder']}"'
+                    : library['placement'] == 'mergeIntoLibrary'
                     ? 'ממוזג לספרייה'
                     : 'בעץ נפרד',
               ),

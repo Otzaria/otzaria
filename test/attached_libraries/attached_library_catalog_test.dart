@@ -485,6 +485,92 @@ void main() {
     );
   });
 
+  String declaringFolder(String name, String folder) {
+    final path = attachedFixture(name, SeforimFixtureVariant.full);
+    final db = sqlite3.sqlite3.open(path);
+    db.execute("INSERT INTO schema_meta VALUES ('library_folder', ?)", [
+      folder,
+    ]);
+    db.close();
+    return path;
+  }
+
+  test(
+    'תיקייה מוצהרת: בשורש העץ, בלי קשר למיקום שנבחר ולהגדרת המיזוג',
+    () async {
+      await Settings.setValue<bool>(
+        SettingsRepository.keyMergeUserBooksIntoLibrary,
+        true,
+      );
+      final library = await attach(declaringFolder('מוצהר', 'ספריית רני'));
+      expect(library.rootFolder, 'ספריית רני');
+      await attached.setPlacement(
+        library,
+        AttachedLibraryPlacement.mergeIntoLibrary,
+      );
+
+      final catalog = await buildCatalog();
+
+      final folder = _child(catalog, 'ספריית רני')!;
+      expect(folder.parent, same(catalog));
+      final torah = _child(_child(folder, 'תנ"ך')!, 'תורה')!;
+      expect(
+        [for (final b in torah.books) b.source],
+        everyElement(library.source),
+      );
+      expect(torah.books, hasLength(2));
+      expect(_child(catalog, _personalRoot), isNull);
+      final officialTorah = _child(_child(catalog, 'תנ"ך')!, 'תורה')!;
+      expect(officialTorah.books.every((b) => b.source.isOfficial), isTrue);
+    },
+  );
+
+  test('שני מסדים שמצהירים על אותה תיקייה חולקים אותה', () async {
+    await attach(declaringFolder('ראשון', 'ספריית רני'));
+    await attach(declaringFolder('שני', 'ספריית רני'));
+
+    final catalog = await buildCatalog();
+
+    expect(
+      catalog.subCategories.where((c) => c.title == 'ספריית רני'),
+      hasLength(1),
+    );
+    final folder = _child(catalog, 'ספריית רני')!;
+    expect(folder.subCategories.where((c) => c.title == 'תנ"ך'), hasLength(1));
+    expect(
+      {for (final b in _booksUnder(folder)) b.source},
+      hasLength(2),
+    );
+  });
+
+  test('תיקייה בשם קטגוריה רשמית אינה מתמזגת לתוכה', () async {
+    final library = await attach(declaringFolder('מתנגש', 'תנך'));
+
+    final catalog = await buildCatalog();
+
+    final official = _child(catalog, 'תנ"ך')!;
+    expect(_booksUnder(official).every((b) => b.source.isOfficial), isTrue);
+    final folder = _child(catalog, 'תנך')!;
+    expect(folder.parent, same(catalog));
+    expect(
+      _booksUnder(folder).map((b) => b.source),
+      everyElement(library.source),
+    );
+  });
+
+  test('מסד שצורף לפני התכונה נבדק שוב ומקבל את התיקייה', () async {
+    final library = await attach(declaringFolder('ותיק', 'ספריית רני'));
+    registry.update([
+      library.copyWith(clearRootFolder: true, rootFolderProbed: false),
+    ]);
+
+    await attached.rescan();
+
+    final refreshed = attached.libraries.single;
+    expect(refreshed.rootFolder, 'ספריית רני');
+    expect(refreshed.rootFolderProbed, isTrue);
+  });
+
   test('מסד בלי טבלת קטגוריות — הספרים ישירות תחת שם המסד', () async {
     final library = await attach(
       attachedFixture('ללא-קטגוריות', SeforimFixtureVariant.missingCategory),

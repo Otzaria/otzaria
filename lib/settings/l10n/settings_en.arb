@@ -1498,6 +1498,7 @@
   "ייבא קובץ מסד": "Import Database File",
   "תיקיית מסדים": "Database Folder",
   "בנפרד": "Separate",
+  "בתיקייה \"{folder}\"": "In folder \"{folder}\"",
   "ממוזג": "Merged",
   "זמין": "Available",
   "לא זמין": "Unavailable",

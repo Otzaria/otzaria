@@ -454,6 +454,15 @@ class _AttachedLibraryTile extends StatelessWidget {
             children: [
               _statusChip(context),
               if (library.isOk) AttachedUpdateSourceChip(library: library),
+              if (library.isOk && library.rootFolder != null)
+                MetaChip(
+                  size: MetaChipSize.small,
+                  icon: FluentIcons.folder_24_regular,
+                  label: context.settingsText(
+                    'בתיקייה "{folder}"',
+                    args: {'folder': library.rootFolder!},
+                  ),
+                ),
               if (library.isOk)
                 for (final capability in library.capabilities)
                   MetaChip(
@@ -524,7 +533,8 @@ class _AttachedLibraryTile extends StatelessWidget {
         ),
       ),
       actions: [
-        if (library.isOk)
+        // המסד הצהיר על תיקייה משלו, ולכן בחירת המיקום אינה חלה עליו.
+        if (library.isOk && library.rootFolder == null)
           IgnorePointer(
             ignoring: !enabled,
             child: AppSegmentedControl<AttachedLibraryPlacement>(

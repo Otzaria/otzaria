@@ -423,6 +423,7 @@ class AttachedLibrariesRepository {
         );
     if (unchanged &&
         library.updateSourceProbed &&
+        library.rootFolderProbed &&
         library.status != AttachedLibraryStatus.unreachable &&
         library.status != AttachedLibraryStatus.invalid) {
       return library;
@@ -558,10 +559,13 @@ class AttachedLibrariesRepository {
     return library.copyWith(
       slug: result.slug,
       displayName: result.displayName,
+      rootFolder: result.rootFolder,
+      clearRootFolder: result.rootFolder == null,
       updateSource: pinned ?? declared,
       clearUpdateSource: pinned == null && declared == null,
       updateSourceMismatch: pinned != null && pinned != declared,
       updateSourceProbed: true,
+      rootFolderProbed: true,
       status: AttachedLibraryStatus.ok,
       clearProblem: true,
       capabilities: result.capabilities,

@@ -16,6 +16,9 @@ class AttachedLibraryProbeResult {
   final AttachedLibraryProblem? problem;
   final String slug;
   final String displayName;
+
+  /// `schema_meta.library_folder`: תיקייה ברמה העליונה של העץ.
+  final String? rootFolder;
   final int bookCount;
   final Set<AttachedLibraryCapability> capabilities;
   final AttachedLibraryFingerprint? fingerprint;
@@ -28,6 +31,7 @@ class AttachedLibraryProbeResult {
     this.problem,
     this.slug = '',
     this.displayName = '',
+    this.rootFolder,
     this.bookCount = 0,
     this.capabilities = const {},
     this.fingerprint,
@@ -38,6 +42,7 @@ class AttachedLibraryProbeResult {
   const AttachedLibraryProbeResult.failure(AttachedLibraryProblem this.problem)
     : slug = '',
       displayName = '',
+      rootFolder = null,
       bookCount = 0,
       capabilities = const {},
       fingerprint = null,
@@ -111,6 +116,7 @@ abstract final class AttachedLibraryProbe {
       return AttachedLibraryProbeResult(
         slug: slugFor(libraryId: meta['library_id'], fileName: baseName),
         displayName: _nonEmpty(meta['library_name']) ?? baseName,
+        rootFolder: folderNameOf(meta['library_folder']),
         bookCount: bookCount,
         capabilities: capabilitiesOf(capabilities),
         fingerprint: AttachedLibraryFingerprint(
@@ -157,7 +163,8 @@ abstract final class AttachedLibraryProbe {
     }
     final rows = db.select(
       'SELECT key, value FROM schema_meta '
-      "WHERE key IN ('library_id', 'library_name', 'db_version', "
+      "WHERE key IN ('library_id', 'library_name', 'library_folder', "
+      "'db_version', "
       "'${AttachedLibraryUpdateSource.metaManifestUrlKey}', "
       "'${AttachedLibraryUpdateSource.metaPublicKeyKey}')",
     );
@@ -166,6 +173,21 @@ abstract final class AttachedLibraryProbe {
         if (row['key'] is String && row['value'] != null)
           row['key'] as String: row['value'].toString(),
     };
+  }
+
+  /// שם תיקייה עליונה תקין, או null: בלי מפרידי נתיב, עד 64 תווים, לא
+  /// גרשיים בלבד ולא "ספרים אישיים" (שהעץ מאתר לפי שמו).
+  static String? folderNameOf(String? raw) {
+    final name = _nonEmpty(raw);
+    if (name == null ||
+        name.length > 64 ||
+        name.contains('/') ||
+        name.contains(r'\') ||
+        name == 'ספרים אישיים' ||
+        name.replaceAll(RegExp('''['"״׳’”“`]'''), '').trim().isEmpty) {
+      return null;
+    }
+    return name;
   }
 
   static String? _nonEmpty(String? value) {

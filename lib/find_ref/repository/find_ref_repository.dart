@@ -2439,7 +2439,7 @@ class FindRefRepository {
               search,
               index: index,
               source: BookSource.attached(library.slug),
-              rootPath: library.displayName,
+              rootPath: library.rootFolder ?? library.displayName,
               fetchTocBatch: (books) => worker.runBatch(
                 library.path,
                 immutable: library.immutable,

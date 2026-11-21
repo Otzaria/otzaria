@@ -112,6 +112,10 @@ class AttachedLibrary extends Equatable {
   final String? folderPath;
   final AttachedLibraryMode mode;
   final AttachedLibraryPlacement placement;
+
+  /// תיקייה ברמה העליונה של העץ שהמסד מצהיר עליה (`schema_meta.library_folder`).
+  /// כשקיימת היא גוברת על [placement].
+  final String? rootFolder;
   final bool hidden;
 
   /// סדר ההצגה: קטן יותר מוצג קודם.
@@ -135,6 +139,9 @@ class AttachedLibrary extends Equatable {
   /// נבדק כבר עם קריאת שדות העדכון — מסד שצורף לפני כן נבדק שוב פעם אחת.
   final bool updateSourceProbed;
 
+  /// נבדק כבר עם קריאת [rootFolder]; כמו [updateSourceProbed].
+  final bool rootFolderProbed;
+
   const AttachedLibrary({
     required this.slug,
     required this.displayName,
@@ -142,6 +149,7 @@ class AttachedLibrary extends Equatable {
     this.folderPath,
     this.mode = AttachedLibraryMode.link,
     this.placement = AttachedLibraryPlacement.separateRoot,
+    this.rootFolder,
     this.hidden = false,
     this.priority = 0,
     this.immutable = false,
@@ -154,6 +162,7 @@ class AttachedLibrary extends Equatable {
     this.updateSource,
     this.updateSourceMismatch = false,
     this.updateSourceProbed = false,
+    this.rootFolderProbed = false,
   });
 
   bool get isImported => folderPath == null;
@@ -172,13 +181,15 @@ class AttachedLibrary extends Equatable {
       : null;
 
   /// [clearProblem] מאפס את [problem] — `problem: null` לבדו פירושו "אל תשנה";
-  /// כך גם [clearUpdateSource].
+  /// כך גם [clearUpdateSource] ו-[clearRootFolder].
   AttachedLibrary copyWith({
     String? slug,
     String? displayName,
     String? path,
     AttachedLibraryMode? mode,
     AttachedLibraryPlacement? placement,
+    String? rootFolder,
+    bool clearRootFolder = false,
     bool? hidden,
     int? priority,
     bool? immutable,
@@ -192,6 +203,7 @@ class AttachedLibrary extends Equatable {
     bool clearUpdateSource = false,
     bool? updateSourceMismatch,
     bool? updateSourceProbed,
+    bool? rootFolderProbed,
   }) {
     return AttachedLibrary(
       slug: slug ?? this.slug,
@@ -200,6 +212,7 @@ class AttachedLibrary extends Equatable {
       folderPath: folderPath,
       mode: mode ?? this.mode,
       placement: placement ?? this.placement,
+      rootFolder: clearRootFolder ? null : (rootFolder ?? this.rootFolder),
       hidden: hidden ?? this.hidden,
       priority: priority ?? this.priority,
       immutable: immutable ?? this.immutable,
@@ -214,6 +227,7 @@ class AttachedLibrary extends Equatable {
           : (updateSource ?? this.updateSource),
       updateSourceMismatch: updateSourceMismatch ?? this.updateSourceMismatch,
       updateSourceProbed: updateSourceProbed ?? this.updateSourceProbed,
+      rootFolderProbed: rootFolderProbed ?? this.rootFolderProbed,
     );
   }
 
@@ -224,6 +238,7 @@ class AttachedLibrary extends Equatable {
     'origin': originKey,
     'mode': mode.name,
     'placement': placement.name,
+    if (rootFolder != null) 'rootFolder': rootFolder,
     if (hidden) 'hidden': true,
     'priority': priority,
     if (immutable) 'immutable': true,
@@ -236,6 +251,7 @@ class AttachedLibrary extends Equatable {
     if (updateSource != null) 'updateSource': updateSource!.toJson(),
     if (updateSourceMismatch) 'updateSourceMismatch': true,
     if (updateSourceProbed) 'updateSourceProbed': true,
+    if (rootFolderProbed) 'rootFolderProbed': true,
   };
 
   /// זורק על רשומה בלי השדות ההכרחיים; ערך לא מוכר בשדה אחר נופל לברירת מחדל.
@@ -252,6 +268,7 @@ class AttachedLibrary extends Equatable {
       placement:
           _byName(AttachedLibraryPlacement.values, json['placement']) ??
           AttachedLibraryPlacement.separateRoot,
+      rootFolder: json['rootFolder'] as String?,
       hidden: json['hidden'] == true,
       priority: (json['priority'] as num?)?.toInt() ?? 0,
       immutable: json['immutable'] == true,
@@ -271,6 +288,7 @@ class AttachedLibrary extends Equatable {
       updateSource: AttachedLibraryUpdateSource.fromJson(json['updateSource']),
       updateSourceMismatch: json['updateSourceMismatch'] == true,
       updateSourceProbed: json['updateSourceProbed'] == true,
+      rootFolderProbed: json['rootFolderProbed'] == true,
     );
   }
 
@@ -285,6 +303,7 @@ class AttachedLibrary extends Equatable {
     folderPath,
     mode,
     placement,
+    rootFolder,
     hidden,
     priority,
     immutable,
@@ -296,5 +315,6 @@ class AttachedLibrary extends Equatable {
     updateSource,
     updateSourceMismatch,
     updateSourceProbed,
+    rootFolderProbed,
   ];
 }

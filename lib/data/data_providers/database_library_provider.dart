@@ -123,7 +123,9 @@ class _AttachedCatalogBuild {
   /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
   int order(num? orderIndex) {
     final own = orderIndex?.toInt() ?? 999;
-    if (library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
+    // גם תיקייה מוצהרת עשויה להיות משותפת לכמה מסדים, ולכן ממוינת לפי עדיפות.
+    if (library.rootFolder == null &&
+        library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
       return own;
     }
     return _kAttachedMergedOrderBase +
@@ -2018,6 +2020,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final _attachedCachedKeys = BookKeySet();
+
+  /// התיקיות העליונות שמסדים מצורפים הצהירו עליהן, לפי מפתח מיזוג.
+  final Map<String, Category> _attachedDeclaredFolders = {};
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, PendingAttachedCatalog<AttachedCatalogRows>>
   _pendingAttachedCatalogs = {};
@@ -4185,6 +4190,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
+    _attachedDeclaredFolders.clear();
     _attachedBooksById.clear();
     _attachedDbVersions.clear();
     _attachedDuplicateVersions.clear();
@@ -4318,30 +4324,47 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Category ensureLibraryRoot() {
       final existing = libraryRoot;
       if (existing != null) return existing;
-      final personal = _personalRootFor(library, build.metadata);
+      // תיקייה מוצהרת יושבת בשורש הספרייה ומשותפת רק למסדים שהצהירו עליה,
+      // ולא מתמזגת לקטגוריה רשמית או אישית באותו שם.
+      final rootFolder = build.library.rootFolder;
+      final parent = rootFolder == null
+          ? _personalRootFor(library, build.metadata)
+          : library;
+      final title = rootFolder ?? build.library.displayName;
+      final folderKey = rootFolder == null ? null : _mergeTitleKey(rootFolder);
+      final shared = _attachedDeclaredFolders[folderKey];
+      if (shared != null) return libraryRoot = shared;
       final created = Category(
-        title: build.library.displayName,
+        title: title,
         description: '',
         shortDescription: '',
         order: _kAttachedRootOrder + build.library.priority,
         subCategories: [],
         books: [],
-        parent: personal,
+        parent: parent,
       );
-      personal.subCategories.add(created);
+      parent.subCategories.add(created);
+      if (folderKey != null) _attachedDeclaredFolders[folderKey] = created;
       return libraryRoot = created;
     }
 
     final roots = [...?build.categoriesByParent[null]]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final merge =
+        build.library.rootFolder == null &&
         build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
-    final rootTargets = merge
-        ? CategoryMergeTargets(
-            library.subCategories,
-            DatabaseLibraryProvider._mergeTitleKey,
-          )
+    // תיקייה מוצהרת משותפת למסדים, ולכן קטגוריות באותו שם מתמזגות בתוכה.
+    final mergeParent = merge
+        ? library
+        : build.library.rootFolder != null && roots.isNotEmpty
+        ? ensureLibraryRoot()
         : null;
+    final rootTargets = mergeParent == null
+        ? null
+        : CategoryMergeTargets(
+            mergeParent.subCategories,
+            DatabaseLibraryProvider._mergeTitleKey,
+          );
     for (final root in roots) {
       if (rootTargets == null) {
         final parent = ensureLibraryRoot();
@@ -4350,7 +4373,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       }
       final existing = rootTargets.find(root.title);
       if (existing == null) {
-        rootTargets.add(_buildAttachedCategory(root, library, build));
+        rootTargets.add(_buildAttachedCategory(root, mergeParent!, build));
       } else {
         _appendAttachedContent(existing, root, build);
       }

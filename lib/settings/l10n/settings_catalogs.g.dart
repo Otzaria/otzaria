@@ -288,6 +288,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בשולחן העבודה ובתפריט התחל יש קיצור "אוצריא (נייד)" שפותח את העותק הזה': 'The desktop and the Start menu have an "Otzaria (portable)" shortcut that opens this copy',
     'בשימוש': 'In Use',
     'בתיבת שלום; בגופני סת״ם, אשורית וכתר': 'In shalom; supported by STaM, Ashurit and Keter fonts',
+    'בתיקייה "{folder}"': 'In folder "{folder}"',
     'בתיקייה יש אינדקס חיפוש בלי הספרייה עצמה': 'The folder has a search index but not the library itself',
     'בתיקייה: מאחד כמה קבצים לספר אחד. עמודות: ראשי, גרסה, שם.': 'In the folder: combines several files into one sefer. Columns: ראשי, גרסה, שם.',
     'בתנ"ך': 'In Tanach',
