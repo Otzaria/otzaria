@@ -311,7 +311,16 @@ void main() {
         ),
       );
       expect(tile.leading, isNotNull);
-      expect(find.byType(Checkbox), findsNothing);
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('הורדת הספרייה'),
+            matching: find.byType(ListTile),
+          ),
+          matching: find.byType(Checkbox),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('כפתור "אישור" פעיל בהורדה כשיש יעד ברירת מחדל', (
@@ -325,6 +334,58 @@ void main() {
     testWidgets('כפתור "אישור" מושבת כשאין יעד', (tester) async {
       await _openSetup(tester, defaultTargetPath: '');
       expect(_actionOnPressed(tester, 'אישור'), isNull);
+    });
+  });
+
+  group('"הורד גם את מחברי זמננו"', () {
+    late _RecordingDownloadBloc bloc;
+    final requested = <String>[];
+
+    setUp(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+      requested.clear();
+      debugCreateLibrarySetupBloc = () => bloc = _RecordingDownloadBloc();
+      debugDownloadOfficial = (entry) async => requested.add(entry.libraryId);
+    });
+    tearDown(() {
+      debugCreateLibrarySetupBloc = null;
+      debugDownloadOfficial = null;
+    });
+
+    Future<void> confirm(WidgetTester tester) async {
+      _actionOnPressed(tester, 'אישור')!();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('לא מסומנת כברירת מחדל, ובלי סימון אין הורדה', (tester) async {
+      await _openSetup(tester);
+      expect(find.text('הורד גם את מחברי זמננו'), findsOneWidget);
+      expect(
+        tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        isFalse,
+      );
+      await confirm(tester);
+      expect(bloc.targets, [p.join('/default/library', 'books')]);
+      expect(requested, isEmpty);
+    });
+
+    testWidgets('מסומנת: המסד מורד אחרי שהספרייה הותקנה', (tester) async {
+      await _openSetup(tester);
+      await tester.ensureVisible(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      expect(requested, isEmpty);
+      await confirm(tester);
+      expect(bloc.targets, hasLength(1));
+      expect(requested, ['otzaria.zmanenu']);
+    });
+
+    testWidgets('מוצגת רק ליד הורדת הספרייה', (tester) async {
+      await _openSetup(tester);
+      await tester.tap(find.text('בחירת תיקייה מהמחשב'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CheckboxListTile), findsNothing);
     });
   });
 
