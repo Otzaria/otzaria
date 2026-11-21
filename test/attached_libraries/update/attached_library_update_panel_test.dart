@@ -206,7 +206,7 @@ void main() {
   group('official database', () {
     const entry = OfficialAttachedLibrary(
       libraryId: 'lib-a',
-      displayName: 'מחברי זמנינו',
+      displayName: 'מחברי זמננו',
       manifestUrl: 'https://updates.example.org/a/manifest.json',
       publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
     );
@@ -268,7 +268,7 @@ void main() {
         [],
         statuses: {offerKey: AttachedUpdateAvailable(_offer())},
       );
-      expect(find.text('מחברי זמנינו'), findsOneWidget);
+      expect(find.text('מחברי זמננו'), findsOneWidget);
       expect(find.text('2.0 MB'), findsOneWidget);
       await tester.tap(find.widgetWithText(ActionButton, 'הורד'));
       await tester.pump();

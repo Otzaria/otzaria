@@ -29,14 +29,14 @@ class OfficialAttachedLibrary {
   bool get isActive => source != null;
 }
 
-/// המפתח הציבורי של "מחברי זמנינו". החלפתו מחייבת גרסת תוכנה חדשה.
+/// המפתח הציבורי של "מחברי זמננו". החלפתו מחייבת גרסת תוכנה חדשה.
 const String zmanenuPublicKey = 'SSCyhGfqGpA2/QY4Abl4t7a7ES9coCEPE9+o7RwTrl0=';
 
 abstract final class OfficialAttachedLibraries {
   static const List<OfficialAttachedLibrary> builtIn = [
     OfficialAttachedLibrary(
       libraryId: 'otzaria.zmanenu',
-      displayName: 'מחברי זמנינו',
+      displayName: 'מחברי זמננו',
       manifestUrl:
           'https://github.com/Otzaria/zmanenu-library/releases/latest/download/manifest.json',
       publicKey: zmanenuPublicKey,

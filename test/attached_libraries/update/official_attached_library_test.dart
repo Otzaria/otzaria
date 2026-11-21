@@ -220,7 +220,7 @@ void main() {
     publicKey = AttachedUpdateSignature.publicKeyOf(privateKey);
     entry = OfficialAttachedLibrary(
       libraryId: _id,
-      displayName: 'מחברי זמנינו',
+      displayName: 'מחברי זמננו',
       manifestUrl: _url,
       publicKey: publicKey,
     );
@@ -239,7 +239,7 @@ void main() {
   test('the built-in entry: name, release manifest URL, active with its key', () {
     OfficialAttachedLibraries.catalogForTesting = null;
     final builtIn = OfficialAttachedLibraries.byId(_id)!;
-    expect(builtIn.displayName, 'מחברי זמנינו');
+    expect(builtIn.displayName, 'מחברי זמננו');
     expect(
       builtIn.manifestUrl,
       'https://github.com/Otzaria/zmanenu-library/releases/latest/download/manifest.json',
@@ -325,7 +325,7 @@ void main() {
       p.isWithin(p.join(temp.path, 'copies', 'official'), library.path),
       isTrue,
     );
-    expect(library.displayName, 'מחברי זמנינו');
+    expect(library.displayName, 'מחברי זמננו');
     expect(library.updateSource, entry.source);
     expect(library.updateSourceMismatch, isFalse);
     expect(
