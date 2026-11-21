@@ -436,7 +436,7 @@ class ShortcutHelper {
       .replaceAll('MINUS', '-')
       .replaceAll('EQUAL', '=')
       .replaceAll('COMMA', ',')
-      .replaceAll(RegExp('(?<!BACK)SLASH'), '/')
+      .replaceAll(RegExp(r'\bSLASH$'), '/')
       .replaceAll('ENTER', 'Enter');
 
   /// כל המפעילים שיש לרשום עבור [shortcut]: הצירוף עצמו, ובנוסף המקשים

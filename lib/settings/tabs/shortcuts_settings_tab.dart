@@ -126,7 +126,7 @@ class ShortcutsSettingsTab extends StatefulWidget {
       tab: SettingsTab.shortcuts,
       cardId: 'shortcuts.nav',
       expandSection: ShortcutValidator.openShortcutsListKey,
-      keywords: ['קיצורים', 'רשימה', 'ctrl+/', 'מקלדת'],
+      keywords: ['קיצורים', 'רשימה', 'מקלדת'],
     ),
     SettingsSearchEntry(
       id: 'shortcuts.nav.tools',

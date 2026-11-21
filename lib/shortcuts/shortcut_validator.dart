@@ -25,7 +25,7 @@ class ShortcutValidator {
   /// פתיחת טופס "דיווח על תקלה בתוכנה" — אופציונלי, ללא ברירת מחדל.
   static const String openAppReportKey = 'key-shortcut-open-app-report';
 
-  /// פתיחת רשימת קיצורי המקשים (הגדרות ← קיצורים).
+  /// פתיחת רשימת קיצורי המקשים (הגדרות ← קיצורים), ללא ברירת מחדל.
   static const String openShortcutsListKey = 'key-shortcut-open-shortcuts-list';
 
   /// פתיחת חלון אוצריא נוסף — פעיל רק בפלטפורמה שתומכת בריבוי חלונות.
@@ -308,7 +308,7 @@ class ShortcutValidator {
     openAdvancedSearchKey: '',
     openAppReportKey: '',
     'key-shortcut-open-settings': 'ctrl+comma',
-    openShortcutsListKey: 'ctrl+slash',
+    openShortcutsListKey: '',
     'key-shortcut-open-more': 'ctrl+m',
     'key-shortcut-open-bookmarks': 'ctrl+shift+b',
     'key-shortcut-open-history': 'ctrl+h',

@@ -39,6 +39,7 @@ import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -791,10 +792,10 @@ void main() {
       await tester.pump();
     }
 
-    test('ברירת המחדל Ctrl+/ ורשום בין הקיצורים', () {
+    test('קיצור הרשימה רשום בין הקיצורים ללא ברירת מחדל', () {
       const key = ShortcutValidator.openShortcutsListKey;
       expect(ShortcutValidator.shortcutKeys, contains(key));
-      expect(ShortcutValidator.defaultShortcuts[key], 'ctrl+slash');
+      expect(ShortcutValidator.defaultShortcuts[key], isEmpty);
       expect(ShortcutValidator.shortcutNames[key], 'רשימת קיצורי המקשים');
       // מוצג כסימן, כמו `CTRL + ,`, ולא כשם המקש.
       expect(
@@ -807,8 +808,10 @@ void main() {
       );
     });
 
-    testWidgets('Ctrl+/ פותח את ההגדרות בלשונית הקיצורים', (tester) async {
-      await pumpWith(tester, const {});
+    testWidgets('Ctrl+/ פותח את הרשימה כשהוא מוקצה לפעולה', (tester) async {
+      await pumpWith(tester, const {
+        ShortcutValidator.openShortcutsListKey: 'ctrl+slash',
+      });
 
       await sendCtrl(tester, LogicalKeyboardKey.slash);
 
@@ -831,13 +834,22 @@ void main() {
       expect(settingsController.requestedTab, isNull);
     });
 
-    testWidgets('קיצור שבוטל אינו פותח את הרשימה', (tester) async {
-      await pumpWith(tester, const {
-        ShortcutValidator.openShortcutsListKey: '',
-      });
+    testWidgets('Ctrl+/ פנוי כשלא הוגדר קיצור לרשימה', (tester) async {
+      await pumpWith(tester, const {});
 
       await sendCtrl(tester, LogicalKeyboardKey.slash);
 
+      expect(navigationBloc.events, isEmpty);
+      expect(settingsController.requestedTab, isNull);
+    });
+
+    testWidgets('מיפוי קודם של Ctrl+/ לכלים נשמר', (tester) async {
+      await pumpWith(tester, const {'key-shortcut-open-more': 'ctrl+slash'});
+      final previousOpens = ToolsLauncherController.instance.openCount;
+
+      await sendCtrl(tester, LogicalKeyboardKey.slash);
+
+      expect(ToolsLauncherController.instance.openCount, previousOpens + 1);
       expect(navigationBloc.events, isEmpty);
       expect(settingsController.requestedTab, isNull);
     });
