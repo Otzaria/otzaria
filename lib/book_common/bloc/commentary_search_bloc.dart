@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/models/links.dart';
@@ -12,12 +13,16 @@ part 'commentary_search_state.dart';
 
 typedef _LinkSearchEntry = ({String key, String path});
 
+/// מפתח החיפוש של ההערה [index] מתוך ההערות שבבקשה.
+String commentaryNoteSearchKey(int index) => 'notes:$index';
+
 /// מחשב חיפוש לכל הקישורים, כולל פריטים שלא נבנו ברשימה הווירטואלית.
 class CommentarySearchBloc
     extends Bloc<CommentarySearchEvent, CommentarySearchState> {
   final String Function(Link) keyOf;
   CommentarySearchRequested? _request;
   List<_LinkSearchEntry> _entries = const [];
+  List<_LinkSearchEntry> _linkEntries = const [];
 
   /// הקישורים שמהם נגזרו המפתחות והנתיבים בסדר התצוגה.
   List<Link> _keyedLinks = const [];
@@ -43,19 +48,27 @@ class CommentarySearchBloc
     CommentarySearchRequested event,
     Emitter<CommentarySearchState> emit,
   ) {
-    final entries = listEquals(_keyedLinks, event.links)
-        ? _entries
+    final linkEntries = listEquals(_keyedLinks, event.links)
+        ? _linkEntries
         : [
             for (final link in event.links)
               (key: keyOf(link), path: link.path2),
           ];
     _keyedLinks = event.links;
+    _linkEntries = linkEntries;
+    final entries = [
+      for (var i = 0; i < event.notes.length; i++)
+        (key: commentaryNoteSearchKey(i), path: kNotesCommentatorTitle),
+      ...linkEntries,
+    ];
     final sameEntries = listEquals(_entries, entries);
     final previous = _request;
     if (previous != null &&
         previous.query == event.query &&
         previous.displayProfile == event.displayProfile &&
         previous.includeSnippets == event.includeSnippets &&
+        previous.notesPartialWordMatch == event.notesPartialWordMatch &&
+        listEquals(previous.notes, event.notes) &&
         sameEntries) {
       return;
     }
@@ -71,7 +84,7 @@ class CommentarySearchBloc
     _pendingSnippets.clear();
     _snippets.clear();
     emit(CommentarySearchState.empty());
-    if (event.query.isEmpty || event.links.isEmpty) return;
+    if (event.query.isEmpty || entries.isEmpty) return;
     _computeTimer = Timer(const Duration(milliseconds: 250), () {
       unawaited(_compute(event, entries, generation));
     });
@@ -82,6 +95,7 @@ class CommentarySearchBloc
     List<_LinkSearchEntry> entries,
     int generation,
   ) async {
+    final notes = request.notes;
     final slice = Stopwatch()..start();
     for (var i = 0; i < entries.length; i++) {
       // תוכן שכבר נטען לא מוותר על ה-event loop; בלי זה הלולאה חוסמת את ה-UI.
@@ -89,9 +103,12 @@ class CommentarySearchBloc
         await Future<void>.delayed(Duration.zero);
         slice.reset();
       }
+      final isNote = i < notes.length;
       String content;
       try {
-        content = await request.links[i].content;
+        content = isNote
+            ? notes[i]
+            : await request.links[i - notes.length].content;
       } catch (_) {
         content = '';
       }
@@ -100,7 +117,7 @@ class CommentarySearchBloc
         content: content,
         query: request.query,
         displayProfile: request.displayProfile,
-        partialWordMatch: true,
+        partialWordMatch: !isNote || request.notesPartialWordMatch,
       );
       add(
         CommentarySearchReported(
