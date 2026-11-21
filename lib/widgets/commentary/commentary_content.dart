@@ -16,8 +16,6 @@ import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
-import 'package:otzaria/book_common/utils/link_anchor_markers.dart'
-    show wrapVisibleRange;
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
@@ -112,6 +110,9 @@ class _CommentaryContentState extends State<CommentaryContent>
 
   @override
   bool get highlightsLinkedAnchor => true;
+
+  @override
+  bool get showsCommentatorAnchors => true;
 
   @override
   void openPanelAnchor(Link link) => _openAnchorTarget(link);
@@ -256,23 +257,13 @@ class _CommentaryContentState extends State<CommentaryContent>
                     snapshot.data ?? const <int, List<PersonalNote>>{},
                     widget.link.index2,
                   );
-                  var displayData = buildAnnotatedLineHtml(
+                  final displayData = buildAnnotatedLineHtml(
                     rawLine: injectAnchorLinks(data),
+                    sourceLine: data,
                     notesForLine: notesForLine,
                     lineIndex0: widget.link.index2 - 1,
                     underlineColor: Theme.of(context).colorScheme.primary,
                   );
-
-                  final linked = linkedAnchorSpan();
-                  if (linked != null) {
-                    displayData = wrapVisibleRange(
-                      html: displayData,
-                      start: linked.start,
-                      end: linked.end!,
-                      openTag: '<span class="link-anchor-range">',
-                      closeTag: '</span>',
-                    );
-                  }
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
