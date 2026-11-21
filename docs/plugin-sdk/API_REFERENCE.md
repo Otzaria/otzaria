@@ -7097,7 +7097,7 @@ await Otzaria.call('reader.addContextMenuItem', {
   הטקסט המסומן ולפעול עליו בדף שלו.
 - `type` יכול להיות `item`,‏ `submenu`,‏ `color-row` או `separator`
 - תת־תפריט מקבל `children`; שורת צבעים מקבלת `colors` עם `id`,‏ `color`,‏ `label`,‏ `selected` ו־`icon` אופציונלי. כאשר `icon` קיים הוא מוצג במקום גוש הצבע ומתאים לפעולות קומפקטיות כמו מחק
-- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. מ-`0.9.97` נתמך גם `reader-highlight` (ראו למטה), ומ־`0.9.98.1` נתמכים גם `reader-book` (ללא סימון) וארבעת הקשרי המפרשים וה־PDF (ראו למטה). ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני הקשרי הבחירה (כהתנהגות הרישום המקורית).
+- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. מ-`0.9.97` נתמך גם `reader-highlight` (ראו למטה), מ־`0.9.98.1` נתמכים גם `reader-book` (ללא סימון) וארבעת הקשרי המפרשים וה־PDF, ומ־`0.9.99` גם `library-book` (ספר בעץ הספרייה; ראו למטה). ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני הקשרי הבחירה (כהתנהגות הרישום המקורית).
 - מ־`0.9.99`, `bookTypes` ו־`bookSources` (אופציונליים, על פריט עליון בלבד) מגבילים את הפריט לספרים מסוימים, בדיוק כמו בפקדי הסרגל (ראו `reader.addToolbarItem`): הם נבדקים מול `type` ו־`source` שב־payload של הלחיצה, כלומר הספר שעליו לחצו. במפרש זה ספר המפרש ולא `mainBook`. קיצור מקלדת שמפעיל את הפריט (`contextMenuItemId`) כפוף לאותו מסנן. אוצריא ישנה מתעלמת מהשדות, ולכן הצהרה במניפסט מחייבת `minAppVersion: 0.9.99`.
 - ילד שלא מגדיר `contexts` יורש את המערך של אביו. ילד שמגדיר `contexts` במפורש מוצג רק בהקשרים שלו, ללא איחוד אוטומטי עם הקשר האב; ההקשרים המפורשים חייבים להיות תת־קבוצה של הקשרי האב.
 - אפשר להגדיר `onClickEvent` או `onColorClickEvent` כאירוע מותאם אישית
@@ -7213,6 +7213,30 @@ try {
   if (!String(error?.code ?? error).includes('unsupported_context')) throw error;
   await Otzaria.call('reader.addContextMenuItem', { ...item, contexts: legacy });
 }
+```
+
+**ספר בעץ הספרייה — `library-book` (מ־`0.9.99`):**
+פריט עם `contexts: ['library-book']` מופיע בסוף תפריט ההקשר של ספר בספרייה:
+לחיצה ימנית (או לחיצה ארוכה במגע) על שורה בעץ, על כרטיס ברשת או על תוצאת
+איתור. הוא נוסף אחרי הפריטים המובנים ("הוסף לבחירה", ובמסכת בבלי גם בחירת
+פורמט הפתיחה) ואינו מחליף אותם. ההקשר אינו נכלל בברירת המחדל, ואינו מוצג
+בספרים מספקים חיצוניים (`type: 'external'`). ההרשאה היא `reader.context_menu`,
+כמו בשאר ההקשרים, ו־`bookTypes`/`bookSources` מסננים לפי הספר שנלחץ.
+
+אין ספר פתוח ואין מיקום: ב־`selection` יש את זהות הספר (`id`, `bookId`,
+`bookUid`, `type`, `source`, ו־`external` כשיש), את `bookTitle` ואת
+`categoryPath` בצורה של [`library.getTree`](#librarygettree) (`/הלכה/משנה
+תורה`). `text` ו־`selectedText` ריקים, ו־`currentRef`/`currentIndex` הם `null`.
+
+```json
+"contextMenuItems": [
+  {
+    "id": "add-to-plan",
+    "title": "הוסף לתוכנית הלימוד",
+    "contexts": ["library-book"],
+    "openPlugin": true
+  }
+]
 ```
 
 **בחירה חוצת־פסקאות — `selection.sections` (מ-`0.9.97`):**
