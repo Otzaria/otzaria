@@ -2120,13 +2120,10 @@ class _BottomAlignedSubmenuButtonState
     final fitsBeside =
         width <= max(rowRect.left - screen.left, screen.right - rowRect.right);
 
-    // מעל השורה אין מספיק מקום: הלוח מוגבל לגובה שיש ונגלל. אחרת Flutter
-    // מצמיד אותו לראש החלון, והוא יורד על השורה.
+    // די בשורה שלמה אחת כדי לגלול גם כשהמקלדת מצמצמת את החלון.
     final above = rowRect.top - screen.top;
     final maxHeight =
-        !fitsBeside &&
-            height > above &&
-            above >= _kMinCappedRows * rowRect.height
+        !fitsBeside && height > above && above >= rowRect.height + pad.vertical
         ? above
         : null;
 
@@ -2145,10 +2142,6 @@ class _BottomAlignedSubmenuButtonState
     }
     return true;
   }
-
-  /// מתחת לכמה שורות לא מגבילים את הגובה: לוח כזה קטן מכדי להיות שימושי,
-  /// ועדיף המיקום של Flutter.
-  static const int _kMinCappedRows = 4;
 
   @override
   Widget build(BuildContext context) {

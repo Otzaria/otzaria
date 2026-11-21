@@ -2550,6 +2550,9 @@ Future<void> main() async {
       WidgetTester tester,
       Size size, {
       bool compact = false,
+      TextDirection direction = TextDirection.rtl,
+      double textScale = 1,
+      double bottomInset = 0,
     }) async {
       final historyBloc = MockHistoryBloc();
       final indexingBloc = MockIndexingBloc();
@@ -2571,6 +2574,7 @@ Future<void> main() async {
       );
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = FakeViewPadding(bottom: bottomInset);
       addTearDown(() async {
         tester.view.reset();
         await historyBloc.close();
@@ -2597,8 +2601,13 @@ Future<void> main() async {
           child: MaterialApp(
             theme: theme,
             builder: (context, app) => Directionality(
-              textDirection: TextDirection.rtl,
-              child: app!,
+              textDirection: direction,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(textScale),
+                ),
+                child: app!,
+              ),
             ),
             home: Scaffold(
               body: Builder(
@@ -2777,6 +2786,50 @@ Future<void> main() async {
         variant: windows,
       );
     }
+
+    for (final direction in TextDirection.values) {
+      testWidgets(
+        'חלון צר עם כיוון $direction וטקסט מוגדל',
+        (tester) async {
+          await openDialog(
+            tester,
+            const Size(360, 640),
+            direction: direction,
+            textScale: 1.3,
+          );
+          await openSubmenu(tester);
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+        },
+        variant: windows,
+      );
+    }
+
+    testWidgets(
+      'תת־התפריט נגיש בחלון אופקי עם מקלדת המסך פתוחה',
+      (tester) async {
+        await openDialog(tester, const Size(640, 400), bottomInset: 145);
+        await openSubmenu(tester);
+        final rowRect = tester.getRect(row);
+        final panel = submenuRect(tester);
+        expect(
+          rowRect.deflate(0.5).overlaps(panel),
+          isFalse,
+          reason: '$panel $rowRect',
+        );
+        expect(panel.bottom, moreOrLessEquals(rowRect.top, epsilon: 1));
+        expect(panel.top, greaterThanOrEqualTo(-0.5));
+
+        await tester.ensureVisible(proximity);
+        await tester.pumpAndSettle();
+        expect(
+          panel.deflate(0.5).contains(tester.getCenter(proximity)),
+          isTrue,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
 
     for (final size in const [Size(1366, 768), Size(480, 820)]) {
       testWidgets(
