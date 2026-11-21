@@ -18,6 +18,9 @@ class LibraryState extends Equatable {
   /// לכל ספר ב-[searchResults] (לפי זהות): מסכת BookMatchKind של ההתאמה.
   final Map<Book, int>? searchMatchKinds;
   final String? searchQuery;
+
+  /// המחבר שספריו מוצגים במקום תוצאות החיפוש ([ShowAuthorBooks]).
+  final String? authorFilter;
   final List<String>? selectedTopics;
   final Set<LibraryMatchFilter> selectedMatchFilters;
   final Book? previewBook;
@@ -59,6 +62,7 @@ class LibraryState extends Equatable {
     this.searchCategoryResults,
     this.searchMatchKinds,
     this.searchQuery,
+    this.authorFilter,
     this.selectedTopics,
     this.selectedMatchFilters = const {},
     this.previewBook,
@@ -289,6 +293,8 @@ class LibraryState extends Equatable {
     List<Category>? searchCategoryResults,
     Map<Book, int>? searchMatchKinds,
     String? searchQuery,
+    String? authorFilter,
+    bool clearAuthorFilter = false,
     List<String>? selectedTopics,
     Set<LibraryMatchFilter>? selectedMatchFilters,
     Book? previewBook,
@@ -317,6 +323,9 @@ class LibraryState extends Equatable {
               ? this.searchMatchKinds
               : null),
       searchQuery: searchQuery ?? this.searchQuery,
+      authorFilter: clearAuthorFilter
+          ? null
+          : authorFilter ?? this.authorFilter,
       selectedTopics: selectedTopics ?? this.selectedTopics,
       selectedMatchFilters: selectedMatchFilters ?? this.selectedMatchFilters,
       previewBook: clearPreviewBook || previewCategory != null
@@ -346,6 +355,7 @@ class LibraryState extends Equatable {
     searchCategoryResults,
     searchMatchKinds,
     searchQuery,
+    authorFilter,
     selectedTopics,
     selectedMatchFilters,
     previewBook,
