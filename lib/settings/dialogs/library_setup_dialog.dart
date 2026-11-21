@@ -11,6 +11,8 @@ import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart'
     show AttachedLibrariesBloc;
 import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
+import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart'
+    show offlinePackageFiles;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -609,13 +611,13 @@ class _LibrarySetupDialogContentState
     }
     final folder = _sourcePath;
     if (_action != _LibraryAction.chooseFolder || folder == null) return;
-    final package = File(p.join(folder, entry.offlinePackageName!));
+    final name = entry.offlinePackageName!;
     unawaited(() async {
-      if (!await package.exists()) return;
+      if ((await offlinePackageFiles(folder, name)).isEmpty) return;
       final result =
           await (debugImportOfficialPackage ??
               AttachedLibraryUpdateService.instance.importOfflinePackage)(
-            package.path,
+            p.join(folder, name),
           );
       final message = AttachedLibrariesBloc.packageMessage(result);
       result == OfficialPackageResult.installed

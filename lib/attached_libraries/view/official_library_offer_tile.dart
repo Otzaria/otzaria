@@ -31,7 +31,7 @@ class OfficialLibraryOfferTile extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onDecline;
 
-  /// התקנה מחבילה לא-מקוונת (`<name>-offline.zip`).
+  /// התקנה מחבילה לא-מקוונת (`<name>-offline.tar.zst`).
   final VoidCallback onImportPackage;
 
   @override

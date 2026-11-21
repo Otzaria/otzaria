@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
@@ -28,7 +27,9 @@ import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
+import '../../empty_library/library_package_test_support.dart';
 import '../../helpers/seforim_fixture_db.dart';
+import '../../support/zstd_test_lib.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
 const _id = 'otzaria.zmanenu';
@@ -95,6 +96,7 @@ String _sha(String path) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final zstd = openZstdForTests();
   late Directory temp;
   late AttachedLibraryRegistry registry;
   late AttachedLibrariesRepository repository;
@@ -120,6 +122,7 @@ void main() {
     areUpdatesEnabled: () => true,
     isAutoCheckDue: () => true,
     recordCheck: () async {},
+    openZstd: () => openZstdForTests()!,
     now: () => now,
     dropDirectory: () async => dropDirectory,
   );
@@ -302,7 +305,7 @@ void main() {
       builtIn.releaseManifestUrlFor(3),
       'https://github.com/Otzaria/zmanenu-library/releases/download/v3/manifest.json',
     );
-    expect(builtIn.offlinePackageName, 'zmanenu-offline.zip');
+    expect(builtIn.offlinePackageName, 'zmanenu-offline.tar.zst');
     expect(builtIn.offlineDatabaseName, 'zmanenu.db');
     expect(builtIn.isActive, zmanenuPublicKey.isNotEmpty);
     if (!builtIn.isActive) {
@@ -834,33 +837,45 @@ void main() {
     );
   });
 
-  group('offline package', () {
-    /// `zmanenu-offline.zip` with [db] and a manifest signed by [signWith].
+  group('offline package', skip: zstd == null ? 'no libzstd' : null, () {
+    /// `zmanenu-offline.tar.zst` with [db] and a manifest signed by
+    /// [signWith]: one file, or [split] into parts with a parts manifest.
+    /// Returns the file a user would pick ([pick]: part-000 or manifest).
     String package(
       String db, {
       int version = 1,
       String? signWith,
       String? manifestOf,
-      String name = 'zmanenu-offline.zip',
       String? folder,
+      bool split = false,
+      String pick = 'part-000',
     }) {
+      const name = 'zmanenu-offline.tar.zst';
       final signed = signedRelease(
         manifestOf ?? db,
         version: version,
         signWith: signWith,
       );
-      final archive = Archive()
-        ..addFile(
-          ArchiveFile.bytes('zmanenu.db', File(db).readAsBytesSync())
-            ..compression = CompressionType.none,
-        )
-        ..addFile(ArchiveFile.bytes('manifest.json', signed.manifest))
-        ..addFile(ArchiveFile.bytes('manifest.json.sig', signed.signature));
-      final path = p.join(folder ?? p.join(temp.path, 'pkg${counter++}'), name);
-      File(path)
-        ..parent.createSync(recursive: true)
-        ..writeAsBytesSync(ZipEncoder().encodeBytes(archive));
-      return path;
+      final archive = zstdCompress(
+        zstd!,
+        buildTar({
+          'zmanenu.db': File(db).readAsBytesSync(),
+          'manifest.json': signed.manifest,
+          'manifest.json.sig': signed.signature,
+        }),
+      );
+      final dir = Directory(folder ?? p.join(temp.path, 'pkg${counter++}'))
+        ..createSync(recursive: true);
+      if (!split) {
+        final path = p.join(dir.path, name);
+        File(path).writeAsBytesSync(archive);
+        return path;
+      }
+      writeSplitAsset(dir, name, archive, partSize: archive.length ~/ 3 + 1);
+      return p.join(
+        dir.path,
+        pick == 'manifest' ? '$name.manifest.json' : '$name.$pick',
+      );
     }
 
     /// A database of [version] whose content differs from [database]'s.
@@ -872,28 +887,31 @@ void main() {
       return path;
     }
 
-    test('a valid package installs a verified managed copy', () async {
-      final db = database(version: '3');
-      final svc = service();
-      expect(
-        await svc.importOfflinePackage(package(db, version: 3)),
-        OfficialPackageResult.installed,
-      );
-      final library = repository.libraries.single;
-      expect(library.isOfficial, isTrue);
-      expect(library.mode, AttachedLibraryMode.copy);
-      expect(library.path, await repository.officialPathFor(_id));
-      expect(library.official!.dbVersion, 3);
-      expect(_sha(library.path), _sha(db));
-      expect(fetcher.urls, isEmpty);
-      expect(downloader.artifacts, isEmpty);
+    test(
+      'a valid single-file package installs a verified managed copy',
+      () async {
+        final db = database(version: '3');
+        final svc = service();
+        expect(
+          await svc.importOfflinePackage(package(db, version: 3)),
+          OfficialPackageResult.installed,
+        );
+        final library = repository.libraries.single;
+        expect(library.isOfficial, isTrue);
+        expect(library.mode, AttachedLibraryMode.copy);
+        expect(library.path, await repository.officialPathFor(_id));
+        expect(library.official!.dbVersion, 3);
+        expect(_sha(library.path), _sha(db));
+        expect(fetcher.urls, isEmpty);
+        expect(downloader.artifacts, isEmpty);
 
-      // The same package again changes nothing.
-      expect(
-        await svc.importOfflinePackage(package(db, version: 3)),
-        OfficialPackageResult.alreadyInstalled,
-      );
-    });
+        // The same package again changes nothing.
+        expect(
+          await svc.importOfflinePackage(package(db, version: 3)),
+          OfficialPackageResult.alreadyInstalled,
+        );
+      },
+    );
 
     test('a newer package updates the installed copy in place', () async {
       final svc = service();
@@ -942,18 +960,56 @@ void main() {
       );
       expect(repository.libraries.single.official!.dbVersion, 2);
       expect(
-        await svc.importOfflinePackage(p.join(temp.path, 'missing.zip')),
+        await svc.importOfflinePackage(p.join(temp.path, 'missing.tar.zst')),
         OfficialPackageResult.notPackage,
       );
     });
 
-    test('the drop location: an installed package is deleted, a bad one '
-        'stays', () async {
-      final good = package(database(), folder: dropDirectory);
+    for (final pick in ['part-000', 'manifest']) {
+      test('a split package installs when the user picks its $pick', () async {
+        final db = database(version: '4');
+        expect(
+          await service().importOfflinePackage(
+            package(db, version: 4, split: true, pick: pick),
+          ),
+          OfficialPackageResult.installed,
+        );
+        expect(repository.libraries.single.official!.dbVersion, 4);
+        expect(_sha(repository.libraries.single.path), _sha(db));
+      });
+    }
+
+    test(
+      'a split package with a missing or corrupt part is rejected',
+      () async {
+        final svc = service();
+        final first = package(database(), split: true);
+        File('${first.substring(0, first.length - 3)}001').deleteSync();
+        expect(
+          await svc.importOfflinePackage(first),
+          OfficialPackageResult.notPackage,
+        );
+        final second = package(database(), split: true);
+        final part = File('${second.substring(0, second.length - 3)}002');
+        final bytes = part.readAsBytesSync();
+        bytes[bytes.length - 1] ^= 0xff;
+        part.writeAsBytesSync(bytes);
+        expect(
+          await svc.importOfflinePackage(second),
+          OfficialPackageResult.notPackage,
+        );
+        expect(repository.libraries, isEmpty);
+      },
+    );
+
+    test('the drop location: an installed package is deleted (both forms), '
+        'a bad one stays', () async {
+      package(database(), folder: dropDirectory, split: true);
       final svc = service();
-      final results = await svc.importDroppedPackages();
-      expect(results, {entry: OfficialPackageResult.installed});
-      expect(File(good).existsSync(), isFalse);
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.installed,
+      });
+      expect(Directory(dropDirectory).listSync(), isEmpty);
       expect(repository.libraries.single.isOfficial, isTrue);
 
       final bad = package(
@@ -967,6 +1023,15 @@ void main() {
       });
       expect(File(bad).existsSync(), isTrue);
       expect(repository.libraries.single.official!.dbVersion, 1);
+
+      File(bad).deleteSync();
+      final next = database(version: '3');
+      package(next, version: 3, folder: dropDirectory);
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.installed,
+      });
+      expect(Directory(dropDirectory).listSync(), isEmpty);
+      expect(repository.libraries.single.official!.dbVersion, 3);
     });
 
     test(

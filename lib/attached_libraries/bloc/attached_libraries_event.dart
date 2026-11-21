@@ -137,7 +137,7 @@ class CancelOfficialLibrary extends AttachedLibrariesEvent {
   List<Object?> get props => [libraryId];
 }
 
-/// התקנת מסד רשמי מחבילה לא-מקוונת (`<name>-offline.zip`) שהמשתמש בחר.
+/// התקנת מסד רשמי מחבילה לא-מקוונת (`<name>-offline.tar.zst`, שלם או בחלקים).
 class ImportOfficialLibraryPackage extends AttachedLibrariesEvent {
   final String path;
 

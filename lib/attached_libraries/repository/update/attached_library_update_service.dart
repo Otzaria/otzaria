@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' show DynamicLibrary;
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart' show ZipDecoder;
 import 'package:flutter/foundation.dart'
     show ValueListenable, ValueNotifier, debugPrint, visibleForTesting;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -22,6 +22,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_update_dow
 import 'package:otzaria/attached_libraries/repository/update/attached_update_fetcher.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_host_policy.dart';
+import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_signature.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/update_check_frequency.dart';
@@ -31,8 +32,10 @@ import 'package:otzaria/migration/database/journal_mode.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:otzaria/utils/file/native_sha256.dart';
-import 'package:otzaria/utils/file/zip_entry_io.dart';
+import 'package:otzaria/utils/file/zstd_library.dart';
 import 'package:path/path.dart' as p;
+
+export 'official_offline_package.dart' show OfficialPackageResult;
 
 class _BadSignature implements Exception {
   const _BadSignature();
@@ -71,7 +74,9 @@ class AttachedLibraryUpdateService {
     this._store = const AttachedLibraryStore(),
     DateTime Function()? now,
     Future<String> Function()? dropDirectory,
+    DynamicLibrary Function()? openZstd,
   }) : _repositoryOverride = repository,
+       _openZstd = openZstd ?? openZstandardLib,
        _now = now ?? DateTime.now,
        _dropDirectory = dropDirectory ?? defaultDropDirectory,
        _fetcher = fetcher ?? AttachedUpdateFetcher(),
@@ -102,6 +107,7 @@ class AttachedLibraryUpdateService {
   final AttachedLibraryStore _store;
   final DateTime Function() _now;
   final Future<String> Function() _dropDirectory;
+  final DynamicLibrary Function() _openZstd;
 
   /// Free-space headroom kept on each volume beyond the artifact itself.
   static const spaceMargin = 32 * 1024 * 1024;
@@ -752,8 +758,9 @@ class AttachedLibraryUpdateService {
     }
   }
 
-  /// מיקום האיסוף: מסייע ההורדה מניח כאן `<name>-offline.zip`, והתוכנה
-  /// מתקינה אותה אחרי חשיפת החלון. ראו docs/attached_libraries_architecture.md.
+  /// מיקום האיסוף: מסייע ההורדה מניח כאן את חלקי `<name>-offline.tar.zst`
+  /// ואת מניפסט החלקים, והתוכנה מתקינה אותם אחרי חשיפת החלון. ראו
+  /// docs/attached_libraries_architecture.md.
   static Future<String> defaultDropDirectory() async =>
       p.join(await AppPaths.getAttachedLibrariesCopyPath(), 'להתקנה');
 
@@ -766,66 +773,93 @@ class AttachedLibraryUpdateService {
     for (final entry in OfficialAttachedLibraries.catalog) {
       final name = entry.offlinePackageName;
       if (name == null || !entry.isActive) continue;
-      final file = File(p.join(directory, name));
-      if (!await file.exists()) continue;
-      final result = await importOfflinePackage(file.path);
+      final files = await offlinePackageFiles(directory, name);
+      if (files.isEmpty) continue;
+      final result = await importOfflinePackage(p.join(directory, name));
       results[entry] = result;
       if (result == OfficialPackageResult.installed ||
           result == OfficialPackageResult.alreadyInstalled) {
-        await _deleteQuietly(file.path);
+        for (final file in files) {
+          await _deleteQuietly(file);
+        }
       }
     }
     return results;
   }
 
-  /// מתקין חבילה לא-מקוונת (`<name>-offline.zip`) של מסד רשמי, בלי רשת:
-  /// חתימת המניפסט במפתח שבקוד, sha256 של המסד מול המניפסט, ורק אז התקנה
+  /// מתקין חבילה לא-מקוונת של מסד רשמי בלי רשת. [path] הוא חלק, מניפסט
+  /// החלקים או הארכיון השלם של `<name>-offline.tar.zst`. חתימת המניפסט
+  /// נבדקת במפתח שבקוד, וה-sha256 של המסד מול המניפסט; רק אז המסד מותקן
   /// כעותק מנוהל רשמי ומאומת. גרסה ישנה מהמותקנת נדחית.
-  Future<OfficialPackageResult> importOfflinePackage(String zipPath) async {
-    final _OfflinePackageHeader header;
+  Future<OfficialPackageResult> importOfflinePackage(String path) async {
+    final officialDirectory = p.dirname(
+      await _repository.officialPathFor('_'),
+    );
+    final unpacked = p.join(
+      officialDirectory,
+      '.offline-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    String? staged;
     try {
-      header = await Isolate.run(() => _readPackageHeader(zipPath));
-    } catch (e, st) {
-      _log('offline package $zipPath', e, st);
-      return OfficialPackageResult.notPackage;
-    }
-    final match = await _signedPackageEntry(header);
-    if (match == null) return OfficialPackageResult.badSignature;
-    final (entry, manifest) = match;
-    final existing = _repository.libraries
-        .where((l) => l.official?.libraryId == entry.libraryId)
-        .firstOrNull;
-    final installed = int.tryParse(existing?.fingerprint?.dbVersion ?? '');
-    if (existing != null && installed != null) {
-      if (installed > manifest.dbVersion) {
-        return OfficialPackageResult.olderVersion;
+      await Directory(unpacked).create(recursive: true);
+      try {
+        await extractOfflinePackage(
+          p.dirname(path),
+          offlineArchiveNameOf(path),
+          unpacked,
+          openZstd: _openZstd,
+        );
+      } on FileSystemException {
+        rethrow;
+      } catch (e, st) {
+        _log('offline package $path', e, st);
+        return OfficialPackageResult.notPackage;
       }
-      if (installed == manifest.dbVersion &&
-          existing.isOfficial &&
-          existing.official!.sha256 == manifest.full.sha256) {
-        return OfficialPackageResult.alreadyInstalled;
+      final manifestFile = File(p.join(unpacked, 'manifest.json'));
+      final signatureFile = File(p.join(unpacked, 'manifest.json.sig'));
+      if (!await manifestFile.exists() ||
+          !await signatureFile.exists() ||
+          await manifestFile.length() >
+              AttachedUpdateManifest.maxManifestBytes ||
+          await signatureFile.length() >
+              AttachedUpdateManifest.maxSignatureBytes) {
+        return OfficialPackageResult.notPackage;
       }
-    }
-    final inPlace = existing?.mode == AttachedLibraryMode.copy;
-    final target = inPlace
-        ? existing!.path
-        : await _repository.officialPathFor(entry.libraryId);
-    final staged = AttachedUpdateFileSwap.stagedPathFor(target);
-    try {
-      await Directory(p.dirname(target)).create(recursive: true);
-      await _ensureWritable(staged);
-      final info = await _diskSpace(p.dirname(target));
-      if (info.freeBytes >= 0 &&
-          info.freeBytes < manifest.full.size + spaceMargin) {
-        return OfficialPackageResult.noSpace;
+      final match = await _signedPackageEntry(
+        unpacked,
+        await manifestFile.readAsBytes(),
+        await signatureFile.readAsBytes(),
+      );
+      if (match == null) return OfficialPackageResult.badSignature;
+      final (entry, manifest) = match;
+      final existing = _repository.libraries
+          .where((l) => l.official?.libraryId == entry.libraryId)
+          .firstOrNull;
+      final installed = int.tryParse(existing?.fingerprint?.dbVersion ?? '');
+      if (existing != null && installed != null) {
+        if (installed > manifest.dbVersion) {
+          return OfficialPackageResult.olderVersion;
+        }
+        if (installed == manifest.dbVersion &&
+            existing.isOfficial &&
+            existing.official!.sha256 == manifest.full.sha256) {
+          return OfficialPackageResult.alreadyInstalled;
+        }
       }
-      final dbName = entry.offlineDatabaseName!;
+      final database = p.join(unpacked, entry.offlineDatabaseName!);
       final expected = manifest.full;
-      if (!await Isolate.run(
-        () => _extractAndHash(zipPath, dbName, staged, expected),
-      )) {
+      if (await File(database).length() != expected.size ||
+          await Isolate.run(() => sha256OfFileFast(database)) !=
+              expected.sha256) {
         return OfficialPackageResult.hashMismatch;
       }
+      final inPlace = existing?.mode == AttachedLibraryMode.copy;
+      final target = inPlace
+          ? existing!.path
+          : await _repository.officialPathFor(entry.libraryId);
+      staged = AttachedUpdateFileSwap.stagedPathFor(target);
+      await _deleteQuietly(staged);
+      await File(database).rename(staged);
       await _normalizeJournal(staged);
       final id = entry.libraryId;
       bool accept(AttachedLibraryProbeResult result) =>
@@ -860,26 +894,35 @@ class AttachedLibraryUpdateService {
       await _store.setOfficialDeclined(id, declined: false);
       return OfficialPackageResult.installed;
     } catch (e, st) {
-      _log('offline install ${entry.libraryId}', e, st);
+      _log('offline install $path', e, st);
       return errorOf(e) == AttachedUpdateError.noSpace
           ? OfficialPackageResult.noSpace
           : OfficialPackageResult.failed;
     } finally {
-      await _deleteQuietly(staged);
+      if (staged != null) await _deleteQuietly(staged);
+      try {
+        await Directory(unpacked).delete(recursive: true);
+      } catch (e) {
+        debugPrint('[AttachedUpdates] could not delete $unpacked: $e');
+      }
     }
   }
 
-  /// הרשומה בקטלוג שהמפתח שלה חתם על המניפסט, ושהמסד שלה נמצא בחבילה.
+  /// הרשומה בקטלוג שהמפתח שלה חתם על המניפסט, ושהמסד שלה נפרס מהחבילה.
   /// מזהה המניפסט נקרא רק אחרי שהחתימה אומתה.
   Future<(OfficialAttachedLibrary, AttachedUpdateManifest)?>
-  _signedPackageEntry(_OfflinePackageHeader header) async {
+  _signedPackageEntry(
+    String unpacked,
+    Uint8List manifest,
+    Uint8List signature,
+  ) async {
     for (final entry in OfficialAttachedLibraries.catalog) {
       final source = entry.source;
       final dbName = entry.offlineDatabaseName;
       if (source == null || dbName == null) continue;
-      if (!header.entries.contains(dbName)) continue;
+      if (!await File(p.join(unpacked, dbName)).exists()) continue;
       try {
-        final offer = await _verify(header.manifest, header.signature, source);
+        final offer = await _verify(manifest, signature, source);
         if (offer.manifest.libraryId == entry.libraryId) {
           return (entry, offer.manifest);
         }
@@ -1236,78 +1279,4 @@ class AttachedLibraryUpdateService {
     if (error is AttachedUpdateCancelled) return;
     debugPrint('[AttachedUpdates] $what failed: $error');
   }
-}
-
-/// תוצאת התקנה של חבילה לא-מקוונת.
-enum OfficialPackageResult {
-  installed,
-  alreadyInstalled,
-
-  /// אינו קובץ ZIP קריא, או שחסרים בו המניפסט והחתימה.
-  notPackage,
-
-  /// אין מניפסט חתום במפתח של מסד רשמי שהמסד שלו בחבילה.
-  badSignature,
-
-  /// המסד אינו תואם לגודל או ל-sha256 שבמניפסט.
-  hashMismatch,
-  olderVersion,
-  noSpace,
-  failed,
-}
-
-class _OfflinePackageHeader {
-  final Set<String> entries;
-  final Uint8List manifest;
-  final Uint8List signature;
-
-  const _OfflinePackageHeader(this.entries, this.manifest, this.signature);
-}
-
-/// שמות הקבצים שבשורש החבילה, והמניפסט וחתימתו כבתים (עד התקרות).
-Future<_OfflinePackageHeader> _readPackageHeader(String zipPath) async {
-  final input = openZipInput(zipPath);
-  try {
-    final archive = ZipDecoder().decodeStream(input, throwOnError: true);
-    Uint8List read(String name, int maxBytes) {
-      final file = archive.findFile(name);
-      if (file == null || !file.isFile || file.size > maxBytes) {
-        throw FormatException('missing or oversized $name');
-      }
-      return Uint8List.fromList(file.readBytes()!);
-    }
-
-    return _OfflinePackageHeader(
-      {
-        for (final file in archive.files)
-          if (file.isFile && !file.name.contains('/')) file.name,
-      },
-      read('manifest.json', AttachedUpdateManifest.maxManifestBytes),
-      read('manifest.json.sig', AttachedUpdateManifest.maxSignatureBytes),
-    );
-  } finally {
-    await input.close();
-  }
-}
-
-/// פורס את המסד מהחבילה ל-[output] ובודק גודל ו-sha256 מול [expected].
-Future<bool> _extractAndHash(
-  String zipPath,
-  String entryName,
-  String output,
-  AttachedUpdateArtifact expected,
-) async {
-  final input = openZipInput(zipPath);
-  try {
-    final file = ZipDecoder()
-        .decodeStream(input, throwOnError: true)
-        .findFile(entryName);
-    if (file == null || !file.isFile || file.size != expected.size) {
-      return false;
-    }
-    if (await writeZipEntry(file, output) != expected.size) return false;
-  } finally {
-    await input.close();
-  }
-  return await sha256OfFileFast(output) == expected.sha256;
 }

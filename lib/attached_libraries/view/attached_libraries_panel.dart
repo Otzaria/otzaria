@@ -94,8 +94,8 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
     final file = await withFilePickerOwner(
       context,
       (picker) => picker.pickFile(
-        type: widget.supportsLinking ? FileType.custom : FileType.any,
-        allowedExtensions: widget.supportsLinking ? const ['zip'] : null,
+        // החלק הראשון (`.part-000`), מניפסט החלקים או הארכיון השלם.
+        type: FileType.any,
         dialogTitle: context.settingsText('בחר חבילת מסד רשמי'),
         windowsOptions: modalWindowsOptions(context),
         linuxOptions: kModalLinuxOptions,

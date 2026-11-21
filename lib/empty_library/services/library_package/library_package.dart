@@ -103,15 +103,51 @@ final _assetName = RegExp(
 final _sha256 = RegExp(r'^[0-9a-f]{64}$');
 
 class _Group {
-  _Group(this.version, this.kind);
+  _Group(this.version, this.kind, {this.fixedName});
 
   final String version;
   final LibraryPackageKind kind;
+  final String? fixedName;
   PackageFileEntry? whole;
   PackageFileEntry? manifest;
   final parts = <int, PackageFileEntry>{};
 
-  String get archiveName => 'otzaria-$version-${kind.assetSuffix}.tar.zst';
+  String get archiveName =>
+      fixedName ?? 'otzaria-$version-${kind.assetSuffix}.tar.zst';
+}
+
+/// ארכיון tar.zst בשם קבוע ([archiveName]) בתיקייה, באותם כללים של חבילות
+/// הספרייה: חלקים עם מניפסט חלקים או בלעדיו, או קובץ שלם. null — לא נמצא.
+/// זורק [FormatException] על חלק חסר או מניפסט פגום.
+Future<LibraryPackage?> scanNamedArchive(
+  PackageFolder folder,
+  String archiveName,
+) async {
+  final group = _Group(
+    '',
+    LibraryPackageKind.library,
+    fixedName: archiveName,
+  );
+  for (final entry in await folder.list()) {
+    if (entry.name == archiveName) {
+      group.whole = entry;
+    } else if (entry.name == '$archiveName.manifest.json') {
+      group.manifest = entry;
+    } else if (entry.name.startsWith('$archiveName.part-')) {
+      final number = int.tryParse(
+        entry.name.substring('$archiveName.part-'.length),
+      );
+      if (number != null) group.parts[number] = entry;
+    }
+  }
+  if (group.whole == null && group.manifest == null && group.parts.isEmpty) {
+    return null;
+  }
+  try {
+    return await _buildPackage(folder, group);
+  } on _PackageError catch (e) {
+    throw FormatException('${e.problem.name}: ${e.file}');
+  }
 }
 
 class _PackageError implements Exception {

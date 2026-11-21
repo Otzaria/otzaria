@@ -21,14 +21,15 @@ class OfficialAttachedLibrary {
   /// מזהה עותק שצורף ידנית גם כשאינו הגרסה האחרונה.
   final String? releaseManifestUrlTemplate;
 
-  /// בסיס שמות החבילה הלא-מקוונת: `<name>-offline.zip` ובתוכה `<name>.db`.
+  /// בסיס שמות החבילה הלא-מקוונת: `<name>-offline.tar.zst` (בחלקים),
+  /// ובתוכה `<name>.db`.
   final String? offlineName;
 
   String? releaseManifestUrlFor(int dbVersion) =>
       releaseManifestUrlTemplate?.replaceAll('{version}', '$dbVersion');
 
   String? get offlinePackageName =>
-      offlineName == null ? null : '$offlineName-offline.zip';
+      offlineName == null ? null : '$offlineName-offline.tar.zst';
 
   String? get offlineDatabaseName =>
       offlineName == null ? null : '$offlineName.db';
