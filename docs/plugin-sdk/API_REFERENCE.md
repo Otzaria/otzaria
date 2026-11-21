@@ -4605,13 +4605,13 @@ const result = await Otzaria.call('feedback.submitBookCorrection', {
 
 ```js
 const response = await Otzaria.call('feedback.getBookCorrectionStatus', { reportId });
-if (response.success) {
+if (response.success && response.data) {
   const { status } = response.data;
 }
 ```
 
 - פרמטר: `reportId` — אותו מזהה שהועבר ל־`feedback.submitBookCorrection` (אותם תווים ואותה מגבלת אורך). תוסף יכול לשאול רק על דיווחים שהוא עצמו שלח, ושום תוכן אינו נחשף.
-- `response.data`: `{status: 'queued'|'sent'|'rejected'|'unknown', reportId, nativeReportId}`. `queued` — עדיין בתור המקומי; `sent` — נשלח; `rejected` — נדחה סופית על ידי השרת.
+- `response.data`: `{status: 'queued'|'sent'|'rejected'|'unknown', reportId, nativeReportId}`. `queued` — עדיין בתור המקומי; `sent` — רשום כנשלח, גם אם ניסיון חוזר עדיין בתור; `rejected` — נדחה סופית על ידי השרת.
 - `unknown` אינו סופי: הדיווח לא נמצא (נמחק, נחתך מהיסטוריית הנשלחים — נשמרים 100 אחרונים — שוחזר מגיבוי, הוחלף מזהה אחרי התנגשות, או שנתפס ברגע ההעברה מהתור להיסטוריה). יש להשאיר את המצב הקודם ולנסות שוב מאוחר יותר.
 - שגיאה `error.invalid_params` על `reportId` לא תקין.
 

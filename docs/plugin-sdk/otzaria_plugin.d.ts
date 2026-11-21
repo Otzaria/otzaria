@@ -2589,7 +2589,7 @@ export interface GetBookCorrectionStatusParams {
 
 export interface GetBookCorrectionStatusResult {
   /**
-   * `queued`: still in Otzaria's local queue. `sent`: delivered. `rejected`:
+   * `queued`: still in Otzaria's local queue. `sent`: recorded as sent. `rejected`:
    * permanently rejected by the server. `unknown`: not found (deleted, trimmed
    * from the sent history, restored from a backup, or caught between the queue
    * and the history). `unknown` is not final: keep the previous state.

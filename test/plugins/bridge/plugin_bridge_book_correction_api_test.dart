@@ -230,6 +230,49 @@ void main() {
           'nativeReportId': 'plugin.b:r1',
         });
       });
+      test('מזהה מפורש ושדות עודפים אינם עוקפים את מרחב השמות', () async {
+        final caller = buildAdapter(
+          directReportService: direct,
+          pluginId: 'plugin.b',
+        );
+        expect(
+          await caller.execute('feedback', 'getBookCorrectionStatus', {
+            'reportId': 'plugin.a:r1',
+            'nativeReportId': 'plugin.a:r1',
+            'pluginId': 'plugin.a',
+            'status': 'sent',
+          }),
+          {
+            'status': 'unknown',
+            'reportId': 'plugin.a:r1',
+            'nativeReportId': 'plugin.b:plugin.a:r1',
+          },
+        );
+      });
+
+      test('דיווח תיקון רגיל על ספר אינו גלוי לתוסף', () async {
+        const id = '1782315021188111-1234567';
+        await PendingReportStore(database: db).add(
+          DirectErrorReportService.pendingKind,
+          {'id': id},
+        );
+        expect(await direct.lookupReportStatus(id), 'queued');
+        final caller = buildAdapter(
+          directReportService: direct,
+          pluginId: 'plugin.a',
+        );
+        expect(
+          await caller.execute('feedback', 'getBookCorrectionStatus', {
+            'reportId': id,
+            'nativeReportId': id,
+          }),
+          {
+            'status': 'unknown',
+            'reportId': id,
+            'nativeReportId': 'plugin.a:$id',
+          },
+        );
+      });
     });
   });
 
