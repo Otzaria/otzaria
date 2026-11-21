@@ -2229,7 +2229,8 @@ class PluginBridgeAdapter {
           );
 
     // העוגנים נמדדים על השורה המלאה; התוסף מקבל את הטקסט השמור, בלי גופי ההערות.
-    final notes = includeAnchors
+    final readAnchors = includeAnchors && direction != 'incoming';
+    final notes = readAnchors
         ? await BookNotesRepository.instance.notesFor(
             book.title,
             categoryId: book.categoryId,
@@ -2238,7 +2239,7 @@ class PluginBridgeAdapter {
             versionTitle: book.versionTitle,
           )
         : BookNotes.empty;
-    final anchorNames = includeAnchors
+    final anchorNames = readAnchors
         ? await PluginDivineNamesFilter.resolve(
             book: book,
             readerState: _openReaderStateFor(book),
@@ -2280,6 +2281,7 @@ class PluginBridgeAdapter {
 
     // הקישור כפי שנשמר: source הוא הספר האחר, target — שורה בחלון. סינוני
     // הכותרת חלים על הספר האחר, כמו ביוצאים; includeAnchors אינו חל עליהם.
+    final remaining = _pluginLinksMaxRecords - filtered.records.length;
     final incoming = filtered.truncated
         ? null
         : _filterLinkRecords(
@@ -2287,11 +2289,17 @@ class PluginBridgeAdapter {
               book,
               startIndex: startLine,
               endIndex: endLine,
+              connectionTypes: connectionTypes,
+              // הרשומה הנוספת מסמנת truncated. סינוני כותרת מתבצעים לאחר השליפה.
+              limit: targetTitles == null && targetTitlePrefixes == null
+                  ? remaining + 1
+                  : null,
             ),
             targetTitles: targetTitles,
             targetTitlePrefixes: targetTitlePrefixes,
             connectionTypes: connectionTypes,
-            maxRecords: _pluginLinksMaxRecords - filtered.records.length,
+            maxRecords: remaining,
+            pathIsTitle: true,
             toRecord: (link, sourceTitle) => {
               'direction': 'incoming',
               'sourceTitle': sourceTitle,
@@ -2443,6 +2451,7 @@ class PluginBridgeAdapter {
     required List<String>? targetTitlePrefixes,
     required List<String>? connectionTypes,
     required int maxRecords,
+    bool pathIsTitle = false,
     required Map<String, dynamic> Function(Link link, String targetTitle)
     toRecord,
   }) {
@@ -2451,7 +2460,9 @@ class PluginBridgeAdapter {
     final records = <Map<String, dynamic>>[];
     var truncated = false;
     for (final link in links) {
-      final targetTitle = getTitleFromPath(link.path2);
+      final targetTitle = pathIsTitle
+          ? link.path2
+          : getTitleFromPath(link.path2);
       if (!_titleAllowed(targetTitle, titlesFilter, targetTitlePrefixes)) {
         continue;
       }

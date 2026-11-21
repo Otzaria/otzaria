@@ -1,11 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
@@ -94,6 +98,8 @@ void main() {
     required int start,
     required int end,
     bool incoming = false,
+    List<String>? connectionTypes,
+    int? limit,
   }) async => [
     for (final l in await provider.getLinksForBookRange(
       'שבת',
@@ -102,6 +108,8 @@ void main() {
       startLineIndex: start,
       endLineIndex: end,
       incoming: incoming,
+      incomingConnectionTypes: connectionTypes,
+      incomingLimit: limit,
     ))
       '${l.index1}<-${l.path2}:${l.index2} ${l.connectionType} ${l.heRef}',
   ];
@@ -123,6 +131,79 @@ void main() {
   test('incoming מוגבל לחלון בצד היעד', () async {
     expect(await load(start: 6, end: 9, incoming: true), isEmpty);
     expect(await load(start: 1, end: 1, incoming: true), isEmpty);
+  });
+
+  test('incoming מסנן את סוג החיבור לפני החלת התקרה', () async {
+    expect(
+      await load(start: 0, end: 9, incoming: true, limit: 1),
+      ['6<-עירובין:4 MESORAT_HASHAS ref 23'],
+    );
+    expect(
+      await load(
+        start: 0,
+        end: 9,
+        incoming: true,
+        connectionTypes: ['reference'],
+        limit: 1,
+      ),
+      ['6<-שבת:2 REFERENCE ref 11'],
+    );
+  });
+
+  test('incoming מזהה טווח ומקור במסד מצורף בלי קטגוריות', () async {
+    final dbPath = path.join(tempDir.path, 'attached.db');
+    final db = sqlite3.open(dbPath);
+    db.execute("""
+      CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT);
+      CREATE TABLE line (id INTEGER PRIMARY KEY, bookId INTEGER, lineIndex INTEGER, heRef TEXT);
+      CREATE TABLE connection_type (id INTEGER PRIMARY KEY, name TEXT);
+      CREATE TABLE link (id INTEGER PRIMARY KEY, sourceBookId INTEGER, sourceLineId INTEGER,
+        targetBookId INTEGER, targetLineId INTEGER, connectionTypeId INTEGER);
+      CREATE INDEX idx_link_target ON link(targetBookId, targetLineId);
+      CREATE TABLE link_range (linkId INTEGER, side INTEGER, endLineId INTEGER, endLineIndex INTEGER);
+      CREATE TABLE link_coverage (lineId INTEGER, linkId INTEGER, side INTEGER);
+      INSERT INTO book VALUES (1, 'שבת'), (2, 'עירובין');
+      INSERT INTO line VALUES (15, 1, 5, 'שבת'), (16, 1, 6, 'שבת'),
+        (23, 2, 3, 'עירובין'), (24, 2, 4, 'עירובין');
+      INSERT INTO connection_type VALUES (1, 'mesorat-hashas');
+      INSERT INTO link VALUES (1, 2, 23, 1, 15, 1);
+      INSERT INTO link_range VALUES (1, 0, 24, 4), (1, 1, 16, 6);
+      INSERT INTO link_coverage VALUES (24, 1, 0), (16, 1, 1);
+    """);
+    db.close();
+
+    final registry = AttachedLibraryRegistry.instance;
+    final original = registry.libraries;
+    addTearDown(() => registry.update(original));
+    registry.update([
+      AttachedLibrary(
+        slug: 'attached-test',
+        displayName: 'מסד מצורף',
+        path: dbPath,
+        addedAt: DateTime(2026),
+      ),
+    ]);
+    final source = BookSource.attached('attached-test');
+    final links = await provider.getLinksForBookRange(
+      'שבת',
+      0,
+      'txt',
+      startLineIndex: 6,
+      endLineIndex: 6,
+      source: source,
+      incoming: true,
+      incomingConnectionTypes: ['MESORAT_HASHAS'],
+      incomingLimit: 2,
+    );
+
+    final link = links.single;
+    expect(link.targetSource, source);
+    expect(link.targetCategoryId, 0);
+    expect(link.path2, 'עירובין');
+    expect(link.index1, 7);
+    expect(link.index2, 4);
+    expect(link.index2End, 5);
+    expect(link.connectionType, 'mesorat-hashas');
   });
 
   test('ברירת המחדל לא השתנתה: מסורת הש"ס השמורה בצד השני אינה בה', () async {

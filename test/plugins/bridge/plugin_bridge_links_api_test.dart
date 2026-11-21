@@ -89,14 +89,20 @@ class _StubTextBookRepository extends Mock implements TextBookRepository {
 
   List<Link> incomingLinks = const [];
   int incomingCalls = 0;
+  List<String>? capturedIncomingTypes;
+  int? capturedIncomingLimit;
 
   @override
   Future<List<Link>> getIncomingLinksInRange(
     TextBook book, {
     required int startIndex,
     required int endIndex,
+    List<String>? connectionTypes,
+    int? limit,
   }) async {
     incomingCalls++;
+    capturedIncomingTypes = connectionTypes;
+    capturedIncomingLimit = limit;
     capturedBook = book;
     capturedStartIndex = startIndex;
     capturedEndIndex = endIndex;
@@ -591,6 +597,8 @@ void main() {
       expect(repository.capturedStartIndex, 5);
       expect(repository.capturedEndIndex, 9);
       expect(repository.capturedBook?.title, 'בראשית');
+      expect(repository.capturedIncomingTypes, ['MESORAT_HASHAS']);
+      expect(repository.capturedIncomingLimit, 2001);
       expect(result['truncated'], isFalse);
       expect(result['links'], [
         {
@@ -657,12 +665,33 @@ void main() {
       );
     });
 
+    test('targetTitles משווה את כותרת הספר הנכנס המלאה', () async {
+      repository.incomingLinks = [
+        Link(
+          heRef: 'מקור א',
+          index1: 6,
+          path2: 'מקור א. ב',
+          index2: 11,
+          connectionType: 'REFERENCE',
+        ),
+      ];
+
+      final result = await getLinks({
+        'direction': 'incoming',
+        'targetTitles': ['מקור א. ב'],
+      });
+
+      expect(repository.capturedIncomingLimit, isNull);
+      expect((result['links'] as List).single['sourceTitle'], 'מקור א. ב');
+    });
+
     test('המכסה של 2,000 רשומות חלה על both כולה', () async {
       repository.links = List.filled(1999, rashi);
       repository.incomingLinks = [mesorat, mesorat];
 
       final result = await getLinks({'direction': 'both'});
 
+      expect(repository.capturedIncomingLimit, 2);
       expect(result['links'], hasLength(2000));
       expect(result['truncated'], isTrue);
     });

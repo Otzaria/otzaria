@@ -1390,7 +1390,8 @@ const { data } = await Otzaria.call('library.getCommentators', {
   השמור: `sourceTitle`/`sourceLine`/`sourceLineEnd`/`sourceHeRef` — הספר
   והשורה ששומרים אותו, `sourceSource` ו-`sourceCategoryId` — זהות הספר (כמו
   `targetSource`/`targetCategoryId` ביוצאים, כך שספרים שווי-שם ממסדים שונים
-  נבדלים), `targetLine` — השורה בחלון. `connectionTypes`, `targetTitles`
+  נבדלים), `targetLine` — השורה בחלון. קישור לטווח מופיע בכל שורת יעד מכוסה בחלון.
+  `connectionTypes`, `targetTitles`
   ו-`targetTitlePrefixes` חלים בנכנסים על הספר האחר (`sourceTitle`);
   `includeAnchors` אינו חל עליהם. הקישורים הנכנסים נקראים מהמסד של הספר עצמו
   (הרשמי או המסד המצורף); קישורי-משתמש וקישורים בין מסדים אינם נכללים בהם.

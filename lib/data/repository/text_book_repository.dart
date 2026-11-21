@@ -271,7 +271,10 @@ class TextBookRepository {
     TextBook book, {
     required int startIndex,
     required int endIndex,
+    List<String>? connectionTypes,
+    int? limit,
   }) async {
+    if (book.source.isUser) return const [];
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';
     if (categoryId == null) return const [];
@@ -291,6 +294,8 @@ class TextBookRepository {
       endLineIndex: endIndex,
       source: book.source.isAttached ? book.source : BookSource.official,
       incoming: true,
+      incomingConnectionTypes: connectionTypes,
+      incomingLimit: limit,
     );
   }
 

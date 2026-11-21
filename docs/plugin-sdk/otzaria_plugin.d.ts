@@ -784,12 +784,10 @@ export interface GetLineNotesResult {
   notes: LineNote[];
 }
 
-export interface GetLinksResult {
-  /**
-   * עם `direction: 'incoming'`/`'both'` הרשומות שבהן `direction === 'incoming'`
-   * הן `IncomingBookLink` (הטיפוס נשאר `BookLink[]` כדי לא לשבור קוד קיים).
-   */
-  links: BookLink[];
+export interface GetLinksResult<Direction extends 'outgoing' | 'incoming' | 'both' = 'outgoing'> {
+  links: (Direction extends 'outgoing' ? BookLink
+    : Direction extends 'incoming' ? IncomingBookLink
+    : BookLink | IncomingBookLink)[];
   /** `true` כשהתשובה נחתכה בתקרת 2,000 הרשומות. */
   truncated: boolean;
 }
@@ -2978,6 +2976,12 @@ export interface OtzariaGlobal {
     method: 'feedback.submitBookCorrection',
     payload: SubmitBookCorrectionParams
   ): Promise<OtzariaResponse<SubmitBookCorrectionResult>>;
+
+  /** Requests incoming library links, or both directions (from 0.9.99). */
+  call<Direction extends 'incoming' | 'both'>(
+    method: 'library.getLinks',
+    payload: Record<string, unknown> & { direction: Direction }
+  ): Promise<OtzariaResponse<GetLinksResult<Direction>>>;
 
   /**
    * Call a Host API method.
