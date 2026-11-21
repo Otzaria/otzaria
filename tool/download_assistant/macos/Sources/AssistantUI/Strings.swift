@@ -34,6 +34,7 @@ public enum StringKey: String, CaseIterable {
     case presetFullIndexed, presetFullIndexedDesc, presetFull, presetFullDesc
     case presetBasic, presetBasicDesc, presetUpdate, presetUpdateDesc, presetCustom, presetCustomDesc
     case cardSize, requiredTag, customDesc, customHint
+    case zmanenuTitle, zmanenuDescThis, zmanenuDescOther, rowZmanenu, guideZmanenuThis, guideZmanenuOther
     case folderTitle, folderDesc, folderHint, folderFallbackNote, browse, chooseFolderPrompt
     case readyTitle, readyDesc, readyHint
     case rowVersion, rowWhat, rowFor, rowSavedIn, rowFile, rowFolder
@@ -133,6 +134,12 @@ public struct Strings {
         .presetCustomDesc: "אני רוצה לבחור בעצמי מה להוריד.",
         .cardSize: "גודל ההורדה: %1",
         .requiredTag: "(נדרש)",
+        .zmanenuTitle: "הורד גם את מחברי זמננו",
+        .zmanenuDescThis: "מסד ספרים רשמי נוסף. אוצריא שבמחשב הזה תתקין אותו בפתיחה הבאה.",
+        .zmanenuDescOther: "מסד ספרים רשמי נוסף. הקבצים יישמרו לצד הספרייה, ואוצריא תתקין אותו כשבוחרים את התיקייה בהגדרת הספרייה.",
+        .rowZmanenu: "מחברי זמננו",
+        .guideZmanenuThis: "מחברי זמננו נשמר בתיקייה של אוצריא במחשב הזה, והתוכנה תתקין אותו בפתיחה הבאה.",
+        .guideZmanenuOther: "מחברי זמננו נמצא באותה תיקייה. אוצריא מתקינה אותו כשבוחרים את התיקייה בהגדרת הספרייה.",
         .customDesc: "סמן את הרכיבים שברצונך להוריד.",
         .customHint: "ליד כל רכיב מופיע גודל ההורדה שלו.",
         .folderTitle: "לאן לשמור",
@@ -276,6 +283,12 @@ public struct Strings {
         .presetCustomDesc: "I want to choose what to download myself.",
         .cardSize: "Download size: %1",
         .requiredTag: "(required)",
+        .zmanenuTitle: "Also download Contemporary Authors",
+        .zmanenuDescThis: "An additional official book collection. Otzaria on this computer installs it the next time it starts.",
+        .zmanenuDescOther: "An additional official book collection. The files are saved next to the library, and Otzaria installs it when the folder is chosen in the library setup.",
+        .rowZmanenu: "Contemporary Authors",
+        .guideZmanenuThis: "Contemporary Authors was saved in Otzaria's folder on this computer, and Otzaria installs it the next time it starts.",
+        .guideZmanenuOther: "Contemporary Authors is in the same folder. Otzaria installs it when the folder is chosen in the library setup.",
         .customDesc: "Check the items you want to download.",
         .customHint: "Each item shows its download size.",
         .folderTitle: "Where to save",
