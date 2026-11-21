@@ -123,7 +123,8 @@ class BiographiesRepository {
     }
   }
 
-  /// Filters and ranks entries by name or by another name they are known by.
+  /// Filters and ranks entries by name or by another name they are known by,
+  /// and after those by the title of one of their works.
   /// Shared by the screen and the plugin API, so both return the same order.
   static List<Biography> filter(List<Biography> entries, String query) {
     query = _normalize(query.trim());
@@ -153,6 +154,19 @@ class BiographiesRepository {
         ranked.add(_RankedBiography(bio, rank));
       } else if (rank < _noMatch * 2) {
         variants.add(_RankedBiography(bio, rank));
+      } else {
+        // Only without a name match: a work title ranks after every name.
+        final works = _normalizedWorks[bio] ??= [
+          for (final work in bio.works) _normalize(work.title),
+        ];
+        var workRank = _noMatch;
+        for (final work in works) {
+          final r = _matchRank(work, query, wholeWordPattern, null);
+          if (r < workRank) workRank = r;
+        }
+        if (workRank < _noMatch) {
+          variants.add(_RankedBiography(bio, _noMatch * 2 + workRank));
+        }
       }
     }
 
@@ -173,6 +187,7 @@ class BiographiesRepository {
 
   /// The name and other names after [_normalize], kept between keystrokes.
   static final _normalizedNames = Expando<List<String>>();
+  static final _normalizedWorks = Expando<List<String>>();
 
   static const _wordSeparator = r'''[^\p{L}\p{M}\p{N}"']''';
   static final _wordSeparators = RegExp('$_wordSeparator+', unicode: true);
