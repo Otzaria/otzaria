@@ -692,6 +692,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (anchorLinks.isEmpty) return rawLine;
     return injectLinkAnchorMarkers(
       rawLine: rawLine,
+      sourceRawLine: note == null ? widget.content[lineIndex] : null,
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex,

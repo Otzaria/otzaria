@@ -444,7 +444,8 @@ void main() {
     test('ציטוט בטקסט נשמר עם העוגן, באנגלית ובעברית (issue #4308)', () {
       const json =
           '[{"line_index_1": 2, "line_index_2": 6, "path_2": "ברכות.txt", '
-          '"Conection Type": "INLINE_LINKER", "start": 3, "end": 10}, '
+          '"Conection Type": "INLINE_LINKER", "start": 3, "end": 10, '
+          '"line_index_2_end": 8}, '
           '{"line_index_1": 4, "line_index_2": 9, "path_2": "ברכות.txt", '
           '"Conection Type": "ציטוט בטקסט", "start": 0, "end": 5}]';
       final result = UserImportParser.parseNativeLinksJson(json);
@@ -457,6 +458,7 @@ void main() {
         (3, 10),
         (0, 5),
       ]);
+      expect(result.rows.first.targetLineNumberEnd, 8);
     });
 
     test('ציטוט בטקסט בלי טווח start<end → שגיאה (issue #4308)', () {
@@ -468,6 +470,16 @@ void main() {
       final result = UserImportParser.parseNativeLinksJson(json);
       expect(result.rows, isEmpty);
       expect(result.errors.map((e) => e.lineNumber), [1, 2]);
+    });
+
+    test('ציטוט בטקסט חייב להתחיל ולהסתיים באותה שורת מקור', () {
+      const json =
+          '[{"line_index_1": 1, "line_index_1_end": 2, '
+          '"line_index_2": 3, "path_2": "ברכות.txt", '
+          '"Conection Type": "INLINE_LINKER", "start": 0, "end": 5}]';
+      final result = UserImportParser.parseNativeLinksJson(json);
+      expect(result.rows, isEmpty);
+      expect(result.errors.single.message, contains('בשורה אחת'));
     });
 
     test('end<=start מתפרש כעוגן-נקודה ולא כשגיאה', () {

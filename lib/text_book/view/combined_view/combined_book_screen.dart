@@ -469,6 +469,7 @@ class _CombinedViewState extends State<CombinedView> {
     if (anchorLinks.isEmpty) return rawLine;
     return injectLinkAnchorMarkers(
       rawLine: rawLine,
+      sourceRawLine: note == null ? widget.data[lineIndex0] : null,
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex0,

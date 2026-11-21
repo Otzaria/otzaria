@@ -556,6 +556,12 @@ class UserImportParser {
         errors.add(ImportRowError(n, 'ציטוט בטקסט דורש start ו-end גדול ממנו'));
         continue;
       }
+      if (type == kInlineLinkerImportType &&
+          sourceLineEnd != null &&
+          sourceLineEnd != sourceLine) {
+        errors.add(ImportRowError(n, 'מקור הציטוט בטקסט חייב להיות בשורה אחת'));
+        continue;
+      }
       rows.add(
         ParsedNativeLink(
           sourceLineNumber: sourceLine,
