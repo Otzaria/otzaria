@@ -64,6 +64,9 @@ class DefaultCommentators {
     final targums = [
       for (final row in targumRows) row['targetBookTitle'] as String,
     ];
+    if (AttachedLibraryRegistry.instance.visibleLibraries.isEmpty) {
+      return (commentators: commentators, targums: targums);
+    }
     final external = await _externalDefaults(book);
     var next = commentators.fold(-1, (m, c) => c.position > m ? c.position : m);
     for (final title in external.commentators) {
