@@ -22,7 +22,8 @@ part 'library_update_state.dart';
 
 /// מנהל את תהליך עדכון ספריית הספרים.
 ///
-/// בודק זמינות עדכון, מחיל מסלול דלתא אוטומטית, ומבקש אישור להורדה מלאה.
+/// בודק זמינות עדכון, מציג את גודל עדכון הדלתא ומחכה לאישור (בבדיקה
+/// אוטומטית רק לעדכון גדול), ומבקש אישור להורדה מלאה.
 /// אינו מפעיל אינדוקס/ריענון ספרייה ישירות — ה-UI מאזין ל-state ומפעיל
 /// `RefreshLibrary` + `StartIndexing` כש-[LibraryUpdateState.hasUpdate].
 class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
@@ -109,6 +110,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     on<_LibraryUpdateProgressed>(_onProgressed);
     on<_ForegroundWorkTimedOut>(_onForegroundTimeout);
   }
+
+  /// מגודל הורדה זה גם בדיקה אוטומטית עוצרת לאישור לפני עדכון דלתא.
+  static const deltaConfirmationMinBytes = 50 << 20;
 
   /// הקצב המרבי של עדכוני התקדמות שוטפים (בייטים/אחוז) אל ה-state.
   static const progressInterval = Duration(milliseconds: 200);
@@ -286,7 +290,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
           );
         case LibraryUpdatePlanKind.delta:
           // דלתא כבדה (issue #1211): ההחלה עשויה להימשך שעה. כשיש הורדה מלאה
-          // חלופית הבחירה היא של המשתמש; בלעדיה רק מזהירים וממשיכים.
+          // חלופית הבחירה היא של המשתמש; בלעדיה מזהירים בזמן ההחלה.
           if (plan.isHeavyDelta && plan.fullDbAsset != null) {
             emit(
               LibraryUpdateState(
@@ -296,6 +300,22 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
                   deltaDownloadSize: _formatSize(plan.totalDownloadSize),
                   deltaApplySize: _formatSize(plan.deltaUncompressedBytes),
                   fullDownloadSize: _formatSize(plan.fullDbAsset!.size),
+                ),
+                plan: plan,
+              ),
+            );
+            return;
+          }
+          // גודל ההורדה מוצג לפני שמתחילים, עם אפשרות לדחות (issue #3722).
+          // בבדיקה אוטומטית עדכון קטן ממשיך בשקט כמו קודם.
+          final size = plan.totalDownloadSize;
+          if (size > 0 &&
+              (_userInitiated || size >= deltaConfirmationMinBytes)) {
+            emit(
+              LibraryUpdateState(
+                status: LibraryUpdateStatus.needsDeltaConfirmation,
+                message: LibraryMessages.deltaDownloadSizeConfirm(
+                  _formatSize(size),
                 ),
                 plan: plan,
               ),

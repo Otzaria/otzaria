@@ -473,6 +473,7 @@ String? _visibleText(LibraryUpdateState state) => libraryUpdateWorkStatusItem(
   onRetry: () {},
   onChooseDelta: () {},
   onChooseFullDownload: () {},
+  onDecline: () {},
 )?.message;
 
 /// הדיסק התמלא בזמן כתיבת קובץ — ERROR_DISK_FULL ב-Windows, ENOSPC במקומות אחרים.
@@ -2572,6 +2573,186 @@ void main() {
       gate.complete();
       await until(bloc, LibraryUpdateStatus.completed);
     });
+  });
+
+  group('delta download size shown before download (issue #3722)', () {
+    const mb = 1 << 20;
+    PatchEdge sizedEdge(int from, int to, int size) => PatchEdge(
+      manifest: DeltaManifest(
+        fromVersion: from,
+        toVersion: to,
+        fromSchemaVersion: 5,
+        toSchemaVersion: 5,
+        fromContentHash: 'a',
+        toContentHash: 'b',
+        patchFiles: [
+          PatchFileEntry(
+            file: 'patch-v$from-v$to.db.zst',
+            compression: 'zstd',
+            sha256: 's',
+            size: size,
+            uncompressedSha256: 'u',
+            uncompressedSize: size * 4,
+          ),
+        ],
+      ),
+      patchFileUrls: const {},
+      manifestUrl: 'https://x/patch-v$from-v$to.manifest.json',
+    );
+    final small = LibraryUpdatePlan.delta(
+      localVersion: 1,
+      targetVersion: 2,
+      steps: [sizedEdge(1, 2, 3 * mb)],
+    );
+    final chain = LibraryUpdatePlan.delta(
+      localVersion: 1,
+      targetVersion: 3,
+      steps: [sizedEdge(1, 2, 2 * mb), sizedEdge(2, 3, 3 * mb)],
+    );
+    final large = LibraryUpdatePlan.delta(
+      localVersion: 1,
+      targetVersion: 2,
+      steps: [sizedEdge(1, 2, 80 * mb)],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'בדיקה ביוזמת המשתמש: הגודל מוצג ומחכים לאישור, בלי להוריד',
+      build: () => _bloc(_FakeService(small)),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>()
+            .having(
+              (s) => s.status,
+              'status',
+              LibraryUpdateStatus.needsDeltaConfirmation,
+            )
+            .having((s) => s.message, 'message', contains('3MB'))
+            .having((s) => s.plan, 'plan', small),
+      ],
+      verify: (b) =>
+          expect((b.repository as _FakeService).applyCalled, isFalse),
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'שרשרת דלתא: הגודל הוא סכום כל הצעדים',
+      build: () => _bloc(_FakeService(chain)),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.message,
+          'message',
+          contains('5MB'),
+        ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'אישור מתחיל את ההורדה ומסיים עם hasUpdate',
+      build: () => _bloc(_FakeService(small)),
+      act: (b) async {
+        b.add(const StartLibraryUpdate());
+        await b.stream.firstWhere(
+          (s) => s.status == LibraryUpdateStatus.needsDeltaConfirmation,
+        );
+        b.add(const ConfirmHeavyDelta());
+      },
+      skip: 2,
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.downloading,
+        ),
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
+            .having((s) => s.hasUpdate, 'hasUpdate', true),
+      ],
+      verify: (b) => expect((b.repository as _FakeService).applyCalled, isTrue),
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      '"לא עכשיו" מסיים בלי הורדה ובלי שגיאה',
+      build: () => _bloc(_FakeService(small)),
+      act: (b) async {
+        b.add(const StartLibraryUpdate());
+        await b.stream.firstWhere(
+          (s) => s.status == LibraryUpdateStatus.needsDeltaConfirmation,
+        );
+        b.add(const DeclineFullDownload());
+      },
+      skip: 2,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
+            .having((s) => s.hasUpdate, 'hasUpdate', false)
+            .having((s) => s.errorMessage, 'errorMessage', isNull),
+      ],
+      verify: (b) =>
+          expect((b.repository as _FakeService).applyCalled, isFalse),
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'דלתא כבדה בלי הורדה מלאה חלופית: גם בה הגודל מוצג לפני ההורדה',
+      build: () => _bloc(
+        _FakeService(
+          LibraryUpdatePlan.delta(
+            localVersion: 1,
+            targetVersion: 2,
+            steps: [sizedEdge(1, 2, 3 * mb)],
+            heavyDeltaReason: 'החלה ארוכה',
+          ),
+        ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having(
+              (s) => s.status,
+              'status',
+              LibraryUpdateStatus.needsDeltaConfirmation,
+            )
+            .having((s) => s.message, 'message', contains('3MB')),
+      ],
+      verify: (b) =>
+          expect((b.repository as _FakeService).applyCalled, isFalse),
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'בדיקה אוטומטית: עדכון קטן ממשיך בשקט כמו קודם',
+      build: () => _bloc(_FakeService(small)),
+      act: (b) => b.add(const StartLibraryUpdate(automatic: true)),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
+            .having((s) => s.hasUpdate, 'hasUpdate', true),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'בדיקה אוטומטית: עדכון גדול מחכה לאישור',
+      build: () => _bloc(_FakeService(large)),
+      act: (b) => b.add(const StartLibraryUpdate(automatic: true)),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having(
+              (s) => s.status,
+              'status',
+              LibraryUpdateStatus.needsDeltaConfirmation,
+            )
+            .having((s) => s.message, 'message', contains('80MB')),
+      ],
+      verify: (b) =>
+          expect((b.repository as _FakeService).applyCalled, isFalse),
+    );
   });
 
   group('הודעת "לחץ להמשך" אחרי קטיעת רשת', () {
