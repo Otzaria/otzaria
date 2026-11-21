@@ -5,12 +5,17 @@ import 'package:opentype_shaper/opentype_shaper.dart';
 
 Future<void>? _libraryLoad;
 
-/// טוען את ה-DLL של ה-shaper ב-isolate צדדי, פעם אחת בכל תהליך. הטעינה הראשונה
-/// נמשכת לפעמים שניות (סריקת אנטי-וירוס), ומה-isolate הראשי היא תוקעת את ה-UI.
-Future<void> preloadShaperLibrary() => _libraryLoad ??=
-    Isolate.run(_readAbiVersion)
-    // שגיאה (ABI שונה) נזרקת שוב בקריאה הרגילה, עם ההודעה של החבילה.
-    .then<void>((_) {}, onError: (Object _) {});
+/// מחמם את הספרייה באיזולט צדדי ומשתף את הטעינה בין קוראי האיזולט הנוכחי.
+Future<void> preloadShaperLibrary() => _libraryLoad ??= _loadShaperLibrary();
+
+Future<void> _loadShaperLibrary() async {
+  try {
+    await Future<int>.sync(() => Isolate.run(_readAbiVersion));
+  } catch (_) {
+    _libraryLoad = null;
+    rethrow;
+  }
+}
 
 int _readAbiVersion() => ShaperLibrary.abiVersion;
 
