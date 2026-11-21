@@ -41,6 +41,7 @@ void main() {
   });
 
   setUp(() async {
+    ShortcutHelper.isMacForTesting = false;
     await Settings.setValue<String>(
       SettingsRepository.keySettingsLanguage,
       'he',
@@ -54,6 +55,7 @@ void main() {
 
   tearDown(() async {
     await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false);
+    ShortcutHelper.isMacForTesting = null;
   });
 
   late FakeAppReportService service;
@@ -121,6 +123,7 @@ void main() {
   }
 
   Future<void> ctrlEnter(WidgetTester tester) async {
+    ShortcutHelper.isMacForTesting = false;
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -144,6 +147,22 @@ void main() {
       expect(service.queued, isEmpty);
       expect(service.sent.single.title, 'כותרת');
       expect(find.byType(AppReportDialog), findsNothing);
+      await cleanUp(tester);
+    });
+
+    testWidgets('ב-macOS Cmd+Enter שולח את הדיווח', (tester) async {
+      ShortcutHelper.isMacForTesting = true;
+      await pumpDialog(tester);
+      await fillAndFocusDescription(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(service.sent, hasLength(1));
+      expect(service.queued, isEmpty);
       await cleanUp(tester);
     });
 
