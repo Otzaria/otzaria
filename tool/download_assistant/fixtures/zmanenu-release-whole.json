@@ -1,0 +1,15 @@
+{
+  "tag_name": "v12",
+  "assets": [
+    {
+      "name": "manifest.json",
+      "size": 2,
+      "digest": "sha256:ffa5b716b5a57837f7929dfcca4b4dfdeb97210a7fd5a12d2f1978846d6f1743"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst",
+      "size": 3230,
+      "digest": "sha256:31916c8e031b280e9166f4e3c10c5d93394c79ace3bc73c80d14b0942f782446"
+    }
+  ]
+}
