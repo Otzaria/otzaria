@@ -147,11 +147,15 @@ Future<void> main() async {
       );
       expect(
         highlighted,
-        contains('<span style="color: otzaria-search-hit">ודר</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ודר</span>',
+        ),
       );
       expect(
         highlighted,
-        contains('<span style="color: otzaria-search-hit">שאל</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שאל</span>',
+        ),
       );
     });
 

@@ -24,11 +24,15 @@ Future<void> main() async {
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">יוֹד֣וּ</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">יוֹד֣וּ</span>',
+        ),
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">חַסְדּ֑וֹ</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">חַסְדּ֑וֹ</span>',
+        ),
       );
     });
 
@@ -49,12 +53,16 @@ Future<void> main() async {
         );
         expect(
           out,
-          contains('<span style="color: otzaria-search-hit">יוֹד֣וּ</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">יוֹד֣וּ</span>',
+          ),
           reason: 'מילות החיפוש סביב השם חייבות להיות מודגשות',
         );
         expect(
           out,
-          contains('<span style="color: otzaria-search-hit">חַסְדּ֑וֹ</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">חַסְדּ֑וֹ</span>',
+          ),
         );
       });
     }

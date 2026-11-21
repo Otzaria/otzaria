@@ -73,28 +73,35 @@ Future<void> main() async {
         expect(
           highlighted,
           contains(
-            '<b><span style="color: otzaria-search-hit">וֹרָ</span></b>',
+            '<b><span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">וֹרָ</span></b>',
           ),
         );
         expect(
           highlighted,
-          contains('<span style="color: otzaria-search-hit">מִצְווֹת</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">מִצְווֹת</span>',
+          ),
         );
       });
 
       test('word highlighting preserves inline HTML nesting', () {
         expect(
           highLight('ת<b>ור</b>ה', 'תורה'),
-          '<span style="color: otzaria-search-hit">ת</span><b>'
-          '<span style="color: otzaria-search-hit">ור</span></b>'
-          '<span style="color: otzaria-search-hit">ה</span>',
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ת</span><b>'
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ור</span></b>'
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ה</span>',
         );
       });
 
       test('single word - highlights the word', () {
         const text = 'כל יום טוב';
         final result = highLight(text, 'יום');
-        expect(result, contains('<span style="color: otzaria-search-hit">'));
+        expect(
+          result,
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">',
+          ),
+        );
         expect(result, contains('יום'));
       });
 
@@ -105,19 +112,27 @@ Future<void> main() async {
         // המילה "היה" לא אמורה להיות מודגשת
         expect(
           result,
-          isNot(contains('<span style="color: otzaria-search-hit">היה')),
+          isNot(
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">היה',
+            ),
+          ),
         );
         // רק מילות החיפוש עצמן אמורות להיות מודגשות
         expect(
           result,
           contains(
-            '<span style="color: otzaria-search-hit">כל</span> <span style="color: otzaria-search-hit">היום</span>',
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">כל</span> <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">היום</span>',
           ),
         );
         // "היה", "זה", "טוב" לא אמורים להיות מודגשים
         expect(
           result,
-          isNot(contains('<span style="color: otzaria-search-hit">טוב')),
+          isNot(
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">טוב',
+            ),
+          ),
         );
       });
 
@@ -151,7 +166,9 @@ Future<void> main() async {
 
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">אמר</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אמר</span>',
+          ),
         );
       });
 
@@ -166,12 +183,16 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="color: otzaria-search-hit">כל</span> דבר <span style="color: otzaria-search-hit">היום</span>',
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">כל</span> דבר <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">היום</span>',
           ),
         );
         expect(
           result,
-          isNot(contains('<span style="color: otzaria-search-hit">דבר</span>')),
+          isNot(
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">דבר</span>',
+            ),
+          ),
         );
       });
 
@@ -199,13 +220,15 @@ Future<void> main() async {
           expect(
             result,
             contains(
-              '<span style="color: otzaria-search-hit">אמר</span> ליה <span style="color: otzaria-search-hit">רבי</span> <span style="color: otzaria-search-hit">יוחנן</span>: <span style="color: otzaria-search-hit">הוא</span>',
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אמר</span> ליה <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">רבי</span> <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">יוחנן</span>: <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">הוא</span>',
             ),
           );
           expect(
             result,
             isNot(
-              contains('<span style="color: otzaria-search-hit">ליה</span>'),
+              contains(
+                '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ליה</span>',
+              ),
             ),
           );
         },
@@ -224,19 +247,23 @@ Future<void> main() async {
           expect(
             result,
             contains(
-              '<span style="color: otzaria-search-hit">אמר</span> רבי <span style="color: otzaria-search-hit">שמעון</span> בן <span style="color: otzaria-search-hit">לקיש</span>',
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אמר</span> רבי <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שמעון</span> בן <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">לקיש</span>',
             ),
           );
           expect(
             result,
             isNot(
-              contains('<span style="color: otzaria-search-hit">רבי</span>'),
+              contains(
+                '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">רבי</span>',
+              ),
             ),
           );
           expect(
             result,
             isNot(
-              contains('<span style="color: otzaria-search-hit">בן</span>'),
+              contains(
+                '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">בן</span>',
+              ),
             ),
           );
         },
@@ -245,7 +272,12 @@ Future<void> main() async {
       test('single word with nikud in text - highlights correctly', () {
         const text = 'הָיָה כָּל הַיּוֹם';
         final result = highLight(text, 'כל');
-        expect(result, contains('<span style="color: otzaria-search-hit">'));
+        expect(
+          result,
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">',
+          ),
+        );
       });
 
       test('multi-word with nikud and spacing - highlights both words', () {
@@ -258,11 +290,15 @@ Future<void> main() async {
 
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">פַּרְעֹה</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">פַּרְעֹה</span>',
+          ),
         );
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">נָבוֹן</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">נָבוֹן</span>',
+          ),
         );
       });
 
@@ -274,15 +310,21 @@ Future<void> main() async {
 
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">אֲשֶׁר</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אֲשֶׁר</span>',
+          ),
         );
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">שָׁמַ֣ע</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שָׁמַ֣ע</span>',
+          ),
         );
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">אַבְרָהָ֖ם</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אַבְרָהָ֖ם</span>',
+          ),
         );
       });
 
@@ -366,11 +408,15 @@ Future<void> main() async {
 
           expect(
             result,
-            contains('<span style="color: otzaria-search-hit">פַּרְעֹה</span>'),
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">פַּרְעֹה</span>',
+            ),
           );
           expect(
             result,
-            contains('<span style="color: otzaria-search-hit">נָבוֹן</span>'),
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">נָבוֹן</span>',
+            ),
           );
         },
       );
@@ -1010,7 +1056,9 @@ Future<void> main() async {
       );
       expect(
         result,
-        contains('<span style="color: otzaria-search-hit">מסה</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">מסה</span>',
+        ),
       );
     });
 
@@ -1034,7 +1082,9 @@ Future<void> main() async {
       final hit = highLight('ויקח מסה', query);
       expect(
         hit,
-        contains('<span style="color: otzaria-search-hit">מסה</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">מסה</span>',
+        ),
       );
     });
 
@@ -1054,7 +1104,9 @@ Future<void> main() async {
       final result = highLight('שלום עולם', query);
       expect(
         result,
-        contains('<span style="color: otzaria-search-hit">שלום</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שלום</span>',
+        ),
       );
     });
 
@@ -1079,7 +1131,9 @@ Future<void> main() async {
       final advancedRender = highLight('ויקח מסה', query);
       expect(
         advancedRender,
-        contains('<span style="color: otzaria-search-hit">מסה</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">מסה</span>',
+        ),
       );
     });
 
@@ -1103,7 +1157,9 @@ Future<void> main() async {
       // רק "מיעוט" מודגש; ה"ב" של הקידומת נשאר מחוץ להדגשה.
       expect(
         result,
-        contains('ב<span style="color: otzaria-search-hit">מיעוט</span>'),
+        contains(
+          'ב<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">מיעוט</span>',
+        ),
       );
     });
 
@@ -1284,7 +1340,9 @@ Future<void> main() async {
         final result = highLight('בְּרֵאשִׁית ברא\u{05C3}והארץ היתה', 'ברא');
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">ברא</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ברא</span>',
+          ),
         );
       });
 
@@ -1292,7 +1350,9 @@ Future<void> main() async {
         final result = highLight('פסוק\u{05C6} אחר', 'פסוק');
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">פסוק</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">פסוק</span>',
+          ),
         );
       });
 
@@ -1340,11 +1400,15 @@ Future<void> main() async {
         final result = highLight('תדע כי־גר יהיה', 'כי גר');
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">כי</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">כי</span>',
+          ),
         );
         expect(
           result,
-          contains('<span style="color: otzaria-search-hit">גר</span>'),
+          contains(
+            '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">גר</span>',
+          ),
         );
       });
 

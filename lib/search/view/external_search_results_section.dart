@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
@@ -836,8 +837,7 @@ class _ExternalSearchResultsSectionState
                                 color: cs.onSurface,
                                 height: 1.5,
                               ),
-                              // אותה הדגשה כמו בגזירי המנוע המובנה: מילה
-                              // אדומה ומודגשת, ולא צביעת רקע.
+                              // אותה הדגשה כמו בגזירי המנוע המובנה.
                               highlightStyle: TextStyle(
                                 fontSize: settings.searchResultsFontSize,
                                 fontFamily: AppFonts.renderFontFamily(
@@ -846,6 +846,8 @@ class _ExternalSearchResultsSectionState
                                 height: 1.5,
                                 fontWeight: FontWeight.bold,
                                 color: cs.error,
+                                backgroundColor:
+                                    AppSurfaces.searchHitBackground(cs),
                               ),
                             ),
                           ),

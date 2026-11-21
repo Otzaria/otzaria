@@ -32,7 +32,8 @@ Future<void> main() async {
   const query = 'ברך לחם';
   const reversed = 'לחם ואחר כך ברך עליו';
   const missingWord = 'לחם בלבד';
-  const red = '<span style="color: otzaria-search-hit">';
+  const red =
+      '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">';
 
   String render(
     String line,

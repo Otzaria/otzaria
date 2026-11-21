@@ -130,16 +130,24 @@ Future<void> main() async {
           );
           expect(
             marked,
-            contains('<span style="color: otzaria-search-hit">תדע</span>'),
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">תדע</span>',
+            ),
           );
           expect(
             marked,
-            contains('<span style="color: otzaria-search-hit">זרעך</span>'),
+            contains(
+              '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">זרעך</span>',
+            ),
           );
           // המילים שבין מילות השאילתה נשארות בלי הדגשה.
           expect(
             marked,
-            isNot(contains('<span style="color: otzaria-search-hit">שלוש')),
+            isNot(
+              contains(
+                '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שלוש',
+              ),
+            ),
           );
 
           expect(

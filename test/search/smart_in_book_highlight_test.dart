@@ -203,7 +203,7 @@ Future<void> main() async {
         isFuzzy: true,
         matchPolicy: SearchMatchPolicy.smart,
       );
-      expect('color: otzaria-search-hit'.allMatches(html), hasLength(3));
+      expect('color: otzaria-search-hit;'.allMatches(html), hasLength(3));
     });
 
     test('אותה מילה מחוץ לציטוט מתרחבת בלי לפרק את הציטוט', () async {
