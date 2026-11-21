@@ -974,6 +974,8 @@
   "הטקסט יועתק עם שם הספר בלבד": "The text is copied with the name of the sefer.",
   "שם וכותרת": "Name and place",
   "הטקסט יועתק עם שם הספר ונתיב הטקסט": "The text is copied with the full Mareh Makom",
+  "כותרת בלבד": "Place only",
+  "הטקסט יועתק עם הכותרת בלבד, בלי שם הספר": "The text is copied with the place only, without the name of the sefer",
   "עיצוב כותרות": "Mareh makom format",
   "אותה שורה אחרי (עם סוגריים)": "Same line, after, in parentheses",
   "הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)": "The mareh makom comes after the text on the same line, in parentheses",

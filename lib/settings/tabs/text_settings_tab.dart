@@ -468,6 +468,13 @@ class TextSettingsTab extends StatelessWidget {
                 'הטקסט יועתק עם שם הספר ונתיב הטקסט',
               ),
             ),
+            SegmentOption(
+              value: 'path_only',
+              label: context.settingsText('כותרת בלבד'),
+              subtitle: context.settingsText(
+                'הטקסט יועתק עם הכותרת בלבד, בלי שם הספר',
+              ),
+            ),
           ],
           currentValue: state.copyWithHeaders,
           onChanged: (value) {
