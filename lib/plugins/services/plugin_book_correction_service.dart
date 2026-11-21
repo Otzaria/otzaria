@@ -149,7 +149,9 @@ class PluginBookCorrectionService {
     }
     TextCorrection? correction;
     final raw = sources.first.rawText;
+    // פיצול פסקה (ירידת שורה בהצעה) אינו תיקון מובנה: נשלח כדיווח חופשי.
     if (!forceFreeText &&
+        !proposed.contains('\n') &&
         first == last &&
         raw.length <= TextCorrection.maxTextLength) {
       if (selectionStart != null) {

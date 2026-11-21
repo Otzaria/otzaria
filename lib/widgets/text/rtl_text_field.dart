@@ -75,7 +75,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
 
   // שדה רב-שורתי: ה-TextField מקבל עותק עם \r\n (rtl_hard_break_workaround),
   // ו-_effectiveController נשאר עם \n בלבד — זה מה שהאפליקציה רואה.
-  TextEditingController? _rawController;
+  _HardBreakController? _rawController;
   final _expandMapper = HardBreakValueMapper(expand: true);
   final _collapseMapper = HardBreakValueMapper(expand: false);
   int _rawSyncDepth = 0;
@@ -186,10 +186,18 @@ class _RtlTextFieldState extends State<RtlTextField> {
   /// מסנכרן גם תזוזת סמן בלבד: יש קוראים שקוראים את controller.selection
   /// ישירות, ו-onChanged מופעל רק כשהטקסט השתנה.
   void _syncCleanFromRawLive() {
-    final clean = _collapseMapper.map(
-      _rawController!.value,
+    final mapped = _collapseMapper.map(
+      _rawController!.stored,
       matchingText: _effectiveController.text,
     );
+    // ערך שהוחזר מהיסטוריית הביטול נושא את הערך הנקי שלו, עם המטא-נתונים.
+    final restored = _rawController!.restoredClean;
+    final clean = restored != null && restored.text == mapped.text
+        ? restored.copyWith(
+            selection: mapped.selection,
+            composing: mapped.composing,
+          )
+        : mapped;
     _rawSyncDepth++;
     try {
       if (_effectiveController.value != clean) {
@@ -944,11 +952,24 @@ class _HardBreakController extends TextEditingController {
     final raw = super.value;
     final clean = source.value;
     // גם מטא-נתונים של בקר הקורא צריכים להגיע להיסטוריית הביטול של השדה.
-    return raw == clean ? clean : raw;
+    return raw == clean ? clean : HardBreakValue(raw, clean);
   }
 
+  /// הערך כפי שהוצב, בלי העטיפה של הערך הנקי.
+  TextEditingValue get stored => super.value;
+
+  /// הערך הנקי שנושא הערך שמוצב כרגע, רק בזמן ההצבה (ביטול/ביצוע חוזר).
+  TextEditingValue? restoredClean;
+
   @override
-  set value(TextEditingValue value) => super.value = value;
+  set value(TextEditingValue value) {
+    restoredClean = value is HardBreakValue ? value.clean : null;
+    try {
+      super.value = value is HardBreakValue ? value.plain : value;
+    } finally {
+      restoredClean = null;
+    }
+  }
 
   @override
   TextSpan buildTextSpan({
@@ -956,17 +977,49 @@ class _HardBreakController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    if (source.text != text) {
-      return super.buildTextSpan(
+    if (source.text == text) {
+      return source.buildTextSpan(
         context: context,
         style: style,
         withComposing: withComposing,
       );
     }
-    return source.buildTextSpan(
+    // הטקסט מורחב ל-\r\n, לכן מרחיבים גם את העלים של הקורא. בהרכבה (IME)
+    // ההיסטים אינם תואמים ונשארים עם הציור הרגיל.
+    final span = withComposing && value.isComposingRangeValid
+        ? null
+        : source.buildTextSpan(
+            context: context,
+            style: style,
+            withComposing: false,
+          );
+    final expanded = span?.children == null ? null : _expandSpan(span!);
+    if (expanded != null &&
+        expanded.toPlainText(includeSemanticsLabels: false) == text) {
+      return expanded;
+    }
+    return super.buildTextSpan(
       context: context,
       style: style,
       withComposing: withComposing,
+    );
+  }
+
+  static final RegExp _newline = RegExp(r'\r\n|\n');
+
+  /// null כשיש בעץ משהו שאינו טקסט, ואז אי אפשר להבטיח שההרחבה מדויקת.
+  static TextSpan? _expandSpan(TextSpan span) {
+    final children = <InlineSpan>[];
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      if (child is! TextSpan) return null;
+      final expanded = _expandSpan(child);
+      if (expanded == null) return null;
+      children.add(expanded);
+    }
+    return TextSpan(
+      text: span.text?.replaceAll(_newline, '\r\n'),
+      children: children.isEmpty ? null : children,
+      style: span.style,
     );
   }
 }

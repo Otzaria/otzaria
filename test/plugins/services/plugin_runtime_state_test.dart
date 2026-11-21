@@ -12,18 +12,21 @@ void main() {
       );
     });
 
-    test('resetEventOptions clears page-scoped options and readiness', () async {
-      instance.ready = true;
-      instance.rawDivineNamesTopics.add('reader.getText');
-      instance.eventOptionsGeneration = 7;
+    test(
+      'resetEventOptions clears page-scoped options and readiness',
+      () async {
+        instance.ready = true;
+        instance.rawDivineNamesTopics.add('reader.getText');
+        instance.eventOptionsGeneration = 7;
 
-      instance.resetEventOptions();
-      await instance.lifecycleLock;
+        instance.resetEventOptions();
+        await instance.lifecycleLock;
 
-      expect(instance.rawDivineNamesTopics, isEmpty);
-      expect(instance.eventOptionsGeneration, 8);
-      expect(instance.ready, isFalse);
-    });
+        expect(instance.rawDivineNamesTopics, isEmpty);
+        expect(instance.eventOptionsGeneration, 8);
+        expect(instance.ready, isFalse);
+      },
+    );
 
     test('clearQueue removes coalesced events and one-shot count', () {
       instance.queued['theme.changed'] = const PluginQueuedEvent(

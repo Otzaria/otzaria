@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -35,7 +37,16 @@ class PluginCorrectionParagraph extends StatefulWidget {
       _PluginCorrectionParagraphState();
 }
 
+/// העמודה האופקית של הסמן במעבר בחצים בין פסקאות; הפסקה שמקבלת מיקוד מנחיתה
+/// בה את הסמן. null כשאין מעבר בתהליך.
+class _CaretHandoff {
+  final double dx;
+  final bool movedDown;
+  const _CaretHandoff(this.dx, this.movedDown);
+}
+
 class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
+  static _CaretHandoff? _handoff;
   bool _editable = false;
   bool _corrected = false;
   bool _showEditor = false;
@@ -87,7 +98,92 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _focusChanged() {
-    if (mounted) setState(() => _showEditor = _focus!.hasFocus);
+    if (!mounted) return;
+    setState(() => _showEditor = _focus!.hasFocus);
+    final handoff = _handoff;
+    if (!_focus!.hasFocus || handoff == null) return;
+    _handoff = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final editor = _focus?.context
+          ?.findAncestorStateOfType<EditableTextState>();
+      if (!mounted || editor == null) return;
+      final render = editor.renderEditable;
+      final half = render.preferredLineHeight / 2;
+      final y = handoff.movedDown ? half : render.size.height - half;
+      final top = render.localToGlobal(Offset(0, y));
+      editor.widget.controller.selection = TextSelection.fromPosition(
+        render.getPositionForPoint(Offset(handoff.dx, top.dy)),
+      );
+    });
+  }
+
+  /// Escape יוצא מהעריכה והתיקון נשאר. חץ מעלה/מטה בשורה הראשונה/האחרונה
+  /// עובר לפסקה הסמוכה, ובאמצע פסקה מזיז את הסמן בין השורות.
+  KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.escape) {
+      // המיקוד חוזר לקורא, כדי שחצים וגלילה ימשיכו לעבוד.
+      final reader = Focus.maybeOf(context, createDependency: false);
+      if (reader == null || reader is FocusScopeNode) {
+        node.unfocus(disposition: UnfocusDisposition.scope);
+      } else {
+        reader.requestFocus();
+      }
+      return KeyEventResult.handled;
+    }
+    final up = key == LogicalKeyboardKey.arrowUp;
+    if (!up && key != LogicalKeyboardKey.arrowDown) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    final editor = node.context?.findAncestorStateOfType<EditableTextState>();
+    if (editor == null ||
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    // הטקסט והבחירה נלקחים מהשדה עצמו: בו ירידות השורה מורחבות, והיסטי
+    // הבקר החיצוני אינם תואמים.
+    final value = editor.textEditingValue;
+    if (!value.selection.isValid || !value.selection.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    final render = editor.renderEditable;
+    final extent = value.selection.extent;
+    final line = render.getLineAtOffset(extent);
+    final caret = render.getLocalRectForCaret(extent);
+    if (up ? line.start > 0 : line.end < value.text.length) {
+      final step = render.preferredLineHeight * (up ? -1 : 1);
+      editor.userUpdateTextEditingValue(
+        value.copyWith(
+          selection: TextSelection.fromPosition(
+            render.getPositionForPoint(
+              render.localToGlobal(
+                Offset(caret.center.dx, caret.center.dy + step),
+              ),
+            ),
+          ),
+        ),
+        SelectionChangedCause.keyboard,
+      );
+      return KeyEventResult.handled;
+    }
+    _handoff = _CaretHandoff(render.localToGlobal(caret.center).dx, !up);
+    final moved = FocusScope.of(node.context!).focusInDirection(
+      up ? TraversalDirection.up : TraversalDirection.down,
+    );
+    // מיקוד שנחת ברכיב שאינו פסקה לא משאיר מעבר תלוי לפסקה אחרת.
+    scheduleMicrotask(() {
+      final target = FocusManager.instance.primaryFocus?.context;
+      if (target?.findAncestorStateOfType<_PluginCorrectionParagraphState>() ==
+          null) {
+        _handoff = null;
+      }
+    });
+    return moved ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   void _activationFocusChanged() {
@@ -115,7 +211,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     }
     if (_controller == null) {
       _controller = PluginCorrectionController(widget.sourceText);
-      _focus = FocusNode()..addListener(_focusChanged);
+      _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
@@ -256,7 +352,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       focusNode: _focus!,
       maxLines: null,
       minLines: 1,
-      textInputAction: TextInputAction.done,
+      textInputAction: TextInputAction.newline,
       textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
       decoration: const InputDecoration(
         border: InputBorder.none,
@@ -275,7 +371,6 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       ),
       inputFormatters: [TextInputFormatter.withFunction(_validate)],
       onChanged: _applyText,
-      onSubmitted: (_) => _focus!.unfocus(),
     );
   }
 
