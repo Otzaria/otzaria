@@ -1574,6 +1574,11 @@ class _CombinedViewState extends State<CombinedView> {
           removePunctuation: state.commentaryRemovePunctuation,
           maxFontSize: widget.textSize,
           onNavigate: (link) => openLinkTarget(link, _openTab),
+          onOpenAll: (link, commentators) => openLinkTarget(
+            link,
+            _openTab,
+            commentators: [state.book.title, ...commentators],
+          ),
         );
         return <AppContextMenuEntry>[?sourceEntry, ?entry];
       }(),

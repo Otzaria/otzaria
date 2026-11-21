@@ -95,10 +95,12 @@ class SiblingCommentariesController {
   /// בונה את פריט התפריט "מפרשים נוספים על <כתובת המקור>", או null כשאין מקור
   /// (השורה אינה בספר מפרש).
   /// [removeNikud]/[removePunctuation] — מסלול תאימות; העדיפו [displayProfile].
+  /// [onOpenAll] מקבל את המקור ואת שמות כל המפרשים ברשימה (issue #4993).
   AppContextMenuEntry? buildEntry({
     required int lineIndex,
     required Link? sourceLink,
     required void Function(Link link) onNavigate,
+    void Function(Link sourceLink, List<String> commentators)? onOpenAll,
     TextDisplayProfile? displayProfile,
     bool? removeNikud,
     bool? removePunctuation,
@@ -124,6 +126,7 @@ class SiblingCommentariesController {
         lineIndex,
         sourceLink,
         onNavigate,
+        onOpenAll,
         displayProfile: displayProfile,
         removeNikud: removeNikud,
         removePunctuation: removePunctuation,
@@ -136,7 +139,8 @@ class SiblingCommentariesController {
   List<AppContextMenuEntry> _buildChildren(
     int lineIndex,
     Link sourceLink,
-    void Function(Link link) onNavigate, {
+    void Function(Link link) onNavigate,
+    void Function(Link sourceLink, List<String> commentators)? onOpenAll, {
     TextDisplayProfile? displayProfile,
     bool? removeNikud,
     bool? removePunctuation,
@@ -158,7 +162,17 @@ class SiblingCommentariesController {
       ];
     }
     // הרשימה כבר ממוינת לפי דורות; מוסיפים פס מבדיל בכל מעבר דור.
-    final entries = <AppContextMenuEntry>[];
+    final entries = <AppContextMenuEntry>[
+      if (onOpenAll != null) ...[
+        AppContextMenuEntry(
+          label: 'הצג את כל המפרשים',
+          onTap: () => onOpenAll(sourceLink, [
+            ...{for (final link in cached) utils.getTitleFromPath(link.path2)},
+          ]),
+        ),
+        const AppContextMenuEntry.divider(),
+      ],
+    ];
     CommentaryEra? lastEra;
     for (final link in cached) {
       final era = CommentaryService.getCachedBookEra(
