@@ -2634,6 +2634,9 @@ class IndexingRepository {
     });
   }
 
+  /// מספר הספרים שהסרתם בניקוי מאחדת את האינדקס גם בלי בקשה מפורשת.
+  static const _compactAfterOrphans = 50;
+
   /// מסיר מהאינדקס רשומות "יתומות" — ספרים שכבר אינם בספרייה (למשל ספר
   /// אישי שנמחק או תיקייה מותאמת שהוסרה). בלעדי זה מסמכי הספר ממשיכים
   /// לעלות בחיפוש ולהיפתח לספר שגוי.
@@ -2743,8 +2746,10 @@ class IndexingRepository {
     // כשל delete/commit ⇒ שחזור מנוע והחזרת 0: המעקב לא סומן כמנוקה, כך
     // שקובץ שיחזור לספרייה לא יידלג בטעות כ"מאונדקס".
     if (!await _deleteIndexedFilePaths(orphans)) return 0;
-    // תחזוקה מפורשת בלבד: ניקוי היתומים בעלייה אינו מבקש איחוד כבד.
-    if (compact && !indexPdfBooks()) {
+    // מחיקה רק מסמנת את המסמכים, ובלי איחוד הם נשארים בדיסק (issue #5040).
+    // ניקוי קטן בעלייה אינו מאחד; המנוע משכתב רק מקטעים שרובם נמחקו.
+    // איחוד מפורש (כיבוי PDF) מתבטל אם PDF הודלק שוב בינתיים.
+    if (compact ? !indexPdfBooks() : orphans.length >= _compactAfterOrphans) {
       await optimizeIndexBestEffort(index.optimize);
     }
     debugPrint('🧹 נוקו ${orphans.length} ספרים יתומים מהאינדקס');

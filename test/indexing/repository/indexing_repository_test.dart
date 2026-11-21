@@ -773,6 +773,41 @@ void main() {
       expect(engine.rollbackCount, 0);
     });
 
+    group('איחוד אחרי הסרה גדולה של ספרים (issue #5040)', () {
+      Future<int> dropRemoved(
+        int removedBooks, {
+        bool pdfIndexing = false,
+      }) async {
+        final engine = _RecordingSearchEngine();
+        final provider = _RecordingTantivyDataProvider(engine);
+        final library = _buildLibrary(bavliBooks: const []);
+        provider.indexedFilePaths.addAll({
+          for (var i = 0; i < removedBooks; i++) 'uid:$i',
+        });
+        expect(
+          await IndexingRepository(
+            provider,
+            indexPdfBooks: () => pdfIndexing,
+          ).dropOrphanedIndexEntries(library, customFolders: []),
+          removedBooks,
+        );
+        expect(engine.commitCount, 1);
+        return engine.optimizeCount;
+      }
+
+      test('הסרת 50 ספרים ומעלה מאחדת את האינדקס', () async {
+        expect(await dropRemoved(50), 1);
+      });
+
+      test('הסרה קטנה אינה מאחדת', () async {
+        expect(await dropRemoved(49), 0);
+      });
+
+      test('גם כשאינדוקס PDF פעיל (ברירת המחדל)', () async {
+        expect(await dropRemoved(50, pdfIndexing: true), 1);
+      });
+    });
+
     test('מסיר מפתחות uid: של ספרים שאינם עוד בספרייה', () async {
       final engine = _RecordingSearchEngine();
       final provider = _RecordingTantivyDataProvider(engine);
