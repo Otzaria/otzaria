@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 
-/// מקום שמור לפסקה רציפה שחלק משורותיה טרם נטען. הגובה משוער כשורת תצוגה
-/// לכל שורת מקור, כדי שהגלילה לא תדלג עליה עד שתיטען.
+/// מקום שמור לפריט שחלק משורותיו טרם נטען. הגובה משוער כשורת תצוגה
+/// לכל שורת מקור, כדי שהגלילה לא תדלג עליו עד שייטען.
 class UnloadedParagraphPlaceholder extends StatelessWidget {
   const UnloadedParagraphPlaceholder({
     super.key,

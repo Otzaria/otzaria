@@ -2698,7 +2698,8 @@ class _CombinedViewState extends State<CombinedView> {
         segment != null &&
         !segment.isHeader &&
         segment.sourceLineIndices.length > 1;
-    if (isMultiLine && !segment.isLoaded) {
+    // גם שורה בודדת: בגובה אפס, קפיצה לאזור שלא נטען בונה אלפי שורות בפריים.
+    if (segment != null && !segment.isLoaded) {
       return UnloadedParagraphPlaceholder(
         lineCount: segment.sourceLineIndices.length,
         fontSize: widget.textSize,
