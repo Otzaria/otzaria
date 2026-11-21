@@ -2733,23 +2733,48 @@ Future<void> main() async {
       );
     }
 
-    // באג פתוח: כשאין מקום לא בצד ולא מעל השורה, Flutter מצמיד את תת־התפריט
-    // לראש החלון והוא מכסה את השורה (ב-700x700 וב-450x700 כולה).
+    // אין מקום לא בצד ולא מעל השורה: הלוח מוגבל לגובה שמעל השורה ונגלל,
+    // במקום ש-Flutter יצמיד אותו לראש החלון ויכסה את השורה.
     for (final size in const [
       Size(700, 700),
       Size(480, 760),
       Size(450, 700),
     ]) {
       testWidgets(
-        'חלון צר ונמוך ${sizeName(size)}: תת־התפריט לא מכסה את השורה',
+        'חלון צר ונמוך ${sizeName(size)}: תת־התפריט מעל השורה, נגלל ולא מכסה אותה',
         (WidgetTester tester) async {
           await openDialog(tester, size);
           await openSubmenu(tester);
           final rowRect = tester.getRect(row);
-          expect(rowRect.deflate(0.5).overlaps(submenuRect(tester)), isFalse);
+          final panel = submenuRect(tester);
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+          expect(panel.bottom, moreOrLessEquals(rowRect.top, epsilon: 1));
+          expect(panel.right, moreOrLessEquals(rowRect.right, epsilon: 1));
+          expect(panel.top, greaterThanOrEqualTo(-0.5));
+
+          // הלוח נגלל: יש מה לגלול, והפריטים האחרונים מגיעים לתוך הלוח.
+          final scrollable = find
+              .ancestor(of: proximity, matching: find.byType(Scrollable))
+              .first;
+          final position = tester.state<ScrollableState>(scrollable).position;
+          expect(position.maxScrollExtent, greaterThan(0));
+          expect(position.pixels, 0);
+          await tester.ensureVisible(proximity);
+          await tester.pumpAndSettle();
+          expect(position.pixels, greaterThan(0));
+          final last = tester.getRect(proximity);
+          expect(last.top, greaterThanOrEqualTo(panel.top - 0.5));
+          expect(last.bottom, lessThanOrEqualTo(panel.bottom + 0.5));
+          expect(submenuRect(tester), panel, reason: 'הלוח לא זז בגלילה');
+
+          // הפריט האחרון עם תיבה ניתן לסימון אחרי הגלילה.
+          final before = SearchDefaults.loadAnyOrderDefault();
+          await tester.tap(defaultOrder);
+          await tester.pumpAndSettle();
+          expect(SearchDefaults.loadAnyOrderDefault(), !before);
+          expect(proximity, findsOneWidget, reason: 'closeOnActivate: false');
         },
         variant: windows,
-        skip: true, // תת־התפריט (636) גבוה מהמקום מעל השורה; ראו דוח ה-QA.
       );
     }
 
