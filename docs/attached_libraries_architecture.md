@@ -118,3 +118,18 @@ timeout), פעם אחת לתהליך, ונכשל ללא הפלה
 - **ההחלה (`AttachedUpdateDeltaApplier`, ב-isolate ההורדה):** `ZSTD_DCtx_refPrefix` על הקובץ המותקן כשהוא ממופה לזיכרון לקריאה בלבד (`MappedFile`, `lib/utils/file/mapped_file.dart`) ו-`ZSTD_d_windowLogMax = 31`; הפלט נכתב לאותו `.<שם>.update-new` של המסלול המלא, עם אותה תקרת גודל ואותה בדיקת sha256 מול המניפסט החתום. קריאת המסד ל-heap הייתה מפילה מכונות של 8GB, והמיפוי משוחרר תמיד ב-`finally` — מיפוי שנשאר פתוח נועל את הקובץ ב-Windows ומונע את ההחלפה.
 - **נפילה חזרה:** כשל בהורדת התיקון או בהחלתו מוחק את ההורדה החלקית ומוריד את הקובץ המלא באותו ניסיון התקנה (כולל HTTP 404 של תיקון חסר; ניתוק רשת, דחיית מדיניות וביטול המשתמש אינם מפעילים נפילה כזאת). הורדת תיקון נשמרת בשם נפרד לכל גרסת מקור, כדי שחידוש חלקי לא ייקרא כקלט של תיקון אחר.
 - **המפרסם:** `pack --delta-from <old.db>` (עד 4) ו-`verify`, שמחיל כל תיקון עם אותו applier של התוכנה. ראו `docs/personal_databases.md`.
+
+## מסדים רשמיים
+
+- **הקטלוג:** `models/official_attached_library.dart` — `OfficialAttachedLibraries.builtIn`: `libraryId`, שם, `manifestUrl` ו-`publicKey` קבועים בקוד. רשומה עם מפתח לא תקין (`source == null`) אינה פעילה: אין הצעה ואין עדכון.
+- **מודל האמון:** `AttachedLibrary.official` (`AttachedOfficialInstall`: מזהה, גרסה ו-sha256 שהותקנו) נקבע רק ב-`AttachedLibrariesRepository.installOfficial` ובעדכון שעבר דרך `installUpdate`, אף פעם לא מתוכן הקובץ. בעותק רשמי `_applyProbe` לוקח את `updateSource` ואת שם התצוגה מהקטלוג, ולא מסמן `updateSourceMismatch`. `AttachedLibraryUpdateService.sourceOf` מחזיר את מקור הקטלוג גם אם הרשומה השמורה שונתה. קובץ שה-slug שלו שונה מהמזהה מאבד את הסימון. `forgetUpdatePins` (שחזור גיבוי) מוחק אותו.
+- **קובץ ידני עם אותו `library_id`:** מסד אישי רגיל (TOFU, עדכון רק באישור). ב-`_commit` העותק הרשמי גובר עליו בבדיקת הכפילויות ללא תלות בסדר, ו-`_slugTaken` דוחה צירוף ידני כשהרשמי רשום. העותק הרשמי נשמר ב-`<תיקיית העותקים>/official/<id>.db`, ולכן אינו מתנגש בעותק ידני (`<slug>.db`). לא אימצנו קובץ ידני כרשמי לפי sha256: זה מחייב רשת וגיבוב של קובץ גדול בזמן צירוף, ומניפסט "latest" מכסה רק את הגרסה האחרונה.
+- **הצעה והורדה:** `checkOfficialOffers` (רק כשכרטיס ההגדרות נפתח, לא בעלייה) מביא את המניפסט החתום של כל רשומה פעילה שלא הותקנה ולא נדחתה. `installOfficial` מוריד את `full` באותו `AttachedUpdateDownloader`, בודק את הקובץ (`acceptsOfficial`: אותו slug ובדיוק גרסת המניפסט) ומצרף אותו במצב copy. המצב נשמר באותו `statuses` במפתח `officialKey(id)`. סירוב או הסרה נשמרים ב-`keyDeclinedOfficialLibraries`.
+- **עדכון אוטומטי:** `runScheduledCheck` (בתוך `_runDeferredAttachedLibraryUpdates`, אחרי reveal) מתקין מיד עדכון שנמצא לעותק רשמי. לפני התכנון `install` בודק שגרסת הקובץ וה-sha256 שלו (`planner.installedSha256`, אותו מטמון של בחירת הדלתא) תואמים ל-`official`. אי-התאמה ⇒ `AttachedUpdateError.integrityMismatch`, בלי הורדה. `install(forceFull: true)` מוריד את `full` בלבד. אחרי התקנה נרשם ה-sha256 של הארטיפקט שאומת בפועל.
+
+### הוספת מסד רשמי חדש
+
+1. מוסיפים רשומה ל-`OfficialAttachedLibraries.builtIn`: `libraryId` זהה ל-`schema_meta.library_id` של המסד, שם תצוגה, כתובת מניפסט קבועה (https) ומפתח ציבורי ed25519 ב-base64.
+2. המפתח הפרטי נשמר אצל המפרסם בלבד. החלפת מפתח מחייבת גרסת תוכנה חדשה.
+3. המסד מתפרסם בכלי המפרסם הרגיל (`pack`/`sign`); ה-`library_id` במניפסט חייב להיות זהה לזה שבקטלוג.
+4. מוסיפים בדיקה ל-`test/attached_libraries/update/official_attached_library_test.dart` אם הרשומה צריכה התנהגות מיוחדת.
