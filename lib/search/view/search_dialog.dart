@@ -2047,6 +2047,7 @@ class _IndexMissingGate extends StatelessWidget {
 /// - יש מקום בצד: תחתית תת־התפריט בגובה תחתית השורה, והוא גדל כלפי מעלה.
 /// - אין מקום בצד: תת־התפריט צמוד מעל השורה, מיושר לקצה ההתחלה שלה. כך העכבר
 ///   עולה מהשורה ישר אל תוכו, בלי לעבור על שורה אחרת שהייתה סוגרת אותו.
+///   אם גם מעל השורה אין מספיק מקום, הלוח מוגבל לגובה שיש ונגלל.
 ///
 /// ההתנהגות במקלדת וב-Esc נשארת של [SubmenuButton] עצמו.
 class _BottomAlignedSubmenuButton extends StatefulWidget {
@@ -2069,6 +2070,9 @@ class _BottomAlignedSubmenuButtonState
     extends State<_BottomAlignedSubmenuButton> {
   final _measureKey = GlobalKey();
   Offset _offset = Offset.zero;
+
+  /// תקרת הגובה של הלוח כשהוא מעל השורה ואין לו מספיק מקום. null = בלי.
+  double? _maxHeight;
 
   @override
   void initState() {
@@ -2116,16 +2120,35 @@ class _BottomAlignedSubmenuButtonState
     final fitsBeside =
         width <= max(rowRect.left - screen.left, screen.right - rowRect.right);
 
+    // מעל השורה אין מספיק מקום: הלוח מוגבל לגובה שיש ונגלל. אחרת Flutter
+    // מצמיד אותו לראש החלון, והוא יורד על השורה.
+    final above = rowRect.top - screen.top;
+    final maxHeight =
+        !fitsBeside &&
+            height > above &&
+            above >= _kMinCappedRows * rowRect.height
+        ? above
+        : null;
+
     // ראש הלוח = ראש השורה - pad.top + dy (את pad.top מוריד SubmenuButton).
     final next = fitsBeside
         // תחתית הלוח = תחתית השורה + pad.bottom.
         ? Offset(0, rowRect.height - measured.size.height)
         // תחתית הלוח = ראש השורה. dx = -רוחב השורה מיישר את הלוח לקצה
         // ההתחלה של השורה, בשני הכיוונים.
-        : Offset(-rowRect.width, pad.top - height);
-    if ((next - _offset).distance > 0.5) setState(() => _offset = next);
+        : Offset(-rowRect.width, pad.top - (maxHeight ?? height));
+    if ((next - _offset).distance > 0.5 || maxHeight != _maxHeight) {
+      setState(() {
+        _offset = next;
+        _maxHeight = maxHeight;
+      });
+    }
     return true;
   }
+
+  /// מתחת לכמה שורות לא מגבילים את הגובה: לוח כזה קטן מכדי להיות שימושי,
+  /// ועדיף המיקום של Flutter.
+  static const int _kMinCappedRows = 4;
 
   @override
   Widget build(BuildContext context) {
@@ -2135,6 +2158,15 @@ class _BottomAlignedSubmenuButtonState
         SubmenuButton(
           leadingIcon: widget.leadingIcon,
           alignmentOffset: _offset,
+          // רק maximumSize: שאר המאפיינים, כולל הריפוד, ממשיכים להגיע
+          // מה-MenuTheme.
+          menuStyle: _maxHeight == null
+              ? null
+              : MenuStyle(
+                  maximumSize: WidgetStatePropertyAll(
+                    Size(double.infinity, _maxHeight!),
+                  ),
+                ),
           // רשת ביטחון, למשל אם החלון שינה גודל מאז שהתפריט נפתח.
           onOpen: _scheduleAlign,
           menuChildren: widget.menuChildren,
