@@ -25,7 +25,6 @@ import 'package:xml/xml.dart' as xml;
 /// המקדימה של החבילה (`Thumbnails/`) אינה נספרת בתקרת ההטמעה.
 /// v6: חבילה בלי `office:text` זורקת חריגה, `draw:frame` ברמת הבלוק אינו
 /// נמחק, `text:list-header` אינו ממוספר, צבעים מסוננים וכותרת עוברת trim.
-/// v8: קישורים ישירים לספרי אוצריא (`otzaria://open/book/…`) נשמרים.
 const int kOdtConverterVersion = 8;
 
 /// רווח קשיח. `text:s` ו-`text:tab` מייצגים רווחים שהמסמך דורש שיישמרו,

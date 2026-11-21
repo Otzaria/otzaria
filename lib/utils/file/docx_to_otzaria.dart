@@ -41,7 +41,6 @@ import 'package:xml/xml.dart' as xml;
 /// v15: קישורי OOXML ו-WordML 2003 נשמרים כ-`<a href="…">` מאומתים,
 /// וסימניות יעד הופכות לעוגנים באותה שורת פלט — גם כשאינן כותרות.
 /// v16: גוף הערת שוליים שומר הדגשה, ומעבר פסקה/שורה בו הוא `<br>`.
-/// v17: קישורים ישירים לספרי אוצריא (`otzaria://open/book/…`) נשמרים.
 const int kOoxmlWordConverterVersion = 17;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
