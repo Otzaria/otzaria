@@ -331,8 +331,11 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
   // ריבוי-בחירה ב'ניווט' (Ctrl+לחיצה): אינדקסי שורות נוספים להצגת מפרשים מעבר
   // לבחירה הראשית. ריק = בחירה יחידה רגילה. מתאפס בכל ניווט רגיל.
-  // חי על הטאב, כדי שבחירה מרובה מטאב המקור תגיע לכאן ותישמר לדיסק.
-  Set<int> get _extraIndexes => widget.tab.selectedIndices;
+  final Set<int> _extraIndexes = <int>{};
+  late final Set<int> _openingSelection = {...?widget.tab.openingSelection};
+
+  Set<int> get _multiSelection =>
+      _openingSelection.isEmpty ? _extraIndexes : _openingSelection;
 
   @visibleForTesting
   CommentatorsNavSelection get debugNavSelection => CommentatorsNavSelection(
@@ -352,7 +355,11 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       _selectedVerseIdx = next.selectedVerseIdx;
       _navExpandedChapter = next.navExpandedChapter;
       // ניווט רגיל מאפס את ריבוי-הבחירה (לחיצת chevron מעבירה clearMulti: false).
-      if (clearMulti) _extraIndexes.clear();
+      if (clearMulti) {
+        widget.tab.openingSelection = null;
+        _openingSelection.clear();
+        _extraIndexes.clear();
+      }
     });
     final state = widget.tab.bloc.state;
     if (state is TextBookLoaded) {
@@ -368,6 +375,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   /// האינדקסים האפקטיביים להצגת מפרשים: איחוד הבחירה הראשית עם ריבוי-הבחירה
   /// (Ctrl+לחיצה ב'ניווט'). כשאין ריבוי-בחירה — הבחירה הראשית בלבד.
   List<int>? _effectiveIndexes(List<TocEntry> chapters, int contentLength) {
+    if (_openingSelection.isNotEmpty) return _openingSelection.toList()..sort();
     final primary = _computeIndexes(
       chapters,
       _selectedChapter,
@@ -388,19 +396,25 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     final contentLength = state is TextBookLoaded ? state.content.length : 0;
     final idxs = _computeIndexes(chapters, chapter, verseIdx, contentLength);
     if (idxs == null || idxs.isEmpty) return;
+    final selection = _multiSelection;
+    final openingAnchor = _openingSelection.isEmpty
+        ? null
+        : widget.tab.initialSelectedLine;
     setState(() {
-      if (idxs.every(_extraIndexes.contains)) {
-        _extraIndexes.removeAll(idxs);
+      widget.tab.openingSelection = null;
+      if (idxs.every(selection.contains)) {
+        selection.removeAll(idxs.where((index) => index != openingAnchor));
       } else {
-        // שמירת הבחירה הראשית הנוכחית כחלק מהאיחוד לפני הוספת הקטע החדש.
-        final primary = _computeIndexes(
-          chapters,
-          _selectedChapter,
-          _selectedVerseIdx,
-          contentLength,
-        );
-        if (primary != null) _extraIndexes.addAll(primary);
-        _extraIndexes.addAll(idxs);
+        if (_openingSelection.isEmpty) {
+          final primary = _computeIndexes(
+            chapters,
+            _selectedChapter,
+            _selectedVerseIdx,
+            contentLength,
+          );
+          if (primary != null) selection.addAll(primary);
+        }
+        selection.addAll(idxs);
       }
     });
     _triggerLinkLoad(idxs);
@@ -412,12 +426,13 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     TocEntry chapter,
     List<TocEntry> chapters,
   ) {
-    if (_extraIndexes.isEmpty) return false;
+    final selection = _multiSelection;
+    if (selection.isEmpty) return false;
     final state = widget.tab.bloc.state;
     final contentLength = state is TextBookLoaded ? state.content.length : 0;
     final idxs = _computeIndexes(chapters, chapter, verseIdx, contentLength);
     if (idxs == null || idxs.isEmpty) return false;
-    return idxs.any(_extraIndexes.contains);
+    return idxs.any(selection.contains);
   }
 
   // גלילת רשימת הניווט לפרק הנבחר בעת פתיחת הפאנל/מעבר ללשונית הניווט.
@@ -633,26 +648,23 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   void _resolveInitialChapter(TextBookLoaded state) {
     if (_initialChapterResolved) return;
 
-    // בחירה ששוחזרה מהדיסק אחרי שהספר התקצר — שורות שאינן קיימות יורדות.
-    _extraIndexes.removeWhere((i) => i < 0 || i >= state.content.length);
     final chapters = _getChapters(state.tableOfContents);
     final lineIndex =
         state.selectedIndex ??
         (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
 
-    if (chapters.isEmpty) {
+    final pos = _findPos(chapters, lineIndex);
+    final chapter = pos.chapter;
+    if (chapter == null) {
+      if (chapters.isNotEmpty && _openingSelection.isEmpty) return;
       _initialChapterResolved = true;
-      _triggerLinkLoad([lineIndex, ..._extraIndexes]);
+      _triggerLinkLoad(
+        _openingSelection.isEmpty ? [lineIndex] : _openingSelection.toList(),
+      );
       return;
     }
 
-    final pos = _findPos(chapters, lineIndex);
-    if (pos.chapter == null) return;
-
     _initialChapterResolved = true;
-    // הבחירה ההתחלתית היא ניווט שמאפס את ריבוי-הבחירה — שומרים אותו לפניה.
-    final initialMulti = _extraIndexes.toList();
-    final chapter = pos.chapter!;
     final verseIdx = resolveOpenedVerseIdx(
       posVerseIdx: pos.verseIdx,
       lineIndex: lineIndex,
@@ -662,14 +674,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           ? _selectableParagraphOffsets(chapters, chapter, state.content)
           : const [],
     );
-    if (verseIdx == _kAllChapter) {
-      _onChapterSelected(chapter, chapters);
+    if (_openingSelection.isNotEmpty) {
+      _applyNavSelection(
+        reduceSubItemTap(debugNavSelection, chapter, verseIdx),
+        clearMulti: false,
+      );
+      _triggerLinkLoad(_openingSelection.toList());
     } else {
       _selectInChapter(verseIdx, chapter, chapters);
     }
-    if (initialMulti.isEmpty) return;
-    setState(() => _extraIndexes.addAll(initialMulti));
-    _triggerLinkLoad(initialMulti);
   }
 
   /// גוללת את רשימת הניווט לפרק הנבחר. נקראת בעת פתיחת הפאנל ומעבר

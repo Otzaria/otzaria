@@ -32,9 +32,8 @@ class CommentatorsTab extends OpenedTab {
   /// נשמר ב-toJson — בלעדיו הבחירה אבדה בסגירת התוכנה ושוחזרו "כל המפרשים".
   List<String>? selectedCommentators;
 
-  /// ריבוי-הבחירה (Ctrl) של הכרטיסייה, בשורות. ריק = בחירה יחידה.
-  /// נגזר מטאב המקור בפתיחה, ומסך המפרשים מעדכן אותו ישירות.
-  final Set<int> selectedIndices = <int>{};
+  /// בחירת השורות מהקורא עד לפעולת הבחירה הראשונה בכרטיסייה.
+  List<int>? openingSelection;
 
   /// מיקום הפתיחה של הכרטיסיה הזו. עצמאי מזה של [sourceTab] — זו כל מטרתה.
   final int startIndex;
@@ -70,7 +69,7 @@ class CommentatorsTab extends OpenedTab {
     }
     if (sourceState is TextBookLoaded &&
         sourceState.selectedIndices.length > 1) {
-      selectedIndices.addAll(sourceState.selectedIndices);
+      openingSelection = List.unmodifiable(sourceState.selectedIndices);
     }
 
     _initialState = TextBookInitial.named(
@@ -106,10 +105,6 @@ class CommentatorsTab extends OpenedTab {
       disposeSourceTabOnDispose: true,
       startIndex: json['initialIndex'] as int?,
     )..isPinned = json['isPinned'] ?? false;
-    final savedIndices = json['selectedIndices'];
-    if (savedIndices is List) {
-      tab.selectedIndices.addAll(savedIndices.whereType());
-    }
     if (json.containsKey('selectedCommentators')) {
       final saved = json['selectedCommentators'];
       tab.selectedCommentators = saved is List
@@ -141,7 +136,6 @@ class CommentatorsTab extends OpenedTab {
           startIndex: currentIndex,
         )
         ..isPinned = isPinned
-        ..selectedIndices.addAll(selectedIndices)
         ..selectedCommentators = selectedCommentators == null
             ? null
             : List<String>.from(selectedCommentators!);
@@ -199,8 +193,6 @@ class CommentatorsTab extends OpenedTab {
       'bookTitle': sourceTab.book.title,
       'sourceTab': sourceTab.toJson(),
       'selectedCommentators': selectedCommentators,
-      if (selectedIndices.isNotEmpty)
-        'selectedIndices': selectedIndices.toList()..sort(),
     };
   }
 }

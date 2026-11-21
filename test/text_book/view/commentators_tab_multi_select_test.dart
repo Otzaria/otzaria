@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
@@ -24,8 +25,11 @@ class _LoadingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   _LoadingTextBookBloc(super.initialState, TextBookLoaded loaded) {
     on<TextBookEvent>((event, emit) {
       if (event is LoadContent) emit(loaded);
+      if (event is LoadAllLinksForIndices) linkLoads.add(event.indices);
     });
   }
+
+  final linkLoads = <List<int>>[];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -49,6 +53,7 @@ TextBookLoaded _loaded(
   int? selectedIndex,
   Set<int> selectedIndices = const {},
   List<int> visibleIndices = const [0],
+  List<TocEntry>? toc,
 }) => TextBookLoaded(
   book: book,
   showLeftPane: false,
@@ -61,7 +66,7 @@ TextBookLoaded _loaded(
   links: const [],
   visibleLinks: const [],
   linksByLine: const {},
-  tableOfContents: _toc(),
+  tableOfContents: toc ?? _toc(),
   removeNikud: false,
   visibleIndices: visibleIndices,
   selectedIndex: selectedIndex,
@@ -128,10 +133,14 @@ void main() {
     return source;
   }
 
-  CommentatorsTab openOn(TextBookTab source, TextBook book) {
+  CommentatorsTab openOn(
+    TextBookTab source,
+    TextBook book, {
+    List<TocEntry>? toc,
+  }) {
     final tabBloc = _LoadingTextBookBloc(
       TextBookInitial.named(book, source.index, false, const []),
-      _loaded(book, visibleIndices: [source.index]),
+      _loaded(book, visibleIndices: [source.index], toc: toc),
     );
     final tab = CommentatorsTab(sourceTab: source, blocOverride: tabBloc);
     addTearDown(tab.dispose);
@@ -146,6 +155,69 @@ void main() {
     expect(await shownIndexes(tester, tab), [3, 5, 7]);
   });
 
+  testWidgets(
+    'הכרטיסייה מציגה בדיוק את השורות שנבחרו כשהעוגן בתוך פסוק רב-שורות',
+    (
+      tester,
+    ) async {
+      final book = TextBook(title: 'בראשית');
+      final toc = _toc();
+      final verses = toc.single.children.single.children;
+      verses.removeWhere((verse) => verse.index == 8 || verse.index == 9);
+      final tab = openOn(sourceWith(book, {3, 5, 7}), book, toc: toc);
+
+      expect(await shownIndexes(tester, tab), [3, 5, 7]);
+      final bloc = tab.bloc as _LoadingTextBookBloc;
+      expect(bloc.linkLoads, [
+        [3, 5, 7],
+      ]);
+
+      await tester.tap(find.byTooltip('הקטע הבא').first);
+      await tester.pump();
+      expect(
+        tester
+            .widget<CommentaryListBase>(find.byType(CommentaryListBase))
+            .indexes,
+        [10],
+      );
+    },
+  );
+
+  testWidgets('Ctrl בכרטיסייה משנה את בחירת השורות ושומר על העוגן', (
+    tester,
+  ) async {
+    final book = TextBook(title: 'בראשית');
+    final tab = openOn(sourceWith(book, {3, 5, 7}), book);
+    expect(await shownIndexes(tester, tab), [3, 5, 7]);
+
+    await tester.tap(find.byTooltip('הצג ניווט').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    for (final line in ['שורה 7', 'שורה 5']) {
+      final row = find.text(line);
+      await tester.ensureVisible(row);
+      await tester.pump();
+      await tester.tap(row.hitTestable());
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<CommentaryListBase>(find.byType(CommentaryListBase))
+          .indexes,
+      [3, 7],
+    );
+  });
+
+  testWidgets('ספר בלי תוכן עניינים מציג את כל השורות שנבחרו', (tester) async {
+    final book = TextBook(title: 'ספר ללא תוכן עניינים');
+    final tab = openOn(sourceWith(book, {3, 5, 7}), book, toc: []);
+
+    expect(await shownIndexes(tester, tab), [3, 5, 7]);
+  });
+
   testWidgets('בחירה יחידה נפתחת כמו קודם — על הקטע הנבחר בלבד', (
     tester,
   ) async {
@@ -155,33 +227,13 @@ void main() {
     expect(await shownIndexes(tester, tab), [7]);
   });
 
-  test('הבחירה המרובה נשמרת לדיסק ומשוחזרת, ו-JSON ישן נטען בלעדיה', () {
+  test('פתיחת הכרטיסייה מעתיקה בחירה בלי לשנות את נתוני הסשן', () {
     final book = TextBook(title: 'בראשית');
-    final tab = openOn(sourceWith(book, {3, 5, 7}), book);
+    final selected = {3, 5, 7};
+    final tab = openOn(sourceWith(book, selected), book);
+    selected.add(9);
 
-    final json = tab.toJson();
-    expect(json['selectedIndices'], [3, 5, 7]);
-    final restored = CommentatorsTab.fromJson(json);
-    addTearDown(restored.dispose);
-    expect(restored.toJson()['selectedIndices'], [3, 5, 7]);
-
-    final legacy = CommentatorsTab.fromJson(
-      Map<String, dynamic>.from(json)..remove('selectedIndices'),
-    );
-    addTearDown(legacy.dispose);
-    expect(legacy.toJson().containsKey('selectedIndices'), isFalse);
-    // בחירה יחידה לא מוסיפה את השדה לשמירה.
-    expect(
-      openOn(sourceWith(book, {7}), book).toJson(),
-      isNot(contains('selectedIndices')),
-    );
-  });
-
-  testWidgets('שורות ששוחזרו מעבר לסוף הספר יורדות בפתיחה', (tester) async {
-    final book = TextBook(title: 'בראשית');
-    final tab = openOn(sourceWith(book, {3, 5}), book)..selectedIndices.add(99);
-
-    expect(await shownIndexes(tester, tab), [3, 5]);
-    expect(tab.selectedIndices, {3, 5});
+    expect(tab.openingSelection, [3, 5, 7]);
+    expect(tab.toJson().containsKey('selectedIndices'), isFalse);
   });
 }
