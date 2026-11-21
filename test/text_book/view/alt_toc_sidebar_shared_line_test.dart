@@ -200,6 +200,78 @@ void main() {
     expect(isSelected(tester, _lastPage), isTrue);
     expect(isSelected(tester, _firstPage), isFalse);
   });
+  for (final versionTitle in <String?>[null, 'מהדורה חלופית']) {
+    testWidgets('ימי החודש מיישרים גלילה רק כשהסמנים גלויים ($versionTitle)', (
+      tester,
+    ) async {
+      final db = sqlite3.sqlite3.open(dbPath);
+      db.execute(
+        "UPDATE alt_toc_structure SET key = '30 Day Cycle' WHERE id = 1",
+      );
+      db.close();
+      final book = TextBook(
+        title: SeforimFixtureIds.bereshitTitle,
+        categoryId: SeforimFixtureIds.torahCategoryId,
+        versionTitle: versionTitle,
+      );
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {BookCompositeKey.fromBook(book)!: provider},
+        providers: [provider],
+      );
+      final bloc = _TestTextBookBloc(
+        _loadedState(book, visibleLine: 0).copyWith(
+          content: ['<h2>כג</h2>', 'פסוק א', 'פסוק ב'],
+        ),
+      );
+      addTearDown(bloc.close);
+      final lines = LineScrollController();
+      addTearDown(lines.dispose);
+      await pumpSidebar(tester, book, bloc, lines);
+
+      await tester.tap(find.text(_firstPage));
+      await _settleRealAsync(tester);
+      expect(lines.position.value!.topLine, versionTitle == null ? 0 : 1);
+    });
+  }
+  testWidgets('יום החודש פותח בכותרת פרק שעדיין לא נטענה', (tester) async {
+    final db = sqlite3.sqlite3.open(dbPath);
+    db.execute(
+      "UPDATE alt_toc_structure SET key = '30 Day Cycle' WHERE id = 1",
+    );
+    db.close();
+    final book = TextBook(
+      title: SeforimFixtureIds.bereshitTitle,
+      categoryId: SeforimFixtureIds.torahCategoryId,
+    );
+    LibraryProviderManager.instance.seedMappingsForTesting(
+      mapping: {BookCompositeKey.fromBook(book)!: provider},
+      providers: [provider],
+    );
+    final bloc = _TestTextBookBloc(
+      _loadedState(book, visibleLine: 1).copyWith(
+        content: ['', 'פסוק א', 'פסוק ב'],
+        loadedLineFlags: [false, true, true],
+      ),
+    );
+    addTearDown(bloc.close);
+    bloc.repository.pendingRange = Completer()
+      ..complete(
+        const BookContentRange(
+          startLine: 0,
+          endLine: 0,
+          totalLines: 3,
+          lines: ['<h2>כג</h2>'],
+        ),
+      );
+    final lines = LineScrollController();
+    addTearDown(lines.dispose);
+    await pumpSidebar(tester, book, bloc, lines);
+
+    await tester.tap(find.text(_firstPage));
+    await _settleRealAsync(tester);
+    expect(bloc.repository.requestedRanges, [(0, 0)]);
+    expect(lines.position.value!.topLine, 0);
+  });
   for (final loaded in [true, false]) {
     for (final hasMarker in [true, false]) {
       testWidgets(

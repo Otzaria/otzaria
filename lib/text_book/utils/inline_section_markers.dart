@@ -3,6 +3,7 @@
 library;
 
 import 'package:otzaria/tools/tikkun_korim/data/parasha_index.g.dart';
+import 'package:otzaria/utils/text/numeral_formats.dart';
 
 /// מקדים לשורה את סמן החלוקה שלה, בסוגריים מרובעים ובהדגשה —
 /// כמוסכמת `[אות ב]` המודפסת בתוספות רבי עקיבא איגר.
@@ -43,6 +44,37 @@ String? parashaHeadingLabel(String label) {
     (parasha) => key == parasha || key.startsWith('$parasha '),
   );
   return isParashaName ? 'פרשת ${label.trim()}' : null;
+}
+
+/// מבנה החלוקה החודשית של תהלים (מספריא): עלה אחד לכל יום בחודש.
+const String kMonthlyCycleStructureKey = '30 Day Cycle';
+
+/// מבני הכותרות החלופיות שכותרותיהם מוזרקות לגוף הטקסט
+/// ([buildSectionHeadings]).
+bool injectsSectionHeadings(String structureKey) =>
+    structureKey == 'Topic' ||
+    structureKey == 'Parasha' ||
+    structureKey == kMonthlyCycleStructureKey;
+
+final RegExp _dayDigits = RegExp(r'^(?:day\s*)?(\d+)$', caseSensitive: false);
+final RegExp _dayLetters = RegExp('^(?:יום\\s+)?([א-ת]{1,2})(?:\\s+לחודש)?\$');
+
+/// תווית יום בחלוקה החודשית: "יום ד׳" / "Day 4" ← "יום ד׳ לחודש".
+/// תווית שאינה יום 1–30 חוזרת כמות שהיא.
+String monthlyCycleHeadingLabel(String label) {
+  final trimmed = label.trim();
+  final plain = trimmed.replaceAll(RegExp('[\'"׳״]'), '');
+  final digits = _dayDigits.firstMatch(plain)?.group(1);
+  final letters = _dayLetters.firstMatch(plain)?.group(1);
+  final day = digits != null
+      ? int.tryParse(digits) ?? 0
+      : gematriaToNumber(letters ?? '');
+  if (day < 1 || day > 30) return trimmed;
+  final numeral = toHebrewNumeral(day);
+  final marked = numeral.length == 1
+      ? '$numeral׳'
+      : '${numeral.substring(0, numeral.length - 1)}״${numeral.substring(numeral.length - 1)}';
+  return 'יום $marked לחודש';
 }
 
 final RegExp _regularHeadingLine = RegExp(r'^\s*<h[2-6]\b');
