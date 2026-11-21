@@ -147,6 +147,30 @@ void main() {
     },
   );
 
+  test('קיצור רשימת המקשים מכבד את התו, הספרון וקדימות העורך', () async {
+    const id = 'key-shortcut-open-shortcuts-list';
+    final shortcuts = PluginHostShortcuts.build({id: 'ctrl+slash'});
+    final out = await runStub(shortcuts, [
+      {'code': 'KeyQ', 'key': '/', 'ctrlKey': true},
+      {'code': 'Slash', 'key': '.', 'ctrlKey': true},
+      {'code': 'NumpadDivide', 'key': '/', 'ctrlKey': true},
+      {
+        'code': 'Slash',
+        'key': '/',
+        'ctrlKey': true,
+        'target': {'tagName': 'TEXTAREA'},
+      },
+    ]);
+    if (out == null) {
+      markTestSkipped('node אינו מותקן');
+      return;
+    }
+    final results = (out['results'] as List).cast<Map<String, dynamic>>();
+    expect(results.map((r) => r['prevented']), [true, false, true, false]);
+    final calls = (out['calls'] as List).cast<Map<String, dynamic>>();
+    expect(calls.map((c) => c['arg']), [id, id]);
+  });
+
   test('קיצורי עריכה נשארים בשדה והקבועים מועברים (issue #1336)', () async {
     final shortcuts = PluginHostShortcuts.build({});
     final out = await runStub(shortcuts, [

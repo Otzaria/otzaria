@@ -34,6 +34,7 @@ class PluginHostShortcut {
   Map<String, Object> toJson() => {
     'id': id,
     'codes': codes,
+    if (mainKey == 'slash') 'key': '/',
     'ctrl': ctrl,
     'shift': shift,
     'alt': alt,
@@ -70,6 +71,7 @@ class PluginHostShortcuts {
     ShortcutValidator.openAppReportKey,
     ShortcutValidator.openNewWindowKey,
     'key-shortcut-open-settings',
+    ShortcutValidator.openShortcutsListKey,
     'key-shortcut-open-more',
     'key-shortcut-open-bookmarks',
     'key-shortcut-open-history',
@@ -156,6 +158,7 @@ class PluginHostShortcuts {
   static List<String>? codesForToken(String mainKey) {
     if (_isLetter(mainKey)) return ['Key${mainKey.toUpperCase()}'];
     if (_isDigit(mainKey)) return ['Digit$mainKey', 'Numpad$mainKey'];
+    if (mainKey == 'slash') return ['NumpadDivide'];
     final entry = _tokenKeys[mainKey];
     return entry == null ? null : [entry.code];
   }

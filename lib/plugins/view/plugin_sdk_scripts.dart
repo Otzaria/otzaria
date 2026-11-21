@@ -63,7 +63,8 @@ const String _hostShortcutsJs = r'''
   window.__otzariaMatchHostShortcut = function (e, list) {
     for (var i = 0; i < list.length; i++) {
       var s = list[i];
-      if (s.codes.indexOf(e.code) !== -1 &&
+      var keyMatches = (s.key && e.key === s.key) || s.codes.indexOf(e.code) !== -1;
+      if (keyMatches &&
           !!e.ctrlKey === !!s.ctrl && !!e.shiftKey === !!s.shift &&
           !!e.altKey === !!s.alt && !!e.metaKey === !!s.meta) {
         return s;
