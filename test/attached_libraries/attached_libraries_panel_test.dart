@@ -26,6 +26,7 @@ class _FakeRepository extends AttachedLibrariesRepository {
 
   List<AttachedLibrary> items;
   final removed = <AttachedLibrary>[];
+  final placements = <(String, AttachedLibraryPlacement)>[];
   final _controller = StreamController<Set<String>>.broadcast();
 
   @override
@@ -46,6 +47,21 @@ class _FakeRepository extends AttachedLibrariesRepository {
     ];
     _controller.add(const {});
   }
+
+  @override
+  Future<void> setPlacement(
+    AttachedLibrary library,
+    AttachedLibraryPlacement placement,
+  ) async {
+    placements.add((library.slug, placement));
+    items = [
+      for (final other in items)
+        other.path == library.path
+            ? other.copyWith(placement: placement)
+            : other,
+    ];
+    _controller.add({library.slug});
+  }
 }
 
 AttachedLibrary _library(
@@ -53,6 +69,7 @@ AttachedLibrary _library(
   AttachedLibraryMode mode = AttachedLibraryMode.link,
   AttachedLibraryStatus status = AttachedLibraryStatus.ok,
   bool hidden = false,
+  AttachedLibraryPlacement placement = AttachedLibraryPlacement.separateRoot,
 }) => AttachedLibrary(
   slug: name,
   displayName: name,
@@ -60,6 +77,7 @@ AttachedLibrary _library(
   mode: mode,
   status: status,
   hidden: hidden,
+  placement: placement,
   bookCount: 12,
   capabilities: const {AttachedLibraryCapability.toc},
   addedAt: DateTime(2026),
@@ -166,7 +184,63 @@ void main() {
     expect(find.text('הוסף קובץ מסד'), findsOneWidget);
     expect(find.text('הוסף תיקיית מסדים'), findsOneWidget);
     // מסד לא נגיש אינו מציע בחירת מיקום בעץ.
-    expect(find.text('בנפרד'), findsNWidgets(2));
+    expect(find.text('תחת ספרים אישיים'), findsNWidgets(2));
+  });
+
+  group('attached DB placement labels explain the result (issue #2387)', () {
+    testWidgets('תוויות הבורר אומרות מה קורה, ושורת הסבר לפי הבחירה', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final repository = _FakeRepository([
+        _library('ראשון'),
+        _library('שני', placement: AttachedLibraryPlacement.mergeIntoLibrary),
+      ]);
+      await pumpPanel(tester, repository);
+
+      expect(find.text('בנפרד'), findsNothing);
+      expect(find.text('ממוזג'), findsNothing);
+      expect(find.text('תחת ספרים אישיים'), findsNWidgets(2));
+      expect(find.text('מיזוג לעץ הספרייה'), findsNWidgets(2));
+
+      const perDb = 'ההגדרה למסד זה בלבד, בלי קשר למיזוג תיקיות הספרים האישיים';
+      expect(
+        find.text('ספרי המסד מוצגים תחת "ספרים אישיים/ראשון". $perDb'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('קטגוריות המסד ממוזגות לעץ הספרייה לפי שם. $perDb'),
+        findsOneWidget,
+      );
+
+      // לחיצה על מקטע עדיין משנה את המיקום, וההסבר מתעדכן.
+      await tester.tap(find.text('מיזוג לעץ הספרייה').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(repository.placements, [
+        ('ראשון', AttachedLibraryPlacement.mergeIntoLibrary),
+      ]);
+      expect(
+        find.text('קטגוריות המסד ממוזגות לעץ הספרייה לפי שם. $perDb'),
+        findsNWidgets(2),
+      );
+    });
+
+    testWidgets('בחלון צר התווית המלאה נשארת, בלי גלישה', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpPanel(tester, _FakeRepository([_library('ראשון')]));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('תחת ספרים אישיים'), findsOneWidget);
+      expect(
+        find.textContaining('ספרים אישיים/ראשון'),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('אייקון מסד הספרים: רגיל למצורף ולמוסתר, מלא למצורף פעיל', (
