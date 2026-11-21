@@ -112,7 +112,7 @@ class CustomEvent extends Equatable {
   final String? icsSourceId;
 
   /// באירוע שנתי עברי מאדר: החודש בשנה מעוברת — 12 (אדר א׳) או 13 (אדר ב׳).
-  /// null = כחודש הבסיס (כך נשמרו אירועים לפני שהייתה בחירה).
+  /// null = חודש הבסיס, כולל דילוג על אדר ב׳ בשנה פשוטה.
   final int? leapAdarMonth;
 
   bool get recurring => recurrenceType != RecurrenceType.none;
@@ -169,10 +169,14 @@ class CustomEvent extends Equatable {
 
   /// החודש העברי של האירוע השנתי בשנה [year]: אדר בשנה פשוטה, ובשנה מעוברת
   /// האדר שנבחר.
-  int _annualJewishMonth(int year) {
+  int? _annualJewishMonth(int year) {
     if (baseJewishMonth < JewishDate.ADAR) return baseJewishMonth;
     final leap = (JewishDate()..setJewishDate(year, 1, 1)).isJewishLeapYear();
-    return leap ? leapAdarMonth ?? baseJewishMonth : JewishDate.ADAR;
+    if (leap) return leapAdarMonth ?? baseJewishMonth;
+    if (baseJewishMonth == JewishDate.ADAR_II && leapAdarMonth == null) {
+      return null;
+    }
+    return JewishDate.ADAR;
   }
 
   /// המועמד ה-[i] למופע מ-[from]: שנה אחר שנה באירוע שנתי, יום אחר יום בשאר.
@@ -190,12 +194,11 @@ class CustomEvent extends Equatable {
     }
     final targetHebrewYear = JewishDate.fromDateTime(from).getJewishYear() + i;
     try {
+      final month = _annualJewishMonth(targetHebrewYear);
+      if (month == null) return null;
       final jd = JewishDate()
-        ..setJewishDate(
-          targetHebrewYear,
-          _annualJewishMonth(targetHebrewYear),
-          baseJewishDay,
-        );
+        ..setJewishDate(targetHebrewYear, month, baseJewishDay);
+      if (jd.getJewishDayOfMonth() != baseJewishDay) return null;
       return _dateOnly(jd.getGregorianCalendar());
     } catch (_) {
       return null;
@@ -207,14 +210,7 @@ class CustomEvent extends Equatable {
     if (occursOn(from)) return _dateOnly(from);
     final base = _dateOnly(baseGregorianDate);
     if (!recurring) return base;
-    // Weekly BYDAY may omit DTSTART; start searching from the base in that case.
-    if (from.isBefore(base) &&
-        (recurrenceType != RecurrenceType.weekly ||
-            weeklyDays == null ||
-            weeklyDays!.isEmpty ||
-            weeklyDays!.contains(base.weekday))) {
-      return base;
-    }
+    if (from.isBefore(base) && _isOccurrenceStart(base)) return base;
     final searchFrom = from.isBefore(base) ? base : from;
     // 120: גם ל' בחודש עברי חוזר בתוכם, ו-29 בפברואר בתוך 9 שנים.
     for (var i = 0; i < 120; i++) {

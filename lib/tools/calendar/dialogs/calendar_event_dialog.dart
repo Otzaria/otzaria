@@ -656,6 +656,13 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       return;
     }
 
+    if (_showsLeapAdarChoice &&
+        _effectiveLeapAdarMonth == JewishDate.ADAR_II &&
+        _selectedJewishDate.getJewishDayOfMonth() == 30) {
+      UiSnack.showError(ToolsMessages.eventAdarIIDay30);
+      return;
+    }
+
     int? recurringYears;
     if (_selectedRecurrenceType != RecurrenceType.none && !_recurForever) {
       recurringYears = int.tryParse(_yearsController.text.trim());
@@ -707,6 +714,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       }
     }
 
+    final leapAdarMonth = widget.existingEvent == null
+        ? _effectiveLeapAdarMonth
+        : _leapAdarMonth;
     Navigator.of(context).pop(
       CalendarEventDialogResult(
         title: _titleController.text.trim(),
@@ -723,7 +733,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         endGregorianDate: endDate,
         colorIndex: _selectedColorIndex,
         colorChanged: _colorChanged,
-        leapAdarMonth: _showsLeapAdarChoice ? _effectiveLeapAdarMonth : null,
+        leapAdarMonth: _showsLeapAdarChoice ? leapAdarMonth : null,
       ),
     );
   }

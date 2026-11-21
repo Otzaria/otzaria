@@ -46,8 +46,8 @@ void main() {
       expect(event.occursOn(_hebrew(5787, 13, 14)), isFalse);
     });
 
-    test('אירוע מאדר ב׳ חל באדר בשנה פשוטה', () {
-      final event = _annual(5784, 13, 10);
+    test('בחירה מפורשת של אדר ב׳ חלה באדר בשנה פשוטה', () {
+      final event = _annual(5784, 13, 10, leapAdarMonth: 13);
 
       expect(event.occursOn(_hebrew(5785, 12, 10)), isTrue);
       expect(
@@ -108,6 +108,58 @@ void main() {
       );
     });
 
+    test('חיפוש לפני תחילת הסדרה מחזיר את אדר שנבחר', () {
+      final event = _annual(5787, 12, 14, leapAdarMonth: 13);
+      final actual = _hebrew(5787, 13, 14);
+
+      expect(event.occursOn(_hebrew(5787, 12, 14)), isFalse);
+      expect(event.occursOn(actual), isTrue);
+      expect(event.nextOccurrenceFrom(_hebrew(5787, 11, 29)), actual);
+    });
+
+    test('בחירה באדר א׳ אינה יוצרת מופע לפני תאריך הבסיס', () {
+      final event = _annual(5787, 13, 14, leapAdarMonth: 12);
+
+      expect(event.occursOn(_hebrew(5787, 12, 14)), isFalse);
+      expect(
+        event.nextOccurrenceFrom(_hebrew(5787, 11, 29)),
+        _hebrew(5788, 12, 14),
+      );
+    });
+
+    test('חזרה לועזית שומרת על תאריך הבסיס לפני תחילת הסדרה', () {
+      final event = _annual(5787, 12, 14, leapAdarMonth: 13).copyWith(
+        baseGregorianDate: DateTime(2027, 3, 1),
+        recurrenceType: RecurrenceType.annualGregorian,
+      );
+
+      expect(
+        event.nextOccurrenceFrom(DateTime(2027, 1, 1)),
+        DateTime(2027, 3, 1),
+      );
+      expect(
+        event.nextOccurrenceFrom(DateTime(2027, 3, 2)),
+        DateTime(2028, 3, 1),
+      );
+    });
+
+    test('כ״ט יכול לחזור בכל אדר ול׳ יכול לחזור רק באדר א׳', () {
+      final day29 = _annual(5787, 12, 29, leapAdarMonth: 13);
+      expect(day29.occursOn(_hebrew(5787, 13, 29)), isTrue);
+      expect(day29.occursOn(_hebrew(5788, 12, 29)), isTrue);
+
+      final day30 = _annual(5787, 12, 30, leapAdarMonth: 12);
+      final inLeap = _hebrew(5787, 11, 1);
+      final inPlain = _hebrew(5788, 11, 1);
+      expect(day30.occurrenceCandidate(inLeap, 0), _hebrew(5787, 12, 30));
+      expect(day30.occurrenceCandidate(inPlain, 0), isNull);
+      expect(day30.occursOn(_hebrew(5788, 12, 29)), isFalse);
+
+      final invalid = day30.copyWith(leapAdarMonth: () => 13);
+      expect(invalid.occurrenceCandidate(inLeap, 0), isNull);
+      expect(invalid.occursOn(_hebrew(5787, 13, 29)), isFalse);
+    });
+
     test('ההתראה נקבעת לאדר שנבחר', () {
       List<DateTime> alertDates(CustomEvent event, DateTime now) =>
           CalendarAlertPlanner.planEventReminders(
@@ -131,10 +183,28 @@ void main() {
         _hebrew(5787, 12, 14),
         _hebrew(5788, 12, 14),
       ]);
-      expect(alertDates(_annual(5784, 13, 10), _hebrew(5785, 11, 20)), [
-        _hebrew(5785, 12, 10),
-        _hebrew(5786, 12, 10),
-      ]);
+      expect(
+        alertDates(
+          _annual(5784, 13, 10, leapAdarMonth: 13),
+          _hebrew(5785, 11, 20),
+        ),
+        [
+          _hebrew(5785, 12, 10),
+          _hebrew(5786, 12, 10),
+        ],
+      );
+      final legacyJson = _annual(5784, 13, 10).toJson()
+        ..remove('recurrenceType')
+        ..['recurring'] = true
+        ..['recurOnHebrew'] = true;
+      final legacy = CustomEvent.fromJson(legacyJson);
+      expect(legacy.toJson(), isNot(contains('leapAdarMonth')));
+      expect(alertDates(legacy, _hebrew(5785, 11, 20)), isEmpty);
+      expect(legacy.occursOn(_hebrew(5785, 12, 10)), isFalse);
+      expect(
+        legacy.nextOccurrenceFrom(_hebrew(5785, 1, 1)),
+        _hebrew(5787, 13, 10),
+      );
     });
   });
 }
