@@ -1052,9 +1052,7 @@ class _ZmanCard extends StatelessWidget {
         children: [
           // שומר גובה מול כרטיס שכן בשורה שיש לו כותרת משנית
           if (layout.reserveLabelRow)
-            const SizedBox(
-              height: _labelRowHeight + _timeLineHeight - _bellExtent,
-            ),
+            SizedBox(height: _reservedLabelHeight(context)),
           SizedBox(
             height: _bellExtent,
             child: Stack(
@@ -1140,6 +1138,16 @@ class _ZmanCard extends StatelessWidget {
             colors,
           ),
       ],
+    );
+  }
+
+  double _reservedLabelHeight(BuildContext context) {
+    final fontSize = MediaQuery.textScalerOf(context).scale(AppTokens.fontLG);
+    final timeLineHeight = (_timeLineHeight * fontSize / AppTokens.fontLG)
+        .roundToDouble();
+    return (_labelRowHeight + timeLineHeight - _bellExtent).clamp(
+      0.0,
+      double.infinity,
     );
   }
 
