@@ -88,7 +88,14 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
           TrackpadTabSwipeRecognizer:
               GestureRecognizerFactoryWithHandlers<TrackpadTabSwipeRecognizer>(
                 TrackpadTabSwipeRecognizer.new,
-                _configure,
+                (recognizer) {
+                  _configure(recognizer);
+                  recognizer.onPinchAfterAcceptance = () => _settle(
+                    0,
+                    crossAxisDistance: recognizer.pan.dy.abs(),
+                    targetIndex: _anchorIndex,
+                  );
+                },
               ),
           TouchTabSwipeRecognizer:
               GestureRecognizerFactoryWithHandlers<TouchTabSwipeRecognizer>(
@@ -188,6 +195,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
   Future<void> _settle(
     double velocityDx, {
     double crossAxisDistance = 0,
+    int? targetIndex,
   }) async {
     if (!_dragging) return;
     _onTabsChanged(context.read<TabsBloc>().state);
@@ -195,7 +203,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
     _dragging = false;
     final generation = _generation;
     try {
-      await _settleOnTarget(velocityDx, crossAxisDistance);
+      await _settleOnTarget(velocityDx, crossAxisDistance, targetIndex);
     } finally {
       if (generation == _generation) {
         _expectedIndex = null;
@@ -208,6 +216,7 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
   Future<void> _settleOnTarget(
     double velocityDx,
     double crossAxisDistance,
+    int? targetIndex,
   ) async {
     final controller = widget.controller;
     if (controller == null || !controller.hasClients) return;
@@ -221,15 +230,17 @@ class _TabSwipeDetectorState extends State<TabSwipeDetector> {
           accumulatedDx: velocityDx,
           textDirection: Directionality.of(context),
         );
-    final target = tabSwipeSettleIndex(
-      page: page,
-      anchorIndex: _anchorIndex,
-      draggedPages: _draggedPages,
-      pageVelocity: pageVelocity,
-      tabCount: state.tabs.length,
-      viewportExtent: controller.position.viewportDimension,
-      crossAxisDistance: crossAxisDistance,
-    );
+    final target =
+        targetIndex ??
+        tabSwipeSettleIndex(
+          page: page,
+          anchorIndex: _anchorIndex,
+          draggedPages: _draggedPages,
+          pageVelocity: pageVelocity,
+          tabCount: state.tabs.length,
+          viewportExtent: controller.position.viewportDimension,
+          crossAxisDistance: crossAxisDistance,
+        );
     TabSwipeLog.add(bloc, {
       'kind': _kind?.name,
       'tab': state.currentTab?.runtimeType.toString(),
