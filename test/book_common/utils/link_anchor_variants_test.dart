@@ -100,11 +100,6 @@ void main() {
           style.fontStyle == FontStyle.italic,
           reason: 'אינדקס $index — נטייה',
         );
-        expect(
-          css['text-decoration'] == 'underline',
-          style.decoration == TextDecoration.underline,
-          reason: 'אינדקס $index — קו תחתון',
-        );
       }
     });
 
@@ -117,7 +112,6 @@ void main() {
               variant.bold,
               variant.italic,
               variant.rashiScript,
-              variant.underline,
               variant.delimiter,
             ),
           )
@@ -151,13 +145,32 @@ void main() {
     test('אף וריאנט אינו "ריק" — לכל אחד יש סימן מבחין', () {
       for (final variant in kLinkAnchorVariants) {
         expect(
-          variant.bold ||
-              variant.italic ||
-              variant.rashiScript ||
-              variant.underline,
+          variant.bold || variant.italic || variant.rashiScript,
           isTrue,
         );
       }
+    });
+  });
+
+  group('סמני מפרשים ללא קו תחתון (issue #4016)', () {
+    test('אף וריאנט אינו מצויר עם קו תחתון באף אחד משני המסלולים', () {
+      for (var index = 0; index < kLinkAnchorVariants.length; index++) {
+        final variant = kLinkAnchorVariants[index];
+        expect(
+          linkAnchorVariantCss(variant).containsKey('text-decoration'),
+          isFalse,
+          reason: 'אינדקס $index — CSS',
+        );
+        expect(
+          applyLinkAnchorVariant(variant, base).decoration,
+          isNull,
+          reason: 'אינדקס $index — TextStyle',
+        );
+      }
+    });
+
+    test('מספר הווריאנטים נשאר 14 — שיבוץ המפרשים לאינדקסים לא זז', () {
+      expect(kLinkAnchorVariants, hasLength(14));
     });
   });
 
