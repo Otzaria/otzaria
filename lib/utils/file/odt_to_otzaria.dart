@@ -25,7 +25,7 @@ import 'package:xml/xml.dart' as xml;
 /// המקדימה של החבילה (`Thumbnails/`) אינה נספרת בתקרת ההטמעה.
 /// v6: חבילה בלי `office:text` זורקת חריגה, `draw:frame` ברמת הבלוק אינו
 /// נמחק, `text:list-header` אינו ממוספר, צבעים מסוננים וכותרת עוברת trim.
-const int kOdtConverterVersion = 7;
+const int kOdtConverterVersion = 8;
 
 /// רווח קשיח. `text:s` ו-`text:tab` מייצגים רווחים שהמסמך דורש שיישמרו,
 /// ורווח רגיל היה נבלע ברינדור ה-HTML.
@@ -1080,7 +1080,9 @@ void _collectInline(
           inherited: formatting,
           depth: depth + 1,
         );
-        final safeHref = href == null ? null : safeLinkTarget(href);
+        final safeHref = href == null
+            ? null
+            : safeLinkTarget(href, allowBookLinks: true);
         segments.add(
           _Segment.raw(
             safeHref == null

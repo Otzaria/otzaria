@@ -41,7 +41,7 @@ import 'package:xml/xml.dart' as xml;
 /// v15: קישורי OOXML ו-WordML 2003 נשמרים כ-`<a href="…">` מאומתים,
 /// וסימניות יעד הופכות לעוגנים באותה שורת פלט — גם כשאינן כותרות.
 /// v16: גוף הערת שוליים שומר הדגשה, ומעבר פסקה/שורה בו הוא `<br>`.
-const int kOoxmlWordConverterVersion = 16;
+const int kOoxmlWordConverterVersion = 17;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
@@ -763,7 +763,9 @@ String? _hrefForLink(xml.XmlElement link, _DocxContext ctx) {
     final relationId = link.getAttribute('r:id');
     if (relationId != null) {
       final target = ctx.hyperlinkRels[relationId];
-      return target == null ? null : safeLinkTarget(target);
+      return target == null
+          ? null
+          : safeLinkTarget(target, allowBookLinks: true);
     }
     final anchor = link.getAttribute('w:anchor');
     return anchor == null || anchor.isEmpty ? null : safeLinkTarget('#$anchor');
@@ -771,7 +773,7 @@ String? _hrefForLink(xml.XmlElement link, _DocxContext ctx) {
 
   final destination = link.getAttribute('w:dest');
   if (destination != null && destination.isNotEmpty) {
-    return safeLinkTarget(destination);
+    return safeLinkTarget(destination, allowBookLinks: true);
   }
   final bookmark = link.getAttribute('w:bookmark');
   return bookmark == null || bookmark.isEmpty
