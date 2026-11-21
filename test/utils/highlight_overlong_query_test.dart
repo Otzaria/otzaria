@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 import '../support/search_engine_test_init.dart';
@@ -43,6 +44,19 @@ Future<void> main() async {
     () {
       expect(isOverlongSearchQuery('משה'), isFalse);
       expect(highLight(line, 'משה'), contains('otzaria-search-hit'));
+    },
+    skip: engineReady ? false : 'search engine unavailable',
+  );
+
+  test(
+    'רג׳קס תקין נשאר מודגש ונספר',
+    () {
+      const regex = '/מו?שה/';
+      const text = 'ויאמר מֹשֶׁה אל מושה';
+      expect(UserRegexQuery.isValid(regex), isTrue);
+      expect(isOverlongSearchQuery(regex), isFalse);
+      expect(highLight(text, regex), contains('otzaria-search-hit'));
+      expect(countMatches(text, regex), 2);
     },
     skip: engineReady ? false : 'search engine unavailable',
   );
