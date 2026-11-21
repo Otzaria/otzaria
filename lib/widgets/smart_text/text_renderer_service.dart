@@ -65,6 +65,9 @@ class TextRendererService {
 
     // 0b. הסרת גוף הערות inline (<i class="footnote">...</i>) - מוצגות כמפרש בצד.
     processed = notes.stripInlineNotes(processed);
+    if (settings.removeFootnoteMarkers) {
+      processed = notes.removeFootnoteMarkers(processed);
+    }
 
     // 1+2. טעמים וניקוד — בנפרד, כדי ש"בלי ניקוד, עם טעמים" יהיה אפשרי.
     processed = utils.removeMarks(
@@ -319,6 +322,7 @@ class TextRendererService {
           ? settings.holyNameStyle
           : defaults.holyNameStyle,
       substituteDivineNames: settings.substituteDivineNames,
+      removeFootnoteMarkers: settings.removeFootnoteMarkers,
       searchText: search.searchText,
       currentSearchIndex: search.currentSearchIndex,
       searchOptions: search.searchOptions,

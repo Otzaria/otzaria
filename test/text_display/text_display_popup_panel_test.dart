@@ -74,7 +74,7 @@ void main() {
     expect(find.text('מפרשים'), findsOneWidget);
     // רק השורות של גוף הספר גלויות.
     expect(find.text('ציוני המפרשים'), findsOneWidget);
-    expect(find.byType(Switch), findsNWidgets(5));
+    expect(find.byType(Switch), findsNWidgets(6));
 
     await tapAndSettle(tester, find.text('מפרשים'));
     expect(find.text('ציוני המפרשים'), findsNWidgets(2));
