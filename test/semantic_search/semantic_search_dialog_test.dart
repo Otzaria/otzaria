@@ -1183,7 +1183,8 @@ void main() {
     await tester.tap(help);
     await tester.pumpAndSettle();
     expect(find.textContaining('במילים שלכם'), findsWidgets);
-    expect(find.textContaining('15 עד 30 מילים'), findsOneWidget);
+    expect(find.textContaining('פרטים רלוונטיים'), findsOneWidget);
+    expect(find.textContaining('15 עד 30 מילים'), findsNothing);
     expect(find.textContaining('דוגמה:'), findsOneWidget);
     await tester.tap(find.byType(ActionButton).last);
     await tester.pumpAndSettle();
