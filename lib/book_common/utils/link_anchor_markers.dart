@@ -92,8 +92,10 @@ int _stableStyleIndex(String title) {
 /// ההערה [note] (מיקום ב-[notes]), ומוזרק רק חלק העוגן שבה.
 /// [decorateBeforePointMarkers] מוסיף תגיות בלבד, לפני הוספת טקסט הציונים.
 /// [splitRangesAtPointMarkers] שומר על קישורי נקודה וטווח נפרדים בחפיפה.
+/// [sourceRawLine] מאפשר למדוד עוגן גולמי לפני הוספת תגיות ששמרו על הטקסט הגלוי.
 String injectLinkAnchorMarkers({
   required String rawLine,
+  String? sourceRawLine,
   required List<Link> anchorLinks,
   required Map<String, int> styleIndexByCommentator,
   int? lineIndex,
@@ -121,7 +123,10 @@ String injectLinkAnchorMarkers({
   // לא פעם על אותו אופסט, ולכן שומרים את התוצאה לאורך הקריאה.
   final visibleAtRaw = <int, int>{};
   int toVisible(int rawOffset) =>
-      visibleAtRaw[rawOffset] ??= _visibleOffsetAtRaw(rawLine, rawOffset);
+      visibleAtRaw[rawOffset] ??= _visibleOffsetAtRaw(
+        sourceRawLine ?? rawLine,
+        rawOffset,
+      );
   _VisibleChars? visibleChars;
   ({int count, int maxEnd})? rangeBounds;
   List<Match>? noteMarkers;

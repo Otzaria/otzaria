@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
@@ -19,6 +20,62 @@ import '../test_helpers/memory_cache_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('ציטוט מיובא חד-כיווני גם בטעינת הקורא', () async {
+    await Settings.init(cacheProvider: MemoryCacheProvider());
+    final tempDir = await Directory.systemTemp.createTemp('inline_linker');
+    final previousRoot = AppPaths.cachedDataRootPath;
+    await UserBooksDatabaseHolder.instance.close();
+    AppPaths.debugOverrideDataRootPath(tempDir.path);
+    addTearDown(() async {
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(previousRoot);
+      await tempDir.delete(recursive: true);
+    });
+    final db = (await UserBooksDatabaseHolder.instance.repository).database;
+    await UserContentRepository(db).replaceUserLinks(const [
+      UserLinkRecord(
+        sourceTitle: 'ספר אישי',
+        sourceIsUserBook: true,
+        sourceLineIndex: 1,
+        targetTitle: 'ספר רשמי',
+        targetIsUserBook: false,
+        targetLineIndex: 2,
+        connectionType: LinkTypes.linker,
+        anchorStart: 0,
+        anchorEnd: 2,
+      ),
+      UserLinkRecord(
+        sourceTitle: 'ספר אישי',
+        sourceIsUserBook: true,
+        sourceLineIndex: 1,
+        targetTitle: 'ספר רשמי',
+        targetIsUserBook: false,
+        targetLineIndex: 2,
+        connectionType: LinkTypes.reference,
+      ),
+    ]);
+    final forward = await loadUserLinksForBook(
+      bookTitle: 'ספר אישי',
+      bookCategoryId: null,
+      source: BookSource.user,
+      startLineIndex: 0,
+      endLineIndex: 4,
+    );
+    final citation = forward.singleWhere(
+      (link) => link.connectionType == LinkTypes.linker,
+    );
+    expect(citation.anchorStart, 0);
+    expect(citation.anchorEnd, 2);
+    final inverse = await loadUserLinksForBook(
+      bookTitle: 'ספר רשמי',
+      bookCategoryId: null,
+      source: BookSource.official,
+      startLineIndex: 0,
+      endLineIndex: 4,
+    );
+    expect(inverse.single.connectionType, LinkTypes.reference);
+  });
 
   test('טווחי מקור נטענים גם כשהחלון מתחיל באמצעם, בשני הכיוונים', () async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
