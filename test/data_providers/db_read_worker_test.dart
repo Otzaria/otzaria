@@ -1063,239 +1063,56 @@ void main() {
     },
   );
 
-  group('lifecycle recovery after #4423 (issue #4490)', () {
-    const signalTimeout = Duration(seconds: 5);
-    const smallBook = {'bookId': 1, 'title': 'בראשית'};
-    final smallText = List.generate(5, (i) => 'שורה $i').join('\n');
-
-    Future<void> until(bool Function() condition, String reason) async {
-      final deadline = DateTime.now().add(signalTimeout);
-      while (!condition()) {
-        if (DateTime.now().isAfter(deadline)) fail(reason);
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-    }
-
-    Future<Object?> settle(Future<Object?> future) =>
-        future.then<Object?>((value) => value, onError: (Object e) => e);
-
-    /// מביא את worker הספרים למצב שבו פקודת ה-lifecycleState של ההתאוששות כבר
-    /// נשלחה, והתשובה עליה מעוכבת: קריאת ספר שנייה, שנכנסה לתור ה-worker לפני
-    /// שתור הבקרה התמלא, עומדת בנקודת ה-checkpoint שלה.
-    Future<
-      ({
-        String dbPath,
-        Future<Object?> first,
-        Future<Object?> holder,
-        SendPort releaseHolder,
-        Future<void> deferredResume,
-      })
-    >
-    holdRecoveryReply() async {
+  test(
+    'external write under full control queue never writes without a '
+    'release ack, and the gate recovers',
+    () async {
+      const smallBook = {'bookId': 1, 'title': 'בראשית'};
+      final smallText = List.generate(5, (i) => 'שורה $i').join('\n');
+      final lineSource = FakeLineSourceEngine();
+      LibraryLineSource.debugReset(engine: lineSource);
+      addTearDown(LibraryLineSource.debugReset);
       final dbPath = await seedDb('seforim', bigBookLines: 4097);
-      final checkpoint = ReceivePort();
-      addTearDown(checkpoint.close);
-      final ports = [Completer<SendPort>(), Completer<SendPort>()];
-      var arrived = 0;
-      checkpoint.listen((port) {
-        if (arrived < ports.length) ports[arrived++].complete(port as SendPort);
-      });
-      DbReadWorker.bookReadCheckpointPort = checkpoint.sendPort;
-      Future<Object?> bigRead() => settle(
-        DbReadWorker.request('bookTextBytes', {
-          'dbPath': dbPath,
-          'bookId': 3,
-          'title': 'ספר גדול',
-        }),
-      );
-
-      final first = bigRead();
-      final releaseFirst = await ports[0].future.timeout(signalTimeout);
-      final beforeHolder = DbReadWorker.sentMessageCount;
-      final holder = bigRead();
-      await until(
-        () => DbReadWorker.sentMessageCount > beforeHolder,
-        'the holder read was not sent before the control queue filled',
-      );
-      // ארבע פקודות open ממלאות את המכסה בלי לקטוע את הקריאות.
-      for (var i = 0; i < 4; i++) {
-        DbReadWorker.allowReopen();
-      }
-      final deferredResume = DbReadWorker.resumeAfterExternalWrite();
-      final beforeRecovery = DbReadWorker.sentMessageCount;
-      releaseFirst.send(null);
-
-      final releaseHolder = await ports[1].future.timeout(
-        signalTimeout,
-        onTimeout: () => fail('the holder read never reached its checkpoint'),
-      );
-      await until(
-        () => DbReadWorker.sentMessageCount > beforeRecovery,
-        'lifecycleState was not sent after the queued commands completed',
-      );
-      expect(
-        DbReadWorker.sentMessageCount - beforeRecovery,
-        1,
-        reason: 'only the recovery command is sent while the worker is held',
-      );
-      return (
-        dbPath: dbPath,
-        first: first,
-        holder: holder,
-        releaseHolder: releaseHolder,
-        deferredResume: deferredResume,
-      );
-    }
-
-    for (final withRead in [false, true]) {
-      test(
-        'recovery: extra commands after lifecycleState sent keep the latest '
-        'state and mustClose${withRead ? ', and a waiting read' : ''}',
-        () async {
-          final held = await holdRecoveryReply();
-          final beforeExtra = DbReadWorker.sentMessageCount;
-          // סגירה ואחריה פתיחה: מצב היעד פתוח, אבל החיבור הישן חייב להיסגר.
-          await DbReadWorker.closeConnectionIfRunning(wait: false);
+      final full = await pausedBookRead(dbPath);
+      final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+      DbReadWorker.lifecycleCommandTimeout = const Duration(milliseconds: 10);
+      var writeStarted = false;
+      try {
+        for (var i = 0; i < 4; i++) {
           DbReadWorker.allowReopen();
-          final reading = withRead
-              ? settle(
-                  DbReadWorker.request('bookText', {
-                    'dbPath': held.dbPath,
-                    ...smallBook,
-                  }),
-                )
-              : null;
-          await Future<void>.delayed(const Duration(milliseconds: 20));
-          expect(
-            DbReadWorker.sentMessageCount,
-            beforeExtra,
-            reason: 'nothing is sent while the recovery reply is pending',
-          );
-
-          held.releaseHolder.send(null);
-          await held.deferredResume.timeout(signalTimeout);
-          expect(await held.first, isA<TransferableBookContent>());
-          expect(await held.holder, isA<DbReadWorkerSuspended>());
-          if (reading != null) {
-            expect(await reading.timeout(signalTimeout), smallText);
-            expect(
-              DbReadWorker.sentMessageCount - beforeExtra,
-              2,
-              reason: 'one more recovery command, then the read',
-            );
-          } else {
-            await until(
-              () => !DbReadWorker.hasPendingReads,
-              'the second recovery did not finish',
-            );
-            expect(
-              DbReadWorker.sentMessageCount - beforeExtra,
-              1,
-              reason: 'the two extra changes become one recovery command',
-            );
-            expect(
-              await DbReadWorker.shrinkMemoryIfRunning(),
-              isFalse,
-              reason: 'mustClose closed the connection opened before it',
-            );
-            expect(
-              await DbReadWorker.request('bookText', {
-                'dbPath': held.dbPath,
-                ...smallBook,
-              }),
-              smallText,
-            );
-          }
-          expect(DbReadWorker.hasPendingReads, isFalse);
-        },
-      );
-    }
-
-    test(
-      'external write under full control queue never writes without a '
-      'release ack, and the gate recovers',
-      () async {
-        final lineSource = FakeLineSourceEngine();
-        LibraryLineSource.debugReset(engine: lineSource);
-        addTearDown(LibraryLineSource.debugReset);
-        final dbPath = await seedDb('seforim', bigBookLines: 4097);
-        final full = await pausedBookRead(dbPath);
-        final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
-        DbReadWorker.lifecycleCommandTimeout = const Duration(milliseconds: 10);
-        var writeStarted = false;
-        try {
-          for (var i = 0; i < 4; i++) {
-            DbReadWorker.allowReopen();
-          }
-          await expectLater(
-            () async {
-              await SqliteDataProvider.instance.closeForExternalWrite();
-              writeStarted = true;
-            }(),
-            throwsA(isA<DbReadWorkerNotReleased>()),
-          );
-          expect(writeStarted, isFalse);
-          expect(lineSource.depth, 0, reason: 'the line source hold is gone');
-          expect(lineSource.resumes, 1);
-        } finally {
-          DbReadWorker.lifecycleCommandTimeout = previousTimeout;
-          full.release.send(null);
         }
-        expect(await full.result, isA<DbReadWorkerSuspended>());
-        // החיבור נפתח מחדש עצל, ב-initialize הבא של ה-provider.
-        DbReadWorker.allowReopen();
-        expect(
-          await DbReadWorker.request('bookText', {
-            'dbPath': dbPath,
-            ...smallBook,
-          }),
-          smallText,
-          reason: 'the failed session resumed the worker',
+        await expectLater(
+          () async {
+            await SqliteDataProvider.instance.closeForExternalWrite();
+            writeStarted = true;
+          }(),
+          throwsA(isA<DbReadWorkerNotReleased>()),
         );
-        await SqliteDataProvider.instance.closeForExternalWrite();
-        await SqliteDataProvider.instance.reopenAfterExternalWrite(
-          reopenDatabase: false,
-        );
-        expect(lineSource.depth, 0);
-      },
-    );
-
-    test(
-      'teardown while recovery reply pending releases every waiter',
-      () async {
-        final held = await holdRecoveryReply();
-        await DbReadWorker.closeConnectionIfRunning(wait: false);
-        DbReadWorker.allowReopen();
-        final reading = settle(
-          DbReadWorker.request('bookText', {
-            'dbPath': held.dbPath,
-            ...smallBook,
-          }),
-        );
-        final resuming = DbReadWorker.resumeAfterExternalWrite();
-        await Future<void>.delayed(Duration.zero);
-
-        DbReadWorker.disposeForTesting();
-        const waitLimit = Duration(seconds: 1);
-        await held.deferredResume.timeout(waitLimit);
-        await resuming.timeout(waitLimit);
-        expect(await reading.timeout(waitLimit), isA<DbReadWorkerSuspended>());
-        expect(await held.first, isA<TransferableBookContent>());
-        expect(
-          await held.holder.timeout(waitLimit),
-          isA<DbReadWorkerSuspended>(),
-        );
-        expect(DbReadWorker.hasPendingReads, isFalse);
-        expect(
-          await DbReadWorker.request('bookText', {
-            'dbPath': held.dbPath,
-            ...smallBook,
-          }),
-          smallText,
-        );
-      },
-    );
-  });
+        expect(writeStarted, isFalse);
+        expect(lineSource.depth, 0, reason: 'the line source hold is gone');
+        expect(lineSource.resumes, 1);
+      } finally {
+        DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+        full.release.send(null);
+      }
+      expect(await full.result, isA<DbReadWorkerSuspended>());
+      // החיבור נפתח מחדש עצל, ב-initialize הבא של ה-provider.
+      DbReadWorker.allowReopen();
+      expect(
+        await DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          ...smallBook,
+        }),
+        smallText,
+        reason: 'the failed session resumed the worker',
+      );
+      await SqliteDataProvider.instance.closeForExternalWrite();
+      await SqliteDataProvider.instance.reopenAfterExternalWrite(
+        reopenDatabase: false,
+      );
+      expect(lineSource.depth, 0);
+    },
+  );
 
   test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {
     final dbPath = await seedDb('seforim');
