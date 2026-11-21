@@ -571,6 +571,88 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
     ''', params).toMapList();
 }
 
+// קישורים נכנסים ל-SDK. השאילתה קוראת רק את צד היעד השמור ואת שורות הכיסוי שלו.
+List<Map<String, dynamic>> _loadIncomingLinkRows(
+  sqlite3.Database db,
+  DbCapabilities capabilities, {
+  required bool official,
+  required int bookId,
+  required int startLineIndex,
+  required int endLineIndex,
+  required List<String>? connectionTypes,
+  required int? limit,
+}) {
+  List<int>? typeIds;
+  var includeReferenceFallback = false;
+  if (connectionTypes != null) {
+    final types = connectionTypes.map(LinkTypes.normalize).toSet();
+    includeReferenceFallback = types.contains(LinkTypes.reference);
+    typeIds = [
+      for (final row in db.select(
+        'SELECT id, name FROM connection_type WHERE name IS NOT NULL',
+      ))
+        if (types.contains(LinkTypes.normalize(row['name'] as String)) ||
+            types.contains(LinkTypes.canonicalType(row['name'] as String)))
+          row['id'] as int,
+    ];
+    if (typeIds.isEmpty && !includeReferenceFallback) return const [];
+  }
+  final hasRanges = capabilities.hasLinkRanges;
+  final sourceCategory = capabilities.hasBookCategories ? 'sb.categoryId' : '0';
+  final typeFilter = typeIds == null
+      ? ''
+      : 'AND (l.connectionTypeId IN (${List.filled(typeIds.length, '?').join(', ')})'
+            '${includeReferenceFallback ? """
+              OR l.connectionTypeId IS NULL OR l.connectionTypeId NOT IN (
+                SELECT id FROM connection_type WHERE name IS NOT NULL
+              )""" : ''})';
+  final bookFilter = official ? '' : 'AND l.targetBookId = ?';
+
+  return db
+      .select(
+        '''
+      WITH win(id) AS (
+        SELECT id FROM line WHERE bookId = ? AND lineIndex BETWEEN ? AND ?
+      ),
+      anchors(linkId, anchorLineId) AS (
+        SELECT l.id, l.targetLineId FROM link l
+        WHERE l.targetLineId IN (SELECT id FROM win)
+          $bookFilter $typeFilter
+        ${hasRanges ? """
+          UNION ALL
+          SELECT lc.linkId, lc.lineId FROM link_coverage lc
+          ${typeIds == null ? '' : 'CROSS JOIN link l ON l.id = lc.linkId'}
+          WHERE lc.side = 1 AND lc.lineId IN (SELECT id FROM win)
+            $typeFilter""" : ''}
+      )
+      SELECT tl.lineIndex AS sourceLineIndex, sl.lineIndex AS targetLineIndex,
+        sl.heRef AS targetLineHeRef, sb.title AS targetBookTitle,
+        $sourceCategory AS targetCategoryId, sb.id AS targetBookId,
+        ${_rangeEndSelectColumns(hasRanges)}
+        ct.name AS connectionTypeName
+      FROM anchors a
+      CROSS JOIN link l ON l.id = a.linkId
+      JOIN line tl ON tl.id = a.anchorLineId
+      JOIN line sl ON sl.id = l.sourceLineId
+      JOIN book sb ON sb.id = l.sourceBookId
+      LEFT JOIN connection_type ct ON ct.id = l.connectionTypeId
+      ${_rangeEndJoinClause(hasRanges, panelSide: 0)}
+      ORDER BY tl.lineIndex, l.id
+      ${limit == null ? '' : 'LIMIT ?'}
+    ''',
+        [
+          bookId,
+          startLineIndex,
+          endLineIndex,
+          if (!official) bookId,
+          ...?typeIds,
+          if (hasRanges) ...?typeIds,
+          ?limit,
+        ],
+      )
+      .toMapList();
+}
+
 /// מזהה הספר [title] — בקטגוריה [categoryId] כשהמסד מכיר קטגוריות — או null.
 /// במסד בלי עמודת קטגוריה כל הספרים יושבים תחת שורש אחד, וההתאמה לפי כותרת.
 int? _selectBookId(
@@ -995,6 +1077,9 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
   required int startLineIndex,
   required int endLineIndex,
   required List<String>? targetBookTitles,
+  bool incoming = false,
+  List<String>? incomingConnectionTypes,
+  int? incomingLimit,
   ReadOnlyConnection? connection,
 }) {
   sqlite3.Database? db;
@@ -1011,6 +1096,18 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
       categoryId: categoryId,
     );
     if (bookId == null) return const [];
+    if (incoming) {
+      return _loadIncomingLinkRows(
+        db,
+        capabilities,
+        official: official,
+        bookId: bookId,
+        startLineIndex: startLineIndex,
+        endLineIndex: endLineIndex,
+        connectionTypes: incomingConnectionTypes,
+        limit: incomingLimit,
+      );
+    }
 
     final hasLinkAnchor = capabilities.hasLinkAnchors;
     final hasLinkRanges = capabilities.hasLinkRanges;
@@ -1522,6 +1619,9 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
   required int startLineIndex,
   required int endLineIndex,
   List<String>? targetBookTitles,
+  bool incoming = false,
+  List<String>? incomingConnectionTypes,
+  int? incomingLimit,
 }) {
   return Isolate.run(
     () => _loadBookLinksRowsInRangeInIsolate(
@@ -1533,6 +1633,9 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
       startLineIndex: startLineIndex,
       endLineIndex: endLineIndex,
       targetBookTitles: targetBookTitles,
+      incoming: incoming,
+      incomingConnectionTypes: incomingConnectionTypes,
+      incomingLimit: incomingLimit,
     ),
   );
 }
@@ -1720,6 +1823,10 @@ Object? runRangeRequestOnConnection(
       startLineIndex: args['startLineIndex'] as int,
       endLineIndex: args['endLineIndex'] as int,
       targetBookTitles: (args['targetBookTitles'] as List?)?.cast<String>(),
+      incoming: args['incoming'] as bool? ?? false,
+      incomingConnectionTypes: (args['incomingConnectionTypes'] as List?)
+          ?.cast<String>(),
+      incomingLimit: args['incomingLimit'] as int?,
       connection: connection,
     ),
     'inlineSectionMarks' => _loadInlineSectionMarksInIsolate(
@@ -4753,6 +4860,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required int endLineIndex,
     Iterable<String>? targetBookTitles,
     BookSource source = BookSource.official,
+    bool incoming = false,
+    List<String>? incomingConnectionTypes,
+    int? incomingLimit,
   }) async {
     final normalizedTargetBookTitles =
         targetBookTitles
@@ -4779,6 +4889,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         'startLineIndex': startLineIndex,
         'endLineIndex': endLineIndex,
         'targetBookTitles': normalizedTargetBookTitles,
+        if (incoming) 'incoming': true,
+        'incomingConnectionTypes': ?incomingConnectionTypes,
+        'incomingLimit': ?incomingLimit,
       },
       () => _runBookLinksInRangeInIsolate(
         target: target,
@@ -4789,6 +4902,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
         targetBookTitles: normalizedTargetBookTitles,
+        incoming: incoming,
+        incomingConnectionTypes: incomingConnectionTypes,
+        incomingLimit: incomingLimit,
       ),
     );
 
