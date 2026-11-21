@@ -6,6 +6,9 @@ enum CalendarNotificationMode { sound, silent, off }
 
 enum CalendarView { month, week, day }
 
+/// מה מוצג ברשימת האירועים: היום הנבחר, האירועים הקרובים, או כל האירועים.
+enum CalendarEventsView { day, upcoming, all }
+
 enum CalendarDayTransition { sunset, tzais, rabbeinuTam, midnight }
 
 // Calendar State
@@ -35,7 +38,7 @@ class CalendarState extends Equatable {
   final String eventSearchQuery;
   final bool searchInDescriptions;
   final bool inIsrael;
-  final bool showAllEvents;
+  final CalendarEventsView eventsView;
   final bool calendarNotificationsEnabled;
   final int calendarNotificationTime;
   final bool calendarNotificationSound;
@@ -74,7 +77,7 @@ class CalendarState extends Equatable {
     this.events = const [],
     this.eventSearchQuery = '',
     this.searchInDescriptions = false,
-    this.showAllEvents = false,
+    this.eventsView = CalendarEventsView.day,
     this.calendarNotificationsEnabled = true,
     this.calendarNotificationTime = 60,
     this.calendarNotificationSound = true,
@@ -111,7 +114,6 @@ class CalendarState extends Equatable {
       searchInDescriptions: false,
       enabledZmanim: zmanim_helpers.kDefaultEnabledZmanim,
       inIsrael: true,
-      showAllEvents: false,
       googleCalendarEnabled: false,
       googleCalendarConnected: false,
       googleCalendarSelectedIds: const ['primary'],
@@ -138,7 +140,7 @@ class CalendarState extends Equatable {
     String? eventSearchQuery,
     bool? searchInDescriptions,
     bool? inIsrael,
-    bool? showAllEvents,
+    CalendarEventsView? eventsView,
     bool? calendarNotificationsEnabled,
     int? calendarNotificationTime,
     bool? calendarNotificationSound,
@@ -176,7 +178,7 @@ class CalendarState extends Equatable {
       eventSearchQuery: eventSearchQuery ?? this.eventSearchQuery,
       searchInDescriptions: searchInDescriptions ?? this.searchInDescriptions,
       inIsrael: inIsrael ?? this.inIsrael,
-      showAllEvents: showAllEvents ?? this.showAllEvents,
+      eventsView: eventsView ?? this.eventsView,
       calendarNotificationsEnabled:
           calendarNotificationsEnabled ?? this.calendarNotificationsEnabled,
       calendarNotificationTime:
@@ -238,7 +240,7 @@ class CalendarState extends Equatable {
     twelveHourClock,
     calendarClockTick,
     inIsrael,
-    showAllEvents,
+    eventsView,
     calendarNotificationsEnabled,
     calendarNotificationTime,
     calendarNotificationSound,
