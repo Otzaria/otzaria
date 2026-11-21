@@ -54,7 +54,8 @@ String categoryQueryPart(String rawQuery) {
 /// מחזיר את השאילתה הנקייה (ללא חלק הצמצום) ואת נתיבי ה-facet של כל הקטגוריות
 /// והספרים שכותרתם תואמת לאחד השמות שאחרי ה-@ — בכל עומק בעץ הספרייה. אם יש
 /// כמה התאמות לאותו שם, כולן נכללות. ההתאמה אינה דורשת שם מדויק — ראה
-/// [_CategoryQueryResolver._facetsForName] לשכבות ההתאמה (כינויים, הכלה ושגיאות כתיב).
+/// [_CategoryQueryResolver._facetsForName] לשכבות ההתאמה (כינויים, הכלה ושגיאות כתיב),
+/// ואחריהן ספרים שהמחבר שלהם הוא השם בדיוק.
 ///
 /// - אם אין `@` בשאילתה: [ParsedCategoryQuery.facets] יהיה null והשאילתה
 ///   תוחזר כמות שהיא.
@@ -157,6 +158,20 @@ class _CategoryQueryResolver {
       return scopes.any((scope) => normalized.startsWith('$scope/'));
     }
 
+    // אחרי שכבות הכותרת נוספים ספרים שהמחבר שלהם הוא השם בדיוק (מנורמל):
+    // `@רבינו בחיי` כולל גם את "כד הקמח". בלי התאמה חלקית — "רבינו בחיי אבן
+    // פקודה" הוא מחבר אחר.
+    List<String> withAuthors(List<String> byTitle) {
+      final byAuthor = [
+        for (final book in books)
+          if (book.author == normalizedName &&
+              inScope(book.facet) &&
+              !byTitle.contains(book.facet))
+            book.facet,
+      ];
+      return byAuthor.isEmpty ? byTitle : [...byTitle, ...byAuthor];
+    }
+
     // כותרת ספר מדויקת מכריעה לפני בדיקת כינויים או התאמות חלקיות.
     final exact = <String>[
       for (final book in books)
@@ -169,7 +184,7 @@ class _CategoryQueryResolver {
           exact.add(category.facet);
         }
       }
-      return exact;
+      return withAuthors(exact);
     }
 
     final tiers = [<String>[], <String>[]];
@@ -224,7 +239,7 @@ class _CategoryQueryResolver {
     }
 
     for (final tier in tiers) {
-      if (tier.isNotEmpty) return tier;
+      if (tier.isNotEmpty) return withAuthors(tier);
     }
 
     // שומרים את הנרמול והתחום מהמעבר הראשון, בלי לחשב אותם שוב ב-fallback.
@@ -258,7 +273,7 @@ class _CategoryQueryResolver {
         fuzzyMatches.add(categories[i].facet);
       }
     }
-    return fuzzyMatches;
+    return withAuthors(fuzzyMatches);
   }
 }
 
@@ -268,6 +283,7 @@ class _BookCandidate {
   _BookCandidate(this.book);
 
   late final title = normalizeFindText(book.title);
+  late final author = normalizeFindText(book.author ?? '');
   late final facet = FacetHelper.buildBookFacet(
     FacetHelper.resolveCategoryPath(book),
     book,
