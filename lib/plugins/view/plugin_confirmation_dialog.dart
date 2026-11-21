@@ -13,6 +13,8 @@ class PluginConfirmationDialog {
     required BuildContext context,
     required String title,
     required String content,
+    Widget? footer,
+    bool Function()? onConfirm,
   }) async {
     if (_disposed) return false;
     if (_route != null) {
@@ -30,7 +32,24 @@ class PluginConfirmationDialog {
       themes: InheritedTheme.capture(from: context, to: navigator.context),
       builder: (_) => Directionality(
         textDirection: direction,
-        child: AppDialog.twoActions(title: title, content: content),
+        child: footer == null
+            ? AppDialog.twoActions(title: title, content: content)
+            : AppDialog.twoActions(
+                title: title,
+                size: AppDialogSize.medium,
+                onConfirm: onConfirm,
+                customContent: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(content),
+                      const SizedBox(height: 16),
+                      footer,
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
     _route = route;

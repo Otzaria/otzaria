@@ -141,6 +141,43 @@ void main() {
     expect(loaded, isEmpty);
   });
 
+  test('ביטול אישור כתובת השולח אינו טוען מקור או שולח', () async {
+    var asked = 0;
+    service = PluginBookCorrectionService(
+      senderEmail: () => 'reader@example.com',
+      confirmSender: () async {
+        asked++;
+        return null;
+      },
+      deliver: (_, {required bool allowQueue}) async =>
+          throw StateError('לא לשלוח'),
+    );
+    await expectLater(
+      submit(['א'], 'א', 'ב'),
+      throwsA(
+        predicate(
+          (Object e) => e.toString().contains('error.report_email_required'),
+        ),
+      ),
+    );
+    expect(asked, 1);
+    expect(loaded, isEmpty);
+  });
+
+  test('הכתובת שאושרה נשלחת גם כשהכתובת בהגדרות שונה', () async {
+    late DirectErrorReport sent;
+    service = PluginBookCorrectionService(
+      senderEmail: () => 'changed-in-another-window@example.com',
+      confirmSender: () async => 'confirmed@example.com',
+      deliver: (report, {required bool allowQueue}) async {
+        sent = report;
+        return DirectReportDeliveryResult.sent('נשלח');
+      },
+    );
+    await submit(['א'], 'א', 'ב');
+    expect(sent.senderEmail, 'confirmed@example.com');
+  });
+
   test('allowQueue false מועבר לשירות ושליחה כושלת אינה מאושרת', () async {
     service = PluginBookCorrectionService(
       senderEmail: () => 'reader@example.com',

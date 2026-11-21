@@ -97,13 +97,13 @@ class AppDialog extends StatefulWidget {
     this.headerTrailing,
     this.size = AppDialogSize.small,
     this.scrollable = false,
+    this.onConfirm,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
        ),
        _variant = _DialogVariant.twoActions,
-       subtitle = null,
-       onConfirm = null;
+       subtitle = null;
 
   const AppDialog.warning({
     super.key,
@@ -218,7 +218,7 @@ class _AppDialogState extends State<AppDialog> {
       ActionButton.recommended(
         autofocus: true,
         text: _confirmLabel,
-        onPressed: () => Navigator.of(context).pop(true),
+        onPressed: _handleConfirm,
       ),
     ],
     _DialogVariant.warning => [
@@ -287,6 +287,7 @@ Future<bool?> showTwoActionsDialog({
   IconData? icon,
   AppDialogSize size = AppDialogSize.small,
   bool scrollable = false,
+  bool Function()? onConfirm,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -303,6 +304,7 @@ Future<bool?> showTwoActionsDialog({
       icon: icon,
       size: size,
       scrollable: scrollable,
+      onConfirm: onConfirm,
     ),
   ),
 );

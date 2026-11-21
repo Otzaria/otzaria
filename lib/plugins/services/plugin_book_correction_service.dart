@@ -32,6 +32,9 @@ class PluginBookReportMetadata {
 
 class PluginBookCorrectionService {
   final String Function() senderEmail;
+
+  /// מציג למשתמש את כתובת השולח לאישור ולעריכה לפני השליחה. null: בוטל.
+  final Future<String?> Function()? confirmSender;
   final Future<DirectReportDeliveryResult> Function(
     DirectErrorReport, {
     required bool allowQueue,
@@ -41,6 +44,7 @@ class PluginBookCorrectionService {
 
   PluginBookCorrectionService({
     required this.senderEmail,
+    this.confirmSender,
     required this.deliver,
     DateTime Function()? now,
   }) : now = now ?? DateTime.now;
@@ -95,7 +99,13 @@ class PluginBookCorrectionService {
         DirectErrorReport.maxApiBodyBytes) {
       throw Exception('error.invalid_params: בקשת התיקון גדולה מדי.');
     }
-    final email = senderEmail().trim();
+    final confirm = confirmSender;
+    final email = (confirm == null ? senderEmail() : await confirm())?.trim();
+    if (email == null) {
+      throw Exception(
+        'error.report_email_required: המשתמש לא אישר את כתובת השולח.',
+      );
+    }
     if (!DirectErrorReportService.isValidSenderEmail(email)) {
       throw Exception(
         'error.report_email_required: יש להגדיר כתובת מייל בהגדרות דיווח השגיאות באוצריא.',

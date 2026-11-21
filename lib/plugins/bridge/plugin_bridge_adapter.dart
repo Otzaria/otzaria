@@ -365,6 +365,19 @@ class PluginBridgeDependencies {
     required String subtitle,
   })
   showWarningDialog;
+
+  /// אישור דיווח שיוצא בשם המשתמש: כמו [showConfirmDialog], ובתוספת שדה
+  /// "דואר אלקטרוני לחזרה אליך" שממולא ב-[initialEmail] וניתן לעריכה, כמו
+  /// בדיווח על תקלה. מחזיר את הכתובת שבשדה (ריקה: בלי כתובת), או null
+  /// אם בוטל. [emailRequired]: אי אפשר לאשר בלי כתובת תקינה.
+  /// null: [showConfirmDialog] עם הכתובת כטקסט בלבד (בבדיקות ובמארחים בלי ממשק).
+  final Future<String?> Function({
+    required String title,
+    required String content,
+    required String initialEmail,
+    required bool emailRequired,
+  })?
+  showReportSenderDialog;
   final void Function(
     String downloadUrl, {
     PluginInstallReportContext? reportContext,
@@ -549,6 +562,7 @@ class PluginBridgeDependencies {
     required this.themePayloadBuilder,
     required this.showConfirmDialog,
     required this.showWarningDialog,
+    this.showReportSenderDialog,
     this.requestPluginInstall,
     this.requestLocalPluginInstall,
     this.pickFolder,
@@ -751,8 +765,82 @@ class PluginBridgeAdapter {
     final direct = _directBookReportService ??= DirectErrorReportService();
     return _pluginBookCorrectionService = PluginBookCorrectionService(
       senderEmail: () => direct.senderEmail,
+      confirmSender: _confirmBookCorrectionSender,
       deliver: direct.submitReport,
     );
+  }
+
+  String? _confirmedBookCorrectionEmail;
+  Future<String?>? _bookCorrectionSenderPrompt;
+
+  Future<String?> _confirmBookCorrectionSender() {
+    final pending = _bookCorrectionSenderPrompt;
+    if (pending != null) return pending;
+    final saved = _savedReportSenderEmail();
+    if (saved == _confirmedBookCorrectionEmail) return Future.value(saved);
+
+    return _bookCorrectionSenderPrompt = () async {
+      try {
+        final email = await _confirmReportSender(
+          title: 'שליחת הצעות תיקון לספרים',
+          content:
+              'התוסף "${plugin.name}" מבקש לשלוח בשמך הצעות תיקון לספרי '
+              'הספרייה לצוות אוצריא. האישור תקף עד סגירת התוסף.',
+          initialEmail: saved,
+          emailRequired: true,
+        );
+        if (email != null && email != saved) {
+          await _saveReportSenderEmail(email);
+        }
+        _confirmedBookCorrectionEmail = email;
+        return email;
+      } finally {
+        _bookCorrectionSenderPrompt = null;
+      }
+    }();
+  }
+
+  String _savedReportSenderEmail() =>
+      Settings.getValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+      )?.trim() ??
+      '';
+
+  Future<void> _saveReportSenderEmail(String email) =>
+      Settings.setValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+        email,
+      );
+
+  /// מציג את הכתובת שתצורף ומאפשר לערוך אותה לפני האישור. מחזיר כתובת תקינה
+  /// (או ריקה כשאינה חובה), או null אם המשתמש ביטל.
+  Future<String?> _confirmReportSender({
+    required String title,
+    required String content,
+    required String initialEmail,
+    required bool emailRequired,
+  }) async {
+    final dialog = _dependencies.showReportSenderDialog;
+    final email = dialog == null
+        ? (await _dependencies.showConfirmDialog(
+                title: title,
+                content: initialEmail.isEmpty
+                    ? content
+                    : '$content\n\nכתובת לחזרה: $initialEmail',
+              )
+              ? initialEmail
+              : null)
+        : (await dialog(
+            title: title,
+            content: content,
+            initialEmail: initialEmail,
+            emailRequired: emailRequired,
+          ))?.trim();
+    if (email == null) return null;
+    final valid = email.isEmpty
+        ? !emailRequired
+        : DirectErrorReportService.isValidSenderEmail(email);
+    return valid ? email : null;
   }
 
   // שירות יצירת קיצורי דרך (shortcut.create) — מופע יחיד לכל adapter.
@@ -7066,29 +7154,30 @@ class PluginBridgeAdapter {
         // המייל השמור בהגדרות גובר — כתובת מהתוסף משמשת רק כשאין שמור,
         // כדי שתוסף לא יוכל לעקוף את הכתובת שהמשתמש קבע.
         final rawEmail = args['reporterEmail'];
-        var email =
-            Settings.getValue<String>(
-              SettingsRepository.keyErrorReportSenderEmail,
-            )?.trim() ??
-            '';
-        if (email.isEmpty && rawEmail is String) {
-          email = rawEmail.trim();
-        }
+        final pluginEmail = rawEmail is String ? rawEmail.trim() : '';
+        final savedEmail = _savedReportSenderEmail();
 
         final preview = cappedDetails.length > 300
             ? '${cappedDetails.substring(0, 300)}…'
             : cappedDetails;
-        // הדיאלוג הוא גבול האבטחה, ולכן חייב לחשוף גם את הכתובת שתישלח —
-        // היא עשויה להגיע מהגדרות המשתמש בלי שהתוסף ביקש אותה.
-        final emailLine = email.isEmpty ? '' : '\n\nכתובת לחזרה: $email';
-        final confirmed = await _dependencies.showConfirmDialog(
+        // הדיאלוג הוא גבול האבטחה, ולכן חייב לחשוף גם את הכתובת שתישלח:
+        // היא בשדה הכתובת, ממולאת מהשמורה (או מזו של התוסף כשאין שמורה),
+        // והמשתמש יכול לשנות או למחוק אותה.
+        final email = await _confirmReportSender(
           title: 'שליחת דיווח למפתח התוסף',
           content:
               'התוסף "${plugin.name}" מבקש לשלוח דיווח לאתר אוצריא, '
-              'שיעביר אותו למפתח התוסף.\n\nתוכן הדיווח:\n$preview$emailLine',
+              'שיעביר אותו למפתח התוסף.\n\nתוכן הדיווח:\n$preview',
+          initialEmail: savedEmail.isNotEmpty ? savedEmail : pluginEmail,
+          emailRequired: false,
         );
-        if (!confirmed) {
+        if (email == null) {
           return 'cancelled';
+        }
+        // כמו בדיווח על תקלה, כתובת שהמשתמש הקליד נשמרת לפעם הבאה. כתובת
+        // שהתוסף מילא מראש לא נשמרת: תוסף לא יקבע את זהות המשתמש בדיווחים.
+        if (email.isNotEmpty && email != savedEmail && email != pluginEmail) {
+          await _saveReportSenderEmail(email);
         }
 
         final record = await _reportService.buildRecord(

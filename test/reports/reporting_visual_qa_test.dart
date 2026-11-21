@@ -1054,6 +1054,7 @@ void main() {
         'The Selected Text',
         'What needs to be corrected?',
         'Context',
+        'Email address for replies',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
@@ -1062,7 +1063,7 @@ void main() {
         of: dialog,
         matching: find.byType(TextField),
       );
-      expect(fields, findsNWidgets(3));
+      expect(fields, findsNWidgets(4));
       final contextField = fields.at(2);
       await tester.ensureVisible(contextField);
       await tester.enterText(contextField, 'הקשר מדויק לאחר עריכה');
