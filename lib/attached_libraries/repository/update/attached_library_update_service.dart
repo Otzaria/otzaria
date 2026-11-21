@@ -11,8 +11,10 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_source.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_status.dart';
 import 'package:otzaria/attached_libraries/models/attached_update_manifest.dart';
+import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_store.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_artifact_builder.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_artifact_planner.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_downloader.dart';
@@ -63,6 +65,7 @@ class AttachedLibraryUpdateService {
     bool Function()? isAutoCheckDue,
     Future<void> Function()? recordCheck,
     bool? isAndroid,
+    this._store = const AttachedLibraryStore(),
   }) : _repositoryOverride = repository,
        _fetcher = fetcher ?? AttachedUpdateFetcher(),
        _probe = probe ?? AttachedLibraryProbe.probe,
@@ -89,6 +92,7 @@ class AttachedLibraryUpdateService {
   final bool Function() _isAutoCheckDue;
   final Future<void> Function() _recordCheck;
   final bool _isAndroid;
+  final AttachedLibraryStore _store;
 
   /// Free-space headroom kept on each volume beyond the artifact itself.
   static const spaceMargin = 32 * 1024 * 1024;
@@ -128,13 +132,23 @@ class AttachedLibraryUpdateService {
     SettingsRepository.keyLastAttachedLibraryUpdateCheck,
   );
 
+  /// מקור העדכון: של מסד רשמי — מהקטלוג שבקוד בלבד; של מסד אחר — הנעוץ.
+  static AttachedLibraryUpdateSource? sourceOf(AttachedLibrary library) =>
+      switch (library.official) {
+        final official? => OfficialAttachedLibraries.byId(
+          official.libraryId,
+        )?.source,
+        null => library.updateSource,
+      };
+
   static bool isEligible(AttachedLibrary library) =>
       library.isOk &&
-      library.updateSource != null &&
-      !library.updateSourceMismatch;
+      sourceOf(library) != null &&
+      (library.isOfficial || !library.updateSourceMismatch);
 
   /// הבדיקה האוטומטית (אחרי חשיפת החלון). Same gates as the official library
   /// check: not offline, updates enabled, auto-sync on, and due by cadence.
+  /// A verified official copy is then updated without asking.
   Future<void> runScheduledCheck() async {
     if (_isOfflineMode() || !_areUpdatesEnabled() || !_isAutoCheckDue()) {
       return;
@@ -148,6 +162,9 @@ class AttachedLibraryUpdateService {
       )) {
         reachedAll = false;
       }
+      if (library.isOfficial && status is AttachedUpdateAvailable) {
+        await install(library);
+      }
     }
     if (reachedAll) await _recordCheck();
   }
@@ -160,7 +177,7 @@ class AttachedLibraryUpdateService {
     if (blocked != null) {
       return _set(library.path, AttachedUpdateFailed(blocked));
     }
-    final source = library.updateSource!;
+    final source = sourceOf(library)!;
     _set(library.path, const AttachedUpdateChecking());
     try {
       final signed = await _fetcher.fetchSignedManifest(source.manifestUrl);
@@ -168,6 +185,18 @@ class AttachedLibraryUpdateService {
       final installed = int.tryParse(library.fingerprint?.dbVersion ?? '');
       if (offer.manifest.libraryId != source.libraryId || installed == null) {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
+      }
+      // עותק רשמי שמצהיר על גרסה אחרת מזו שהותקנה שונה מחוץ לתוכנה.
+      if (library.official case final official?
+          when official.dbVersion != installed) {
+        await _savePending(library.path, null);
+        return _set(
+          library.path,
+          AttachedUpdateFailed(
+            AttachedUpdateError.integrityMismatch,
+            offer: offer,
+          ),
+        );
       }
       if (offer.dbVersion <= installed) {
         await _savePending(library.path, null);
@@ -184,8 +213,12 @@ class AttachedLibraryUpdateService {
     }
   }
 
-  /// מתקין את העדכון שהמשתמש אישר. Never called without an explicit approval.
-  Future<void> install(AttachedLibrary requested) async {
+  /// מתקין את העדכון שהמשתמש אישר, או עדכון של עותק רשמי (בלי אישור).
+  /// [forceFull] — עותק רשמי שאינו תואם לגרסתו מוחלף בקובץ המלא.
+  Future<void> install(
+    AttachedLibrary requested, {
+    bool forceFull = false,
+  }) async {
     final path = requested.path;
     final offer = statusOf(requested).offer;
     if (offer == null || statusOf(requested).isRunning) return;
@@ -199,7 +232,8 @@ class AttachedLibraryUpdateService {
       _set(path, AttachedUpdateFailed(blocked, offer: offer));
       return;
     }
-    final source = library!.updateSource!;
+    final source = sourceOf(library!)!;
+    final official = library.official;
     final manifest = offer.manifest;
     final cancel = AttachedUpdateCancelToken();
     _cancelTokens[path] = cancel;
@@ -228,43 +262,49 @@ class AttachedLibraryUpdateService {
       if (installed == null) {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
       }
-      // Already installed (e.g. the file was replaced by hand): nothing to offer.
-      if (installed >= verified.manifest.dbVersion) {
-        await _savePending(path, null);
-        _set(path, const AttachedUpdateIdle());
-        return;
+      if (forceFull) {
+        if (official == null ||
+            verified.manifest.libraryId != official.libraryId) {
+          throw const _UpdateFailure(AttachedUpdateError.notApplicable);
+        }
+      } else {
+        // Already installed (e.g. the file was replaced by hand): nothing to offer.
+        if (installed >= verified.manifest.dbVersion) {
+          await _savePending(path, null);
+          _set(path, const AttachedUpdateIdle());
+          return;
+        }
+        verified.manifest.checkApplicable(
+          pinned: source,
+          installedDbVersion: '$installed',
+        );
+        if (official != null) {
+          _set(
+            path,
+            AttachedUpdateInProgress(
+              offer,
+              phase: AttachedUpdatePhase.assemble,
+            ),
+          );
+          await _checkOfficialIntegrity(path, official, installed);
+        }
       }
-      verified.manifest.checkApplicable(
-        pinned: source,
-        installedDbVersion: '$installed',
-      );
       await _ensureWritable(staged);
-      void report(int received, int total) => _set(
-        path,
-        AttachedUpdateInProgress(
-          offer,
-          phase: total == 0
-              ? AttachedUpdatePhase.assemble
-              : AttachedUpdatePhase.download,
-          received: received,
-          total: total,
-        ),
+      final reporters = _reporters(path, offer);
+      final plan = forceFull
+          ? AttachedUpdatePlan(manifest.full)
+          : await planner.plan(
+              verified.manifest,
+              installedPath: path,
+              installedDbVersion: installed,
+            );
+      var installedArtifact = plan.artifact;
+      combined = await _combinedPathFor(
+        library.path,
+        library.slug,
+        manifest,
+        plan,
       );
-      void reportExtraction(int written, int total) => _set(
-        path,
-        AttachedUpdateInProgress(
-          offer,
-          phase: AttachedUpdatePhase.assemble,
-          received: written,
-          total: total,
-        ),
-      );
-      final plan = await planner.plan(
-        verified.manifest,
-        installedPath: path,
-        installedDbVersion: installed,
-      );
-      combined = await _combinedPathFor(library, manifest, plan);
       await ensureSpace(plan.artifact, staged: staged, combined: combined);
       try {
         await downloader.download(
@@ -273,15 +313,9 @@ class AttachedLibraryUpdateService {
           outputPath: staged,
           basePath: plan.isDelta ? path : null,
           cancel: cancel,
-          onProgress: report,
-          onExtractionProgress: reportExtraction,
-          onWaitingForWifi: () => _set(
-            path,
-            AttachedUpdateInProgress(
-              offer,
-              phase: AttachedUpdatePhase.waitingForWifi,
-            ),
-          ),
+          onProgress: reporters.onProgress,
+          onExtractionProgress: reporters.onExtraction,
+          onWaitingForWifi: reporters.onWaitingForWifi,
         );
       } catch (e, st) {
         // דלתא חסרה או פגומה חוזרת למלא; ניתוק ושגיאת מדיניות אינם חוזרים.
@@ -296,23 +330,23 @@ class AttachedLibraryUpdateService {
         _log('delta ${library.slug}', e, st);
         await _deleteQuietly(combined);
         final fallback = AttachedUpdatePlan(manifest.full);
-        combined = await _combinedPathFor(library, manifest, fallback);
+        combined = await _combinedPathFor(
+          library.path,
+          library.slug,
+          manifest,
+          fallback,
+        );
         await ensureSpace(manifest.full, staged: staged, combined: combined);
         await downloader.download(
           manifest.full,
           combinedPath: combined,
           outputPath: staged,
           cancel: cancel,
-          onProgress: report,
-          onExtractionProgress: reportExtraction,
-          onWaitingForWifi: () => _set(
-            path,
-            AttachedUpdateInProgress(
-              offer,
-              phase: AttachedUpdatePhase.waitingForWifi,
-            ),
-          ),
+          onProgress: reporters.onProgress,
+          onExtractionProgress: reporters.onExtraction,
+          onWaitingForWifi: reporters.onWaitingForWifi,
         );
+        installedArtifact = manifest.full;
       }
       if (cancel.isCancelled) throw const AttachedUpdateCancelled();
       _cancelTokens.remove(path);
@@ -322,11 +356,17 @@ class AttachedLibraryUpdateService {
       );
 
       await _normalizeJournal(staged);
-      bool accept(AttachedLibraryProbeResult result) => acceptsInstalled(
-        result,
-        pinned: source,
-        dbVersion: manifest.dbVersion,
-      );
+      bool accept(AttachedLibraryProbeResult result) => official != null
+          ? acceptsOfficial(
+              result,
+              libraryId: official.libraryId,
+              dbVersion: manifest.dbVersion,
+            )
+          : acceptsInstalled(
+              result,
+              pinned: source,
+              dbVersion: manifest.dbVersion,
+            );
       // Rejecting here leaves the old file untouched.
       if (!accept(await _probe(staged))) {
         throw const AttachedUpdateVerificationFailed();
@@ -336,6 +376,13 @@ class AttachedLibraryUpdateService {
         staged,
         accept: accept,
         swap: swap,
+        official: official == null
+            ? null
+            : AttachedOfficialInstall(
+                libraryId: official.libraryId,
+                dbVersion: manifest.dbVersion,
+                sha256: installedArtifact.sha256,
+              ),
       );
       await _savePending(path, null);
       _set(path, AttachedUpdateInstalled(manifest.dbVersion));
@@ -367,6 +414,188 @@ class AttachedLibraryUpdateService {
   /// Stops a running download; the offer stays available.
   void cancel(AttachedLibrary library) => _cancelTokens[library.path]?.cancel();
 
+  /// מפתח המצב של הצעת הורדה למסד רשמי שאינו מותקן; אינו מתנגש בנתיב.
+  static String officialKey(String libraryId) => 'official:$libraryId';
+
+  AttachedUpdateStatus officialStatusOf(String libraryId) =>
+      _statuses.value[officialKey(libraryId)] ?? const AttachedUpdateIdle();
+
+  /// מסדים רשמיים פעילים שאין להם עותק רשמי מותקן.
+  static List<OfficialAttachedLibrary> notInstalledOfficial(
+    List<AttachedLibrary> libraries,
+  ) => [
+    for (final entry in OfficialAttachedLibraries.catalog)
+      if (entry.isActive &&
+          !libraries.any((l) => l.official?.libraryId == entry.libraryId))
+        entry,
+  ];
+
+  /// מביא את המניפסט החתום של כל מסד רשמי שאינו מותקן ולא נדחה, כדי להציג
+  /// את גודלו. רץ רק כשכרטיס ההגדרות נפתח.
+  Future<void> checkOfficialOffers() async {
+    final declined = _store.loadDeclinedOfficial();
+    for (final entry in notInstalledOfficial(_repository.libraries)) {
+      if (declined.contains(entry.libraryId)) continue;
+      final key = officialKey(entry.libraryId);
+      final current = officialStatusOf(entry.libraryId);
+      if (current.isRunning || current is AttachedUpdateAvailable) continue;
+      final blocked = _networkBlockedReason();
+      if (blocked != null) {
+        _set(key, AttachedUpdateFailed(blocked));
+        continue;
+      }
+      _set(key, const AttachedUpdateChecking());
+      try {
+        final source = entry.source!;
+        final signed = await _fetcher.fetchSignedManifest(source.manifestUrl);
+        final offer = await _verify(signed.manifest, signed.signature, source);
+        if (offer.manifest.libraryId != entry.libraryId) {
+          throw const _UpdateFailure(AttachedUpdateError.notApplicable);
+        }
+        _set(key, AttachedUpdateAvailable(offer));
+      } catch (e, st) {
+        _log('official offer ${entry.libraryId}', e, st);
+        _set(key, AttachedUpdateFailed(errorOf(e)));
+      }
+    }
+  }
+
+  /// מוריד את המסד הרשמי ומתקין אותו כעותק מנוהל, אחרי אימות החתימה
+  /// במפתח שבקוד וה-sha256 שבמניפסט.
+  Future<void> installOfficial(OfficialAttachedLibrary entry) async {
+    final key = officialKey(entry.libraryId);
+    final status = officialStatusOf(entry.libraryId);
+    final offer = status.offer;
+    final source = entry.source;
+    if (offer == null || status.isRunning || source == null) return;
+    final blocked = _networkBlockedReason();
+    if (blocked != null) {
+      _set(key, AttachedUpdateFailed(blocked, offer: offer));
+      return;
+    }
+    final cancel = AttachedUpdateCancelToken();
+    _cancelTokens[key] = cancel;
+    _set(
+      key,
+      AttachedUpdateInProgress(offer, phase: AttachedUpdatePhase.download),
+    );
+    String? staged;
+    String? combined;
+    var keepPartial = false;
+    try {
+      final manifest = (await _verify(
+        offer.manifestBytes,
+        offer.signature,
+        source,
+      )).manifest;
+      if (manifest.libraryId != entry.libraryId) {
+        throw const _UpdateFailure(AttachedUpdateError.notApplicable);
+      }
+      final target = await _repository.officialPathFor(entry.libraryId);
+      await Directory(p.dirname(target)).create(recursive: true);
+      staged = AttachedUpdateFileSwap.stagedPathFor(target);
+      await _ensureWritable(staged);
+      final plan = AttachedUpdatePlan(manifest.full);
+      combined = await _combinedPathFor(
+        target,
+        entry.libraryId,
+        manifest,
+        plan,
+      );
+      await ensureSpace(manifest.full, staged: staged, combined: combined);
+      final reporters = _reporters(key, offer);
+      await downloader.download(
+        manifest.full,
+        combinedPath: combined,
+        outputPath: staged,
+        cancel: cancel,
+        onProgress: reporters.onProgress,
+        onExtractionProgress: reporters.onExtraction,
+        onWaitingForWifi: reporters.onWaitingForWifi,
+      );
+      if (cancel.isCancelled) throw const AttachedUpdateCancelled();
+      _cancelTokens.remove(key);
+      _set(
+        key,
+        AttachedUpdateInProgress(offer, phase: AttachedUpdatePhase.install),
+      );
+      await _normalizeJournal(staged);
+      bool accept(AttachedLibraryProbeResult result) => acceptsOfficial(
+        result,
+        libraryId: entry.libraryId,
+        dbVersion: manifest.dbVersion,
+      );
+      if (!accept(await _probe(staged))) {
+        throw const AttachedUpdateVerificationFailed();
+      }
+      await _repository.installOfficial(
+        staged,
+        official: AttachedOfficialInstall(
+          libraryId: entry.libraryId,
+          dbVersion: manifest.dbVersion,
+          sha256: manifest.full.sha256,
+        ),
+        accept: accept,
+      );
+      await _store.setOfficialDeclined(entry.libraryId, declined: false);
+      _set(key, AttachedUpdateInstalled(manifest.dbVersion));
+    } on AttachedUpdateCancelled {
+      _set(key, AttachedUpdateAvailable(offer));
+    } catch (e, st) {
+      _log('install official ${entry.libraryId}', e, st);
+      final error = errorOf(e);
+      keepPartial = error == AttachedUpdateError.network;
+      final stillValid =
+          error != AttachedUpdateError.notApplicable &&
+          error != AttachedUpdateError.badSignature;
+      _set(
+        key,
+        AttachedUpdateFailed(
+          error,
+          offer: stillValid ? offer : null,
+          requiredBytes: e is _NotEnoughSpace ? e.requiredBytes : null,
+        ),
+      );
+    } finally {
+      _cancelTokens.remove(key);
+      if (staged != null) await _deleteQuietly(staged);
+      if (combined != null && !keepPartial) await _deleteQuietly(combined);
+    }
+  }
+
+  void cancelOfficial(String libraryId) =>
+      _cancelTokens[officialKey(libraryId)]?.cancel();
+
+  Set<String> declinedOfficial() => _store.loadDeclinedOfficial();
+
+  /// סירוב או הסרה: ההצעה אינה מוצגת עוד מעצמה, ונשארת זמינה בהגדרות.
+  Future<void> setOfficialDeclined(
+    String libraryId, {
+    required bool declined,
+  }) async {
+    await _store.setOfficialDeclined(libraryId, declined: declined);
+    if (declined && !officialStatusOf(libraryId).isRunning) {
+      _set(officialKey(libraryId), const AttachedUpdateIdle());
+    }
+  }
+
+  AttachedUpdateError? _networkBlockedReason() {
+    if (_isOfflineMode()) return AttachedUpdateError.offline;
+    if (!_areUpdatesEnabled()) return AttachedUpdateError.updatesDisabled;
+    return null;
+  }
+
+  /// עותק רשמי: אותו `library_id` ובדיוק גרסת המניפסט. המפתח שבקובץ אינו
+  /// נבדק — האמון בא מהחתימה וה-sha256 שכבר אומתו.
+  static bool acceptsOfficial(
+    AttachedLibraryProbeResult result, {
+    required String libraryId,
+    required int dbVersion,
+  }) =>
+      result.isOk &&
+      result.slug == libraryId &&
+      int.tryParse(result.fingerprint?.dbVersion ?? '') == dbVersion;
+
   /// The new file must be the same library, signed by the same key, at
   /// exactly the version of the manifest the user approved.
   static bool acceptsInstalled(
@@ -393,14 +622,15 @@ class AttachedLibraryUpdateService {
       if (json is! Map || !isEligible(library)) continue;
       if (statusOf(library) is! AttachedUpdateIdle) continue;
       try {
+        final source = sourceOf(library)!;
         final offer = await _verify(
           base64.decode(json['manifest'] as String),
           base64.decode(json['signature'] as String),
-          library.updateSource!,
+          source,
         );
         final installedDbVersion = library.fingerprint?.dbVersion;
         offer.manifest.checkApplicable(
-          pinned: library.updateSource!,
+          pinned: source,
           installedDbVersion: installedDbVersion,
         );
         final installed = int.parse(installedDbVersion!.trim());
@@ -417,12 +647,12 @@ class AttachedLibraryUpdateService {
   }
 
   AttachedUpdateError? _blockedReason(AttachedLibrary library) {
-    if (library.updateSource == null) return AttachedUpdateError.noSource;
-    if (library.updateSourceMismatch) return AttachedUpdateError.sourceMismatch;
+    if (sourceOf(library) == null) return AttachedUpdateError.noSource;
+    if (!library.isOfficial && library.updateSourceMismatch) {
+      return AttachedUpdateError.sourceMismatch;
+    }
     if (!library.isOk) return AttachedUpdateError.fileMissing;
-    if (_isOfflineMode()) return AttachedUpdateError.offline;
-    if (!_areUpdatesEnabled()) return AttachedUpdateError.updatesDisabled;
-    return null;
+    return _networkBlockedReason();
   }
 
   // Static: an isolate closure must not capture the service's context.
@@ -469,12 +699,13 @@ class AttachedLibraryUpdateService {
   }
 
   Future<String> _combinedPathFor(
-    AttachedLibrary library,
+    String targetPath,
+    String slug,
     AttachedUpdateManifest manifest,
     AttachedUpdatePlan plan,
   ) async {
     if (plan.artifact.compression == AttachedUpdateCompression.none) {
-      return AttachedUpdateFileSwap.localDownloadPathFor(library.path);
+      return AttachedUpdateFileSwap.localDownloadPathFor(targetPath);
     }
     final directory = await _workDirectory();
     await Directory(directory).create(recursive: true);
@@ -484,8 +715,55 @@ class AttachedLibraryUpdateService {
         : '-from${plan.delta!.fromDbVersion}';
     return p.join(
       directory,
-      '${library.slug}-${manifest.dbVersion}$suffix.download',
+      '$slug-${manifest.dbVersion}$suffix.download',
     );
+  }
+
+  ({
+    AttachedUpdateProgress onProgress,
+    AttachedUpdateProgress onExtraction,
+    void Function() onWaitingForWifi,
+  })
+  _reporters(String key, AttachedUpdateOffer offer) => (
+    onProgress: (received, total) => _set(
+      key,
+      AttachedUpdateInProgress(
+        offer,
+        phase: total == 0
+            ? AttachedUpdatePhase.assemble
+            : AttachedUpdatePhase.download,
+        received: received,
+        total: total,
+      ),
+    ),
+    onExtraction: (written, total) => _set(
+      key,
+      AttachedUpdateInProgress(
+        offer,
+        phase: AttachedUpdatePhase.assemble,
+        received: written,
+        total: total,
+      ),
+    ),
+    onWaitingForWifi: () => _set(
+      key,
+      AttachedUpdateInProgress(
+        offer,
+        phase: AttachedUpdatePhase.waitingForWifi,
+      ),
+    ),
+  );
+
+  /// עדכון (גם דלתא) מוחל רק על הקובץ שהותקן בפועל: גרסה ו-sha256 כפי שנרשמו.
+  Future<void> _checkOfficialIntegrity(
+    String path,
+    AttachedOfficialInstall official,
+    int installedDbVersion,
+  ) async {
+    if (installedDbVersion != official.dbVersion ||
+        await planner.installedSha256(path) != official.sha256) {
+      throw const _UpdateFailure(AttachedUpdateError.integrityMismatch);
+    }
   }
 
   /// A read-only folder or a missing drive fails here, before any download.

@@ -91,6 +91,10 @@ class AttachedUpdateArtifactPlanner {
     }
   }
 
+  /// SHA-256 של הקובץ המותקן, מאותו מטמון של בחירת הדלתא.
+  Future<String> installedSha256(String path) async =>
+      _installedDigest(path, await FileStat.stat(path));
+
   Future<String> _installedDigest(String path, FileStat stat) async {
     final cached = _hashCache[path];
     if (cached != null &&
