@@ -107,7 +107,9 @@ const double _kWindowCaptionButtonsWidth = 138.0;
 /// רוחב מרבי לטאב בודד: טאב לא נמתח מעבר לזה גם כשיש מעט טאבים ומלא מקום.
 const double _kTabMaxWidth = 140.0;
 
-/// מתחת לרוחב הזה כפתור ה-X מוסתר ומופיע רק ב-hover/בטאב הנבחר (כמו כרום).
+/// מתחת לרוחב הזה כפתור ה-X מופיע רק בטאב הנבחר (כמו כרום), גם לא בריחוף:
+/// בכרטיסיות צפופות לחיצה למעבר נפלה על ה-X שהופיע בריחוף וסגרה (issue #3797).
+/// שאר הטאבים נסגרים בלחיצה אמצעית או בתפריט.
 const double _kTabCloseHideBelowWidth = 80.0;
 
 /// רוחב כפתור ה-X בכרטיסיה. בכרטיסיה צרה הוא מצטמצם (ראו [_kTabCloseMaxShare]).
@@ -1319,9 +1321,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       // בלשונית מפוצלת כל חצי מקבל X משלו במקום X יחיד ללשונית.
       final isCombined = tab is CombinedTab;
       final closeVisibleByState =
-          tabWidth >= _kTabCloseHideBelowWidth || isSelected || isTabHovered;
-      // ה-X מצטמצם עם הכרטיסיה במקום להיעלם, כדי שבריחוף הוא יהיה שם תמיד;
-      // הוא מוסתר רק כשאין מקום לאייקון עצמו.
+          tabWidth >= _kTabCloseHideBelowWidth || isSelected;
+      // ה-X מצטמצם עם הכרטיסיה במקום להיעלם, כדי שבטאב הנבחר הוא יהיה שם
+      // תמיד; הוא מוסתר רק כשאין מקום לאייקון עצמו.
       double closeExtentBeside(double width) => (width * _kTabCloseMaxShare)
           .clamp(_kTabCloseMinExtent, _kTabCloseExtent);
       final paneWidth = contentWidth / 2;
