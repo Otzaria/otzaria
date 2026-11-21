@@ -746,6 +746,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   )
                 : null,
             notificationMinutes: result.notificationMinutes,
+            leapAdarMonth: () => result.leapAdarMonth,
           ),
         );
       } else {
@@ -761,6 +762,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           endGregorianDate: result.endGregorianDate,
           colorIndex: result.colorIndex,
           notificationMinutes: result.notificationMinutes,
+          leapAdarMonth: result.leapAdarMonth,
         );
       }
     });

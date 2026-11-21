@@ -20,6 +20,7 @@ import 'package:otzaria/theme/calendar_event_colors.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 
@@ -86,6 +87,9 @@ class CalendarEventDialogResult {
   final int? colorIndex;
   final bool colorChanged;
 
+  /// [CustomEvent.leapAdarMonth]; null כשהאירוע אינו שנתי עברי באדר.
+  final int? leapAdarMonth;
+
   const CalendarEventDialogResult({
     required this.title,
     required this.description,
@@ -99,6 +103,7 @@ class CalendarEventDialogResult {
     required this.endGregorianDate,
     required this.colorIndex,
     required this.colorChanged,
+    this.leapAdarMonth,
   });
 }
 
@@ -151,6 +156,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
   DateTime? _selectedEndDate;
   int? _selectedColorIndex;
   bool _colorChanged = false;
+  int? _leapAdarMonth;
 
   /// הערכים בפתיחה: יציאה כשהם השתנו שואלת לפני הסגירה (DD-08).
   late final Object _initialValues;
@@ -179,6 +185,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     _selectedEndTime = ev?.endTime;
     _selectedEndDate = ev?.endGregorianDate;
     _selectedColorIndex = ev?.displayColorIndex;
+    _leapAdarMonth = ev?.leapAdarMonth;
 
     _dateShowHebrew = calendarDefaultShowHebrew(widget.state.calendarType);
     _dateController = TextEditingController(
@@ -210,6 +217,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     _notificationMinutes,
     _selectedEndDate,
     _selectedColorIndex,
+    _leapAdarMonth,
   );
 
   Future<void> _requestDismiss() async {
@@ -648,6 +656,13 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       return;
     }
 
+    if (_showsLeapAdarChoice &&
+        _effectiveLeapAdarMonth == JewishDate.ADAR_II &&
+        _selectedJewishDate.getJewishDayOfMonth() == 30) {
+      UiSnack.showError(ToolsMessages.eventAdarIIDay30);
+      return;
+    }
+
     int? recurringYears;
     if (_selectedRecurrenceType != RecurrenceType.none && !_recurForever) {
       recurringYears = int.tryParse(_yearsController.text.trim());
@@ -699,6 +714,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       }
     }
 
+    final leapAdarMonth = widget.existingEvent == null
+        ? _effectiveLeapAdarMonth
+        : _leapAdarMonth;
     Navigator.of(context).pop(
       CalendarEventDialogResult(
         title: _titleController.text.trim(),
@@ -715,9 +733,18 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         endGregorianDate: endDate,
         colorIndex: _selectedColorIndex,
         colorChanged: _colorChanged,
+        leapAdarMonth: _showsLeapAdarChoice ? leapAdarMonth : null,
       ),
     );
   }
+
+  /// אירוע שנתי עברי באדר: בשנה מעוברת יש לבחור באיזה אדר הוא חל.
+  bool get _showsLeapAdarChoice =>
+      _selectedRecurrenceType == RecurrenceType.annualHebrew &&
+      _selectedJewishDate.getJewishMonth() >= JewishDate.ADAR;
+
+  int get _effectiveLeapAdarMonth =>
+      _leapAdarMonth ?? _selectedJewishDate.getJewishMonth();
 
   String _colorSubtitle() => CalendarEventColors.labelOf(_selectedColorIndex);
 
@@ -1192,6 +1219,18 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
                   if (value != null) _onRecurrenceTypeChanged(value);
                 },
               ),
+              if (_showsLeapAdarChoice)
+                SettingsSegmentedTile<int>(
+                  icon: FluentIcons.calendar_ltr_24_regular,
+                  title: 'בשנה מעוברת',
+                  subtitle: 'באיזה אדר האירוע יחול בשנה מעוברת',
+                  options: const [
+                    SegmentOption(value: JewishDate.ADAR, label: 'אדר א׳'),
+                    SegmentOption(value: JewishDate.ADAR_II, label: 'אדר ב׳'),
+                  ],
+                  currentValue: _effectiveLeapAdarMonth,
+                  onChanged: (value) => setState(() => _leapAdarMonth = value),
+                ),
               if (_selectedRecurrenceType == RecurrenceType.weekly)
                 Padding(
                   padding: const EdgeInsetsDirectional.symmetric(
