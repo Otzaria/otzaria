@@ -675,6 +675,15 @@ void main() {
       expect(result.linksApplied, 1);
     });
 
+    test('קישור לשורה הראשונה בקובץ ריק נדחה', () async {
+      await addFileBook('ריק', 'ריק.txt', '');
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 1, "path_2": "ריק.txt"}',
+      );
+      expect(result.errors.single, contains('"ריק" (0 שורות)'));
+      expect(result.linksApplied, 0);
+    });
+
     test('ספר PDF אישי אינו נבדק לפי שורות', () async {
       await addFileBook('סרוק', 'סרוק.pdf', '%PDF-1.4');
       final result = await importRow(

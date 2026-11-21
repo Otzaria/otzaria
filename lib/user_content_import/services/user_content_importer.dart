@@ -735,7 +735,9 @@ class UserContentImporter {
             title: title,
             isUserBook: false,
             categoryId: null,
-            totalLines: inAttached.totalLines,
+            totalLines: inAttached.totalLines > 0
+                ? inAttached.totalLines
+                : null,
             isDependentOnly: inAttached.isDependentOnly,
             db: inAttached.slug,
           );
@@ -805,35 +807,37 @@ class UserContentImporter {
         errors.add('$fileName: ספר היעד "${row.targetTitle}" לא נמצא בספרייה');
         continue;
       }
-      if (source.totalLines > 0 && row.sourceLineNumber > source.totalLines) {
+      final sourceLines = source.totalLines;
+      final targetLines = target.totalLines;
+      if (sourceLines != null && row.sourceLineNumber > sourceLines) {
         errors.add(
           '$fileName: שורה ${row.sourceLineNumber} חורגת מגבולות '
-          '"$baseTitle" (${source.totalLines} שורות)',
+          '"$baseTitle" ($sourceLines שורות)',
         );
         continue;
       }
-      if (target.totalLines > 0 && row.targetLineNumber > target.totalLines) {
+      if (targetLines != null && row.targetLineNumber > targetLines) {
         errors.add(
           '$fileName: שורה ${row.targetLineNumber} חורגת מגבולות '
-          '"${row.targetTitle}" (${target.totalLines} שורות)',
+          '"${row.targetTitle}" ($targetLines שורות)',
         );
         continue;
       }
-      if (source.totalLines > 0 &&
+      if (sourceLines != null &&
           row.sourceLineNumberEnd != null &&
-          row.sourceLineNumberEnd! > source.totalLines) {
+          row.sourceLineNumberEnd! > sourceLines) {
         errors.add(
           '$fileName: שורת-סיום ${row.sourceLineNumberEnd} חורגת מגבולות '
-          '"$baseTitle" (${source.totalLines} שורות)',
+          '"$baseTitle" ($sourceLines שורות)',
         );
         continue;
       }
-      if (target.totalLines > 0 &&
+      if (targetLines != null &&
           row.targetLineNumberEnd != null &&
-          row.targetLineNumberEnd! > target.totalLines) {
+          row.targetLineNumberEnd! > targetLines) {
         errors.add(
           '$fileName: שורת-סיום ${row.targetLineNumberEnd} חורגת מגבולות '
-          '"${row.targetTitle}" (${target.totalLines} שורות)',
+          '"${row.targetTitle}" ($targetLines שורות)',
         );
         continue;
       }
@@ -988,7 +992,7 @@ typedef _LocatedLinkBook = ({
   String title,
   bool isUserBook,
   int? categoryId,
-  int totalLines,
+  int? totalLines,
   bool isDependentOnly,
   String? db,
 });

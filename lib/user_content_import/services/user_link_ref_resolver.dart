@@ -111,7 +111,7 @@ typedef LocatedUserLinkBook = ({
   String title,
   bool isUserBook,
   int? categoryId,
-  int totalLines,
+  int? totalLines,
   bool isDependentOnly,
 });
 
@@ -230,26 +230,30 @@ Future<LocatedUserLinkBook?> _locateIn(
     title: book.title,
     isUserBook: isUserBook,
     categoryId: book.categoryId,
-    totalLines: isUserBook ? await _userBookLines(book) : book.totalLines,
+    totalLines: isUserBook && book.isFileBacked && book.totalLines <= 0
+        ? await _fileBookLines(book)
+        : book.totalLines > 0
+        ? book.totalLines
+        : null,
     isDependentOnly: _isDependentOnly(book),
   );
 }
 
 /// ספר מתיקייה אישית נרשם עם totalLines 0 (תוכנו בקובץ ולא בשורות `line`),
 /// ולכן נספרות שורותיו מהטקסט שהקורא מציג — אחרת גבולות הקישור אינם נבדקים.
-/// PDF או קובץ שאינו נקרא: 0, כלומר ללא בדיקת גבולות.
-Future<int> _userBookLines(Book book) async {
-  if (book.totalLines > 0 || !book.isFileBacked) return book.totalLines;
+/// מספר שורות לא ידוע מיוצג ב-null, ובקובץ טקסט ריק המספר הוא 0.
+Future<int?> _fileBookLines(Book book) async {
   try {
     final text = await readFileBackedBookText(
       File(book.filePath!),
       book.fileType,
       book.title,
     );
-    return text == null ? 0 : '\n'.allMatches(text).length + 1;
+    if (text == null || text.isEmpty) return text?.length;
+    return '\n'.allMatches(text).length + 1;
   } on Exception catch (e) {
     debugPrint('⚠️ [UserLinkBookLocator] ${book.title}: $e');
-    return 0;
+    return null;
   }
 }
 
