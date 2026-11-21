@@ -60,6 +60,7 @@ class ReaderPage extends StatefulWidget {
   final String? headerSubtitle;
   final ItemScrollController? scrollController;
   final ItemPositionsListener? positionsListener;
+  final ScrollOffsetController? offsetController;
 
   /// השורה שהרשימה נפתחת בה — נקראת רק בבניית הרשימה.
   final int initialLine;
@@ -75,6 +76,7 @@ class ReaderPage extends StatefulWidget {
     this.headerSubtitle,
     this.scrollController,
     this.positionsListener,
+    this.offsetController,
     this.initialLine = 0,
     this.onZoomChanged,
   });
@@ -275,6 +277,7 @@ class _ReaderPageState extends State<ReaderPage> {
         physics: _zoomModifier ? const NeverScrollableScrollPhysics() : null,
         itemScrollController: widget.scrollController,
         itemPositionsListener: widget.positionsListener,
+        scrollOffsetController: widget.offsetController,
         initialScrollIndex: widget.initialLine,
         itemCount: widget.lines.length,
         padding: EdgeInsets.symmetric(vertical: metrics.em(1)),
