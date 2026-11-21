@@ -287,6 +287,33 @@ ComponentSpec(
 סוג חדש אחר אינו דורש שינוי בצרכן — הבדיקה `a future component type round-trips
 with no consumer change` שומרת על כך; הוא נכנס להצעות המלאות רק כשהוא ב-`kOfflineDataTypes`.
 
+## מחברי זמננו — "הורד גם את מחברי זמננו"
+
+מסד ספרים רשמי נוסף, שאינו במניפסט של אוצריא: המקור הוא ה-release האחרון של
+`Otzaria/zmanenu-library`. ההגדרה המדויקת היא החלק "מחברי זמננו" ב-
+`tool/release/download_assistant_selection.dart`, וקובצי הייחוס הם `zmanenu-*.json` ו-
+`expected-zmanenu.json` (קובץ שלם, חלקים, חלקים בלי API, ושלושה מצבים בלי הצעה).
+
+* **מקור ואימות.** `releases/latest` של ה-API. `zmanenu-offline.tar.zst` שלם מוצע רק עם
+  `digest` (`sha256:<hex>`) של הנכס; אחרת חלקים `zmanenu-offline.tar.zst.part-NNN` לפי
+  `zmanenu-offline.tar.zst.manifest.json` (הצורה של `split_release_asset.sh`), וכל חלק חייב
+  להיות נכס באותו גודל. כשה-API אינו עונה (403/429) — מניפסט החלקים מ-
+  `releases/latest/download/`, כמו הנסיגה של הספרייה; קובץ שלם בלי API אינו מוצע, כי אין
+  hash. ה-API מחזיר 404 (אין מאגר או אין release) — האפשרות אינה מוצגת, והמסייע ממשיך
+  כרגיל. המסייע אינו פורס ואינו בודק את החתימה: האפליקציה עושה זאת בייבוא.
+* **ממשק.** תיבת סימון בעמוד ההצעות, **לא מסומנת**, עם גודל ההורדה, רק ביעד Windows, macOS
+  או Linux (ב-Android בחירת התיקייה עוברת דרך SAF ואינה מוסרת נתיב). ב-Inno היא שורת
+  `AddCheckBox` אחרי כפתורי הרדיו של `PresetPage`.
+* **למחשב הזה** — לתיקיית האיסוף `<data root>/מסדים אישיים/להתקנה/`
+  (`kZmanenuDropFolder`): Windows `%APPDATA%\otzaria` (וכשהמסייע יושב ליד
+  `portable.marker` — `otzaria_data` שלידו), macOS `~/Library/Application Support/otzaria`,
+  Linux `$HOME/.local/share/otzaria`. האפליקציה מתקינה משם אחרי reveal.
+* **למחשב אחר** — לצד קובצי הבחירה באותה תיקייה, ולכן הם נספרים בכלל "יותר מקובץ אחד →
+  תת-תיקייה" (`plannedOutputFilesWithZmanenu`). בהגדרת הספרייה מתיקייה האפליקציה מתקינה
+  אותם אחרי הספרייה.
+* **כתיבה.** כל הקבצים נכתבים קודם בשם זמני (`<שם>.tmp`), ואז משנים שם בזה אחר זה,
+  ומניפסט החלקים אחרון: גם בלי מניפסט האפליקציה מקבלת חלקים מהתיקייה.
+
 ## חוזה משותף לכל המסייעים (Windows, macOS, Linux)
 
 שלושה מימושים, חוזה אחד: `installer/download_assistant.iss` (Inno),

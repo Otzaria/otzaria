@@ -224,7 +224,7 @@ public func placeZmanenu(
         throw AssistantError(AssistantError.copyFailed, technical: "\(directory.path): \(error)")
     }
     func temporaryURL(_ name: String) -> URL {
-        directory.appendingPathComponent(".\(name).tmp")
+        directory.appendingPathComponent("\(name).tmp")
     }
     var staged: [String] = []
     defer {
