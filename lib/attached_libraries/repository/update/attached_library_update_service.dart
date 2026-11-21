@@ -266,8 +266,10 @@ class AttachedLibraryUpdateService {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
       }
       if (forceFull) {
+        // מניפסט ישן מהגרסה שהותקנה אינו מוריד אותה לאחור.
         if (official == null ||
-            verified.manifest.libraryId != official.libraryId) {
+            verified.manifest.libraryId != official.libraryId ||
+            verified.manifest.dbVersion < official.dbVersion) {
           throw const _UpdateFailure(AttachedUpdateError.notApplicable);
         }
         if (await adoptIfSignedMatch(path, verified) != null) {

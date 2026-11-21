@@ -503,6 +503,39 @@ void main() {
     });
   });
 
+  test('a full download never installs an older release', () async {
+    final installed = database(version: '2');
+    publish(installed, version: 2);
+    final svc = service();
+    final library = await installOfficial(svc);
+    await registry.closeAll();
+    final db = sqlite3.sqlite3.open(library.path);
+    db.execute('CREATE TABLE tampered (x INTEGER)');
+    db.close();
+    File(
+      library.path,
+    ).setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+    await repository.rescan();
+
+    // A replayed, still validly signed, older manifest.
+    publish(database(), version: 1);
+    await svc.runScheduledCheck();
+    final current = repository.libraries.single;
+    expect(svc.statusOf(current).offer!.dbVersion, 1);
+    final downloadsBefore = downloader.artifacts.length;
+    await svc.install(current, forceFull: true);
+    expect(
+      svc.statusOf(current),
+      isA<AttachedUpdateFailed>().having(
+        (f) => f.error,
+        'error',
+        AttachedUpdateError.notApplicable,
+      ),
+    );
+    expect(downloader.artifacts.length, downloadsBefore);
+    expect(repository.libraries.single.fingerprint!.dbVersion, '2');
+  });
+
   group('the download offer', () {
     test('is not offered once installed', () async {
       publish(database());
