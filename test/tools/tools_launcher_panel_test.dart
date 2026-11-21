@@ -22,7 +22,6 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
@@ -1976,12 +1975,17 @@ void main() {
     group('כפתור ההתקנה והמצב הריק של החיפוש', () {
       const installLabel = 'התקן תוסף חדש';
 
-      testWidgets('ההתקנה היא כפתור ראשי עם תווית, לא אייקון שקוף', (
-        tester,
-      ) async {
+      testWidgets('ההתקנה היא כפתור אייקון מלא עם שם נגיש', (tester) async {
         await pumpPanel(tester);
-        final button = find.widgetWithText(ActionButton, installLabel);
+
+        final tooltip = find.byTooltip(installLabel);
+        final button = find.ancestor(
+          of: tooltip,
+          matching: find.byType(IconButton),
+        );
+        expect(tooltip, findsOneWidget);
         expect(button, findsOneWidget);
+        expect(find.text(installLabel), findsNothing);
         expect(
           find.descendant(
             of: button,
@@ -1989,12 +1993,26 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(tester.widget<ActionButton>(button).onPressed, isNotNull);
-        expect(find.byType(SquareIconButton), findsNothing);
+        expect(
+          tester.getSemantics(tooltip),
+          isSemantics(
+            tooltip: installLabel,
+            isButton: true,
+            hasTapAction: true,
+          ),
+        );
+        final context = tester.element(button);
+        final surface = tester.widget<Material>(
+          find.descendant(of: button, matching: find.byType(Material)),
+        );
+        expect(surface.color, Theme.of(context).colorScheme.primary);
+        expect(surface.shape, AppTokens.roundedShape);
       });
 
       testWidgets('כלי הפיתוח הם כפתורי אייקון עם tooltip', (tester) async {
         await pumpPanel(tester, showDevTools: true);
+        final installButton = find.byTooltip(installLabel);
+        expect(installButton, findsOneWidget);
         for (final tip in ['טען תיקיית תוסף', 'טען תוסף מ-localhost']) {
           final button = find.byTooltip(tip);
           expect(button, findsOneWidget);
@@ -2002,8 +2020,8 @@ void main() {
             find.ancestor(of: button, matching: find.byType(IconButton)),
             findsOneWidget,
           );
+          expect(tester.getSize(button), tester.getSize(installButton));
         }
-        expect(find.widgetWithText(ActionButton, installLabel), findsOneWidget);
       });
 
       testWidgets('בלי מצב פיתוח אין כפתורי כלי פיתוח', (tester) async {
