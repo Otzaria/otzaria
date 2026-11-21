@@ -18,6 +18,7 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/view/search_history_menu.dart';
+import 'package:otzaria/search/utils/open_search_books.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -43,6 +44,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/advanced_search_controls.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria/indexing/models/pdf_index_setting.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -1510,14 +1512,7 @@ class _SearchDialogState extends State<SearchDialog> {
     );
 
     // תפריט הסינון המאוחד רלוונטי רק לחיפוש בספרייה (לא בחיפוש בתוך ספר).
-    final scopeButton = widget.bookTitle == null
-        ? SearchScopeMenuButton(
-            selected: _scopeSelection,
-            onChanged: _onScopeChanged,
-            excludeUserBooks:
-                !IndexUpdateMode.readStored().indexesPersonalBooks,
-          )
-        : null;
+    final scopeButton = widget.bookTitle == null ? _buildScopeButton() : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1534,6 +1529,21 @@ class _SearchDialogState extends State<SearchDialog> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildScopeButton() {
+    final includeUserBooks = IndexUpdateMode.readStored().indexesPersonalBooks;
+    final tabs = context.read<TabsBloc?>()?.state.tabs ?? const [];
+    return SearchScopeMenuButton(
+      selected: _scopeSelection,
+      onChanged: _onScopeChanged,
+      excludeUserBooks: !includeUserBooks,
+      openBooks: openSearchableBooks(
+        tabs,
+        includePdfBooks: readIndexPdfBooksSetting(),
+        includeUserBooks: includeUserBooks,
+      ),
     );
   }
 
