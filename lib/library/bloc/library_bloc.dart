@@ -669,17 +669,22 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     NavigateToCategory event,
     Emitter<LibraryState> emit,
   ) {
+    final library = state.library;
+    if (library == null) return;
+    final category = _categoryByPath(library, event.category.path);
+    if (category == null) return;
+
     _searchGeneration++;
     // גם "בית" בתיקייה שכבר פתוחה מחזיר את התצוגה המקדימה אליה (#4626).
     emit(
       state.copyWith(
-        currentCategory: event.category,
+        currentCategory: category,
         searchQuery: null,
         searchResults: null,
         clearAuthorFilter: true,
         isSearching: false,
         selectedTopics: null,
-        previewCategory: event.category,
+        previewCategory: category,
       ),
     );
   }

@@ -10,6 +10,8 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/hidden/hidden_library_filter.dart';
+import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
@@ -22,6 +24,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:provider/provider.dart';
@@ -107,8 +110,16 @@ void main() {
   late LibraryBloc libraryBloc;
 
   Future<({Library library, Category halacha, Category tur, List<Book> books})>
-  pump(WidgetTester tester) async {
+  pump(WidgetTester tester, {bool hideBook = false}) async {
     final data = _library();
+    final visibleLibrary = hideBook
+        ? filterHiddenFromLibrary(
+            data.library,
+            HiddenLibrarySelection(
+              bookKeys: {PerBookSettings.bookKey(data.books[0])},
+            ),
+          )
+        : data.library;
     libraryBloc = LibraryBloc(repository: _Repository());
     final settingsBloc = _MockSettingsBloc();
     final navigationBloc = _MockNavigationBloc();
@@ -117,8 +128,8 @@ void main() {
     // תוצאות איתור: "בית יוסף" ו"ערוך השולחן".
     libraryBloc.emit(
       LibraryState(
-        library: data.library,
-        currentCategory: data.library,
+        library: visibleLibrary,
+        currentCategory: visibleLibrary,
         searchQuery: 'יוסף',
         searchResults: [data.books[1], data.books[3]],
       ),
@@ -212,6 +223,27 @@ void main() {
 
         expect(libraryBloc.state.currentCategory, same(data.tur));
         expect(libraryBloc.state.searchResults, isNull);
+      });
+
+      testWidgets('קישור למדף משתמש בעץ המסונן ואינו מציג ספר מוסתר', (
+        tester,
+      ) async {
+        final data = await pump(tester, hideBook: true);
+        final visibleShelf = libraryBloc
+            .state
+            .library!
+            .subCategories
+            .single
+            .subCategories
+            .single;
+        expect(visibleShelf.books, [data.books[1]]);
+
+        await tester.tap(link('בית יוסף', 'טור'));
+        await settle(tester);
+
+        expect(libraryBloc.state.currentCategory, same(visibleShelf));
+        expect(libraryBloc.state.searchQuery, isEmpty);
+        expect(find.text(data.books[0].title), findsNothing);
       });
 
       testWidgets('לחיצה על "הלכה" בנתיב עוברת לקטגוריית האב', (tester) async {
