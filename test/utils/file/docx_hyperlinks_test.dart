@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/printing/print_content_models.dart';
+import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 import 'package:otzaria/utils/file/word_xml_to_otzaria.dart';
+
+import 'package:pdf/pdf.dart';
 
 import 'docx_golden_fixtures.dart';
 
@@ -184,5 +188,72 @@ void main() {
     );
 
     expect(result, contains('<a href="mailto:test@example.test">אתר</a>'));
+  });
+
+  group('קישורי אוצריא ממסמך Word (issue #5714)', () {
+    test('קישור ישיר לספר מ-relationship נשמר', () {
+      final result = _convertDocx(
+        '<w:p><w:hyperlink r:id="rId1"><w:r><w:t>ברכות</w:t></w:r>'
+        '</w:hyperlink></w:p>'
+        '<w:p><w:hyperlink r:id="rId2"><w:r><w:t>סריקה</w:t></w:r>'
+        '</w:hyperlink></w:p>',
+        links: {
+          'rId1': 'otzaria://open/book/12?index=2',
+          'rId2': 'otzaria://open/pdf/8',
+        },
+      );
+
+      expect(
+        result,
+        contains('<a href="otzaria://open/book/12?index=2">ברכות</a>'),
+      );
+      expect(result, contains('<a href="otzaria://open/pdf/8">סריקה</a>'));
+    });
+
+    test('קישור ישיר לספר מ-w:dest של WordML נשמר', () {
+      final result = _convertWordMl(
+        '<w:p><w:hlink w:dest="otzaria://open/book/12?index=2">'
+        '<w:r><w:t>ברכות</w:t></w:r></w:hlink></w:p>',
+      );
+
+      expect(
+        result,
+        contains('<a href="otzaria://open/book/12?index=2">ברכות</a>'),
+      );
+    });
+
+    test('פעולות otzaria:// אחרות נשארות טקסט רגיל', () {
+      final result = _convertDocx(
+        '<w:p><w:hyperlink r:id="rId1"><w:r><w:t>הגדרות</w:t></w:r>'
+        '</w:hyperlink></w:p>',
+        links: {'rId1': 'otzaria://open/settings'},
+      );
+
+      expect(result, contains('הגדרות'));
+      expect(result, isNot(contains('<a href=')));
+    });
+
+    test('קובץ Word שאוצריא ייצאה נפתח עם קישורי המקור', () {
+      const source = 'otzaria://open/book/12?source=user&index=2';
+      final docx = WordExportService.createWordDocument(
+        title: 'ייצוא',
+        blocks: const [
+          PrintBlock(
+            kind: PrintBlockKind.heading,
+            headingLevel: 2,
+            text: 'מקור',
+            sourceLink: source,
+          ),
+        ],
+        format: PdfPageFormat.a4,
+        isLandscape: false,
+        pageMargin: 20,
+      );
+
+      final result = docxToText(docx, 'ייצוא');
+
+      expect(result, contains('href="otzaria://open/book/12?source=user&amp;'));
+      expect(result, contains('מקור</a>'));
+    });
   });
 }
