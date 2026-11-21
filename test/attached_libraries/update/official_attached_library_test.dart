@@ -232,7 +232,7 @@ void main() {
     } catch (_) {}
   });
 
-  test('the built-in entry, inactive while its key is missing', () {
+  test('the built-in entry: name, release manifest URL, active with its key', () {
     OfficialAttachedLibraries.catalogForTesting = null;
     final builtIn = OfficialAttachedLibraries.byId(_id)!;
     expect(builtIn.displayName, 'מחברי זמנינו');
