@@ -420,6 +420,89 @@ void main() {
     },
   );
 
+  /// Replaces the installed file behind the repository's back.
+  Future<void> replaceOnDisk(String path, String replacement) async {
+    await registry.closeAll();
+    File(replacement).copySync(path);
+    File(
+      path,
+    ).setLastModifiedSync(DateTime.now().add(const Duration(minutes: 1)));
+  }
+
+  group('a file that is exactly the signed release is adopted', () {
+    test('after a crash between the swap and saving the record', () async {
+      publish(database());
+      final svc = service();
+      final library = await installOfficial(svc);
+      final next = database(version: '2');
+      await replaceOnDisk(library.path, next);
+      await repository.rescan();
+      expect(repository.libraries.single.isOfficial, isFalse);
+
+      publish(next, version: 2);
+      final downloadsBefore = downloader.artifacts.length;
+      await svc.runScheduledCheck();
+      final adopted = repository.libraries.single;
+      expect(svc.statusOf(adopted), const AttachedUpdateUpToDate());
+      expect(downloader.artifacts.length, downloadsBefore);
+      expect(adopted.isOfficial, isTrue);
+      expect(
+        adopted.official,
+        AttachedOfficialInstall(
+          libraryId: _id,
+          dbVersion: 2,
+          sha256: _sha(next),
+        ),
+      );
+    });
+
+    test('after a backup restore dropped the official mark', () async {
+      publish(database());
+      final svc = service();
+      final library = await installOfficial(svc);
+      const store = AttachedLibraryStore();
+      await store.forgetUpdatePins();
+      registry.update(store.loadLibrariesOrNull()!);
+      await repository.rescan();
+      expect(repository.libraries.single.official, isNull);
+      expect(
+        AttachedLibraryUpdateService.notInstalledOfficial(repository.libraries),
+        [entry],
+      );
+
+      final downloadsBefore = downloader.artifacts.length;
+      await installOfficial(svc);
+      expect(downloader.artifacts.length, downloadsBefore);
+      final adopted = repository.libraries.single;
+      expect(adopted.path, library.path);
+      expect(adopted.official, library.official);
+    });
+
+    test('but not a file that differs from it', () async {
+      publish(database());
+      final svc = service();
+      final library = await installOfficial(svc);
+      final other = database(version: '2');
+      final db = sqlite3.sqlite3.open(other);
+      db.execute('CREATE TABLE tampered (x INTEGER)');
+      db.close();
+      await replaceOnDisk(library.path, other);
+      await repository.rescan();
+
+      publish(database(version: '2'), version: 2);
+      expect(
+        await svc.adoptIfSignedMatch(
+          library.path,
+          (await svc.check(
+            repository.libraries.single,
+          )).offer!,
+        ),
+        isNull,
+      );
+      expect(repository.libraries.single.isOfficial, isFalse);
+    });
+  });
+
   group('the download offer', () {
     test('is not offered once installed', () async {
       publish(database());

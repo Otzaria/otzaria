@@ -186,10 +186,13 @@ class AttachedLibraryUpdateService {
       if (offer.manifest.libraryId != source.libraryId || installed == null) {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
       }
-      // עותק רשמי שהשתנה מחוץ לתוכנה.
+      // עותק רשמי שהשתנה מחוץ לתוכנה: מאומץ רק אם הוא בדיוק הקובץ המלא החתום.
       if (library.official case final official?
           when official.dbVersion != installed || !official.verified) {
         await _savePending(library.path, null);
+        if (await adoptIfSignedMatch(library.path, offer) != null) {
+          return _set(library.path, const AttachedUpdateUpToDate());
+        }
         return _set(
           library.path,
           AttachedUpdateFailed(
@@ -266,6 +269,11 @@ class AttachedLibraryUpdateService {
         if (official == null ||
             verified.manifest.libraryId != official.libraryId) {
           throw const _UpdateFailure(AttachedUpdateError.notApplicable);
+        }
+        if (await adoptIfSignedMatch(path, verified) != null) {
+          await _savePending(path, null);
+          _set(path, AttachedUpdateInstalled(manifest.dbVersion));
+          return;
         }
       } else {
         // Already installed (e.g. the file was replaced by hand): nothing to offer.
@@ -492,6 +500,12 @@ class AttachedLibraryUpdateService {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
       }
       final target = await _repository.officialPathFor(entry.libraryId);
+      if (await File(target).exists() &&
+          await adoptIfSignedMatch(target, offer) != null) {
+        await _store.setOfficialDeclined(entry.libraryId, declined: false);
+        _set(key, AttachedUpdateInstalled(manifest.dbVersion));
+        return;
+      }
       await Directory(p.dirname(target)).create(recursive: true);
       staged = AttachedUpdateFileSwap.stagedPathFor(target);
       await _ensureWritable(staged);
@@ -560,6 +574,51 @@ class AttachedLibraryUpdateService {
       _cancelTokens.remove(key);
       if (staged != null) await _deleteQuietly(staged);
       if (combined != null && !keepPartial) await _deleteQuietly(combined);
+    }
+  }
+
+  /// מאמץ את הקובץ שב-[path] כעותק רשמי בגרסת [offer] בלי להוריד אותו: רק
+  /// כשהמניפסט חתום במפתח שבקוד למזהה שלו, הקובץ מצהיר על אותו מזהה ואותה
+  /// גרסה, וה-sha256 שלו (מחושב ב-isolate) שווה ל-`full.sha256`.
+  Future<AttachedLibrary?> adoptIfSignedMatch(
+    String path,
+    AttachedUpdateOffer offer,
+  ) async {
+    final source = OfficialAttachedLibraries.byId(
+      offer.manifest.libraryId,
+    )?.source;
+    if (source == null) return null;
+    try {
+      final manifest = (await _verify(
+        offer.manifestBytes,
+        offer.signature,
+        source,
+      )).manifest;
+      if (manifest.libraryId != source.libraryId) return null;
+      bool accept(AttachedLibraryProbeResult result) => acceptsOfficial(
+        result,
+        libraryId: manifest.libraryId,
+        dbVersion: manifest.dbVersion,
+      );
+      final before = await _probe(path);
+      if (!accept(before) ||
+          await planner.installedSha256(path) != manifest.full.sha256) {
+        return null;
+      }
+      return await _repository.adoptOfficial(
+        path,
+        official: AttachedOfficialInstall(
+          libraryId: manifest.libraryId,
+          dbVersion: manifest.dbVersion,
+          sha256: manifest.full.sha256,
+        ),
+        // קובץ שהשתנה אחרי החישוב אינו מאומץ.
+        accept: (result) =>
+            accept(result) && result.fingerprint == before.fingerprint,
+      );
+    } catch (e, st) {
+      _log('adopt $path', e, st);
+      return null;
     }
   }
 

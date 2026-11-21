@@ -385,6 +385,47 @@ class AttachedLibrariesRepository {
     return library;
   });
 
+  /// מסמן את הקובץ שב-[path] כעותק רשמי מאומת, בלי להחליף אותו. [accept]
+  /// בודק את הקובץ במקומו; קובץ בלי רשומה מצורף רק בנתיב הרשמי.
+  Future<AttachedLibrary?> adoptOfficial(
+    String path, {
+    required AttachedOfficialInstall official,
+    required bool Function(AttachedLibraryProbeResult result) accept,
+  }) => _serial(() async {
+    final libraries = [..._registry.libraries];
+    if (libraries.any(
+      (l) =>
+          l.official?.libraryId == official.libraryId &&
+          !p.equals(l.path, path),
+    )) {
+      return null;
+    }
+    final result = await _probe(path);
+    if (!result.isOk || !accept(result)) return null;
+    final index = libraries.indexWhere((l) => p.equals(l.path, path));
+    final AttachedLibrary adopted;
+    if (index >= 0) {
+      adopted = _applyProbe(
+        libraries[index].copyWith(clearUpdateSource: true, official: official),
+        result,
+      );
+      libraries[index] = adopted;
+    } else if (p.equals(path, await officialPathFor(official.libraryId))) {
+      adopted = _fromProbe(
+        path,
+        result,
+        mode: AttachedLibraryMode.copy,
+        priority: _nextPriority(libraries),
+        official: official,
+      );
+      libraries.add(adopted);
+    } else {
+      return null;
+    }
+    await _commit(libraries);
+    return adopted;
+  });
+
   /// Restores databases left mid-swap by a crash. Runs before [rescan] at
   /// startup so the fingerprints are taken from the restored files.
   Future<void> recoverInterruptedUpdates({
