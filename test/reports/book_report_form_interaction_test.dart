@@ -8,6 +8,7 @@ import 'package:otzaria/reports/repository/report_draft_store.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
@@ -278,9 +279,12 @@ void main() {
       if (direction == TextDirection.ltr) {
         await tester.tap(find.text('Save for later sending'));
       } else {
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        final modifier = ShortcutHelper.usesMacModifiers
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
+        await tester.sendKeyDownEvent(modifier);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyUpEvent(modifier);
         await tester.pumpAndSettle();
         expect(find.text('Confirm report'), findsOneWidget);
         await tester.tap(find.text('Send report'));

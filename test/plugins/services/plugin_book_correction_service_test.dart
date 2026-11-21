@@ -147,7 +147,7 @@ void main() {
       senderEmail: () => 'reader@example.com',
       confirmSender: () async {
         asked++;
-        return false;
+        return null;
       },
       deliver: (_, {required bool allowQueue}) async =>
           throw StateError('לא לשלוח'),
@@ -164,22 +164,18 @@ void main() {
     expect(loaded, isEmpty);
   });
 
-  test('הכתובת נקראת אחרי האישור, כך שעריכה בחלון נשלחת', () async {
-    var email = 'old@example.com';
+  test('הכתובת שאושרה נשלחת גם כשהכתובת בהגדרות שונה', () async {
     late DirectErrorReport sent;
     service = PluginBookCorrectionService(
-      senderEmail: () => email,
-      confirmSender: () async {
-        email = 'new@example.com';
-        return true;
-      },
+      senderEmail: () => 'changed-in-another-window@example.com',
+      confirmSender: () async => 'confirmed@example.com',
       deliver: (report, {required bool allowQueue}) async {
         sent = report;
         return DirectReportDeliveryResult.sent('נשלח');
       },
     );
     await submit(['א'], 'א', 'ב');
-    expect(sent.senderEmail, 'new@example.com');
+    expect(sent.senderEmail, 'confirmed@example.com');
   });
 
   test('allowQueue false מועבר לשירות ושליחה כושלת אינה מאושרת', () async {

@@ -47,6 +47,7 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 class ReportedErrorData {
   final String selectedText; // הטקסט שסומן ע"י המשתמש
   final String errorDetails; // פירוט הטעות (שדה טקסט נוסף)
+  final String? senderEmail;
 
   /// הצעת תיקון מובנית; null בדיווח חופשי.
   final TextCorrection? correction;
@@ -56,6 +57,7 @@ class ReportedErrorData {
   const ReportedErrorData({
     required this.selectedText,
     required this.errorDetails,
+    this.senderEmail,
     this.correction,
     this.selection,
     this.selectionContext,
@@ -827,13 +829,13 @@ class ErrorReportHelper {
       throw StateError('The source changed before queueing.');
     }
     if (!context.mounted) return false;
-    final senderEmail = await ensureSenderEmail(context);
+    var senderEmail = reportData.senderEmail;
     if (senderEmail == null) {
-      return false;
-    }
-
-    if (verifySource != null && !await verifySource()) {
-      throw StateError('The source changed before queueing.');
+      senderEmail = await ensureSenderEmail(context);
+      if (senderEmail == null) return false;
+      if (verifySource != null && !await verifySource()) {
+        throw StateError('The source changed before queueing.');
+      }
     }
     final directReport = buildDirectReport(
       senderEmail: senderEmail,
@@ -1089,18 +1091,17 @@ class ErrorReportHelper {
       if (data.selectionContext != null) data.selectionContext!,
       target['contextText'] as String,
     ].join('\n\n');
-    DirectErrorReport build(ReportedErrorData data, String email) =>
-        buildDirectReport(
-          senderEmail: email,
-          reportData: data,
-          bookTitle: target['bookTitle'] as String,
-          currentRef: target['currentRef'] as String,
-          bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
-          lineNumber: target['lineNumber'] as int,
-          contextText: reportContext(data),
-          libraryVersion: target['libraryVersion'] as String,
-          source: source,
-        ).withId(draft.reportId);
+    DirectErrorReport build(ReportedErrorData data) => buildDirectReport(
+      senderEmail: data.senderEmail!,
+      reportData: data,
+      bookTitle: target['bookTitle'] as String,
+      currentRef: target['currentRef'] as String,
+      bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
+      lineNumber: target['lineNumber'] as int,
+      contextText: reportContext(data),
+      libraryVersion: target['libraryVersion'] as String,
+      source: source,
+    ).withId(draft.reportId);
     if (!context.mounted) {
       await draft.close();
       return;
@@ -1136,25 +1137,21 @@ class ErrorReportHelper {
                   !await draftSourceMatches(target)) {
                 return unavailableMessage;
               }
-              return build(data, _longestEmailPlaceholder).exceedsApiBodyLimit
-                  ? tooLargeMessage
-                  : null;
+              return build(data).exceedsApiBodyLimit ? tooLargeMessage : null;
             },
           ),
         ),
       );
       if (result == null || !context.mounted) return;
       final data = result.data;
-      // הטופס נשמר כטיוטה לפני שהוא מחזיר פעולה; ביטול כתובת השולח או כשל שליחה משאירים אותה.
+      // הטופס נשמר כטיוטה לפני השליחה כדי שיהיה אפשר לחזור אליו אם היא נכשלה.
       bool completed;
       if (result.action == ErrorReportAction.sendDirect) {
-        final email = await ensureSenderEmail(context);
-        if (email == null || !context.mounted) return;
         if (data.correction != null && !await draftSourceMatches(target)) {
           throw StateError('The source changed before delivery.');
         }
         if (!context.mounted) return;
-        completed = await handleDirectReport(context, build(data, email));
+        completed = await handleDirectReport(context, build(data));
       } else {
         completed = await queueReportForLater(
           context,
@@ -1188,9 +1185,6 @@ class ErrorReportHelper {
     }
   }
 }
-
-/// הכתובת עוד לא ידועה לפני סגירת הדיאלוג: בודקים מול האורך המרבי (RFC 5321).
-final String _longestEmailPlaceholder = 'a' * 254;
 
 String widgetHash(String bookTitle, String currentRef, String selectedText) {
   final normalized = '$bookTitle|$currentRef|$selectedText';
@@ -1481,7 +1475,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
         : _ReportMode.correction;
     _detailsController.text = form?['details'] as String? ?? '';
     // לא נשמרת בטיוטה: טיוטה ישנה לא תדרוס כתובת שהשתנתה מאז בהגדרות.
-    _emailController.text = DirectErrorReportService().senderEmail;
+    _emailController.text = _savedSenderEmail;
     _editorText =
         form?['proposedText'] as String? ??
         widget.correctionTemplate?.target ??
@@ -1517,7 +1511,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
     ReportedErrorData data,
   ) async {
     if (_validating || !_canSubmit) return;
-    if (!await _ensureValidEmail()) return;
+    if (!_ensureValidEmail()) return;
     setState(() => _validating = true);
     try {
       final error = await widget.validateBeforeSubmit?.call(data);
@@ -1526,10 +1520,12 @@ class _RegularReportTabState extends State<RegularReportTab> {
         UiSnack.showError(error);
         return;
       }
-      final email = _emailController.text.trim();
-      final reportService = DirectErrorReportService();
-      if (email != reportService.senderEmail) {
-        await reportService.saveSenderEmail(email);
+      final email = data.senderEmail!;
+      if (email != _savedSenderEmail) {
+        await Settings.setValue(
+          SettingsRepository.keyErrorReportSenderEmail,
+          email,
+        );
         if (!mounted) return;
       }
       widget.onActionSelected(action, data);
@@ -1901,6 +1897,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
         ? _selection!.selectedText(_selectionSource)
         : widget.selectedText,
     errorDetails: _detailsController.text.trim(),
+    senderEmail: _emailController.text.trim(),
     correction: _isCorrection ? _draft?.correction : null,
     selection: !_isCorrection ? _selection : null,
     selectionContext: !_isCorrection
@@ -1911,9 +1908,17 @@ class _RegularReportTabState extends State<RegularReportTab> {
   bool get _offline =>
       Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
 
-  Future<bool> _ensureValidEmail() async {
-    if (_emailKey.currentState?.validate() ?? true) return true;
-    await Scrollable.ensureVisible(_emailKey.currentContext!);
+  String get _savedSenderEmail =>
+      Settings.getValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+      )?.trim() ??
+      '';
+
+  bool _ensureValidEmail() {
+    final field = _emailKey.currentState;
+    if (field == null) return false;
+    if (field.validate()) return true;
+    unawaited(Scrollable.ensureVisible(field.context));
     return false;
   }
 
@@ -1923,7 +1928,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
       await _submitValidated(ErrorReportAction.saveForLater, reportData);
       return;
     }
-    if (!await _ensureValidEmail() || !mounted) return;
+    if (!_ensureValidEmail()) return;
     final shouldSend = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('אישור שליחת דיווח'),

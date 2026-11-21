@@ -38,14 +38,16 @@ class PluginConfirmationDialog {
                 title: title,
                 size: AppDialogSize.medium,
                 onConfirm: onConfirm,
-                customContent: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(content),
-                    const SizedBox(height: 16),
-                    footer,
-                  ],
+                customContent: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(content),
+                      const SizedBox(height: 16),
+                      footer,
+                    ],
+                  ),
                 ),
               ),
       ),

@@ -323,7 +323,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
                 isRequired: emailRequired,
                 onChanged: (value) => email = value,
               ),
-              onConfirm: () => field.currentState?.validate() ?? true,
+              onConfirm: () => field.currentState?.validate() ?? false,
             );
             return confirmed ? email.trim() : null;
           },

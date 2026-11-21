@@ -770,23 +770,17 @@ class PluginBridgeAdapter {
     );
   }
 
-  /// הצעות תיקון יוצאות בשם המשתמש, ולכן הכתובת מוצגת לאישור ולעריכה פעם
-  /// אחת בכל מופע של התוסף. תוסף שמפצל תיקון לחלקים לא יקפיץ חלון לכל חלק.
-  bool _bookCorrectionSenderConfirmed = false;
+  String? _confirmedBookCorrectionEmail;
+  Future<String?>? _bookCorrectionSenderPrompt;
 
-  /// חלקים של תיקון שנשלחים במקביל ממתינים לאותו חלון.
-  Future<bool>? _bookCorrectionSenderPrompt;
+  Future<String?> _confirmBookCorrectionSender() {
+    final pending = _bookCorrectionSenderPrompt;
+    if (pending != null) return pending;
+    final saved = _savedReportSenderEmail();
+    if (saved == _confirmedBookCorrectionEmail) return Future.value(saved);
 
-  Future<bool> _confirmBookCorrectionSender() {
-    if (_bookCorrectionSenderConfirmed &&
-        DirectErrorReportService.isValidSenderEmail(
-          _savedReportSenderEmail(),
-        )) {
-      return Future.value(true);
-    }
-    return _bookCorrectionSenderPrompt ??= () async {
+    return _bookCorrectionSenderPrompt = () async {
       try {
-        final saved = _savedReportSenderEmail();
         final email = await _confirmReportSender(
           title: 'שליחת הצעות תיקון לספרים',
           content:
@@ -795,12 +789,11 @@ class PluginBridgeAdapter {
           initialEmail: saved,
           emailRequired: true,
         );
-        // השירות קורא את הכתובת מההגדרות, ולכן כתובת שהמשתמש הקליד נשמרת.
         if (email != null && email != saved) {
           await _saveReportSenderEmail(email);
         }
-        _bookCorrectionSenderConfirmed = email != null;
-        return email != null;
+        _confirmedBookCorrectionEmail = email;
+        return email;
       } finally {
         _bookCorrectionSenderPrompt = null;
       }
@@ -828,21 +821,21 @@ class PluginBridgeAdapter {
     required bool emailRequired,
   }) async {
     final dialog = _dependencies.showReportSenderDialog;
-    if (dialog == null) {
-      final confirmed = await _dependencies.showConfirmDialog(
-        title: title,
-        content: initialEmail.isEmpty
-            ? content
-            : '$content\n\nכתובת לחזרה: $initialEmail',
-      );
-      return confirmed ? initialEmail : null;
-    }
-    final email = (await dialog(
-      title: title,
-      content: content,
-      initialEmail: initialEmail,
-      emailRequired: emailRequired,
-    ))?.trim();
+    final email = dialog == null
+        ? (await _dependencies.showConfirmDialog(
+                title: title,
+                content: initialEmail.isEmpty
+                    ? content
+                    : '$content\n\nכתובת לחזרה: $initialEmail',
+              )
+              ? initialEmail
+              : null)
+        : (await dialog(
+            title: title,
+            content: content,
+            initialEmail: initialEmail,
+            emailRequired: emailRequired,
+          ))?.trim();
     if (email == null) return null;
     final valid = email.isEmpty
         ? !emailRequired

@@ -53,7 +53,7 @@ class ReportSenderEmailFieldState extends State<ReportSenderEmailField> {
           ? null
           : 'נדרשת כתובת תקינה';
     }
-    setState(() => _error = error);
+    if (_error != error) setState(() => _error = error);
     if (error != null) _focusNode.requestFocus();
     return error == null;
   }

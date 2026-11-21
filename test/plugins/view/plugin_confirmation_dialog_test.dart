@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/view/plugin_confirmation_dialog.dart';
+import 'package:otzaria/reports/view/report_sender_email_field.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 
@@ -135,6 +136,38 @@ void main() {
       expect(await next, isTrue);
     },
   );
+
+  testWidgets('כתובת בדיווח ארוך נגישה בחלון קטן עם מקלדת פתוחה', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 570);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 210);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final context = await host(tester);
+    final dialog = PluginConfirmationDialog();
+    addTearDown(dialog.dispose);
+    final email = GlobalKey<ReportSenderEmailFieldState>();
+    final pending = dialog.show(
+      context: context,
+      title: 'שליחת דיווח למפתח התוסף',
+      content: 'קטע ארוך מתוכן הדיווח של התוסף. ' * 11,
+      footer: ReportSenderEmailField(key: email, isRequired: true),
+      onConfirm: () => email.currentState!.validate(),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    final field = find.byType(TextField);
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
+    await tester.enterText(field, 'reader@example.com');
+    await tester.tap(find.text('אישור'));
+    await tester.pumpAndSettle();
+    expect(await pending, isTrue);
+  });
 
   testWidgets('סגירת חלון האישור משחררת מופע חי לאישור בחלון אחר', (
     tester,
