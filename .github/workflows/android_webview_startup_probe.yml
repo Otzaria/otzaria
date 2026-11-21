@@ -95,6 +95,9 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      # The action downloads these without retrying; a truncated download fails the job.
+      - name: Preinstall emulator and system image
+        run: bash .github/scripts/sdkmanager-install.sh emulator 'system-images;android-34;google_apis;x86_64'
       - name: Run all five cases with AB/BA order in one dedicated APK
         uses: reactivecircus/android-emulator-runner@v2
         with:

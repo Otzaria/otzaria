@@ -85,7 +85,17 @@ jobs:
           cc -O2 -Wall -Wextra -arch x86_64 -arch arm64 -mmacosx-version-min=12.0 \
             tool/updater/atomic_tree_swap.c -o /tmp/otzaria-atomic-swap
           lipo /tmp/otzaria-atomic-swap -verify_arch x86_64 arm64
+      # curl in the action does not retry a connection reset mid-download (exit 56).
       - name: Setup Flutter
+        id: flutter
+        continue-on-error: true
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Setup Flutter (retry)
+        if: steps.flutter.outcome == 'failure'
         uses: subosito/flutter-action@v2
         with:
           channel: stable

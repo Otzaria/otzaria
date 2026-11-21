@@ -21,6 +21,9 @@ import 'support/webview_probe_metrics.dart';
 import 'support/webview_probe_window.dart';
 
 const _deadline = Duration(seconds: 30);
+// The first WebView also starts the runtime's browser process; on a fresh CI
+// machine that alone can exceed 30 s.
+const _firstCreationDeadline = Duration(seconds: 90);
 const _phases = [
   'environment',
   'firstOpen',
@@ -161,7 +164,9 @@ void main() {
         if (!background) visible = slot.id;
       });
       await tester.pump();
-      await slot.created.future.timeout(_deadline);
+      await slot.created.future.timeout(
+        allSlots.length == 1 ? _firstCreationDeadline : _deadline,
+      );
       final backend = slot.backend!;
       if (Platform.isWindows) {
         expect(backend['verified'], isTrue, reason: '$backend');
