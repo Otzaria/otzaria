@@ -367,27 +367,40 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         _selectedCategoryObject;
   }
 
-  /// פותח את הספר הרשמי [bookId] בשורת המקור [line], ומסכת בבלי לפי
-  /// הגדרת פורמט הבבלי.
+  /// פותח את הספר הרשמי [bookId] בשורת המקור [line] (או ספר PDF שבמעקב
+  /// בעמוד [line]), ומסכת בבלי לפי הגדרת פורמט הבבלי.
   Future<void> _openBookAt(int bookId, int line) async {
     final library = context.read<LibraryBloc>().state.library;
     if (library == null) {
       UiSnack.showError(ToolsMessages.libraryStillLoading);
       return;
     }
-    final book = library.getAllBooks().whereType<TextBook>().firstWhereOrNull(
-      (b) => b.source.isOfficial && b.id == bookId,
-    );
+    // מפתח שלילי הוא ספר PDF שבמעקב, ו-[line] הוא מספר העמוד.
+    final pdfIdentity = context
+        .read<ShamorZachorDataProvider>()
+        .trackedPdfIdentity(bookId);
+    final Book? book = bookId < 0
+        ? library.getAllBooks().whereType<PdfBook>().firstWhereOrNull(
+            (b) => ShamorZachorDataProvider.pdfIdentityOf(b) == pdfIdentity,
+          )
+        : library.getAllBooks().whereType<TextBook>().firstWhereOrNull(
+            (b) => b.source.isOfficial && b.id == bookId,
+          );
     if (book == null) {
-      UiSnack.showError(LibraryMessages.bookNotFoundById(bookId));
+      UiSnack.showError(
+        bookId < 0
+            ? LibraryMessages.categoryOrBookNotFound([_selectedBookName ?? ''])
+            : LibraryMessages.bookNotFoundById(bookId),
+      );
       return;
     }
-    if (await openLibraryBookPerTalmudBavliFormat(
-      context,
-      book,
-      line,
-      navigateToPositionIfReused: true,
-    )) {
+    if (book is TextBook &&
+        await openLibraryBookPerTalmudBavliFormat(
+          context,
+          book,
+          line,
+          navigateToPositionIfReused: true,
+        )) {
       return;
     }
     if (!mounted) return;

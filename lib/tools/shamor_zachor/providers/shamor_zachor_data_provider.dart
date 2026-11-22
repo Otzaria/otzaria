@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -10,6 +12,9 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/migration/models/book.dart' as db_models;
 import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
+import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/models/books.dart' show PdfBook;
+import 'package:pdfrx/pdfrx.dart';
 
 import '../models/book_model.dart';
 import '../models/error_model.dart';
@@ -22,6 +27,11 @@ typedef ShamorZachorCategoryTreeLoader =
       required List<int> trackedBookIds,
     });
 
+typedef ShamorZachorPdfInfoLoader =
+    Future<({int pageCount, List<PdfOutlineNode> outline})> Function(
+      String path,
+    );
+
 /// Provider for managing book data in Shamor Zachor
 class ShamorZachorDataProvider with ChangeNotifier {
   static final Logger _logger = Logger('ShamorZachorDataProvider');
@@ -29,6 +39,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
   // Dependencies
   final SqliteDataProvider? _sqliteDataProvider;
   final ShamorZachorCategoryTreeLoader _categoryTreeLoader;
+  final ShamorZachorPdfInfoLoader _pdfInfoLoader;
 
   // State
   Map<String, BookCategory> _allBookData = {};
@@ -45,6 +56,13 @@ class ShamorZachorDataProvider with ChangeNotifier {
   // Tracked books list - stored in Hive via Settings
   static const String _trackedBooksKey = 'sz:tracked_books';
   Set<int> _trackedBookIds = {};
+
+  /// ספרי PDF שאינם ב-seforim.db (היברובוקס, אישיים) נשמרים בנפרד, במפתחות
+  /// שליליים — מזהי seforim.db חיוביים, ולכן אין התנגשות עם ספר רשמי.
+  static const String _trackedPdfBooksKey = 'sz:tracked_pdf_books';
+  static const String _lastPdfKeyKey = 'sz:last_pdf_book_key';
+  static const String pdfCategoryName = 'ספרי PDF';
+  List<Map<String, dynamic>> _trackedPdfBooks = [];
 
   // Getters
   Map<String, BookCategory> get allBookData => _allBookData;
@@ -68,7 +86,26 @@ class ShamorZachorDataProvider with ChangeNotifier {
   Set<int> get trackedBookIds => Set.unmodifiable(_trackedBookIds);
 
   /// בודק אם ספר נוסף ידנית למעקב לפי מזהה
-  bool isBookTrackedById(int bookId) => _trackedBookIds.contains(bookId);
+  bool isBookTrackedById(int bookId) => bookId < 0
+      ? _trackedPdfBooks.any((e) => e['key'] == bookId)
+      : _trackedBookIds.contains(bookId);
+
+  /// זהות PDF במעקב: ספר אישי לפי מזהה הספר, כדי שהעברת הקובץ לא תנתק אותו;
+  /// אחרים לפי מפתח האינדקס (מזהה חיצוני, או נתיב הקובץ).
+  static String pdfIdentityOf(PdfBook book) =>
+      book.source.isUser && book.id != null
+      ? BookIdentity.userBookKey(book.id!)
+      : BookIdentity.indexedFilePath(book);
+
+  bool isPdfBookTracked(PdfBook book) {
+    final identity = pdfIdentityOf(book);
+    return _trackedPdfBooks.any((e) => e['identity'] == identity);
+  }
+
+  /// זהות ה-PDF ([pdfIdentityOf]) שמאחורי המפתח השלילי [key].
+  String? trackedPdfIdentity(int key) =>
+      _trackedPdfBooks.firstWhereOrNull((e) => e['key'] == key)?['identity']
+          as String?;
 
   /// Constructor accepting SqliteDataProvider
   ///
@@ -77,9 +114,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
   ShamorZachorDataProvider({
     SqliteDataProvider? sqliteDataProvider,
     ShamorZachorCategoryTreeLoader? categoryTreeLoader,
+    ShamorZachorPdfInfoLoader? pdfInfoLoader,
   }) : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance,
        _categoryTreeLoader =
-           categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree {
+           categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree,
+       _pdfInfoLoader = pdfInfoLoader ?? _loadPdfInfo {
     _sqliteDataProvider!.repositoryChanges.addListener(_onRepositoryChanged);
   }
 
@@ -140,7 +179,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
       final repository = _sqliteDataProvider!.repository!;
 
       // Load tracked books list from Hive-backed settings
-      await _loadTrackedBooksList();
+      _loadTrackedBooksList();
       if (!_isCurrent(generation)) return;
 
       // Try loading the category tree off the main isolate to keep the UI
@@ -155,7 +194,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
         final categories = (workerResult['categories'] as List)
             .map((raw) => (raw as Map).cast<String, dynamic>())
             .toList();
-        _allBookData = _hydrateCategoryTree(categories);
+        _allBookData = _withTrackedPdfBooks(_hydrateCategoryTree(categories));
         _logger.info(
           'Loaded ${_allBookData.length} top-level categories in isolate '
           '(${workerResult['relevantBookCount']} relevant books, '
@@ -213,7 +252,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
         }
       }
 
-      _allBookData = resultData;
+      _allBookData = _withTrackedPdfBooks(resultData);
       _logger.info(
         'Loaded ${_allBookData.length} top-level categories from DB using shared cache (${relevantBooks.length} books).',
       );
@@ -228,6 +267,47 @@ class ShamorZachorDataProvider with ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  /// מוסיף את ספרי ה-PDF שבמעקב כקטגוריית על משלהם.
+  Map<String, BookCategory> _withTrackedPdfBooks(
+    Map<String, BookCategory> data,
+  ) {
+    if (_trackedPdfBooks.isEmpty) return data;
+    final books = <String, BookDetails>{};
+    for (final entry in _trackedPdfBooks) {
+      final pages = entry['pages'] as int;
+      final outline = (entry['outline'] as List)
+          .map((raw) => BookSection.fromJson((raw as Map).cast()))
+          .toList();
+      // הכותרת היא מפתח הרשימה; כותרת שחוזרת מקבלת מספר כדי לא לדרוס.
+      final title = entry['title'] as String;
+      var name = title;
+      for (var n = 2; books.containsKey(name); n++) {
+        name = '$title ($n)';
+      }
+      books[name] = BookDetails(
+        contentType: DocumentFormat.pdf.extension,
+        parts: [BookPart(name: 'ראשי', startPage: 1, endPage: pages)],
+        isCustom: true,
+        id: entry['key'] as int,
+        originalPageCount: pages,
+        sections: outline.isNotEmpty ? outline : null,
+        categoryPath: pdfCategoryName,
+      );
+    }
+    return {
+      ...data,
+      pdfCategoryName: BookCategory(
+        name: pdfCategoryName,
+        contentType: DocumentFormat.pdf.extension,
+        books: books,
+        defaultStartPage: 1,
+        isCustom: true,
+        sourceFile: 'pdf',
+        schemaVersion: 1,
+      ),
+    };
   }
 
   Map<String, BookCategory> _hydrateCategoryTree(
@@ -669,11 +749,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
       throw Exception('מסד הנתונים לא מאותחל');
     }
 
-    if (_trackedBookIds.isEmpty) {
-      await _loadTrackedBooksList();
-    }
-
-    int added = 0;
+    final found = <int>[];
     int failed = 0;
     for (final book in books) {
       try {
@@ -688,21 +764,123 @@ class ShamorZachorDataProvider with ChangeNotifier {
           failed++;
           continue;
         }
-        if (_trackedBookIds.add(existing.id)) {
-          added++;
-        }
+        found.add(existing.id);
       } catch (e) {
         _logger.warning("Failed to add book '${book.bookName}' to tracking", e);
         failed++;
       }
     }
 
+    _loadTrackedBooksList();
+    final added = found.where(_trackedBookIds.add).length;
     if (added > 0) {
       await _saveTrackedBooksList();
       await loadAllData();
     }
 
     return (added: added, failed: failed);
+  }
+
+  /// מוסיף ספרי PDF למעקב. היחידות הן עלי ה-outline של הקובץ, ובלעדיו —
+  /// העמודים.
+  Future<({int added, int failed})> addPdfBooks(List<PdfBook> books) async {
+    final loaded = <String, Map<String, dynamic>>{};
+    int failed = 0;
+    for (final book in books) {
+      final identity = pdfIdentityOf(book);
+      if (isPdfBookTracked(book) || loaded.containsKey(identity)) continue;
+      try {
+        final info = await _pdfInfoLoader(book.path);
+        if (info.pageCount < 1) {
+          failed++;
+          continue;
+        }
+        loaded[identity] = {
+          'identity': identity,
+          'title': book.title,
+          'pages': info.pageCount,
+          'outline': _outlineSections(info.outline, info.pageCount),
+        };
+      } catch (e) {
+        _logger.warning("Failed to add PDF '${book.title}' to tracking", e);
+        failed++;
+      }
+    }
+
+    // מהקריאה ועד הכתיבה בלי await, כדי שרענון מקביל לא ידרוס הוספה.
+    _loadTrackedBooksList();
+    // מונה שאינו חוזר לאחור: מפתח של PDF שהוסר לא ימוחזר לספר אחר.
+    var lastKey = Settings.getValue<int>(_lastPdfKeyKey) ?? 0;
+    int added = 0;
+    for (final entry in loaded.values) {
+      if (_trackedPdfBooks.any((e) => e['identity'] == entry['identity'])) {
+        continue;
+      }
+      _trackedPdfBooks.add({'key': --lastKey, ...entry});
+      added++;
+    }
+    if (added > 0) {
+      await Future.wait([
+        Settings.setValue<int>(_lastPdfKeyKey, lastKey),
+        _saveTrackedBooksList(),
+      ]);
+      await loadAllData();
+    }
+    return (added: added, failed: failed);
+  }
+
+  static Future<({int pageCount, List<PdfOutlineNode> outline})> _loadPdfInfo(
+    String path,
+  ) async {
+    final document = await PdfDocument.openFile(
+      path,
+      useProgressiveLoading: true,
+    );
+    try {
+      return (
+        pageCount: document.pages.length,
+        outline: await document.loadOutline(),
+      );
+    } finally {
+      await document.dispose();
+    }
+  }
+
+  /// ממיר outline של PDF למבנה ה-JSON של [BookSection]; עמוד הסיום של פרק
+  /// הוא העמוד שלפני הפרק הבא.
+  static List<Map<String, dynamic>> _outlineSections(
+    List<PdfOutlineNode> outline,
+    int pageCount,
+  ) {
+    var nextId = 0;
+    List<Map<String, dynamic>> convert(
+      List<PdfOutlineNode> nodes,
+      int level,
+      int parentEnd,
+    ) {
+      final result = <Map<String, dynamic>>[];
+      for (var i = 0; i < nodes.length; i++) {
+        final start = nodes[i].dest?.pageNumber ?? 1;
+        final nextStart = i + 1 < nodes.length
+            ? nodes[i + 1].dest?.pageNumber
+            : null;
+        final end = math.max(
+          start,
+          nextStart == null ? parentEnd : nextStart - 1,
+        );
+        result.add({
+          'id': 'pdf${nextId++}',
+          'title': nodes[i].title,
+          'level': level,
+          'startPage': start,
+          'endPage': end,
+          'children': convert(nodes[i].children, level + 1, end),
+        });
+      }
+      return result;
+    }
+
+    return convert(outline, 1, pageCount);
   }
 
   /// מאתר ספר במסד הרשמי בלבד — לפי [id] אם סופק, אחרת לפי כותרת.
@@ -726,12 +904,29 @@ class ShamorZachorDataProvider with ChangeNotifier {
   ///
   /// ספר בסיס יורד מרשימת "בתהליך" ויישאר זמין תחת "הכל".
   Future<void> removeBookFromTracking(int bookId) async {
-    await _removeFromTrackedBooksList(bookId);
+    _loadTrackedBooksList();
+    _trackedBookIds.remove(bookId);
+    _trackedPdfBooks.removeWhere((e) => e['key'] == bookId);
+    await _saveTrackedBooksList();
     await loadAllData();
   }
 
-  /// Load tracked books list from Hive
-  Future<void> _loadTrackedBooksList() async {
+  /// טוען את רשימות המעקב מההגדרות. סינכרוני: מי שמשנה רשימה טוען, משנה
+  /// ושומר בלי await ביניהם, וכך רענון מקביל אינו מאבד את השינוי.
+  void _loadTrackedBooksList() {
+    try {
+      _trackedPdfBooks = [
+        for (final raw
+            in jsonDecode(
+                  Settings.getValue<String>(_trackedPdfBooksKey) ?? '[]',
+                )
+                as List)
+          (raw as Map).cast<String, dynamic>(),
+      ];
+    } catch (e) {
+      _logger.warning('Failed to load tracked PDF books list', e);
+      _trackedPdfBooks = [];
+    }
     try {
       final jsonString = Settings.getValue<String>(_trackedBooksKey);
 
@@ -748,11 +943,19 @@ class ShamorZachorDataProvider with ChangeNotifier {
     }
   }
 
-  /// Save tracked books list to Hive
+  /// Save tracked books lists to Hive
   Future<void> _saveTrackedBooksList() async {
     try {
-      final jsonString = jsonEncode(_trackedBookIds.toList());
-      await Settings.setValue<String>(_trackedBooksKey, jsonString);
+      await Future.wait([
+        Settings.setValue<String>(
+          _trackedBooksKey,
+          jsonEncode(_trackedBookIds.toList()),
+        ),
+        Settings.setValue<String>(
+          _trackedPdfBooksKey,
+          jsonEncode(_trackedPdfBooks),
+        ),
+      ]);
     } catch (e) {
       _logger.warning('Failed to save tracked books list', e);
     }
@@ -760,18 +963,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   /// Add a book ID to the tracked books list
   Future<void> _addToTrackedBooksList(int bookId) async {
-    // Always load from Hive first to avoid overwriting existing tracked books
-    // when the in-memory list hasn't been loaded yet (e.g. first call after app restart)
-    if (_trackedBookIds.isEmpty) {
-      await _loadTrackedBooksList();
-    }
+    _loadTrackedBooksList();
     _trackedBookIds.add(bookId);
-    await _saveTrackedBooksList();
-  }
-
-  /// Remove a book ID from the tracked books list
-  Future<void> _removeFromTrackedBooksList(int bookId) async {
-    _trackedBookIds.remove(bookId);
     await _saveTrackedBooksList();
   }
 
