@@ -364,7 +364,7 @@ PerfResourceProbeSession createPerfResourceProbeSession(
           'pollIntervalMs': 16,
           'rssIntervalMs': 250,
           ...bindingMode.toComparisonJson(),
-          if (engineIdentity != null) 'engineBinary': engineIdentity,
+          'engineBinary': ?engineIdentity,
           if (scenarioSet == 'pdf-multi-window')
             'pdfMultiWindowProtocol': perfPdfMultiWindowProtocol,
           'resourceObservationVersion': perfResourceObservationVersion,

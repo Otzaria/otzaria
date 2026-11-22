@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
@@ -542,7 +541,7 @@ class _MultiWindowProbe {
             (hit) =>
                 hit.filePath == BookIdentity.indexedFilePath(_primaryBook) &&
                 hit.isPdf &&
-                hit.segment == page - 1,
+                hit.segment == BigInt.from(page - 1),
           );
           _require(own.length == 1, 'Index did not return PDF page $page.');
         }
