@@ -92,6 +92,43 @@ void main() {
     expect(result.droppedPages, 0);
   });
 
+  for (final cancelled in [false, true]) {
+    test('null מאוחר מאפשר ניסיון חוזר רק בלי ביטול ($cancelled)', () {
+      fakeAsync((clock) {
+        final first = Completer<String?>();
+        var isCancelled = false;
+        var completed = false;
+        var calls = 0;
+        ({Map<int, String> texts, int droppedPages})? result;
+        IndexingRepository.extractPageTextsWithRetry(
+          pageCount: 1,
+          loadPageText: (_) =>
+              ++calls == 1 ? first.future : Future.value('טקסט'),
+          beforeEachPage: () async => !isCancelled,
+        ).then((value) {
+          result = value;
+          completed = true;
+        });
+        clock.elapse(const Duration(seconds: 5));
+        expect(calls, 1);
+        expect(completed, isFalse);
+
+        isCancelled = cancelled;
+        first.complete(null);
+        clock.flushMicrotasks();
+
+        expect(completed, isTrue);
+        expect(calls, cancelled ? 1 : 2);
+        if (cancelled) {
+          expect(result, isNull);
+        } else {
+          expect(result!.texts, {0: 'טקסט'});
+          expect(result!.droppedPages, 0);
+        }
+      });
+    });
+  }
+
   for (final asynchronous in [false, true]) {
     test('כשל חילוץ נשמר בלי ניסיון חוזר (async=$asynchronous)', () async {
       var calls = 0;

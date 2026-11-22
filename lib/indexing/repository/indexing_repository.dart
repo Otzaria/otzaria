@@ -1886,21 +1886,26 @@ class IndexingRepository {
     }
 
     final texts = SplayTreeMap<int, String>();
-    final timedOut = <int>[];
+    final retryPages = <int>[];
     for (int i = 0; i < pageCount; i++) {
       if (!await beforeEachPage()) return null;
       final text = await load(i);
       if (text == null) {
-        timedOut.add(i);
+        retryPages.add(i);
       } else {
         texts[i] = text;
       }
     }
 
     var droppedPages = 0;
-    for (final i in timedOut) {
+    for (final i in retryPages) {
       if (!await beforeEachPage()) return null;
-      final text = await load(i);
+      final reusingPending = pending.containsKey(i);
+      var text = await load(i);
+      if (reusingPending && text == null && !pending.containsKey(i)) {
+        if (!await beforeEachPage()) return null;
+        text = await load(i);
+      }
       if (text == null) {
         droppedPages++;
       } else {
