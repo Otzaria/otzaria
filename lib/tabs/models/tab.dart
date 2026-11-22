@@ -73,6 +73,7 @@ abstract class OpenedTab {
     String? dedupeKey,
     ExternalBookMatches? externalMatches,
     int? linkSelectedLine,
+    String? markerReference,
   }) {
     if (book is PdfBook) {
       return PdfBookTab(
@@ -108,6 +109,7 @@ abstract class OpenedTab {
       pinpointHighlightSectionIndex: pinpointHighlightSectionIndex,
       dedupeKey: dedupeKey,
       linkSelectedLine: linkSelectedLine,
+      markerReference: markerReference,
     );
   }
 

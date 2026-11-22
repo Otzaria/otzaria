@@ -231,7 +231,6 @@ class _RecordingReaderCoordinator extends BookOpenCoordinator {
     bool inSidePane = false,
     bool navigate = true,
     bool captureHistory = true,
-    double intraLineFraction = 0,
   }) {
     opened = tab;
     // הפרמטר navigate מסתיר את השדה באותו שם.

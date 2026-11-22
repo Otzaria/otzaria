@@ -64,6 +64,9 @@ class TextBookTab extends OpenedTab {
   /// הסעיף המודגש, שנשאר קבוע גם כשהמיקום הנוכחי משתנה; null משתמש ב-[index].
   final int? pinpointHighlightSectionIndex;
 
+  /// הפניה שסמן הכותרת שבסופה (`[סעיף ו]`) נמצא בתוך שורת היעד; הפתיחה גוללת אליו.
+  final String? markerReference;
+
   /// שורה שקישור ביקש לבחור בפתיחה הזאת. הערך אינו נשמר בשולחן העבודה.
   int? get linkSelectedLine => _linkSelectedLine;
   int? _linkSelectedLine;
@@ -176,6 +179,7 @@ class TextBookTab extends OpenedTab {
     this.pinpointHighlight,
     this.pinpointHighlightSectionIndex,
     this._linkSelectedLine,
+    this.markerReference,
     @visibleForTesting TextBookBloc? blocOverride,
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
   }) : _index = initialReadingAnchor?.line ?? index,

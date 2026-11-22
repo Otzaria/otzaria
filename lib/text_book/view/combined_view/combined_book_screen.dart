@@ -2429,7 +2429,7 @@ class _CombinedViewState extends State<CombinedView> {
     final itemCount = layout.itemCount;
     // כמו ב-buildOuterList: פתיחה במיקום הטאב (תצוגה מקדימה של תוצאת
     // חיפוש נפתחת בקטע שנמצא, לא בראש הספר).
-    final anchor = widget.tab.readingAnchor;
+    final anchor = _initialReadingAnchor(state);
     final initialIndex = layout.itemForLine(anchor.line);
     final clampedInitial = itemCount == 0
         ? 0
@@ -2483,6 +2483,26 @@ class _CombinedViewState extends State<CombinedView> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// עד החיבור הראשון: סמן [TextBookTab.markerReference] בתוך שורת הפתיחה.
+  ReadingAnchor _initialReadingAnchor(TextBookLoaded state) {
+    final anchor = widget.tab.readingAnchor;
+    final marker = widget.tab.markerReference;
+    if (marker == null ||
+        widget.tab.lines.isAttached ||
+        anchor.intraLineFraction != 0 ||
+        anchor.line >= state.content.length) {
+      return anchor;
+    }
+    return ReadingAnchor(
+      line: anchor.line,
+      alignment: anchor.alignment,
+      intraLineFraction: bracketMarkerFractionForReference(
+        state.content[anchor.line],
+        marker,
       ),
     );
   }
@@ -2575,7 +2595,7 @@ class _CombinedViewState extends State<CombinedView> {
     _commentaryCardKeys.removeWhere(
       (line, _) => !state.selectedIndices.contains(line),
     );
-    final anchor = widget.tab.readingAnchor;
+    final anchor = _initialReadingAnchor(state);
     final initialIndex = layout.itemForLine(anchor.line);
     final itemCount = layout.itemCount;
     final clampedInitial = itemCount == 0

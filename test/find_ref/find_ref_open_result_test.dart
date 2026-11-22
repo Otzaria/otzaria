@@ -556,51 +556,34 @@ void main() {
     expect((event.tab as TextBookTab).index, 12);
   });
 
-  // #5748: כל סעיפי סימן שח בשורה אחת — פותחים בסמן [סעיף ו] שבתוכה.
+  // #5748: כל סעיפי סימן שח בשורה אחת — הטאב יודע לאיזה סמן בתוכה לגלול.
   group('תוצאת תוכן עניינים חלופי שהיא סמן בתוך שורה', () {
-    const line = '[סעיף א] אלף בית גימל [סעיף ו] דלת הא';
-    const altToc = DbReferenceResult(
-      title: 'טור, אורח חיים',
-      reference: 'טור, אורח חיים סימן שח סעיף ו',
-      segment: 30,
-      bookId: 1,
-      isAltToc: true,
-    );
-    late List<int> readLines;
-
-    setUp(() {
-      readLines = [];
-      FindRefDialog.readLineForTesting = (book, index) async {
-        readLines.add(index);
-        return line;
-      };
-    });
-    tearDown(() => FindRefDialog.readLineForTesting = null);
-
-    testWidgets('טאב חדש נפתח בסמן, בלי הדגשה', (tester) async {
+    testWidgets('הטאב נושא את ההפניה, בלי הדגשה ובלי היסטוריה', (tester) async {
       final book = TextBook(id: 1, title: 'טור, אורח חיים');
       final event = await _openResultEvent(
         tester,
         library: _libraryWith([book]),
         history: [Bookmark(ref: 'טור', book: book, index: 40)],
-        result: altToc,
+        result: const DbReferenceResult(
+          title: 'טור, אורח חיים',
+          reference: 'טור, אורח חיים סימן שח סעיף ו',
+          segment: 30,
+          bookId: 1,
+          isAltToc: true,
+        ),
       );
 
       final tab = event.tab as TextBookTab;
-      final anchor = tab.lines.captureAnchor()!;
-      expect(readLines, [30]);
-      expect(anchor.line, 30);
-      expect(anchor.intraLineFraction, greaterThan(0));
+      expect(tab.index, 30);
+      expect(tab.markerReference, 'טור, אורח חיים סימן שח סעיף ו');
       expect(tab.highlightText, isEmpty);
       expect(tab.permanentHighlightLine, isNull);
-      // טאב קיים של הספר מקבל את אותו מקום בשורה.
       expect(event.navigateToPositionIfReused, isTrue);
-      expect(event.intraLineFraction, anchor.intraLineFraction);
     });
 
-    testWidgets('תוצאה רגילה לא קוראת את השורה', (tester) async {
+    testWidgets('תוצאה רגילה אינה נושאת הפניה', (tester) async {
       final book = TextBook(id: 1, title: 'טור, אורח חיים');
-      final event = await _openResultEvent(
+      final tab = await _openResult(
         tester,
         library: _libraryWith([book]),
         result: const DbReferenceResult(
@@ -611,9 +594,7 @@ void main() {
         ),
       );
 
-      expect(readLines, isEmpty);
-      expect(event.intraLineFraction, 0);
-      expect((event.tab as TextBookTab).lines.captureAnchor(), isNull);
+      expect((tab as TextBookTab).markerReference, isNull);
     });
   });
 

@@ -32,7 +32,7 @@ void openBook(
   bool insertAdjacent = false,
   bool navigateToPositionIfReused = false,
   List<String>? initialCommentators,
-  double intraLineFraction = 0,
+  String? markerReference,
 }) {
   bookOpenCoordinatorOf(context).openBook(
     book,
@@ -47,7 +47,7 @@ void openBook(
     insertAdjacent: insertAdjacent,
     initialCommentators: initialCommentators,
     navigateToPositionIfReused: navigateToPositionIfReused,
-    intraLineFraction: intraLineFraction,
+    markerReference: markerReference,
   );
 }
 

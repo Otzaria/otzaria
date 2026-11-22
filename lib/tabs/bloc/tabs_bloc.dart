@@ -33,7 +33,7 @@ import 'package:otzaria/search/models/search_configuration.dart'
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart'
     show kSearchResultAnchorAlignment;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
-    show matchFractionInLine;
+    show bracketMarkerFractionForReference, matchFractionInLine;
 import 'package:otzaria/utils/text/ref_helper.dart';
 
 /// כמה כרטיסיות שנסגרו נשמרות לשחזור. מוגבל כי כל רשומה מחזיקה מופע טאב חי.
@@ -638,7 +638,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         await _propagateNavigationToExistingTab(
           existingTab: matchingTab,
           incomingTab: event.tab,
-          intraLineFraction: event.intraLineFraction,
         );
       }
       // ההדגשה מדייקת את היעד בתוך השורה, אחרי הניווט למיקום המפורש.
@@ -923,7 +922,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   Future<void> _propagateNavigationToExistingTab({
     required OpenedTab existingTab,
     required OpenedTab incomingTab,
-    double intraLineFraction = 0,
   }) async {
     if (incomingTab is PdfBookTab) {
       final targetPdf = _resolvePdfBookTab(existingTab, incomingTab);
@@ -948,11 +946,21 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetText = _resolveTextBookTab(existingTab, incomingTab);
       if (targetText == null) return;
       final targetIndex = incomingTab.index;
+      final marker = incomingTab.markerReference;
+      final loaded = targetText.blocState;
       // יעד שנקבע לפני שהקורא מחובר נשמר ומבוצע בחיבור; tab.index מתעדכן מיד.
       final navigation = targetText.lines.scrollToLine(
         targetIndex,
         alignment: 0,
-        intraLineFraction: intraLineFraction,
+        intraLineFraction:
+            marker != null &&
+                loaded is TextBookLoaded &&
+                targetIndex < loaded.content.length
+            ? bracketMarkerFractionForReference(
+                loaded.content[targetIndex],
+                marker,
+              )
+            : 0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );

@@ -645,24 +645,34 @@ void main() {
     // #5748: כמה סעיפים בשורה אחת — הטאב הקיים מגיע לסמן שבתוך השורה.
     test('טאב קיים מנווט למקום בתוך שורת היעד', () async {
       final bloc = _newBloc(_FakeTabsRepository());
-      final existingTab = _createTextTab('ספר א', index: 0, categoryId: 1);
+      final existingTab = TextBookTab(
+        book: TextBook(title: 'ספר א', categoryId: 1),
+        index: 0,
+        blocOverride: _RecordingTextBookBloc(
+          loaded: true,
+          content: const ['', '[סעיף א] אלף בית [סעיף ו] גימל'],
+        ),
+      );
 
       bloc.add(AddTab(existingTab));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
 
       bloc.add(
         OpenOrFocusTab(
-          _createTextTab('ספר א', index: 25, categoryId: 1),
+          TextBookTab(
+            book: TextBook(title: 'ספר א', categoryId: 1),
+            index: 1,
+            markerReference: 'ספר א סימן שח סעיף ו',
+          ),
           navigateToPositionIfReused: true,
-          intraLineFraction: 0.6,
         ),
       );
       await pumpEventQueue();
 
       expect(bloc.state.tabs, hasLength(1));
       final anchor = existingTab.lines.captureAnchor()!;
-      expect(anchor.line, 25);
-      expect(anchor.intraLineFraction, 0.6);
+      expect(anchor.line, 1);
+      expect(anchor.intraLineFraction, greaterThan(0.4));
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
@@ -3210,24 +3220,28 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   /// [loaded] — ה-bloc מתחיל ב-TextBookLoaded. נדרש לכל מסלול שמותנה בטעינה:
   /// ב-TextBookInitial המטפלים ב-TextBookBloc יוצאים מיד.
-  _RecordingTextBookBloc({bool loaded = false})
-    : super(
-        loaded
-            ? _loadedState()
-            : TextBookInitial.named(
-                TextBook(title: 'ספר א'),
-                0,
-                false,
-                const [],
-              ),
-      ) {
+  _RecordingTextBookBloc({
+    bool loaded = false,
+    List<String> content = const ['שורה'],
+  }) : super(
+         loaded
+             ? _loadedState(content)
+             : TextBookInitial.named(
+                 TextBook(title: 'ספר א'),
+                 0,
+                 false,
+                 const [],
+               ),
+       ) {
     on<TextBookEvent>((event, emit) {});
   }
 
-  static TextBookLoaded _loadedState() => TextBookLoaded(
+  static TextBookLoaded _loadedState([
+    List<String> content = const ['שורה'],
+  ]) => TextBookLoaded(
     book: TextBook(title: 'ספר א'),
     showLeftPane: false,
-    content: const ['שורה'],
+    content: content,
     fontSize: 20,
     showSplitView: false,
     activeCommentators: const [],
