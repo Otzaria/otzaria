@@ -981,6 +981,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כ-167MB; דורש נתוני חיפוש תואמים': 'About 167MB; requires matching search data',
     'כ-168MB, תוצאות כמעט זהות וזיכרון רב יותר': 'About 168MB, nearly identical results and more memory',
     'כ-42MB, ברירת המחדל': 'About 42MB, the default',
+    'כאן מדווחים על התוכנה ועל הכלים המובנים בה (למשל לוח השנה והגימטריה). תוספים הם רכיבים שהותקנו בנפרד ופותחו על ידי אחרים — על תקלה בתוסף יש לדווח למפתח התוסף, דרך התוסף עצמו.': 'This form is for the app and its built-in tools (such as the calendar and gematria). Plugins are installed separately and made by others — report a plugin problem to its developer, through the plugin itself.',
     'כאן מוצגים כל הספרים הזמינים. תוכל לדפדף לפי קטגוריות, לחפש לפי שם, או לפתוח ספר בלחיצה.': 'Every sefer you have shows here. Browse by category, search by name, or click to open a sefer.',
     'כאן קוראים את הספרים שפתחת. ניתן לפתוח מספר ספרים בטאבים שונים ולעבור ביניהם.\n\nקיצור: {shortcut}': 'This is where you read opened seforim. You can open multiple seforim in different tabs and switch between them.\n\nShortcut: {shortcut}',
     'כאן תוכל להתאים אישית מראה, כתב, ספרייה, כלים, קיצורים, גיבוי ועוד.\n\nקיצור: {shortcut}': 'Here you can customize appearance, text, library, tools, shortcuts, backup and more.\n\nShortcut: {shortcut}',

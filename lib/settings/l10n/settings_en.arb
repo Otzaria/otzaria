@@ -1653,6 +1653,7 @@
   "שמור בתור ל{target}": "Queue for {target}",
   "שלח ישירות ל{target}": "Send directly to {target}",
   "ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה": "An accurate description makes the problem easier to find and fix.",
+  "כאן מדווחים על התוכנה ועל הכלים המובנים בה (למשל לוח השנה והגימטריה). תוספים הם רכיבים שהותקנו בנפרד ופותחו על ידי אחרים — על תקלה בתוסף יש לדווח למפתח התוסף, דרך התוסף עצמו.": "This form is for the app and its built-in tools (such as the calendar and gematria). Plugins are installed separately and made by others — report a plugin problem to its developer, through the plugin itself.",
   "משפט אחד שמתאר את הבעיה": "Describe the problem in one sentence",
   "יש למלא כותרת": "Enter a title",
   "מה ציפית שיקרה, ומה קרה בפועל": "What did you expect, and what happened instead?",
