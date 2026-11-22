@@ -321,7 +321,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
     if (!shouldAutoOpenCommentaryPane(
-      settingEnabled: context.read<SettingsBloc>().state.defaultCommentaryOpen,
+      settingEnabled:
+          widget.tab.openCommentaryPane ||
+          context.read<SettingsBloc>().state.defaultCommentaryOpen,
       isSupportedMode: widget.showSplitView,
       hasSelectedCommentators: state.activeCommentators.isNotEmpty,
       alreadyAutoOpened: _didAutoOpenCommentary,
