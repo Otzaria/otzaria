@@ -733,6 +733,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
             buildWhen: (prev, curr) {
               if (prev is TextBookLoaded && curr is TextBookLoaded) {
                 return prev.fontSize != curr.fontSize ||
+                    prev.commentatorsFontSize != curr.commentatorsFontSize ||
                     prev.tableOfContents != curr.tableOfContents ||
                     prev.links != curr.links ||
                     prev.availableCommentators != curr.availableCommentators ||
@@ -855,7 +856,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       builder: (context, settingsState) => CommentaryListBase(
         key: _commentaryKey,
         openBookCallback: widget.openBookCallback,
-        fontSize: settingsState.commentatorsFontSize,
+        fontSize: settingsState.commentatorsFontSizeForBook(
+          state.commentatorsFontSize,
+        ),
         indexes: effectiveIndexes,
         showSearch: true,
         autofocus: true,

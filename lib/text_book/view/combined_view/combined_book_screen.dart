@@ -105,6 +105,7 @@ import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
 import 'package:otzaria/text_book/view/widgets/unloaded_paragraph_placeholder.dart';
 import 'package:otzaria/text_book/view/widgets/reading_extent_estimation.dart';
+import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 class CombinedView extends StatefulWidget {
@@ -1788,10 +1789,13 @@ class _CombinedViewState extends State<CombinedView> {
         final guard = await commentarySelection.copyGuard?.call();
         if (!mounted) return;
         final settingsState = context.read<SettingsBloc>().state;
+        final book = _textBookBloc.state;
         await ContextMenuUtils.copyFormattedText(
           context: context,
           savedSelectedText: commentarySelection.text,
-          fontSize: settingsState.commentatorsFontSize,
+          fontSize: settingsState.commentatorsFontSizeForBook(
+            book is TextBookLoaded ? book.commentatorsFontSize : null,
+          ),
           link: commentarySelection.link,
           removeNikud: removeNikud,
           copyProfile: profile,
@@ -1973,7 +1977,7 @@ class _CombinedViewState extends State<CombinedView> {
       fontSize: widget.textSize,
       fontFamily: settingsState.fontFamily,
       fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-      lineHeight: settingsState.lineHeight,
+      lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     );
   }
 
@@ -2372,8 +2376,11 @@ class _CombinedViewState extends State<CombinedView> {
                                             return SmoothWheelScroll(
                                               child: ScrollPositionReanchor(
                                                 layoutKey: context.select(
-                                                  (SettingsBloc bloc) =>
-                                                      bloc.state.lineHeight,
+                                                  (SettingsBloc bloc) => bloc
+                                                      .state
+                                                      .lineHeightForBook(
+                                                        state.lineHeight,
+                                                      ),
                                                 ),
                                                 preferredIndex:
                                                     _selectedItemIndex(state),
@@ -2517,7 +2524,7 @@ class _CombinedViewState extends State<CombinedView> {
         (SettingsBloc bloc) => (
           fontFamily: bloc.state.fontFamily,
           fontBold: bloc.state.fontBold,
-          lineHeight: bloc.state.lineHeight,
+          lineHeight: bloc.state.lineHeightForBook(state.lineHeight),
           textMaxWidth: bloc.state.textMaxWidth,
         ),
       );
@@ -2687,6 +2694,7 @@ class _CombinedViewState extends State<CombinedView> {
       return UnloadedParagraphPlaceholder(
         lineCount: segment.sourceLineIndices.length,
         fontSize: widget.textSize,
+        lineHeight: state.lineHeight,
       );
     }
     final itemLines = segment?.sourceLineIndices ?? [primaryLineIndex];
@@ -3233,7 +3241,7 @@ class _CombinedViewState extends State<CombinedView> {
       fontSize: widget.textSize,
       fontFamily: settingsState.fontFamily,
       fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-      lineHeight: settingsState.lineHeight,
+      lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     ),
   );
 
@@ -3287,7 +3295,7 @@ class _CombinedViewState extends State<CombinedView> {
     fontSize: widget.textSize,
     fontFamily: settingsState.fontFamily,
     fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-    lineHeight: settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     sectionHeadings: _sectionHeadingsByLine,
     lineHtml: (line) => _lineHtml(
       line,
@@ -3592,7 +3600,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
               child: CommentaryListBase(
                 key: _commentaryKey,
                 indexes: [widget.index],
-                fontSize: settingsState.commentatorsFontSize,
+                fontSize: commentatorsFontSizeOf(context, settingsState),
                 openBookCallback: widget.openBookCallback,
                 showSearch: false,
                 selectionSyncController: widget.selectionSyncController,

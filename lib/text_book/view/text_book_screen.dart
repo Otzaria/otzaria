@@ -3112,7 +3112,7 @@ Future<void> _dispatchContextMenuShortcut({
     fontSize: state.fontSize,
     fontFamily: settingsState.fontFamily,
     fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-    lineHeight: settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
   );
 
   final Map<String, dynamic> selection;

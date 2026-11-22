@@ -1774,6 +1774,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       link: link,
       previousLink: previousLink,
       fontSize: widget.fontSize,
+      lineHeight: state.lineHeight,
       openBookCallback: widget.openBookCallback,
       displayProfile: state.commentaryDisplayProfile,
       copyDisplayProfile: _commentaryCopyProfile(state),
@@ -1883,6 +1884,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             previous.selectedIndex != current.selectedIndex ||
             !setEquals(previous.selectedIndices, current.selectedIndices) ||
             previous.fontSize != current.fontSize ||
+            previous.lineHeight != current.lineHeight ||
             previous.bodyDisplayProfile != current.bodyDisplayProfile ||
             previous.commentaryDisplayProfile !=
                 current.commentaryDisplayProfile ||

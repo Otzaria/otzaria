@@ -238,6 +238,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
     on<UpdateDivineNames>(_onUpdateDivineNames);
     on<UpdateFontSize>(_onUpdateFontSize);
+    on<UpdateBookReadingMetrics>((event, emit) {
+      final current = state;
+      if (current is! TextBookLoaded) return;
+      emit(
+        current.copyWith(
+          commentatorsFontSize: event.commentatorsFontSize,
+          lineHeight: event.lineHeight,
+          clearCommentatorsFontSize:
+              event.inherit && event.commentatorsFontSize != null,
+          clearLineHeight: event.inherit && event.lineHeight != null,
+        ),
+      );
+    });
     on<ToggleLeftPane>(_onToggleLeftPane);
     on<ToggleSplitView>(_onToggleSplitView);
     on<TogglePageShapeView>(_onTogglePageShapeView);
@@ -1101,6 +1114,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         commentatorsLoaded: existingCommentatorsLoaded,
         tableOfContents: tableOfContents,
         fontSize: _pendingFontSize ?? event.fontSize,
+        commentatorsFontSize: perBookSettings?.commentatorsFontSize,
+        lineHeight: perBookSettings?.lineHeight,
         showLeftPane: initialShowLeftPane,
         showSplitView: event.showSplitView,
         showPageShapeView: initialShowPageShapeView,

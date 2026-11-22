@@ -222,6 +222,14 @@ class SettingsState extends Equatable {
   }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty,
        searchResultsFontSize = searchResultsFontSize ?? fontSize;
 
+  /// מרווח השורות בפועל, לפי מצב השמירה לכל ספר.
+  double lineHeightForBook(double? bookValue) =>
+      (enablePerBookSettings ? bookValue : null) ?? lineHeight;
+
+  /// גודל גופן המפרשים בפועל, לפי מצב השמירה לכל ספר.
+  double commentatorsFontSizeForBook(double? bookValue) =>
+      (enablePerBookSettings ? bookValue : null) ?? commentatorsFontSize;
+
   factory SettingsState.initial() {
     return SettingsState(
       isDarkMode: false,
