@@ -481,8 +481,10 @@ void main() {
       tester,
     ) async {
       SearchDefaults.saveModeDefault(SearchMode.exact);
-      SearchDefaults.saveDistanceDefault(3);
-      addTearDown(() => SearchDefaults.saveDistanceDefault(0));
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
+      addTearDown(
+        () => SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact),
+      );
       final searchController = FocusRepository().librarySearchController
         ..text = 'בראשית';
       addTearDown(searchController.clear);

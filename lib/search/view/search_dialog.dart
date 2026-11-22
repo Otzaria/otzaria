@@ -638,7 +638,7 @@ class _SearchDialogState extends State<SearchDialog> {
         SearchDefaults.saveDefaults(options);
         SearchDefaults.saveMatchPolicyDefault(state.configuration.matchPolicy);
       }
-      SearchDefaults.saveDistanceDefault(state.distance);
+      SearchDefaults.saveDistanceDefault(state.distance, mode: mode!);
       SearchDefaults.saveAnyOrderDefault(state.anyOrder);
     }
     UiSnack.show(
@@ -699,7 +699,7 @@ class _SearchDialogState extends State<SearchDialog> {
       });
       _searchTab.searchOptionsChanged.value++;
       final bloc = _searchTab.searchBloc;
-      final savedDistance = SearchDefaults.loadDistanceDefault();
+      final savedDistance = SearchDefaults.loadDistanceDefault(mode);
       final savedPolicy = SearchDefaults.loadMatchPolicyDefault();
       // הכל בשקט, וחיפוש אחד בסוף — כמו בבורר הטווח.
       bloc.add(UpdateDistanceWithoutSearch(savedDistance));
@@ -771,10 +771,17 @@ class _SearchDialogState extends State<SearchDialog> {
                 closeOnActivate: false,
                 onPressed: () {
                   setState(() {
-                    SearchDefaults.saveDistanceDefault(state.distance);
+                    SearchDefaults.saveDistanceDefault(
+                      state.distance,
+                      mode: mode,
+                    );
                   });
                   UiSnack.show(
-                    LibraryMessages.distanceSetAsDefault(state.distance),
+                    isExact
+                        ? LibraryMessages.distanceSetAsDefault(state.distance)
+                        : LibraryMessages.advancedDistanceSetAsDefault(
+                            state.distance,
+                          ),
                   );
                 },
                 child: Text(
@@ -916,7 +923,10 @@ class _SearchDialogState extends State<SearchDialog> {
         _rememberSessionOptionsForMode(config.searchMode);
         SearchDefaults.rememberSessionMode(config.searchMode);
         if (config.searchMode != SearchMode.fuzzy) {
-          SearchDefaults.rememberSessionDistance(config.distance);
+          SearchDefaults.rememberSessionDistance(
+            config.distance,
+            config.searchMode,
+          );
           SearchDefaults.rememberSessionAnyOrder(config.anyOrder);
         }
         if (config.searchMode == SearchMode.advanced) {
@@ -954,14 +964,26 @@ class _SearchDialogState extends State<SearchDialog> {
   /// מעבר מצב בדיאלוג של חיפוש חדש: האפשרויות הגלובליות של המצב הישן
   /// נשמרות לסשן שלו, ואלו של המצב החדש נטענות במקומן — כך שלכל מצב
   /// סט אפשרויות עצמאי. בעריכת טאב קיים האפשרויות שייכות לטאב ולא מוחלפות.
-  void _swapGlobalOptionsForModeChange(SearchMode oldMode, SearchMode newMode) {
+  void _swapGlobalOptionsForModeChange(
+    SearchMode oldMode,
+    SearchMode newMode,
+    int oldDistance,
+  ) {
     if (!_ownsSearchTab || widget.editTab != null || oldMode == newMode) {
       return;
     }
     _rememberSessionOptionsForMode(oldMode);
+    if (oldMode != SearchMode.fuzzy) {
+      SearchDefaults.rememberSessionDistance(oldDistance, oldMode);
+    }
     if (newMode == SearchMode.fuzzy) {
       return; // אין אפשרויות מילה במקורב; המפה תוחלף בכניסה למצב הבא
     }
+    _searchTab.searchBloc.add(
+      UpdateDistanceWithoutSearch(
+        SearchDefaults.initialDistanceForNewSearch(newMode),
+      ),
+    );
     setState(() {
       _searchTab.globalSearchOptions
         ..clear()
@@ -1486,13 +1508,17 @@ class _SearchDialogState extends State<SearchDialog> {
       setState(() => _semanticSelected = true);
     } else {
       _semanticSelected = false;
-      final oldMode = _searchTab.searchBloc.state.configuration.searchMode;
+      final oldConfig = _searchTab.searchBloc.state.configuration;
       _searchTab.searchBloc.add(
         !_usesStagedSubmit
             ? SetSearchMode(mode)
             : SetSearchModeWithoutSearch(mode),
       );
-      _swapGlobalOptionsForModeChange(oldMode, mode);
+      _swapGlobalOptionsForModeChange(
+        oldConfig.searchMode,
+        mode,
+        oldConfig.distance,
+      );
       setState(() => _moreOptionsExpanded = null);
     }
     _searchTab.searchFieldFocusNode.requestFocus();

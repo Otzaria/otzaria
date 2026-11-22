@@ -1767,7 +1767,10 @@ Future<void> main() async {
           SearchDefaults.rememberSessionMode(SearchMode.exact);
           SearchDefaults.rememberSessionExactOptions(const {});
           SearchDefaults.rememberSessionOptions(const {});
-          SearchDefaults.rememberSessionDistance(0);
+          SearchDefaults.rememberSessionDistance(0, SearchMode.exact);
+          SearchDefaults.rememberSessionDistance(0, SearchMode.advanced);
+          SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
+          SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
           SearchDefaults.rememberSessionAnyOrder(false);
           SearchDefaults.rememberSessionMatchPolicy(SearchMatchPolicy.standard);
           tab.dispose();
@@ -1823,7 +1826,7 @@ Future<void> main() async {
           'קידומות דקדוקיות': true,
           'סיומות דקדוקיות': true,
         });
-        expect(SearchDefaults.loadDistanceDefault(), 5);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 5);
         expect(SearchDefaults.loadAnyOrderDefault(), isTrue);
       });
 
@@ -1842,7 +1845,7 @@ Future<void> main() async {
           'קידומות דקדוקיות': true,
           'סיומות דקדוקיות': true,
         });
-        expect(SearchDefaults.loadDistanceDefault(), 5);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 5);
         expect(
           SearchDefaults.loadMatchPolicyDefault().proximityScope,
           SearchScope.sameParagraph,
@@ -1863,7 +1866,7 @@ Future<void> main() async {
         await tester.pumpAndSettle();
 
         expect(SearchDefaults.loadDefaults(), {'קידומות דקדוקיות': true});
-        expect(SearchDefaults.loadDistanceDefault(), 5);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 5);
       });
 
       testWidgets(
@@ -1913,7 +1916,7 @@ Future<void> main() async {
 
         expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
         expect(SearchDefaults.loadDefaults(), isEmpty);
-        expect(SearchDefaults.loadDistanceDefault(), 0);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 0);
         expect(SearchDefaults.loadAnyOrderDefault(), isFalse);
       });
 
@@ -1925,7 +1928,7 @@ Future<void> main() async {
 
         expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
         expect(SearchDefaults.loadDefaults(), isEmpty);
-        expect(SearchDefaults.loadDistanceDefault(), 0);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 0);
       });
 
       testWidgets('במקורב אין אפשרויות מילה — אין סימון', (tester) async {
@@ -1935,7 +1938,7 @@ Future<void> main() async {
         await tester.tap(find.text('קבע כברירת מחדל'));
         await tester.pumpAndSettle();
         expect(SearchDefaults.loadModeDefault(), SearchMode.fuzzy);
-        expect(SearchDefaults.loadDistanceDefault(), 0);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 0);
       });
     },
   );
@@ -1963,15 +1966,15 @@ Future<void> main() async {
     );
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       SearchDefaults.rememberSessionMode(SearchMode.exact);
       await historyBloc.close();
       await indexingBloc.close();
       await navigationBloc.close();
     });
 
-    SearchDefaults.saveDistanceDefault(2);
-    SearchDefaults.rememberSessionDistance(4);
+    SearchDefaults.saveDistanceDefault(2, mode: SearchMode.advanced);
+    SearchDefaults.rememberSessionDistance(4, SearchMode.advanced);
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     await tester.pumpWidget(
       _buildDialogHarness(
@@ -2002,10 +2005,10 @@ Future<void> main() async {
     final saveDistance = find.text('קבע את המרווח הנוכחי (2) כברירת מחדל');
     expect(saveDistance, findsOneWidget);
 
-    Settings.setValue<int>('key-search-default-distance', 5);
+    Settings.setValue<int>('key-search-default-distance-advanced', 5);
     await tester.tap(saveDistance);
     await tester.pumpAndSettle();
-    expect(SearchDefaults.loadDistanceDefault(), 2);
+    expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 2);
   });
 
   testWidgets(
@@ -2035,7 +2038,8 @@ Future<void> main() async {
         await tester.binding.setSurfaceSize(null);
         // סגירת הדיאלוג שומרת לסשן — מאפסים אחריה כדי לא להזליג לטסטים הבאים.
         await tester.pumpWidget(const SizedBox());
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
         SearchDefaults.rememberSessionMode(SearchMode.exact);
         await historyBloc.close();
         await indexingBloc.close();

@@ -43,7 +43,7 @@ void main() {
   setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
   setUp(() {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     SearchDefaults.saveExactDefaults(const {});
   });
   tearDown(() {
