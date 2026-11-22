@@ -518,12 +518,12 @@ class LibraryUpdateRepository implements LibraryUpdateService {
               ...stepResult.verifyTableBytes,
             };
             verifyTableBytes = mergedTableBytes;
-            _writeTableBytesQuietly(tableBytesFile, mergedTableBytes);
+            await _writeTableBytesQuietly(tableBytesFile, mergedTableBytes);
           }
           // באימות מלא הדיווח האחרון הוא ה-total המדויק לריצה הבאה.
           if (lastVerifyDone > 0 && deferred.isEmpty) {
             verifyTotalHint = lastVerifyDone;
-            _writeIntQuietly(hintFile, lastVerifyDone);
+            await _writeIntQuietly(hintFile, lastVerifyDone);
           }
         } finally {
           await _deleteQuietlyAsync(
@@ -1450,10 +1450,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  static void _writeIntQuietly(File file, int value) {
+  static Future<void> _writeIntQuietly(File file, int value) async {
     try {
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync('$value');
+      await file.parent.create(recursive: true);
+      await file.writeAsString('$value');
     } catch (_) {}
   }
 
@@ -1472,10 +1472,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  static void _writeTableBytesQuietly(File file, Map<String, int> value) {
+  static Future<void> _writeTableBytesQuietly(
+    File file,
+    Map<String, int> value,
+  ) async {
     try {
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(jsonEncode(value));
+      await file.parent.create(recursive: true);
+      await file.writeAsString(jsonEncode(value));
     } catch (_) {}
   }
 }
