@@ -21,6 +21,8 @@ import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart'
     show initialReadingAlignment;
+import 'package:otzaria/text_book/utils/section_search_utils.dart'
+    show bracketMarkerFractionForReference;
 
 /// כרטיסיית קורא טקסט; ה-BLoC שלה נוצר רק בגישה הראשונה אליו.
 class TextBookTab extends OpenedTab {
@@ -95,6 +97,21 @@ class TextBookTab extends OpenedTab {
   ReadingAnchor get readingAnchor =>
       lines.captureAnchor() ??
       ReadingAnchor(line: index, alignment: initialReadingAlignment(index));
+
+  /// עוגן הפתיחה של תוצאת איתור עם סמן בשורה.
+  ReadingAnchor openingReadingAnchor(TextBookLoaded state) {
+    final current = lines.captureAnchor();
+    if (current != null) return current;
+    final line = index;
+    final marker = markerReference;
+    return ReadingAnchor(
+      line: line,
+      alignment: initialReadingAlignment(line),
+      intraLineFraction: marker != null && line < state.content.length
+          ? bracketMarkerFractionForReference(state.content[line], marker)
+          : 0,
+    );
+  }
 
   /// הכותרת הנוכחית של המיקום בספר (למשל "בראשית פרק ד")
   final currentTitle = ValueNotifier<String>("");

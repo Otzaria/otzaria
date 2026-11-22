@@ -3172,7 +3172,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     bool continuous,
   ) {
     final currentAnchor = _lines?.captureAnchor();
-    final anchor = currentAnchor ?? _initialAnchor;
+    final tab = widget.tab;
+    final anchor =
+        currentAnchor ??
+        (widget.isMainText && tab is TextBookTab && tab.markerReference != null
+            ? tab.openingReadingAnchor(state)
+            : _initialAnchor);
     TargetRectResolver? initialResolver;
     if (segments != null &&
         anchor != null &&

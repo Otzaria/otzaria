@@ -947,20 +947,21 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       if (targetText == null) return;
       final targetIndex = incomingTab.index;
       final marker = incomingTab.markerReference;
-      final loaded = targetText.blocState;
+      double? resolveMarker(int line) {
+        final state = targetText.blocState;
+        if (state is! TextBookLoaded ||
+            line >= state.content.length ||
+            !state.isContentLineLoaded(line)) {
+          return null;
+        }
+        return bracketMarkerFractionForReference(state.content[line], marker!);
+      }
+
       // יעד שנקבע לפני שהקורא מחובר נשמר ומבוצע בחיבור; tab.index מתעדכן מיד.
       final navigation = targetText.lines.scrollToLine(
         targetIndex,
         alignment: 0,
-        intraLineFraction:
-            marker != null &&
-                loaded is TextBookLoaded &&
-                targetIndex < loaded.content.length
-            ? bracketMarkerFractionForReference(
-                loaded.content[targetIndex],
-                marker,
-              )
-            : 0,
+        resolveFraction: marker == null ? null : resolveMarker,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
