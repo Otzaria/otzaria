@@ -1,14 +1,18 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/services.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
+import 'package:otzaria/core/share/shared_selection.dart';
+import 'package:otzaria/core/share/text_share_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/selection/pen_selection_gestures.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 
@@ -16,9 +20,19 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 /// (במקום תפריט ברירת המחדל של Flutter). לתוכן קריא כללי —
 /// דיאלוגים, חלוניות וכותרות.
 class AppSelectionArea extends StatefulWidget {
-  const AppSelectionArea({super.key, required this.child, this.protection});
+  const AppSelectionArea({
+    super.key,
+    required this.child,
+    this.protection,
+    this.extraMenuEntries,
+  });
 
   final Widget child;
+
+  /// פעולות של האזור עצמו שמופיעות בתפריט ההקשר לפני "העתק" (לחיצה ימנית,
+  /// לחיצה ארוכה, או Shift+F10). הפרמטר השני הוא נקודת הלחיצה הגלובלית.
+  final List<AppContextMenuEntry> Function(BuildContext, Offset)?
+  extraMenuEntries;
 
   /// הגבלת המו"ל של הטקסט שבאזור, כשהוא תוכן ספר.
   final Future<BookProtection> Function()? protection;
@@ -85,29 +99,54 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     return true;
   }
 
-  /// סרגל המגע של המערכת; כפתור ההעתקה שלו עובר דרך מגבלת ההעתקה.
+  /// סרגל המגע של המערכת; כפתור ההעתקה שלו עובר דרך מגבלת ההעתקה, ואחרי
+  /// הכפתורים של המערכת מתווסף "שתף" שפותח את גיליון השיתוף של המערכת.
   Widget _buildTouchToolbar(
     BuildContext context,
     SelectableRegionState state,
   ) {
-    if (!_isGuarded) {
-      return AdaptiveTextSelectionToolbar.selectableRegion(
-        selectableRegionState: state,
-      );
-    }
+    final shareLabel = context.settingsText('שתף');
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: state.contextMenuAnchors,
       buttonItems: [
-        for (final item in state.contextMenuButtonItems)
-          item.type == ContextMenuButtonType.copy
-              ? item.copyWith(
-                  onPressed: () {
-                    state.hideToolbar();
-                    final text = _selectedText;
-                    if (text != null && text.trim().isNotEmpty) _copy(text);
-                  },
-                )
-              : item,
+        // "שתף" של Flutter קיים ב-Android בלבד ועוקף את מגבלת ההעתקה;
+        // מוחלף ב"שתף" שלנו, שקיים גם ב-iOS ועובר דרכה.
+        for (final item in state.contextMenuButtonItems.where(
+          (item) => item.type != ContextMenuButtonType.share,
+        ))
+          if (_isGuarded && item.type == ContextMenuButtonType.copy)
+            item.copyWith(
+              onPressed: () {
+                state.hideToolbar();
+                final text = _selectedText;
+                if (text != null && text.trim().isNotEmpty) _copy(text);
+              },
+            )
+          else
+            item,
+        // "העתק" קיים רק כשיש בחירה; _selectedText מתעדכן בדיליי אחרי שהסרגל
+        // נפתח ב-Android, ולכן לא נשען עליו כאן.
+        if (state.contextMenuButtonItems.any(
+              (item) => item.type == ContextMenuButtonType.copy,
+            ) &&
+            TextShareService.isAvailableOn(Theme.of(context).platform))
+          ContextMenuButtonItem(
+            label: shareLabel,
+            onPressed: () {
+              final anchor = state.contextMenuAnchors.primaryAnchor;
+              state.hideToolbar();
+              final text = _selectedText;
+              if (text == null || text.trim().isEmpty) return;
+              _share(
+                text,
+                Rect.fromCenter(
+                  center: anchor,
+                  width: 1,
+                  height: 1,
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -119,6 +158,22 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
       ClipboardData(text: withoutDivineNameJoiners(text)),
     );
     UiSnack.show(copiedMessage);
+  }
+
+  /// שיתוף הבחירה; באזור עם תוכן ספר מוגן עובר דרך אותה מגבלה כמו העתקה.
+  Future<void> _share(String text, Rect origin) async {
+    var protection = BookProtection.none;
+    for (final source in [?widget.protection, ..._protectionSources]) {
+      protection = protection.strictest(await source());
+    }
+    await shareSelectedText(text, protection: protection, origin: origin);
+  }
+
+  void _handleSelectionChanged(SelectedContent? selection) {
+    trackRtlSelection(selection?.plainText);
+    // שינוי בחירה זמני בזמן priming (קיצורי RTL) — לא לעבד.
+    if (rtlSelectionPriming) return;
+    _selectedText = selection?.plainText;
   }
 
   @override
@@ -133,39 +188,48 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
           contextMenuBuilder: useNativeTouchMenu
               ? _buildTouchToolbar
               : (context, _) => const SizedBox.shrink(),
-          onSelectionChanged: (selection) {
-            trackRtlSelection(selection?.plainText);
-            // שינוי בחירה זמני בזמן priming (קיצורי RTL) — לא לעבד.
-            if (rtlSelectionPriming) return;
-            _selectedText = selection?.plainText;
-          },
-          child: AppContextMenuRegion(
-            openOnLongPress: !useNativeTouchMenu,
-            // לחיצה ימנית על הטקסט המסומן לא תשחרר את הבחירה (ברירת המחדל של
-            // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
-            shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-              if (!_hasSelection) return false;
-              final root = context.findRenderObject();
-              if (root == null) return true;
-              return clickIsOnSelectionWithinArea(
-                    root: root,
-                    globalPosition: globalPosition,
-                    selectedText: _selectedText!,
-                  ) ??
-                  true;
-            },
-            menuBuilder: (menuContext, position) {
-              final text = _textToCopyAt(position);
-              return [
-                AppContextMenuEntry(
+          onSelectionChanged: _handleSelectionChanged,
+          // עט בוחר בגרירה כמו עכבר (SelectableRegion מתייחס אליו כאל אצבע).
+          child: PenSelectionGestures(
+            onSelectionChanged: _handleSelectionChanged,
+            child: AppContextMenuRegion(
+              openOnLongPress: !useNativeTouchMenu,
+              // לחיצה ימנית על הטקסט המסומן לא תשחרר את הבחירה (ברירת המחדל של
+              // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
+              shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+                if (!_hasSelection) return false;
+                final root = context.findRenderObject();
+                if (root == null) return true;
+                return clickIsOnSelectionWithinArea(
+                      root: root,
+                      globalPosition: globalPosition,
+                      selectedText: _selectedText!,
+                    ) ??
+                    true;
+              },
+              menuBuilder: (menuContext, position) {
+                final text = _textToCopyAt(position);
+                final extras =
+                    widget.extraMenuEntries?.call(menuContext, position) ??
+                    const <AppContextMenuEntry>[];
+                final copyEntry = AppContextMenuEntry(
                   label: context.settingsText('העתק'),
                   icon: FluentIcons.copy_24_regular,
                   enabled: text != null,
                   onTap: () => _copy(text!),
-                ),
-              ];
-            },
-            child: widget.child,
+                );
+                if (extras.isEmpty) return [copyEntry];
+                // פעולות האזור הן העיקר; "העתק" של בחירה רק כשיש מה להעתיק.
+                return [
+                  ...extras,
+                  if (text != null) ...[
+                    const AppContextMenuEntry.divider(),
+                    copyEntry,
+                  ],
+                ];
+              },
+              child: widget.child,
+            ),
           ),
         ),
       ),

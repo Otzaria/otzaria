@@ -383,7 +383,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     final size = OrphanLibraryService.formatBytes(orphan.sizeBytes);
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('מחיקת עותק ספרייה ישן'),
+      title: context.settingsText('למחוק את עותק הספרייה הישן?'),
       content: context.settingsText(
         'העותק הישן בנתיב {path} יימחק לצמיתות ויתפנו {size}. הספרייה הפעילה לא תושפע.',
         args: {'path': orphan.path, 'size': size},

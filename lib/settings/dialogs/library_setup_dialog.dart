@@ -46,7 +46,7 @@ Future<bool> showLibrarySetupDialog({
   String? currentLibraryPath,
   String folderName = 'ספריית אוצריא',
 }) async {
-  final result = await showDialog<bool>(
+  final result = await showDialogUntilTornDown<bool>(
     context: context,
     barrierDismissible: false,
     builder: settingsDialogBuilder(
@@ -691,7 +691,7 @@ class _LibrarySetupDialogContentState
             handleEnterKey: true,
             actions: [
               // הפוקוס נשאר בדיאלוג כשהגוף שלו מתחלף, כדי ש-Escape יגיע אליו.
-              ActionButton.recommended(
+              ActionButton.neutral(
                 autofocus: true,
                 text: context.settingsText('סגור'),
                 onPressed: close,

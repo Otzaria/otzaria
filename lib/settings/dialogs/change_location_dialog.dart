@@ -703,7 +703,7 @@ Future<ChangeLocationResult?> showChangeLocationDialog({
   bool canMoveContents = true,
   String? defaultPath,
   String? moveContentsWarning,
-}) => showDialog<ChangeLocationResult>(
+}) => showDialogUntilTornDown<ChangeLocationResult>(
   context: context,
   builder: settingsDialogBuilder(
     context,

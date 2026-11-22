@@ -45,6 +45,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
@@ -333,6 +334,38 @@ void main() {
     expect(find.text(kSemanticSourceBothLabel), findsWidgets);
     expect(find.text(kSemanticSourceSemanticLabel), findsOneWidget);
     expect(find.text(kSemanticSourceLexicalLabel), findsOneWidget);
+  });
+
+  testWidgets('כותרת הכרטיס מקבלת את הרוחב שהתווית לא תופסת, לא חצי שורה', (
+    tester,
+  ) async {
+    // חלון רחב: התווית קצרה מחצי השורה, וזה המצב שבו חלוקה 50/50 קוטעת.
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpScreen(tester);
+
+    final firstCard = find.byType(SemanticResultCard).first;
+    final card = tester.widget<SemanticResultCard>(firstCard);
+    final title = find.descendant(
+      of: firstCard,
+      matching: find.text(card.titleText),
+    );
+    final label = find.descendant(
+      of: firstCard,
+      matching: find.byType(SemanticSourceLabel),
+    );
+    final row = find.ancestor(of: title, matching: find.byType(Row)).first;
+
+    final titleWidth = tester.getSize(title).width;
+    final rowWidth = tester.getSize(row).width;
+    final labelWidth = tester.getSize(label).width;
+
+    expect(
+      titleWidth,
+      closeTo(rowWidth - labelWidth - AppTokens.spaceSM, 0.5),
+      reason: 'הכותרת ממלאת את כל מה שנשאר בשורה, גם כשהתווית קצרה',
+    );
   });
 
   testWidgets('תוצאה חכמה עבשָה מפעילה אזהרה בלי תווית התאמה (issue #3410)', (

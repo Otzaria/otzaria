@@ -29,16 +29,21 @@ class DialogKeyboardNavigator extends StatelessWidget {
   static bool _isEnter(LogicalKeyboardKey key) =>
       key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter;
 
-  KeyEventResult _handleEnter() {
-    final focused = primaryFocus?.context;
-    if (focused == null) return KeyEventResult.ignored;
+  /// האם Enter שייך לרכיב הממוקד ב-[focused]: שדה רב־שורתי (שורה חדשה) או רכיב
+  /// שמגיב ל-[ActivateIntent] (כפתור, פריט, מתג). שדה חד־שורתי ומיקוד בלי רכיב
+  /// כזה אינם בעלי Enter, והוא מאשר את הדיאלוג.
+  static bool focusedControlOwnsEnter(BuildContext focused) {
     final editable = focused.findAncestorWidgetOfExactType<EditableText>();
-    if (editable != null) {
-      if (editable.maxLines != 1) return KeyEventResult.ignored;
-    } else if (Actions.maybeFind<ActivateIntent>(
+    if (editable != null) return editable.maxLines != 1;
+    return Actions.maybeFind<ActivateIntent>(
           focused,
         )?.isEnabled(const ActivateIntent()) ??
-        false) {
+        false;
+  }
+
+  KeyEventResult _handleEnter() {
+    final focused = primaryFocus?.context;
+    if (focused == null || focusedControlOwnsEnter(focused)) {
       return KeyEventResult.ignored;
     }
     if (!handleEnterKey || onConfirm == null) return KeyEventResult.ignored;

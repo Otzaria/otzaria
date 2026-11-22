@@ -304,10 +304,12 @@ class WordOrderCheckbox extends StatelessWidget {
                 onChanged: enabled ? (value) => onChanged(value ?? true) : null,
                 visualDensity: VisualDensity.compact,
               ),
-              Text(
-                context.settingsText('שמור על סדר המילים המקורי'),
-                style: TextStyle(
-                  color: enabled ? null : colorScheme.onSurfaceVariant,
+              Flexible(
+                child: Text(
+                  context.settingsText('שמור על סדר המילים המקורי'),
+                  style: TextStyle(
+                    color: enabled ? null : colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -936,15 +938,30 @@ class ExternalResultsPositionControl extends StatelessWidget {
           builder: (context, settings) {
             final entries = _entries(status.sourceTitle);
             if (compact) {
+              void onSelected(bool value) => context.read<SettingsBloc>().add(
+                UpdateExternalResultsFirst(value),
+              );
+              // בחלון צר (מתחת ל-600) גם הצ'יפ עם שם המקור אינו נכנס בסרגל, ולכן
+              // כמו מיון ואיחוד הוא כפתור אייקון עם tooltip.
+              if (WindowClass.of(context).isCompact) {
+                return AppPopupMenuButton<bool>(
+                  tooltip: 'מיקום תוצאות ${status.sourceTitle}',
+                  icon: const Icon(
+                    FluentIcons.arrow_swap_24_regular,
+                    size: AppTokens.iconMD,
+                  ),
+                  highlighted: true,
+                  constraints: _iconOnlyConstraints,
+                  initialValue: settings.externalResultsFirst,
+                  entries: entries,
+                  onSelected: onSelected,
+                );
+              }
               return AppPopupMenuButton<bool>(
                 tooltip: 'מיקום תוצאות ${status.sourceTitle}',
                 initialValue: settings.externalResultsFirst,
                 entries: entries,
-                onSelected: (value) {
-                  context.read<SettingsBloc>().add(
-                    UpdateExternalResultsFirst(value),
-                  );
-                },
+                onSelected: onSelected,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10.0,

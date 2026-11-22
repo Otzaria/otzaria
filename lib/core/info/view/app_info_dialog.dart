@@ -29,7 +29,7 @@ Future<void> showAppInfoDialog(
   title: report.topic.title,
   icon: report.topic.icon,
   size: AppDialogSize.medium,
-  confirmText: 'סגירה',
+  confirmText: 'סגור',
   customContent: AppInfoDialogContent(report: report),
 );
 
@@ -339,8 +339,7 @@ class _ListHeading extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: AppTokens.fontMD + 1,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
@@ -440,8 +439,7 @@ class _FolderTileState extends State<_FolderTile> {
                   children: [
                     Text(
                       name,
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD + 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: cs.onSurface,
                       ),
@@ -461,8 +459,8 @@ class _FolderTileState extends State<_FolderTile> {
           ),
           const SizedBox(height: AppTokens.spaceSM),
           Wrap(
-            spacing: AppTokens.spaceSM - 2,
-            runSpacing: AppTokens.spaceSM - 2,
+            spacing: AppTokens.spaceSM,
+            runSpacing: AppTokens.spaceSM,
             children: [
               if (!exists)
                 const MetaChip(
@@ -594,8 +592,7 @@ class _AttachedLibraryTile extends StatelessWidget {
                   children: [
                     Text(
                       name.isEmpty ? '${library['slug']}' : name,
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD + 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: cs.onSurface,
                       ),
@@ -612,8 +609,8 @@ class _AttachedLibraryTile extends StatelessWidget {
           ),
           const SizedBox(height: AppTokens.spaceSM),
           Wrap(
-            spacing: AppTokens.spaceSM - 2,
-            runSpacing: AppTokens.spaceSM - 2,
+            spacing: AppTokens.spaceSM,
+            runSpacing: AppTokens.spaceSM,
             children: [
               if (!ok)
                 MetaChip(
@@ -671,24 +668,14 @@ class _FolderPath extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Text(
-      path,
+    return AppInlineLink(
+      text: path,
       textDirection: TextDirection.ltr,
+      onTap: onOpen,
+      tooltip: 'פתיחה במנהל הקבצים',
       style: TextStyle(
         fontSize: AppTokens.fontSM,
-        color: onOpen == null ? cs.onSurfaceVariant : cs.primary,
-        decoration: onOpen == null ? null : TextDecoration.underline,
-        decorationColor: cs.primary,
-      ),
-    );
-    if (onOpen == null) return text;
-    return Tooltip(
-      message: 'פתיחה במנהל הקבצים',
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: text,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }
@@ -704,25 +691,16 @@ class _MoreToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Text(
-      label,
+    final link = AppInlineLink(
+      text: label,
+      onTap: onTap,
       style: TextStyle(
         fontSize: AppTokens.fontSM,
-        color: onTap == null ? cs.onSurfaceVariant : cs.primary,
-        decoration: onTap == null ? null : TextDecoration.underline,
-        decorationColor: cs.primary,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
-    if (onTap == null) return text;
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppTokens.borderRadiusAll,
-        child: text,
-      ),
-    );
+    if (onTap == null) return link;
+    return Align(alignment: AlignmentDirectional.centerStart, child: link);
   }
 }
 

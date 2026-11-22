@@ -26,6 +26,14 @@ import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/stub_personal_notes_bloc.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
+/// מחליף את `pumpAndSettle`: בזמן טעינה מוצג גלגל מסתובב (החלטה 62) שלעולם
+/// לא "נרגע", ו-pumpAndSettle נגמר ב-timeout. מקדמים זמן קבוע (שתי שניות).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -64,7 +72,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     final paneProviders = find.descendant(
       of: find.byType(ReadingScreen),

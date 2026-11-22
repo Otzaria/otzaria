@@ -1,8 +1,10 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
@@ -26,6 +28,7 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
+import 'package:otzaria/widgets/selection/pen_selection_gestures.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
@@ -1057,6 +1060,23 @@ class _LinksListViewState extends State<LinksListView> {
       );
     }
 
+    // בחירה מהמצביע (עכבר, אצבע) וגם מסיום גרירת עט (PenSelectionGestures).
+    void onSelectionChanged(SelectedContent? selection) {
+      // עדכון מעקב כיוון הגרירה (ל-RtlSelectionShortcuts).
+      trackRtlSelection(selection?.plainText);
+      // שינוי בחירה זמני בזמן priming — לא לעבד.
+      if (rtlSelectionPriming) return;
+      if (selection != null && selection.plainText.isNotEmpty) {
+        widget.selectionSyncController?.activate(_selectionOwner);
+        _savedSelectedText = selection.plainText;
+        _savedSelectedLink = link;
+      } else if (selection == null || selection.plainText.trim().isEmpty) {
+        widget.selectionSyncController?.clear(_selectionOwner);
+        _savedSelectedText = null;
+        _savedSelectedLink = null;
+      }
+    }
+
     // יירוט Ctrl+C ממוקם *מעל* ה-SelectionArea — שם מנגנון ה-override של
     // CopySelectionTextIntent מאתר אותו (מתחתיו הוא נשאר בלתי-נראה).
     return SelectionCopyShortcuts(
@@ -1074,86 +1094,76 @@ class _LinksListViewState extends State<LinksListView> {
           contextMenuBuilder: (context, selectableRegionState) {
             return const SizedBox.shrink();
           },
-          onSelectionChanged: (selection) {
-            // עדכון מעקב כיוון הגרירה (ל-RtlSelectionShortcuts).
-            trackRtlSelection(selection?.plainText);
-            // שינוי בחירה זמני בזמן priming — לא לעבד.
-            if (rtlSelectionPriming) return;
-            if (selection != null && selection.plainText.isNotEmpty) {
-              widget.selectionSyncController?.activate(_selectionOwner);
-              _savedSelectedText = selection.plainText;
-              _savedSelectedLink = link;
-            } else if (selection == null ||
-                selection.plainText.trim().isEmpty) {
-              widget.selectionSyncController?.clear(_selectionOwner);
-              _savedSelectedText = null;
-              _savedSelectedLink = null;
-            }
-          },
-          child: AppContextMenuRegion(
-            // ריחוף מקדים את טעינת קישורי קטע היעד, כדי שהתפריט ייבנה עם
-            // נתונים מוכנים. הלחיצה הימנית מכסה מגע/עט, שאין בהם ריחוף.
-            onHoverEnter: () =>
-                TargetLineLinksService.instance.prefetchOnHover(link),
-            onSecondaryTapDown: (_) =>
-                TargetLineLinksService.instance.prefetch(link),
-            // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
-            // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
-            // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
-            // הבחירה ישירות מול הפסקה שעליה לחצו.
-            shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-              final selected = _savedSelectedText;
-              if (selected == null || selected.isEmpty) return false;
-              final root = context.findRenderObject();
-              if (root == null) return true; // סלחני
-              return clickIsOnSelectionWithinArea(
-                    root: root,
-                    globalPosition: globalPosition,
-                    selectedText: selected,
-                  ) ??
-                  true; // לא הוכרע — סלחני
-            },
-            menuBuilder: (menuCtx, _) =>
-                ContextMenuUtils.buildCommentaryContextMenu(
-                  context: menuCtx,
-                  link: link,
-                  openBookCallback: widget.openBookCallback,
-                  fontSize: widget.fontSize,
-                  displayProfile: widget.displayProfile,
-                  copyDisplayProfile: widget.copyDisplayProfile,
-                  savedSelectedText: _savedSelectedText,
-                  onNavigateToLink: _navigateToLink,
-                  onCopySelected: () => ContextMenuUtils.copyFormattedText(
+          onSelectionChanged: onSelectionChanged,
+          child: PenSelectionGestures(
+            onSelectionChanged: onSelectionChanged,
+            child: AppContextMenuRegion(
+              // ריחוף מקדים את טעינת קישורי קטע היעד, כדי שהתפריט ייבנה עם
+              // נתונים מוכנים. הלחיצה הימנית מכסה מגע/עט, שאין בהם ריחוף.
+              onHoverEnter: () =>
+                  TargetLineLinksService.instance.prefetchOnHover(link),
+              onSecondaryTapDown: (_) =>
+                  TargetLineLinksService.instance.prefetch(link),
+              // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
+              // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
+              // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
+              // הבחירה ישירות מול הפסקה שעליה לחצו.
+              shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+                final selected = _savedSelectedText;
+                if (selected == null || selected.isEmpty) return false;
+                final root = context.findRenderObject();
+                if (root == null) return true; // סלחני
+                return clickIsOnSelectionWithinArea(
+                      root: root,
+                      globalPosition: globalPosition,
+                      selectedText: selected,
+                    ) ??
+                    true; // לא הוכרע — סלחני
+              },
+              menuBuilder: (menuCtx, _) =>
+                  ContextMenuUtils.buildCommentaryContextMenu(
                     context: menuCtx,
-                    savedSelectedText: _savedSelectedText,
+                    link: link,
+                    openBookCallback: widget.openBookCallback,
                     fontSize: widget.fontSize,
-                    link: _savedSelectedLink,
+                    displayProfile: widget.displayProfile,
+                    copyDisplayProfile: widget.copyDisplayProfile,
+                    savedSelectedText: _savedSelectedText,
+                    onNavigateToLink: _navigateToLink,
+                    onCopySelected: () => ContextMenuUtils.copyFormattedText(
+                      context: menuCtx,
+                      savedSelectedText: _savedSelectedText,
+                      fontSize: widget.fontSize,
+                      link: _savedSelectedLink,
+                    ),
+                    onCopySelectedWithoutNikud: () =>
+                        ContextMenuUtils.copyFormattedText(
+                          context: menuCtx,
+                          savedSelectedText: _savedSelectedText,
+                          fontSize: widget.fontSize,
+                          link: _savedSelectedLink,
+                          removeNikud: true,
+                        ),
                   ),
-                  onCopySelectedWithoutNikud: () =>
-                      ContextMenuUtils.copyFormattedText(
-                        context: menuCtx,
-                        savedSelectedText: _savedSelectedText,
-                        fontSize: widget.fontSize,
-                        link: _savedSelectedLink,
-                        removeNikud: true,
-                      ),
-                ),
-            child: MiddleClickOpen(
-              onMiddleClick: () =>
-                  ContextMenuUtils.openLinkTargetInBackground(context, link),
-              child: GestureDetector(
-                // הקשה על קישור פנימי מנווטת ליעד שלו, לא ליעד הקטע.
-                onTap: () {
-                  if (_anchorHandledTap) {
-                    _anchorHandledTap = false;
-                    return;
-                  }
-                  _navigateToLink(link);
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12.0),
-                  child: _buildHighlightedText(content, link),
+              child: MiddleClickOpen(
+                onMiddleClick: () =>
+                    ContextMenuUtils.openLinkTargetInBackground(context, link),
+                child: _KeyboardActivatableItem(
+                  // הקשה על קישור פנימי מנווטת ליעד שלו, לא ליעד הקטע.
+                  onActivate: () {
+                    if (_anchorHandledTap) {
+                      _anchorHandledTap = false;
+                      return;
+                    }
+                    _navigateToLink(link);
+                  },
+                  // Enter על פריט ממוקד: אין עוגן שנלחץ, ולכן אין מה לדלג עליו.
+                  onKeyboardActivate: () => _navigateToLink(link),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12.0),
+                    child: _buildHighlightedText(content, link),
+                  ),
                 ),
               ),
             ),
@@ -1196,6 +1206,55 @@ class _LinksListViewState extends State<LinksListView> {
           ],
         );
       },
+    );
+  }
+}
+
+/// פריט ברשימה שנפתח בהקשה: מקבל פוקוס ב-Tab, Enter פותח אותו, קורא מסך
+/// מכריז עליו ככפתור, ופוקוס מקלדת מסומן בטבעת (לא אחרי לחיצת עכבר).
+class _KeyboardActivatableItem extends StatefulWidget {
+  final VoidCallback onActivate;
+  final VoidCallback onKeyboardActivate;
+  final Widget child;
+
+  const _KeyboardActivatableItem({
+    required this.onActivate,
+    required this.onKeyboardActivate,
+    required this.child,
+  });
+
+  @override
+  State<_KeyboardActivatableItem> createState() =>
+      _KeyboardActivatableItemState();
+}
+
+class _KeyboardActivatableItemState extends State<_KeyboardActivatableItem> {
+  bool _focusVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      onTap: widget.onKeyboardActivate,
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (visible) =>
+            setState(() => _focusVisible = visible),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onKeyboardActivate();
+              return null;
+            },
+          ),
+        },
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: _focusVisible
+              ? AppSurfaces.focusRingDecoration(Theme.of(context).colorScheme)
+              : const BoxDecoration(),
+          child: GestureDetector(onTap: widget.onActivate, child: widget.child),
+        ),
+      ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
@@ -218,7 +219,6 @@ class _NarrowBarActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     const padding = EdgeInsets.symmetric(
       horizontal: AppTokens.spaceSM,
       vertical: AppTokens.spaceXS,
@@ -246,17 +246,13 @@ class _NarrowBarActions extends StatelessWidget {
     final (pluginId, item) = actions.single;
     return Padding(
       padding: padding,
-      child: IconButton(
-        tooltip: item.resultsAction,
+      child: AppIconButton(
+        tooltip: item.resultsAction!,
         onPressed: () => onOpen(pluginId, item.id),
-        constraints: _iconOnlyConstraints,
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: cs.secondaryContainer,
-          foregroundColor: cs.onSecondaryContainer,
-          shape: AppTokens.roundedShape,
-        ),
-        icon: Icon(_iconOf(item), size: AppTokens.iconMD),
+        size: AppIconButtonSize.medium,
+        extent: _iconOnlyConstraints.maxWidth,
+        fill: AppIconButtonFill.tonal,
+        icon: Icon(_iconOf(item)),
       ),
     );
   }

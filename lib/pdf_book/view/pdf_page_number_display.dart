@@ -117,8 +117,13 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
     });
   }
 
+  /// מיקום הדף הוא שדה בסרגל (נערך בהקלדה): גדל עם הטקסט עד
+  /// [AppTopBar.maxFieldTextScale].
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AppTopBarField(child: _buildContent(context));
+
+  Widget _buildContent(BuildContext context) {
     if (!widget.controller.isReady) {
       return SizedBox.shrink();
     }

@@ -4,6 +4,8 @@ import 'package:otzaria/theme/theme_exports.dart';
 /// מצב טעינה: ספינר ממורכז, אופציונלית עם הודעה מתחתיו ([message]) ואייקון
 /// מערכת במרכז הטבעת ([icon]).
 /// בתוך שורה, ליד טקסט או בכפתור: [LoadingIndicator.inline] (16, עובי 2).
+/// בחלונית צרה עם הודעה, כמו חלוניות המפרשים: [LoadingIndicator.compact]
+/// (24, עובי 2, וההודעה מתחתיו בגודל `bodySmall`).
 /// לתוכן שעוד לא נטען: [SkeletonLines].
 class LoadingIndicator extends StatelessWidget {
   final double? strokeWidth;
@@ -37,8 +39,18 @@ class LoadingIndicator extends StatelessWidget {
       message = null,
       icon = null;
 
+  /// ספינר קטן עם הודעה מתחתיו, לחלונית צרה: 24, עובי 2, ממורכז.
+  const LoadingIndicator.compact({super.key, required String this.message})
+    : size = compactSize,
+      strokeWidth = compactStrokeWidth,
+      color = null,
+      value = null,
+      icon = null;
+
   static const double inlineSize = AppTokens.iconSM;
   static const double inlineStrokeWidth = 2;
+  static const double compactSize = AppTokens.iconLG;
+  static const double compactStrokeWidth = 2;
 
   @override
   Widget build(BuildContext context) {
@@ -48,15 +60,31 @@ class LoadingIndicator extends StatelessWidget {
       valueColor: color != null ? AlwaysStoppedAnimation<Color>(color!) : null,
     );
 
+    final theme = Theme.of(context);
     if (size != null) {
-      return SizedBox(
-        width: size,
-        height: size,
-        child: indicator,
+      final spinner = SizedBox(width: size, height: size, child: indicator);
+      if (message == null) return spinner;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppTokens.spaceSM),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              spinner,
+              const SizedBox(height: AppTokens.spaceSM),
+              Text(
+                message!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
-    final theme = Theme.of(context);
     final ring = icon == null
         ? indicator
         : SizedBox.square(

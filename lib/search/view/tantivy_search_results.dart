@@ -44,7 +44,9 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/layout/result_card_frame.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -272,9 +274,91 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     super.dispose();
   }
 
-  /// חיצים מעלה/מטה כשהתצוגה המקדימה פתוחה — מעבר לתוצאה השכנה ברשימה.
+  /// Enter ללא מקשי עזר (גם ב-numpad).
+  static bool _isPlainEnter(KeyEvent event) {
+    final keyboard = HardwareKeyboard.instance;
+    return (event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        !keyboard.isControlPressed &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isMetaPressed;
+  }
+
+  /// התוצאה שמוצגת עכשיו בתצוגה המקדימה; null כשאין תצוגה מקדימה, או
+  /// כשהסינון הסתיר את התוצאה והחלונית מבקשת לבחור (אין מה לפתוח).
+  SearchPreviewTarget? _shownPreviewTarget() {
+    if (!widget.showPreviewPane ||
+        !context.read<SettingsBloc>().state.searchShowPreview) {
+      return null;
+    }
+    final target = widget.tab.previewTarget.value;
+    if (target == null ||
+        identical(target, widget.tab.filteredOutPreview.value)) {
+      return null;
+    }
+    return target;
+  }
+
+  /// פותח בעיון את התוצאה שבתצוגה המקדימה: הכפתור "פתח" שבחלונית, וגם Enter
+  /// פעם שנייה על תוצאה שכבר מוצגת.
+  void _openPreviewTarget() {
+    final openTarget = widget.tab.previewTarget.value;
+    if (openTarget == null) return;
+    final external = openTarget.openInReader;
+    if (external != null) {
+      external();
+      return;
+    }
+    _openResultLocation(
+      title: openTarget.title,
+      reference: openTarget.reference,
+      segment: openTarget.segment,
+      isPdf: openTarget.isPdf,
+      filePath: openTarget.filePath,
+      effectiveOptions: widget.tab.effectiveSearchOptions(
+        query: widget.tab.searchBloc.state.searchQuery,
+      ),
+      continuesToNextLine: openTarget.continuesToNextLine,
+    );
+  }
+
+  /// Enter על כרטיס התוצאה שמוצגת עכשיו בתצוגה המקדימה פותח את הספר (Enter
+  /// ראשון על תוצאה אחרת רק מציג אותה, דרך ה-InkWell). רק כשהפוקוס בכרטיס עצמו:
+  /// Enter על כפתור בתוך הכרטיס מפעיל את הכפתור.
+  KeyEventResult _handleCardEnter(
+    FocusNode node,
+    KeyEvent event,
+    SearchResult result,
+  ) {
+    if (event is KeyUpEvent || !_isPlainEnter(event)) {
+      return KeyEventResult.ignored;
+    }
+    final target = _shownPreviewTarget();
+    if (target == null ||
+        !node.children.any((child) => child.hasPrimaryFocus) ||
+        !target.matchesResult(
+          filePath: result.filePath,
+          segment: result.segment.toInt(),
+          isPdf: result.isPdf,
+        )) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) _openPreviewTarget();
+    return KeyEventResult.handled;
+  }
+
+  /// חיצים מעלה/מטה כשהתצוגה המקדימה פתוחה — מעבר לתוצאה השכנה ברשימה. Enter
+  /// כשהפוקוס ברשימה עצמה (אחרי שתוצאה הוצגה) פותח את הספר שלה.
   KeyEventResult _handleArrowNavKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
+    if (_isPlainEnter(event)) {
+      if (!node.hasPrimaryFocus || _shownPreviewTarget() == null) {
+        return KeyEventResult.ignored;
+      }
+      if (event is KeyDownEvent) _openPreviewTarget();
+      return KeyEventResult.handled;
+    }
     final isDown = event.logicalKey == LogicalKeyboardKey.arrowDown;
     if (!isDown && event.logicalKey != LogicalKeyboardKey.arrowUp) {
       return KeyEventResult.ignored;
@@ -643,10 +727,18 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               previewOptions,
             );
             final available = constraints.maxWidth;
-            final minWidth = available < 280 ? available : 280.0;
-            final maxWidth = (available - 320).clamp(minWidth, available);
-            final paneWidth = (_previewPaneWidthOverride ?? available * 0.4)
-                .clamp(minWidth, maxWidth);
+            const spec = SidePaneSpecs.searchPreview;
+            final minWidth = available < spec.minPaneWidth
+                ? available
+                : spec.minPaneWidth;
+            final maxWidth = (available - spec.dragLeavesForMain!).clamp(
+              minWidth,
+              available,
+            );
+            final paneWidth =
+                (_previewPaneWidthOverride ??
+                        available * spec.defaultPaneFraction!)
+                    .clamp(minWidth, maxWidth);
             return AdaptiveSidePane(
               isOpen: settings.searchShowPreview && target != null,
               alignment: AlignmentDirectional.centerStart,
@@ -669,31 +761,13 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 searchMode: previewParameters.searchMode,
                 searchDistance: previewParameters.distance,
                 matchPolicy: previewParameters.matchPolicy,
-                onOpenInReader: (_, {bool? forcePdf}) {
-                  final openTarget = widget.tab.previewTarget.value;
-                  if (openTarget == null) return;
-                  final external = openTarget.openInReader;
-                  if (external != null) {
-                    external();
-                    return;
-                  }
-                  _openResultLocation(
-                    title: openTarget.title,
-                    reference: openTarget.reference,
-                    segment: openTarget.segment,
-                    isPdf: openTarget.isPdf,
-                    filePath: openTarget.filePath,
-                    effectiveOptions: widget.tab.effectiveSearchOptions(
-                      query: widget.tab.searchBloc.state.searchQuery,
-                    ),
-                    continuesToNextLine: openTarget.continuesToNextLine,
-                  );
-                },
+                onOpenInReader: (_, {bool? forcePdf}) => _openPreviewTarget(),
               ),
               paneWidth: paneWidth,
               minPaneWidth: minWidth,
               maxPaneWidth: maxWidth,
-              minMainContentWidth: 300,
+              minMainContentWidth:
+                  SidePaneSpecs.searchPreview.minMainContentWidth,
               isResizable: true,
               autoHandleResponsiveVisibility: false,
               onPaneWidthChanged: (w) => _previewPaneWidthOverride = w,
@@ -894,14 +968,17 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       if (state.errorMessage != null) {
         return [
           _engineStateSliver(
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  state.errorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
+            OtzariaErrorState(
+              scrollable: false,
+              title: state.errorMessage!,
+              actions: [
+                if (widget.onEditSearch != null)
+                  ActionButton.recommended(
+                    text: 'ערוך חיפוש',
+                    onPressed: widget.onEditSearch!,
+                    icon: FluentIcons.edit_24_regular,
+                  ),
+              ],
             ),
             hasExternal: hasExternal,
           ),
@@ -1128,72 +1205,78 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     inBackground: true,
                     continuesToNextLine: result.continuesToNextLine,
                   ),
-                  child: InkWell(
-                    onTap: () => _handleResultTap(
-                      previewEnabled: previewEnabled,
-                      title: result.title,
-                      reference: result.reference,
-                      segment: result.segment.toInt(),
-                      isPdf: result.isPdf,
-                      filePath: result.filePath,
-                      effectiveOptions: effectiveOptions,
-                      continuesToNextLine: result.continuesToNextLine,
-                    ),
-                    onDoubleTap: previewEnabled
-                        ? () => _openResultLocation(
-                            title: result.title,
-                            reference: result.reference,
-                            segment: result.segment.toInt(),
-                            isPdf: result.isPdf,
-                            filePath: result.filePath,
-                            effectiveOptions: effectiveOptions,
-                            continuesToNextLine: result.continuesToNextLine,
-                          )
-                        : null,
-                    borderRadius: AppTokens.borderRadiusAll,
-                    child: EngineResultCard(
-                      result: result,
-                      rank: index + 1,
-                      titleText: titleText,
-                      wrappedTitleText: wrappedTitleText,
-                      snippetSpans: snippet.spans,
-                      externalSearchStatus: widget.tab.externalSearchStatus,
-                      groupingMode: state.resultGrouping,
-                      onCopy: !hasCopyableResultText(result)
-                          ? null
-                          : () => copySearchResultText(
-                              result: result,
-                              rawHtml: snippet.displayHtml,
-                              titleText: titleText,
-                              settingsState: settingsState,
-                            ),
-                      onOpenSibling: (sibling) => _openResultLocation(
-                        title: sibling.title,
-                        reference: sibling.reference,
-                        segment: sibling.segment.toInt(),
-                        isPdf: sibling.isPdf,
-                        filePath: sibling.filePath,
+                  child: Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onKeyEvent: (node, event) =>
+                        _handleCardEnter(node, event, result),
+                    child: InkWell(
+                      onTap: () => _handleResultTap(
+                        previewEnabled: previewEnabled,
+                        title: result.title,
+                        reference: result.reference,
+                        segment: result.segment.toInt(),
+                        isPdf: result.isPdf,
+                        filePath: result.filePath,
                         effectiveOptions: effectiveOptions,
+                        continuesToNextLine: result.continuesToNextLine,
                       ),
-                      onOpenSiblingInBackground: (sibling) =>
-                          _openResultLocation(
-                            title: sibling.title,
-                            reference: sibling.reference,
-                            segment: sibling.segment.toInt(),
-                            isPdf: sibling.isPdf,
-                            filePath: sibling.filePath,
-                            effectiveOptions: effectiveOptions,
-                            inBackground: true,
-                          ),
-                      onPreviewSibling: previewEnabled
-                          ? (sibling) => _togglePreview(
+                      onDoubleTap: previewEnabled
+                          ? () => _openResultLocation(
+                              title: result.title,
+                              reference: result.reference,
+                              segment: result.segment.toInt(),
+                              isPdf: result.isPdf,
+                              filePath: result.filePath,
+                              effectiveOptions: effectiveOptions,
+                              continuesToNextLine: result.continuesToNextLine,
+                            )
+                          : null,
+                      borderRadius: AppTokens.borderRadiusAll,
+                      child: EngineResultCard(
+                        result: result,
+                        rank: index + 1,
+                        titleText: titleText,
+                        wrappedTitleText: wrappedTitleText,
+                        snippetSpans: snippet.spans,
+                        externalSearchStatus: widget.tab.externalSearchStatus,
+                        groupingMode: state.resultGrouping,
+                        onCopy: !hasCopyableResultText(result)
+                            ? null
+                            : () => copySearchResultText(
+                                result: result,
+                                rawHtml: snippet.displayHtml,
+                                titleText: titleText,
+                                settingsState: settingsState,
+                              ),
+                        onOpenSibling: (sibling) => _openResultLocation(
+                          title: sibling.title,
+                          reference: sibling.reference,
+                          segment: sibling.segment.toInt(),
+                          isPdf: sibling.isPdf,
+                          filePath: sibling.filePath,
+                          effectiveOptions: effectiveOptions,
+                        ),
+                        onOpenSiblingInBackground: (sibling) =>
+                            _openResultLocation(
                               title: sibling.title,
                               reference: sibling.reference,
                               segment: sibling.segment.toInt(),
                               isPdf: sibling.isPdf,
                               filePath: sibling.filePath,
-                            )
-                          : null,
+                              effectiveOptions: effectiveOptions,
+                              inBackground: true,
+                            ),
+                        onPreviewSibling: previewEnabled
+                            ? (sibling) => _togglePreview(
+                                title: sibling.title,
+                                reference: sibling.reference,
+                                segment: sibling.segment.toInt(),
+                                isPdf: sibling.isPdf,
+                                filePath: sibling.filePath,
+                              )
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -1368,7 +1451,7 @@ class _MergedSiblingsSectionState extends State<MergedSiblingsSection> {
                               fontSize: 13,
                               color: colorScheme.primary,
                             ),
-                            textAlign: TextAlign.right,
+                            textAlign: TextAlign.start,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1473,7 +1556,7 @@ class EngineResultCard extends StatelessWidget {
                       context,
                     ).colorScheme.primary,
                   ),
-                  textAlign: TextAlign.right,
+                  textAlign: TextAlign.start,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1520,7 +1603,7 @@ class EngineResultCard extends StatelessWidget {
               child: Text(
                 wrappedTitleText,
                 style: secondaryLineStyle,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.start,
                 softWrap: true,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

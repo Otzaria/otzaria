@@ -2,10 +2,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 
-/// Turns Ctrl + wheel into zoom steps. Touchpads without a precision driver
-/// send their pinch the same way.
+/// Turns Ctrl + wheel (Cmd + wheel on Mac, as in browsers) into zoom steps.
+/// Touchpads without a precision driver send their pinch the same way.
 class CtrlWheelZoom extends SingleChildRenderObjectWidget {
   const CtrlWheelZoom({super.key, required this.onZoom, super.child});
 
@@ -54,7 +55,7 @@ class RenderCtrlWheelZoom extends RenderProxyBox {
       return;
     }
     final keyboard = HardwareKeyboard.instance;
-    if (!keyboard.isControlPressed ||
+    if (!ShortcutHelper.isCtrlOrMacCmdOnly ||
         keyboard.isShiftPressed ||
         keyboard.isAltPressed) {
       return;

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>גלריית עיצוב</title>
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/gallery.css" />
+</head>
+<body>
+
+  <!-- אייקונים: SVG מקומי, צובעים ב-currentColor כדי שיעקבו אחרי ה-theme. -->
+  <svg class="sprite" width="0" height="0" aria-hidden="true">
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10" /></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.01" /></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19z" /><path d="M12 10v5M12 17.5v.01" /></symbol>
+    <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 16.5v.01" /></symbol>
+    <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><path d="M12 5v.01M12 12v.01M12 19v.01" /></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" /><path d="M5 17a3 3 0 0 1 3-3h10" /></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 5v6h-6" /></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-titles">
+        <h1>גלריית עיצוב</h1>
+        <span class="subtitle" data-host-info>ממתין ל-theme מאוצריא…</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="segmented" role="group" aria-label="תצוגה">
+          <button type="button" data-view="live" aria-pressed="true">רכיבים</button>
+          <button type="button" data-view="matrix" aria-pressed="false">מטריצה</button>
+        </div>
+        <button type="button" class="btn btn-icon" data-action="fullscreen" aria-label="מסך מלא" title="מסך מלא" aria-pressed="false">
+          <svg class="icon" aria-hidden="true"><use href="#i-fullscreen" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <div class="page">
+
+        <section class="view" data-view-panel="live">
+          <div data-host-banner></div>
+          <div class="sections" data-live-root></div>
+        </section>
+
+        <section class="view" data-view-panel="matrix" hidden>
+          <div class="matrix-controls">
+            <p class="section-note">
+              כל הרכיבים נראים במקביל בכל ערכת נושא וברוחב נבחר. הערכה מוחלת על המסגרת בלבד,
+              ולכן אפשר להשוות בלי להחליף את הערכה של אוצריא. הרכיבים מגיבים לרוחב המסגרת
+              (container query), לא לרוחב החלון, כמו תוסף בחלונית מפוצלת.
+            </p>
+            <div class="matrix-controls-group">
+              <h2 class="section-title">ערכות נושא</h2>
+              <div class="row" data-matrix-themes></div>
+            </div>
+            <div class="matrix-controls-group">
+              <h2 class="section-title">רוחב</h2>
+              <div class="row" data-matrix-widths></div>
+            </div>
+          </div>
+          <div class="matrix" data-matrix-root></div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ── חלונית דיאלוג ופאנל צד (חיים; ההדגמה הסטטית בתוך התבנית) ── -->
+  <dialog class="dialog" data-dialog aria-labelledby="dialog-title">
+    <h2 class="dialog-title" id="dialog-title">מחיקת הערה</h2>
+    <p class="dialog-body">ההערה תימחק לצמיתות. אי אפשר לשחזר אותה.</p>
+    <div class="dialog-actions">
+      <button type="button" class="btn" data-action="close-dialog">ביטול</button>
+      <button type="button" class="btn btn-danger" data-action="close-dialog">מחק</button>
+    </div>
+  </dialog>
+
+  <div class="scrim" data-scrim></div>
+  <aside class="side-panel" data-side-panel aria-label="הגדרות הקשר">
+    <div class="row">
+      <h2 class="section-title grow">הגדרות הקשר</h2>
+      <button type="button" class="btn btn-icon" data-action="close-panel" aria-label="סגור">
+        <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
+      </button>
+    </div>
+    <p class="section-note">חלונית צד: רוחב 340, רקע הסרגל העליון, סגירה ב-Escape או בלחיצה על הכיסוי.</p>
+    <div class="card">
+      <p class="card-title">כרטיס בתוך חלונית</p>
+      <p class="card-meta">כרטיס נשאר על surfaces.card גם מעל רקע החלונית.</p>
+    </div>
+  </aside>
+
+  <!-- ── תבנית הרכיבים: מוצגת פעם אחת בתצוגה החיה, ומשוכפלת לכל מסגרת במטריצה.
+       אין כאן id ואין מאזינים: ההתנהגות מחוברת ב-gallery.js לפי data-*. ── -->
+  <template id="components">
+
+    <section>
+      <h2 class="section-title">חיפוש</h2>
+      <div class="stack">
+        <div class="search" role="search">
+          <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+          <input class="search-input" type="search" data-search-input aria-label="חיפוש בספרים" placeholder="חיפוש בספרים…" autocomplete="off" />
+          <button type="button" class="btn btn-icon" data-search-clear aria-label="נקה חיפוש" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
+        </div>
+        <div class="row" role="group" aria-label="סינון">
+          <button type="button" class="chip chip-filter" aria-pressed="true" data-filter="all">
+            <svg class="icon icon-check" aria-hidden="true"><use href="#i-check" /></svg>הכול
+          </button>
+          <button type="button" class="chip chip-filter" aria-pressed="false" data-filter="tanakh">
+            <svg class="icon icon-check" aria-hidden="true"><use href="#i-check" /></svg>תנ"ך
+          </button>
+          <button type="button" class="chip chip-filter" aria-pressed="false" data-filter="mishna">
+            <svg class="icon icon-check" aria-hidden="true"><use href="#i-check" /></svg>משנה ותלמוד
+          </button>
+          <button type="button" class="chip chip-filter" aria-pressed="false" data-filter="halacha">
+            <svg class="icon icon-check" aria-hidden="true"><use href="#i-check" /></svg>הלכה
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">תוצאות</h2>
+      <div class="row section-row">
+        <span class="section-note grow" data-result-count role="status">0 תוצאות</span>
+        <div class="segmented" role="group" aria-label="הדגמת מצב">
+          <button type="button" data-demo-state="results" aria-pressed="true">תוצאות</button>
+          <button type="button" data-demo-state="loading" aria-pressed="false">טעינה</button>
+          <button type="button" data-demo-state="empty" aria-pressed="false">ריק</button>
+          <button type="button" data-demo-state="error" aria-pressed="false">שגיאה</button>
+        </div>
+      </div>
+      <div data-results></div>
+    </section>
+
+    <section>
+      <h2 class="section-title">כפתורים</h2>
+      <div class="stack">
+        <div class="row">
+          <button type="button" class="btn btn-primary">ראשי</button>
+          <button type="button" class="btn">משני</button>
+          <button type="button" class="btn btn-ghost">שקט</button>
+          <button type="button" class="btn btn-danger-soft">הסרה</button>
+          <button type="button" class="btn btn-danger">מחיקה</button>
+          <button type="button" class="btn" disabled>מושבת</button>
+          <button type="button" class="btn btn-primary" data-action="busy-demo">
+            <span class="btn-label">שמירה</span>
+            <span class="spinner spinner-inline" hidden></span>
+          </button>
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn-icon" aria-label="חיפוש"><svg class="icon" aria-hidden="true"><use href="#i-search" /></svg></button>
+          <button type="button" class="btn btn-icon" aria-label="רענון"><svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg></button>
+          <span class="popover-anchor">
+            <button type="button" class="btn" data-action="toggle-menu" aria-haspopup="menu" aria-expanded="false">
+              פעולות
+              <svg class="icon" aria-hidden="true"><use href="#i-more" /></svg>
+            </button>
+            <div class="menu" role="menu" data-menu hidden>
+              <button type="button" class="menu-item" role="menuitem">פתח בלשונית חדשה</button>
+              <button type="button" class="menu-item" role="menuitem">העתק קישור</button>
+              <div class="menu-sep" role="separator"></div>
+              <button type="button" class="menu-item" role="menuitem">הסר מהרשימה</button>
+            </div>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">שדה וטופס</h2>
+      <div class="stack">
+        <div class="field">
+          <label class="field-label">שם הרשימה</label>
+          <input class="input" type="text" data-demo-input placeholder="למשל: ספרים ללימוד" />
+          <span class="field-help">עד 40 תווים.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">שדה עם שגיאה</label>
+          <input class="input" type="text" aria-invalid="true" value="  " />
+          <span class="field-error">שדה חובה.</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">תגיות</h2>
+      <div class="row">
+        <span class="chip">רגילה</span>
+        <span class="chip chip-primary">ראשית</span>
+        <span class="chip chip-success">הושלם</span>
+        <span class="chip chip-warning">שימו לב</span>
+        <span class="chip chip-error">שגיאה</span>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">התראות בתוך הדף</h2>
+      <div class="stack">
+        <div class="banner" role="status">
+          <svg class="icon" aria-hidden="true"><use href="#i-info" /></svg>
+          <div class="banner-text"><p class="banner-title">מידע</p><p class="banner-body">הודעה ניטרלית שאינה דורשת פעולה.</p></div>
+        </div>
+        <div class="banner banner-warning" role="status">
+          <svg class="icon" aria-hidden="true"><use href="#i-warning" /></svg>
+          <div class="banner-text"><p class="banner-title">אזהרה</p><p class="banner-body">צבעי האזהרה של אוצריא: surfaces.warningContainer.</p></div>
+        </div>
+        <div class="banner banner-error" role="alert">
+          <svg class="icon" aria-hidden="true"><use href="#i-error" /></svg>
+          <div class="banner-text"><p class="banner-title">שגיאה</p><p class="banner-body">הפעולה נכשלה. אפשר לנסות שוב.</p></div>
+          <button type="button" class="btn btn-danger-soft">נסה שוב</button>
+        </div>
+        <div class="banner banner-success" role="status">
+          <svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+          <div class="banner-text"><p class="banner-title">הצלחה</p><p class="banner-body">הצלחה באוצריא היא הגוון הניטרלי, לא ירוק.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">הודעות והדיאלוגים של אוצריא</h2>
+      <p class="section-note">אלה נקראים דרך ה-API, ואוצריא מציירת אותם. התוסף אינו שולט במראה שלהם.</p>
+      <div class="row">
+        <button type="button" class="btn" data-action="snack-info">הודעה (ui.showMessage)</button>
+        <button type="button" class="btn" data-action="snack-success">הצלחה (ui.showSuccess)</button>
+        <button type="button" class="btn" data-action="snack-error">שגיאה (ui.showError)</button>
+        <button type="button" class="btn" data-action="confirm-host">אישור של אוצריא (ui.showConfirm)</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">חלוניות</h2>
+      <p class="section-note">דיאלוג ופאנל צד של התוסף עצמו, בתוך הדף.</p>
+      <div class="row section-row">
+        <button type="button" class="btn" data-action="open-dialog">פתח דיאלוג</button>
+        <button type="button" class="btn" data-action="open-panel">
+          <svg class="icon" aria-hidden="true"><use href="#i-panel" /></svg>
+          פתח חלונית צד
+        </button>
+      </div>
+      <div class="dialog dialog-static" role="presentation">
+        <h3 class="dialog-title">דיאלוג (תצוגה סטטית)</h3>
+        <p class="dialog-body">רדיוס 8, ריפוד 24 אופקי ו-16 אנכי, כפתור ביטול משני וכפתור ראשי.</p>
+        <div class="dialog-actions">
+          <button type="button" class="btn">ביטול</button>
+          <button type="button" class="btn btn-primary">אישור</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">רשימה</h2>
+      <ul class="list" role="listbox" aria-label="דוגמה לרשימה">
+        <li class="list-row" role="option" aria-selected="true" tabindex="0" data-selectable>
+          <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
+          <div class="list-row-main"><div class="list-row-title">בראשית</div><div class="list-row-meta">חמישה חומשי תורה</div></div>
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron" /></svg>
+        </li>
+        <li class="list-row" role="option" aria-selected="false" tabindex="0" data-selectable>
+          <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
+          <div class="list-row-main"><div class="list-row-title">ברכות</div><div class="list-row-meta">תלמוד בבלי, סדר זרעים</div></div>
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron" /></svg>
+        </li>
+        <li class="list-row" role="option" aria-selected="false" tabindex="0" data-selectable>
+          <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
+          <div class="list-row-main"><div class="list-row-title">משנה תורה</div><div class="list-row-meta">הרמב"ם</div></div>
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron" /></svg>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 class="section-title">טבלה</h2>
+      <div class="table-wrap" role="region" aria-label="טבלת ספרים" tabindex="0">
+        <table class="table">
+          <thead>
+            <tr><th scope="col">ספר</th><th scope="col">מקור</th><th scope="col" class="num">פרקים</th><th scope="col" class="num">גודל (KB)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>בראשית</td><td>תנ"ך</td><td class="num">50</td><td class="num">1,204</td></tr>
+            <tr><td>ברכות</td><td>תלמוד בבלי</td><td class="num">9</td><td class="num">3,870</td></tr>
+            <tr><td>הלכות תפילה</td><td>משנה תורה</td><td class="num">15</td><td class="num">612</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">טקסט</h2>
+      <div class="card stack">
+        <p class="card-title">כותרת כרטיס (14, 600)</p>
+        <p class="card-meta">מטא ומונים (12, onSurfaceVariant)</p>
+        <p class="excerpt selectable">קטע מתוך ספר מוצג בגופן הקריאה של אוצריא, בגודל שהתוסף קובע.</p>
+        <p class="card-meta">גופן הממשק: <span class="selectable" data-font-ui></span></p>
+      </div>
+    </section>
+
+  </template>
+
+  <template id="frame-topbar">
+    <header class="topbar">
+      <div class="topbar-titles">
+        <h1>שם התוסף</h1>
+        <span class="subtitle">כותרת משנה</span>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="btn btn-icon" aria-label="עוד"><svg class="icon" aria-hidden="true"><use href="#i-more" /></svg></button>
+      </div>
+    </header>
+  </template>
+
+  <script src="js/fixtures.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/gallery.js"></script>
+</body>
+</html>

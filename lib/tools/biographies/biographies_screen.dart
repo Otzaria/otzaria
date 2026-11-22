@@ -158,14 +158,16 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       loadError: _loadFailed ? 'טעינת הביוגרפיות נכשלה' : null,
       onRetry: _loadBiographies,
       topBar: AppTopBar(
-        center: OtzariaSearchField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          hintText: 'חפש רב לפי שם, כינוי או חיבור...',
-          icon: OtzariaIcons.search_in_person_24_regular,
-          autofocus: true,
-          onChanged: _performSearch,
-          onClear: () => _performSearch(''),
+        center: AppTopBarField(
+          child: OtzariaSearchField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            hintText: 'חפש רב לפי שם, כינוי או חיבור...',
+            icon: OtzariaIcons.search_in_person_24_regular,
+            autofocus: true,
+            onChanged: _performSearch,
+            onClear: () => _performSearch(''),
+          ),
         ),
       ),
       filters: hasEntries ? _buildEraChips(bundle) : null,

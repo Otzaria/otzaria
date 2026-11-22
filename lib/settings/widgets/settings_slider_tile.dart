@@ -3,11 +3,12 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
-/// שורת הגדרה עם סליידר: אייקון, כותרת (ותיאור אופציונלי), הערך הנוכחי
+/// שורת הגדרה עם סליידר: אייקון (אופציונלי), כותרת (ותיאור אופציונלי), הערך הנוכחי
 /// בתגית בקצה השורה, והסליידר ברוחב מלא מתחת. מקור יחיד לכל הסליידרים במסך
 /// ההגדרות, כדי שיראו אותו דבר עם תיאור ובלעדיו.
 class SettingsSliderTile extends StatelessWidget {
-  final IconData icon;
+  /// בלי אייקון, כמו בשורות מסך ההדפסה, הכותרת מתחילה בקצה השורה.
+  final IconData? icon;
   final String title;
   final String? subtitle;
 
@@ -22,7 +23,7 @@ class SettingsSliderTile extends StatelessWidget {
 
   const SettingsSliderTile({
     super.key,
-    required this.icon,
+    this.icon,
     required this.title,
     this.subtitle,
     required this.valueLabel,
@@ -42,8 +43,10 @@ class SettingsSliderTile extends StatelessWidget {
       children: [
         Row(
           children: [
-            RtlIcon(icon),
-            const SizedBox(width: AppTokens.spaceMD),
+            if (icon != null) ...[
+              RtlIcon(icon!),
+              const SizedBox(width: AppTokens.spaceMD),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,14 +66,21 @@ class SettingsSliderTile extends StatelessWidget {
             MetaChip(label: valueLabel),
           ],
         ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: valueLabel,
-          onChanged: onChanged,
-          onChangeEnd: onChangeEnd,
+        MergeSemantics(
+          child: Semantics(
+            label: title,
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              label: valueLabel,
+              // בלי זה הקורא מקריא אחוז מהטווח ("28%") במקום הערך שמוצג ("24").
+              semanticFormatterCallback: (_) => valueLabel,
+              onChanged: onChanged,
+              onChangeEnd: onChangeEnd,
+            ),
+          ),
         ),
       ],
     );

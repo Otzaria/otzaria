@@ -3,6 +3,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 
 /// כותרת בראש דיאלוג מידע: שם הפריט בגדול, ומתחתיו שורת משנה עמומה.
 class DetailsHeading extends StatelessWidget {
@@ -70,7 +71,7 @@ class DetailsCard extends StatelessWidget {
           if (title != null) ...[
             Padding(
               padding: const EdgeInsets.only(
-                top: AppTokens.spaceSM + 2,
+                top: AppTokens.spaceSMD,
                 bottom: AppTokens.spaceSM,
               ),
               child: Row(
@@ -82,8 +83,7 @@ class DetailsCard extends StatelessWidget {
                   Flexible(
                     child: Text(
                       title!,
-                      style: TextStyle(
-                        fontSize: AppTokens.fontMD + 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: cs.primary,
                       ),
@@ -161,30 +161,20 @@ class DetailsInfoSection extends StatelessWidget {
         ),
       ],
     );
-    Widget valueText = Text(
-      value,
+    final valueText = AppInlineLink(
+      text: value,
       textDirection: valueDirection,
+      onTap: onTap,
+      tooltip: tapTooltip,
       style: TextStyle(
         fontSize: AppTokens.fontMD,
         fontWeight: FontWeight.w600,
-        color: onTap == null ? cs.onSurface : cs.primary,
-        decoration: onTap == null ? null : TextDecoration.underline,
-        decorationColor: cs.primary,
+        color: cs.onSurface,
       ),
     );
-    if (onTap != null) {
-      valueText = Tooltip(
-        message: tapTooltip ?? '',
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppTokens.borderRadiusAll,
-          child: valueText,
-        ),
-      );
-    }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       // ברוחב טלפון שתי עמודות היו שוברות את הערך באמצע מילה.
       child: block || WindowClass.of(context).isCompact
           ? Column(
@@ -233,7 +223,7 @@ class DetailsText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Text(
         text,
         style: TextStyle(

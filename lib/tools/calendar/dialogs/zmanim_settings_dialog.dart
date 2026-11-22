@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -163,10 +164,11 @@ class _SourceCredit extends StatelessWidget {
               children: [
                 TextSpan(
                   text: 'לוח עתים לבינה',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
+                  style: AppInlineLink.styleOf(
+                    context,
+                    theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -321,7 +323,7 @@ class _ZmanInfoButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: explanation,
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.start,
       waitDuration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.all(12),
@@ -359,7 +361,7 @@ double _timeColumnWidth(BuildContext context) =>
 
 Future<void> showZmanimSettingsDialog(BuildContext context) {
   final cubit = context.read<CalendarCubit>();
-  return showDialog<void>(
+  return showDialogUntilTornDown<void>(
     context: context,
     builder: (_) => BlocProvider.value(
       value: cubit,

@@ -50,7 +50,60 @@ Uint8List buildWindowsHtmlDragData(String html) {
   );
 }
 
-/// A native Windows drag is allowed only when it began inside an existing
+/// Platforms where selected reader text can be dragged out to another app.
+/// Desktop only: it starts from a primary-button mouse drag. On touch devices
+/// a drag starting on a selection would compete with the selection handles.
+@visibleForTesting
+bool supportsSelectedTextDrag(TargetPlatform platform) =>
+    platform == TargetPlatform.windows ||
+    platform == TargetPlatform.macOS ||
+    platform == TargetPlatform.linux;
+
+/// The native data formats to offer a drop target: plain text and HTML in the
+/// platform's own format names. Only Windows needs the CF_HTML envelope.
+@visibleForTesting
+List<DataRepresentation> buildSelectedTextDragRepresentations({
+  required TargetPlatform platform,
+  required String plainText,
+  required String html,
+}) {
+  switch (platform) {
+    case TargetPlatform.windows:
+      return [
+        // Windows CF_UNICODETEXT (13), rather than a custom "text/plain" format.
+        DataRepresentation.simple(
+          format: 'NativeShell_CF_13',
+          data: plainText,
+        ),
+        DataRepresentation.simple(
+          format: 'HTML Format',
+          data: buildWindowsHtmlDragData(html),
+        ),
+      ];
+    case TargetPlatform.macOS:
+    case TargetPlatform.iOS:
+      return [
+        DataRepresentation.simple(
+          format: 'public.utf8-plain-text',
+          data: plainText,
+        ),
+        // The same wrapper super_clipboard adds for Formats.htmlText.
+        DataRepresentation.simple(
+          format: 'public.html',
+          data: "<meta charset='utf-8'>$html",
+        ),
+      ];
+    case TargetPlatform.linux:
+    case TargetPlatform.android:
+    case TargetPlatform.fuchsia:
+      return [
+        DataRepresentation.simple(format: 'text/plain', data: plainText),
+        DataRepresentation.simple(format: 'text/html', data: html),
+      ];
+  }
+}
+
+/// A native drag is allowed only when it began inside an existing
 /// selection, with the primary mouse button held past the motion threshold.
 @visibleForTesting
 bool shouldStartSelectedTextDrag({
@@ -59,7 +112,8 @@ bool shouldStartSelectedTextDrag({
   required double distance,
 }) => isSelectedTextHit && primaryMouseHeld && distance >= kTouchSlop;
 
-/// Adds Windows-to-Word drag without participating in Flutter's gesture arena.
+/// Adds drag-out of selected text to other apps (Word on Windows, any text
+/// target on macOS and Linux) without participating in Flutter's gesture arena.
 /// A normal first drag still creates/extends a selection; only a second drag
 /// beginning on already selected text starts the native OS drag.
 class SelectedTextDragRegion extends StatefulWidget {
@@ -201,6 +255,8 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
     required String fallbackText,
   }) async {
     bool isActive() => mounted && _pointer == pointer;
+    // לפני ה-await הראשון, כדי לא לקרוא ל-Theme.of(context) אחרי פער אסינכרוני.
+    final platform = Theme.of(context).platform;
 
     DataProviderHandle? handle;
     DragConfiguration? configuration;
@@ -217,14 +273,11 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
         fontSize: content.fontSize,
       );
       handle = await DataProvider(
-        representations: [
-          // Windows CF_UNICODETEXT (13), rather than a custom "text/plain" format.
-          DataRepresentation.simple(format: 'NativeShell_CF_13', data: plain),
-          DataRepresentation.simple(
-            format: 'HTML Format',
-            data: buildWindowsHtmlDragData(html),
-          ),
-        ],
+        representations: buildSelectedTextDragRepresentations(
+          platform: platform,
+          plainText: plain,
+          html: html,
+        ),
       ).register();
       if (!isActive()) return;
       final dragContext = await DragContext.instance();
@@ -307,7 +360,7 @@ class _SelectedTextDragRegionState extends State<SelectedTextDragRegion> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb || Theme.of(context).platform != TargetPlatform.windows) {
+    if (kIsWeb || !supportsSelectedTextDrag(Theme.of(context).platform)) {
       return widget.child;
     }
     return Listener(

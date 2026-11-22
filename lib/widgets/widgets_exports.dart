@@ -31,6 +31,9 @@
 //
 // ToolPanelWrapper:
 //   → lib/widgets/misc/tool_ui_helpers.dart
+//
+// קישור בתוך טקסט (AppInlineLink, וסגנון לקישור בתוך משפט):
+//   → lib/widgets/text/app_inline_link.dart
 
 export 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 export 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -47,5 +50,6 @@ export 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 export 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 export 'package:otzaria/widgets/misc/expanding_chevron.dart';
 export 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+export 'package:otzaria/widgets/text/app_inline_link.dart';
 export 'package:otzaria/widgets/text/app_section_label.dart';
 export 'package:otzaria/widgets/text/overflow_tooltip_text.dart';

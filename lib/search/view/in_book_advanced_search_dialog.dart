@@ -4,6 +4,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// יוצר טאב זמני לעריכת הגדרות החיפוש בספר.
 /// האתחול הישיר מונע חיפוש לפני שההגדרות הוחלו.
@@ -71,7 +72,7 @@ Future<SearchDialogResult?> showInBookAdvancedSearchDialog(
     optionsForEveryWord: settings.optionsForEveryWord,
   );
 
-  final result = await showDialog<SearchDialogResult>(
+  final result = await showDialogUntilTornDown<SearchDialogResult>(
     context: context,
     builder: (_) => SearchDialog(
       existingTab: tab,

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "com.otzaria.design-gallery",
+  "name": "גלריית עיצוב",
+  "version": "0.1.0",
+  "description": "רכיבי העיצוב של אוצריא לתוספים: כל הרכיבים, מצבים, ערכות נושא ורוחבים, להשוואה במקום אחד.",
+  "author": "אוצריא",
+  "homepage": "https://github.com/Otzaria/otzaria/tree/dev/docs/plugin-sdk/examples/design-gallery",
+  "stability": "experimental",
+  "entrypoint": "index.html",
+  "minAppVersion": "0.9.99",
+  "sdkVersion": "1.x",
+  "permissions": [],
+  "network": {
+    "enabled": false,
+    "allowlist": []
+  },
+  "contributes": {
+    "toolTab": {
+      "title": "גלריית עיצוב",
+      "order": 900,
+      "defaultPinned": false,
+      "iconName": "paint_brush_24_regular"
+    }
+  }
+}

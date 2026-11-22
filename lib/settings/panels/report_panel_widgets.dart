@@ -392,7 +392,7 @@ Future<void> flushReportQueue(
   } else if (pendingBefore == 0) {
     UiSnack.show(ReportMessages.noPendingToSend);
   } else {
-    UiSnack.show(ReportMessages.pendingFlushFailed(pendingAfter));
+    UiSnack.showError(ReportMessages.pendingFlushFailed(pendingAfter));
   }
 }
 

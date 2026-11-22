@@ -5,6 +5,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 
@@ -111,12 +112,7 @@ class _CommentarySearchResultsListState
     if (widget.query.isEmpty) return const SizedBox.shrink();
     if (widget.snippets.isEmpty) {
       // total>0 בלבד מגיע לכאן (על total==0 מוצג 'אין תוצאות' ע"י ההורה)
-      return Center(
-        child: Text(
-          'טוען תוצאות...',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען תוצאות...');
     }
 
     final selectedGlobalIndex = resolveSelectedSnippetGlobalIndex(

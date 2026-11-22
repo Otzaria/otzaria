@@ -101,7 +101,13 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   crossAxisCount: crossAxisCount,
                   crossAxisSpacing: AppTokens.spaceMD,
                   mainAxisSpacing: AppTokens.spaceMD,
-                  childAspectRatio: 1.2,
+                  // האריח גבוה יותר כשהטקסט מוגדל: בהגדלה 2.0 תוכנו גבוה מ-1/1.2 מרוחבו.
+                  childAspectRatio:
+                      1.2 /
+                      (MediaQuery.textScalerOf(context).scale(1) / 1.5).clamp(
+                        1.0,
+                        2.0,
+                      ),
                 ),
                 // אריח "חדש" תמיד בסוף, גם כשהחיפוש לא מצא דבר.
                 itemCount: workspaces.length + 1,

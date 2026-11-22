@@ -8,6 +8,7 @@ import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -273,11 +274,6 @@ class _BiographyCardState extends State<BiographyCard> {
       fontWeight: FontWeight.w600,
       color: cs.onSurfaceVariant,
     );
-    final linkStyle = bodyStyle.copyWith(
-      color: cs.primary,
-      decoration: TextDecoration.underline,
-      decorationColor: cs.primary,
-    );
 
     Widget row(String label, IconData icon, Widget value) => Padding(
       padding: const EdgeInsets.only(top: AppTokens.spaceSM),
@@ -322,9 +318,10 @@ class _BiographyCardState extends State<BiographyCard> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (prefix.isNotEmpty) Text(prefix, style: bodyStyle),
-          InkWell(
+          AppInlineLink(
+            text: p.name,
             onTap: () => widget.onOpen!(ref),
-            child: Text(p.name, style: linkStyle),
+            style: bodyStyle,
           ),
         ],
       );
@@ -389,18 +386,14 @@ class _BiographyCardState extends State<BiographyCard> {
           OtzariaIcons.link_24_regular,
           values([
             for (final source in _bio.sources)
-              InkWell(
+              AppInlineLink(
+                text: source.title ?? source.url,
                 onTap: () => launchUrl(
                   Uri.parse(source.url),
                   mode: LaunchMode.externalApplication,
                 ),
-                child: Text(
-                  source.title ?? source.url,
-                  style: linkStyle,
-                  textDirection: source.title == null
-                      ? TextDirection.ltr
-                      : null,
-                ),
+                style: bodyStyle,
+                textDirection: source.title == null ? TextDirection.ltr : null,
               ),
           ]),
         ),

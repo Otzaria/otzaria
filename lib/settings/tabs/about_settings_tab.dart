@@ -365,7 +365,7 @@ class AboutSettingsTab extends StatelessWidget {
   Future<void> _openUrl(String url) => _launchUrl(url);
 
   void _openAdPopup(BuildContext context) {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       barrierDismissible: true,
       builder: settingsDialogBuilder(
@@ -510,10 +510,16 @@ class _InfoChip extends StatelessWidget {
           else
             Icon(icon, size: 15, color: contentColor),
           const SizedBox(width: 6),
-          Text(name, style: nameStyle),
+          // Flexible: בחלון צר או בהגדלת טקסט שם ארוך נשבר לשורות במקום לגלוש.
+          Flexible(child: Text(name, style: nameStyle)),
           if (description != null && description!.isNotEmpty) ...[
             const SizedBox(width: 4),
-            Text('(${description!})', style: AppTextStyles.settingSubtitle),
+            Flexible(
+              child: Text(
+                '(${description!})',
+                style: AppTextStyles.settingSubtitle,
+              ),
+            ),
           ],
         ],
       ),

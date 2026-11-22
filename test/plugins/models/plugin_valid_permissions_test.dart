@@ -20,6 +20,17 @@ void main() {
       }
     });
 
+    test('מצב מסך מלא הוא הרשאת בסיס: אין מה להצהיר ואין מה לשאול', () {
+      expect(
+        pluginBaselinePermissions,
+        contains('events.subscribe:ui.fullscreenChanged'),
+      );
+      expect(
+        effectiveManifestPermissions(['events.subscribe:ui.fullscreenChanged']),
+        isEmpty,
+      );
+    });
+
     test('הרשאות רגישות אינן בסיס', () {
       for (final sensitive in [
         'network.access',

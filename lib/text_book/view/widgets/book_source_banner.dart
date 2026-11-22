@@ -7,6 +7,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// משווה את שדות הזהות שקובעים את מקור הספר. במסלול side-by-side ה-widget
@@ -137,10 +138,7 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
       height: 1.3,
       color: cs.onSurfaceVariant,
     );
-    final linkStyle = TextStyle(
-      color: cs.primary,
-      decoration: TextDecoration.underline,
-    );
+    final linkStyle = AppInlineLink.styleOf(context);
     final isOfflineMode = context.select<SettingsBloc, bool>(
       (bloc) => bloc.state.isOfflineMode,
     );

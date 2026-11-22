@@ -40,6 +40,14 @@ import '../test_helpers/stub_navigation_bloc.dart';
 ///
 /// `PdfBookScreen` דורש pdfrx נייטיב ולכן אינו ניתן להרכבה כאן;
 /// `PdfCommentatorsTab` עובר באותו `_buildTabView` עם אותו פרופיל keepAlive.
+/// מחליף את `pumpAndSettle`: בזמן טעינה מוצג גלגל מסתובב (החלטה 62) שלעולם
+/// לא "נרגע", ו-pumpAndSettle נגמר ב-timeout. מקדמים זמן קבוע (שתי שניות).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -87,7 +95,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
     return bloc;
   }
 
@@ -109,10 +117,10 @@ void main() {
   ) async {
     for (var i = 0; i < bloc.state.tabs.length; i++) {
       bloc.add(SetCurrentTab(i));
-      await tester.pumpAndSettle();
+      await _settle(tester);
     }
     bloc.add(SetCurrentTab(backTo));
-    await tester.pumpAndSettle();
+    await _settle(tester);
   }
 
   testWidgets('מחוות מעבר טאבים בדסקטופ: trackpad, ומגע במזהה נפרד', (
@@ -228,7 +236,7 @@ void main() {
       );
     }
     await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 70));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     final pageView = tester.widget<PageView>(find.byType(PageView));
     expect(pageView.controller!.page, 1);
@@ -285,7 +293,7 @@ void main() {
       );
     }
     await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 40));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(bloc.state.currentTabIndex, 1);
   });
 
@@ -378,7 +386,7 @@ void main() {
         }
       }
       await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(bloc.state.currentTabIndex, expectedIndex);
       expect(controller.page, expectedIndex);
     });
@@ -432,7 +440,7 @@ void main() {
         timeStamp: const Duration(milliseconds: 350),
       );
       await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 400));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(pageControllerOf(tester).page, 0);
       expect(bloc.state.currentTabIndex, 0);
@@ -469,7 +477,7 @@ void main() {
         timeStamp: const Duration(milliseconds: 400),
       );
       await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 450));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(bloc.state.currentTabIndex, 1);
       expect(pageControllerOf(tester).page, 1);
@@ -497,7 +505,7 @@ void main() {
         );
       }
       await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(bloc.state.currentTabIndex, 1);
       expect(pageControllerOf(tester).page, 1);
@@ -527,7 +535,7 @@ void main() {
           timeStamp: const Duration(milliseconds: 350),
         );
         await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 400));
-        await tester.pumpAndSettle();
+        await _settle(tester);
         await tester.pump(const Duration(milliseconds: 400));
       }
 
@@ -587,9 +595,9 @@ void main() {
         final bloc = await pumpReadingScreen(tester, tabs);
         final gesture = await startDrag(tester);
         bloc.add(CloseAllTabs());
-        await tester.pumpAndSettle();
+        await _settle(tester);
         await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 400));
-        await tester.pumpAndSettle();
+        await _settle(tester);
         expect(bloc.state.tabs, isEmpty);
         expect(find.byType(PageView), findsNothing);
         expect(tester.takeException(), isNull);
@@ -632,7 +640,7 @@ void main() {
         await tester.pump();
         expect(pageControllerOf(tester).page, 5);
         await fling();
-        await tester.pumpAndSettle();
+        await _settle(tester);
         expect(bloc.state.currentTabIndex, 6);
         expect(pageControllerOf(tester).page, 6);
         expect(TabSwipeLog.of(bloc).last['from'], 5);
@@ -691,7 +699,7 @@ void main() {
               await waitFrames(tester, delayMs);
               expect(bloc.state.currentTabIndex, forward ? 4 : 2);
               await fling(tester, sign, steps);
-              await tester.pumpAndSettle();
+              await _settle(tester);
 
               expect(bloc.state.currentTabIndex, forward ? 5 : 1);
               expect(pageControllerOf(tester).page, forward ? 5 : 1);
@@ -704,7 +712,7 @@ void main() {
               await fling(tester, sign, 5);
               await waitFrames(tester, delayMs);
               await fling(tester, -sign, steps);
-              await tester.pumpAndSettle();
+              await _settle(tester);
 
               expect(bloc.state.currentTabIndex, 3);
               expect(pageControllerOf(tester).page, 3);
@@ -788,13 +796,13 @@ void main() {
         testWidgets('$name: גרירה איטית לשני הכיוונים ובחזרה', (tester) async {
           final bloc = await pumpMiddle(tester, textDirection: textDirection);
           await pan(tester, slowDrag(900 * forward), hold: true);
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 3);
           await pan(tester, slowDrag(-900 * forward), hold: true);
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 2);
           await pan(tester, slowDrag(-900 * forward), hold: true);
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 1);
         });
 
@@ -804,20 +812,20 @@ void main() {
           await tester.pump(const Duration(milliseconds: 32));
           expect(bloc.state.currentTabIndex, 3);
           await pan(tester, slowDrag(-900 * forward), hold: true);
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 2);
         });
 
         testWidgets('$name: הנפה לשני הכיוונים', (tester) async {
           final bloc = await pumpMiddle(tester, textDirection: textDirection);
           await pan(tester, fling(150 * forward));
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 3);
           await pan(tester, fling(-150 * forward));
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 2);
           await pan(tester, fling(-150 * forward));
-          await tester.pumpAndSettle();
+          await _settle(tester);
           expectTab(tester, bloc, 1);
         });
 
@@ -829,7 +837,7 @@ void main() {
             await pan(tester, [
               for (var i = 1; i <= 3; i++) Offset(sign * 12.0 * i, 0),
             ]);
-            await tester.pumpAndSettle();
+            await _settle(tester);
             expectTab(tester, bloc, 2);
           }
         });
@@ -845,7 +853,7 @@ void main() {
               Offset(sign * 65, -180),
               Offset(sign * 80, -300),
             ]);
-            await tester.pumpAndSettle();
+            await _settle(tester);
             expectTab(tester, bloc, 2);
           }
         });
@@ -895,7 +903,7 @@ void main() {
               await tester.pump(const Duration(milliseconds: 10));
             }
             await gesture.up(timeStamp: Duration(milliseconds: ms + 10));
-            await tester.pumpAndSettle();
+            await _settle(tester);
             expectTab(tester, bloc, 2);
           }
         });
@@ -923,7 +931,7 @@ void main() {
         );
       }
       await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       final swipe = TabSwipeLog.of(bloc).single;
       expect(swipe['kind'], 'trackpad');
@@ -952,7 +960,7 @@ void main() {
       expect(before.values, everyElement(isNotNull));
 
       bloc.add(MoveTab(tabs[0], 2));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(_titles(bloc), ['ב', 'ג', 'א']);
       for (final t in ['א', 'ב', 'ג']) {
@@ -984,7 +992,7 @@ void main() {
       };
 
       bloc.add(MoveTab(tabs[2], 0));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(_titles(bloc), ['ג', 'א', 'ב']);
       for (final t in ['א', 'ב', 'ג']) {
@@ -1015,7 +1023,7 @@ void main() {
 
       final before = tabScreenWidget(tester, 'ג');
       bloc.add(const SetCurrentTab(1));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(
         identical(tabScreenWidget(tester, 'ג'), before),
@@ -1038,7 +1046,7 @@ void main() {
 
       final before = tabScreenWidget(tester, 'ב');
       bloc.add(RenameTab(tabs[1], 'ב חדש'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(identical(tabScreenWidget(tester, 'ב חדש'), before), isFalse);
     });
@@ -1059,7 +1067,7 @@ void main() {
         for (final t in ['א', 'ב', 'ג']) t: tabScreenWidget(tester, t),
       };
       bloc.add(TogglePinTab(tabs[1]));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       // התוכן אינו קורא את ההצמדה; בנייתו מחדש עלתה מאות ms ב-15 ספרים.
       for (final t in before.keys) {
@@ -1084,7 +1092,7 @@ void main() {
         for (final t in ['א', 'ב']) t: tabScreenWidget(tester, t),
       };
       bloc.add(ReplaceTab(oldTab: tabs[2], newTab: replacement));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       // ההחלפה משחררת את הטאב הישן בהשהיה.
       await tester.pump(const Duration(milliseconds: 400));
 
@@ -1113,7 +1121,7 @@ void main() {
       final before = tabScreenWidget(tester, 'א');
       Future<void> expectUnrelatedTabKept(TabsEvent event) async {
         bloc.add(event);
-        await tester.pumpAndSettle();
+        await _settle(tester);
         expect(
           identical(tabScreenWidget(tester, 'א'), before),
           isTrue,
@@ -1156,7 +1164,7 @@ void main() {
       final before = {for (final t in titles) t: tabScreenWidget(tester, t)};
       split.splitRatio = 0.7;
       bloc.add(const UpdateSplitRatio(0.7));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(split.splitRatio, 0.7);
       for (final t in titles) {
@@ -1186,7 +1194,7 @@ void main() {
       await visitAllTabs(tester, bloc, 0);
 
       bloc.add(MoveTab(tabs[0], 2));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(bloc.state.currentTabIndex, 2);
       expect(displayedPage(tester), 2);
@@ -1206,7 +1214,7 @@ void main() {
 
       // "ד" מהסוף למקום 1 — כמו בדפדפן, הנגרר הופך לטאב המוצג (issue #1104).
       bloc.add(MoveTab(tabs[3], 1));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(_titles(bloc), ['א', 'ד', 'ב', 'ג']);
       expect(bloc.state.currentTabIndex, 1);

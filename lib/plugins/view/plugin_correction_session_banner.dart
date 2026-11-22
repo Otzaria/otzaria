@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 
 /// הודעה קבועה מעל הקורא כל עוד יש בלשונית סשן תיקון של תוסף.
 class PluginCorrectionSessionBanner extends StatelessWidget {
@@ -36,46 +37,33 @@ class PluginCorrectionSessionBanner extends StatelessWidget {
         final ownerName = sessions.ownerNameForTab(tabId);
         final status = sessions.draftStatusForTab(tabId);
         if (ownerName == null || status == null) return const SizedBox.shrink();
-        final colorScheme = Theme.of(context).colorScheme;
-        final textStyle = TextStyle(color: colorScheme.onTertiaryContainer);
+        final statusText = switch (status) {
+          PluginCorrectionDraftStatus.saved => savedText,
+          PluginCorrectionDraftStatus.saving => savingText,
+          PluginCorrectionDraftStatus.failed => failedText,
+        };
         return Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: colorScheme.tertiaryContainer,
-              borderRadius: AppTokens.borderRadiusAll,
-            ),
-            child: Row(
+          padding: const EdgeInsets.fromLTRB(
+            AppTokens.spaceSM,
+            AppTokens.spaceSM,
+            AppTokens.spaceSM,
+            0,
+          ),
+          child: AppInfoBanner(
+            tone: AppInfoBannerTone.tertiary,
+            icon: FluentIcons.edit_24_regular,
+            title: modeText(ownerName),
+            message: statusText,
+            extraLines: [if (pageShape) pageShapeText],
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  FluentIcons.edit_24_regular,
-                  color: colorScheme.onTertiaryContainer,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        modeText(ownerName),
-                        style: textStyle.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(switch (status) {
-                        PluginCorrectionDraftStatus.saved => savedText,
-                        PluginCorrectionDraftStatus.saving => savingText,
-                        PluginCorrectionDraftStatus.failed => failedText,
-                      }, style: textStyle),
-                      if (pageShape) Text(pageShapeText, style: textStyle),
-                    ],
-                  ),
-                ),
                 if (status == PluginCorrectionDraftStatus.failed)
                   ActionButton.ghost(
                     text: retryText,
                     onPressed: sessions.retryDraftWrites,
                   ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppTokens.spaceSM),
                 ActionButton.neutral(
                   text: endText,
                   onPressed: () => sessions.endByUser(tabId),

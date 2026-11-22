@@ -106,7 +106,7 @@ void main() {
       );
     });
 
-    testWidgets('title מוגבל לשורה אחת עם ellipsis', (tester) async {
+    testWidgets('title מוגבל לשתי שורות עם ellipsis', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -127,7 +127,7 @@ void main() {
       final titleWidget = tester.widget<Text>(
         find.text('כותרת ארוכה מאוד שאמורה לגלוש לשורה שנייה אבל לא תוכל'),
       );
-      expect(titleWidget.maxLines, 1);
+      expect(titleWidget.maxLines, 2);
       expect(titleWidget.overflow, TextOverflow.ellipsis);
     });
 

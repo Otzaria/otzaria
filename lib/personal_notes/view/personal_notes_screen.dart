@@ -51,6 +51,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
@@ -426,12 +427,13 @@ class _PersonalNotesManagerScreenState
                     ],
                   ),
                   paneWidth: _navigationWidth,
-                  minMainContentWidth: 320,
+                  minMainContentWidth:
+                      SidePaneSpecs.personalNotes.minMainContentWidth,
                   onClose: () => setState(() => _isNavigationVisible = false),
                   onOpen: () => setState(() => _isNavigationVisible = true),
                   isResizable: true,
-                  minPaneWidth: 150,
-                  maxPaneWidth: 500,
+                  minPaneWidth: SidePaneSpecs.personalNotes.minPaneWidth,
+                  maxPaneWidth: SidePaneSpecs.personalNotes.maxPaneWidth,
                   onPaneWidthChanged: (nextWidth) {
                     _navigationWidth = nextWidth;
                   },
@@ -496,14 +498,16 @@ class _PersonalNotesManagerScreenState
               ),
             ),
           ],
-          center: OtzariaSearchField(
-            controller: _searchController,
-            focusNode: _searchFocusNode,
-            icon: OtzariaIcons.search_in_notes_24_regular,
-            hintText: 'חפש בהערות...',
-            onSubmitted: (_) => requestKeyboardFocus(),
-            onChanged: (value) => _searchQuery.value = value,
-            onClear: () => _searchQuery.value = '',
+          center: AppTopBarField(
+            child: OtzariaSearchField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              icon: OtzariaIcons.search_in_notes_24_regular,
+              hintText: 'חפש בהערות...',
+              onSubmitted: (_) => requestKeyboardFocus(),
+              onChanged: (value) => _searchQuery.value = value,
+              onClear: () => _searchQuery.value = '',
+            ),
           ),
           trailingItems: [
             AppTopBarItem(
@@ -607,7 +611,7 @@ class _PersonalNotesManagerScreenState
     if (!await verifySaferModePassword(context)) return;
     if (!mounted || !_canExportNotes) return;
     final exportSnapshot = _collectAllNotes();
-    final selection = await showDialog<NotesExportSelection>(
+    final selection = await showDialogUntilTornDown<NotesExportSelection>(
       context: context,
       builder: (context) => PersonalNotesExportDialog(
         allNotes: exportSnapshot,
@@ -793,7 +797,7 @@ class _PersonalNotesManagerScreenState
     final pickedPath = picked?.path;
     if (pickedPath == null) return;
 
-    final strategy = await showDialog<NotesImportConflictStrategy>(
+    final strategy = await showDialogUntilTornDown<NotesImportConflictStrategy>(
       context: context,
       builder: (context) => AppDialogFrame(
         // ארבע פעולות לא נכנסות בשורה אחת ברוחב small.
@@ -1077,7 +1081,7 @@ class _PersonalNotesManagerScreenState
           border: Border(
             bottom: BorderSide(
               color: Theme.of(context).dividerColor,
-              width: 0.5,
+              width: AppTokens.borderHairline,
             ),
           ),
         ),
@@ -1447,7 +1451,7 @@ class _PersonalNotesManagerScreenState
                   ),
                 ],
                 const SizedBox(height: 8),
-                // מקצרים את התוכן ומגבילים את גובה התצוגה המקדימה בתוך הכרטיס.
+                // מקצרים את התוכן (maxPreviewChars) והכרטיס חותך אותו בגובהו; גובה בלתי מוגבל מונע overflow של התצוגה בתוך החיתוך.
                 Expanded(
                   child: ClipRect(
                     child: OverflowBox(
@@ -1554,7 +1558,7 @@ class _PersonalNotesManagerScreenState
       noteId: note.id,
     );
     if (!mounted) return;
-    await showDialog<PersonalNoteEditorResult>(
+    await showDialogUntilTornDown<PersonalNoteEditorResult>(
       context: context,
       builder: (context) => PersonalNoteEditorDialog(
         title: 'ערוך הערה',
@@ -1628,7 +1632,7 @@ class _PersonalNotesManagerScreenState
   Future<void> _deleteNote(PersonalNote note) async {
     final shouldDelete = await showConfirmationDialog(
       context: context,
-      title: 'מחיקת הערה',
+      title: 'למחוק את ההערה?',
       content: 'האם למחוק את ההערה לצמיתות?',
       confirmText: 'מחק',
       isDangerous: true,

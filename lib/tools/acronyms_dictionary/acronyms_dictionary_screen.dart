@@ -175,14 +175,16 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
       loadError: _loadFailed ? 'טעינת המילון נכשלה' : null,
       onRetry: _loadDictionary,
       topBar: AppTopBar(
-        center: OtzariaSearchField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          icon: OtzariaIcons.search_in_quote_24_regular,
-          hintText: 'חפש ראשי תיבות...',
-          autofocus: true,
-          onChanged: _performSearch,
-          onClear: () => setState(() => _filteredResults = []),
+        center: AppTopBarField(
+          child: OtzariaSearchField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            icon: OtzariaIcons.search_in_quote_24_regular,
+            hintText: 'חפש ראשי תיבות...',
+            autofocus: true,
+            onChanged: _performSearch,
+            onClear: () => setState(() => _filteredResults = []),
+          ),
         ),
       ),
       body: _buildResultsList(),

@@ -13,6 +13,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
@@ -29,6 +30,11 @@ import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart'
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 export 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+
+/// מתחת לגובה הזה, בפריסה המוערמת (רוחב צר), שורות החודש נדחסות והתוכן בתאים
+/// גולש מהם. לכן החלונית שמתחת ללוח מוסתרת כברירת מחדל והלוח תופס את כל
+/// הגובה; כפתורי הזמנים והאירועים בסרגל מציגים אותה.
+const double _kStackedSidePanelMinHeight = 600;
 
 class CalendarWidget extends StatefulWidget {
   const CalendarWidget({super.key});
@@ -48,6 +54,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   bool _isSidebarExplicitlyClosed = false;
   bool _isSidebarAutoHiddenForNarrow = false;
   bool? _lastHasRoomForSideBySide;
+  bool? _lastShortStacked;
   bool _isSettingsPanelOpen = false;
   double _sidePanelWidth = 360;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
@@ -124,6 +131,11 @@ class CalendarWidgetState extends State<CalendarWidget> {
   KeyEventResult _handleCalendarKeyEvent(FocusNode node, KeyEvent event) {
     final key = event.logicalKey;
     if (!_isNavigationKey(key)) return KeyEventResult.ignored;
+    // Ctrl+חצים הם ניווט חודש/שנה (CallbackShortcuts שמעל); בלי זה הצומת הזה
+    // בולע אותם כמעבר יום/שבוע.
+    if (HardwareKeyboard.instance.isControlPressed) {
+      return KeyEventResult.ignored;
+    }
     final cubit = context.read<CalendarCubit>();
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
     if (event is KeyDownEvent) {
@@ -384,6 +396,26 @@ class CalendarWidgetState extends State<CalendarWidget> {
           _navigateYear(context, forward: false);
         };
 
+        // חלופה ל-Ctrl+חצים בכל הפלטפורמות: ב-macOS הצירופים האלה שמורים
+        // למערכת (Spaces) והאפליקציה כמעט לא מקבלת אותם.
+        // קיצורים קבועים, לא מהגדרות הקיצורים.
+        for (final entry in <(LogicalKeyboardKey, bool, bool)>[
+          (LogicalKeyboardKey.pageDown, false, true),
+          (LogicalKeyboardKey.pageUp, false, false),
+          (LogicalKeyboardKey.pageDown, true, true),
+          (LogicalKeyboardKey.pageUp, true, false),
+        ]) {
+          final (key, byYear, forward) = entry;
+          bindings[SingleActivator(key, shift: byYear)] = () {
+            if (_isTextFieldFocused()) return;
+            if (byYear) {
+              _navigateYear(context, forward: forward);
+            } else {
+              _navigateMonth(context, forward: forward);
+            }
+          };
+        }
+
         return CallbackShortcuts(
           bindings: bindings,
           child: Focus(
@@ -403,6 +435,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   _syncSidebarVisibilityForWidth(
                     hasRoomForSideBySide,
                     isMobile: isMobile,
+                    isShortStacked:
+                        isMobile &&
+                        constraints.maxHeight < _kStackedSidePanelMinHeight,
                   );
                   return Scaffold(
                     backgroundColor: Colors.transparent,
@@ -439,7 +474,13 @@ class CalendarWidgetState extends State<CalendarWidget> {
                         // תוכן
                         Expanded(
                           child: isMobile
-                              ? _buildMobileLayout(context, state)
+                              ? _buildMobileLayout(
+                                  context,
+                                  state,
+                                  shortStacked:
+                                      constraints.maxHeight <
+                                      _kStackedSidePanelMinHeight,
+                                )
                               : _buildDesktopLayout(context, state),
                         ),
                       ],
@@ -475,12 +516,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
           ),
           paneContent: _buildSidePanel(context, state),
           paneWidth: _sidePanelWidth,
-          minMainContentWidth: LayoutConstraints.mainContentMinWidth,
+          minMainContentWidth: SidePaneSpecs.calendar.minMainContentWidth,
           onClose: _handleSidebarClosedByUser,
           autoHandleResponsiveVisibility: false,
           isResizable: true,
-          minPaneWidth: 280,
-          maxPaneWidth: 520,
+          minPaneWidth: SidePaneSpecs.calendar.minPaneWidth,
+          maxPaneWidth: SidePaneSpecs.calendar.maxPaneWidth,
           onPaneWidthChanged: (nextWidth) {
             _sidePanelWidth = nextWidth;
           },
@@ -526,7 +567,15 @@ class CalendarWidgetState extends State<CalendarWidget> {
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context, CalendarState state) {
+  Widget _buildMobileLayout(
+    BuildContext context,
+    CalendarState state, {
+    required bool shortStacked,
+  }) {
+    // בגובה נמוך שני החלקים לא נכנסים יחד (תאי היום נלחצים לגובה של פיקסלים
+    // בודדים), ולכן החלונית שהמשתמש הציג מחליפה את הלוח, וכפתור "סגור חלונית"
+    // שבה מחזיר אותו.
+    final panelOnly = shortStacked && _isSidebarVisible;
     // במסך צר אין מקום לפריסה זה-לצד-זה (sideBySideMinWidth=840), אז במקום
     // להחביא את חלונית הצד מאחורי טוגל מוצגים אותה מתחת ללוח. חלוקה 3:2 —
     // הלוח (חלוקת התצוגה הראשית) מקבל את רוב המקום והזמנים/אירועים מתחת.
@@ -535,25 +584,27 @@ class CalendarWidgetState extends State<CalendarWidget> {
       children: [
         Column(
           children: [
-            Expanded(
-              flex: 3,
-              child: CalendarMainPanel(
-                state: state,
-                onCreateEvent: ({existingEvent, specificDate}) =>
-                    _showCreateEventDialog(
-                      context,
-                      state,
-                      existingEvent: existingEvent,
-                      specificDate: specificDate,
-                    ),
+            if (!panelOnly)
+              Expanded(
+                flex: 3,
+                child: CalendarMainPanel(
+                  state: state,
+                  onCreateEvent: ({existingEvent, specificDate}) =>
+                      _showCreateEventDialog(
+                        context,
+                        state,
+                        existingEvent: existingEvent,
+                        specificDate: specificDate,
+                      ),
+                ),
               ),
-            ),
             if (_isSidebarVisible) ...[
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
+              if (!panelOnly)
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               Expanded(
                 flex: 2,
                 child: Padding(
@@ -597,9 +648,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
   void _syncSidebarVisibilityForWidth(
     bool hasRoomForSideBySide, {
     required bool isMobile,
+    required bool isShortStacked,
   }) {
     final previousHasRoomForSideBySide = _lastHasRoomForSideBySide;
     _lastHasRoomForSideBySide = hasRoomForSideBySide;
+    final wasShortStacked = _lastShortStacked;
+    _lastShortStacked = isShortStacked;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -609,6 +663,18 @@ class CalendarWidgetState extends State<CalendarWidget> {
       // ה-auto-hide המיועד לטווח ה-medium (600-840) שבו חלונית הצד הופכת
       // ל-overlay.
       if (isMobile) {
+        // גובה נמוך: החלונית מוסתרת כברירת מחדל והמשתמש מציג אותה בכפתור. עם
+        // הגדלת הגובה היא חוזרת (אלא אם המשתמש סגר אותה בעצמו).
+        if (isShortStacked) {
+          if (wasShortStacked != true &&
+              (_isSidebarVisible || !_isSidebarAutoHiddenForNarrow)) {
+            setState(() {
+              _isSidebarVisible = false;
+              _isSidebarAutoHiddenForNarrow = !_isSidebarExplicitlyClosed;
+            });
+          }
+          return;
+        }
         if (!_isSidebarVisible &&
             !_isSidebarExplicitlyClosed &&
             (_isSidebarAutoHiddenForNarrow ||
@@ -787,7 +853,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
     ).then((count) {
       _isPrintDialogOpen = false;
       if (count == null || !context.mounted) return;
-      showDialog(
+      showDialogUntilTornDown(
         context: context,
         barrierDismissible: false,
         builder: (_) => PrintingScreen(

@@ -2275,7 +2275,7 @@ Future<void> main() async {
     );
 
     testWidgets(
-      'Enter על כפתור בתוך השדה מגיש פעם אחת — הדף שמתחת לדיאלוג נשאר',
+      'Enter על כפתור הנקה מפעיל אותו ואינו מגיש חיפוש (DD-08)',
       (WidgetTester tester) async {
         await openEditDialog(tester);
         await tester.enterText(queryField, 'חכמה בינה');
@@ -2287,6 +2287,24 @@ Future<void> main() async {
         );
         Focus.of(tester.element(clearButton)).requestFocus();
         await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(popCounter.pops, 0, reason: 'Enter על "נקה" אינו מגיש חיפוש');
+        expect(find.byType(SearchDialog), findsOneWidget);
+        expect(tester.widget<TextField>(queryField).controller!.text, isEmpty);
+        expect(editedTab.queryController.text, 'חכמה');
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
+      'Enter בשדה השאילתה מגיש פעם אחת — הדף שמתחת לדיאלוג נשאר',
+      (WidgetTester tester) async {
+        await openEditDialog(tester);
+        await tester.enterText(queryField, 'חכמה בינה');
+        await tester.pumpAndSettle();
+
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pumpAndSettle();
 

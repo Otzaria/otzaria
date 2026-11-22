@@ -38,6 +38,16 @@ void main() {
       }
     });
 
+    test('אירוע מצב מסך מלא מפורסם, כהרשאת בסיס', () {
+      final spec =
+          jsonDecode(specFile.readAsStringSync()) as Map<String, dynamic>;
+      expect(spec['events'], contains('ui.fullscreenChanged'));
+      expect(
+        spec['baselinePermissions'],
+        contains('events.subscribe:ui.fullscreenChanged'),
+      );
+    });
+
     test('מעודכן מול קבועי האפליקציה', () {
       final result = generatePluginSpec(root, check: true);
       expect(
@@ -67,6 +77,7 @@ void main() {
         'settings',
         'manifest',
         'versions',
+        'designRules',
       ]) {
         expect(spec.containsKey(key), isTrue, reason: 'שדה חסר: $key');
       }

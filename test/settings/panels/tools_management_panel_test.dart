@@ -1078,6 +1078,8 @@ void main() {
       // p1 (index 0) dragged to p2 (index 1) → p1 inserted after p2
       expect(events.single.orderedPluginIds, orderedEquals(['p2', 'p1']));
     },
+    // גרירה מיידית היא התנהגות הדסקטופ; בטלפון וטאבלט הגרירה אחרי לחיצה ארוכה.
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
 
   testWidgets(
@@ -1168,6 +1170,55 @@ void main() {
       expect(events, hasLength(1));
       expect(events.single.orderedPluginIds, orderedEquals(['p2', 'p1']));
     },
+    // גרירה מיידית היא התנהגות הדסקטופ; בטלפון וטאבלט הגרירה אחרי לחיצה ארוכה.
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+
+  testWidgets(
+    'on a phone a plugin row is dragged to reorder only after a long press',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final pluginBloc = _FakePluginSystemBloc([
+        _plugin(id: 'p1', name: 'תוסף-A'),
+        _plugin(id: 'p2', name: 'תוסף-B'),
+      ]);
+      await tester.pumpWidget(
+        _wrap(settingsBloc: _FakeSettingsBloc(), pluginBloc: pluginBloc),
+      );
+      await tester.pumpAndSettle();
+
+      final srcCenter = tester.getCenter(find.text('תוסף-A'));
+      final dstCenter = tester.getCenter(find.text('תוסף-B'));
+      final delta = Offset(0, dstCenter.dy - srcCenter.dy);
+
+      // גרירה מיידית (בלי החזקה) לא מסדרת מחדש: היא שמורה לגלילה.
+      await tester.timedDrag(
+        find.text('תוסף-A'),
+        delta,
+        const Duration(milliseconds: 200),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        pluginBloc.dispatched.whereType<ReorderPluginsRequested>(),
+        isEmpty,
+      );
+
+      final gesture = await tester.startGesture(srcCenter);
+      await tester.pump(const Duration(milliseconds: 700));
+      await gesture.moveBy(delta);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final events = pluginBloc.dispatched
+          .whereType<ReorderPluginsRequested>()
+          .toList();
+      expect(events, hasLength(1));
+      expect(events.single.orderedPluginIds, orderedEquals(['p2', 'p1']));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
   testWidgets(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/input/input_modality.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/diagnostics/app_context_snapshot.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
@@ -139,6 +140,13 @@ class App extends StatelessWidget {
                   // גלילה אוטומטית בלחיצת גלגל העכבר — עטיפה אחת לכל האפליקציה,
                   // מתחת למסגרת החלון כדי שכפתורי המסגרת יישארו לחיצים.
                   content = MiddleClickAutoScroll(child: content);
+
+                  // אנדרואיד/iOS: עכבר שהופיע אחרון מחזיר את הכפתורים למידות מחשב,
+                  // ואצבע או עט מחזירים למגע. בשאר הפלטפורמות אין שינוי.
+                  content = InputModalityScope(
+                    adaptTheme: true,
+                    child: content,
+                  );
 
                   content = MacMenuBar(child: content);
                   content = FrameStatsOverlay(

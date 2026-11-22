@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
+import 'package:otzaria/plugins/utils/plugin_theme_changed_payload.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
@@ -57,8 +59,80 @@ void main() {
           'panel': hex(expected.panelBackground),
           'card': hex(expected.card),
           'topBar': hex(expected.topBarBackground),
+          'regionBorder': null,
+          'warning': hex(expected.warning),
+          'onWarning': hex(expected.onWarning),
+          'warningContainer': hex(expected.warningContainer),
+          'onWarningContainer': hex(expected.onWarningContainer),
         });
       }
+    });
+
+    test('צבעי האזהרה של האפליקציה נשלחים, בכל ערכה ובכל מצב', () {
+      for (final seed in [
+        AppSeedColors.defaultLight,
+        AppSeedColors.white,
+        AppSeedColors.parchment,
+        Colors.blue,
+      ]) {
+        for (final brightness in Brightness.values) {
+          final payload = buildThemeChangedPayload(
+            seed: seed,
+            brightness: brightness,
+            density: AppDensity.regular,
+          );
+          final expected = AppSurfaceColors.fromScheme(
+            AppThemeData.createColorScheme(seed, brightness),
+            variant: AppThemeVariant.ofSeed(seed),
+          );
+          final surfaces = payload['surfaces'] as Map;
+          expect(surfaces['warning'], hex(expected.warning));
+          expect(surfaces['onWarning'], hex(expected.onWarning));
+          expect(surfaces['warningContainer'], hex(expected.warningContainer));
+          expect(
+            surfaces['onWarningContainer'],
+            hex(expected.onWarningContainer),
+          );
+        }
+      }
+    });
+
+    test('קו האזורים: רק ב"לבן" בבהיר, ובאותו צבע שהאפליקציה מציירת', () {
+      Object? regionBorder(Color seed, Brightness brightness) =>
+          (buildThemeChangedPayload(
+                seed: seed,
+                brightness: brightness,
+                density: AppDensity.regular,
+              )['surfaces']
+              as Map)['regionBorder'];
+
+      final white = AppThemeData.createColorScheme(
+        AppSeedColors.white,
+        Brightness.light,
+      );
+      expect(
+        regionBorder(AppSeedColors.white, Brightness.light),
+        hex(
+          AppSurfaceColors.fromScheme(
+            white,
+            variant: AppThemeVariant.white,
+          ).regionBorder!,
+        ),
+      );
+      expect(regionBorder(AppSeedColors.white, Brightness.dark), isNull);
+      expect(regionBorder(AppSeedColors.parchment, Brightness.light), isNull);
+      expect(regionBorder(Colors.blue, Brightness.light), isNull);
+    });
+
+    test('בלי ערכה מפורשת קו האזורים חסר (ערכה רגילה)', () {
+      final scheme = AppThemeData.createColorScheme(
+        AppSeedColors.white,
+        Brightness.light,
+      );
+      expect(
+        (_payload(scheme, isDark: false)['surfaces'] as Map)['regionBorder'],
+        isNull,
+      );
     });
 
     test('משטחים מפורשים גוברים על החישוב מה-scheme', () {

@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// מה לעשות בהערה שנסגרת עם שינויים שלא נשמרו.
 enum NoteDraftDecision { cancel, discard, saveDraft }
 
 /// שאלת הסגירה המשותפת לעורך ההערות בדיאלוג ולעורך בחלונית הצד (issue #1303).
 Future<NoteDraftDecision?> showNoteDraftDecisionDialog(BuildContext context) {
-  return showDialog<NoteDraftDecision>(
+  return showDialogUntilTornDown<NoteDraftDecision>(
     context: context,
     builder: (context) => AppDialogFrame(
       // שלוש פעולות לא נכנסות בשורה אחת ברוחב small.

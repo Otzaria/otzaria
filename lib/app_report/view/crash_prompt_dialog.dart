@@ -25,6 +25,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// מציג את ההצעה לדווח על קריסה של ההפעלה הקודמת.
 Future<AppReportDeliveryResult?> showCrashPromptDialog(
@@ -33,7 +34,7 @@ Future<AppReportDeliveryResult?> showCrashPromptDialog(
   AppReportBloc Function()? createBloc,
   Future<void> Function(AppCrashReportMode mode)? saveMode,
 }) {
-  return showDialog<AppReportDeliveryResult>(
+  return showDialogUntilTornDown<AppReportDeliveryResult>(
     context: context,
     barrierDismissible: false,
     builder: reportDialogBuilder(

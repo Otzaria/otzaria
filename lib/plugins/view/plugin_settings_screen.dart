@@ -37,7 +37,7 @@ Future<bool> showDeletePluginDialog(
   }
   final confirmed = await showWarningDialog(
     context: context,
-    title: 'מחיקת תוסף סופית',
+    title: 'למחוק את התוסף סופית?',
     content: 'האם אתה בטוח שברצונך למחוק את התוסף "${plugin.name}"?',
     subtitle:
         'המחיקה תכלול את כל נתוני התוסף, המטמון והפעולות שלו, '
@@ -85,7 +85,7 @@ Future<bool?> showPluginSettingsDialog(
   BuildContext context,
   InstalledPlugin plugin,
 ) {
-  return showDialog<bool>(
+  return showDialogUntilTornDown<bool>(
     context: context,
     builder: settingsDialogBuilder(
       context,
@@ -103,21 +103,10 @@ class PluginDevBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: cs.tertiary,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Text(
-        'DEV',
-        style: TextStyle(
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
-          color: cs.onTertiary,
-        ),
-      ),
+    return const MetaChip(
+      label: 'DEV',
+      tone: MetaChipTone.tertiary,
+      size: MetaChipSize.small,
     );
   }
 }
@@ -223,6 +212,9 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         return AppDialogFrame(
           icon: FluentIcons.shield_keyhole_24_regular,
           title: 'ניהול הרשאות: ${currentPlugin.name}',
+          // שם תוסף ארוך בהגדלת טקסט היה דוחף את הגוף מחוץ לחלון; השם המלא
+          // נשאר ברמז ובראש הגוף (_PluginIdentity).
+          titleMaxLines: 2,
           size: AppDialogSize.medium,
           child: SingleChildScrollView(
             child: Column(
@@ -435,8 +427,8 @@ class _PluginIdentity extends StatelessWidget {
         ),
         const SizedBox(height: AppTokens.spaceSM),
         Wrap(
-          spacing: AppTokens.spaceSM - 2,
-          runSpacing: AppTokens.spaceSM - 2,
+          spacing: AppTokens.spaceSM,
+          runSpacing: AppTokens.spaceSM,
           children: [
             MetaChip(
               icon: plugin.enabled

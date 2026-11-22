@@ -814,6 +814,47 @@ void main() {
     }
   });
 
+  group('ui.fullscreenChanged', () {
+    const pluginId = 'fullscreen-event.test';
+    const topic = 'ui.fullscreenChanged';
+
+    setUp(() {
+      _d.repositoryForTesting = _FakeRegistryRepo(
+        enabled: true,
+        permission: true,
+      );
+      _d.invalidatePlugin(pluginId);
+    });
+
+    tearDown(() {
+      for (final id in ['one', 'two']) {
+        _d.unregisterController(pluginId, instanceId: id);
+      }
+      _d.resetVisibilityForTesting();
+      _d.repositoryForTesting = PluginRegistryRepository();
+    });
+
+    test('מגיע רק לתוסף שמוצג בחלון שמצבו השתנה', () async {
+      final one = _LifecycleFakeController();
+      final two = _LifecycleFakeController();
+      _d.registerController(pluginId, one, instanceId: 'one', viewId: 7);
+      _d.registerController(pluginId, two, instanceId: 'two', viewId: 8);
+
+      await _d.dispatchEvent(topic, {'fullscreen': true}, viewId: 7);
+
+      expect(one.jsEvents.single, contains(topic));
+      expect(one.jsEvents.single, contains('"fullscreen":true'));
+      expect(two.jsEvents, isEmpty);
+    });
+
+    test('הוא אירוע מצב: מושהה מקבל רק את האחרון', () {
+      expect(
+        PluginRuntimeDispatcher.queueKeyFor(topic, {'fullscreen': true}),
+        topic,
+      );
+    });
+  });
+
   group('event routing policy', () {
     const pluginId = 'routing.test.plugin';
 

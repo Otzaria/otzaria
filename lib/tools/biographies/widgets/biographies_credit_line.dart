@@ -3,9 +3,11 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/dialogs/details_info_section.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// The author credit the license of the biographies requires, always visible
 /// under the list, with a link to the sources and their licenses.
@@ -15,7 +17,7 @@ class BiographiesCreditLine extends StatelessWidget {
   const BiographiesCreditLine({super.key, required this.bundle});
 
   void _showCredits(BuildContext context) {
-    showDialog<void>(
+    showDialogUntilTornDown<void>(
       context: context,
       builder: (_) => AppDialog.singleAction(
         title: 'מקורות וזכויות',
@@ -67,11 +69,9 @@ class BiographiesCreditLine extends StatelessWidget {
                   const SizedBox(width: AppTokens.spaceXS),
                   Text(
                     'מקורות וזכויות',
-                    style: TextStyle(
-                      fontSize: AppTokens.fontSM,
-                      color: linkColor,
-                      decoration: TextDecoration.underline,
-                      decorationColor: linkColor,
+                    style: AppInlineLink.styleOf(
+                      context,
+                      const TextStyle(fontSize: AppTokens.fontSM),
                     ),
                   ),
                 ],
@@ -167,7 +167,7 @@ class _CreditTile extends StatelessWidget {
     final licenseUrl = credit.licenseUrl;
     final license = credit.license;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

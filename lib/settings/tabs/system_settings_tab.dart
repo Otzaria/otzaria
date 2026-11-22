@@ -367,6 +367,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   BackupStatus? _backupStatus;
   BackupOverview? _backupOverview;
   bool _isRunningMaintenance = false;
+  bool _isCreatingBackup = false;
 
   // ── גרסאות ────────────────────────────────────────────────────────────────
   String? _appVersion;
@@ -912,6 +913,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   }
 
   Future<void> _createBackup() async {
+    // הכפתור מושבת בזמן ההרצה (isLoading), אבל קיצור או לחיצה כפולה מהירה
+    // יכולים להגיע לפני הבנייה מחדש; שתי יצירות במקביל כותבות לאותו קובץ.
+    if (_isCreatingBackup) return;
+    setState(() => _isCreatingBackup = true);
     try {
       final result = await BackupService.createBackup(
         includeSettings: _shouldInclude(SettingsRepository.keyBackupSettings),
@@ -969,6 +974,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     } catch (e) {
       if (!mounted) return;
       UiSnack.showError(SettingsMessages.backupCreateError(e));
+    } finally {
+      if (mounted) setState(() => _isCreatingBackup = false);
     }
   }
 
@@ -1171,7 +1178,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     BackupImportMode mode = BackupImportMode.replace,
   }) async {
     try {
-      final result = await BackupService.restoreFromBackup(
+      final result = await BackupRestoreFlow.restoreWithProgress(
+        context,
         filePath,
         mode: mode,
       );
@@ -1251,7 +1259,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     }
     if (!context.mounted) return;
     final settingsBloc = context.read<SettingsBloc>();
-    final result = await showDialog<bool>(
+    final result = await showDialogUntilTornDown<bool>(
       context: context,
       builder: settingsDialogBuilder(
         context,
@@ -1330,6 +1338,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             ActionButton.recommended(
               icon: FluentIcons.arrow_upload_24_regular,
               text: context.settingsText('צור כעת'),
+              isLoading: _isCreatingBackup,
               onPressed: _createBackup,
             ),
             AppDropdownField<String>(
@@ -1705,7 +1714,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       changelog = notFoundText;
     }
     if (!context.mounted) return;
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: settingsDialogBuilder(
         context,

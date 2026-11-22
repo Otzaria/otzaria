@@ -7,6 +7,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -16,6 +17,34 @@ class BackupRestoreFlow {
   @visibleForTesting
   static Future<void> Function(BuildContext context, String filePath)?
   debugRestoreOverride;
+
+  @visibleForTesting
+  static Future<BackupRestoreResult> Function(
+    String filePath,
+    BackupImportMode mode,
+  )?
+  debugRestoreFromBackup;
+
+  /// מריץ את [BackupService.restoreFromBackup] מאחורי דיאלוג התקדמות חוסם.
+  /// השחזור קורא ומחליף את כל הנתונים וגומר אחרי שניות; בלי חסימה אפשר היה
+  /// ללחוץ שוב או לסגור את התוכנה באמצע, והחלון נראה קפוא.
+  static Future<BackupRestoreResult> restoreWithProgress(
+    BuildContext context,
+    String filePath, {
+    BackupImportMode mode = BackupImportMode.replace,
+  }) => runWithBlockingProgress(
+    context: context,
+    title: context.settingsText('שחזור הנתונים'),
+    message: context.settingsText(
+      'ההחלפה מתבצעת כעת. אין לסגור את התוכנה עד לסיום.',
+    ),
+    task: () => (debugRestoreFromBackup ?? _restoreFromBackup)(filePath, mode),
+  );
+
+  static Future<BackupRestoreResult> _restoreFromBackup(
+    String filePath,
+    BackupImportMode mode,
+  ) => BackupService.restoreFromBackup(filePath, mode: mode);
 
   /// "שחזור מהגיבוי האחרון" — הגיבוי החדש ביותר בתיקיית הגיבוי.
   static Future<void> restoreLatest(BuildContext context) async {
@@ -43,7 +72,7 @@ class BackupRestoreFlow {
     final override = debugRestoreOverride;
     if (override != null) return override(context, filePath);
     try {
-      final result = await BackupService.restoreFromBackup(filePath);
+      final result = await restoreWithProgress(context, filePath);
       if (!context.mounted) return;
       await showResultAndRestart(context, result);
     } catch (e) {

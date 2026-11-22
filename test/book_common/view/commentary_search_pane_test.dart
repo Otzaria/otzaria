@@ -27,6 +27,14 @@ class _SettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// מחליף את `pumpAndSettle`: בזמן טעינה מוצג גלגל מסתובב (החלטה 62) שלעולם
+/// לא "נרגע", ו-pumpAndSettle נגמר ב-timeout. מקדמים זמן קבוע (שתי שניות).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
   setUpAll(() => Settings.init(cacheProvider: MemorySettingsCache()));
@@ -256,9 +264,9 @@ Future<void> main() async {
       ),
     );
     await tester.pumpWidget(wrap(0));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.pumpWidget(wrap(1));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     for (final source in [totals[0], currents[0], snippets[0]]) {
       expect(source.isListening, isFalse);

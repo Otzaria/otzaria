@@ -9,6 +9,7 @@ import 'package:otzaria/plugins/view/plugin_settings_screen.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 class PluginDevErrorView extends StatelessWidget {
   final InstalledPlugin plugin;
@@ -66,7 +67,7 @@ class PluginDevErrorView extends StatelessWidget {
         ActionButton.neutral(
           text: 'הגדרות תוסף',
           onPressed: () async {
-            final result = await showDialog<bool>(
+            final result = await showDialogUntilTornDown<bool>(
               context: context,
               builder: (_) => BlocProvider<PluginSystemBloc>.value(
                 value: context.read<PluginSystemBloc>(),

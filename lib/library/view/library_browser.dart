@@ -61,6 +61,7 @@ import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -276,14 +277,15 @@ calculateLibraryPreviewPaneWidths({
   required String viewMode,
   double? paneWidthOverride,
 }) {
-  const preferredMinPaneWidth = 280.0;
-  const previewWidthFactorGrid = 0.35;
-  const previewWidthFactorList = 0.60;
-  final minPaneWidth = min(preferredMinPaneWidth, max(0.0, availableWidth));
+  const spec = SidePaneSpecs.libraryPreview;
+  final minPaneWidth = min(spec.minPaneWidth, max(0.0, availableWidth));
   final previewWidth = viewMode == 'list'
-      ? availableWidth * previewWidthFactorList
-      : availableWidth * previewWidthFactorGrid;
-  final maxPaneWidth = max(minPaneWidth, availableWidth - 230);
+      ? availableWidth * spec.defaultPaneFractionList!
+      : availableWidth * spec.defaultPaneFraction!;
+  final maxPaneWidth = max(
+    minPaneWidth,
+    availableWidth - spec.dragLeavesForMain!,
+  );
   final paneWidth = (paneWidthOverride ?? previewWidth)
       .clamp(minPaneWidth, maxPaneWidth)
       .toDouble();
@@ -349,6 +351,13 @@ String pluginCategoryPath(Category? category, {required Category? root}) =>
     category == null || identical(category, root)
     ? ''
     : category.displayPath.substring(1).replaceAll('/', ', ');
+
+/// "נסה שוב" במסכי הכישלון של הספרייה (שגיאת טעינה, ואין נתוני ספרייה).
+Widget _retryLoadAction(BuildContext context) => ActionButton.recommended(
+  text: context.settingsText('נסה שוב'),
+  icon: FluentIcons.arrow_clockwise_24_regular,
+  onPressed: () => context.read<LibraryBloc>().add(const RefreshLibrary()),
+);
 
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
@@ -634,12 +643,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 return OtzariaErrorState(
                   title: CommonMessages.loadFailed,
                   details: state.error,
+                  actions: [_retryLoadAction(context)],
                 );
               }
               if (state.library == null && !state.isLoading) {
-                return const OtzariaErrorState(
+                return OtzariaErrorState(
                   title: CommonMessages.noLibraryData,
                   icon: OtzariaIcons.library_exclamation_24_regular,
+                  actions: [_retryLoadAction(context)],
                 );
               }
 
@@ -1030,62 +1041,65 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               _handleSearchFieldKey(event, state, context),
           child: KeyedSubtree(
             key: _tourLibrarySearchKey,
-            child: OtzariaSearchField(
-              icon: OtzariaIcons.search_in_library_24_regular,
-              controller: focusRepository.librarySearchController,
-              focusNode: focusRepository.librarySearchFocusNode,
-              autofocus: shouldAutofocusLibrarySearch(defaultTargetPlatform),
-              slim: isCompact,
-              hintText: context.settingsText(
-                'איתור ספר או מחבר ב{category}',
-                args: {'category': state.currentCategory?.title ?? ''},
-              ),
-              maxWidth: isCompact ? 500 : 400,
-              extraActions: PluginSearchFieldExtraActions(
-                PluginSearchField.library,
-                invocationContext: () {
-                  final current = context.read<LibraryBloc>().state;
-                  return {
-                    PluginSearchFieldContext.categoryPathKey:
-                        pluginCategoryPath(
-                          current.currentCategory,
-                          root: current.library,
-                        ),
-                  };
+            child: AppTopBarField(
+              child: OtzariaSearchField(
+                icon: OtzariaIcons.search_in_library_24_regular,
+                controller: focusRepository.librarySearchController,
+                focusNode: focusRepository.librarySearchFocusNode,
+                autofocus: shouldAutofocusLibrarySearch(defaultTargetPlatform),
+                slim: isCompact,
+                hintText: context.settingsText(
+                  'איתור ספר או מחבר ב{category}',
+                  args: {'category': state.currentCategory?.title ?? ''},
+                ),
+                compactHintText: context.settingsText('איתור ספר או מחבר'),
+                maxWidth: isCompact ? 500 : 400,
+                extraActions: PluginSearchFieldExtraActions(
+                  PluginSearchField.library,
+                  invocationContext: () {
+                    final current = context.read<LibraryBloc>().state;
+                    return {
+                      PluginSearchFieldContext.categoryPathKey:
+                          pluginCategoryPath(
+                            current.currentCategory,
+                            root: current.library,
+                          ),
+                    };
+                  },
+                ),
+                onChanged: (value) {
+                  context.read<LibraryBloc>().add(UpdateSearchQuery(value));
+                  context.read<LibraryBloc>().add(const SelectTopics([]));
+                  _scheduleSearchWithSettings(context, settingsState);
+                },
+                onSubmitted: (value) async {
+                  if (await _tryHandleDeepLink(context, value)) return;
+                  if (!context.mounted) return;
+                  if (_selection.isNotEmpty) {
+                    await _openSelectedBooks();
+                    return;
+                  }
+                  // Enter על תוצאה מסומנת פותח אותה; החיפוש כבר רץ בהקלדה (#4468).
+                  final marked = _markedSearchResult(
+                    context.read<LibraryBloc>().state,
+                    settingsState,
+                  );
+                  if (marked != null) {
+                    _openBookInReader(marked, marked is PdfBook ? 1 : 0);
+                    return;
+                  }
+                  context.read<LibraryBloc>().add(const SelectTopics([]));
+                  _scheduleSearchWithSettings(context, settingsState);
+                },
+                onClear: () {
+                  _update(
+                    context,
+                    state,
+                    settingsState,
+                    restoreSearchFocus: true,
+                  );
                 },
               ),
-              onChanged: (value) {
-                context.read<LibraryBloc>().add(UpdateSearchQuery(value));
-                context.read<LibraryBloc>().add(const SelectTopics([]));
-                _scheduleSearchWithSettings(context, settingsState);
-              },
-              onSubmitted: (value) async {
-                if (await _tryHandleDeepLink(context, value)) return;
-                if (!context.mounted) return;
-                if (_selection.isNotEmpty) {
-                  await _openSelectedBooks();
-                  return;
-                }
-                // Enter על תוצאה מסומנת פותח אותה; החיפוש כבר רץ בהקלדה (#4468).
-                final marked = _markedSearchResult(
-                  context.read<LibraryBloc>().state,
-                  settingsState,
-                );
-                if (marked != null) {
-                  _openBookInReader(marked, marked is PdfBook ? 1 : 0);
-                  return;
-                }
-                context.read<LibraryBloc>().add(const SelectTopics([]));
-                _scheduleSearchWithSettings(context, settingsState);
-              },
-              onClear: () {
-                _update(
-                  context,
-                  state,
-                  settingsState,
-                  restoreSearchFocus: true,
-                );
-              },
             ),
           ),
         );
@@ -1346,7 +1360,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
           paneContent: _buildPreviewPane(settingsState),
           paneWidth: previewPaneWidths.paneWidth,
-          minMainContentWidth: 200,
+          minMainContentWidth: SidePaneSpecs.libraryPreview.minMainContentWidth,
           onClose: () => _hidePreviewPanel(settingsState),
           onOpen: () => _showPreviewPanel(settingsState),
           paneColor: Theme.of(ctx).colorScheme.surface,
@@ -1415,16 +1429,20 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         child: Center(
           child: Container(
             width: 200,
-            height: 144,
+            // גובה מינימלי ולא קבוע: בהגדלת טקסט ההודעה נשברת ליותר שורות.
+            constraints: const BoxConstraints(minHeight: 144),
+            padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceMD),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: AppTokens.borderRadiusAll,
               boxShadow: AppShadows.floating(Theme.of(context).colorScheme),
             ),
-            child: LoadingIndicator(
-              strokeWidth: 3,
-              icon: OtzariaIcons.bookshelf_24_regular,
-              message: context.settingsText('טוען את הספרייה'),
+            child: IntrinsicHeight(
+              child: LoadingIndicator(
+                strokeWidth: 3,
+                icon: OtzariaIcons.bookshelf_24_regular,
+                message: context.settingsText('טוען את הספרייה'),
+              ),
             ),
           ),
         ),
@@ -1725,7 +1743,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final tab = searchQuery != null && searchQuery.isNotEmpty
         ? SearchingTab.newSearch('חיפוש', searchQuery)
         : null;
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (context) => SearchDialog(existingTab: tab),
     );
@@ -2583,7 +2601,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               child: LibraryOverflowTooltipText(
                 text: category.title,
                 maxLines: 1,
-                textAlign: TextAlign.right,
+                textAlign: TextAlign.start,
                 style: titleStyle,
               ),
             ),
@@ -2724,7 +2742,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     LibraryOverflowTooltipText(
                       text: title,
                       maxLines: 1,
-                      textAlign: TextAlign.right,
+                      textAlign: TextAlign.start,
                       style: titleStyle,
                     ),
                     if (subtitle != null && subtitle.isNotEmpty)
@@ -2738,7 +2756,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         LibraryOverflowTooltipText(
                           text: subtitle,
                           maxLines: 1,
-                          textAlign: TextAlign.right,
+                          textAlign: TextAlign.start,
                           style: subtitleStyle,
                         ),
                     if (pathCategories.isNotEmpty)
@@ -2754,7 +2772,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       LibraryOverflowTooltipText(
                         text: pathLine,
                         maxLines: 1,
-                        textAlign: TextAlign.right,
+                        textAlign: TextAlign.start,
                         style: subtitleStyle?.copyWith(color: cs.secondary),
                       ),
                   ],
@@ -3344,7 +3362,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   void _openOtzarBook(ExternalLibraryBook book) {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (ctx) => OtzarBookDialog(book: book),
     );

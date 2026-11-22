@@ -5,6 +5,7 @@ import 'package:otzaria/utils/file/zip_extractor_service.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// ווידג'ט לטיפול בהצגת דיאלוג התקדמות חילוץ ZIP
 class ZipExtractionProgressDialog {
@@ -24,7 +25,7 @@ class ZipExtractionProgressDialog {
     final messageNotifier = ValueNotifier<String>('בודק תיקייה...');
     final isExtractingNotifier = ValueNotifier<bool>(false);
 
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _ZipProgressDialog(
@@ -50,10 +51,10 @@ class ZipExtractionProgressDialog {
           }
 
           // שאלת המשתמש
-          final shouldDelete = await showDialog<bool>(
+          final shouldDelete = await showDialogUntilTornDown<bool>(
             context: context,
             builder: (dialogContext) => const AppDialog.twoActions(
-              title: 'מחיקת קובץ דחוס',
+              title: 'למחוק את הקובץ הדחוס?',
               content:
                   'האם למחוק את קובץ ה-ZIP המקורי?\n\n'
                   'הקובץ הדחוס אינו נצרך עבור פעילות התוכנה והוא רק תופס מקום.\n'
@@ -65,7 +66,7 @@ class ZipExtractionProgressDialog {
 
           // פתיחה מחדש של דיאלוג ההתקדמות
           if (context.mounted) {
-            showDialog(
+            showDialogUntilTornDown(
               context: context,
               barrierDismissible: false,
               builder: (dialogContext) => _ZipProgressDialog(

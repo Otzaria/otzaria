@@ -49,14 +49,22 @@ class ShortcutHelper {
   // ─── modifiers ────────────────────────────────────────────────────────────────
   static const _modifiers = {'ctrl', 'control', 'shift', 'alt', 'meta'};
 
-  /// האם הפלטפורמה הנוכחית היא macOS — מחושב פעם אחת לבדיקות מהירות.
-  /// ב-Web מחזיר false (אין `Platform.isMacOS`).
-  static bool get _isMac => !kIsWeb && Platform.isMacOS;
+  /// האם מערכת ההפעלה נוהגת במקלדת בסגנון Mac: macOS, וגם iOS/iPadOS —
+  /// באייפד עם מקלדת חיצונית Cmd הוא המקש הרגיל לקיצורים.
+  /// [operatingSystem] הוא `Platform.operatingSystem`.
+  @visibleForTesting
+  static bool isMacLikeOperatingSystem(String operatingSystem) =>
+      operatingSystem == 'macos' || operatingSystem == 'ios';
+
+  /// האם הפלטפורמה הנוכחית היא macOS או iOS — מחושב פעם אחת לבדיקות מהירות.
+  /// ב-Web מחזיר false (אין `Platform.operatingSystem`).
+  static bool get _isMac =>
+      !kIsWeb && isMacLikeOperatingSystem(Platform.operatingSystem);
 
   /// במקלדת Mac המוסכמה היא Command, לכן ה-token הקנוני `ctrl` בקיצור
   /// נבדק/מוצג כ-Meta. שאר הפלטפורמות משתמשות ב-Control כרגיל.
   ///
-  /// `null` = השתמש בערך המחושב מ-[Platform.isMacOS] (ברירת המחדל בייצור).
+  /// `null` = השתמש בערך המחושב מהפלטפורמה — macOS או iOS (ברירת המחדל בייצור).
   /// `true` / `false` = override בבדיקות יחידה כדי לבדוק שני המסלולים בלי
   /// תלות בפלטפורמת הריצה.
   @visibleForTesting
@@ -66,11 +74,29 @@ class ShortcutHelper {
   @visibleForTesting
   static bool? isWindowsForTesting;
 
+  /// override לבדיקת התווית של מקש meta: `SUPER` בלינוקס, `WIN` בשאר.
+  @visibleForTesting
+  static bool? isLinuxForTesting;
+
+  static bool get _isLinux =>
+      isLinuxForTesting ?? (!kIsWeb && Platform.isLinux);
+
   static bool get _treatCtrlAsMeta => isMacForTesting ?? _isMac;
 
   /// האם ה-token הקנוני `ctrl` מתנהג כ-Command — כלומר הקיצורים
   /// נפתרים לפי מוסכמת מקלדת Mac.
   static bool get usesMacModifiers => _treatCtrlAsMeta;
+
+  /// האם לחוץ Ctrl או (במקלדת בסגנון Mac) Cmd — בדיוק אחד מהם, לא שניהם.
+  /// לקיצורים שנשארו גם עם Ctrl פיזי: Ctrl+1..9 וגלגלת עכבר. מחוץ ל-Mac מקש
+  /// meta הוא Win/Super, ולכן אינו נחשב; Shift ו-Alt נבדקים אצל הקורא.
+  static bool get isCtrlOrMacCmdOnly {
+    final keyboard = HardwareKeyboard.instance;
+    return _treatCtrlAsMeta
+        ? keyboard.isControlPressed != keyboard.isMetaPressed
+        : keyboard.isControlPressed && !keyboard.isMetaPressed;
+  }
+
   static bool get _treatRightAltAsAltGr =>
       isWindowsForTesting ?? (!kIsWeb && Platform.isWindows);
 
@@ -402,7 +428,7 @@ class ShortcutHelper {
           .replaceAll('ctrl+', 'CTRL + ')
           .replaceAll('shift+', 'SHIFT + ')
           .replaceAll('alt+', 'ALT + ')
-          .replaceAll('meta+', 'WIN + ')
+          .replaceAll('meta+', _isLinux ? 'SUPER + ' : 'WIN + ')
           .toUpperCase();
     }
     final pretty = _prettifyKeyTokens(formatted);

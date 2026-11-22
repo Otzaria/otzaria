@@ -9,13 +9,24 @@ permissions: {}
 
 jobs:
   # automerge מאשר קומיט מסוים: כל דחיפה מסירה אותו, ודחיפה בכוח מסירה גם את run-ci.
+  # ui-baseline ו-goldens-approved מאשרים קבצים מסוימים (הכרעת בעל הפרויקט
+  # 18.11, אפשרות ב): דחיפה מסירה כל אחת מהן רק כשהיא נגעה בקבצים שהתווית מכסה.
+  # תיקון בקובץ אחר לא מבטל את האישור (וה-guards לא מתעוררים עליו: הם בודקים רק
+  # את הקבצים האלה). דחיפה בכוח, או דחיפה שאי אפשר לדעת מה נגעה בה, מסירה הכול.
   # הדחיפה של הבוט (ריבייס לפני מיזוג, automerge.yml) לא מסירה תוויות.
+  #
+  # ui-baseline מכסה את מה ש-ui_baseline_guard.yml בודק ב-diff מול הבסיס: baseline,
+  # config, כללי ה-lint, בדיקותיהם ו-fixtures, וארבעת ה-workflows של ה-guards.
+  # goldens-approved מכסה את test/goldens/. הרשימות (ui_re/gold_re למטה) חייבות
+  # להישאר זהות לבדיקות ב-ui_baseline_guard.yml וב-goldens_guard.yml.
   drop_on_push:
     name: Drop labels on push
     if: >-
       github.event.action == 'synchronize' && github.event.sender.login != 'otzaria-bot[bot]' &&
       (contains(github.event.pull_request.labels.*.name, 'automerge') ||
-       contains(github.event.pull_request.labels.*.name, 'run-ci'))
+       contains(github.event.pull_request.labels.*.name, 'run-ci') ||
+       contains(github.event.pull_request.labels.*.name, 'ui-baseline') ||
+       contains(github.event.pull_request.labels.*.name, 'goldens-approved'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,12 +45,25 @@ jobs:
             echo "Removing $1"
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/$1" > /dev/null || echo "$1 already removed"
           }
+          ui_re='^(tool/ui_lint/(baseline\.json|config\.yaml|rules/|ui_lint\.dart|ast_helpers\.dart)|tool/ui_lint_cli\.dart|test/design_system/(ui_lint_test\.dart|ui_lint_pending_test\.dart|fixtures/)|\.github/workflows/(ui_baseline_guard|goldens_guard|flutter_tests|pr_labels)\.yml$)'
+          gold_re='^test/goldens/'
           drop automerge
           status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq .status) || status=unavailable
-          if [ "$status" = ahead ]; then
-            echo "Regular push; run-ci stays."
+          # הקבצים שהדחיפה שינתה (גם שם קודם של קובץ שהועבר). לא ידוע: מסירים הכול.
+          known=0
+          if [ "$status" = ahead ] && files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" \
+              --jq '.files[] | .filename, (.previous_filename // empty)'); then
+            known=1
+          fi
+          if [ "$known" = 1 ]; then
+            echo "Regular push; run-ci stays. Files changed by the push:"
+            echo "$files"
+            if grep -Eq "$ui_re" <<< "$files"; then drop ui-baseline; else echo "ui-baseline: no covered file changed, kept"; fi
+            if grep -Eq "$gold_re" <<< "$files"; then drop goldens-approved; else echo "goldens-approved: no covered file changed, kept"; fi
           else
-            echo "Force push ($status)."
+            echo "Force push or unknown changes ($status): dropping every approval."
+            drop ui-baseline
+            drop goldens-approved
             drop run-ci
           fi
 

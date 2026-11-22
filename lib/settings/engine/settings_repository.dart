@@ -573,7 +573,7 @@ class SettingsRepository {
       ),
       'commentaryPaneWidth': _settings.getValue<double>(
         keyCommentaryPaneWidth,
-        defaultValue: 400,
+        defaultValue: LayoutConstraints.commentaryPaneDefaultWidth,
       ),
       'calendarType': _settings.getValue<String>(
         keyCalendarType,
@@ -1465,7 +1465,10 @@ class SettingsRepository {
     await _settings.setValue(keySidebarWidth, 300.0);
     await _settings.setValue(keyFacetFilteringWidth, 235.0);
     await _settings.setValue(keyExternalResultsFirst, false);
-    await _settings.setValue(keyCommentaryPaneWidth, 400.0);
+    await _settings.setValue(
+      keyCommentaryPaneWidth,
+      LayoutConstraints.commentaryPaneDefaultWidth,
+    );
     await _settings.setValue(keyCalendarType, 'combined');
     await _settings.setValue(keyCalendarDayTransition, 'sunset');
     await _settings.setValue(keyCalendarTwelveHourClock, false);

@@ -11,13 +11,36 @@ import '../ui_lint.dart';
 /// - `SizedBox(width:/height:)` ו־`SizedBox.square(dimension:)` בלי `child`, עם
 ///   ערך קטן מ־32: זה מרווח. קופסה עם ילד, או גודל של 32 ומעלה, היא מידה של
 ///   רכיב ולא ריווח.
-/// ביטוי מחושב, טוקן ו־`double.infinity` לא נתפסים. ציור תוכן ו־`pw.*` מוחרגים.
+/// - `spacing:`/`runSpacing:` של `Wrap`/`Row`/`Column`/`Flex`, ו־
+///   `mainAxisSpacing:`/`crossAxisSpacing:` של `GridView` ושל
+///   `SliverGridDelegateWith*`. רכיב גאומטריה בעל פרמטר `spacing:` משלו
+///   (`SkeletonLines`) לא נתפס, כי רק הבעלים שברשימה נבדקים.
+/// - ביטוי מחושב על טוקן ריווח או גודל אייקון: `AppTokens.spaceSM + 1`,
+///   `AppTokens.spaceMD - 4`. הערך המחושב יוצא מהסולם ועוקף את בדיקת הליטרל.
+///   כפל (`spaceSM * 2`) הוא מכפלה של הטוקן ולא היסט, ולכן לא נתפס; גופן
+///   מחושב נתפס ב־UIL-017.
+/// ביטוי אחר, טוקן ו־`double.infinity` לא נתפסים. ציור תוכן ו־`pw.*` מוחרגים.
 class SpacingScaleRule extends UiLintRule {
   const SpacingScaleRule();
 
   static const scale = {0, 2, 4, 8, 12, 16, 24, 32};
   static const _insets = {'EdgeInsets', 'EdgeInsetsDirectional'};
   static const _maxGap = 32;
+  static const _spacingOwners = {
+    'Wrap',
+    'Row',
+    'Column',
+    'Flex',
+    'GridView',
+    'SliverGridDelegateWithFixedCrossAxisCount',
+    'SliverGridDelegateWithMaxCrossAxisExtent',
+  };
+  static const _spacingNames = {
+    'spacing',
+    'runSpacing',
+    'mainAxisSpacing',
+    'crossAxisSpacing',
+  };
 
   @override
   String get id => 'UIL-020';
@@ -31,7 +54,8 @@ class SpacingScaleRule extends UiLintRule {
   @override
   String get hint =>
       'AppTokens.space* (2/4/8/12/16/24/32) או טוקן סמנטי; ערך מחוץ לסולם '
-      'עולה לערך הבא: 6→8, 10→12, 14→16 (DESIGN_SYSTEM.md §2.2, DD-03)';
+      'עולה לערך הבא: 6→8, 10→12, 14→16, וגם בלי חישוב על טוקן '
+      '(space + 1) (DESIGN_SYSTEM.md §2.2, DD-03)';
 
   @override
   void check(UiLintFile file) => file.unit.accept(_Visitor(this, file));
@@ -87,6 +111,46 @@ class _Visitor extends RecursiveAstVisitor<void> {
     if (offScale && !isInsideClassExtending(node, const {'CustomPainter'})) {
       file.report(rule, node);
     }
+  }
+
+  static bool _isScaleToken(Expression e) {
+    final x = e.unParenthesized;
+    return x is PrefixedIdentifier &&
+        x.prefix.name == 'AppTokens' &&
+        (x.identifier.name.startsWith('space') ||
+            x.identifier.name.startsWith('icon'));
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    final v = _literal(node.argumentExpression);
+    if (v != null &&
+        SpacingScaleRule._spacingNames.contains(node.name.lexeme) &&
+        _offScale(v)) {
+      final owner = node.parent?.parent;
+      final call = owner == null ? null : asCtorCall(owner);
+      if (call != null &&
+          call.importPrefix == null &&
+          SpacingScaleRule._spacingOwners.contains(call.typeName) &&
+          !isInsideClassExtending(node, const {'CustomPainter'})) {
+        file.report(rule, node);
+      }
+    }
+    super.visitNamedArgument(node);
+  }
+
+  @override
+  void visitBinaryExpression(BinaryExpression node) {
+    final op = node.operator.lexeme;
+    if ((op == '+' || op == '-') &&
+        ((_isScaleToken(node.leftOperand) &&
+                isNumericLiteral(node.rightOperand)) ||
+            (_isScaleToken(node.rightOperand) &&
+                isNumericLiteral(node.leftOperand))) &&
+        !isInsideClassExtending(node, const {'CustomPainter'})) {
+      file.report(rule, node);
+    }
+    super.visitBinaryExpression(node);
   }
 
   @override

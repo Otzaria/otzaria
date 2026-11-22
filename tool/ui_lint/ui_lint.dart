@@ -13,7 +13,8 @@ import 'package:yaml/yaml.dart';
 import 'ast_helpers.dart';
 import 'rules/rules.dart';
 
-export 'rules/rules.dart' show uiLintRules;
+export 'rules/pending_rules.dart' show PendingUiLintRule;
+export 'rules/rules.dart' show uiLintPendingRules, uiLintRules;
 
 const configRelativePath = 'tool/ui_lint/config.yaml';
 const baselineRelativePath = 'tool/ui_lint/baseline.json';
@@ -356,20 +357,27 @@ UiLintResult lintSource(
   return UiLintResult(findings, allows, problems);
 }
 
-/// בודק את כל קובצי ה-Dart תחת `lib/` של [root].
+/// תיקיות המקור שהכלי סורק, יחסית לשורש המאגר: האפליקציה, וחבילת תפריט ההקשר
+/// (הכרעת בעל הפרויקט 18.11, סעיף 54 Q3). חבילה נוספת נכנסת לכאן רק כשהיא
+/// עוברת את הכללים (או מקבלת החרגות נתיב ב־config.yaml).
+const uiLintScanDirs = ['lib', 'packages/otzaria_context_menu/lib'];
+
+/// בודק את כל קובצי ה-Dart תחת [uiLintScanDirs] של [root].
 UiLintResult runUiLint(
   String root, {
   UiLintConfig? config,
   List<UiLintRule> rules = uiLintRules,
 }) {
   final effectiveConfig = config ?? UiLintConfig.load(root);
-  final files =
-      Directory(p.join(root, 'lib'))
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.dart'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+  final files = [
+    // תיקייה שאינה קיימת בשורש (מאגר זמני בבדיקות) מדלגים עליה.
+    for (final dir in uiLintScanDirs)
+      if (Directory(p.join(root, dir)).existsSync())
+        ...Directory(p.join(root, dir))
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart')),
+  ]..sort((a, b) => a.path.compareTo(b.path));
   final findings = <UiLintFinding>[];
   final allows = <UiLintAllow>[];
   final problems = <UiLintProblem>[];
@@ -621,7 +629,7 @@ class BaselineComparison {
 // ── מצב לפי מודול ────────────────────────────────────────────────────────────
 
 /// שורה בטבלת המצב לפי מודול: תיקייה ראשית תחת `lib/` (קובץ שיושב ישירות
-/// ב־`lib/` נספר תחת [rootModule]).
+/// ב־`lib/` נספר תחת [rootModule]); חבילה תחת `packages/` היא מודול בשם שלה.
 class ModuleStatus {
   ModuleStatus(this.module, this.baselineByRule, this.allows);
 
@@ -641,6 +649,7 @@ class ModuleStatus {
 
 String moduleOf(String path) {
   final parts = path.split('/');
+  if (parts.length > 2 && parts.first == 'packages') return parts[1];
   return parts.length > 2 && parts.first == 'lib'
       ? parts[1]
       : ModuleStatus.rootModule;
@@ -695,3 +704,58 @@ String moduleStatusMarkdown(List<ModuleStatus> rows) {
   }
   return buffer.toString();
 }
+
+// ── שער CI ───────────────────────────────────────────────────────────────────
+
+/// כשל אחד של שער ה־CI (`ui_lint_cli --check`).
+class GateFailure {
+  const GateFailure(this.message, {this.path, this.line});
+
+  final String message;
+  final String? path;
+  final int? line;
+}
+
+/// מה מכשיל את `ui_lint_cli --check` ואת `ui_lint_test`: חריגה חדשה בכלל
+/// חוסם או נעול, baseline מת, והערת allow או תקרת `max_allows` פגומות.
+List<GateFailure> gateFailures(
+  UiLintResult result,
+  BaselineComparison comparison,
+  UiLintConfig config,
+) {
+  final rules = {for (final rule in uiLintRules) rule.id: rule};
+  return [
+    for (final finding in comparison.newFindings)
+      if (config.isStrict(finding.rule) ||
+          (rules[finding.rule]?.isBlocking ?? false))
+        GateFailure(
+          '${finding.rule} חריגה חדשה: ${finding.snippet}. '
+          'במקום: ${rules[finding.rule]?.hint}',
+          path: finding.path,
+          line: finding.line,
+        ),
+    for (final MapEntry(:key, :value) in comparison.dead.entries)
+      GateFailure(
+        'baseline מת ($value): $key. להריץ '
+        'dart tool/ui_lint_cli.dart --update-baseline',
+      ),
+    for (final problem in result.problems)
+      GateFailure(problem.message, path: problem.path, line: problem.line),
+  ];
+}
+
+/// החרגות נתיב לפי כלל ב־[config] שלא משתיקות אף ממצא מתוך [findings] (ריצה
+/// בלי החרגות לפי כלל). החרגה כזו מסתירה חריגה עתידית בלי סיבה. [policy] הן
+/// החרגות מדיניות שנשארות בכוונה, בפורמט `UIL-xxx path`.
+List<String> uselessExclusions(
+  UiLintConfig config,
+  Iterable<UiLintFinding> findings, {
+  Set<String> policy = const {},
+}) => [
+  for (final MapEntry(key: rule, value: exclusions)
+      in config.ruleExcludes.entries)
+    for (final exclusion in exclusions)
+      if (!policy.contains('$rule ${exclusion.pattern}') &&
+          !findings.any((f) => f.rule == rule && exclusion.matches(f.path)))
+        '$rule ${exclusion.pattern}',
+];

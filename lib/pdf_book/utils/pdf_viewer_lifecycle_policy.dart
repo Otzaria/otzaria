@@ -28,9 +28,17 @@ bool shouldDropPendingPageTurns<T>({
 }
 
 /// משך דפדוף כשממתינים [pendingTurns] נוספים בתור: 1/(n+1) מהמשך הבודד, כך
-/// שתור של לחיצות מהירות מתקצר ככל שהוא ארוך יותר.
-Duration pdfQueuedPageTurnDuration(Duration single, int pendingTurns) =>
-    Duration(microseconds: single.inMicroseconds ~/ (max(0, pendingTurns) + 1));
+/// שתור של לחיצות מהירות מתקצר ככל שהוא ארוך יותר. כש-[reduced] (המערכת מבקשת
+/// להפחית אנימציות) הדפדוף קופץ ישר ליעד: בקר עם משך אפס מגיע מיד לסוף.
+Duration pdfQueuedPageTurnDuration(
+  Duration single,
+  int pendingTurns, {
+  bool reduced = false,
+}) => reduced
+    ? Duration.zero
+    : Duration(
+        microseconds: single.inMicroseconds ~/ (max(0, pendingTurns) + 1),
+      );
 
 /// קוראת את מספר העמוד רק כשהבקר מחובר.
 /// גישה ל-`pageNumber` בבקר שהתנתק זורקת חריגה.

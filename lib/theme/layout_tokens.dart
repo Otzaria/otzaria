@@ -61,12 +61,22 @@ class LayoutConstraints {
   /// רוחב ברירת המחדל של חלונית צד (DD-28).
   static const double sidePaneWidth = 340.0;
 
-  /// רוחב ברירת המחדל של חלונית צפה (`ContextOverlayPanel`), כמו הגדרות
-  /// המסך (DD-28).
+  /// הרוחב המרבי של שכבת ההשלמה בשמור וזכור. חלונית ההקשר
+  /// (`ContextOverlayPanel`) לוקחת את הרוחב שלה מ-`SidePaneSpecs.overlayPanelWidth`
+  /// (350, החלטה 45).
   static const double overlayPanelWidth = 400.0;
 
   /// רוחב מינימלי של התוכן הראשי לצד חלונית צד.
   static const double mainContentMinWidth = 500.0;
+
+  /// רוחב ברירת המחדל של חלונית המפרשים בקורא טקסט ובקורא PDF, כשאין רוחב
+  /// שמור. שני הקוראים שומרים את הרוחב באותו מפתח (`key-commentary-pane-width`),
+  /// ולכן גם מתחילים מאותו ערך (סעיף 14: ערך ביניים בין 400 בטקסט ל-300 ב-PDF).
+  static const double commentaryPaneDefaultWidth = 350.0;
+
+  /// המקום המזערי לתוכן שלצד עמודת הכרטיסיות שבצד (`ReadingTabsSidePanel`):
+  /// העמודה נחתכת כך שהתוכן לא יידחק מתחתיו, גם כשהרוחב השמור גדול.
+  static const double minContentBesideTabsColumn = 320.0;
 
   /// הרוחב המינימלי להצגת חלונית צד ותוכן ראשי זה לצד זה.
   static const double sideBySideMinWidth = sidePaneWidth + mainContentMinWidth;

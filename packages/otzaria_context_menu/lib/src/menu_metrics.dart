@@ -2,6 +2,8 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
+import 'menu_visuals.dart';
+
 class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
   final bool compactMenus;
   final double itemHeight;
@@ -40,7 +42,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       visualDensity: VisualDensity.standard,
       dividerHeight: 8,
       fontSize: 14,
-      iconSize: 18,
+      iconSize: AppMenuVisuals.iconSize,
       menuMinWidth: 150,
       itemFontWeight: FontWeight.w400,
     );

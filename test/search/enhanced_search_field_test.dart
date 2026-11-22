@@ -92,6 +92,45 @@ void main() {
     expect(wide?.helperText, isNull);
   });
 
+  // כפתור אייקון בלי tooltip הוא בלי שם נגיש.
+  testWidgets('כפתור החיפוש המוטבע בשדה בעל שם נגיש ומגיש את השאילתה', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final tab = SearchingTab('חיפוש', 'בדיקה');
+    addTearDown(tab.dispose);
+    var submits = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider.value(
+          value: tab.searchBloc,
+          child: Scaffold(
+            body: EnhancedSearchField(tab: tab, onSubmit: () => submits++),
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byTooltip('חיפוש');
+    expect(button, findsOneWidget);
+    expect(
+      tester.getSemantics(button),
+      matchesSemantics(
+        tooltip: 'חיפוש',
+        isButton: true,
+        isEnabled: true,
+        isFocusable: true,
+        hasEnabledState: true,
+        hasTapAction: true,
+        hasFocusAction: true,
+      ),
+    );
+    await tester.tap(button);
+    expect(submits, 1);
+    handle.dispose();
+  });
+
   testWidgets('כפתור הניקוי בשדה הראשי תמיד מוצג ומאפס גם כשהשדה ריק', (
     tester,
   ) async {

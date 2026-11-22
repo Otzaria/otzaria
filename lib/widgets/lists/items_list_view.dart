@@ -225,7 +225,7 @@ class _ItemsListViewState extends State<ItemsListView> {
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.spaceMD,
-          vertical: AppTokens.spaceMD - 4,
+          vertical: AppTokens.spaceSMD,
         ),
         child: Row(
           children: [

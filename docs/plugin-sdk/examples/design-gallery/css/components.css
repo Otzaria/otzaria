@@ -1,0 +1,1037 @@
+/*
+ * רכיבים. הכול דרך var(): צבעים מ-colorScheme/surfaces, ריווח מהסולם, רדיוס
+ * אחד, גדלי טקסט מסולם הממשק. px מופיע רק בגבהי פס הכותרת (מותר לפי המדריך)
+ * וב-1px של גבולות. רספונסיביות ב-@container ולא ב-@media, כי תוסף יכול לשבת
+ * בחלונית מפוצלת צרה בתוך חלון רחב.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  background: var(--surface-panel);
+  color: var(--color-on-surface);
+  overflow: hidden;
+  /* בלי זה גרירה ברווחים בוחרת בלוקים שלמים. טקסט שמעתיקים ממנו: .selectable. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.theme-scope {
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  background: var(--surface-panel);
+  color: var(--color-on-surface);
+}
+
+.selectable,
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* בלי זה כלל display של class (למשל .btn) גובר על האטריבוט hidden. */
+[hidden] {
+  display: none !important;
+}
+
+.sprite {
+  position: absolute;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-lg {
+  width: 48px;
+  height: 48px;
+}
+
+/* ── שלד: פס כותרת קבוע + תוכן שגולל ───────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* px קשיח רק כאן: הפס אינו מתנפח עם גופן הקריאה של המשתמש. */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-smd);
+  height: var(--top-bar-height);
+  padding-inline: var(--space-md);
+  background: var(--surface-top-bar);
+  border-block-end: 1px solid var(--surface-region-border);
+  flex-shrink: 0;
+}
+
+.topbar-titles {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar .subtitle {
+  display: block;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  /* הפעולות צמודות לכותרת (צד ה-start), והקצה השני פנוי: במסך מלא אוצריא
+     מציירת שם כפתור יציאה צף. */
+  margin-inline-end: auto;
+}
+
+.app-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-md);
+  container-type: inline-size;
+}
+
+.page {
+  max-width: 860px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.section-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-section);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-primary);
+}
+
+.section-note {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-body-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.grow {
+  flex: 1;
+  margin: 0;
+}
+
+.section-row {
+  margin-bottom: var(--space-sm);
+}
+
+/* ── כפתורים ────────────────────────────────────────────────────────── */
+
+.btn {
+  --overlay: var(--color-on-secondary-container);
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: var(--tap-target);
+  padding-inline: var(--space-md);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* שכבת מצב: hover 8%, pressed ו-focus 12% מצבע ה-on של הכפתור (כמו הערכה). */
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--overlay);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.btn:hover::before {
+  opacity: 0.08;
+}
+
+.btn:active::before,
+.btn:focus-visible::before {
+  opacity: 0.12;
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  --overlay: var(--color-on-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn-ghost {
+  --overlay: var(--color-primary);
+  background: transparent;
+  color: var(--color-primary);
+}
+
+.btn-danger {
+  --overlay: var(--color-on-error);
+  background: var(--color-error);
+  color: var(--color-on-error);
+}
+
+.btn-danger-soft {
+  --overlay: var(--color-on-error-container);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+  cursor: default;
+  pointer-events: none;
+}
+
+.btn-ghost:disabled {
+  background: transparent;
+}
+
+/* אייקון בלבד: עיגול (חריג מאושר ברדיוס), חובה aria-label. */
+.btn-icon {
+  --overlay: var(--color-on-surface-variant);
+  width: var(--tap-target);
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.btn[aria-busy='true'] {
+  pointer-events: none;
+}
+
+.btn[aria-busy='true'] .btn-label {
+  visibility: hidden;
+}
+
+.btn[aria-busy='true'] .spinner {
+  position: absolute;
+}
+
+/* ── שדות וחיפוש ────────────────────────────────────────────────────── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.field-label {
+  font-size: var(--text-meta);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--field-height);
+  padding-inline: var(--space-md);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
+  background: var(--surface-card);
+  color: var(--color-on-surface);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+}
+
+.input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+.input:hover {
+  border-color: var(--color-on-surface);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.input[aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 1px var(--color-error);
+}
+
+.input:disabled {
+  border-color: var(--disabled-bg);
+  color: var(--disabled-fg);
+}
+
+.field-help {
+  font-size: var(--text-meta);
+  color: var(--color-on-surface-variant);
+}
+
+.field-error {
+  font-size: var(--text-meta);
+  color: var(--color-error);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--field-height);
+  padding-inline: var(--space-md) var(--space-xs);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
+  background: var(--surface-card);
+}
+
+.search:hover {
+  border-color: var(--color-on-surface);
+}
+
+.search:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.search .icon {
+  color: var(--color-on-surface-variant);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap-target);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+}
+
+.search-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+/* ── כרטיסים ────────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  padding: var(--space-smd);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius);
+  background: var(--surface-card);
+  color: var(--color-on-surface);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  box-shadow: inset 0 0 0 999px var(--state-hover);
+}
+
+.card-interactive:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.card[aria-selected='true'] {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.card-error {
+  border-color: transparent;
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
+.card-inset {
+  border-color: transparent;
+  background: var(--color-surface-container);
+}
+
+.card-title {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.card-meta {
+  margin: 0;
+  font-size: var(--text-meta);
+  color: var(--color-on-surface-variant);
+}
+
+/* קטע מתוך ספר: גופן הקריאה בגודל של התוסף, לא בגודל הקריאה של המשתמש. */
+.excerpt {
+  margin: var(--space-xs) 0;
+  font-family: var(--font-main);
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+
+.excerpt mark {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.result {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-sm) var(--space-smd);
+  align-items: start;
+}
+
+.result-rank {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: var(--radius);
+  background: var(--color-surface-container-highest);
+  font-size: var(--text-meta);
+  font-weight: 600;
+}
+
+.result-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.results {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+/* ── תגיות ──────────────────────────────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 24px;
+  padding: var(--space-2xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+  font-family: var(--font-ui);
+  font-size: var(--text-meta);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.chip .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.chip-primary {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.chip-error {
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
+/* "הצלחה" באוצריא הוא הגוון הנייטרלי, לא ירוק. */
+.chip-success {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.chip-warning {
+  background: var(--surface-warning-container);
+  color: var(--surface-on-warning-container);
+}
+
+/* צ'יפ שאפשר ללחוץ עליו (סינון): 32 גובה, ושטח לחיצה מורחב במגע. */
+.chip-filter {
+  position: relative;
+  min-height: 32px;
+  padding-inline: var(--space-smd);
+  border: 1px solid var(--color-outline);
+  background: transparent;
+  cursor: pointer;
+}
+
+.chip-filter::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: -4px;
+}
+
+.chip-filter:hover {
+  box-shadow: inset 0 0 0 999px var(--state-hover);
+}
+
+.chip-filter:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.chip-filter[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.chip-filter .icon-check {
+  display: none;
+}
+
+.chip-filter[aria-pressed='true'] .icon-check {
+  display: block;
+}
+
+/* ── התראות בתוך הדף ────────────────────────────────────────────────── */
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-smd);
+  padding: var(--space-smd) var(--space-md);
+  border-radius: var(--radius);
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+}
+
+.banner .icon {
+  color: var(--color-primary);
+}
+
+.banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.banner-title {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+}
+
+.banner-body {
+  margin: 0;
+  font-size: var(--text-body-sm);
+}
+
+.banner-warning {
+  background: var(--surface-warning-container);
+  color: var(--surface-on-warning-container);
+}
+
+.banner-warning .icon {
+  color: var(--surface-warning);
+}
+
+.banner-error {
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
+.banner-error .icon {
+  color: var(--color-error);
+}
+
+.banner-success {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.banner-success .icon {
+  color: var(--color-on-secondary-container);
+}
+
+/* ── טעינה, ריק, שגיאה ──────────────────────────────────────────────── */
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-outline-variant);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.spinner-inline {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: var(--radius);
+  background: var(--color-surface-container-high);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-line + .skeleton-line {
+  margin-top: var(--space-sm);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+}
+
+.state .icon-lg {
+  color: var(--color-on-surface-variant);
+}
+
+.state-error .icon-lg {
+  color: var(--color-error);
+}
+
+.state-title {
+  margin: 0;
+  font-size: var(--text-section);
+  font-weight: 600;
+}
+
+.state-body {
+  margin: 0;
+  max-width: 36ch;
+  font-size: var(--text-body-sm);
+  color: var(--color-on-surface-variant);
+}
+
+/* ── רשימות ─────────────────────────────────────────────────────────── */
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-smd);
+  min-height: var(--tap-target);
+  padding: var(--space-smd) var(--space-md);
+  cursor: pointer;
+}
+
+.list-row + .list-row {
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.list-row:hover {
+  box-shadow: inset 0 0 0 999px var(--state-hover);
+}
+
+.list-row:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.list-row[aria-selected='true'] {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  font-weight: 600;
+}
+
+.list-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-row-title {
+  font-size: var(--text-body-sm);
+}
+
+.list-row-meta {
+  font-size: var(--text-meta);
+  color: var(--color-on-surface-variant);
+}
+
+/* ── תפריט ופופאובר ─────────────────────────────────────────────────── */
+
+.popover-anchor {
+  position: relative;
+  display: inline-block;
+}
+
+.menu {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-xs));
+  inset-inline-start: 0;
+  z-index: 20;
+  min-width: 200px;
+  padding: var(--space-xs);
+  border-radius: var(--radius);
+  border: 1px solid var(--surface-region-border);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  box-shadow: var(--shadow-floating);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-smd);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding-inline: var(--space-smd);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--text-body-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--state-hover);
+  outline: none;
+}
+
+.menu-sep {
+  height: 1px;
+  margin: var(--space-xs) 0;
+  background: var(--color-outline-variant);
+}
+
+/* ── דיאלוג וחלונית ─────────────────────────────────────────────────── */
+
+.dialog {
+  width: min(400px, calc(100% - 2 * var(--space-md)));
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--surface-region-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.dialog::backdrop {
+  background: var(--scrim);
+}
+
+.dialog-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-title);
+  font-weight: 600;
+}
+
+.dialog-body {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-body-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+/* חלונית צד: 340 כמו חלוניות אוצריא, מהקצה ה-end (שמאל ב-RTL). */
+.side-panel {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 30;
+  width: min(340px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--surface-top-bar);
+  border-inline-start: 1px solid var(--surface-region-border);
+  color: var(--color-on-surface);
+  box-shadow: var(--shadow-floating);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform var(--motion-normal) ease-out,
+    visibility 0s linear var(--motion-normal);
+}
+
+.side-panel.open {
+  transform: translateX(0);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: var(--scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-normal);
+}
+
+.scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dialog-static {
+  position: static;
+  margin: 0;
+}
+
+/* ── טבלאות ─────────────────────────────────────────────────────────── */
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius);
+  background: var(--surface-card);
+}
+
+.table-wrap:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body-sm);
+}
+
+.table th {
+  position: sticky;
+  inset-block-start: 0;
+  padding: var(--space-smd) var(--space-md);
+  background: var(--surface-card);
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.table td {
+  padding: var(--space-smd) var(--space-md);
+  border-bottom: 1px solid var(--color-outline-variant);
+  white-space: nowrap;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover {
+  box-shadow: inset 0 0 0 999px var(--state-hover);
+}
+
+/* מספרים: יישור לסוף וספרות ברוחב קבוע. */
+.table .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── מתג בורר (2–4 אפשרויות) ────────────────────────────────────────── */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  min-height: var(--tap-target);
+  padding-inline: var(--space-md);
+  border: 0;
+  background: transparent;
+  color: var(--color-on-surface);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-inline-start: 1px solid var(--color-outline);
+}
+
+.segmented button:hover {
+  box-shadow: inset 0 0 0 999px var(--state-hover);
+}
+
+.segmented button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+/* ── רספונסיביות: לפי רוחב המכל, לא רוחב החלון ─────────────────────── */
+
+@container (max-width: 600px) {
+  .page {
+    gap: var(--space-md);
+  }
+
+  .result {
+    grid-template-columns: 1fr;
+  }
+
+  .result-actions {
+    grid-column: 1;
+  }
+
+  .results {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .dialog-actions .btn {
+    width: 100%;
+  }
+
+  .hide-narrow {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-panel,
+  .scrim {
+    transition-duration: 0s;
+  }
+
+  .skeleton-line {
+    animation: none;
+  }
+
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}

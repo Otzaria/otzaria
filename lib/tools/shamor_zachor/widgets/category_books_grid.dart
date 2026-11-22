@@ -405,7 +405,7 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     final isBaseBook = !details.isCustom;
     final confirmed = await showWarningDialog(
       context: context,
-      title: isBaseBook ? 'הסרה מרשימת המעקב' : 'הסרת ספר משמור וזכור',
+      title: isBaseBook ? 'להסיר מרשימת המעקב?' : 'להסיר את הספר משמור וזכור?',
       content: isBaseBook
           ? 'האם להסיר את "$bookName" מרשימת "בתהליך"?'
           : 'האם להסיר את "$bookName" משמור וזכור?',

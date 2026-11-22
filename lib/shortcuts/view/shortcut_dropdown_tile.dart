@@ -8,6 +8,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// שדה בחירת קיצור דרך שמסנן קיצורים שכבר נמצאים בשימוש.
 class ShortcutDropDownTile extends StatefulWidget {
@@ -192,7 +193,7 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
     }
 
     if (newValue == '__custom__') {
-      final customShortcut = await showDialog<String>(
+      final customShortcut = await showDialogUntilTornDown<String>(
         context: context,
         builder: (context) => CustomShortcutDialog(
           initialShortcut: currentValue,

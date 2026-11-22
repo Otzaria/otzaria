@@ -142,7 +142,7 @@ List<LibraryChangesLine> filterLibraryChanges(
 Future<void> showLibraryChangesDialog(
   BuildContext context,
   List<LibraryChangesNote> notes,
-) => showDialog<void>(
+) => showDialogUntilTornDown<void>(
   context: context,
   builder: settingsDialogBuilder(
     context,
@@ -327,7 +327,7 @@ class _LineView extends StatelessWidget {
         child: Text(
           line.text,
           style: TextStyle(
-            fontSize: AppTokens.fontMD + 1,
+            fontSize: AppTokens.fontMD,
             fontWeight: FontWeight.bold,
             color: cs.primary,
           ),
@@ -356,8 +356,7 @@ class _LineView extends StatelessWidget {
             Expanded(
               child: Text(
                 line.text,
-                style: TextStyle(
-                  fontSize: AppTokens.fontMD + 1,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   height: 1.35,
                   color: cs.onSurface,
                 ),
@@ -368,7 +367,9 @@ class _LineView extends StatelessWidget {
       ),
       LibraryChangesLineKind.text => Text(
         line.text,
-        style: TextStyle(fontSize: AppTokens.fontMD, color: cs.onSurface),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: cs.onSurface),
       ),
     };
   }

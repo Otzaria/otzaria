@@ -62,6 +62,7 @@ import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 
 enum _AnchorKind { header, altHeader, line }
 
@@ -1700,7 +1701,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
       padding: kPrintingRowPadding,
       child: Text(
         text,
-        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -2195,9 +2198,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 totalPages: _totalPdfPages,
                 pagesPerSheet: _pagesPerSheet,
               ),
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: colorScheme.primary,
-                fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -2264,9 +2266,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
               alignment: AlignmentDirectional.centerStart,
               child: Text(
                 '${(_limitPrintEnd(startLine, endLine) - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colorScheme.primary,
-                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -2572,9 +2573,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 children: [
                   Text(
                     'בחר יעד הדפסה',
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
-                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2627,12 +2627,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
         animation: _preview,
         builder: (context, _) {
           if (_preview.failed) {
-            return Center(
-              child: Icon(
-                FluentIcons.error_circle_24_regular,
-                color: colorScheme.error,
-                size: 48,
-              ),
+            return const OtzariaErrorState(
+              title: 'לא ניתן להכין תצוגה מקדימה',
+              isCompact: true,
             );
           }
 
@@ -2770,9 +2767,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
         const SizedBox(width: 12),
         Text(
           'עמוד',
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: colorScheme.onSurfaceVariant,
-            fontSize: AppTokens.fontMD,
           ),
         ),
         const SizedBox(width: AppTokens.spaceSM),
@@ -2871,8 +2867,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                       ),
                       Text(
                         '${i + 1}',
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: selected
                               ? colorScheme.primary
                               : colorScheme.onSurfaceVariant,
@@ -2893,13 +2888,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
   Widget _decoratedSheet(Widget child, ColorScheme colorScheme) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.2),
-            blurRadius: 8,
-          ),
-        ],
+        color: AppColors.pageWhite,
+        boxShadow: AppShadows.floating(colorScheme),
       ),
       child: child,
     );
@@ -2971,9 +2961,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // שימוש בקבועים מ-AppFonts
   Map<String, String> get fonts => AppFonts.fontPaths;
   Map<String, String> get fontNames {
-    // כולל את כל הגופנים הזמינים, גם מהמערכת.
+    // כולל את כל הגופנים הזמינים, גם מהמערכת, אך לא גופנים לתצוגה בלבד
+    // (iOS): להדפסה צריך את בתי הגופן.
     final Map<String, String> allFonts = {};
-    for (final font in AppFonts.availableFonts) {
+    for (final font in AppFonts.fontsWithFiles) {
       allFonts[font.value] = font.label;
     }
     return allFonts;

@@ -1,7 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
+
+/// כמה פיקסלים מזיזה לחיצת חץ אחת (או הגדלה/הקטנה של קורא מסך) בידית.
+const double kResizeHandleKeyboardStep = 16;
 
 /// כמה משטח המגע של הידית נכנס פנימה לתוך הפאנל. בקצה הפנימי יושב גם פס
 /// הגלילה, והידית מצוירת מעליו ב-Stack — כניסה גדולה קוברת אותו. 4px היה
@@ -9,8 +15,11 @@ import 'package:otzaria/theme/theme_exports.dart';
 /// החוצה, אל הרווח שבין הפאנל לתוכן.
 const double kPaneHandleInnerReach = 4;
 
-/// שטח המגע המלא של הידית: 24px רגיל, 18px במצב קומפקטי.
+/// שטח המגע המלא של הידית: 24px רגיל, 18px במצב קומפקטי, 32px במסך מגע
+/// ([BarButton.isTouch]). בכל המצבים החדירה פנימה קבועה ב-
+/// [kPaneHandleInnerReach], והיתרה גולשת החוצה מקצה החלונית.
 double handleHitSize(BuildContext context) {
+  if (BarButton.isTouch(context)) return AppTokens.dragHandleTouchHitSize;
   final isCompact = AppDensity.of(context).isCompact;
   return isCompact
       ? AppTokens.dragHandleCompactHitSize
@@ -40,6 +49,8 @@ class ResizableDragHandle extends StatefulWidget {
     this.showDivider = true,
     this.showIdleGrip,
     this.gripOffset = 0,
+    this.semanticLabel,
+    this.invertSemanticDirection = false,
   });
 
   /// True for a vertical handle (between left/right panes), false for horizontal.
@@ -49,7 +60,8 @@ class ResizableDragHandle extends StatefulWidget {
   final MouseCursor? cursor;
 
   /// Total interactive thickness (width for vertical, height for horizontal).
-  /// If null, auto-selects 24 in regular density, 18 in compact ([AppDensity]).
+  /// If null, auto-selects 24 in regular density, 18 in compact ([AppDensity]),
+  /// 32 on touch ([handleHitSize]).
   final double? hitSize;
 
   /// Called with the delta along the resize axis (dx if vertical, dy if horizontal).
@@ -62,12 +74,21 @@ class ResizableDragHandle extends StatefulWidget {
   final bool showDivider;
 
   /// האם הידית הקטנה (ה"צופציק" שבאמצע) נראית גם במנוחה. null — כמו
-  /// [showDivider]. `showDivider: false, showIdleGrip: true`: הידית גלויה
-  /// בלי הקו לכל האורך, כשקו אחר כבר יושב באותו קצה (עמודת הכרטיסיות).
+  /// [showDivider], ובמסך מגע ([BarButton.isTouch]) תמיד: אין ריחוף, ובלי
+  /// סימן קבוע אין איך לדעת שאפשר לגרור. `showDivider: false, showIdleGrip:
+  /// true`: הידית גלויה בלי הקו לכל האורך, כשקו אחר כבר יושב באותו קצה (עמודת
+  /// הכרטיסיות).
   final bool? showIdleGrip;
 
   /// הזזת הקו הנראה בפיקסלים לאורך ציר השינוי. ראה [paneHandleGripOffset].
   final double gripOffset;
+
+  /// תיאור הידית לקורא מסך. null: תיאור כללי של ידית שינוי גודל.
+  final String? semanticLabel;
+
+  /// קורא מסך: "הגדלה" היא הזזה בכיוון החיובי של הציר (ימינה או למטה), אלא אם
+  /// החלונית הנגררת נמצאת בצד הזה והזזה כזו מצמצמת אותה. אז true.
+  final bool invertSemanticDirection;
 
   @override
   State<ResizableDragHandle> createState() => _ResizableDragHandleState();
@@ -76,6 +97,51 @@ class ResizableDragHandle extends StatefulWidget {
 class _ResizableDragHandleState extends State<ResizableDragHandle> {
   bool _isHovered = false;
   bool _isDragging = false;
+  bool _isFocused = false;
+
+  /// מאפשר לידית לקבל פוקוס מקלדת (גרירה בעכבר אינה תובעת אותו).
+  final FocusNode _focusNode = FocusNode(debugLabel: 'ידית שינוי גודל');
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  /// הזזה בלי גרירה, כמו גרירה קצרה: מקלדת וקורא מסך. הקריאות לשלוש
+  /// ההחזרות יחד, כדי שהמסך ישמור את הרוחב החדש בסיום כמו אחרי גרירה.
+  void _nudge(double delta) {
+    widget.onDragStart?.call();
+    widget.onDragDelta?.call(delta);
+    widget.onDragEnd?.call();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // קיצורי מקשים שייכים למסך, לא לידית.
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isAltPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final (decrease, increase) = widget.isVertical
+        ? (LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowRight)
+        : (LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowDown);
+    // החצים פיזיים, כמו כיוון הגרירה: חץ שמאלה מזיז את הידית שמאלה.
+    if (key == decrease) {
+      _nudge(-kResizeHandleKeyboardStep);
+      return KeyEventResult.handled;
+    }
+    if (key == increase) {
+      _nudge(kResizeHandleKeyboardStep);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   void _setHovered(bool value) {
     if (_isHovered == value) return;
@@ -90,12 +156,8 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onDragDelta != null;
-    final isCompact = AppDensity.of(context).isCompact;
-    final effectiveHitSize =
-        widget.hitSize ??
-        (isCompact
-            ? AppTokens.dragHandleCompactHitSize
-            : AppTokens.dragHandleRegularHitSize);
+    final effectiveHitSize = widget.hitSize ?? handleHitSize(context);
+    final isTouch = BarButton.isTouch(context);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final dividerColor = theme.dividerColor.withValues(alpha: 0.55);
@@ -105,7 +167,7 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
         ? 0.0
         : _isDragging
         ? 1.0
-        : _isHovered
+        : (_isHovered || _isFocused)
         ? 0.5
         : 0.0;
 
@@ -119,125 +181,169 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
       cursor: isEnabled ? cursor : SystemMouseCursors.basic,
       onEnter: isEnabled ? (_) => _setHovered(true) : null,
       onExit: isEnabled ? (_) => _setHovered(false) : null,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: !isEnabled
-            ? null
-            : (_) {
-                _setDragging(true);
-                widget.onDragStart?.call();
-              },
-        onPanUpdate: !isEnabled
-            ? null
-            : (details) {
-                final delta = widget.isVertical
-                    ? details.delta.dx
-                    : details.delta.dy;
-                widget.onDragDelta?.call(delta);
-              },
-        onPanEnd: !isEnabled
-            ? null
-            : (_) {
-                _setDragging(false);
-                _setHovered(false);
-                widget.onDragEnd?.call();
-              },
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0.0, end: targetBlend),
-          duration: _isDragging
-              ? Duration.zero
-              : AppMotion.duration(context, AppTokens.animFast),
-          curve: Curves.easeOut,
-          builder: (context, blend, _) {
-            final highlightColor = cs.primary.withValues(alpha: 0.22 * blend);
-            final thickness = lerpDouble(3.0, 5.0, blend) ?? 3.0;
-            final gripLength = lerpDouble(24.0, 32.0, blend) ?? 24.0;
-            final showGrip =
-                (widget.showIdleGrip ?? widget.showDivider) || blend > 0;
-            final idleOpacity = lerpDouble(0.35, 1.0, blend) ?? 0.35;
-            final lineColor = showGrip
-                ? (Color.lerp(
-                        dividerColor.withValues(alpha: idleOpacity),
-                        activeColor,
-                        blend,
-                      ) ??
-                      dividerColor)
-                : Colors.transparent;
-            final dividerThickness = lerpDouble(1.0, 2.0, blend) ?? 1.0;
+      child: Focus(
+        focusNode: _focusNode,
+        canRequestFocus: isEnabled,
+        skipTraversal: !isEnabled,
+        // רכיב Semantics הפנימי מגדיר את המחוון.
+        includeSemantics: false,
+        onFocusChange: (value) => setState(() => _isFocused = value),
+        onKeyEvent: isEnabled ? _handleKey : null,
+        child: Semantics(
+          container: true,
+          slider: isEnabled,
+          focusable: isEnabled,
+          focused: _isFocused,
+          label: isEnabled
+              ? widget.semanticLabel ??
+                    context.settingsText('ידית שינוי גודל — גרירה או חצים')
+              : null,
+          onIncrease: isEnabled
+              ? () => _nudge(
+                  widget.invertSemanticDirection
+                      ? -kResizeHandleKeyboardStep
+                      : kResizeHandleKeyboardStep,
+                )
+              : null,
+          onDecrease: isEnabled
+              ? () => _nudge(
+                  widget.invertSemanticDirection
+                      ? kResizeHandleKeyboardStep
+                      : -kResizeHandleKeyboardStep,
+                )
+              : null,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanStart: !isEnabled
+                ? null
+                : (_) {
+                    _setDragging(true);
+                    widget.onDragStart?.call();
+                  },
+            onPanUpdate: !isEnabled
+                ? null
+                : (details) {
+                    final delta = widget.isVertical
+                        ? details.delta.dx
+                        : details.delta.dy;
+                    widget.onDragDelta?.call(delta);
+                  },
+            onPanEnd: !isEnabled
+                ? null
+                : (_) {
+                    _setDragging(false);
+                    _setHovered(false);
+                    widget.onDragEnd?.call();
+                  },
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0.0, end: targetBlend),
+              duration: _isDragging
+                  ? Duration.zero
+                  : AppMotion.duration(context, AppTokens.animFast),
+              curve: Curves.easeOut,
+              builder: (context, blend, _) {
+                final highlightColor = cs.primary.withValues(
+                  alpha: 0.22 * blend,
+                );
+                final thickness = lerpDouble(3.0, 5.0, blend) ?? 3.0;
+                final gripLength = lerpDouble(24.0, 32.0, blend) ?? 24.0;
+                final showGrip =
+                    (widget.showIdleGrip ?? (widget.showDivider || isTouch)) ||
+                    blend > 0;
+                final idleOpacity = lerpDouble(0.35, 1.0, blend) ?? 0.35;
+                final lineColor = showGrip
+                    ? (Color.lerp(
+                            dividerColor.withValues(alpha: idleOpacity),
+                            activeColor,
+                            blend,
+                          ) ??
+                          dividerColor)
+                    : Colors.transparent;
+                final dividerThickness = lerpDouble(1.0, 2.0, blend) ?? 1.0;
 
-            return SizedBox(
-              width: widget.isVertical ? effectiveHitSize : null,
-              height: widget.isVertical ? null : effectiveHitSize,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final dividerExtent = widget.isVertical
-                      ? (constraints.hasBoundedHeight
-                            ? constraints.maxHeight
-                            : gripLength)
-                      : (constraints.hasBoundedWidth
-                            ? constraints.maxWidth
-                            : gripLength);
+                return SizedBox(
+                  width: widget.isVertical ? effectiveHitSize : null,
+                  height: widget.isVertical ? null : effectiveHitSize,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final dividerExtent = widget.isVertical
+                          ? (constraints.hasBoundedHeight
+                                ? constraints.maxHeight
+                                : gripLength)
+                          : (constraints.hasBoundedWidth
+                                ? constraints.maxWidth
+                                : gripLength);
 
-                  final grip = Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (widget.showDivider)
-                        Center(
-                          child: DecoratedBox(
+                      final grip = Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (widget.showDivider)
+                            Center(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: lineColor,
+                                  borderRadius: AppTokens.borderRadiusAll,
+                                ),
+                                child: SizedBox(
+                                  width: widget.isVertical
+                                      ? dividerThickness
+                                      : dividerExtent,
+                                  height: widget.isVertical
+                                      ? dividerExtent
+                                      : dividerThickness,
+                                ),
+                              ),
+                            ),
+                          AnimatedContainer(
+                            duration: AppMotion.duration(
+                              context,
+                              AppTokens.animFast,
+                            ),
+                            curve: Curves.easeOut,
+                            width: widget.isVertical
+                                ? thickness + 10
+                                : gripLength,
+                            height: widget.isVertical
+                                ? gripLength
+                                : thickness + 10,
                             decoration: BoxDecoration(
-                              color: lineColor,
+                              color: highlightColor,
                               borderRadius: AppTokens.borderRadiusAll,
                             ),
-                            child: SizedBox(
-                              width: widget.isVertical
-                                  ? dividerThickness
-                                  : dividerExtent,
-                              height: widget.isVertical
-                                  ? dividerExtent
-                                  : dividerThickness,
+                            alignment: Alignment.center,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: lineColor,
+                                borderRadius: AppTokens.borderRadiusAll,
+                              ),
+                              child: SizedBox(
+                                width: widget.isVertical
+                                    ? thickness
+                                    : gripLength,
+                                height: widget.isVertical
+                                    ? gripLength
+                                    : thickness,
+                              ),
                             ),
                           ),
-                        ),
-                      AnimatedContainer(
-                        duration: AppMotion.duration(
-                          context,
-                          AppTokens.animFast,
-                        ),
-                        curve: Curves.easeOut,
-                        width: widget.isVertical ? thickness + 10 : gripLength,
-                        height: widget.isVertical ? gripLength : thickness + 10,
-                        decoration: BoxDecoration(
-                          color: highlightColor,
-                          borderRadius: AppTokens.borderRadiusAll,
-                        ),
-                        alignment: Alignment.center,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: lineColor,
-                            borderRadius: AppTokens.borderRadiusAll,
-                          ),
-                          child: SizedBox(
-                            width: widget.isVertical ? thickness : gripLength,
-                            height: widget.isVertical ? gripLength : thickness,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
+                        ],
+                      );
 
-                  if (widget.gripOffset == 0) return grip;
-                  // שטח המגע גולש החוצה ואינו ממורכז על דופן הפאנל; ההזזה
-                  // מחזירה את הקו הנראה אל הדופן עצמה.
-                  return Transform.translate(
-                    offset: widget.isVertical
-                        ? Offset(widget.gripOffset, 0)
-                        : Offset(0, widget.gripOffset),
-                    child: grip,
-                  );
-                },
-              ),
-            );
-          },
+                      if (widget.gripOffset == 0) return grip;
+                      // שטח המגע גולש החוצה ואינו ממורכז על דופן הפאנל; ההזזה
+                      // מחזירה את הקו הנראה אל הדופן עצמה.
+                      return Transform.translate(
+                        offset: widget.isVertical
+                            ? Offset(widget.gripOffset, 0)
+                            : Offset(0, widget.gripOffset),
+                        child: grip,
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );

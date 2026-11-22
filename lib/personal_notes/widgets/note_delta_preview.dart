@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/personal_notes/widgets/personal_note_styles.dart';
+import 'package:otzaria/theme/readable_ink.dart';
 
 /// מציג עיצובים נתמכים ב-RichText, לפי סגנונות ההערה ([personalNoteStyles])
 /// וללא קלט.
@@ -113,7 +114,7 @@ class NoteDeltaPreview extends StatelessWidget {
     Map<String, quill.Attribute> attrs,
   ) {
     var res = const TextStyle();
-    final color = _parseColor(attrs[quill.Attribute.color.key]?.value);
+    final color = parseNoteColor(attrs[quill.Attribute.color.key]?.value);
     void add(String key, TextStyle? style) {
       if (style == null || !attrs.containsKey(key)) return;
       if (key == quill.Attribute.link.key && attrs[key]!.value == null) {
@@ -145,11 +146,18 @@ class NoteDeltaPreview extends StatelessWidget {
     if (size != null) res = res.merge(TextStyle(fontSize: size));
     if (color != null) res = res.merge(TextStyle(color: color));
 
-    final background = _parseColor(
+    final background = parseNoteColor(
       attrs[quill.Attribute.background.key]?.value,
     );
     if (background != null) {
-      res = res.merge(TextStyle(backgroundColor: background));
+      // צבע טקסט מפורש מנצח כאן. בעורך ובתצוגת Quill בכרטיס
+      // [personalNoteBackgroundInkStyle] גובר עליו, ראו את ההערה שלה.
+      res = res.merge(
+        TextStyle(
+          backgroundColor: background,
+          color: color == null ? readableInkOn(background) : null,
+        ),
+      );
     }
     return res;
   }
@@ -168,13 +176,5 @@ class NoteDeltaPreview extends StatelessWidget {
       String() => double.tryParse(value),
       _ => null,
     };
-  }
-
-  static Color? _parseColor(Object? value) {
-    if (value is! String || !value.startsWith('#')) return null;
-    var hex = value.substring(1);
-    if (hex.length == 6) hex = 'ff$hex';
-    final parsed = int.tryParse(hex, radix: 16);
-    return parsed == null ? null : Color(parsed);
   }
 }

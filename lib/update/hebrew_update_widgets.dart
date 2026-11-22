@@ -10,6 +10,7 @@ import 'updat_compat.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/controls/status_chip.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// רכיב לחיצה (chip) בעברית - דומה ל-flatChip המקורי
 Widget hebrewFlatChip({
@@ -105,7 +106,7 @@ void hebrewDefaultDialog({
 }) {
   final changelogText = changelog?.trim() ?? '';
 
-  showDialog<bool>(
+  showDialogUntilTornDown<bool>(
     context: context,
     builder: (context) {
       final theme = Theme.of(context);

@@ -662,7 +662,7 @@ class _ExternalSearchResultsSectionState
       externalMatches: matches,
     );
     if (!opened) {
-      UiSnack.show(PluginMessages.externalBookNotFound);
+      UiSnack.showWarning(PluginMessages.externalBookNotFound);
     }
   }
 

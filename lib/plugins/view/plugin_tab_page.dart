@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -56,6 +57,8 @@ import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 
 /// קוד JS שמעדכן בתוסף את רשימת קיצורי התוכנה שהוא מעביר חזרה.
 @visibleForTesting
@@ -96,6 +99,10 @@ InAppWebViewSettings buildPluginTabWebViewSettings({
     // ב-Windows ה-status bar של WebView2 מציג את ה-URI בריחוף על קישור
     // ומאפשר לתוסף לכתוב לשם טקסט חופשי (window.status).
     statusBarEnabled: false,
+    // ה-WebView אטום ולבן עד שהדף נצבע, ומכסה את רקע הלוח שהמארח מצייר
+    // מאחוריו (ColoredBox ב-ToolTabScreen): במצב כהה זה הבהוב לבן בפתיחה.
+    // שקוף, כך שעד הצביעה רואים את רקע הלוח. דף שאינו צובע את הגוף יראה אותו.
+    transparentBackground: true,
     // זום (צביטת מגע / Ctrl+גלגלת) משנה את סקאלת התוסף בלי דרך גלויה
     // לאיפוס — לכן חסום.
     supportZoom: false,
@@ -591,11 +598,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   @override
   Widget build(BuildContext context) {
     if (!widget.plugin.enabled) {
-      return Center(
-        child: Text(
-          'התוסף כבוי על ידי המשתמש ולא ניתן להציגו.',
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
+      return const OtzariaEmptyState(
+        icon: FluentIcons.plug_disconnected_24_regular,
+        title: 'התוסף כבוי על ידי המשתמש ולא ניתן להציגו.',
       );
     }
 
@@ -608,11 +613,11 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
 
     if (_hasError) {
       final details = _loadErrorDetails;
-      return Center(
-        child: Text(
-          'שגיאה בטעינת הקובץ: $localHtmlPath'
-          '${details == null ? '' : '\n$details'}',
-        ),
+      // הנתיב בבידוד LTR: נתיב עם מקטע עברי בתוך משפט עברי מתהפך.
+      return OtzariaErrorState(
+        title: 'שגיאה בטעינת הקובץ',
+        details:
+            '\u2066$localHtmlPath\u2069${details == null ? '' : '\n$details'}',
       );
     }
 
@@ -643,10 +648,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
           }
           if (snapshot.hasError) {
             debugPrint('WebView prerequisites init error: ${snapshot.error}');
-            return Center(
-              child: Text(
-                'שגיאה באתחול סביבת הדפדפן: ${snapshot.error}',
-              ),
+            return OtzariaErrorState(
+              title: 'שגיאה באתחול סביבת הדפדפן',
+              details: snapshot.error,
             );
           }
           if (snapshot.data == _WebViewPrereqStatus.dataFolderNotWritable) {

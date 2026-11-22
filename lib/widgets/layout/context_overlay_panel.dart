@@ -38,6 +38,7 @@ import 'package:otzaria/utils/ui/editable_focus.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/misc/escape_layers.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
@@ -52,7 +53,7 @@ class ContextOverlayPanel extends StatefulWidget {
   /// תוכן הפאנל
   final Widget child;
 
-  /// רוחב הפאנל ([LayoutConstraints.overlayPanelWidth]).
+  /// רוחב הפאנל ([SidePaneSpecs.overlayPanelWidth]).
   final double width;
 
   /// יישור הפאנל (ברירת מחדל: start - ימין בעברית)
@@ -99,7 +100,7 @@ class ContextOverlayPanel extends StatefulWidget {
     required this.isOpen,
     required this.onClose,
     required this.child,
-    this.width = LayoutConstraints.overlayPanelWidth,
+    this.width = SidePaneSpecs.overlayPanelWidth,
     this.alignment = AlignmentDirectional.centerEnd,
     this.backgroundColor,
     this.contentPadding = const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
@@ -389,6 +390,14 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     final effectiveDragMax = dragMaxWidth < widget.minWidth
         ? widget.minWidth
         : dragMaxWidth;
+    // בחלון צר הידית (שיוצאת החוצה מקצה הפאנל) לא תצא מהחלון: בלי הגבלה שטח
+    // הלחיצה שלה נחתך, ובמגע לא נשאר בו כמעט כלום. כמו handleInset ב-
+    // AdaptiveSidePane.
+    final handleEdge = sideMargin + effectiveWidth - overhang;
+    final handleEdgeMax = constraints.maxWidth - handleHitSize(context);
+    final handleInset = handleEdge < handleEdgeMax
+        ? handleEdge
+        : (handleEdgeMax < 0 ? 0.0 : handleEdgeMax);
 
     return IgnorePointer(
       ignoring: !widget.isOpen,
@@ -457,12 +466,20 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
             Positioned(
               top: 10,
               bottom: 12,
-              left: isLeft ? sideMargin + effectiveWidth - overhang : null,
-              right: isLeft ? null : sideMargin + effectiveWidth - overhang,
+              left: isLeft ? handleInset : null,
+              right: isLeft ? null : handleInset,
               child: ResizableDragHandle(
                 isVertical: true,
                 showDivider: false,
+                invertSemanticDirection: !isLeft,
                 gripOffset: paneHandleGripOffset(context, paneOnRight: !isLeft),
+                // רוחב שמור גדול מהחלון: מוצג חתוך, והערך הפנימי חייב להתאים למה
+                // שנראה, אחרת הגרירה הראשונה לא עושה כלום (אזור מת).
+                onDragStart: () {
+                  if (_currentWidth > effectiveWidth) {
+                    setState(() => _currentWidth = effectiveWidth);
+                  }
+                },
                 onDragDelta: (delta) {
                   final d = isLeft ? delta : -delta;
                   setState(() {

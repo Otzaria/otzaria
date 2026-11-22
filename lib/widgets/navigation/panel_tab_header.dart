@@ -25,11 +25,33 @@ class PanelTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final withLabel = showLabel && labelFits(context);
     final tab = buildTab(
       Icon(icon, size: AppTokens.panelTabIconSize),
-      showLabel ? label : null,
+      withLabel ? label : null,
     );
-    return showLabel ? tab : Tooltip(message: label, child: tab);
+    return withLabel ? tab : Tooltip(message: label, child: tab);
+  }
+
+  /// האם אייקון ותווית נכנסים יחד בגובה הלשונית, שהוא קבוע. בהגדלת הטקסט של
+  /// המערכת (2.0) התווית גבוהה מהמקום, ואז הלשונית מציגה רק אייקון, והתווית
+  /// ב-tooltip, כמו במצב compact.
+  static bool labelFits(BuildContext context) {
+    final style = Theme.of(
+      context,
+    ).textTheme.titleSmall?.copyWith(fontSize: AppTokens.panelTabFontSize);
+    final painter = TextPainter(
+      text: TextSpan(text: 'א', style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final fits =
+        AppTokens.panelTabIconSize +
+            AppTokens.panelTabIconMargin.vertical +
+            painter.height <=
+        AppTokens.panelTabHeight;
+    painter.dispose();
+    return fits;
   }
 
   /// הטאב עם אייקון כלשהו — גם האייקון המונפש של `NavPanelTabHeader`.

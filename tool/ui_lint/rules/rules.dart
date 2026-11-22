@@ -2,6 +2,7 @@ import '../ui_lint.dart';
 import 'brightness_color_rule.dart';
 import 'deprecated_component_rule.dart';
 import 'elevation_shadow_rule.dart';
+import 'forbidden_component_rule.dart';
 import 'hardcoded_color_rule.dart';
 import 'icon_button_tooltip_rule.dart';
 import 'icon_size_rule.dart';
@@ -12,6 +13,7 @@ import 'literal_radius_rule.dart';
 import 'literal_width_breakpoint_rule.dart';
 import 'local_alpha_rule.dart';
 import 'material_icons_rule.dart';
+import 'pending_rules.dart';
 import 'physical_direction_rule.dart';
 import 'primary_color_rule.dart';
 import 'raw_button_rule.dart';
@@ -29,6 +31,7 @@ import 'shared_feature_import_rule.dart';
 import 'snack_bar_rule.dart';
 import 'spacing_scale_rule.dart';
 import 'state_color_override_rule.dart';
+import 'text_align_physical_rule.dart';
 import 'text_rtl_direction_rule.dart';
 import 'text_scaling_rule.dart';
 import 'ui_snack_literal_rule.dart';
@@ -68,4 +71,12 @@ const List<UiLintRule> uiLintRules = [
   RawScrollbarRule(),
   SelectionContextMenuRule(),
   DeprecatedComponentRule(),
+  ForbiddenComponentRule(),
+  TextAlignPhysicalRule(),
+];
+
+/// כללים מועמדים, דוח בלבד: ראו [PendingUiLintRule]. לא נבדקים מול
+/// ה־baseline ולא חוסמים.
+const List<PendingUiLintRule> uiLintPendingRules = [
+  RawIconButtonOutsideSharedRule(),
 ];

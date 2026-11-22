@@ -58,42 +58,51 @@ class CategoryPreviewPanel extends StatelessWidget {
           24 - kNavTreeSideInset,
           12,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: headerInset,
-              child: _header(theme, cs),
-            ),
-            if (description != null) ...[
-              const SizedBox(height: 16),
-              Padding(
-                padding: headerInset,
-                child: Text(description, style: theme.textTheme.bodyMedium),
-              ),
-            ],
-            if (counts != null) ...[
-              const SizedBox(height: 16),
-              Padding(
-                padding: headerInset,
-                child: Text(
-                  counts,
-                  style: AppTextStyles.settingTitle.copyWith(
-                    fontSize: AppTokens.fontMD,
-                    color: cs.onSurfaceVariant,
+        // הכותרת והרשימה גוללות יחד: בהגדלת טקסט ובשם ארוך הכותרת לבדה גבוהה
+        // מהחלון, וברשימה נפרדת התוכן שמתחתיה לא היה נגיש.
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: headerInset,
+                    child: _header(theme, cs),
                   ),
-                ),
+                  if (description != null) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: headerInset,
+                      child: Text(
+                        description,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                  if (counts != null) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: headerInset,
+                      child: Text(
+                        counts,
+                        style: AppTextStyles.settingTitle.copyWith(
+                          fontSize: AppTokens.fontMD,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                ],
               ),
-            ],
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                itemCount: itemCount,
-                itemBuilder: (context, index) => NavTreeGroupCard(
-                  isGroupStart: index == 0,
-                  isGroupEnd: index == itemCount - 1,
-                  child: _contentRow(index),
-                ),
+            ),
+            SliverList.builder(
+              itemCount: itemCount,
+              itemBuilder: (context, index) => NavTreeGroupCard(
+                isGroupStart: index == 0,
+                isGroupEnd: index == itemCount - 1,
+                child: _contentRow(index),
               ),
             ),
           ],

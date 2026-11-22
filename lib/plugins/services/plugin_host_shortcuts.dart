@@ -122,7 +122,12 @@ class PluginHostShortcuts {
       final parsed = _parse(key, value, ctrlIsMeta: _treatCtrlAsMeta);
       if (parsed != null) result.add(parsed);
     }
-    for (final shortcut in fixedShortcuts) {
+    for (final shortcut in [
+      ...fixedShortcuts,
+      // Cmd+1..9 מעבר לטאב ב-Mac, בנוסף ל-Ctrl+1..9 (ראו KeyboardShortcuts).
+      if (_treatCtrlAsMeta)
+        for (var digit = 1; digit <= 9; digit++) 'meta+$digit',
+    ]) {
       final parsed = _parse('fixed:$shortcut', shortcut, ctrlIsMeta: false);
       if (parsed != null) result.add(parsed);
     }

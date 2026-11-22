@@ -340,7 +340,8 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
   final otherTabs = tab is CombinedTab
       ? const <OpenedTab>[]
       : state.tabs.where((t) => t != tab && t is! CombinedTab).toList();
-  if (otherTabs.isEmpty) {
+  // בלי טאב נוסף, או בלי מקום לשתי חלוניות קריאות, אין לאן להציג לצד.
+  if (otherTabs.isEmpty || !canSplitReadingArea(context.read<TabsBloc>())) {
     entries.add(
       AppContextMenuEntry(
         label: context.settingsText('הצג לצד'),

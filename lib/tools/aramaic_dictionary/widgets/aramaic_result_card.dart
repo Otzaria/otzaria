@@ -9,12 +9,13 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 /// מבקש חיפוש של [text] בכיוון הנתון.
 typedef AramaicSearchRequest =
     void Function(String text, {required bool hebrewToAramaic});
 
-class AramaicResultCard extends StatelessWidget {
+class AramaicResultCard extends StatefulWidget {
   /// [query] הוא טקסט החיפוש המנורמל, להדגשה: בכותרת כשהחיפוש ארמי,
   /// ובפירושים כשהוא עברי.
   const AramaicResultCard({
@@ -62,21 +63,125 @@ class AramaicResultCard extends StatelessWidget {
         hebrew,
       ).withoutRepeatedMeanings().meanings;
 
+  @override
+  State<AramaicResultCard> createState() => _AramaicResultCardState();
+}
+
+class _AramaicResultCardState extends State<AramaicResultCard> {
+  // מפתח לכל שורת פירוש, כדי שתפריט ההקשר יידע על איזו שורה לחצו.
+  final List<GlobalKey> _rowKeys = [];
+
+  GlobalKey _rowKey(int index) {
+    while (_rowKeys.length <= index) {
+      _rowKeys.add(GlobalKey());
+    }
+    return _rowKeys[index];
+  }
+
   void _copy(String text) {
     Clipboard.setData(ClipboardData(text: text));
     UiSnack.show(UiSnack.textCopied);
   }
 
+  VoidCallback? _searchHebrewOf(List<ParsedAramaicMeaning> meanings, int i) {
+    final onSearch = widget.onSearch;
+    if (!widget.queryIsAramaic || onSearch == null) return null;
+    return () {
+      final term = AramaicResultCard.searchTermOf(meanings[i].hebrewText);
+      if (term.isNotEmpty) onSearch(term, hebrewToAramaic: true);
+    };
+  }
+
+  VoidCallback? _copyWithEntryOf(List<ParsedAramaicMeaning> meanings, int i) =>
+      widget.queryIsAramaic
+      ? null
+      : () => _copy('${widget.aramaic}\n${meanings[i].text}');
+
+  int? _rowAt(Offset globalPosition, int count) {
+    for (var i = 0; i < count && i < _rowKeys.length; i++) {
+      final box = _rowKeys[i].currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+      if ((box.localToGlobal(Offset.zero) & box.size).contains(
+        globalPosition,
+      )) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  /// אותן פעולות של הכפתורים שמופיעים בריחוף, לתפריט ההקשר (לחיצה ימנית,
+  /// לחיצה ארוכה או Shift+F10): פעולות שורת הפירוש שנלחצה, ואחריהן פעולות
+  /// הכותרת. כך הן נגישות גם באצבע במחשב עם מסך מגע, שבו אין ריחוף.
+  List<AppContextMenuEntry> _menuEntries(
+    BuildContext context,
+    Offset position,
+    List<ParsedAramaicMeaning> meanings,
+  ) {
+    final onSearch = widget.onSearch;
+    final row = _rowAt(position, meanings.length);
+    return [
+      if (row != null) ...[
+        if (_searchHebrewOf(meanings, row) case final search?)
+          AppContextMenuEntry(
+            label: context.settingsText('חפש בעברית'),
+            icon: OtzariaIcons.search_24_regular,
+            onTap: search,
+          ),
+        if (_copyWithEntryOf(meanings, row) case final copyWith?)
+          AppContextMenuEntry(
+            label: context.settingsText(
+              AramaicResultCard._copyWithResultTooltip,
+            ),
+            icon: FluentIcons.copy_add_24_regular,
+            onTap: copyWith,
+          ),
+        AppContextMenuEntry(
+          label: context.settingsText('העתק פירוש'),
+          icon: FluentIcons.copy_24_regular,
+          onTap: () => _copy(meanings[row].text),
+        ),
+        const AppContextMenuEntry.divider(),
+      ],
+      if (!widget.queryIsAramaic && onSearch != null)
+        AppContextMenuEntry(
+          label: context.settingsText(
+            'חפש "{term}" בארמית',
+            args: {'term': widget.aramaic},
+          ),
+          icon: OtzariaIcons.search_24_regular,
+          onTap: () => onSearch(widget.aramaic, hebrewToAramaic: false),
+        ),
+      if (widget.queryIsAramaic)
+        AppContextMenuEntry(
+          label: context.settingsText(AramaicResultCard._copyWithResultTooltip),
+          icon: FluentIcons.copy_add_24_regular,
+          onTap: () => _copy(_entryAsText(meanings)),
+        ),
+      AppContextMenuEntry(
+        label: context.settingsText('העתק את הערך'),
+        icon: FluentIcons.copy_24_regular,
+        onTap: () => _copy(widget.aramaic),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final aramaic = widget.aramaic;
+    final onSearch = widget.onSearch;
+    final queryIsAramaic = widget.queryIsAramaic;
+    final query = widget.query;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final meanings = visibleMeanings(hebrew);
-    final headwordPlain = _plain(aramaic);
+    final meanings = AramaicResultCard.visibleMeanings(widget.hebrew);
+    final headwordPlain = AramaicResultCard._plain(aramaic);
     final vocalized = meanings
         .map((m) => m.expression)
         .whereType<String>()
-        .where((e) => e != aramaic && _plain(e) == headwordPlain)
+        .where(
+          (e) => e != aramaic && AramaicResultCard._plain(e) == headwordPlain,
+        )
         .firstOrNull;
     final highlight = TextStyle(
       backgroundColor: cs.primaryContainer,
@@ -85,6 +190,8 @@ class AramaicResultCard extends StatelessWidget {
 
     return _HoverBuilder(
       builder: (context, hovering) => ToolResultCardShell(
+        menuEntries: (menuContext, position) =>
+            _menuEntries(menuContext, position, meanings),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -93,7 +200,7 @@ class AramaicResultCard extends StatelessWidget {
                 Expanded(
                   child: Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: AppTokens.spaceMD - 4,
+                    spacing: AppTokens.spaceSMD,
                     children: [
                       Text.rich(
                         TextSpan(
@@ -126,13 +233,15 @@ class AramaicResultCard extends StatelessWidget {
                       'חפש "{term}" בארמית',
                       args: {'term': aramaic},
                     ),
-                    onPressed: () => onSearch!(aramaic, hebrewToAramaic: false),
+                    onPressed: () => onSearch(aramaic, hebrewToAramaic: false),
                   ),
                 if (queryIsAramaic)
                   _ActionButton(
                     visible: hovering,
                     icon: FluentIcons.copy_add_24_regular,
-                    tooltip: context.settingsText(_copyWithResultTooltip),
+                    tooltip: context.settingsText(
+                      AramaicResultCard._copyWithResultTooltip,
+                    ),
                     onPressed: () => _copy(_entryAsText(meanings)),
                   ),
                 _ActionButton(
@@ -149,6 +258,7 @@ class AramaicResultCard extends StatelessWidget {
             ),
             for (var i = 0; i < meanings.length; i++)
               _MeaningRow(
+                key: _rowKey(i),
                 showActions: hovering,
                 meaning: meanings[i],
                 number: meanings.length > 1 ? i + 1 : null,
@@ -156,17 +266,8 @@ class AramaicResultCard extends StatelessWidget {
                 query: queryIsAramaic ? '' : query,
                 highlight: highlight,
                 onCopy: () => _copy(meanings[i].text),
-                onCopyWithEntry: queryIsAramaic
-                    ? null
-                    : () => _copy('$aramaic\n${meanings[i].text}'),
-                onSearch: queryIsAramaic && onSearch != null
-                    ? () {
-                        final term = searchTermOf(meanings[i].hebrewText);
-                        if (term.isNotEmpty) {
-                          onSearch!(term, hebrewToAramaic: true);
-                        }
-                      }
-                    : null,
+                onCopyWithEntry: _copyWithEntryOf(meanings, i),
+                onSearch: _searchHebrewOf(meanings, i),
               ),
           ],
         ),
@@ -181,12 +282,13 @@ class AramaicResultCard extends StatelessWidget {
             ? '${i + 1}. ${meanings[i].text}'
             : meanings[i].text,
     ];
-    return '$aramaic\n${lines.join('\n')}';
+    return '${widget.aramaic}\n${lines.join('\n')}';
   }
 }
 
 class _MeaningRow extends StatelessWidget {
   const _MeaningRow({
+    super.key,
     required this.showActions,
     required this.meaning,
     required this.number,
@@ -228,8 +330,8 @@ class _MeaningRow extends StatelessWidget {
               height: 24,
               alignment: Alignment.center,
               margin: const EdgeInsetsDirectional.only(
-                end: AppTokens.spaceSM + 2,
-                top: 6,
+                end: AppTokens.spaceSMD,
+                top: AppTokens.spaceSM,
               ),
               decoration: BoxDecoration(
                 color: cs.secondaryContainer,

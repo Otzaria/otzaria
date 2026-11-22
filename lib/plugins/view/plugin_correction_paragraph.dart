@@ -7,6 +7,7 @@ import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -332,7 +333,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
           start: _corrected
               ? BorderSide(
                   color: AppSurfaces.correctedParagraphMarker(colorScheme),
-                  width: 3,
+                  width: AppTokens.borderThick,
                 )
               : BorderSide.none,
         ),

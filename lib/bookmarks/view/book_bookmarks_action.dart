@@ -4,10 +4,11 @@ import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// Shows the bookmarks of [book] only.
 Future<void> showBookBookmarksDialog(BuildContext context, Book book) =>
-    showDialog<void>(
+    showDialogUntilTornDown<void>(
       context: context,
       builder: (_) => BookmarksDialog(bookFilter: book),
     );

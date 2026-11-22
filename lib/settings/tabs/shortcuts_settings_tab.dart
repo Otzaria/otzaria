@@ -1310,7 +1310,7 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
     final selectedKey =
         initialKey ??
-        await showDialog<String>(
+        await showDialogUntilTornDown<String>(
           context: context,
           builder: settingsDialogBuilder(
             context,
@@ -1319,7 +1319,7 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
         );
     if (selectedKey == null || !context.mounted) return;
 
-    final shortcut = await showDialog<String>(
+    final shortcut = await showDialogUntilTornDown<String>(
       context: context,
       builder: settingsDialogBuilder(
         context,

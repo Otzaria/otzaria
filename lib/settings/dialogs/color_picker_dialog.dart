@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/app_color_swatch.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// שורת הגדרה לבחירת צבע בסיס.
 ///
@@ -25,7 +27,7 @@ class ColorPickerTile extends StatelessWidget {
   );
 
   void _showPicker(BuildContext context) {
-    showDialog<void>(
+    showDialogUntilTornDown<void>(
       context: context,
       builder: settingsDialogBuilder(
         context,
@@ -117,7 +119,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
         ],
       ),
       actions: [
-        ActionButton.recommended(
+        ActionButton.neutral(
           onPressed: () => Navigator.of(context).pop(),
           text: context.settingsText('סגור'),
         ),
@@ -151,18 +153,13 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 child: Directionality(
                   textDirection: TextDirection.rtl,
                   child: Wrap(
-                    spacing: AppTokens.spaceSM,
-                    runSpacing: AppTokens.spaceSM,
                     alignment: WrapAlignment.center,
                     children: AppSeedColors.options.map((entry) {
-                      final isSelected =
-                          _selected.toARGB32() == entry.color.toARGB32();
-                      final swatch = AppSeedColors.swatchOf(entry.color);
-                      return _ColorSwatch(
-                        name: context.settingsText(entry.name),
-                        color: swatch,
-                        isSelected: isSelected,
-                        checkColor: AppSeedColors.checkColorOn(swatch),
+                      return AppColorSwatch(
+                        label: context.settingsText(entry.name),
+                        color: AppSeedColors.swatchOf(entry.color),
+                        selected:
+                            _selected.toARGB32() == entry.color.toARGB32(),
                         onTap: () => _select(entry.color),
                       );
                     }).toList(),
@@ -171,81 +168,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// עיגול צבע: לחיץ בעכבר ובמקלדת (Enter/רווח), עם שם ומצב נבחר לקורא מסך.
-class _ColorSwatch extends StatefulWidget {
-  final String name;
-  final Color color;
-  final bool isSelected;
-  final Color checkColor;
-  final VoidCallback onTap;
-
-  const _ColorSwatch({
-    required this.name,
-    required this.color,
-    required this.isSelected,
-    required this.checkColor,
-    required this.onTap,
-  });
-
-  @override
-  State<_ColorSwatch> createState() => _ColorSwatchState();
-}
-
-class _ColorSwatchState extends State<_ColorSwatch> {
-  bool _focused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    // טבעת הפוקוס בצבע ההדגשה, כדי שלא תתבלבל עם טבעת הבחירה.
-    final border = _focused
-        ? Border.all(color: cs.primary, width: 3)
-        : widget.isSelected
-        ? Border.all(color: cs.onSurface, width: 3)
-        : null;
-    return Semantics(
-      button: true,
-      selected: widget.isSelected,
-      label: widget.name,
-      excludeSemantics: true,
-      onTap: widget.onTap,
-      child: Tooltip(
-        message: widget.name,
-        child: FocusableActionDetector(
-          onShowFocusHighlight: (v) => setState(() => _focused = v),
-          actions: {
-            ActivateIntent: CallbackAction<ActivateIntent>(
-              onInvoke: (_) {
-                widget.onTap();
-                return null;
-              },
-            ),
-          },
-          child: GestureDetector(
-            onTap: widget.onTap,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: widget.color,
-                shape: BoxShape.circle,
-                border: border,
-              ),
-              child: widget.isSelected
-                  ? Icon(
-                      FluentIcons.checkmark_24_regular,
-                      color: widget.checkColor,
-                      size: 20,
-                    )
-                  : null,
-            ),
-          ),
         ),
       ),
     );

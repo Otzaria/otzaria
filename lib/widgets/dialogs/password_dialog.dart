@@ -3,7 +3,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 Future<String?> passwordDialog(BuildContext context) async {
-  return await showDialog<String?>(
+  return await showDialogUntilTornDown<String?>(
     context: context,
     barrierDismissible: false,
     // התוויות נפתרות מההקשר שפתח את הדיאלוג, שבו שפת הממשק ידועה.

@@ -208,7 +208,7 @@ class _ReportDetailRow extends StatelessWidget {
       );
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

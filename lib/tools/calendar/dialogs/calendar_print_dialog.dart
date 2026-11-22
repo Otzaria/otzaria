@@ -7,6 +7,7 @@ import 'package:otzaria/tools/calendar/dialogs/calendar_print_zmanim_picker.dart
 import 'package:otzaria/tools/calendar/helpers/calendar_print_options.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// דיאלוג לקביעת טווח ההדפסה של לוח השנה.
 class CalendarPrintDialog extends StatefulWidget {
@@ -192,7 +193,7 @@ Future<int?> showCalendarPrintDialog({
   ShortcutActivator? closeShortcut,
   Set<String> enabledZmanim = const {},
 }) {
-  return showDialog<int>(
+  return showDialogUntilTornDown<int>(
     context: context,
     builder: (_) => CalendarPrintDialog(
       calendarView: calendarView,

@@ -162,9 +162,9 @@ void main() {
   });
 
   testWidgets(
-    'זמני: אינו מציג תיאור קצר בכרטיס, והתיאור המורחב נשאר בריחוף על כפתור המידע',
+    'מציג תיאור קצר בכרטיס, והתיאור המורחב נשאר בריחוף על כפתור המידע',
     (tester) async {
-      const shortDescription = 'תיאור קצר שאינו מוצג בכרטיס';
+      const shortDescription = 'תיאור קצר שמוצג בכרטיס';
       const fullDescription = 'תיאור ארוך שמוצג בריחוף על כפתור המידע בלבד';
       final book = TextBook(
         title: 'ספר מידע',
@@ -175,7 +175,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(book: book));
       await tester.pumpAndSettle();
 
-      expect(find.text(shortDescription), findsNothing);
+      expect(find.text(shortDescription), findsOneWidget);
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
@@ -416,7 +416,7 @@ void main() {
       expect(find.text('אודות הקטגוריה'), findsNothing);
     }
 
-    testWidgets('קצר וארוך: הקצר אינו בכרטיס (זמני), הארוך בריחוף ובדיאלוג', (
+    testWidgets('קצר וארוך: הקצר בכרטיס, הארוך בריחוף ובדיאלוג', (
       tester,
     ) async {
       final item = category(
@@ -427,7 +427,7 @@ void main() {
       await tester.pumpWidget(buildCategoryTestWidget(item));
       await tester.pumpAndSettle();
 
-      expect(find.text('תיאור קצר'), findsNothing);
+      expect(find.text('תיאור קצר'), findsOneWidget);
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
@@ -442,13 +442,13 @@ void main() {
       expect(find.text('אודות הקטגוריה'), findsOneWidget);
       // הכותרת: שם הקטגוריה ומתחתיו התיאור הקצר; התיאור המורחב בכרטיס.
       expect(find.text('קטגוריית בדיקה'), findsNWidgets(2));
-      expect(find.text('תיאור קצר'), findsOneWidget);
+      expect(find.text('תיאור קצר'), findsNWidgets(2));
       expect(find.text('תיאור'), findsOneWidget);
       expect(find.text('תיאור מורחב'), findsOneWidget);
       await closeDialog(tester);
     });
 
-    testWidgets('קצר בלבד: אינו בכרטיס (זמני), משמש בריחוף ובדיאלוג', (
+    testWidgets('קצר בלבד: בכרטיס, ומשמש גם בריחוף ובדיאלוג', (
       tester,
     ) async {
       final item = category(shortDescription: 'תיאור קצר בלבד');
@@ -456,7 +456,7 @@ void main() {
       await tester.pumpWidget(buildCategoryTestWidget(item));
       await tester.pumpAndSettle();
 
-      expect(find.text('תיאור קצר בלבד'), findsNothing);
+      expect(find.text('תיאור קצר בלבד'), findsOneWidget);
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
@@ -469,7 +469,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('אודות הקטגוריה'), findsOneWidget);
-      expect(find.text('תיאור קצר בלבד'), findsOneWidget);
+      expect(find.text('תיאור קצר בלבד'), findsNWidgets(2));
       expect(find.text('תיאור'), findsNothing);
       await closeDialog(tester);
     });

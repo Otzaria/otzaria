@@ -91,8 +91,8 @@ void main() {
     expect(find.text('אירעה שגיאה לא צפויה. אנא נסה שוב.'), findsOneWidget);
   });
 
-  // לכלי אין Navigator משלו (DD-29): "איפוס" לא נוגע בניווט של החלון.
-  testWidgets('איפוס מחזיר את התוכן ולא סוגר route של החלון', (tester) async {
+  // לכלי אין Navigator משלו (DD-29): "נסה שוב" לא נוגע בניווט של החלון.
+  testWidgets('נסה שוב מחזיר את התוכן ולא סוגר route של החלון', (tester) async {
     final originalHandler = FlutterError.onError;
     FlutterError.onError = (details) {};
     addTearDown(() => FlutterError.onError = originalHandler);
@@ -124,7 +124,7 @@ void main() {
     await tester.pump();
     expect(find.text('אירעה שגיאה לא צפויה. אנא נסה שוב.'), findsOneWidget);
 
-    await tester.tap(find.text('איפוס'));
+    await tester.tap(find.text('נסה שוב'));
     await tester.pumpAndSettle();
 
     expect(find.text('תוכן רגיל'), findsOneWidget);

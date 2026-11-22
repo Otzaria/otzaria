@@ -46,7 +46,7 @@ class _PreserveSelectionLongPressRecognizer
   static bool _primaryOnly(int buttons) => buttons & kPrimaryButton != 0;
 
   final bool Function(Offset globalPosition) shouldPreserve;
-  final void Function(Offset globalPosition) onOpenMenu;
+  final void Function(Offset globalPosition, PointerDeviceKind kind) onOpenMenu;
   final ({Drag drag, Axis axis})? Function(
     DragStartDetails details,
     VoidCallback onCanceled,
@@ -57,10 +57,12 @@ class _PreserveSelectionLongPressRecognizer
   ({Drag drag, Axis axis})? _scroll;
   bool _accepted = false;
   bool _menuOpened = false;
+  PointerDeviceKind _kind = PointerDeviceKind.touch;
 
   @override
   void addAllowedPointer(PointerDownEvent event) {
     if (shouldPreserve(event.position)) {
+      _kind = event.kind;
       super.addAllowedPointer(event);
     }
     // אחרת: לא מצטרפים לזירה — מגע מחוץ לבחירה מתנהג כרגיל.
@@ -81,7 +83,7 @@ class _PreserveSelectionLongPressRecognizer
     _menuTimer = Timer(kLongPressTimeout - _winDeadline, () {
       _menuTimer = null;
       _menuOpened = true;
-      onOpenMenu(position);
+      onOpenMenu(position, _kind);
     });
   }
 
@@ -157,7 +159,7 @@ class _PreserveSelectionLongPressRecognizer
     final position = initialPosition?.global;
     if (position == null) return;
     _menuOpened = true;
-    onOpenMenu(position);
+    onOpenMenu(position, _kind);
   }
 
   @override

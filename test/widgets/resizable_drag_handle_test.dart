@@ -65,7 +65,7 @@ void main() {
     // החדירה קבועה ואינה נגזרת מ-hitSize; הגדלת שטח המגע מוסיפה רק החוצה.
     expect(hitSize, AppTokens.dragHandleRegularHitSize);
     expect(kPaneHandleInnerReach + outreach, hitSize);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('הקו הנראה מוזז אל דופן הפאנל ולא נשאר במרכז שטח המגע', (
     tester,
@@ -88,7 +88,7 @@ void main() {
         AppTokens.dragHandleRegularHitSize / 2 - kPaneHandleInnerReach;
     expect(offsetLeftPane, -expected);
     expect(offsetRightPane, expected);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets(
     'שטח הלחיצה בפועל של ResizableDragHandle תואם לטוקן dragHandleRegularHitSize',
@@ -105,6 +105,8 @@ void main() {
       final size = tester.getSize(find.byType(ResizableDragHandle));
       expect(size.width, AppTokens.dragHandleRegularHitSize);
     },
+    // ידית של עכבר (שטח 24, שקופה במנוחה); במסך מגע היא 32 וגלויה (סעיף 12).
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
 
   testWidgets('showIdleGrip: הידית הקטנה גלויה במנוחה, בלי הקו לכל האורך', (
@@ -144,5 +146,5 @@ void main() {
     // עמודת הכרטיסיות: הידית (24) גלויה, והקו לכל הגובה (300) לא.
     await pump(showDivider: false, showIdleGrip: true);
     expect(visible().keys, [24.0]);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }

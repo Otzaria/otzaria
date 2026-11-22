@@ -28,3 +28,9 @@ const BorderRadius m = BorderRadius.vertical(top: Radius.circular(8));
 const BorderRadiusGeometry n = BorderRadiusDirectional.only(
   topStart: Radius.circular(8),
 );
+const BorderSide _borderSide = BorderSide();
+Border borderAll() => Border.all();
+Border borderVertical() => const Border(left: _borderSide, right: _borderSide);
+Border borderBottom() => const Border(bottom: _borderSide, top: _borderSide);
+BorderDirectional borderDirectional() =>
+    const BorderDirectional(start: _borderSide);

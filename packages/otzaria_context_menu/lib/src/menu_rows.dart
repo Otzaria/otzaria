@@ -193,21 +193,31 @@ double? calculateAppMenuLabelMaxWidth(
 }
 
 /// רוחב התפריט או הכפתור הנדרש להצגת כל [entries], עד לתקרה [maxWidth].
+///
+/// [textScaler] הוא הגדלת הטקסט שהתוויות יצוירו בה (`MediaQuery.textScalerOf`).
+/// בלעדיו התוויות נמדדות בגודל הגולמי והתפריט צר מהתוכן בהגדלת טקסט.
 double calculateAppMenuPreferredWidth<T>(
   AppMenuMetrics metrics,
   List<AppMenuEntry<T>> entries, {
   double maxWidth = double.infinity,
-}) => _appMenuPreferredWidths(metrics, entries, maxWidth).last;
+  TextScaler textScaler = TextScaler.noScaling,
+}) => _appMenuPreferredWidths(metrics, entries, maxWidth, textScaler).last;
 
 /// מדידה מדויקת במנות, כדי שפתיחת תפריט גדול לא תחסום אירועי ממשק.
 Future<double> calculateAppMenuPreferredWidthAsync<T>(
   AppMenuMetrics metrics,
   List<AppMenuEntry<T>> entries, {
   double maxWidth = double.infinity,
+  TextScaler textScaler = TextScaler.noScaling,
 }) async {
   final budget = Stopwatch()..start();
   var width = min(metrics.menuMinWidth, maxWidth);
-  for (final measured in _appMenuPreferredWidths(metrics, entries, maxWidth)) {
+  for (final measured in _appMenuPreferredWidths(
+    metrics,
+    entries,
+    maxWidth,
+    textScaler,
+  )) {
     width = measured;
     if (budget.elapsedMilliseconds >= 8) {
       await Future<void>.delayed(Duration.zero);
@@ -221,6 +231,7 @@ Iterable<double> _appMenuPreferredWidths<T>(
   AppMenuMetrics metrics,
   List<AppMenuEntry<T>> entries,
   double maxWidth,
+  TextScaler textScaler,
 ) sync* {
   assert(maxWidth >= 0);
   if (entries.isEmpty) {
@@ -314,6 +325,7 @@ Iterable<double> _appMenuPreferredWidths<T>(
       final painter = TextPainter(
         text: TextSpan(text: paragraph, style: textStyle),
         textDirection: TextDirection.rtl,
+        textScaler: textScaler,
         maxLines: 1,
       )..layout();
       maxLabelWidth = max(maxLabelWidth, painter.width);

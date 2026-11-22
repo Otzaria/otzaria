@@ -423,73 +423,85 @@ class _ReadingScreenState extends State<ReadingScreen>
           TabContentBoundaries.instance.retainOnly(state.tabs);
           _pruneTabViewCache(state);
           // Scaffold יחיד לשני המצבים; גם Scaffold-ים פנימיים מקבלים את רקע הקריאה.
-          return ReaderSurfaceScope(
-            child: Scaffold(
-              body: !state.hasOpenTabs
-                  ? RecentBooksEmptyState(
-                      onFindRefRequested: widget.onFindRefRequested,
-                    )
-                  : KeyedSubtree(
-                      key: TourTargetKeys.of(context).readingScreen,
-                      child: SizedBox.fromSize(
-                        size: MediaQuery.of(context).size,
-                        child: _wrapWithDesktopTabSwipe(
-                          PageView(
-                            key: const ValueKey('normal_tab_view'),
-                            controller: _pageController,
-                            // בדסקטופ הגלילה מתנגשת בסימון טקסט, ב-PDF
-                            // ובגלגלת; החלקה שם: TabSwipeDetector.
-                            physics: _isTouchPlatform
-                                ? const PageScrollPhysics()
-                                : const NeverScrollableScrollPhysics(),
-                            // בדסקטופ הוא היה יורה רק בקפיצות תוכנתיות (גם
-                            // clamp שגוי בפתיחת טאב) ודורס את האינדקס הנכון.
-                            onPageChanged: _isTouchPlatform
-                                ? (index) {
-                                    if (_inProgrammaticJump) return;
-                                    if (index < state.tabs.length) {
-                                      context.read<TabsBloc>().add(
-                                        SetCurrentTab(index),
-                                      );
-                                    }
-                                  }
-                                : null,
-                            children: [
-                              for (var i = 0; i < state.tabs.length; i++)
-                                // מפתח על הילד הישיר שומר State כשהטאבים מחליפים מיקום.
-                                // TickerMode מכבה את האנימציות של טאבי רקע.
-                                // ExcludeFocus: מעבר Tab שנחת בטאב רקע גלל אליו.
-                                ExcludeFocus(
-                                  key: ObjectKey(state.tabs[i]),
-                                  excluding: i != validIndex,
-                                  child: TickerMode(
-                                    enabled: i == validIndex,
-                                    // המפתח מאפשר לצלם את הכרטיסיה הנגררת,
-                                    // גם כשהיא אינה הפעילה.
-                                    child: RepaintBoundary(
-                                      key: TabContentBoundaries.instance.keyFor(
-                                        state.tabs[i],
-                                      ),
-                                      child: TourTargetsScope(
-                                        enabled:
-                                            i == validIndex &&
-                                            state.tabs[i] is! CombinedTab,
-                                        child: _BackgroundTabMediaQuery(
-                                          frozen: i != validIndex,
-                                          controller: _pageController!,
-                                          index: i,
-                                          child: _cachedTabView(state.tabs[i]),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // שער הפיצול ב-TabsBloc נבחן מול הרוחב שבאמת נשאר לקריאה.
+              reportReadingAreaWidth(
+                context.read<TabsBloc>(),
+                constraints.maxWidth,
+              );
+              return ReaderSurfaceScope(
+                child: Scaffold(
+                  body: !state.hasOpenTabs
+                      ? RecentBooksEmptyState(
+                          onFindRefRequested: widget.onFindRefRequested,
+                        )
+                      : KeyedSubtree(
+                          key: TourTargetKeys.of(context).readingScreen,
+                          child: SizedBox.fromSize(
+                            size: MediaQuery.of(context).size,
+                            child: _wrapWithDesktopTabSwipe(
+                              PageView(
+                                key: const ValueKey('normal_tab_view'),
+                                controller: _pageController,
+                                // בדסקטופ הגלילה מתנגשת בסימון טקסט, ב-PDF
+                                // ובגלגלת; החלקה שם: TabSwipeDetector.
+                                physics: _isTouchPlatform
+                                    ? const PageScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                // בדסקטופ הוא היה יורה רק בקפיצות תוכנתיות (גם
+                                // clamp שגוי בפתיחת טאב) ודורס את האינדקס הנכון.
+                                onPageChanged: _isTouchPlatform
+                                    ? (index) {
+                                        if (_inProgrammaticJump) return;
+                                        if (index < state.tabs.length) {
+                                          context.read<TabsBloc>().add(
+                                            SetCurrentTab(index),
+                                          );
+                                        }
+                                      }
+                                    : null,
+                                children: [
+                                  for (var i = 0; i < state.tabs.length; i++)
+                                    // מפתח על הילד הישיר שומר State כשהטאבים מחליפים מיקום.
+                                    // TickerMode מכבה את האנימציות של טאבי רקע.
+                                    // ExcludeFocus: מעבר Tab שנחת בטאב רקע גלל אליו.
+                                    ExcludeFocus(
+                                      key: ObjectKey(state.tabs[i]),
+                                      excluding: i != validIndex,
+                                      child: TickerMode(
+                                        enabled: i == validIndex,
+                                        // המפתח מאפשר לצלם את הכרטיסיה הנגררת,
+                                        // גם כשהיא אינה הפעילה.
+                                        child: RepaintBoundary(
+                                          key: TabContentBoundaries.instance
+                                              .keyFor(
+                                                state.tabs[i],
+                                              ),
+                                          child: TourTargetsScope(
+                                            enabled:
+                                                i == validIndex &&
+                                                state.tabs[i] is! CombinedTab,
+                                            child: _BackgroundTabMediaQuery(
+                                              frozen: i != validIndex,
+                                              controller: _pageController!,
+                                              index: i,
+                                              child: _cachedTabView(
+                                                state.tabs[i],
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                            ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),

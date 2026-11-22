@@ -30,6 +30,14 @@ final List<String> _commentators = [
 ];
 const int _lineCount = 4;
 
+/// מחליף את `pumpAndSettle`: בזמן טעינה מוצג גלגל מסתובב (החלטה 62) שלעולם
+/// לא "נרגע", ו-pumpAndSettle נגמר ב-timeout. מקדמים זמן קבוע (שתי שניות).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -180,7 +188,7 @@ void main() {
       expect(_isAtTop(tester), isFalse);
 
       bloc.emitState(_loadingSectionState(1));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(find.text('טוען מפרשים...'), findsOneWidget);
       expect(find.byType(ScrollablePositionedList), findsNothing);
 

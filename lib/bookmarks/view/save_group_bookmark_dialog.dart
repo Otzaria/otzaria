@@ -52,13 +52,14 @@ Future<void> showSaveGroupBookmarkDialog(BuildContext context) async {
   }
 
   if (!context.mounted) return;
-  final result = await showDialog<({String name, List<Bookmark> selected})>(
-    context: context,
-    builder: (_) => _SaveGroupBookmarkDialog(
-      entries: entries,
-      suggestedName: (activeEntry ?? entries.first).ref,
-    ),
-  );
+  final result =
+      await showDialogUntilTornDown<({String name, List<Bookmark> selected})>(
+        context: context,
+        builder: (_) => _SaveGroupBookmarkDialog(
+          entries: entries,
+          suggestedName: (activeEntry ?? entries.first).ref,
+        ),
+      );
   if (result == null || !context.mounted) return;
 
   final group = BookmarkGroup(

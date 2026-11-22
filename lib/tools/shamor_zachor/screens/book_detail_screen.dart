@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show RenderAbstractViewport, RenderSliverList;
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -571,12 +572,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: columns.length < ShamorZachorProgressProvider.maxColumns
-                  ? IconButton.filledTonal(
+                  ? AppIconButton(
                       tooltip: 'הוסף עמודה',
-                      visualDensity: VisualDensity.compact,
-                      style: IconButton.styleFrom(
-                        shape: AppTokens.roundedShape,
-                      ),
+                      size: AppIconButtonSize.medium,
+                      fill: AppIconButtonFill.tonal,
                       icon: const Icon(FluentIcons.add_24_regular),
                       onPressed: () => _addColumn(progressProvider),
                     )
@@ -810,7 +809,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     if (widget.bookId == null) return;
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'הסרת עמודה',
+      title: 'להסיר את העמודה?',
       content: 'האם להסיר את העמודה "${column.label}"?',
       subtitle: 'הסימונים שנשמרו בעמודה זו יימחקו',
       cancelText: 'ביטול',

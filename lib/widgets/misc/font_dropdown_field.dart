@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
-import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
+import 'package:otzaria/widgets/misc/font_import_flow.dart';
 
 const String _kFontSampleText = 'אבגד הוזח';
+
+/// ערך שורת הפעולה "הוסף גופן מקובץ": לא שם גופן, ולכן לא נשלח ל-onChanged.
+const String _kImportFontValue = '\u0000import-font';
 
 IconData? _fontCategoryIcon(FontCategory category) {
   switch (category) {
@@ -36,10 +41,25 @@ class FontDropdownField extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) =>
-      _RebuildAfterSystemFontsScan(builder: _buildField);
+  Widget build(BuildContext context) => _RebuildAfterSystemFontsScan(
+    builder: (context, rebuild) => _buildField(context, rebuild),
+  );
 
-  Widget _buildField(BuildContext context) {
+  /// בחירת קובץ גופן, ייבוא, והודעה למשתמש. גופן שיובא נבחר מיד.
+  Future<void> _importFont(BuildContext context, VoidCallback rebuild) async {
+    final result = await FontImportFlow.run(context);
+    if (result == null || !context.mounted) return;
+    rebuild();
+    final message = fontImportMessage(context, result);
+    if (result.succeeded) {
+      UiSnack.showSuccess(message);
+      if (result.families.isNotEmpty) onChanged(result.families.first);
+    } else {
+      UiSnack.showError(message);
+    }
+  }
+
+  Widget _buildField(BuildContext context, VoidCallback rebuild) {
     final all = AppFonts.availableFonts;
 
     // O(n) lookup במקום O(n²) — מחושב פעם אחת לכל build.
@@ -52,36 +72,43 @@ class FontDropdownField extends StatelessWidget {
         if (f.category == FontCategory.sansSerif) f.value,
     };
 
-    final fontEntries = all
-        .map(
-          (font) => AppMenuEntry<String>(
-            value: font.value,
-            label: font.label,
-            icon: _fontCategoryIcon(font.category),
-            reserveTrailingGap: true,
-            trailingReservedWidth: 72,
-            labelWidget: _FontEntryLabel(
-              preview: _FontPreviewText(
-                fontFamily: font.value,
-                name: font.label,
-                isBundled: AppFonts.fontPaths.containsKey(font.value),
-              ),
-              supportsTaamim: font.supportsTaamim,
+    final fontEntries = <AppMenuEntry<String>>[
+      if (AppFonts.supportsUserFontImport)
+        AppMenuEntry<String>(
+          value: _kImportFontValue,
+          label: context.settingsText('הוסף גופן מקובץ…'),
+          icon: FluentIcons.add_24_regular,
+        ),
+      ...all.map(
+        (font) => AppMenuEntry<String>(
+          value: font.value,
+          label: font.label,
+          icon: _fontCategoryIcon(font.category),
+          reserveTrailingGap: true,
+          trailingReservedWidth: 72,
+          labelWidget: _FontEntryLabel(
+            preview: _FontPreviewText(
+              fontFamily: font.value,
+              name: font.label,
+              isBundled: AppFonts.fontPaths.containsKey(font.value),
             ),
-            trailing: SizedBox(
-              width: 72,
-              child: Opacity(
-                opacity: 0.6,
-                child: _FontPreviewText(
-                  fontFamily: font.value,
-                  name: _kFontSampleText,
-                  isBundled: AppFonts.fontPaths.containsKey(font.value),
-                ),
+            supportsTaamim: font.supportsTaamim,
+            displayOnly: font.displayOnly,
+          ),
+          trailing: SizedBox(
+            width: 72,
+            child: Opacity(
+              opacity: 0.6,
+              child: _FontPreviewText(
+                fontFamily: font.value,
+                name: _kFontSampleText,
+                isBundled: AppFonts.fontPaths.containsKey(font.value),
               ),
             ),
           ),
-        )
-        .toList();
+        ),
+      ),
+    ];
 
     // גופן נבחר שאינו מותקן כלל במחשב — מסומן בתווית מיוחדת.
     final hasSelectedFont =
@@ -133,10 +160,13 @@ class FontDropdownField extends StatelessWidget {
             isBundled: AppFonts.fontPaths.containsKey(v),
           ),
           supportsTaamim: AppFonts.familySupportsTaamim(v),
+          displayOnly: AppFonts.isDisplayOnly(v),
         );
       },
       onSelected: (newValue) {
-        if (newValue != null) {
+        if (newValue == _kImportFontValue) {
+          _importFont(context, rebuild);
+        } else if (newValue != null) {
           onChanged(newValue);
         }
       },
@@ -145,8 +175,9 @@ class FontDropdownField extends StatelessWidget {
 }
 
 /// בונה מחדש כשסריקת גופני המערכת ברקע מסתיימת, כדי שיצטרפו לרשימה.
+/// ה-builder מקבל גם פעולת בנייה מחדש, לרענון אחרי ייבוא גופן.
 class _RebuildAfterSystemFontsScan extends StatefulWidget {
-  final WidgetBuilder builder;
+  final Widget Function(BuildContext context, VoidCallback rebuild) builder;
 
   const _RebuildAfterSystemFontsScan({required this.builder});
 
@@ -166,35 +197,63 @@ class _RebuildAfterSystemFontsScanState
     });
   }
 
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
   @override
-  Widget build(BuildContext context) => widget.builder(context);
+  Widget build(BuildContext context) => widget.builder(context, _rebuild);
 }
 
-/// שם הגופן, ולצידו סימן מידע כשהגופן אינו ממפה את טעמי המקרא.
+/// שם הגופן, ולצידו סימן "לתצוגה בלבד" כשאין לגופן קובץ (גופן מערכת ב-iOS),
+/// וסימן מידע כשהגופן אינו ממפה את טעמי המקרא.
 class _FontEntryLabel extends StatelessWidget {
   final Widget preview;
   final bool supportsTaamim;
+  final bool displayOnly;
 
-  const _FontEntryLabel({required this.preview, required this.supportsTaamim});
+  const _FontEntryLabel({
+    required this.preview,
+    required this.supportsTaamim,
+    this.displayOnly = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (supportsTaamim) return preview;
+    if (supportsTaamim && !displayOnly) return preview;
+    final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(child: preview),
-        const SizedBox(width: 6),
-        Tooltip(
-          message: context.settingsText(
-            'הגופן אינו תומך בטעמי המקרא; בטקסט עם טעמים יוצג גופן ברירת המחדל',
+        if (displayOnly) ...[
+          const SizedBox(width: AppTokens.spaceSM),
+          Tooltip(
+            message: context.settingsText(
+              'גופן מערכת שמוצג בקריאה בלבד: בהדפסה, בייצוא PDF, בטיקון ובתוספים יוחלף בגופן מובנה',
+            ),
+            child: Text(
+              context.settingsText('לתצוגה בלבד'),
+              maxLines: 1,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
-          child: Icon(
-            FluentIcons.info_16_regular,
-            size: 16,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ],
+        if (!supportsTaamim) ...[
+          const SizedBox(width: 6),
+          Tooltip(
+            message: context.settingsText(
+              'הגופן אינו תומך בטעמי המקרא; בטקסט עם טעמים יוצג גופן ברירת המחדל',
+            ),
+            child: Icon(
+              FluentIcons.info_16_regular,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

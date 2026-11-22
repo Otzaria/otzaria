@@ -862,7 +862,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     final bloc = context.read<PersonalNotesBloc>();
     final shouldDelete = await showConfirmationDialog(
       context: context,
-      title: 'מחיקת הערה',
+      title: 'למחוק את ההערה?',
       content: 'האם למחוק את ההערה לצמיתות?',
       confirmText: 'מחק',
       isDangerous: true,

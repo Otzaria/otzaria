@@ -8,6 +8,7 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/text/app_inline_link.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show formatHebrewYear;
 import 'package:otzaria/tools/biographies/models/biography.dart';
@@ -420,7 +421,7 @@ Widget _buildBookDetailsContent(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(
-                vertical: AppTokens.spaceSM + 1,
+                vertical: AppTokens.spaceSMD,
               ),
               child: pluginProviderName != null
                   ? Text('ספר מתוסף: $pluginProviderName')
@@ -484,10 +485,7 @@ class _SourceCredit extends StatelessWidget {
     final hasUrl = info.url.isNotEmpty;
     final label = Text(
       info.text,
-      style: TextStyle(
-        color: hasUrl ? Theme.of(context).colorScheme.primary : null,
-        decoration: hasUrl ? TextDecoration.underline : null,
-      ),
+      style: hasUrl ? AppInlineLink.styleOf(context) : null,
     );
 
     // הלוגו מוצג בצבעיו המקוריים (ללא colorFilter), ולכן נראה זהה
@@ -600,7 +598,7 @@ class _MergedDescriptionSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSMD),
       child: Text.rich(
         TextSpan(
           style: TextStyle(
@@ -670,10 +668,7 @@ class _TashmaCopyrightNoticeState extends State<_TashmaCopyrightNotice> {
           const TextSpan(text: 'כל הזכויות שמורות ל'),
           TextSpan(
             text: 'תא שמע',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              decoration: TextDecoration.underline,
-            ),
+            style: AppInlineLink.styleOf(context),
             recognizer: _recognizer,
           ),
           const TextSpan(

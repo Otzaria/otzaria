@@ -6,6 +6,7 @@ import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 class ZmanAlertDialogResult {
   final int minutesBefore;
@@ -155,7 +156,7 @@ Future<ZmanAlertDialogResult?> showZmanAlertDialog(
   required int initialMinutesBefore,
   required bool isEnabled,
 }) {
-  return showDialog<ZmanAlertDialogResult>(
+  return showDialogUntilTornDown<ZmanAlertDialogResult>(
     context: context,
     builder: (_) => ZmanAlertDialog(
       zmanName: zmanName,

@@ -28,6 +28,14 @@ import 'package:provider/provider.dart';
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
+/// מחליף את `pumpAndSettle`: בזמן טעינה מוצג גלגל מסתובב (החלטה 62) שלעולם
+/// לא "נרגע", ו-pumpAndSettle נגמר ב-timeout. מקדמים זמן קבוע (שתי שניות).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -82,11 +90,11 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       // המשתמש עובר לספרייה — מסך הקריאה נשמר חי (keepAlive מילדיו) אך מנותק.
       outer.jumpToPage(0);
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       // פתיחת ספר מהאיתור: הטאב נוסף וממוקד בזמן שמסך הקריאה אינו בעץ.
       final newTab = _tab('ג');
@@ -97,7 +105,7 @@ void main() {
 
       // ניווט חזרה למסך הקריאה (openBook → NavigateToScreen(reading)).
       outer.jumpToPage(1);
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       final inner = tester.widget<PageView>(
         find.descendant(
@@ -162,7 +170,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       // כמו המסלול האמיתי: הניווט מתחיל, וה-emit של הטאבים מגיע פריים אחד
       // אחרי שמסך הקריאה כבר נכנס לעץ (עבודת ה-DB האסינכרונית של OpenOrFocusTab).
@@ -176,7 +184,7 @@ void main() {
       final newTab = _tab('ג');
       tabs.add(newTab);
       bloc.add(AddTab(newTab));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       final inner = tester.widget<PageView>(
         find.descendant(

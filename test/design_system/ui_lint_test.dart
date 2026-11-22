@@ -19,6 +19,14 @@ const _rulePaths = {
 
 final _config = UiLintConfig.load('.');
 
+/// החרגות מדיניות שנשארות גם בלי ממצא: שכבת הטוקנים פטורה מכללי הטוקנים
+/// (הבדיקה "שכבת הטוקנים פטורה מכללי הטוקנים" למטה).
+const _policyExclusions = {
+  'UIL-021 lib/theme/**',
+  'UIL-023 lib/theme/**',
+  'UIL-029 lib/theme/**',
+};
+
 String _fixture(String name) =>
     File('$_fixtures/$name.dart').readAsStringSync();
 
@@ -301,6 +309,66 @@ const top = TextStyle(fontSize: 11);
       expect(
         () => UiLintConfig.parse('rules:\n  UIL-015:\n    strict: yes-ish\n'),
         throwsFormatException,
+      );
+    });
+
+    test('כל החרגת נתיב משתיקה לפחות ממצא אחד', () {
+      final bare = runUiLint(
+        '.',
+        config: UiLintConfig(globalExcludes: _config.globalExcludes),
+      );
+      expect(
+        uselessExclusions(_config, bare.findings, policy: _policyExclusions),
+        isEmpty,
+        reason:
+            'החרגת נתיב ב-tool/ui_lint/config.yaml שלא משתיקה אף חריגה: '
+            'למחוק אותה (היא תסתיר חריגה עתידית בלי סיבה)',
+      );
+    });
+
+    test('החרגה שלא משתיקה כלום מזוהה, וחרגת מדיניות נשארת', () {
+      final config = UiLintConfig.parse(
+        'rules:\n  UIL-015:\n    exclude:\n'
+        '      - path: lib/used/**\n        reason: משתיקה ממצא אחד\n'
+        '      - path: lib/unused/**\n        reason: לא משתיקה כלום\n'
+        '      - path: lib/policy/**\n        reason: מדיניות בכוונה\n',
+      );
+      final findings = [
+        for (final path in ['lib/used/a.dart', 'lib/elsewhere/b.dart'])
+          UiLintFinding(
+            rule: 'UIL-015',
+            path: path,
+            line: 1,
+            column: 1,
+            snippet: 'x',
+            scope: 'a',
+            fingerprint: '00000000',
+          ),
+      ];
+      expect(uselessExclusions(config, findings), [
+        'UIL-015 lib/unused/**',
+        'UIL-015 lib/policy/**',
+      ]);
+      expect(
+        uselessExclusions(
+          config,
+          findings,
+          policy: {'UIL-015 lib/policy/**'},
+        ),
+        ['UIL-015 lib/unused/**'],
+      );
+    });
+
+    test('כל כלל בקונפיגורציה קיים בקטלוג', () {
+      final ids = uiLintRules.map((r) => r.id).toSet();
+      expect(
+        {
+          ..._config.ruleExcludes.keys,
+          ..._config.strictRules,
+          ..._config.maxAllows.keys,
+        }.difference(ids),
+        isEmpty,
+        reason: 'config.yaml מזכיר כלל שלא קיים ב-uiLintRules',
       );
     });
 

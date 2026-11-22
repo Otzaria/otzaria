@@ -66,6 +66,23 @@ void main() {
       expect(settings.cacheEnabled, isTrue);
     });
 
+    test('רקע ה-WebView שקוף עד שהדף נצבע (בלי הבהוב לבן בכהה)', () {
+      // ה-WebView אטום ולבן כברירת מחדל ומכסה את רקע הלוח שהמארח מצייר
+      // מאחוריו; במצב כהה זה הבהוב לבן בפתיחת תוסף.
+      expect(
+        buildPluginTabWebViewSettings(
+          isDevelopment: false,
+        ).transparentBackground,
+        isTrue,
+      );
+      expect(
+        buildPluginTabWebViewSettings(
+          isDevelopment: true,
+        ).transparentBackground,
+        isTrue,
+      );
+    });
+
     test('התאוששות Android מופעלת עם teardown בטוח בפורק', () {
       final settings = buildPluginTabWebViewSettings(isDevelopment: false);
       expect(settings.useOnRenderProcessGone, isTrue);

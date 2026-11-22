@@ -19,3 +19,14 @@ Future<void> tornDown(BuildContext context) => showDialogUntilTornDown<void>(
   context: context,
   builder: (_) => const SizedBox(),
 );
+
+class Messenger {
+  Future<void> showDialog() async {}
+}
+
+Future<void> otherReceiver(Messenger messenger) => messenger.showDialog();
+
+Future<void> scopedAdaptive(BuildContext context) => showAdaptiveDialog<void>(
+  context: context,
+  builder: settingsDialogBuilder(context, (_) => const SizedBox()),
+);

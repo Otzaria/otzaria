@@ -8,6 +8,10 @@ class _LazyAppSubmenuButton extends StatefulWidget {
   final double maxWidth;
   final MenuStyle menuStyle;
   final MenuController? controller;
+
+  /// true: עכבר/מגע, השורה לא לוקחת פוקוס. false: התפריט נפתח במקלדת והשורה
+  /// ניתנת לפוקוס, כדי שחצים ו-Enter יגיעו אליה.
+  final bool preserveFocus;
   final VoidCallback onControllerUnmounted;
   final VoidCallback? onOpen;
   final List<Widget> Function(
@@ -27,6 +31,7 @@ class _LazyAppSubmenuButton extends StatefulWidget {
     required this.menuStyle,
     required this.buildChildren,
     required this.onControllerUnmounted,
+    required this.preserveFocus,
     this.controller,
     this.onOpen,
   });
@@ -159,7 +164,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
         controller: widget.controller!,
         presentation: presentation,
         maxWidth: widget.maxWidth,
-        preserveFocus: true,
+        preserveFocus: widget.preserveFocus,
         menuStyle: widget.menuStyle,
         menuChildren: _menuChildren ?? const <Widget>[],
         onOpen: () {

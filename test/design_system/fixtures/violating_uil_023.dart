@@ -31,3 +31,21 @@ Future<void> g(PageController c) => c.previousPage(
   duration: const Duration(milliseconds: 300), // LINT
   curve: Curves.ease,
 );
+const Duration _kTurn = Duration(milliseconds: 500);
+Widget h(Widget child) => AnimatedOpacity(
+  opacity: 1,
+  duration: _kTurn, // LINT
+  child: child,
+);
+
+class TurnState extends State<StatefulWidget>
+    with SingleTickerProviderStateMixin {
+  static const Duration _kPageTurnDuration = Duration(milliseconds: 500);
+  late final AnimationController controller = AnimationController(
+    vsync: this,
+    duration: _kPageTurnDuration, // LINT
+  );
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}

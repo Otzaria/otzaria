@@ -617,7 +617,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
   Future<void> _addIcsSubscription(BuildContext context) async {
     final cubit = context.read<CalendarCubit>();
-    final input = await showDialog<({String name, String url})>(
+    final input = await showDialogUntilTornDown<({String name, String url})>(
       context: context,
       builder: settingsDialogBuilder(
         context,
@@ -749,7 +749,7 @@ Future<List<T>?> _showCalendarMultiSelectionDialog<T>({
   String? emptyMessage,
   bool barrierDismissible = true,
 }) {
-  return showDialog<List<T>>(
+  return showDialogUntilTornDown<List<T>>(
     context: context,
     barrierDismissible: barrierDismissible,
     builder: settingsDialogBuilder(

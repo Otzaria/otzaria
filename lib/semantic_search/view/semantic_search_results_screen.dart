@@ -49,9 +49,11 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling, SemanticLexicalMode, TextStatus;
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// האם לבנות מחדש את מסגרת המסך (סרגל, מסננים, תצוגה מקדימה). סימון קטע
 /// והצבעה משנים רק כרטיסים, והרשימה הפנימית מאזינה ל-bloc בעצמה.
@@ -152,7 +154,7 @@ class _SemanticSearchResultsScreenState
   }
 
   void _openEditDialog() {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (_) => SearchDialog(editTab: widget.tab),
     );
@@ -873,10 +875,18 @@ class _SemanticSearchResultsScreenState
           builder: (context, target, _) {
             final inBook = _inBookParameters;
             final available = constraints.maxWidth;
-            final minWidth = available < 280 ? available : 280.0;
-            final maxWidth = (available - 320).clamp(minWidth, available);
-            final paneWidth = (_previewPaneWidthOverride ?? available * 0.4)
-                .clamp(minWidth, maxWidth);
+            const spec = SidePaneSpecs.searchPreview;
+            final minWidth = available < spec.minPaneWidth
+                ? available
+                : spec.minPaneWidth;
+            final maxWidth = (available - spec.dragLeavesForMain!).clamp(
+              minWidth,
+              available,
+            );
+            final paneWidth =
+                (_previewPaneWidthOverride ??
+                        available * spec.defaultPaneFraction!)
+                    .clamp(minWidth, maxWidth);
             return AdaptiveSidePane(
               isOpen: settings.searchShowPreview && target != null,
               alignment: AlignmentDirectional.centerStart,
@@ -912,7 +922,8 @@ class _SemanticSearchResultsScreenState
               paneWidth: paneWidth,
               minPaneWidth: minWidth,
               maxPaneWidth: maxWidth,
-              minMainContentWidth: 300,
+              minMainContentWidth:
+                  SidePaneSpecs.searchPreview.minMainContentWidth,
               isResizable: true,
               autoHandleResponsiveVisibility: false,
               onPaneWidthChanged: (w) => _previewPaneWidthOverride = w,

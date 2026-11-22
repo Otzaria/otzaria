@@ -157,7 +157,7 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppTokens.spaceMD,
-          vertical: AppTokens.spaceSM + 2,
+          vertical: AppTokens.spaceSMD,
         ),
         child: Row(
           children: [

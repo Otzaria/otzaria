@@ -13,6 +13,7 @@ import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 const _organizationsLoadError = 'לא ניתן לטעון את פרטי הארגונים';
 
@@ -47,7 +48,7 @@ class AdPopupDialog extends StatefulWidget {
     if (!context.mounted) return;
     if (shouldSkip?.call() ?? false) return;
 
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       barrierDismissible: true,
       builder: (context) =>

@@ -88,6 +88,8 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
   Widget build(BuildContext context) {
     return AppDialogFrame(
       size: AppDialogSize.small,
+      // הגדלת טקסט או חלון נמוך: השדה והכפתורים חייבים להישאר נגישים.
+      scrollable: true,
       title: widget.title,
       icon: FluentIcons.lock_closed_24_regular,
       onConfirm: _handleVerify,
@@ -132,6 +134,9 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
               hintText: context.settingsText('הזן את הסיסמה'),
               prefixIcon: const Icon(FluentIcons.key_24_regular),
               suffixIcon: IconButton(
+                tooltip: context.settingsText(
+                  _isObscured ? 'הצג סיסמה' : 'הסתר סיסמה',
+                ),
                 icon: Icon(
                   _isObscured
                       ? FluentIcons.eye_24_regular
@@ -247,9 +252,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
   Future<void> _handleClear() async {
     final confirmed = await showWarningDialog(
       context: context,
-      title: context.settingsText('הסרת סיסמה'),
+      title: context.settingsText('למחוק את הסיסמה?'),
       content: context.settingsText('לא תידרש עוד סיסמה לגישה להגדרות.'),
-      confirmText: context.settingsText('הסר סיסמה'),
+      confirmText: context.settingsText('מחק'),
     );
     if (confirmed != true || !mounted) return;
 
@@ -278,6 +283,7 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
   Widget build(BuildContext context) {
     return AppDialogFrame(
       size: AppDialogSize.small,
+      scrollable: true,
       title: context.settingsText('הגדרת סיסמה'),
       icon: FluentIcons.lock_closed_24_regular,
       // Enter בשדה הראשון עובר לאימות, כמו onSubmitted שלו (במקלדת מגע).
@@ -324,6 +330,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
               hintText: context.settingsText('לפחות 4 תווים'),
               prefixIcon: const Icon(FluentIcons.key_24_regular),
               suffixIcon: IconButton(
+                tooltip: context.settingsText(
+                  _isObscured1 ? 'הצג סיסמה' : 'הסתר סיסמה',
+                ),
                 icon: Icon(
                   _isObscured1
                       ? FluentIcons.eye_24_regular
@@ -349,6 +358,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
               hintText: context.settingsText('הזן שוב את הסיסמה'),
               prefixIcon: const Icon(FluentIcons.checkmark_lock_24_regular),
               suffixIcon: IconButton(
+                tooltip: context.settingsText(
+                  _isObscured2 ? 'הצג סיסמה' : 'הסתר סיסמה',
+                ),
                 icon: Icon(
                   _isObscured2
                       ? FluentIcons.eye_24_regular

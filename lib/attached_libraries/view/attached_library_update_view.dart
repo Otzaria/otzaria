@@ -243,7 +243,7 @@ Future<bool> confirmAttachedUpdate(
   AttachedLibrary library,
   AttachedUpdateOffer offer,
 ) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showDialogUntilTornDown<bool>(
     context: context,
     builder: settingsDialogBuilder(
       context,
@@ -254,6 +254,9 @@ Future<bool> confirmAttachedUpdate(
         ),
         icon: FluentIcons.arrow_sync_24_regular,
         size: AppDialogSize.medium,
+        scrollable: true,
+        // שם המסד ארוך ויכול להיות כל מחרוזת שהמשתמש בחר.
+        titleMaxLines: 3,
         customContent: _ConfirmContent(offer: offer),
         cancelText: dialogContext.settingsText('ביטול'),
         confirmText: dialogContext.settingsText('עדכן'),
@@ -333,7 +336,7 @@ Future<void> showAttachedSummaryDialog(
 ) async {
   final source = library.updateSource;
   if (source == null) return;
-  await showDialog<void>(
+  await showDialogUntilTornDown<void>(
     context: context,
     builder: settingsDialogBuilder(
       context,

@@ -125,8 +125,8 @@ class _LaazCommentarySubBlockState extends State<LaazCommentarySubBlock> {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest,
             borderRadius: AppTokens.borderRadiusAll,
-            border: Border(
-              right: BorderSide(color: colorScheme.outlineVariant),
+            border: BorderDirectional(
+              start: BorderSide(color: colorScheme.outlineVariant),
             ),
           ),
           child: Column(

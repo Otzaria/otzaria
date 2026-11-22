@@ -121,7 +121,8 @@ void main() {
         return rightPane ? s.rightPaneWidth : s.sidebarWidth;
       }
 
-      expect(width(), 300);
+      final initialWidth = rightPane ? 350 : 300;
+      expect(width(), initialWidth);
       final handle = find.byType(ResizableDragHandle).hitTestable();
       expect(handle, findsOneWidget);
 
@@ -133,20 +134,20 @@ void main() {
       for (var i = 0; i < 10; i++) {
         handleWidget().onDragDelta!(rightPane ? 10 : -10);
         await tester.pump();
-        if (width() != 300) widthChangesDuringDrag++;
+        if (width() != initialWidth) widthChangesDuringDrag++;
       }
       final settingsDuringDrag = settings.events.length;
       handleWidget().onDragEnd!();
       await settle(tester, 4);
       expect(widthChangesDuringDrag, 0);
       expect(settingsDuringDrag, 0);
-      expect(width(), 400);
+      expect(width(), initialWidth + 100);
       final saved = settings.events.single;
       expect(
         rightPane
             ? (saved as UpdateCommentaryPaneWidth).commentaryPaneWidth
             : (saved as UpdateSidebarWidth).sidebarWidth,
-        400,
+        initialWidth + 100,
       );
 
       await tester.pumpWidget(const SizedBox.shrink());

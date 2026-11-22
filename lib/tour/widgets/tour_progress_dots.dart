@@ -21,8 +21,8 @@ class TourProgressDots extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: AppTokens.spaceSM,
+      runSpacing: AppTokens.spaceSM,
       alignment: WrapAlignment.center,
       children: [
         for (var i = 0; i < total; i++)

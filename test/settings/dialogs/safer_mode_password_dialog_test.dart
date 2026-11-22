@@ -117,13 +117,13 @@ void main() {
         await tester.pumpAndSettle();
 
         // דיאלוג אזהרה נפתח - יש לאשר את ההסרה.
-        expect(find.text('הסרת סיסמה'), findsOneWidget);
+        expect(find.text('למחוק את הסיסמה?'), findsOneWidget);
 
-        await tester.tap(find.text('הסר סיסמה'));
+        await tester.tap(find.text('מחק'));
         await tester.pumpAndSettle();
 
         expect(cleared, isTrue);
-        expect(find.text('הסרת סיסמה'), findsNothing);
+        expect(find.text('למחוק את הסיסמה?'), findsNothing);
         expect(find.byType(SaferModeSetPasswordDialog), findsNothing);
       },
     );

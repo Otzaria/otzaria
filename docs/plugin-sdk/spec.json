@@ -26,6 +26,7 @@
     "events.subscribe:search.completed",
     "events.subscribe:settings.changed",
     "events.subscribe:theme.changed",
+    "events.subscribe:ui.fullscreenChanged",
     "events.subscribe:workspace.changed",
     "feedback.send_email",
     "fonts.local.read",
@@ -68,6 +69,7 @@
   "baselinePermissions": [
     "app.info.read",
     "events.subscribe:theme.changed",
+    "events.subscribe:ui.fullscreenChanged",
     "notifications.send",
     "plugin.storage.read",
     "plugin.storage.write",
@@ -650,6 +652,7 @@
     "search.requested",
     "settings.changed",
     "theme.changed",
+    "ui.fullscreenChanged",
     "ui.messageClicked",
     "workspace.changed"
   ],
@@ -710,5 +713,31 @@
   "versions": {
     "whenCondition": "0.9.97",
     "headless": "0.9.98"
+  },
+  "designRules": {
+    "colorKeywords": [
+      "currentcolor",
+      "inherit",
+      "initial",
+      "none",
+      "revert",
+      "transparent",
+      "unset"
+    ],
+    "fontFamilyKeywords": [
+      "inherit",
+      "initial",
+      "system-ui",
+      "unset"
+    ],
+    "topBarSelectorPattern": "top-?bar",
+    "skippedAtRules": [
+      "font-face"
+    ],
+    "hints": {
+      "fontFamily": "חובה var(--font-ui) לממשק, או var(--font-main) לטקסט ספר",
+      "fontSizePx": "חובה var(--text-*) (או em/rem). px מותר רק בכלל שמתייחס לסרגל העליון (ששמו מכיל topbar)",
+      "radiusPx": "חובה var(--radius) (8). אין גלולות"
+    }
   }
 }

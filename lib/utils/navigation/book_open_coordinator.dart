@@ -13,6 +13,7 @@ import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/reading_tab_history.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 class BookOpenCoordinator {
@@ -195,6 +196,9 @@ class BookOpenCoordinator {
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane(
       screenWidth: layoutWidth?.call(),
       hasSearchText: searchQuery.isNotEmpty,
+      minMainContentWidth: book is PdfBook
+          ? SidePaneSpecs.pdfReaderNav.minMainContentWidth
+          : SidePaneSpecs.textReaderNav.minMainContentWidth,
     );
     final savedViewMode = PageShapeSettingsManager.getViewModePreference(
       book.title,

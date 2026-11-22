@@ -11,7 +11,8 @@ import '../ui_lint.dart';
 /// - `Positioned(left:/right:)`;
 /// - `Alignment(x, y)` עם x ליטרלי שאינו 0;
 /// - `BorderRadius.only(topLeft:/topRight:/bottomLeft:/bottomRight:)` ו־
-///   `BorderRadius.horizontal(left:/right:)`.
+///   `BorderRadius.horizontal(left:/right:)`;
+/// - `Border(left:/right:)` אסימטרי (התחליף: `BorderDirectional`).
 ///
 /// ערך סימטרי לא תלוי כיוון ולכן מותר (JX-20): `fromLTRB(a, b, a, c)`,
 /// `only(left: x, right: x)`, `Positioned(left: x, right: x)`,
@@ -41,8 +42,8 @@ class PhysicalDirectionRule extends UiLintRule {
   @override
   String get hint =>
       'EdgeInsetsDirectional (start/end), AlignmentDirectional, '
-      'Positioned.directional, BorderRadiusDirectional (DESIGN_SYSTEM.md §2.2, '
-      '§6.1)';
+      'Positioned.directional, BorderRadiusDirectional, BorderDirectional '
+      '(DESIGN_SYSTEM.md §2.2, §6.1)';
 
   @override
   void check(UiLintFile file) => file.unit.accept(_Visitor(this, file));
@@ -94,6 +95,8 @@ class _Visitor extends RecursiveAstVisitor<void> {
       case ('BorderRadius', 'only'):
         return _asymmetric(call, 'topLeft', 'topRight') ||
             _asymmetric(call, 'bottomLeft', 'bottomRight');
+      case ('Border', null):
+        return _asymmetric(call);
       case ('Alignment', null):
         final args = call.positional.toList();
         return args.isNotEmpty && _nonZeroLiteral(args.first);

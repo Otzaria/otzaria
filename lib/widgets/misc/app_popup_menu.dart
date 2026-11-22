@@ -107,6 +107,14 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
     };
   }
 
+  /// צלע הכפתור לפי האילוצים שהמארח קבע, או null כשאין בהם מידה סופית.
+  static double? _sideOf(BoxConstraints constraints) {
+    final side = constraints.minWidth > 0
+        ? constraints.minWidth
+        : constraints.maxWidth;
+    return side.isFinite && side > 0 ? side : null;
+  }
+
   bool get _hasCompactConstraints {
     final constraints = widget.constraints;
     if (constraints == null) return false;
@@ -198,17 +206,12 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
         text: widget.tooltip!,
       );
     } else if (widget.highlighted) {
-      final cs = Theme.of(context).colorScheme;
-      trigger = IconButton(
+      final constraints = widget.constraints;
+      trigger = AppIconButton(
         onPressed: widget.enabled ? _showAdaptiveMenu : null,
-        padding: widget.padding ?? EdgeInsets.zero,
-        constraints: widget.constraints,
-        tooltip: widget.tooltip,
-        style: IconButton.styleFrom(
-          backgroundColor: cs.secondaryContainer,
-          foregroundColor: cs.onSecondaryContainer,
-          shape: AppTokens.roundedShape,
-        ),
+        tooltip: widget.tooltip ?? '',
+        extent: constraints == null ? null : _sideOf(constraints),
+        fill: AppIconButtonFill.tonal,
         icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
       );
     } else {
@@ -670,6 +673,7 @@ Future<T?> showAnchoredAppSearchMenu<T>({
     metrics,
     entries,
     maxWidth: overlay.size.width,
+    textScaler: MediaQuery.textScalerOf(context),
   );
   if (!context.mounted ||
       !anchorContext.mounted ||
@@ -713,7 +717,11 @@ Future<T?> showAnchoredAppSearchMenu<T>({
 
   // רוחב התוכן והטריגר מוגבל ל-overlay כדי שלא יגלוש מעבר לחלון.
   final filterRowWidth = hasFilters
-      ? _calculateFilterRowWidth(metrics, filterLabels)
+      ? _calculateFilterRowWidth(
+          metrics,
+          filterLabels,
+          MediaQuery.textScalerOf(context),
+        )
       : 0.0;
   final effectiveWidth = [
     menuMinWidth ?? 0.0,
@@ -1180,7 +1188,11 @@ Widget buildAppMenuRowContent(
   trailingReservedWidth: trailingReservedWidth,
 );
 
-double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
+double _calculateFilterRowWidth(
+  AppMenuMetrics metrics,
+  List<String> labels,
+  TextScaler textScaler,
+) {
   // ריפוד ה-Padding העוטף (EdgeInsets.fromLTRB(8, 0, 8, 4)) + רווח בין צ'יפים.
   const double rowHorizontalPadding = 16.0;
   const double chipGap = 6.0;
@@ -1199,6 +1211,7 @@ double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
     final painter = TextPainter(
       text: TextSpan(text: labels[i], style: chipTextStyle),
       textDirection: TextDirection.rtl,
+      textScaler: textScaler,
       maxLines: 1,
     )..layout();
     total += painter.width + chipChrome;

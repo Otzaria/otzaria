@@ -717,37 +717,57 @@ class _FontDropdown extends StatelessWidget {
     required this.onBoldChanged,
   });
 
+  /// מתחת לרוחב הזה שדה הגופן היה נדחס לכמה פיקסלים בין התווית לכפתור
+  /// ההדגשה, ולכן התווית וההדגשה עוברות לשורה משלהן והשדה מתחתיהן.
+  static const double _inlineMinWidth = 340;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        RtlIcon(icon),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: AppTextStyles.settingTitle,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: FontDropdownField(
-            value: value,
-            onChanged: onChanged,
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          tooltip: context.settingsText(
-            bold ? 'הצגה במשקל רגיל' : 'הדגשת הגופן (בולד)',
-          ),
-          isSelected: bold,
-          onPressed: () => onBoldChanged(!bold),
-          icon: const Icon(FluentIcons.text_bold_24_regular),
-          selectedIcon: const Icon(FluentIcons.text_bold_24_filled),
-        ),
-      ],
+    final boldButton = IconButton(
+      tooltip: context.settingsText(
+        bold ? 'הצגה במשקל רגיל' : 'הדגשת הגופן (בולד)',
+      ),
+      isSelected: bold,
+      onPressed: () => onBoldChanged(!bold),
+      icon: const Icon(FluentIcons.text_bold_24_regular),
+      selectedIcon: const Icon(FluentIcons.text_bold_24_filled),
+    );
+    final field = FontDropdownField(value: value, onChanged: onChanged);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _inlineMinWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  RtlIcon(icon),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(label, style: AppTextStyles.settingTitle),
+                  ),
+                  boldButton,
+                ],
+              ),
+              field,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            RtlIcon(icon),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 100,
+              child: Text(label, style: AppTextStyles.settingTitle),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: field),
+            const SizedBox(width: 8),
+            boldButton,
+          ],
+        );
+      },
     );
   }
 }

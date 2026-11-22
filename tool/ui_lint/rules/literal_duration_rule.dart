@@ -14,6 +14,12 @@ import '../ui_lint.dart';
 /// משך של אנימציית ממשק עובר דרך `AppMotion.duration(context, AppTokens.anim*)`,
 /// שמכבד הפחתת תנועה (DD-21). גם `AppMotion.duration(context, const
 /// Duration(...))` תקין: הוא עובר דרך AppMotion, ולכן מתאפס בהפחתת תנועה.
+/// גם קבוע מקומי שמאותחל ב־`Duration(<מספר>)` ועובר כ־`duration:` של אנימציית
+/// ממשק (`duration: _kAnimDuration`) הוא משך ליטרלי שהוסתר מאחורי שם.
+///
+/// גלילה לשורה (`scrollToLine(duration:)`) היא ניווט ולא אנימציית ממשק
+/// (הכרעת בעל הפרויקט 18.11): הכלל לא מסתכל עליה. מי שרוצה קפיצה בלי אנימציה
+/// כותב `Duration.zero` במפורש.
 /// timeout, debounce, `Future.delayed` ו־`waitDuration` של Tooltip אינם
 /// אנימציה ולא נתפסים. `Duration.zero` ו־0 מותרים.
 class LiteralDurationRule extends UiLintRule {
@@ -34,14 +40,35 @@ class LiteralDurationRule extends UiLintRule {
       'DD-21)';
 
   @override
-  void check(UiLintFile file) => file.unit.accept(_Visitor(this, file));
+  void check(UiLintFile file) {
+    final constants = <String>{};
+    file.unit.accept(_ConstantCollector(constants));
+    file.unit.accept(_Visitor(this, file, constants));
+  }
+}
+
+/// שמות של משתנים/שדות בקובץ שמאותחלים ב־`Duration(<מספר>)`.
+class _ConstantCollector extends RecursiveAstVisitor<void> {
+  _ConstantCollector(this.names);
+
+  final Set<String> names;
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    final init = node.initializer;
+    if (init != null && _Visitor._isLiteralDuration(init)) {
+      names.add(node.name.lexeme);
+    }
+    super.visitVariableDeclaration(node);
+  }
 }
 
 class _Visitor extends RecursiveAstVisitor<void> {
-  _Visitor(this.rule, this.file);
+  _Visitor(this.rule, this.file, this.constants);
 
   final LiteralDurationRule rule;
   final UiLintFile file;
+  final Set<String> constants;
 
   static const _names = {'duration', 'reverseDuration'};
   static const _scrollMethods = {
@@ -83,8 +110,10 @@ class _Visitor extends RecursiveAstVisitor<void> {
 
   @override
   void visitNamedArgument(NamedArgument node) {
+    final value = node.argumentExpression.unParenthesized;
     if (_names.contains(node.name.lexeme) &&
-        _isLiteralDuration(node.argumentExpression)) {
+        (_isLiteralDuration(value) ||
+            (value is SimpleIdentifier && constants.contains(value.name)))) {
       final owner = node.parent?.parent;
       if (owner != null && _isAnimation(owner)) file.report(rule, node);
     }

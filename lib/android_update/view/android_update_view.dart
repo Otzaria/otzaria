@@ -14,7 +14,7 @@ import 'android_update_host.dart';
 Future<void> showAndroidUpdateDialog(
   BuildContext context,
   AndroidUpdateBloc bloc,
-) => showDialog<void>(
+) => showDialogUntilTornDown<void>(
   context: context,
   builder: settingsDialogBuilder(
     context,

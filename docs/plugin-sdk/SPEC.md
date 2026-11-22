@@ -25,6 +25,7 @@ dart run tool/plugins/generate_plugin_spec.dart --check   # רק בודק, יו�
 |---|---|
 | `lib/plugins/models/plugin_api_catalog.dart` | שיטות מתועדות ופנימיות, הרשאות הגשר והאריזה, גרסאות מינימום ורמזי הרשאות |
 | `lib/plugins/services/plugin_extended_validator.dart` | `_knownEvents`, `_whenConditionMinVersion`, `_headlessMinVersion` |
+| `lib/plugins/services/plugin_design_rules.dart` | `designRules`: מילות המפתח המותרות ב-`font-family` ובצבע, הסלקטור של הסרגל העליון, כללי @ שאינם נבדקים, והודעות הכשל של בדיקת העיצוב |
 | `lib/plugins/models/plugin_valid_permissions.dart` | `pluginValidPermissions`, `pluginBaselinePermissions`, `pluginLegacyPermissionAliases` |
 | `lib/plugins/services/plugin_manifest_validator.dart` | `validStabilityValues` |
 | `lib/plugins/services/plugin_settings_access_policy.dart` | `blockedSubstrings` / `blockedPrefixes` / `blockedKeys` |
@@ -55,6 +56,17 @@ dart run tool/plugins/generate_plugin_spec.dart --check   # רק בודק, יו�
 
 שני העותקים נמשכים מ-`Otzaria/otzaria@dev`, כלומר **המפרט צריך להיות מקומט
 ודחוף לפני שהם מתרעננים**.
+
+## כללי העיצוב (`designRules`)
+
+בדיקת העיצוב ("מראה תואם לאוצריא") קיימת בשני מימושים: ב-Dart
+(`PluginExtendedValidator`) ובכל אחד ממאגרי ה-JS. כללי העיצוב עצמם ישבו
+בשני המקומות, ולכן סטו. הם נמצאים עכשיו כנתונים ב-`plugin_design_rules.dart`
+ומתפרסמים ב-`designRules`: `colorKeywords`, `fontFamilyKeywords`,
+`topBarSelectorPattern`, `skippedAtRules` ו-`hints` (הסיומת של הודעת הכשל לכל
+סוג). `plugin_design_rules_test.dart` מוודא שהפרסום שווה לקבועים. מאגרי ה-JS
+צריכים לקרוא את `designRules` מהעותק המצורף של המפרט במקום לשכפל אותו, ובדיקת
+הסחיפה שלהם משווה אותו לעותק החי. שינוי כלל = שינוי בקובץ אחד.
 
 ## מדיניות ההגדרות מועברת ככללים, לא כרשימה
 

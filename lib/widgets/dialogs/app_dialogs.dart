@@ -57,6 +57,10 @@ class AppDialog extends StatefulWidget {
   /// הגלילה יושב בשוליים ולא מעל הטקסט. להודעה ארוכה ב-[customContent].
   final bool scrollable;
 
+  /// מגביל את שורות הכותרת (עם "…"). לכותרת שמכילה שם שהמשתמש בחר: בהגדלת
+  /// טקסט כותרת ארוכה תופסת את כל החלון ודוחקת את התוכן והכפתורים החוצה.
+  final int? titleMaxLines;
+
   // מאפשר לעצור סגירת הדיאלוג — למשל כשוולידציה נכשלת. null = סגור תמיד.
   final bool Function()? onConfirm;
 
@@ -74,6 +78,7 @@ class AppDialog extends StatefulWidget {
     this.headerTrailing,
     this.size = AppDialogSize.small,
     this.scrollable = false,
+    this.titleMaxLines,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
@@ -97,6 +102,7 @@ class AppDialog extends StatefulWidget {
     this.headerTrailing,
     this.size = AppDialogSize.small,
     this.scrollable = false,
+    this.titleMaxLines,
     this.onConfirm,
   }) : assert(
          content != null || customContent != null,
@@ -120,6 +126,7 @@ class AppDialog extends StatefulWidget {
        handleEnterKey = true,
        onConfirm = null,
        isDirty = null,
+       titleMaxLines = null,
        scrollable = false;
 
   @override
@@ -140,6 +147,7 @@ class _AppDialogState extends State<AppDialog> {
     final isWarning = widget._variant == _DialogVariant.warning;
     return AppDialogFrame(
       title: widget.title,
+      titleMaxLines: widget.titleMaxLines,
       icon:
           widget.icon ??
           switch (widget._variant) {

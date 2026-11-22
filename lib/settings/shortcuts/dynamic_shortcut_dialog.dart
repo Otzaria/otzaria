@@ -32,7 +32,7 @@ Future<DynamicShortcut?> showDynamicShortcutDialog(
           change: const DynamicDisplayChange(nikud: DynamicMarkChange.toggle),
         ),
   );
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showDialogUntilTornDown<bool>(
     context: context,
     builder: settingsDialogBuilder(
       context,
@@ -298,7 +298,7 @@ class _DynamicShortcutForm extends StatelessWidget {
                 ActionButton.neutral(
                   text: t('הקלט מקשים'),
                   onPressed: () async {
-                    final captured = await showDialog<String>(
+                    final captured = await showDialogUntilTornDown<String>(
                       context: context,
                       builder: settingsDialogBuilder(
                         context,

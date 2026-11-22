@@ -6,7 +6,10 @@ name: UI Baseline Guard
 # מופע לכלל באותו קובץ ובאותו scope צריך את התווית ui-baseline, שמתחזק מוסיף.
 # גם החרגת נתיב חדשה או מורחבת ב־tool/ui_lint/config.yaml משתיקה חריגות בלי
 # baseline, ולכן גם היא צריכה את אותה תווית. כך גם העלאה של max_allows (תקרת
-# הערות allow לכלל, §3.5; הכרעת בעל הפרויקט 10.11.2026).
+# הערות allow לכלל, §3.5; הכרעת בעל הפרויקט 10.11.2026). וגם שינוי במנגנון
+# האכיפה עצמו (כללי ה־lint, מנוע ה־lint, ה־fixtures, ה־workflows של ה־guards)
+# והסרת strict מכלל נעול: כל אלה מחלישים את האכיפה בלי להיראות כחוב, ולכן
+# דורשים את אותה תווית.
 
 on:
   pull_request:
@@ -93,8 +96,32 @@ jobs:
                   if n > base.get(rule, 0):
                       print(f"max_allows {rule}: {base.get(rule, 0)} -> {n}")
           PY
-          if [ ! -s /tmp/growth.txt ] && [ ! -s /tmp/excludes.txt ] && [ ! -s /tmp/allows.txt ]; then
-            echo "The ui_lint baseline did not grow, no path exclusion was added, and no max_allows cap was raised."
+          # A rule that loses strict can take new findings into the baseline
+          # again. A base without the rule block predates it, so only rules
+          # that were strict in the base count.
+          python3 - /tmp/base_config.yaml "$config" > /tmp/unlocked.txt <<'PY'
+          import re, sys
+
+          def strict(path):
+              text = open(path, encoding="utf-8").read()
+              rules = set()
+              for rule, body in re.findall(r"^  (UIL-\d{3}):[ \t]*\n((?:(?:    .*)?\n)*)", text, re.M):
+                  if re.search(r"^    strict:[ \t]*true", body, re.M):
+                      rules.add(rule)
+              return rules
+
+          for rule in sorted(strict(sys.argv[1]) - strict(sys.argv[2])):
+              print(f"strict removed: {rule}")
+          PY
+          # The enforcement itself: the rules and the engine, the fixtures that
+          # pin them, the CLI gate, and the workflows of the guards. A change
+          # there can weaken what every other pull request is checked against.
+          git diff --name-only "$BASE_SHA" HEAD \
+            | { grep -E '^(tool/ui_lint/(rules/|ui_lint\.dart|ast_helpers\.dart)|tool/ui_lint_cli\.dart|test/design_system/(ui_lint_test\.dart|ui_lint_pending_test\.dart|fixtures/)|\.github/workflows/(ui_baseline_guard|goldens_guard|flutter_tests|pr_labels)\.yml$)' || true; } \
+            > /tmp/enforcement.txt
+          if [ ! -s /tmp/growth.txt ] && [ ! -s /tmp/excludes.txt ] && [ ! -s /tmp/allows.txt ] \
+             && [ ! -s /tmp/unlocked.txt ] && [ ! -s /tmp/enforcement.txt ]; then
+            echo "The ui_lint baseline did not grow, no path exclusion was added, no max_allows cap was raised, no rule lost strict, and the enforcement code did not change."
             exit 0
           fi
           if [ -s /tmp/growth.txt ]; then
@@ -109,8 +136,16 @@ jobs:
             echo "Allow-comment caps raised in $config:"
             cat /tmp/allows.txt
           fi
+          if [ -s /tmp/unlocked.txt ]; then
+            echo "Locked rules in $config:"
+            cat /tmp/unlocked.txt
+          fi
+          if [ -s /tmp/enforcement.txt ]; then
+            echo "Enforcement files changed:"
+            cat /tmp/enforcement.txt
+          fi
           if [ "$BASELINE_LABEL" = "true" ]; then
-            echo "Baseline growth, exclusions and raised caps approved with the 'ui-baseline' label."
+            echo "Baseline growth, exclusions, raised caps, unlocked rules and enforcement changes approved with the 'ui-baseline' label."
             exit 0
           fi
           if [ -s /tmp/growth.txt ]; then
@@ -121,5 +156,11 @@ jobs:
           fi
           if [ -s /tmp/allows.txt ]; then
             echo "::error file=$config::This pull request raises a max_allows cap, so more '// ui-lint: allow' comments are accepted for that rule. Fix the violation instead, or ask a maintainer to add the 'ui-baseline' label."
+          fi
+          if [ -s /tmp/unlocked.txt ]; then
+            echo "::error file=$config::This pull request removes 'strict: true' from a locked rule, so new violations could enter the baseline again. Ask a maintainer to add the 'ui-baseline' label."
+          fi
+          if [ -s /tmp/enforcement.txt ]; then
+            echo "::error::This pull request changes the ui_lint rules or engine, their fixtures, or the guard workflows (listed above). The checks every other pull request runs against are defined there, so a maintainer reviews the change and adds the 'ui-baseline' label."
           fi
           exit 1

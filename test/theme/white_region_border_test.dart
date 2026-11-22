@@ -239,10 +239,12 @@ void main() {
         .isNotEmpty;
 
     // הקו בצד שפונה לתוכן, ורק בו.
-    final white = await paneShape(_white) as Border;
+    // הקו נקבע בכיוון (BorderDirectional) והמארח כאן RTL: start = ימין,
+    // end = שמאל. הקצה הפנימי של חלונית בימין הוא השמאלי, כלומר end.
+    final white = await paneShape(_white) as BorderDirectional;
     final paneOnRight = pane.center.dx > main.center.dx;
-    final inner = paneOnRight ? white.left : white.right;
-    final outer = paneOnRight ? white.right : white.left;
+    final inner = paneOnRight ? white.end : white.start;
+    final outer = paneOnRight ? white.start : white.end;
     expect(inner.color, _line(_white));
     expect(inner.width, AppTokens.borderThin);
     expect(outer, BorderSide.none);

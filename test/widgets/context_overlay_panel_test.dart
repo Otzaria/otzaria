@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 
 class _OverlayHarness extends StatefulWidget {
   final bool deferChildBuildOnOpen;
@@ -339,7 +339,7 @@ void main() {
       );
     }
 
-    testWidgets('ברירת המחדל: LayoutConstraints.overlayPanelWidth (400)', (
+    testWidgets('ברירת המחדל: SidePaneSpecs.overlayPanelWidth (350)', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -357,8 +357,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(LayoutConstraints.overlayPanelWidth, 400);
-      expect(tester.getSize(find.byType(FloatingPanel)).width, 400);
+      expect(SidePaneSpecs.overlayPanelWidth, 350);
+      expect(tester.getSize(find.byType(FloatingPanel)).width, 350);
     });
 
     testWidgets('הרוחב מצומצם לרוחב החלון ונשמרים שוליים משני הצדדים', (

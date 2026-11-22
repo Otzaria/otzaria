@@ -27,6 +27,7 @@ import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_results_layout.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
 import 'package:otzaria/theme/app_shadows.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 class TantivyFullTextSearch extends StatefulWidget {
   final SearchingTab tab;
@@ -126,7 +127,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   }
 
   void _openEditDialog() {
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (_) => SearchDialog(editTab: widget.tab),
     );
@@ -349,25 +350,31 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
         }
         // הבלוק כולו תחום ברוחב — הסרגל אינו יכול להתרחב בשבילו, ובלי
         // הגבלה שתי השורות חופפות את שאר פריטי הסרגל (issue #1051).
-        return ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: _externalCountLineMaxWidth,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Tooltip(
-                message: 'אוצריא: $engineLine',
-                child: Text(
-                  'אוצריא: ${collapsed ? compactEngineLine : engineLine}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: muted.copyWith(fontSize: 12),
+        // FittedBox: בהגדלת טקסט שתי השורות גבוהות מהסרגל, ובלי הקטנה הן גולשות
+        // מתחתיו. בגודל רגיל הן נכנסות והבלוק לא מוקטן.
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: _externalCountLineMaxWidth,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Tooltip(
+                  message: 'אוצריא: $engineLine',
+                  child: Text(
+                    'אוצריא: ${collapsed ? compactEngineLine : engineLine}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: muted.copyWith(fontSize: 12, height: 1.1),
+                  ),
                 ),
-              ),
-              _buildExternalCountLine(context, status, muted),
-            ],
+                _buildExternalCountLine(context, status, muted),
+              ],
+            ),
           ),
         );
       },
@@ -379,7 +386,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     ExternalSearchStatus status,
     TextStyle muted,
   ) {
-    final style = muted.copyWith(fontSize: 12);
+    final style = muted.copyWith(fontSize: 12, height: 1.1);
     final filteredNote = status.ofTotalBooks != null
         ? ' (מתוך ${status.ofTotalBooks})'
         : '';

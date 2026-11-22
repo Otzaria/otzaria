@@ -32,6 +32,14 @@ import '../test_helpers/stub_settings_bloc.dart';
 ///
 /// המסך המוקטן שבטסט האינטגרציה משכפל את החיווט הזה; כאן נבדק המקור עצמו,
 /// כי שני הצדדים יכולים להתפצל זה מזה בלי שאיש ישים לב.
+/// מחליף את `pumpAndSettle`: בזמן טעינה מוצג גלגל מסתובב (החלטה 62) שלעולם
+/// לא "נרגע", ו-pumpAndSettle נגמר ב-timeout. מקדמים זמן קבוע (שתי שניות).
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -99,7 +107,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
     return bloc;
   }
 
@@ -111,7 +119,7 @@ void main() {
     await gesture.moveTo(target);
     await tester.pump();
     await gesture.up();
-    await tester.pumpAndSettle();
+    await _settle(tester);
   }
 
   List<String> titles(OpenedTab tab) =>
@@ -193,7 +201,7 @@ void main() {
     final draggedInSplit = paneStateOf(dragged);
 
     bloc.add(const ExpandCombinedTab(0));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(bloc.state.tabs, hasLength(2));
     expect(
       paneStateOf(dragged),

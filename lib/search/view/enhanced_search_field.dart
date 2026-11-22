@@ -136,6 +136,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                             labelText: context.settingsText('חיפוש'),
                             prefixIcon: widget.showInlineSearchButton
                                 ? IconButton(
+                                    tooltip: context.settingsText('חיפוש'),
                                     onPressed: widget.onSubmit,
                                     icon: const Icon(
                                       OtzariaIcons.search_24_regular,

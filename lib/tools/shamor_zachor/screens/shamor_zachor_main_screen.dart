@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
@@ -31,12 +32,12 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria/widgets/layout/tool_scaffold.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -254,12 +255,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: IconButton.filledTonal(
+          child: AppIconButton(
             tooltip: 'הוסף ספרים למעקב',
-            visualDensity: VisualDensity.compact,
-            style: IconButton.styleFrom(
-              shape: AppTokens.roundedShape,
-            ),
+            size: AppIconButtonSize.medium,
+            fill: AppIconButtonFill.tonal,
             onPressed: _openAddBooksDialog,
             icon: const Icon(FluentIcons.add_24_regular),
           ),
@@ -494,15 +493,17 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                     const SizedBox(width: 16),
                                   ],
                                   Expanded(
-                                    child: OtzariaSearchField(
-                                      icon: OtzariaIcons
-                                          .search_in_library_24_regular,
-                                      controller: _searchController,
-                                      focusNode: _searchFocusNode,
-                                      hintText: 'חפש...',
-                                      onChanged: _onSearchChanged,
-                                      onSubmitted: (_) => _focusWindow(),
-                                      onClear: () => _onSearchChanged(''),
+                                    child: AppTopBarField(
+                                      child: OtzariaSearchField(
+                                        icon: OtzariaIcons
+                                            .search_in_library_24_regular,
+                                        controller: _searchController,
+                                        focusNode: _searchFocusNode,
+                                        hintText: 'חפש...',
+                                        onChanged: _onSearchChanged,
+                                        onSubmitted: (_) => _focusWindow(),
+                                        onClear: () => _onSearchChanged(''),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -554,12 +555,12 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       isOpen: _isSidebarVisible,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth,
-      minMainContentWidth: 320,
+      minMainContentWidth: SidePaneSpecs.shamorZachor.minMainContentWidth,
       onClose: () => _setSidebarVisible(false),
       onOpen: () => _setSidebarVisible(true),
       isResizable: true,
-      minPaneWidth: 220,
-      maxPaneWidth: 420,
+      minPaneWidth: SidePaneSpecs.shamorZachor.minPaneWidth,
+      maxPaneWidth: SidePaneSpecs.shamorZachor.maxPaneWidth,
       onPaneWidthChanged: (nextWidth) {
         _sidebarWidth = nextWidth;
       },

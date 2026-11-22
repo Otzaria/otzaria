@@ -132,9 +132,9 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_install_decision.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
-import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart'
-    show buildThemePayloadFromScheme;
-import 'package:otzaria/theme/app_theme_data.dart' show AppThemeData;
+import 'package:otzaria/plugins/utils/platform_brightness_listener.dart';
+import 'package:otzaria/plugins/utils/plugin_fullscreen_event_forwarder.dart';
+import 'package:otzaria/plugins/utils/plugin_theme_changed_payload.dart';
 import 'package:otzaria/core/sequential_dialog_queue.dart';
 import 'package:otzaria/app_scope/external_activation_service.dart';
 import 'package:otzaria/core/external_uri_router.dart';
@@ -162,6 +162,7 @@ import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show getDafYomi, formatAmud;
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart'
     show openDafYomiBook;
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// פריט מאוחד לסרגל הניווט הראשי — מייצג תוסף או כלי-מובנה שהוצמד לסרגל.
 ///
@@ -1566,7 +1567,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
         return;
       }
-      final handled = await showDialog<bool>(
+      final handled = await showDialogUntilTornDown<bool>(
         context: context,
         builder: (_) => BlocProvider.value(
           value: bloc,
@@ -1592,7 +1593,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
       }
     } else if (state is PluginSystemDevInstallRequiresPermissions) {
-      final handled = await showDialog<bool>(
+      final handled = await showDialogUntilTornDown<bool>(
         context: context,
         builder: (_) => PluginInstallScreen(
           manifest: state.manifest,
@@ -1782,10 +1783,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
         return true;
       case OpenHistoryAction():
-        showDialog(context: context, builder: (_) => const HistoryDialog());
+        showDialogUntilTornDown(
+          context: context,
+          builder: (_) => const HistoryDialog(),
+        );
         return true;
       case OpenBookmarksAction():
-        showDialog(context: context, builder: (_) => const BookmarksDialog());
+        showDialogUntilTornDown(
+          context: context,
+          builder: (_) => const BookmarksDialog(),
+        );
         return true;
       case ShowInfoAction():
         return await _showInfoReport(action);
@@ -3117,9 +3124,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final seed = isDark ? settings.darkSeedColor : settings.seedColor;
     PluginRuntimeDispatcher.instance.dispatchEvent(
       'theme.changed',
-      buildThemePayloadFromScheme(
-        AppThemeData.createColorScheme(seed, brightness),
-        isDark: isDark,
+      buildThemeChangedPayload(
+        seed: seed,
+        brightness: brightness,
         density: density,
       ),
     );
@@ -3131,6 +3138,17 @@ class MainWindowScreenState extends State<MainWindowScreen>
   void _onEffectiveDensityChanged(AppDensity density) {
     if (density == _pluginThemeDensity) return;
     _dispatchThemeChanged(context.read<SettingsBloc>().state, density);
+  }
+
+  /// המערכת החליפה בהיר/כהה. רק ב"עקוב אחר המערכת" ה-MaterialApp מתחלף בלי
+  /// שההגדרות השתנו, ולכן theme.changed לא נשלח מ-[BlocListener] של ההגדרות.
+  void _onPlatformBrightnessChanged(Brightness _) {
+    final settings = context.read<SettingsBloc>().state;
+    if (!settings.followSystemTheme) return;
+    _dispatchThemeChanged(
+      settings,
+      _pluginThemeDensity ?? AppDensity.of(context),
+    );
   }
 
   @override
@@ -4124,7 +4142,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
             // בהגדרות.
             child: AppDensityListener(
               onChanged: _onEffectiveDensityChanged,
-              child: content,
+              child: PlatformBrightnessListener(
+                onChanged: _onPlatformBrightnessChanged,
+                child: PluginFullscreenEventForwarder(
+                  dispatch: PluginRuntimeDispatcher.instance.dispatchEvent,
+                  child: content,
+                ),
+              ),
             ),
           ),
         ),
@@ -4199,7 +4223,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final focusRepository = FocusRepository.of(context);
     setState(() => _isSearchOpen = true);
 
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
       builder: (context) => SearchDialog(existingTab: existingTab),
     ).then((_) {
@@ -4234,9 +4258,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final focusRepository = FocusRepository.of(context);
     setState(() => _isFindRefOpen = true);
 
-    showDialog(
+    showDialogUntilTornDown(
       context: context,
-      useRootNavigator: true,
       barrierColor: transparentBarrier ? Colors.transparent : null,
       builder: (context) => FindRefDialog(),
     ).then((_) {

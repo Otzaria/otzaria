@@ -409,7 +409,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Wrap(
-        spacing: 6,
+        spacing: AppTokens.spaceSM,
         runSpacing: 4,
         children: [
           for (final f in filters)

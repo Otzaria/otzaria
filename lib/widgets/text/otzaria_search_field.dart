@@ -26,6 +26,11 @@ abstract class _ST {
   /// רוחב תיבת הקלט שתווית של כפתור לא תצמצם מתחתיו.
   static const double minInputWidthWithLabels = 120.0;
 
+  /// במסך מגע, כפתורי שדה צר גדלים מ-26 ל-40 (והשדה מ-36 ל-40) רק אם תיבת
+  /// הקלט נשארת לפחות ברוחב הזה: שמונה אותיות ועוד (q4).
+  static const double minInputWidthTouchButtons = 116.0;
+  static const double heightSlimTouch = 40.0;
+
   static const double fillAlphaUnfocused = AppInputTokens.unfocusedAlpha;
   static const double fillAlphaFocused = AppInputTokens.focusedAlpha;
   static const Duration collapseAnim = Duration(milliseconds: 220);
@@ -209,11 +214,18 @@ abstract class OtzariaSearchFieldExtraActions implements Listenable {
 /// מצבים:
 /// • [slim] = null: יורש אוטומטית מ-[AppDensity]
 /// • [slim] = false (touch / מרווח): גובה 48px, גופן 16px
-/// • [slim] = true  (desktop / compact): גובה 36px, גופן 13px
+/// • [slim] = true  (desktop / compact): גובה 36px, גופן 13px; במסך מגע עם
+///   כפתורי פעולה וגובה 40 כשיש מקום לקלט (q4, ראו [_ST.minInputWidthTouchButtons]),
+///   אלא אם צפיפות הממשק קומפקטית — אז 36 גם במגע
 /// • [isCompact] = true: מתכווץ לאייקון עגול (scroll-hide)
 class OtzariaSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hintText;
+
+  /// הרמז כשהרמז המלא [hintText] לא נכנס ברוחב הפנוי של הקלט (למשל בלי שם
+  /// הקטגוריה). ההחלטה לפי מדידה של הרוחב בפועל ושל הגדלת הטקסט, לא לפי סף
+  /// קבוע של חלון. `null` = הרמז המלא תמיד.
+  final String? compactHintText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onClear;
@@ -256,6 +268,7 @@ class OtzariaSearchField extends StatefulWidget {
     super.key,
     required this.controller,
     required this.hintText,
+    this.compactHintText,
     this.onChanged,
     this.onSubmitted,
     this.onClear,
@@ -424,13 +437,78 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     );
   }
 
-  Widget _buildField(BuildContext context) {
+  /// הרמז שמוצג: [OtzariaSearchField.compactHintText] כשהרמז המלא לא נכנס
+  /// ברוחב הפנוי של הקלט ([reservedWidth] הוא מה שהאייקונים והריפוד תופסים).
+  String _effectiveHint(
+    BuildContext context, {
+    required double? availableWidth,
+    required double fontSize,
+    required double reservedWidth,
+  }) {
+    final compact = widget.compactHintText;
+    if (compact == null || availableWidth == null || !availableWidth.isFinite) {
+      return widget.hintText;
+    }
+    final painter = TextPainter(
+      text: TextSpan(
+        text: widget.hintText,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(fontSize: fontSize),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final fits = painter.width <= availableWidth - reservedWidth;
+    painter.dispose();
+    return fits ? widget.hintText : compact;
+  }
+
+  bool get _isTouchTheme =>
+      Theme.of(context).materialTapTargetSize == MaterialTapTargetSize.padded;
+
+  /// שדה צר במסך מגע: כפתוריו עשויים לגדול ל-40 אם יש מקום ([_touchButtonsFit]).
+  /// לא בצפיפות ממשק קומפקטית: מי שבחר אותה מקבל 36 גם במגע (הכרעת הבעלים).
+  bool _mayGrowTouchButtons(BuildContext context) =>
+      _resolveSlim(context) &&
+      !AppDensity.of(context).isCompact &&
+      _isTouchTheme &&
+      (widget.trailingActions?.isNotEmpty == true ||
+          widget.extraActions != null);
+
+  /// האם כפתורים בני 40 משאירים לקלט [_ST.minInputWidthTouchButtons]. ה-X
+  /// נספר תמיד כשיש `onClear` (48 במגע), גם כשהשדה ריק, כדי שהכפתורים לא
+  /// יקפצו בגודלם בהקלדה הראשונה. פעולות שמוצגות מתחת לשדה ([actionsBelow]) לא
+  /// נספרות, כי הן לא לוקחות מרוחב הקלט.
+  bool _touchButtonsFit(double? availableWidth, double prefixAndPadding) {
+    if (availableWidth == null || !availableWidth.isFinite) return true;
+    final inline = widget.actionsBelow
+        ? 0
+        : (widget.trailingActions?.length ?? 0) +
+              (widget.extraActions?.maxButtonCount ?? 0);
+    final clear = widget.onClear == null ? 0 : kMinInteractiveDimension;
+    final taken =
+        prefixAndPadding +
+        inline * OtzariaSearchActionSize.slimTouch.button +
+        clear;
+    return availableWidth - taken >= _ST.minInputWidthTouchButtons;
+  }
+
+  Widget _buildField(BuildContext context, {double? availableWidth}) {
     final cs = Theme.of(context).colorScheme;
     final hasText = widget.controller.text.isNotEmpty;
     final isSlim = _resolveSlim(context);
 
     // גובה וגופן — slim (desktop) לעומת touch
-    final double effectiveHeight = isSlim ? _ST.heightSlim : _ST.height;
+    final touchButtons =
+        _mayGrowTouchButtons(context) &&
+        _touchButtonsFit(availableWidth, 36.0 + 2 * AppTokens.spaceXS);
+    final double effectiveHeight = touchButtons
+        ? _ST.heightSlimTouch
+        : isSlim
+        ? _ST.heightSlim
+        : _ST.height;
     final double effectiveFontSize = isSlim ? _ST.fontSizeSlim : _ST.fontSize;
     // אייקון ממשק רגיל (DD-03) גם בשדה הרחב, כמו בצר; לא 22 (review-r5,
     // q-search-22).
@@ -512,10 +590,24 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       vertical: 0,
     );
 
-    final actionSize = isSlim
+    final actionSize = touchButtons
+        ? OtzariaSearchActionSize.slimTouch
+        : isSlim
         ? OtzariaSearchActionSize.slim
         : OtzariaSearchActionSize.regular;
     final prefixMinWidth = isSlim ? 36.0 : 44.0;
+    final suffixMinWidth = suffixChildren.isNotEmpty
+        ? (suffixChildren.length *
+                  (touchButtons ? actionSize.button : (isSlim ? 28.0 : 34.0)))
+              .clamp(isSlim ? 28.0 : 34.0, 180.0)
+        : (isSlim ? 32.0 : 40.0);
+    final hintText = _effectiveHint(
+      context,
+      availableWidth: availableWidth,
+      fontSize: effectiveFontSize,
+      reservedWidth:
+          prefixMinWidth + contentPadding.horizontal + suffixMinWidth,
+    );
     final mayShowLabels =
         (extraActions != null && widget.extraActions!.mayShowLabels) ||
         (widget.trailingActions?.any(
@@ -550,15 +642,10 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           ),
           suffixIcon: suffixWidget,
           suffixIconConstraints: BoxConstraints(
-            minWidth: suffixChildren.isNotEmpty
-                ? (suffixChildren.length * (isSlim ? 28.0 : 34.0)).clamp(
-                    isSlim ? 28.0 : 34.0,
-                    180.0,
-                  )
-                : (isSlim ? 32.0 : 40.0),
+            minWidth: suffixMinWidth,
             minHeight: effectiveHeight,
           ),
-          hintText: widget.hintText,
+          hintText: hintText,
           hintStyle: TextStyle(fontSize: effectiveFontSize, color: hintColor),
           border: noBorder,
           enabledBorder: noBorder,
@@ -643,7 +730,12 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         ),
       );
     } else {
-      content = _buildField(context);
+      content = widget.compactHintText == null && !_mayGrowTouchButtons(context)
+          ? _buildField(context)
+          : LayoutBuilder(
+              builder: (context, constraints) =>
+                  _buildField(context, availableWidth: constraints.maxWidth),
+            );
     }
 
     if (widget.maxWidth != null) {

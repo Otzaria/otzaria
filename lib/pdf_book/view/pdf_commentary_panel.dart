@@ -42,6 +42,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/commentary/links_list_view.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
@@ -65,6 +66,7 @@ import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
+import 'package:otzaria/widgets/selection/pen_selection_gestures.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
@@ -82,6 +84,7 @@ import 'dart:async';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 
 /// Type alias לתאימות - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -1124,6 +1127,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     );
   }
 
+  void _onSelectionChanged(SelectedContent? selection) {
+    trackRtlSelection(selection?.plainText);
+    if (rtlSelectionPriming) return;
+    final text = selection?.plainText ?? '';
+    setState(() {
+      _savedSelectedText = text.isNotEmpty ? text : null;
+    });
+  }
+
   /// עוטף תוכן ב-SelectionArea (לבחירת טקסט) + מעקב כיוון גרירה ל-RTL.
   /// יירוט Ctrl+C ממוקם *מעל* ה-SelectionArea — שם מנגנון ה-override של
   /// CopySelectionTextIntent מאתר אותו (מתחתיו הוא נשאר בלתי-נראה).
@@ -1133,15 +1145,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       child: RtlSelectionShortcuts(
         child: SelectionArea(
           contextMenuBuilder: (context, _) => const SizedBox.shrink(),
-          onSelectionChanged: (selection) {
-            trackRtlSelection(selection?.plainText);
-            if (rtlSelectionPriming) return;
-            final text = selection?.plainText ?? '';
-            setState(() {
-              _savedSelectedText = text.isNotEmpty ? text : null;
-            });
-          },
-          child: child,
+          onSelectionChanged: _onSelectionChanged,
+          // עט בוחר בגרירה כמו עכבר (SelectableRegion מתייחס אליו כאל אצבע).
+          child: PenSelectionGestures(
+            onSelectionChanged: _onSelectionChanged,
+            child: child,
+          ),
         ),
       ),
     );
@@ -1321,7 +1330,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     if (!mounted) return;
 
     final bookTitle = widget.tab.book.title;
-    await showDialog<bool>(
+    await showDialogUntilTornDown<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(
@@ -1491,18 +1500,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     if (visibleContent == null) {
       _invalidateFullSelection();
       _cancelSearchScroll();
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'טוען מפרשים...',
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.9,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען מפרשים...');
     }
 
     if (visibleContent.commentaryLinks.isEmpty) {
@@ -1511,18 +1509,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       _invalidateFullSelection();
       _cancelSearchScroll();
       if (widget.linksLoading) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'טוען מפרשים...',
-              style: TextStyle(
-                fontSize: widget.fontSize * 0.9,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        );
+        return const LoadingIndicator.compact(message: 'טוען מפרשים...');
       }
 
       final hasCommentaryLinks = visibleContent.hasAnyCommentaryLinks;
@@ -1887,35 +1874,13 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   Widget _buildLinksView() {
     final visibleContent = _getVisibleContent();
     if (visibleContent == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'טוען קישורים...',
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.9,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען קישורים...');
     }
 
     final relevantLinks = visibleContent.links;
 
     if (relevantLinks.isEmpty && widget.linksLoading) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'טוען קישורים...',
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.9,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
+      return const LoadingIndicator.compact(message: 'טוען קישורים...');
     }
 
     // אותה רשימה בדיוק כמו בכרטיסיית הטקסט: צ׳יפי סוג ודור, חיפוש בכותרת

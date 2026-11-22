@@ -200,7 +200,10 @@ void main() {
       final overlay = inkWell.overlayColor!;
       expect(overlay.resolve({WidgetState.hovered})!.a, closeTo(0.08, 0.005));
       expect(overlay.resolve({WidgetState.pressed})!.a, closeTo(0.10, 0.005));
-      expect(overlay.resolve({WidgetState.focused})!.a, closeTo(0.10, 0.005));
+      // פוקוס בלי ניווט מקלדת (למשל חזרת פוקוס אחרי סגירת התפריט בלחיצת
+      // עכבר) לא מצויר (DD-07). המילוי בניווט מקלדת נבדק ב-
+      // a11y_cross_cutting_test.
+      expect(overlay.resolve({WidgetState.focused})!.a, 0);
       expect(overlay.resolve(<WidgetState>{}), isNull);
       expect(inkWell.splashColor!.a, closeTo(0.10, 0.005));
       // ההדגשה בלחיצה באה מ-overlayColor (pressed), בלי highlightColor נפרד.

@@ -1,6 +1,7 @@
 // lib/tools/measurement_converter/measurement_converter_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/side_pane_specs.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/shortcuts/current_window_search_activator.dart';
@@ -591,7 +593,8 @@ class _MeasurementConverterScreenState
       alignment:
           AlignmentDirectional.centerEnd, // ימין בעברית (RTL) - סרגל ניווט
       paneWidth: _categoriesPaneWidth,
-      minMainContentWidth: 420,
+      minMainContentWidth:
+          SidePaneSpecs.measurementConverter.minMainContentWidth,
       onClose: () {
         setState(() {
           if (isWide) {
@@ -611,8 +614,8 @@ class _MeasurementConverterScreenState
         });
       },
       isResizable: true,
-      minPaneWidth: 150,
-      maxPaneWidth: 280,
+      minPaneWidth: SidePaneSpecs.measurementConverter.minPaneWidth,
+      maxPaneWidth: SidePaneSpecs.measurementConverter.maxPaneWidth,
       onPaneWidthChanged: (nextWidth) {
         _categoriesPaneWidth = nextWidth;
       },
@@ -671,8 +674,9 @@ class _MeasurementConverterScreenState
     );
   }
 
-  Widget _swapUnitsButton() => IconButton.filledTonal(
+  Widget _swapUnitsButton() => AppIconButton(
     icon: const Icon(FluentIcons.arrow_swap_24_regular),
+    fill: AppIconButtonFill.tonal,
     onPressed: () {
       setState(() {
         final temp = _selectedFromUnit;
@@ -685,9 +689,6 @@ class _MeasurementConverterScreenState
       );
     },
     tooltip: 'החלף יחידות',
-    style: IconButton.styleFrom(
-      shape: AppTokens.roundedShape,
-    ),
   );
 
   // ── קלט ──────────────────────────────────────────────────────────────────────
