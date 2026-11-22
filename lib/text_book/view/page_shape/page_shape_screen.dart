@@ -52,6 +52,7 @@ import 'package:collection/collection.dart';
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
@@ -1279,7 +1280,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         ),
       );
 
-  /// טור המפרש [commentatorName]; אם הטעינה נכשלה הטור מוסתר בלי הודעה.
+  /// טור המפרש [commentatorName]; מפרש חסר מוסתר בלי הודעה.
   Widget _commentaryPane(
     String column,
     String commentatorName, {
@@ -1932,6 +1933,20 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     final cached = _fullCommentaryCache.remove(cacheKey);
     final future = cached ?? load();
     _fullCommentaryCache[cacheKey] = future;
+    if (cached == null) {
+      // כשל זמני (חריגה או טקסט ריק) לא נשמר — הטעינה הבאה מנסה שוב.
+      void evictFailure([Object? _]) {
+        if (identical(_fullCommentaryCache[cacheKey], future)) {
+          _fullCommentaryCache.remove(cacheKey);
+        }
+      }
+
+      unawaited(
+        future.then((data) {
+          if (data == null) evictFailure();
+        }, onError: evictFailure),
+      );
+    }
     while (_fullCommentaryCache.length > _maxFullCommentaryCacheEntries) {
       _fullCommentaryCache.remove(_fullCommentaryCache.keys.first);
     }
@@ -2816,14 +2831,14 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
           widget.commentatorName == requestedCommentatorName) {
         unawaited(_initCommentaryAnchors(book));
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-          '⚠️ CommentaryPane::loadCommentary failed '
-          'for ${widget.commentatorName}: $e',
-        );
-      }
-      _notifyCommentaryLoadFailed();
+    } catch (e, stackTrace) {
+      ErrorLogFile.appendInBackground(
+        title: 'כשל בטעינת מפרש בצורת הדף',
+        error: e,
+        stackTrace: stackTrace,
+        details: {'commentator': widget.commentatorName},
+      );
+      // כשל זמני אינו מסתיר את הטור — החלונית מציעה "נסה שוב".
       if (mounted) {
         setState(() {
           _reportBook = null;
@@ -2997,9 +3012,20 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       return Container(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Center(
-          child: Text(
-            'לא ניתן לטעון את ${widget.commentatorName}',
-            style: const TextStyle(fontSize: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'לא ניתן לטעון את ${widget.commentatorName}',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              ActionButton.neutral(
+                onPressed: _loadCommentary,
+                icon: FluentIcons.arrow_clockwise_24_regular,
+                text: 'נסה שוב',
+              ),
+            ],
           ),
         ),
       );
