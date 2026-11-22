@@ -36,6 +36,7 @@ import 'package:win32/win32.dart' as win;
 import '../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
 import 'installed_plugin_pdf_fixture.dart';
 import 'installed_plugin_pdf_readiness.dart';
+import 'installed_plugin_pdf_output_assertions.dart';
 
 const _deadline = Duration(seconds: 45);
 
@@ -211,11 +212,12 @@ class _PdfRuntime {
       }
 
       step('concurrentWork')['submittedOperations'] = intervals;
+      // בדיקות הנתונים משתמשות ב-expectSync בזמן שהקורא מצייר במקביל.
       await Future.wait([
         observed('indexing', () async {
           final result = await index(book);
-          expect(result.isClean, true, reason: '${result.failures}');
-          expect(result.indexedBooks, 1);
+          expectSync(result.isClean, true, reason: '${result.failures}');
+          expectSync(result.indexedBooks, 1);
           step('concurrentWork')['indexedPages'] = await verifyIndex(book);
         }),
         observed('printing', () => printAndExport(file.path, bytes)),
@@ -347,33 +349,11 @@ class _PdfRuntime {
     final own = hits
         .where((hit) => hit.filePath == BookIdentity.indexedFilePath(book))
         .toList();
-    expect(own, hasLength(installedPdfPageSizes.length));
-    expect(own.every((hit) => hit.isPdf), true);
+    expectSync(own, hasLength(installedPdfPageSizes.length));
+    expectSync(own.every((hit) => hit.isPdf), true);
     final pages = own.map((hit) => hit.segment.toInt()).toList()..sort();
-    expect(pages, [0, 1, 2, 3]);
+    expectSync(pages, [0, 1, 2, 3]);
     return pages;
-  }
-
-  Map<String, Object?> rasterProof(
-    int width,
-    int height,
-    Uint8List pixels,
-    int page,
-  ) {
-    final size = installedPdfPageSizes[page - 1];
-    expect((width, height), (size.width, size.height));
-    expect(pixels, hasLength(width * height * 4));
-    final dark = ((height - 40) * width + 40) * 4;
-    final light = (4 * width + 4) * 4;
-    expect(pixels.sublist(dark, dark + 4), [0, 0, 0, 255]);
-    expect(pixels.sublist(light, light + 4), [255, 255, 255, 255]);
-    return {
-      'page': page,
-      'width': width,
-      'height': height,
-      'pixelSha256': sha256.convert(pixels).toString(),
-      'contentPixelsVerified': true,
-    };
   }
 
   Future<Map<String, Object?>> checkNativePage(PdfPage page, int number) async {
@@ -385,7 +365,12 @@ class _PdfRuntime {
     );
     expect(image, isNotNull);
     try {
-      return rasterProof(image!.width, image.height, image.pixels, number);
+      return installedPdfRasterProof(
+        image!.width,
+        image.height,
+        image.pixels,
+        number,
+      );
     } finally {
       image?.dispose();
     }
@@ -407,11 +392,11 @@ class _PdfRuntime {
 
   Future<void> printAndExport(String path, Uint8List bytes) async {
     final capabilities = await Printing.info();
-    expect(capabilities.canRaster, true);
+    expectInstalledPdfRasterSupport(capabilities.canRaster);
     final rasters = <Map<String, Object?>>[];
     await for (final raster in Printing.raster(bytes, dpi: 72)) {
       rasters.add(
-        rasterProof(
+        installedPdfRasterProof(
           raster.width,
           raster.height,
           raster.pixels,
@@ -424,7 +409,7 @@ class _PdfRuntime {
         ).writeAsBytes(await raster.toPng());
       }
     }
-    expect(rasters, hasLength(installedPdfPageSizes.length));
+    expectSync(rasters, hasLength(installedPdfPageSizes.length));
     step('concurrentWork')['printingRasters'] = rasters;
     await withDocument(PrintPdfSource.file(path), (source) async {
       final bytes = await composePdfSheets(
@@ -440,25 +425,28 @@ class _PdfRuntime {
         p.join(output.path, 'bundle-runtime-export.pdf'),
       ).writeAsBytes(bytes, flush: true);
       await withDocument(PrintPdfSource.data(bytes), (export) async {
-        expect(export.pages, hasLength(1));
+        expectSync(export.pages, hasLength(1));
         final page = export.pages.single;
-        expect((page.width, page.height), (480.0, 320.0));
+        expectSync((page.width, page.height), (480.0, 320.0));
         final text = await page.loadStructuredText();
         for (final number in [2, 3]) {
-          expect(text.fullText, contains(installedPdfPageToken(number)));
+          expectSync(text.fullText, contains(installedPdfPageToken(number)));
         }
         for (final number in [1, 4]) {
-          expect(text.fullText, isNot(contains(installedPdfPageToken(number))));
+          expectSync(
+            text.fullText,
+            isNot(contains(installedPdfPageToken(number))),
+          );
         }
         final right = text.fullText.indexOf(installedPdfPageToken(2));
         final left = text.fullText.indexOf(installedPdfPageToken(3));
-        expect(
+        expectSync(
           text.charRects[right].left,
           greaterThan(text.charRects[left].left),
         );
         final raster = await Printing.raster(bytes, dpi: 72).single;
-        expect((raster.width, raster.height), (480, 320));
-        expect(raster.pixels, hasLength(480 * 320 * 4));
+        expectSync((raster.width, raster.height), (480, 320));
+        expectSync(raster.pixels, hasLength(480 * 320 * 4));
         var inkPixels = 0;
         for (var i = 0; i < raster.pixels.length; i += 4) {
           if (raster.pixels[i] < 128 &&
@@ -468,7 +456,7 @@ class _PdfRuntime {
             inkPixels++;
           }
         }
-        expect(inkPixels, greaterThan(100));
+        expectSync(inkPixels, greaterThan(100));
         await File(
           p.join(output.path, 'bundle-runtime-export.png'),
         ).writeAsBytes(await raster.toPng());
@@ -498,11 +486,16 @@ class _PdfRuntime {
     var received = 0;
     await for (final raster in Printing.raster(bytes, dpi: 72).take(1)) {
       received++;
-      rasterProof(raster.width, raster.height, raster.pixels, 1);
+      installedPdfRasterProof(raster.width, raster.height, raster.pixels, 1);
     }
     expect(received, 1);
     final recovered = await Printing.raster(bytes, pages: [3], dpi: 72).single;
-    rasterProof(recovered.width, recovered.height, recovered.pixels, 4);
+    installedPdfRasterProof(
+      recovered.width,
+      recovered.height,
+      recovered.pixels,
+      4,
+    );
 
     final cancelFile = File(p.join(output.path, 'bundle-runtime-cancel.pdf'));
     await cancelFile.writeAsBytes(bytes);
