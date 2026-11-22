@@ -1182,9 +1182,24 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         : replaceHolyNames(text, style: holyNameStyle);
 
     // שימוש בפונקציה העזר להוספת שם הספר
-    String displayText = hideHolyNames(
-      addBookTitleToRef(state.currentTitle!, state.book.title),
-    );
+    final currentTitle = state.currentTitle!;
+    final fullTitle = addBookTitleToRef(currentTitle, state.book.title);
+    String displayText = hideHolyNames(fullTitle);
+
+    // הכותרת כרשימת הכותרות שלה, כדי שקיצור יחתוך רק בגבול כותרת — פסיק
+    // שבתוך כותרת (פסקת Word שסומנה ככותרת) אינו גבול (#5712).
+    final headings = state.visibleIndices.isEmpty
+        ? const <String>[]
+        : headingPathFromTocList(
+            state.visibleIndices.first,
+            state.tableOfContents,
+          );
+    final titleHeadings = [
+      if (headings.join(', ') == currentTitle) ...[
+        if (fullTitle != currentTitle) state.book.title,
+        ...headings,
+      ],
+    ].map(hideHolyNames).toList();
 
     // בכרטיסייה של נוסח חלופי הכותרת זהה לזו של הנוסח הראשי; שם המהדורה הוא מה
     // שמבחין ביניהן, ולכן הוא מוצג במקום שם המחבר.
@@ -1223,13 +1238,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 constraints.maxWidth;
         // כשגם המיקום לבדו אינו נכנס, משמיטים מתחילתו ולא מסופו — הכותרת
         // העמוקה היא שמראה היכן הקורא נמצא (#5712).
-        final shownText = !hasSeparateLocation && textPainter.didExceedMaxLines
+        final elided =
+            !hasSeparateLocation &&
+                textPainter.didExceedMaxLines &&
+                titleHeadings.join(', ') == displayText
             ? startTruncatedTitle(
-                    displayText,
-                    (text) => !measure(text).didExceedMaxLines,
-                  ) ??
-                  displayText
-            : displayText;
+                titleHeadings,
+                (text) => !measure(text).didExceedMaxLines,
+              )
+            : null;
         final rowAlignment = switch (textAlign) {
           TextAlign.center => MainAxisAlignment.center,
           TextAlign.start => MainAxisAlignment.start,
@@ -1256,12 +1273,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     ),
                   ],
                 )
-              : Text(
-                  shownText,
-                  style: titleStyle,
-                  textAlign: textAlign,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              : _ElidedTitleSelection(
+                  elided: elided,
+                  child: Text(
+                    elided?.shown ?? displayText,
+                    style: titleStyle,
+                    textAlign: textAlign,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
         );
 
@@ -3334,19 +3354,89 @@ class _NavPanelTourTargetBuilder extends StatelessWidget {
   );
 }
 
-/// מקצרת כותרת "שם הספר, כותרת, ..., כותרת עמוקה" מתחילתה: מחזירה "…, " ואחריו
-/// הסיפא הארוכה ביותר שנכנסת לפי [fits]. כשאין מקום אף ל"…, " ולכותרת העמוקה
-/// מוחזרת הכותרת העמוקה לבדה (ותיחתך מסופה אם צריך). כותרת בלי פסיקים — null.
+/// כותרת שקוצרה מתחילתה: [shown] מוצג, ו-[omitted] הוא מה שהושמט לפני
+/// התו ה-[markerLength] של [shown] ("…" או כלום), כך שהכותרת המלאה היא
+/// `omitted + shown.substring(markerLength)`.
+typedef ElidedTitle = ({String shown, String omitted, int markerLength});
+
+/// מקצרת כותרת לפי [headings] (שם הספר והכותרות, מהעליונה לעמוקה) מתחילתה:
+/// "…, " ואחריו הסיפא הארוכה ביותר של כותרות שלמות שנכנסת לפי [fits]. כשאין
+/// מקום אף ל"…, " ולכותרת העמוקה מוצגת הכותרת העמוקה לבדה (ותיחתך מסופה אם
+/// צריך). פחות משתי כותרות — null.
 @visibleForTesting
-String? startTruncatedTitle(String title, bool Function(String text) fits) {
-  final segments = title.split(', ');
-  if (segments.length < 2) return null;
-  var shown = '…, ${segments.last}';
-  if (!fits(shown)) return segments.last;
-  for (var i = segments.length - 2; i >= 1; i--) {
-    final candidate = '…, ${segments.sublist(i).join(', ')}';
-    if (!fits(candidate)) break;
-    shown = candidate;
+ElidedTitle? startTruncatedTitle(
+  List<String> headings,
+  bool Function(String text) fits,
+) {
+  if (headings.length < 2) return null;
+  String before(int i) => headings.sublist(0, i).join(', ');
+  final last = headings.length - 1;
+  if (!fits('…, ${headings[last]}')) {
+    return (
+      shown: headings[last],
+      omitted: '${before(last)}, ',
+      markerLength: 0,
+    );
   }
-  return shown;
+  var first = last;
+  while (first > 1 && fits('…, ${headings.sublist(first - 1).join(', ')}')) {
+    first--;
+  }
+  return (
+    shown: '…, ${headings.sublist(first).join(', ')}',
+    omitted: before(first),
+    markerLength: 1,
+  );
+}
+
+/// הקיצור של [elided] חזותי בלבד: בחירה מתחילת הכותרת מחזירה, להעתקה,
+/// את הכותרת המלאה במקום "…" (#5712).
+class _ElidedTitleSelection extends StatefulWidget {
+  const _ElidedTitleSelection({required this.elided, required this.child});
+
+  final ElidedTitle? elided;
+  final Widget child;
+
+  @override
+  State<_ElidedTitleSelection> createState() => _ElidedTitleSelectionState();
+}
+
+class _ElidedTitleSelectionState extends State<_ElidedTitleSelection> {
+  final _delegate = _ElidedTitleSelectionDelegate();
+
+  @override
+  void dispose() {
+    _delegate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _delegate.elided = widget.elided;
+    return SelectionContainer(delegate: _delegate, child: widget.child);
+  }
+}
+
+class _ElidedTitleSelectionDelegate extends StaticSelectionContainerDelegate {
+  ElidedTitle? elided;
+
+  @override
+  SelectedContent? getSelectedContent() {
+    final content = super.getSelectedContent();
+    final range = getSelection();
+    final elided = this.elided;
+    if (elided == null ||
+        content == null ||
+        range == null ||
+        range.startOffset == range.endOffset ||
+        min(range.startOffset, range.endOffset) != 0) {
+      return content;
+    }
+    final text = content.plainText;
+    return SelectedContent(
+      plainText:
+          elided.omitted +
+          text.substring(min(elided.markerLength, text.length)),
+    );
+  }
 }

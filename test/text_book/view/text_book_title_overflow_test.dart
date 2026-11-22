@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -85,10 +86,16 @@ void main() {
     bool isInCombinedView = false,
     Size size = const Size(1400, 900),
     TextDisplayPolicy? displayPolicy,
+    List<TocEntry> tableOfContents = const [],
   }) async {
     final book = TextBook(title: bookTitle, author: author);
     final bloc = StubTextBookBloc(
-      _loadedState(book, currentTitle, displayPolicy: displayPolicy),
+      _loadedState(
+        book,
+        currentTitle,
+        displayPolicy: displayPolicy,
+        tableOfContents: tableOfContents,
+      ),
     );
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
@@ -380,8 +387,10 @@ void main() {
 
   group('כותרת צרה שומרת את הכותרת העמוקה (issue #5712)', () {
     const bookTitle = 'שמירת שבת כהלכתה';
-    const location = 'חלק א, פרק כ - דיני הוצאה, סעיף יג';
-    const fullTitle = '$bookTitle, $location';
+    const headings = ['חלק א', 'פרק כ - דיני הוצאה', 'סעיף יג'];
+    final location = headings.join(', ');
+    final fullTitle = '$bookTitle, $location';
+    final toc = _tocChain(headings);
 
     /// טקסט הכותרת הגלוי שמסתיים במיקום הנוכחי, אם יש כזה.
     Text? deepestTitleText(WidgetTester tester) => tester
@@ -403,7 +412,8 @@ void main() {
       await pumpWithTitle(
         tester,
         bookTitle: bookTitle,
-        currentTitle: fullTitle,
+        currentTitle: location,
+        tableOfContents: toc,
       );
 
       expect(tester.takeException(), isNull);
@@ -435,7 +445,8 @@ void main() {
       await pumpWithTitle(
         tester,
         bookTitle: bookTitle,
-        currentTitle: fullTitle,
+        currentTitle: location,
+        tableOfContents: toc,
         size: const Size(900, 900),
       );
 
@@ -447,7 +458,8 @@ void main() {
       await pumpWithTitle(
         tester,
         bookTitle: 'ספר',
-        currentTitle: 'ספר, א, ב',
+        currentTitle: 'א, ב',
+        tableOfContents: _tocChain(['א', 'ב']),
       );
 
       expect(find.textContaining('…'), findsNothing);
@@ -460,7 +472,8 @@ void main() {
       await pumpWithTitle(
         tester,
         bookTitle: bookTitle,
-        currentTitle: fullTitle,
+        currentTitle: location,
+        tableOfContents: toc,
       );
 
       expect(tester.takeException(), isNull);
@@ -469,21 +482,109 @@ void main() {
 
     test('startTruncatedTitle שומר את הסיפא הארוכה ביותר שנכנסת', () {
       bool fitsUpTo(String text, int max) => text.length <= max;
+      String full(ElidedTitle e) =>
+          e.omitted + e.shown.substring(e.markerLength);
 
-      expect(startTruncatedTitle('שם בלבד', (_) => true), isNull);
+      expect(startTruncatedTitle(['שם בלבד'], (_) => true), isNull);
+      final cut = startTruncatedTitle([
+        'א',
+        'ב',
+        'ג',
+        'ד',
+      ], (t) => fitsUpTo(t, 9))!;
+      expect(cut.shown, '…, ג, ד');
+      expect(full(cut), 'א, ב, ג, ד');
       expect(
-        startTruncatedTitle('א, ב, ג, ד', (t) => fitsUpTo(t, 9)),
-        '…, ג, ד',
-      );
-      expect(
-        startTruncatedTitle('א, ב, ג, ד', (_) => true),
+        startTruncatedTitle(['א', 'ב', 'ג', 'ד'], (_) => true)!.shown,
         '…, ב, ג, ד',
       );
+      final none = startTruncatedTitle(['א', 'ב', 'ג', 'ד'], (_) => false)!;
       expect(
-        startTruncatedTitle('א, ב, ג, ד', (_) => false),
+        none.shown,
         'ד',
         reason: 'גם כשדבר אינו נכנס — הכותרת העמוקה היא שמוצגת',
       );
+      expect(full(none), 'א, ב, ג, ד');
+    });
+
+    test('פסיק בתוך כותרת אינו נקודת חיתוך', () {
+      const deepest = 'דין המטלטל, והמוציא מרשות לרשות';
+      final elided = startTruncatedTitle([
+        'ספר',
+        'חלק א',
+        deepest,
+      ], (t) => t.length <= '…, $deepest'.length + 2)!;
+      expect(elided.shown, '…, $deepest');
+      expect(elided.omitted, 'ספר, חלק א');
+    });
+
+    // ב-340px נכנסות כ-15 אותיות: הכותרת העמוקה (14) נכנסת, אך לא אחרי "…, ".
+    // חלוקה לפי ", " הייתה מציגה "…, ובעלי חי" — חצי כותרת.
+    testWidgets('כותרת עמוקה עם פסיק בסרגל צר — אינה נחתכת בפסיק שבתוכה', (
+      tester,
+    ) async {
+      const deepest = 'כלים, ובעלי חי';
+      const deepHeadings = ['חלק א', 'פרק כ - דיני הוצאה', deepest];
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: deepHeadings.join(', '),
+        tableOfContents: _tocChain(deepHeadings),
+      );
+
+      expect(tester.takeException(), isNull);
+      final shown = tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byType(AppSelectionArea),
+              matching: find.byType(Text),
+            ),
+          )
+          .map((t) => t.data)
+          .toList();
+      expect(shown, contains(deepest));
+      expect(shown.where((d) => d?.contains('…') ?? false), isEmpty);
+    });
+
+    testWidgets('העתקת כותרת מקוצרת מחזירה את הכותרת המלאה', (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: location,
+        tableOfContents: toc,
+      );
+      expect(deepestTitleText(tester)?.data, startsWith('…, '));
+
+      final region = tester.state<SelectableRegionState>(
+        find.descendant(
+          of: find.byType(AppSelectionArea),
+          matching: find.byType(SelectableRegion),
+        ),
+      );
+      region.selectAll(SelectionChangedCause.keyboard);
+      await tester.pump();
+      region.contextMenuButtonItems
+          .firstWhere((item) => item.type == ContextMenuButtonType.copy)
+          .onPressed!();
+      await tester.pump();
+
+      expect(copied, fullTitle);
     });
   });
 
@@ -529,10 +630,28 @@ List<Rect> _titleTextRects(WidgetTester tester) {
   return rects;
 }
 
+/// שרשרת כותרות מקוננות שכולן חלות על השורה הראשונה, כמו בספר אמיתי.
+List<TocEntry> _tocChain(List<String> headings) {
+  TocEntry? parent;
+  final roots = <TocEntry>[];
+  for (var i = 0; i < headings.length; i++) {
+    final entry = TocEntry(
+      text: headings[i],
+      index: 0,
+      level: i + 2,
+      parent: parent,
+    );
+    (parent?.children ?? roots).add(entry);
+    parent = entry;
+  }
+  return roots;
+}
+
 TextBookLoaded _loadedState(
   TextBook book,
   String currentTitle, {
   TextDisplayPolicy? displayPolicy,
+  List<TocEntry> tableOfContents = const [],
 }) {
   return TextBookLoaded(
     displayPolicy: displayPolicy,
@@ -547,7 +666,7 @@ TextBookLoaded _loadedState(
     links: const <Link>[],
     visibleLinks: const <Link>[],
     linksByLine: const {},
-    tableOfContents: const [],
+    tableOfContents: tableOfContents,
     removeNikud: false,
     removePunctuation: false,
     visibleIndices: const [0],

@@ -76,7 +76,12 @@ Future<String?> _lineRefFromDb(
 /// חישוב מיידי בלי `await` (למשל תווית יעד ברחיפה מעל פס הגלילה), והחישוב
 /// עצמו נעשה במבנה עזר שנבנה פעם אחת לכל עץ, כי היא נקראת בכל גלילה.
 String refFromTocList(int index, List<TocEntry> toc) =>
-    (_tocRefLookups[toc] ??= _TocRefLookup(toc)).refAt(index);
+    headingPathFromTocList(index, toc).join(', ');
+
+/// שרשרת הכותרות של שורה [index], מהעליונה לעמוקה — אותה כתובת כמו
+/// [refFromTocList] לפני החיבור בפסיקים, כך שפסיק שבתוך כותרת אינו גבול.
+List<String> headingPathFromTocList(int index, List<TocEntry> toc) =>
+    (_tocRefLookups[toc] ??= _TocRefLookup(toc)).pathAt(index);
 
 final _tocRefLookups = Expando<_TocRefLookup>();
 
@@ -177,9 +182,9 @@ class _TocRefLookup {
     );
   }
 
-  String refAt(int index) {
+  List<String> pathAt(int index) {
     final lo = _countAtMost(_sortedKeys, index);
-    if (lo == 0) return '';
+    if (lo == 0) return const [];
     final root = _roots[lo - 1];
     final parts = <String>[];
     var pos = _lastPos[root];
@@ -187,7 +192,7 @@ class _TocRefLookup {
       parts.add(_entries[pos].text.trim());
       pos = _lastBelow(root, 0, _levelCount, _ranks[pos]);
     }
-    return parts.reversed.where((part) => part.isNotEmpty).join(', ');
+    return parts.reversed.where((part) => part.isNotEmpty).toList();
   }
 }
 
