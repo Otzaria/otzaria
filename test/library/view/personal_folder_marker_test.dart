@@ -504,7 +504,7 @@ void main() {
 
             await tester.tap(find.byTooltip('אפשרויות נוספות'));
             await tester.pumpAndSettle();
-            await tester.tap(find.text('מחק מהספרייה'));
+            await tester.tap(find.text('מחק את התיקייה "הורדות" מהספרייה'));
             await tester.pumpAndSettle();
 
             expect(find.text('למחוק את התיקייה?'), findsOneWidget);

@@ -853,13 +853,21 @@ class CategoryActionsMenuButton extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               onSelected: (value) {
                 if (value == 'delete') {
-                  _showDeleteFolderDialog(context, category.title, folder);
+                  _showDeleteFolderDialog(
+                    context,
+                    category,
+                    folder,
+                    merged: !underPersonalRoot,
+                  );
                 }
               },
-              entries: const [
+              entries: [
                 AppMenuEntry<String>(
                   value: 'delete',
-                  label: 'מחק מהספרייה',
+                  // תיקייה ממוזגת מוצגת בשם תת-התיקייה, וההסרה כוללת את כולה.
+                  label: underPersonalRoot
+                      ? 'מחק מהספרייה'
+                      : 'מחק את התיקייה "${folder.name}" מהספרייה',
                   icon: FluentIcons.delete_24_regular,
                   isDestructive: true,
                 ),
@@ -904,18 +912,29 @@ CustomFolder? _mergedFolderOf(Category category, List<CustomFolder> folders) {
 
 Future<void> _showDeleteFolderDialog(
   BuildContext context,
-  String title,
-  CustomFolder folder,
-) async {
+  Category category,
+  CustomFolder folder, {
+  required bool merged,
+}) async {
   final bloc = context.read<CustomFoldersBloc>();
   if (bloc.state.isSyncing || DatabaseLibraryProvider.operationQueue.isBusy) {
     UiSnack.show(LibraryMessages.folderRemovalBusy);
     return;
   }
-  // תיקייה ממוזגת מוצגת בשם תת-התיקייה, וההסרה כוללת את כל התיקייה.
-  final origin = title == folder.name
-      ? ''
-      : 'הקטגוריה "$title" באה מהתיקייה האישית "${folder.name}".\n';
+  // תיקייה ממוזגת מוצגת בשם תת-התיקייה, וההסרה כוללת את כל התיקייה —
+  // גם את הקטגוריות האחיות שבאו ממנה.
+  var origin = '';
+  if (merged) {
+    final siblings = [
+      for (final other in category.parent?.subCategories ?? const <Category>[])
+        if (!identical(other, category) &&
+            identical(_mergedFolderOf(other, bloc.state.folders), folder))
+          '"${other.title}"',
+    ];
+    origin =
+        'הקטגוריה "${category.title}" באה מהתיקייה האישית "${folder.path}".\n'
+        '${siblings.isEmpty ? '' : 'יוסרו גם הקטגוריות ${siblings.join(', ')}.\n'}';
+  }
   final confirmed = await showWarningDialog(
     context: context,
     title: 'למחוק את התיקייה?',
