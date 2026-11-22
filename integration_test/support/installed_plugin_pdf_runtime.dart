@@ -135,11 +135,28 @@ class _PdfRuntime {
     }
   }
 
-  Future<void> wait(bool Function() ready, String description) async {
+  Future<void> wait(
+    bool Function() ready,
+    String description, {
+    Duration timeout = _deadline,
+  }) async {
     final clock = Stopwatch()..start();
     while (!ready()) {
-      if (clock.elapsed >= _deadline) {
-        throw TimeoutException(description, _deadline);
+      if (clock.elapsed >= timeout) {
+        final controller = _tab?.pdfViewerController;
+        throw TimeoutException(
+          '$description; '
+          'selected=${_tab != null && identical(tabs.state.currentTab, _tab)}; '
+          'readerWidgets=${find.byType(PdfBookScreen).evaluate().length}; '
+          'lifecycle=${WidgetsBinding.instance.lifecycleState?.name}; '
+          'controllerReady=${controller?.isReady}; '
+          'render=${controller?.visibleRenderState.value.name}'
+          '${controller != null && installedPdfLayoutReady(controller, 1) ? '; page=${controller.pageNumber}; '
+                    'zoom=${controller.currentZoom}; view=${controller.viewSize}; '
+                    'visible=${controller.visibleRect}; '
+                    'pages=${controller.layout.pageLayouts.take(installedPdfPageSizes.length).toList()}' : ''}',
+          timeout,
+        );
       }
       await Future<void>.delayed(const Duration(milliseconds: 25));
     }
@@ -203,8 +220,12 @@ class _PdfRuntime {
         }),
         observed('printing', () => printAndExport(file.path, bytes)),
         observed('viewing', () async {
-          await _tab!.pdfViewerController.goToPage(pageNumber: 4);
-          await ready(_tab!.pdfViewerController, 4);
+          await navigateInstalledPdfTarget(
+            _tab!.pdfViewerController,
+            4,
+            nextFrame: tester.pump,
+            wait: wait,
+          );
           step('concurrentWork').addAll({
             'viewerTargetPage': 4,
             'viewerReportedPage': _tab!.pdfViewerController.pageNumber,
@@ -255,9 +276,7 @@ class _PdfRuntime {
     tabs.add(AddTab(tab));
     context.read<NavigationBloc>().add(NavigateToScreen(Screen.reading));
     await wait(
-      () =>
-          tabs.state.currentTab == tab &&
-          installedPdfTargetReady(tab.pdfViewerController, page),
+      () => tabs.state.currentTab == tab && tab.pdfViewerController.isReady,
       'Actual PDF reader opens',
     );
     expect(find.byType(PdfBookScreen), findsOneWidget);
@@ -265,21 +284,17 @@ class _PdfRuntime {
       tester.widget<PdfBookScreen>(find.byType(PdfBookScreen)).tab,
       same(tab),
     );
-    await tab.pdfViewerController.goToPage(pageNumber: page);
-    await ready(tab.pdfViewerController, page);
     _viewerDocument = tab.pdfViewerController.document;
     final closed = _viewerClosed = Completer<void>();
     _viewerEvents = _viewerDocument!.events.listen(
       (_) {},
       onDone: closed.complete,
     );
-  }
-
-  Future<void> ready(PdfViewerController controller, int page) async {
-    await tester.pump();
-    await wait(
-      () => installedPdfTargetReady(controller, page),
-      'Final reader image for page $page',
+    await navigateInstalledPdfTarget(
+      tab.pdfViewerController,
+      page,
+      nextFrame: tester.pump,
+      wait: wait,
     );
   }
 

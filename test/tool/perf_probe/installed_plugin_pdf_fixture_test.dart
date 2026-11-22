@@ -104,6 +104,82 @@ void main() {
     );
   });
 
+  testWidgets('a top-aligned ready reader navigates before target readiness', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final document = (await tester.runAsync(
+      () => PdfDocument.openData(createInstalledPdfFixture()),
+    ))!;
+    final controller = PdfViewerController();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PdfViewer(
+            PdfDocumentRefDirect(document, autoDispose: false),
+            controller: controller,
+            params: const PdfViewerParams(
+              sizeDelegateProvider: PdfViewerSizeDelegateProviderSmart(
+                maxScale: 20,
+                smartMaxScale: 20,
+                maxPagesVisible: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+      Future<void> wait(
+        bool Function() ready,
+        String description, {
+        Duration timeout = const Duration(seconds: 10),
+      }) async {
+        final clock = Stopwatch()..start();
+        while (!ready()) {
+          expect(
+            clock.elapsed,
+            lessThan(timeout),
+            reason: description,
+          );
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+      }
+
+      await wait(
+        () =>
+            controller.isReady &&
+            controller.visibleRenderState.value == PdfVisibleRenderState.ready,
+        'initial top-aligned image',
+      );
+      expect(installedPdfTargetReady(controller, 1), false);
+      final initialZoom = controller.currentZoom;
+      var frames = 0;
+      await navigateInstalledPdfTarget(
+        controller,
+        1,
+        nextFrame: () async {
+          frames++;
+          await tester.pump();
+        },
+        wait: wait,
+        timeout: const Duration(seconds: 10),
+      );
+      expect(frames, 1);
+      expect(controller.currentZoom, closeTo(initialZoom, 0.000001));
+      expect(installedPdfTargetReady(controller, 1), true);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(
+        const PdfViewerBehaviorControlParams().trailingPageLoadingDelay,
+      );
+      await tester.runAsync(document.dispose);
+    }
+  });
+
   test(
     'real PDFium extracts every page and renders the expected content pixels',
     () async {
