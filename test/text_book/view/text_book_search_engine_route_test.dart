@@ -1265,6 +1265,12 @@ class _Harness {
     if (!identical(returnedTemplate, preserveInBookSearchTemplate)) {
       _template = returnedTemplate as InBookSearchTemplate?;
     }
+    // ה-bloc האמיתי מפרסם את השאילתה ב-stream לפני שהחלונית נבנית מחדש.
+    final state = bloc.state;
+    if (state is TextBookLoaded) {
+      bloc.emitLoaded(state.copyWith(searchText: query));
+      await tester.pump();
+    }
     await tester.pumpWidget(
       _build(query, distance, policy, _origin, _mode, _template),
     );
