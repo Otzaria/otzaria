@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -608,6 +609,118 @@ void main() {
         expect(opened, 1);
       });
     }
+  });
+
+  group('כותרת התצוגה המקדימה בתפריט קטנה כמו בקישור בטקסט (issue #5742)', () {
+    /// מרימה חלונית תפריט (לא קומפקטית) ברוחב [width] ומחזירה את ווידג'ט הכותרת.
+    Future<Finder> pumpMenuPreview(
+      WidgetTester tester, {
+      required String path2,
+      bool compact = false,
+      double width = 360,
+      double textScale = 1.0,
+    }) async {
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: const {},
+        providers: [_FakeContentProvider('תוכן קצר')],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+          home: BlocProvider<SettingsBloc>.value(
+            // גודל המפרשים 22, כמו ברירת המחדל.
+            value: StubSettingsBloc(SettingsState.initial()),
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: width,
+                  child: LinkHoverPreviewContent(
+                    link: Link(
+                      heRef: '$path2, א',
+                      index1: 1,
+                      path2: path2,
+                      index2: 1,
+                      connectionType: 'commentary',
+                    ),
+                    onOpen: () {},
+                    compact: compact,
+                    displayProfile: TextDisplayProfile.defaults,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await pumpFrames(tester);
+      return find.descendant(
+        of: find.byType(InkWell),
+        matching: find.byType(Text),
+      );
+    }
+
+    testWidgets('בגודל מפרשים 22 הכותרת בגודל 14, כמו בקישור בטקסט', (
+      tester,
+    ) async {
+      final title = await pumpMenuPreview(tester, path2: 'מפרש תפריט');
+
+      expect(
+        tester.widget<Text>(title).style?.fontSize,
+        compactPreviewTitleFontSize(22),
+      );
+      expect(compactPreviewTitleFontSize(22), 14);
+    });
+
+    testWidgets('כתובת ארוכה נחתכת לשתי שורות, והמלאה ברמז', (tester) async {
+      final longTitle = List.filled(
+        6,
+        'חידושים ומקורים על משנה תורה הלכות ביכורים',
+      ).join(' ');
+      expect(longTitle.length, greaterThanOrEqualTo(120));
+      final title = await pumpMenuPreview(tester, path2: longTitle);
+
+      final text = tester.widget<Text>(title);
+      expect(text.maxLines, 2);
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: title, matching: find.byType(RichText)),
+      );
+      expect(paragraph.didExceedMaxLines, isTrue);
+      final tooltip = tester.widget<Tooltip>(
+        find.ancestor(of: title, matching: find.byType(Tooltip)),
+      );
+      expect(tooltip.message, text.data);
+      expect(text.data, contains('חידושים ומקורים'));
+    });
+
+    testWidgets('בחלונית הקומפקטית הכותרת נשארת שורה אחת באותו גודל', (
+      tester,
+    ) async {
+      final title = await pumpMenuPreview(
+        tester,
+        path2: 'מפרש קומפקטי',
+        compact: true,
+      );
+
+      final text = tester.widget<Text>(title);
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+      expect(text.style?.fontSize, compactPreviewTitleFontSize(22));
+    });
+
+    testWidgets('הגדלת טקסט פי 2 — בלי גלישה', (tester) async {
+      await pumpMenuPreview(
+        tester,
+        path2: List.filled(6, 'חידושים ומקורים על משנה תורה').join(' '),
+        textScale: 2.0,
+      );
+
+      expect(tester.takeException(), isNull);
+    });
   });
 }
 
