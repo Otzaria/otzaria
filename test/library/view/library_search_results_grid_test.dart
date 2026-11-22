@@ -62,6 +62,7 @@ Category _category(
   Category parent, {
   String description = '',
   String shortDescription = '',
+  bool isOfficial = false,
 }) {
   final category = Category(
     title: title,
@@ -71,6 +72,7 @@ Category _category(
     subCategories: [],
     books: [],
     parent: parent,
+    isOfficial: isOfficial,
   );
   parent.subCategories.add(category);
   return category;
@@ -83,6 +85,7 @@ Future<void> _pumpLibraryBrowser(
   double textScale = 1,
   bool showPreview = true,
   bool isLibraryEmpty = false,
+  String viewMode = 'grid',
   Stream<LibraryState> states = const Stream.empty(),
 }) async {
   final libraryBloc = _MockLibraryBloc();
@@ -97,6 +100,7 @@ Future<void> _pumpLibraryBrowser(
     const Stream<SettingsState>.empty(),
     initialState: SettingsState.initial().copyWith(
       libraryShowPreview: showPreview,
+      libraryViewMode: viewMode,
     ),
   );
   whenListen(
@@ -229,6 +233,121 @@ void main() {
       expect(inCard(1, 'הלכה, שולחן ערוך, מפרשים'), findsOneWidget);
     },
   );
+
+  group('מדפים רשמיים לפני הספרים ובמשבצת מצומצמת (issue #2691)', () {
+    LibraryState mishnaSearch() {
+      final library = Library(categories: []);
+      final official = _category('משנה', library, isOfficial: true);
+      final personal = _category(
+        'משנה - סיכומים',
+        _category('ספרים אישיים', library),
+      );
+      return LibraryState(
+        library: library,
+        currentCategory: library,
+        searchResults: [
+          TextBook(title: 'משנה ברורה', author: 'החפץ חיים'),
+          TextBook(title: 'משניות', author: 'רבי יהודה הנשיא'),
+        ],
+        // סדר הבלוק: הספרים הרשמיים והאישיים מעורבבים.
+        searchCategoryResults: [personal, official],
+        searchQuery: 'משנה',
+      );
+    }
+
+    for (final (size, scale) in [
+      (const Size(1200, 800), 1.0),
+      (const Size(1200, 800), 2.0),
+      (const Size(411, 731), 1.0),
+    ]) {
+      testWidgets('רשת ברוחב ${size.width} ובהגדלה $scale', (tester) async {
+        await _pumpLibraryBrowser(
+          tester,
+          mishnaSearch(),
+          size: size,
+          textScale: scale,
+          showPreview: false,
+        );
+        expect(tester.takeException(), isNull);
+
+        final officialCard = find.widgetWithText(CategoryGridItem, 'משנה');
+        final personalCard = find.widgetWithText(
+          CategoryGridItem,
+          'משנה - סיכומים',
+        );
+        final books = find.byType(BookGridItem);
+        expect(officialCard, findsOneWidget);
+        expect(personalCard, findsOneWidget);
+        expect(books, findsNWidgets(2));
+
+        final officialRect = tester.getRect(officialCard);
+        final bookRect = tester.getRect(books.first);
+        // המדף הרשמי בשורה משלו לפני הספרים; האישי אחרי הספרים.
+        expect(officialRect.bottom, lessThan(bookRect.top));
+        expect(
+          tester.getRect(personalCard).top,
+          greaterThan(tester.getRect(books.last).bottom),
+        );
+        expect(tester.widget<CategoryGridItem>(officialCard).compact, isTrue);
+        expect(tester.widget<CategoryGridItem>(personalCard).compact, isFalse);
+        if (scale == 1.0) {
+          expect(
+            officialRect.height,
+            closeTo(bookRect.height / 3, 4),
+            reason: 'גובה משבצת המדף הוא כשליש מכרטיס ספר',
+          );
+        }
+        // שום טקסט אינו חורג מהמשבצת.
+        final bounds = officialRect.inflate(0.01);
+        for (final text
+            in find
+                .descendant(of: officialCard, matching: find.byType(Text))
+                .evaluate()) {
+          final rect = tester.getRect(find.byWidget(text.widget));
+          expect(rect.top, greaterThanOrEqualTo(bounds.top));
+          expect(rect.bottom, lessThanOrEqualTo(bounds.bottom));
+        }
+      });
+    }
+
+    testWidgets('המדף הרשמי מקבל את המיקוד הראשון וחץ מטה עובר לספרים', (
+      tester,
+    ) async {
+      await _pumpLibraryBrowser(
+        tester,
+        mishnaSearch(),
+        size: const Size(1200, 800),
+        showPreview: false,
+      );
+      final officialCard = find.widgetWithText(CategoryGridItem, 'משנה');
+      final focusNode = tester.widget<CategoryGridItem>(officialCard).focusNode;
+      expect(focusNode, isNotNull);
+      focusNode!.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      final focused = FocusManager.instance.primaryFocus!.context!;
+      expect(
+        focused.findAncestorWidgetOfExactType<BookGridItem>(),
+        isNotNull,
+      );
+    });
+
+    testWidgets('רשימה: המדף הרשמי ראשון, התיקייה האישית אחרי הספרים', (
+      tester,
+    ) async {
+      await _pumpLibraryBrowser(
+        tester,
+        mishnaSearch(),
+        size: const Size(1200, 800),
+        showPreview: false,
+        viewMode: 'list',
+      );
+      double top(String text) => tester.getTopLeft(find.text(text)).dy;
+      expect(top('משנה'), lessThan(top('משנה ברורה')));
+      expect(top('משניות'), lessThan(top('משנה - סיכומים')));
+    });
+  });
 
   testWidgets('סינון לפי קטגוריה מסנן גם את התיקיות בתוצאות (issue #2070)', (
     tester,
