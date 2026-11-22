@@ -393,6 +393,10 @@ class _CombinedViewState extends State<CombinedView> {
   int? _selectionStartColumn;
   int? _selectionPointerColumn;
   int? _selectionPointerLineIndex;
+
+  /// השורה האחרונה שנלחצה כשפתיחה בלחיצה כבויה: החץ של הפסקה פותח את
+  /// מפרשיה, ולא את אלה של השורה הראשונה בפסקה רציפה (#2835).
+  int? _commentaryToggleLine;
   // שמירת reference ל-BLoC לשימוש ב-listeners
   late TextBookBloc _textBookBloc;
   StreamSubscription<TextBookState>? _textBookSubscription;
@@ -2865,6 +2869,7 @@ class _CombinedViewState extends State<CombinedView> {
                             .read<SettingsBloc>()
                             .state
                             .commentaryOpensOnTextTap) {
+                      _commentaryToggleLine = line;
                       return;
                     }
                     if (state.selectedIndices.contains(line)) {
@@ -3131,8 +3136,15 @@ class _CombinedViewState extends State<CombinedView> {
                       _addTextBookEventIfOpen(const UpdateSelectedIndex(null));
                       return;
                     }
-                    _addTextBookEventIfOpen(UpdateSelectedIndex(line));
-                    _revealCommentaryCardBelow(line);
+                    final chosen = _commentaryToggleLine;
+                    final target =
+                        chosen != null &&
+                            itemLines.contains(chosen) &&
+                            _hasCommentaries(state, chosen)
+                        ? chosen
+                        : line;
+                    _addTextBookEventIfOpen(UpdateSelectedIndex(target));
+                    _revealCommentaryCardBelow(target);
                   },
                 )
               : null,
