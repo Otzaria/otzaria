@@ -212,3 +212,5 @@ jobs:
             ${{ runner.temp }}/perf-results/*.log
             ${{ runner.temp }}/perf-results/launch-*/*.json*
             ${{ runner.temp }}/perf-results/launch-*/*.log
+            ${{ runner.temp }}/perf-results/prepare-*/*.json
+            ${{ runner.temp }}/perf-results/prepare-*/*.log
