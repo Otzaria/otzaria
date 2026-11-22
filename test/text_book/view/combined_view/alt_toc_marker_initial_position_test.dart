@@ -197,7 +197,6 @@ Future<(TextBookTab, _TestTextBookBloc)> _pump(
       tableOfContents: const [],
       removeNikud: false,
       visibleIndices: [targetLoaded ? _target : 0],
-      pinLeftPane: false,
       searchText: '',
     ),
   );
