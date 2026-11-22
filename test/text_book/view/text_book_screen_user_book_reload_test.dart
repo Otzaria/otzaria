@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,8 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -153,6 +156,7 @@ void main() {
             BlocProvider<NavigationBloc>.value(value: navigationBloc),
           ],
           child: MaterialApp(
+            navigatorKey: navigatorKey,
             home: TextBookViewerBloc(
               tab: tab,
               isInCombinedView: false,
@@ -248,6 +252,12 @@ void main() {
     late List<String?> scannedFolders;
     late List<RefreshLibrary> refreshes;
 
+    /// ההודעה נשארת עם טיימר; מסתירים לפני פירוק העץ.
+    Future<void> hideSnack(WidgetTester tester) async {
+      UiSnack.hide();
+      await tester.pump(const Duration(seconds: 1));
+    }
+
     Future<void> pressF5(WidgetTester tester, TextBook openBook) async {
       scannedFolders = [];
       refreshes = [];
@@ -288,6 +298,55 @@ void main() {
       expect(refreshes.single.changedBookKeys, {
         BookIdentity.keyOf(userBook),
       });
+      await hideSnack(tester);
+    });
+
+    testWidgets('מציג את תוצאת הסריקה של F5 ולא של סריקה שכבר רצה', (
+      tester,
+    ) async {
+      final background = Completer<FileSyncResult>();
+      final targeted = Completer<FileSyncResult>();
+      final customFolders = CustomFoldersBloc(
+        addLibraryEvent: (_) {},
+        loadFolders: () => [
+          CustomFolder(path: folder, addedAt: DateTime(2026)),
+        ],
+        syncFolders: (folders, {String? onlyFolderPath}) =>
+            onlyFolderPath == null ? background.future : targeted.future,
+      );
+      await pumpReader(
+        tester,
+        TextBook(
+          id: 5,
+          title: 'ספר אישי',
+          source: BookSource.user,
+          filePath: p.join(folder, 'ספר אישי.docx'),
+        ),
+        libraryBloc: _TestLibraryBloc(),
+        customFoldersBloc: customFolders,
+      );
+      // סריקת רקע שעדיין רצה בזמן ההקשה.
+      customFolders.add(const RescanCustomFolders());
+      await _settleRealAsync(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+      await _settleRealAsync(tester);
+
+      background.complete(
+        const FileSyncResult(addedBooks: 3, updatedBookIds: []),
+      );
+      await _settleRealAsync(tester);
+      targeted.completeError(const FileSystemException('locked'));
+      await _settleRealAsync(tester);
+
+      expect(
+        find.text(SettingsMessages.customFolderScanDone(3, 0)),
+        findsNothing,
+      );
+      expect(
+        find.text(SettingsMessages.customFolderSyncFailed),
+        findsOneWidget,
+      );
+      await hideSnack(tester);
     });
 
     testWidgets('ספר מהספרייה הרשמית אינו נסרק', (tester) async {
