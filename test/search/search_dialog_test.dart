@@ -1866,6 +1866,35 @@ Future<void> main() async {
         expect(SearchDefaults.loadDistanceDefault(), 5);
       });
 
+      testWidgets(
+        'מתקדם פר-מילה: האישור אינו מבטיח את האפשרויות שאינן נשמרות',
+        (
+          tester,
+        ) async {
+          SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+          await pumpWithTab(tester, SearchMode.advanced);
+          tab.useGlobalSearchOptions.value = false;
+          tab.globalSearchOptions.clear();
+          await openDefaultMode(tester);
+
+          expect(includeOptions, findsNothing);
+          expect(find.text('כולל המרווח וסדר המילים הנוכחיים'), findsOneWidget);
+          await tester.tap(find.text('קבע כברירת מחדל'));
+          await tester.pumpAndSettle();
+
+          // חיפוש חדש: האפשרויות הן ברירת המחדל הקודמת, המרווח והסדר מהחלונית.
+          final next = SearchingTab.newSearch('חיפוש', '');
+          addTearDown(next.dispose);
+          expect(
+            next.searchBloc.state.configuration.searchMode,
+            SearchMode.advanced,
+          );
+          expect(next.globalSearchOptions, {'קידומות דקדוקיות': true});
+          expect(next.searchBloc.state.distance, 5);
+          expect(next.searchBloc.state.anyOrder, isTrue);
+        },
+      );
+
       testWidgets('בלי הסימון נשמר המצב בלבד', (tester) async {
         await pumpWithTab(tester, SearchMode.advanced);
         await openDefaultMode(tester);
