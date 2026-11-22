@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +32,8 @@ final _content = <String>[
 /// לפסקאות 0–2 יש מפרש; ל-3 ו-4 אין.
 const _withCommentary = 3;
 
+const _continuousContent = ['שורה ראשונה', 'שורה שניה', 'שורה שלישית'];
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -41,19 +44,24 @@ void main() {
   Future<_TextBookBloc> pumpReader(
     WidgetTester tester, {
     bool opensOnTextTap = true,
+    bool continuous = false,
   }) async {
     tester.view.physicalSize = const Size(620, 880);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
+    // רציף: פסקה ממוזגת אחת, ולשורה הראשונה והשלישית יש מפרשים.
+    final content = continuous ? _continuousContent : _content;
     final links = [
-      for (var line = 1; line <= _withCommentary; line++) _FixtureLink(line),
+      if (continuous) ...[_FixtureLink(1), _FixtureLink(3)],
+      if (!continuous)
+        for (var line = 1; line <= _withCommentary; line++) _FixtureLink(line),
     ];
     final bloc = _TextBookBloc(
       TextBookLoaded(
         book: TextBook(title: _title),
         showLeftPane: false,
-        content: _content,
+        content: content,
         fontSize: 25,
         showSplitView: false,
         showPageShapeView: false,
@@ -73,6 +81,7 @@ void main() {
         selectedIndex: null,
         pinLeftPane: false,
         searchText: '',
+        continuousReadingMode: continuous,
       ),
     );
     final notesBloc = StubPersonalNotesBloc(const PersonalNotesState.initial());
@@ -100,7 +109,7 @@ void main() {
           ],
           child: Scaffold(
             body: CombinedView(
-              data: _content,
+              data: content,
               openBookCallback: (_) {},
               openLeftPaneTab: (_, {searchText}) {},
               textSize: 25,
@@ -184,6 +193,41 @@ void main() {
       await settle(tester);
       expect(selected(bloc), 2);
     });
+
+    testWidgets(
+      'כשהאפשרות כבויה, בפסקה רציפה החץ פותח את מפרשי השורה שהקורא לחץ עליה',
+      (tester) async {
+        final bloc = await pumpReader(
+          tester,
+          opensOnTextTap: false,
+          continuous: true,
+        );
+        expect(find.byTooltip('הצג מפרשים'), findsOneWidget);
+
+        final third = find.textContaining('שורה שלישית', findRichText: true);
+        final paragraph = tester.renderObject<RenderParagraph>(third.last);
+        final text = paragraph.text.toPlainText();
+        final start = text.indexOf('שורה שלישית');
+        final box = paragraph
+            .getBoxesForSelection(
+              TextSelection(
+                baseOffset: start,
+                extentOffset: start + 'שורה שלישית'.length,
+              ),
+            )
+            .first;
+        await tester.tapAt(
+          paragraph.localToGlobal(box.toRect().center),
+          kind: PointerDeviceKind.mouse,
+        );
+        await settle(tester);
+        expect(selected(bloc), isNull);
+
+        await tester.tap(find.byTooltip('הצג מפרשים'));
+        await settle(tester);
+        expect(selected(bloc), 2);
+      },
+    );
 
     testWidgets('גרירה לבחירת טקסט לא פותחת את המפרשים', (tester) async {
       final bloc = await pumpReader(tester);
