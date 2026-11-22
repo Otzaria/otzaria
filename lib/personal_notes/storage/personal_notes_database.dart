@@ -44,6 +44,7 @@ class PersonalNotesDatabase {
   static final PersonalNotesDatabase instance = PersonalNotesDatabase._();
 
   Database? _database;
+  Future<Database>? _opening;
 
   /// עולה בכל הוספה, עדכון או מחיקה של הערה, מכל מסלול שמירה.
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
@@ -52,15 +53,28 @@ class PersonalNotesDatabase {
   Future<Database> get database async {
     final open = _database;
     if (open != null) return open;
-    final dbPath = await AppPaths.resolveNotesDbPath('personal_notes.db');
-    return _database ??= _initDatabase(dbPath);
+    return _opening ??= _open();
   }
+
+  Future<Database> _open() async {
+    try {
+      final dbPath = await AppPaths.resolveNotesDbPath('personal_notes.db');
+      return _database = await _openInBackground(dbPath);
+    } finally {
+      _opening = null;
+    }
+  }
+
+  // החיבור הראשון מקצר את קובץ ה-shm (SetEndOfFile), וסורק או דיסק איטי
+  // תוקעים זאת לשניות — לכן לא על ה-UI. סטטית כדי לא ללכוד את this.
+  static Future<Database> _openInBackground(String dbPath) =>
+      openSqliteInBackground(() => _initDatabase(dbPath));
 
   /// המסד, רק אם כבר נפתח.
   Database? get openDatabase => _database;
 
   /// Initialize the database
-  Database _initDatabase(String dbPath) {
+  static Database _initDatabase(String dbPath) {
     final db = openWritableDatabase(dbPath, 'PersonalNotesDatabase');
     _createSchema(db);
     _migrateSchema(db);
@@ -68,7 +82,7 @@ class PersonalNotesDatabase {
   }
 
   /// Create the database schema
-  void _createSchema(Database db) {
+  static void _createSchema(Database db) {
     db.execute('''
       CREATE TABLE IF NOT EXISTS $_tableUserBookKeys (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -112,7 +126,7 @@ class PersonalNotesDatabase {
   }
 
   /// מוסיף עמודות עוגן ל-DB קיים (התקנות ישנות) אם הן חסרות.
-  void _migrateSchema(Database db) {
+  static void _migrateSchema(Database db) {
     final existing = db
         .select('PRAGMA table_info($_tableNotes)')
         .map((row) => row['name'] as String)
@@ -452,6 +466,7 @@ class PersonalNotesDatabase {
 
   /// Close the database
   Future<void> close() async {
+    await _opening?.then<void>((_) {}, onError: (_) {});
     final db = _database;
     if (db != null) {
       closeWithCheckpoint(db);

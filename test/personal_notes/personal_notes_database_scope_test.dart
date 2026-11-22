@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -88,5 +90,19 @@ void main() {
     final row = db.select("SELECT status, scope FROM personal_notes").single;
     expect(row['status'], 'missing');
     expect(row['scope'], 'book');
+  });
+
+  test('פתיחת המסד אינה חוסמת את ה-isolate הקורא (issue #5827)', () async {
+    await database.loadNotes('ספר');
+    final path = await AppPaths.resolveNotesDbPath('personal_notes.db');
+    await database.close();
+    final locker = sqlite3.open(path)..execute('BEGIN IMMEDIATE');
+    // הנעילה משתחררת רק בטיימר של ה-isolate הזה; פתיחה עליו הייתה ממתינה לשווא.
+    Timer(const Duration(milliseconds: 200), () {
+      locker.execute('ROLLBACK');
+      locker.close();
+    });
+
+    expect(await database.loadNotes('ספר'), isEmpty);
   });
 }
