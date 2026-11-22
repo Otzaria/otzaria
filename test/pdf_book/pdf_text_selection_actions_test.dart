@@ -13,6 +13,7 @@ void main() {
   late PdfTextSelectionActions actions;
   late List<String> writes;
   late bool active;
+  late int activeChecks;
   Completer<void>? clipboardWrite;
 
   setUp(() {
@@ -20,7 +21,15 @@ void main() {
     selection = _Selection()..range = _range(1, 3);
     controller = _Controller(document, selection);
     active = true;
-    actions = PdfTextSelectionActions(controller, isActive: () => active);
+    activeChecks = 0;
+    actions = PdfTextSelectionActions(
+      controller,
+      isActive: () {
+        activeChecks++;
+        return active;
+      },
+    );
+    addTearDown(actions.releaseSelectedTextSnapshot);
     writes = [];
     clipboardWrite = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -390,6 +399,7 @@ void main() {
       );
       expect(actions.selectedTextSnapshot, isNull);
       expect(document.pages[1].reads, 0);
+      expect(document._events.hasListener, isFalse);
 
       document.pages[1].isLoaded = true;
       expect(
@@ -419,6 +429,124 @@ void main() {
       expect(writes, isEmpty);
     },
   );
+
+  test(
+    'document events discard a silently cleared snapshot before another read',
+    () async {
+      expect(await actions.readSelectedText(), 'Page textPage textPag');
+      selection.range = null;
+      document._events.add(
+        PdfDocumentPageStatusChangedEvent(
+          document,
+          changes: {2: PdfPageStatusModified(page: document.pages[1])},
+        ),
+      );
+      await _flush();
+
+      activeChecks = 0;
+      expect(actions.selectedTextSnapshot, isNull);
+      expect(activeChecks, 0, reason: 'the event already released the guard');
+      expect(document._events.hasListener, isFalse);
+    },
+  );
+
+  test('page replacement eagerly drops the retained snapshot', () async {
+    expect(await actions.readSelectedText(), 'Page textPage textPag');
+    document.pages = [...document.pages]..[1] = _Page(2);
+    document._events.add(
+      PdfDocumentPageStatusChangedEvent(
+        document,
+        changes: {2: PdfPageStatusModified(page: document.pages[1])},
+      ),
+    );
+    await _flush();
+
+    activeChecks = 0;
+    expect(actions.selectedTextSnapshot, isNull);
+    expect(activeChecks, 0, reason: 'the event already released the guard');
+    expect(document._events.hasListener, isFalse);
+    expect(await actions.readSelectedText(), 'Page textPage textPag');
+    expect(document.pages[1].reads, 1);
+  });
+
+  test('old document events release its snapshot after replacement', () async {
+    expect(await actions.readSelectedText(), 'Page textPage textPag');
+    controller.document = _Document(3);
+    document._events.add(PdfDocumentLoadCompleteEvent(document));
+    await _flush();
+
+    activeChecks = 0;
+    expect(actions.selectedTextSnapshot, isNull);
+    expect(activeChecks, 0, reason: 'the event already released the guard');
+    expect(document._events.hasListener, isFalse);
+  });
+
+  test(
+    'explicit release detaches the old document before a new read',
+    () async {
+      expect(await actions.readSelectedText(), 'Page textPage textPag');
+      expect(document._events.hasListener, isTrue);
+      final oldDocument = document;
+      actions.cancel();
+      actions.releaseSelectedTextSnapshot();
+      actions.releaseSelectedTextSnapshot();
+      expect(oldDocument._events.hasListener, isFalse);
+
+      controller.document = document = _Document(3);
+      expect(await actions.readSelectedText(), 'Page textPage textPag');
+      oldDocument._events.add(PdfDocumentLoadCompleteEvent(oldDocument));
+      await oldDocument._events.close();
+      expect(actions.selectedTextSnapshot, 'Page textPage textPag');
+      expect(document._events.hasListener, isTrue);
+      expect(document.pages[1].reads, 1);
+    },
+  );
+
+  test(
+    'replayed events and metadata outside the selection keep text reusable',
+    () async {
+      controller.document = document = _Document(20);
+      document._events.onListen = () => document._events.add(
+        PdfDocumentPageStatusChangedEvent(
+          document,
+          changes: {2: PdfPageStatusModified(page: document.pages[1])},
+        ),
+      );
+      expect(await actions.readSelectedText(), 'Page textPage textPag');
+      await _flush();
+      expect(actions.selectedTextSnapshot, 'Page textPage textPag');
+
+      document.pages = [...document.pages]..[19] = _Page(20);
+      document._events.add(
+        PdfDocumentPageStatusChangedEvent(
+          document,
+          changes: {20: PdfPageStatusModified(page: document.pages[19])},
+        ),
+      );
+      await _flush();
+      actions.cancel();
+      expect(
+        await actions.copy(keepSelection: true),
+        PdfTextActionResult.copied,
+      );
+      expect(writes, ['Page textPage textPag']);
+      expect(document.pages[1].reads, 1);
+      expect(document.pages[19].reads, 0);
+      expect(document._events.hasListener, isTrue);
+
+      selection.range = _range(1, 1);
+      actions.discardStaleSnapshot();
+      expect(document._events.hasListener, isFalse);
+    },
+  );
+
+  test('closing the document releases its retained snapshot', () async {
+    expect(await actions.readSelectedText(), 'Page textPage textPag');
+    await document._events.close();
+    activeChecks = 0;
+    expect(actions.selectedTextSnapshot, isNull);
+    expect(activeChecks, 0);
+  });
 
   test(
     'repeat Copy reuses plain text until the selection or page changes',
