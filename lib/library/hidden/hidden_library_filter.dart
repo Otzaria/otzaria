@@ -43,6 +43,7 @@ Category? _filterCategory(Category category, HiddenLibrarySelection hidden) {
     subCategories: [],
     books: category.books.where((book) => !hidden.isBookHidden(book)).toList(),
     parent: category.parent,
+    isOfficial: category.isOfficial,
   );
 
   for (final sub in category.subCategories) {

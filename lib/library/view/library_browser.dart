@@ -1272,6 +1272,21 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return visible.where(state.matchesSearchBook).toList();
   }
 
+  /// מדפים רשמיים מוצגים לפני הספרים, ושאר התיקיות (אישיות ומצורפות)
+  /// אחריהם (#2691).
+  ({List<Category> official, List<Category> other}) _splitOfficial(
+    List<Category> categories,
+  ) => (
+    official: [
+      for (final c in categories)
+        if (c.isOfficial) c,
+    ],
+    other: [
+      for (final c in categories)
+        if (!c.isOfficial) c,
+    ],
+  );
+
   List<Category> _displayedSearchCategories(LibraryState state) =>
       LibraryMatchFilter.showsFolders(state.selectedMatchFilters)
       ? _filterByTopics(
@@ -1821,7 +1836,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               return _buildEmptyState(context, state, settingsState, repo);
             }
             final displayBooks = _displayedSearchBooks(state, books);
-            final displayCategories = _displayedSearchCategories(state);
+            final (:official, :other) = _splitOfficial(
+              _displayedSearchCategories(state),
+            );
             final displayLimit = min(
               displayBooks.length,
               _kSearchGridBooksCap,
@@ -1832,12 +1849,16 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               child: Column(
                 children: [
                   ?filtersHeader,
-                  if (displayBooks.isNotEmpty)
-                    _buildSearchResultsGrid(displayBooks, displayLimit),
-                  if (displayCategories.isNotEmpty)
+                  if (official.isNotEmpty || displayBooks.isNotEmpty)
+                    _buildSearchResultsGrid(
+                      official,
+                      displayBooks,
+                      displayLimit,
+                    ),
+                  if (other.isNotEmpty)
                     _buildSearchCategoriesGrid(
-                      displayCategories,
-                      firstFocus: displayBooks.isEmpty,
+                      other,
+                      firstFocus: official.isEmpty && displayBooks.isEmpty,
                     ),
                 ],
               ),
@@ -1852,10 +1873,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final repo = context.read<FocusRepository>();
             return _buildEmptyState(context, state, settingsState, repo);
           }
+          final (:official, :other) = _splitOfficial(
+            _displayedSearchCategories(state),
+          );
           return _buildSearchListView(
             _displayedSearchBooks(state, visibleResults),
             _buildResultFilters(context, state),
-            categories: _displayedSearchCategories(state),
+            leadingCategories: official,
+            categories: other,
           );
         }
         return _buildListView(state.currentCategory!);
@@ -2183,21 +2208,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget _buildSearchListView(
     List<Book> books,
     Widget? header, {
+    List<Category> leadingCategories = const [],
     List<Category> categories = const [],
   }) {
+    final leading = leadingCategories.length;
     return _LibraryBrowserList(
       header: header,
-      itemCount: books.length + categories.length,
+      itemCount: leading + books.length + categories.length,
       forPanel: false,
       itemBuilder: (context, index) {
-        if (index >= books.length) {
+        if (index < leading || index >= leading + books.length) {
           return _buildSearchCategoryListItem(
-            categories[index - books.length],
+            index < leading
+                ? leadingCategories[index]
+                : categories[index - leading - books.length],
             focusNode: index == 0 ? _firstGridItemFocusNode : null,
           );
         }
         return _buildListBookItem(
-          books[index],
+          books[index - leading],
           0,
           itemStyle: _LibraryListItemStyle.search,
           focusNode: index == 0 ? _firstGridItemFocusNode : null,
@@ -2251,6 +2280,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     Category category, {
     FocusNode? focusNode,
     String? parentPath,
+    bool compact = false,
   }) {
     return _withCategorySelection(
       category,
@@ -2264,6 +2294,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           onFocused: onDoubleTap == null ? null : onTap,
           focusNode: focusNode,
           parentPath: parentPath,
+          compact: compact,
         ),
       ),
     );
@@ -3524,15 +3555,31 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return true;
   }
 
-  Widget _buildSearchResultsGrid(List<Book> books, int displayLimit) {
+  /// הרשת הראשית של תוצאות האיתור: פס המדפים הרשמיים במשבצות מצומצמות
+  /// ([CategoryGridItem.compact]), ואחריו הספרים מהשורה הבאה (#2691).
+  Widget _buildSearchResultsGrid(
+    List<Category> officialCategories,
+    List<Book> books,
+    int displayLimit,
+  ) {
+    final shelves = officialCategories.length;
     return MyGridView(
       onExitTop: () => _refocusSearchBar(selectAll: true),
+      leadingCategoryCount: shelves,
+      compactLeadingCategories: true,
       items: [
+        for (final (i, category) in officialCategories.indexed)
+          _buildCategoryGridItem(
+            category,
+            focusNode: i == 0 ? _firstGridItemFocusNode : null,
+            parentPath: categoryParentPath(category),
+            compact: true,
+          ),
         for (var i = 0; i < displayLimit; i++)
           _buildBookItem(
             books[i],
             showTopics: true,
-            focusNode: i == 0 ? _firstGridItemFocusNode : null,
+            focusNode: shelves == 0 && i == 0 ? _firstGridItemFocusNode : null,
           ),
       ],
     );

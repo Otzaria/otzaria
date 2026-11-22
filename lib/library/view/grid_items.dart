@@ -247,6 +247,11 @@ class CategoryGridItem extends StatelessWidget {
   /// נתיב האב שמוצג מתחת לכותרת — בתוצאות חיפוש, כדי להבחין בין תיקיות באותו שם.
   final String? parentPath;
 
+  /// משבצת מדף רשמי בתוצאות האיתור (#2691): שורה אחת בגובה
+  /// [compactCategoryCardHeight], רקע `surfaceContainerHigh` ([AppCardTone.inset])
+  /// וכותרת במשקל אחד מעל כרטיס תיקייה; הנתיב באותה שורה.
+  final bool compact;
+
   const CategoryGridItem({
     super.key,
     required this.category,
@@ -255,6 +260,7 @@ class CategoryGridItem extends StatelessWidget {
     this.isSelected = false,
     this.parentPath,
     this.onFocused,
+    this.compact = false,
   });
 
   @override
@@ -262,6 +268,7 @@ class CategoryGridItem extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final infoText = categoryInfoText(category);
+    if (compact) return _buildCompact(context, infoText);
     final personalSource = category.personalSource;
     final folderIcon = Container(
       width: 32,
@@ -341,7 +348,67 @@ class CategoryGridItem extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildCompact(BuildContext context, String? infoText) {
+    final theme = Theme.of(context);
+    final path = parentPath;
+    return AppCard(
+      onTap: onCategoryClickCallback,
+      focusNode: focusNode,
+      requestFocusOnTap: true,
+      onFocusChange: (focused) {
+        if (focused) onFocused?.call();
+      },
+      selected: isSelected,
+      tone: AppCardTone.inset,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceSMD,
+          vertical: _kCompactCategoryCardPaddingV,
+        ),
+        child: Row(
+          children: [
+            Flexible(
+              child: LibraryOverflowTooltipText(
+                text: category.title,
+                maxLines: 1,
+                textAlign: TextAlign.right,
+                style: _compactTitleStyle(context),
+              ),
+            ),
+            if (path != null && path.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: LibraryOverflowTooltipText(
+                  text: path,
+                  maxLines: 1,
+                  textAlign: TextAlign.right,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ] else
+              const Spacer(),
+            if (infoText != null)
+              ExcludeFocusTraversal(
+                child: _libraryInfoButton(
+                  context,
+                  tooltip: infoText,
+                  onPressed: () => showCategoryDetailsDialog(context, category),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+TextStyle? _compactTitleStyle(BuildContext context) => LibraryItemTitle.styleOf(
+  context,
+  true,
+)?.copyWith(fontWeight: FontWeight.w800);
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BookGridItem
@@ -943,6 +1010,26 @@ double narrowCategoryCardHeight(BuildContext context) {
   );
 }
 
+/// הריפוד האנכי של משבצת מדף מצומצמת ([CategoryGridItem.compact]).
+const double _kCompactCategoryCardPaddingV = AppTokens.spaceXS;
+
+/// משבצת המדף הרשמי בתוצאות האיתור היא כשליש מגובה כרטיס ספר (#2691).
+const double kCompactCategoryCardHeightRatio = 1 / 3;
+
+/// רצפת הגובה של משבצת מדף מצומצמת: שורת כותרת אחת (בגופן ובמידת הטקסט
+/// בפועל) או כפתור המידע (28), והריפוד.
+double compactCategoryCardHeight(BuildContext context) {
+  final painter = TextPainter(
+    text: TextSpan(text: 'א', style: _compactTitleStyle(context)),
+    textDirection: TextDirection.rtl,
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  final line = painter.height;
+  painter.dispose();
+  return (max(line, 28.0) + 2 * _kCompactCategoryCardPaddingV).ceilToDouble();
+}
+
 /// השוליים של רשת הספרייה — משמשים גם בחישוב רוחב התא בפועל.
 const double _kGridPadding = 30;
 
@@ -1181,6 +1268,11 @@ class MyGridView extends StatelessWidget {
   /// מתחילים בשורה חדשה בגובה הרגיל.
   final int leadingCategoryCount;
 
+  /// [leadingCategoryCount] הפריטים הראשונים הם משבצות מדף מצומצמות
+  /// ([CategoryGridItem.compact]) בכל רוחב: פס בגובה שליש מכרטיס ספר
+  /// ([kCompactCategoryCardHeightRatio]), ולא פחות מ-[compactCategoryCardHeight].
+  final bool compactLeadingCategories;
+
   /// גולל בעצמו ובונה רק את הכרטיסים שבתצוגה; אחרת נבנים כולם בתוך גלילה חיצונית.
   final bool scrollable;
   final ScrollController? controller;
@@ -1191,6 +1283,7 @@ class MyGridView extends StatelessWidget {
     this.onExitTop,
     this.minItemHeight = 0,
     this.leadingCategoryCount = 0,
+    this.compactLeadingCategories = false,
     this.scrollable = false,
     this.controller,
   }) : _itemCount = null,
@@ -1203,6 +1296,7 @@ class MyGridView extends StatelessWidget {
     this.onExitTop,
     this.minItemHeight = 0,
     this.leadingCategoryCount = 0,
+    this.compactLeadingCategories = false,
     this.scrollable = false,
     this.controller,
   }) : assert(itemCount >= 0),
@@ -1249,14 +1343,21 @@ class MyGridView extends StatelessWidget {
             : cellWidth / childAspectRatio;
 
         // בתצוגה צרה כרטיסי התיקייה נמוכים מכרטיסי הספר (ss4).
-        final categoryCount = width < _kGridNarrowBelow && minItemHeight <= 0
+        final categoryCount =
+            (compactLeadingCategories ||
+                width < _kGridNarrowBelow && minItemHeight <= 0)
             ? min(leadingCategoryCount, itemCount)
             : 0;
         final SliverGridDelegate gridDelegate = categoryCount > 0
             ? LibraryBandedGridDelegate(
                 crossAxisCount: crossAxisCount,
                 bandCount: categoryCount,
-                bandExtent: narrowCategoryCardHeight(context),
+                bandExtent: compactLeadingCategories
+                    ? max(
+                        compactCategoryCardHeight(context),
+                        childHeight * kCompactCategoryCardHeightRatio,
+                      )
+                    : narrowCategoryCardHeight(context),
                 restExtent: childHeight,
                 spacing: kLibraryGridSpacing,
               )
