@@ -23,6 +23,7 @@ import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
+import 'package:otzaria/find_ref/find_ref_deep_link.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
@@ -240,7 +241,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         baseOffset: 0,
         extentOffset: controller.text.length,
       );
-      // גם סדר מותאם שההעדפות שלו כובו או נמחקו מאז מתבקש מחדש.
+      // גם סדר מותאם שההעדפות שלו השתנו מאז מתבקש מחדש.
       if (_findRefBloc.externalService.hasProviders ||
           _findRefBloc.shownOrderIsStale) {
         _dispatchSearch(controller.text);
@@ -832,7 +833,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
     if (action == null) return false;
     // ניתוב דרך המסך הראשי סוגר את הדיאלוג, והקוד שלמטה סוגר שוב את שמתחתיו.
     if (action is RunDetectionAction) {
-      _applySuggestion(action.query);
+      _selectedIndex.value = 0;
+      _pendingEnter = false;
+      runDetectionDeepLink(
+        action.query,
+        controller: _focus.findRefSearchController,
+        bloc: _findRefBloc,
+      );
+      _focus.findRefSearchFocusNode.requestFocus();
       return true;
     }
 
@@ -1062,7 +1070,12 @@ class _FindRefDialogState extends State<FindRefDialog> {
       return;
     }
     // תוצאות של שאילתה קודמת אינן נפתחות: Enter ממתין לתוצאות החדשות.
-    final state = context.read<FindRefBloc>().state;
+    final state = _findRefBloc.state;
+    if (_isCurrentSuccess(state) && _findRefBloc.shownOrderIsStale) {
+      _dispatchSearch(value);
+      _pendingEnter = true;
+      return;
+    }
     if (!_isCurrentSuccess(state)) {
       // במצב שגיאה אין תוצאות שבדרך — פתיחה ממתינה הייתה קופצת בניסיון חוזר.
       _pendingEnter =

@@ -265,39 +265,18 @@ void main() {
 
       expect(FindRefPreferenceStore.load().isEmpty, isTrue);
       expect(FindRefPreferenceStore.snapshot(), isNull);
-      expect(FindRefPreferenceStore.summary().bookCount, 0);
     });
 
-    test('revision מתקדם במחיקה ובשינוי המתג, ולא ברישום פתיחה', () async {
+    test('revision מתקדם ברישום פתיחה, במחיקה ובשינוי המתג', () async {
       final start = FindRefPreferenceStore.revision;
       FindRefPreferenceStore.recordOpen(_choshen);
-      expect(FindRefPreferenceStore.revision, start);
-
-      FindRefPreferenceStore.clear();
       expect(FindRefPreferenceStore.revision, start + 1);
 
-      await FindRefPreferenceStore.setEnabled(false);
+      FindRefPreferenceStore.clear();
       expect(FindRefPreferenceStore.revision, start + 2);
-    });
 
-    test('התקציר מונה רשומות ומחזיר את המובילים לפי ניקוד', () {
-      FindRefPreferenceStore.recordOpen(_orach);
-      for (var i = 0; i < 3; i++) {
-        FindRefPreferenceStore.recordOpen(_rashba, baseBooks: [_eruvin]);
-      }
-
-      final summary = FindRefPreferenceStore.summary(top: 1);
-      expect(summary.enabled, isTrue);
-      expect(summary.bookCount, 2);
-      expect(summary.baseCount, 3);
-      // אורח חיים דעך מתחת לסף; הרשב"א מעליו, ושני ספרי הבסיס שלו איתו.
-      expect(summary.booksAffecting, 1);
-      expect(summary.basesAffecting, 2);
-      expect(summary.topBooks, hasLength(1));
-      expect(summary.topBooks.single.key, 'o|21');
-      expect(summary.topBooks.single.title, 'רשב"א על עירובין');
-      expect(summary.topBooks.single.score, closeTo(2.8525, 1e-9));
-      expect(summary.topBases.single.score, closeTo(2.8525, 1e-9));
+      await FindRefPreferenceStore.setEnabled(false);
+      expect(FindRefPreferenceStore.revision, start + 3);
     });
   });
 }

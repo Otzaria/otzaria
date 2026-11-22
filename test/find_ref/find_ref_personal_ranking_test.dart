@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -406,6 +407,38 @@ void main() {
       expect(FindRefPreferenceStore.load().books.keys, ['u|21']);
     });
 
+    for (final reset in [true, false]) {
+      test(
+        reset
+            ? 'איפוס מבטל פתיחה שטרם נרשמה'
+            : 'כיבוי והפעלה מחדש מבטלים פתיחה שטרם נרשמה',
+        () async {
+          final bases = Completer<List<Map<String, dynamic>>>();
+          final repo = FindRefRepository(
+            dataRepository: _MockDataRepository(),
+            loadBookBaseTexts: () => bases.future,
+          );
+          addTearDown(repo.dispose);
+
+          final opening = repo.recordFindRefOpen(
+            source: BookSource.official,
+            bookId: _rashbaEruvin.id,
+            title: _rashbaEruvin.title,
+          );
+          if (reset) {
+            FindRefPreferenceStore.clear();
+          } else {
+            await FindRefPreferenceStore.setEnabled(false);
+            await FindRefPreferenceStore.setEnabled(true);
+          }
+          bases.complete(const []);
+          await opening;
+
+          expect(FindRefPreferenceStore.load().isEmpty, isTrue);
+        },
+      );
+    }
+
     test('כשל בשליפת ספרי הבסיס אינו מונע את הרישום ואינו נזרק', () async {
       final repo = FindRefRepository(
         dataRepository: _MockDataRepository(),
@@ -455,7 +488,7 @@ void main() {
 
         // השליפה השנייה נקבעה בקאש, והשלישית כבר לא פנתה למסד.
         expect(loads, 2);
-        expect(FindRefPreferenceStore.load().bases.keys, contains('o|99'));
+        expect(FindRefPreferenceStore.load().bases.keys, {'o|21', 'o|99'});
       },
     );
   });

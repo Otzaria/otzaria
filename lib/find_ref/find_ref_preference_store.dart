@@ -11,17 +11,6 @@ typedef FindRefPreferenceBook = ({String key, String title});
 /// ניקוד של ספר והכותרת שאיתה נצבר; כותרת אחרת לאותו מזהה = ספר אחר.
 typedef FindRefPreferenceEntry = ({double score, String title});
 
-/// תקציר לאבחון: מספר הרשומות והמובילים בכל מפה.
-typedef FindRefPreferenceSummary = ({
-  bool enabled,
-  int bookCount,
-  int baseCount,
-  int booksAffecting,
-  int basesAffecting,
-  List<({String key, String title, double score})> topBooks,
-  List<({String key, String title, double score})> topBases,
-});
-
 /// תמונת מצב קבועה של ההעדפות, כפי שהדירוג של שאילתה אחת רואה אותן.
 @immutable
 class FindRefPreferences {
@@ -190,17 +179,6 @@ class FindRefPreferences {
     final ordered = out.entries.toList()..sort(_byScoreThenKey);
     return {for (final e in ordered.take(maxEntries)) e.key: e.value};
   }
-
-  List<({String key, String title, double score})> _top(
-    Map<String, FindRefPreferenceEntry> map,
-    int count,
-  ) {
-    final ordered = map.entries.toList()..sort(_byScoreThenKey);
-    return [
-      for (final e in ordered.take(count))
-        (key: e.key, title: e.value.title, score: e.value.score),
-    ];
-  }
 }
 
 /// העדפות האיתור האישיות: אילו ספרים נפתחו מהאיתור לאחרונה. נשמרות בהגדרות
@@ -213,22 +191,28 @@ class FindRefPreferenceStore {
 
   static int _revision = 0;
 
-  /// מתקדם בכיבוי, בהדלקה ובמחיקה — תוצאות שמוצגות מאז אינן עדכניות.
+  /// משתנה בעקבות רישום פתיחה, מחיקה או שינוי המתג.
   static int get revision => _revision;
+
+  /// שינוי יזום שמבטל רישום פתיחה שעדיין ממתין לספרי הבסיס.
+  static int _configurationRevision = 0;
+  static int get configurationRevision => _configurationRevision;
 
   /// האם האיתור מותאם אישית. כבוי = לא מדרגים וגם לא רושמים.
   static bool get isEnabled =>
       Settings.getValue<bool>(enabledKey, defaultValue: true) ?? true;
 
   static Future<void> setEnabled(bool value) async {
-    await Settings.setValue<bool>(enabledKey, value);
+    _configurationRevision++;
     _revision++;
+    await Settings.setValue<bool>(enabledKey, value);
   }
 
   /// מוחק את כל ההעדפות שנצברו.
   static void clear() {
-    Settings.setValue<String>(scoresKey, '');
+    _configurationRevision++;
     _revision++;
+    Settings.setValue<String>(scoresKey, '');
   }
 
   /// האם נשמר משהו שאפשר לאפס, בלי לפענח את ה-JSON.
@@ -255,34 +239,18 @@ class FindRefPreferenceStore {
   }
 
   /// רושם פתיחה של [book] מדיאלוג האיתור. כשהמתג כבוי אינו רושם.
-  static void recordOpen(
+  static Future<void> recordOpen(
     FindRefPreferenceBook book, {
     Iterable<FindRefPreferenceBook> baseBooks = const [],
     Iterable<FindRefPreferenceBook> companions = const [],
-  }) {
+  }) async {
     if (!isEnabled) return;
     final next = load().recordOpen(
       book,
       baseBooks: baseBooks,
       companions: companions,
     );
-    Settings.setValue<String>(scoresKey, jsonEncode(next.toJson()));
-  }
-
-  /// תקציר זול לאבחון: מספר הרשומות, כמה מהן מעל סף הזיקה, ו-[top] המובילים.
-  static FindRefPreferenceSummary summary({int top = 5}) {
-    final preferences = load();
-    int affecting(Map<String, FindRefPreferenceEntry> map) => map.values
-        .where((e) => e.score >= FindRefPreferences.affinityThreshold)
-        .length;
-    return (
-      enabled: isEnabled,
-      bookCount: preferences.books.length,
-      baseCount: preferences.bases.length,
-      booksAffecting: affecting(preferences.books),
-      basesAffecting: affecting(preferences.bases),
-      topBooks: preferences._top(preferences.books, top),
-      topBases: preferences._top(preferences.bases, top),
-    );
+    _revision++;
+    await Settings.setValue<String>(scoresKey, jsonEncode(next.toJson()));
   }
 }

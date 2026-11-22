@@ -852,11 +852,15 @@ void main() {
   });
 
   testWidgets('הדבקת קישור איתור מריצה אותו בדיאלוג בלי לסגור', (tester) async {
+    await FindRefPreferenceStore.setEnabled(true);
+    FindRefPreferenceStore.recordOpen((key: 'o|1', title: 'בראשית'));
+    addTearDown(FindRefPreferenceStore.clear);
+    final repository = _FakeRepository([_ref('בראשית פרק א')]);
     final host = _FakeHost();
     final pops = _PopCounter();
     await _pumpDialog(
       tester,
-      results: [_ref('בראשית פרק א')],
+      repository: repository,
       host: host,
       observer: pops,
     );
@@ -874,6 +878,7 @@ void main() {
     expect(find.text('מקור אחד'), findsOneWidget);
     expect(host.deepLinks, isEmpty, reason: 'אין ניתוב דרך המסך הראשי');
     expect(pops.pops, 0);
+    expect(repository.preferencesCalls.last, isNull);
   });
 
   testWidgets('קישור שאינו איתור עדיין מנותב דרך המסך הראשי', (tester) async {

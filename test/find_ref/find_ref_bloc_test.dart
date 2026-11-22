@@ -134,7 +134,7 @@ void main() {
       expect(disabled.preferencesCalls, [null]);
     });
 
-    test('פתיחת ספר אינה מריצה מחדש שאילתה שכבר מוצגת; מחיקה כן', () async {
+    test('פתיחת ספר ומחיקה מרעננות איתור חוזר של אותה שאילתה', () async {
       FindRefPreferenceStore.recordOpen(book);
       final repository = _FakeRepository(fn: (_) async => [_result()]);
       final bloc = FindRefBloc(findRefRepository: repository);
@@ -144,16 +144,20 @@ void main() {
       await Future<void>.delayed(_kPastDebounce);
       expect(repository.preferencesCalls, hasLength(1));
 
-      // הסדר המוצג נשאר יציב גם אחרי שהמאגר התעדכן מפתיחה.
+      // הסדר המוצג נשאר יציב עד שמתבקשת השאילתה שוב.
       FindRefPreferenceStore.recordOpen(book);
       bloc.add(event);
       await Future<void>.delayed(_kPastDebounce);
-      expect(repository.preferencesCalls, hasLength(1));
+      expect(repository.preferencesCalls, hasLength(2));
+      expect(
+        repository.preferencesCalls.last!.directScore(book.key, book.title),
+        1.95,
+      );
 
       FindRefPreferenceStore.clear();
       bloc.add(event);
       await Future<void>.delayed(_kPastDebounce);
-      expect(repository.preferencesCalls, hasLength(2));
+      expect(repository.preferencesCalls, hasLength(3));
       expect(repository.preferencesCalls.last, isNull);
 
       await bloc.close();
@@ -177,6 +181,24 @@ void main() {
       bloc.add(const SearchRefRequested('בראשית', personalized: true));
       await Future<void>.delayed(_kPastDebounce);
       expect(repository.preferencesCalls, hasLength(2));
+      await bloc.close();
+    });
+
+    test('שחזור הגדרת המתג פוסל את סדר התוצאות השמור', () async {
+      FindRefPreferenceStore.recordOpen(book);
+      final repository = _FakeRepository(fn: (_) async => [_result()]);
+      final bloc = FindRefBloc(findRefRepository: repository);
+      const event = SearchRefRequested('בראשית', personalized: true);
+
+      bloc.add(event);
+      await Future<void>.delayed(_kPastDebounce);
+      await Settings.setValue(FindRefPreferenceStore.enabledKey, false);
+      expect(bloc.shownOrderIsStale, isTrue);
+
+      bloc.add(event);
+      await Future<void>.delayed(_kPastDebounce);
+      expect(repository.preferencesCalls.first, isNotNull);
+      expect(repository.preferencesCalls.last, isNull);
       await bloc.close();
     });
 
@@ -258,7 +280,7 @@ void main() {
       bloc.add(const SearchRefRequested('בראשית', personalized: true));
       await Future<void>.delayed(_kPastDebounce);
       FindRefPreferenceStore.recordOpen(book);
-      expect(bloc.shownOrderIsStale, isFalse);
+      expect(bloc.shownOrderIsStale, isTrue);
 
       await FindRefPreferenceStore.setEnabled(false);
       expect(bloc.shownOrderIsStale, isTrue);

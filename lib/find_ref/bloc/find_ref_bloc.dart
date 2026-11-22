@@ -37,15 +37,18 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
 
   /// גרסת ההעדפות האישיות שלפיה התבקשו התוצאות המוצגות; null = בקשה
   /// שאינה מותאמת אישית (קישור, סיור).
-  int? _shownPreferenceRevision;
+  (int, bool)? _shownPreferenceVersion;
+
+  (int, bool) get _preferenceVersion =>
+      (FindRefPreferenceStore.revision, FindRefPreferenceStore.isEnabled);
 
   /// בקשה לא-מותאמת (קישור, סיור) שתוצאותיה טרם הוצגו.
   (String, bool, HiddenLibrarySelection)? _pendingPlainRequest;
 
-  /// הסדר המותאם שמוצג דורג לפני שההעדפות כובו, הודלקו או נמחקו.
+  /// הסדר המותאם שמוצג דורג לפני שינוי בהעדפות.
   bool get shownOrderIsStale =>
-      _shownPreferenceRevision != null &&
-      _shownPreferenceRevision != FindRefPreferenceStore.revision;
+      _shownPreferenceVersion != null &&
+      _shownPreferenceVersion != _preferenceVersion;
   int _requestGeneration = 0;
   int _externalGeneration = 0;
   _FindRefDelay? _externalDelay;
@@ -147,9 +150,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
             includePersonalBooks: includePersonalBooks,
             personalized: personalized,
           );
-    final preferenceRevision = personalized
-        ? FindRefPreferenceStore.revision
-        : null;
+    final preferenceVersion = personalized ? _preferenceVersion : null;
     // גם שימוש בתוצאה קיימת מבטל רענון אישי שהתחיל בבקשה אחרת.
     final requestGeneration = ++_requestGeneration;
     findRefRepository.cancelPendingSearch();
@@ -159,8 +160,8 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
         includePersonalBooks == _shownIncludePersonalBooks &&
         visibility == _shownVisibility &&
         // סדר לא-מותאם תקף לכל בקשה; סדר מותאם רק לבקשה מותאמת מאותה גרסה.
-        (_shownPreferenceRevision == null ||
-            _shownPreferenceRevision == preferenceRevision)) {
+        (_shownPreferenceVersion == null ||
+            _shownPreferenceVersion == preferenceVersion)) {
       return;
     }
 
@@ -172,7 +173,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       _shownNormalizedQuery = null;
       _shownIncludePersonalBooks = null;
       _shownVisibility = null;
-      _shownPreferenceRevision = null;
+      _shownPreferenceVersion = null;
       _retriedQuery = null;
       emit(const FindRefSuccess([]));
       return;
@@ -188,6 +189,9 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
 
     emit(FindRefLoading());
     try {
+      final searchedPreferenceVersion = personalized
+          ? _preferenceVersion
+          : null;
       final preferences = personalized
           ? FindRefPreferenceStore.snapshot()
           : null;
@@ -203,7 +207,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       _shownNormalizedQuery = normalized;
       _shownIncludePersonalBooks = includePersonalBooks;
       _shownVisibility = visibility;
-      _shownPreferenceRevision = preferenceRevision;
+      _shownPreferenceVersion = searchedPreferenceVersion;
       _retriedQuery = null;
       emit(
         FindRefSuccess(
@@ -268,7 +272,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     _shownNormalizedQuery = null;
     _shownIncludePersonalBooks = null;
     _shownVisibility = null;
-    _shownPreferenceRevision = null;
+    _shownPreferenceVersion = null;
     _pendingPlainRequest = null;
     _retriedQuery = null;
     emit(FindRefInitial());

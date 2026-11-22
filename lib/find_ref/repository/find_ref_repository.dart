@@ -734,6 +734,8 @@ class FindRefRepository {
   }) async {
     try {
       if (!FindRefPreferenceStore.isEnabled) return;
+      final configuration = FindRefPreferenceStore.configurationRevision;
+      final libraryEpoch = _baseBooksEpoch;
       // הספר שנפתח ואחריו ספר השורה; מי שאין לו זהות מדולג, והשני נרשם לבדו.
       final opened = <FindRefPreferenceBook>[];
       final bases = <FindRefPreferenceBook>[];
@@ -767,8 +769,12 @@ class FindRefRepository {
           filePath: openedFrom.filePath,
         );
       }
-      if (opened.isEmpty) return;
-      FindRefPreferenceStore.recordOpen(
+      if (opened.isEmpty ||
+          libraryEpoch != _baseBooksEpoch ||
+          configuration != FindRefPreferenceStore.configurationRevision) {
+        return;
+      }
+      await FindRefPreferenceStore.recordOpen(
         opened.first,
         baseBooks: bases,
         companions: opened.skip(1),
