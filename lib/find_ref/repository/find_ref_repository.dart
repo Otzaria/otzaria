@@ -1276,13 +1276,24 @@ class FindRefRepository {
     }
 
     final results = await resultsFor(queryTokens, books, detection);
+    final soleResult = results.singleOrNull;
     // שו"ת/תשובות עוברים קודם בהחלפת הסוגה, שמוצאת את השם המלא.
-    if (results.isEmpty &&
+    if (queryTokens.length > 1 &&
         query.dibbur == null &&
-        !_genrePrefixes.contains(query.tokens.first)) {
+        !_genrePrefixes.contains(query.tokens.first) &&
+        (results.isEmpty ||
+            (soleResult != null &&
+                detection.phraseTokenCount == queryTokens.length &&
+                _isExactAliasBookResult(soleResult, detection)))) {
       final truncated = _truncatedLastWordHits(books, queryTokens);
+      // "נימוקי יוסף בב": הכינוי לבבא בתרא נשאר ראשון, ואחריו השלמות ל"בב".
+      if (soleResult != null) {
+        truncated.removeWhere(
+          (hit) => !hit.acronymLastWordTruncated || hit.matchesExactAlias,
+        );
+      }
       if (truncated.isNotEmpty) {
-        return _awaitCurrent(
+        final completions = await _awaitCurrent(
           _enrichWithPaths(
             _rankResults(
               [for (final hit in truncated) _bookResult(hit)],
@@ -1296,6 +1307,10 @@ class FindRefRepository {
             ),
           ),
         );
+        return [
+          ...results,
+          ...completions.take(_maxResultCap - results.length),
+        ];
       }
     }
     final original = query.tokens;
@@ -1348,13 +1363,30 @@ class FindRefRepository {
 
   static const _genrePrefixes = {'שות', 'תשובות'};
 
-  /// בשאילתה בלי תוצאות: ספרים שכל מילותיה הן תחיליות רצופות בשמם. כך "ק" ב"נימוקי
-  /// יוסף בבא ק", שנקראה כדף שאינו קיים, היא מילה באמצע הקלדה (#5721).
+  static bool _isExactAliasBookResult(
+    DbReferenceResult result,
+    _BookDetection detection,
+  ) =>
+      result.source.isOfficial &&
+      result.reference == result.title &&
+      result.segment == 0 &&
+      result.sourceLineId == 0 &&
+      !result.isAltToc &&
+      !result.isSourceLine &&
+      !result.isCategoryMatch &&
+      !result.isPartialTocMatch &&
+      detection.hits.any(
+        (hit) =>
+            hit.matchesExactAlias &&
+            hit.bookId == result.bookId &&
+            (hit.bookId > 0 || hit.filePath == result.filePath),
+      );
+
+  /// ספרים שכל מילות השאילתה הן תחיליות רצופות בשמם, למשל "נימוקי יוסף בבא ק".
   List<ReferenceBookHit> _truncatedLastWordHits(
     _BookSearch books,
     List<String> queryTokens,
   ) {
-    if (queryTokens.length < 2) return const [];
     return [
       // הצירוף שכבר בסריקה המשותפת; ההתאמה לכל השאילתה נבדקת כאן.
       for (final hit in books.search(
@@ -3744,7 +3776,7 @@ class FindRefRepository {
                     r.reference,
                   ))),
           exactAliasMatch: bookMatch?.exactAlias ?? false,
-          namesBook: bookMatch?.namesBook ?? false,
+          namesBook: !r.isPartialTocMatch && (bookMatch?.namesBook ?? false),
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||

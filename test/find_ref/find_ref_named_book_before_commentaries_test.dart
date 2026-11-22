@@ -58,6 +58,34 @@ void main() {
     ]);
   });
 
+  test('הפניה מלאה במפרש קודמת להפניה חלקית בספר', () async {
+    seedLibrary(const [_yedeiMoshe, _shemotRabbah], categoryPaths: _paths);
+    final results = await buildFindRefRepo(
+      tocEntries: {
+        _yedeiMoshe.id: [
+          {
+            'reference': '${_yedeiMoshe.title} פרק מה פסקה ב אות ג',
+            'segment': 590,
+            'level': 3,
+          },
+        ],
+        _shemotRabbah.id: [
+          {
+            'reference': '${_shemotRabbah.title} פרק מה אות ב',
+            'segment': 465,
+            'level': 2,
+            'partialMatch': true,
+          },
+        ],
+      },
+    ).findRefs('שמות רבה מה ב ג');
+
+    expect(results.map((r) => r.title), [
+      _yedeiMoshe.title,
+      _shemotRabbah.title,
+    ]);
+  });
+
   test('כינוי שמשותף לכמה ספרים אינו מקדים אחד מהם', () async {
     const rashbaBavaKamma = (
       id: 5739,

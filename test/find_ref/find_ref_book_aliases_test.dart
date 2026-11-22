@@ -177,6 +177,29 @@ void main() {
       });
     }
 
+    test('נימוקי יוסף בב מציע את בבא קמא אחרי הכינוי המדויק', () async {
+      final titles = await titlesFor('נימוקי יוסף בב', const [
+        nimukeiBavaKamma,
+        nimukeiBavaBatra,
+      ]);
+
+      expect(titles, [nimukeiBavaBatra.title, nimukeiBavaKamma.title]);
+    });
+
+    test('מיקום אחרי הכינוי המדויק נשאר הפניה לספר שבו נמצא', () async {
+      seedLibrary(const [nimukeiBavaKamma, nimukeiBavaBatra]);
+      final reference = '${nimukeiBavaBatra.title} דף ג';
+      final results = await buildFindRefRepo(
+        tocEntries: {
+          nimukeiBavaBatra.id: [
+            {'reference': reference, 'segment': 7, 'level': 1},
+          ],
+        },
+      ).findRefs('נימוקי יוסף בב ג');
+
+      expect(results.map((r) => r.reference), [reference]);
+    });
+
     test('דף שאינו קיים אינו מחזיר ספר ששמו אינו מכיל את המילה', () async {
       final titles = await titlesFor('נימוקי יוסף בבא ש', const [
         nimukeiBavaBatra,
