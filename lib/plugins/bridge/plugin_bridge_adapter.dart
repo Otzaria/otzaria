@@ -2292,10 +2292,10 @@ class PluginBridgeAdapter {
               startIndex: startLine,
               endIndex: endLine,
               connectionTypes: connectionTypes,
-              // הרשומה הנוספת מסמנת truncated. סינוני כותרת מתבצעים לאחר השליפה.
-              limit: targetTitles == null && targetTitlePrefixes == null
-                  ? remaining + 1
-                  : null,
+              targetBookTitles: targetTitles,
+              targetTitlePrefixes: targetTitlePrefixes,
+              // הרשומה הנוספת מסמנת truncated.
+              limit: remaining + 1,
             ),
             targetTitles: targetTitles,
             targetTitlePrefixes: targetTitlePrefixes,

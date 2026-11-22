@@ -582,6 +582,8 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
   required int startLineIndex,
   required int endLineIndex,
   required List<String>? connectionTypes,
+  required List<String>? sourceTitles,
+  required List<String>? sourceTitlePrefixes,
   required int? limit,
 }) {
   List<int>? typeIds;
@@ -609,6 +611,15 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
                 SELECT id FROM connection_type WHERE name IS NOT NULL
               )""" : ''})';
   final bookFilter = official ? '' : 'AND l.targetBookId = ?';
+  final titleConditions = [
+    if (sourceTitles != null)
+      'sb.title IN (${List.filled(sourceTitles.length, '?').join(', ')})',
+    for (final _ in sourceTitlePrefixes ?? const <String>[])
+      'substr(sb.title, 1, length(?)) = ?',
+  ];
+  final titleFilter = sourceTitles == null && sourceTitlePrefixes == null
+      ? ''
+      : 'WHERE ${titleConditions.isEmpty ? '0' : titleConditions.join(' OR ')}';
 
   return db
       .select(
@@ -639,6 +650,7 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
       JOIN book sb ON sb.id = l.sourceBookId
       LEFT JOIN connection_type ct ON ct.id = l.connectionTypeId
       ${_rangeEndJoinClause(hasRanges, panelSide: 0)}
+      $titleFilter
       ORDER BY tl.lineIndex, l.id
       ${limit == null ? '' : 'LIMIT ?'}
     ''',
@@ -649,6 +661,11 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
           if (!official) bookId,
           ...?typeIds,
           if (hasRanges) ...?typeIds,
+          ...?sourceTitles,
+          for (final prefix in sourceTitlePrefixes ?? const <String>[]) ...[
+            prefix,
+            prefix,
+          ],
           ?limit,
         ],
       )
@@ -1081,6 +1098,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
   required List<String>? targetBookTitles,
   bool incoming = false,
   List<String>? incomingConnectionTypes,
+  List<String>? incomingTitlePrefixes,
   int? incomingLimit,
   ReadOnlyConnection? connection,
 }) {
@@ -1107,6 +1125,8 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
         connectionTypes: incomingConnectionTypes,
+        sourceTitles: targetBookTitles,
+        sourceTitlePrefixes: incomingTitlePrefixes,
         limit: incomingLimit,
       );
     }
@@ -1626,6 +1646,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
   List<String>? targetBookTitles,
   bool incoming = false,
   List<String>? incomingConnectionTypes,
+  List<String>? incomingTitlePrefixes,
   int? incomingLimit,
 }) {
   return Isolate.run(
@@ -1640,6 +1661,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
       targetBookTitles: targetBookTitles,
       incoming: incoming,
       incomingConnectionTypes: incomingConnectionTypes,
+      incomingTitlePrefixes: incomingTitlePrefixes,
       incomingLimit: incomingLimit,
     ),
   );
@@ -1830,6 +1852,8 @@ Object? runRangeRequestOnConnection(
       targetBookTitles: (args['targetBookTitles'] as List?)?.cast<String>(),
       incoming: args['incoming'] as bool? ?? false,
       incomingConnectionTypes: (args['incomingConnectionTypes'] as List?)
+          ?.cast<String>(),
+      incomingTitlePrefixes: (args['incomingTitlePrefixes'] as List?)
           ?.cast<String>(),
       incomingLimit: args['incomingLimit'] as int?,
       connection: connection,
@@ -4894,6 +4918,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     BookSource source = BookSource.official,
     bool incoming = false,
     List<String>? incomingConnectionTypes,
+    List<String>? incomingTitlePrefixes,
     int? incomingLimit,
   }) async {
     final normalizedTargetBookTitles =
@@ -4923,6 +4948,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         'targetBookTitles': normalizedTargetBookTitles,
         if (incoming) 'incoming': true,
         'incomingConnectionTypes': ?incomingConnectionTypes,
+        'incomingTitlePrefixes': ?incomingTitlePrefixes,
         'incomingLimit': ?incomingLimit,
       },
       () => _runBookLinksInRangeInIsolate(
@@ -4936,6 +4962,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         targetBookTitles: normalizedTargetBookTitles,
         incoming: incoming,
         incomingConnectionTypes: incomingConnectionTypes,
+        incomingTitlePrefixes: incomingTitlePrefixes,
         incomingLimit: incomingLimit,
       ),
     );

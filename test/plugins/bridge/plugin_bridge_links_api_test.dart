@@ -91,6 +91,8 @@ class _StubTextBookRepository extends Mock implements TextBookRepository {
   int incomingCalls = 0;
   List<String>? capturedIncomingTypes;
   int? capturedIncomingLimit;
+  List<String>? capturedIncomingTitles;
+  List<String>? capturedIncomingPrefixes;
 
   @override
   Future<List<Link>> getIncomingLinksInRange(
@@ -98,10 +100,14 @@ class _StubTextBookRepository extends Mock implements TextBookRepository {
     required int startIndex,
     required int endIndex,
     List<String>? connectionTypes,
+    List<String>? targetBookTitles,
+    List<String>? targetTitlePrefixes,
     int? limit,
   }) async {
     incomingCalls++;
     capturedIncomingTypes = connectionTypes;
+    capturedIncomingTitles = targetBookTitles;
+    capturedIncomingPrefixes = targetTitlePrefixes;
     capturedIncomingLimit = limit;
     capturedBook = book;
     capturedStartIndex = startIndex;
@@ -682,6 +688,7 @@ void main() {
       });
 
       expect(repository.capturedIncomingLimit, 2001);
+      expect(repository.capturedIncomingTitles, ['מקור א. ב']);
       expect((result['links'] as List).single['sourceTitle'], 'מקור א. ב');
     });
 
@@ -695,6 +702,7 @@ void main() {
       });
 
       expect(repository.capturedIncomingLimit, 2);
+      expect(repository.capturedIncomingPrefixes, ['רש״י']);
       expect(result['links'], hasLength(2000));
       expect(result['truncated'], isTrue);
     });

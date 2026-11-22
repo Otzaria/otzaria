@@ -99,6 +99,8 @@ void main() {
     required int end,
     bool incoming = false,
     List<String>? connectionTypes,
+    List<String>? titles,
+    List<String>? prefixes,
     int? limit,
   }) async => [
     for (final l in await provider.getLinksForBookRange(
@@ -108,7 +110,9 @@ void main() {
       startLineIndex: start,
       endLineIndex: end,
       incoming: incoming,
+      targetBookTitles: titles,
       incomingConnectionTypes: connectionTypes,
+      incomingTitlePrefixes: prefixes,
       incomingLimit: limit,
     ))
       '${l.index1}<-${l.path2}:${l.index2} ${l.connectionType} ${l.heRef}',
@@ -147,6 +151,31 @@ void main() {
         limit: 1,
       ),
       ['6<-שבת:2 REFERENCE ref 11'],
+    );
+  });
+
+  test('incoming מסנן את הספר האחר בשאילתה, לפני התקרה', () async {
+    expect(await load(start: 0, end: 9, incoming: true, titles: ['שבת']), [
+      '6<-שבת:2 REFERENCE ref 11',
+    ]);
+    expect(
+      await load(start: 0, end: 9, incoming: true, prefixes: ['רש']),
+      ['6<-רש"י על שבת:1 COMMENTARY ref 30'],
+    );
+    expect(
+      await load(
+        start: 0,
+        end: 9,
+        incoming: true,
+        titles: ['שבת'],
+        prefixes: ['רש'],
+        limit: 1,
+      ),
+      hasLength(1),
+    );
+    expect(
+      await load(start: 0, end: 9, incoming: true, titles: const []),
+      isEmpty,
     );
   });
 
