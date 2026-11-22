@@ -70,6 +70,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/sqlite_memory_release.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/diagnostics/native_incident_context.dart';
 import 'package:otzaria/core/info/app_info_cli.dart';
 import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/info/app_install_timeline.dart';
@@ -156,6 +157,7 @@ void _markMainWindowRevealed() {
     _mainWindowRevealedCompleter.complete();
   }
   StartupTimeline.instance.finishAtReveal();
+  NativeIncidentContext.enable();
 }
 
 /// macOS בלי ריבוי תצוגות (ה-runner לא הפך את המנוע): חלון יחיד, והסיבה נרשמת ללוג.

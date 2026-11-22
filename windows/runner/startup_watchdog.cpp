@@ -236,8 +236,9 @@ bool UnwindFrame(CONTEXT* context, bool* has_function) {
 // פורשת מחסנית שהועתקה; RtlLookupFunctionEntry נוטלת נעילות של ה-loader, ולכן
 // רצה רק אחרי שה-thread חודש.
 void UnwindCopiedStack(CONTEXT* context, ULONG_PTR stack_begin,
-                       ULONG_PTR stack_end, std::vector<ULONG_PTR>* frames) {
-  while (frames->size() < kMaxFrames) {
+                       ULONG_PTR stack_end, size_t frame_limit,
+                       std::vector<ULONG_PTR>* frames) {
+  while (frames->size() < frame_limit) {
     const ULONG_PTR pc = static_cast<ULONG_PTR>(WD_PC(*context));
     if (pc == 0) break;
     frames->push_back(pc);
@@ -281,8 +282,9 @@ void Relocate(ULONG_PTR* value, ULONG_PTR from, size_t size, ULONG_PTR to) {
 
 // בזמן ההשהיה רק syscalls ו-memcpy: thread מושהה שמחזיק נעילה שה-watcher
 // צריך היה נשאר מושהה לתמיד.
-bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
-  if (thread == nullptr) return false;
+bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames,
+                           size_t frame_limit) {
+  if (thread == nullptr || frame_limit == 0) return false;
   std::vector<ULONG_PTR> copy(
       (kMaxStackCopyBytes + kStackCopyPaddingBytes) / sizeof(ULONG_PTR));
   if (::SuspendThread(thread) == static_cast<DWORD>(-1)) return false;
@@ -326,18 +328,20 @@ bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
   Relocate(reinterpret_cast<ULONG_PTR*>(&context.Fp), sp, copied, to);
 #endif
   WD_SP(context) = to;
-  UnwindCopiedStack(&context, to, to + copied, frames);
+  UnwindCopiedStack(&context, to, to + copied, frame_limit, frames);
   return true;
 }
 
 #else  // ארכיטקטורה בלי פרישת מחסנית מבוססת-טבלאות (x86)
 
-bool CaptureSuspendedStack(HANDLE, std::vector<ULONG_PTR>*) { return false; }
+bool CaptureSuspendedStack(HANDLE, std::vector<ULONG_PTR>*, size_t) {
+  return false;
+}
 
 #endif
 
 bool CaptureMainThreadStack(std::vector<ULONG_PTR>* frames) {
-  return CaptureSuspendedStack(g_main_thread, frames);
+  return CaptureSuspendedStack(g_main_thread, frames, kMaxFrames);
 }
 
 std::wstring ResolveLogPath() {
@@ -497,8 +501,9 @@ bool CaptureMainStack(std::vector<ULONG_PTR>* frames) {
   return CaptureMainThreadStack(frames);
 }
 
-bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
-  return CaptureSuspendedStack(thread, frames);
+bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames,
+                        size_t frame_limit) {
+  return CaptureSuspendedStack(thread, frames, frame_limit);
 }
 
 bool IsDartFrame(ULONG_PTR address) { return DartImageBase(address) != 0; }

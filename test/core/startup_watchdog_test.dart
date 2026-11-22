@@ -50,7 +50,9 @@ void main() {
 
     expect(
       source,
-      contains('return CaptureSuspendedStack(g_main_thread, frames);'),
+      contains(
+        'return CaptureSuspendedStack(g_main_thread, frames, kMaxFrames);',
+      ),
     );
     // בזמן ההשהיה רק syscalls ו-memcpy; פרישה ותרגום נוטלים נעילות.
     final captureStart = source.indexOf('bool CaptureSuspendedStack(HANDLE');
@@ -227,7 +229,8 @@ void main() {
       expect(
         watcher,
         contains(
-          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake);',
+          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake,'
+          '\n               &thread_bytes_left);',
         ),
       );
       expect(

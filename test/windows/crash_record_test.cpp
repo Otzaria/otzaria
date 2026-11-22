@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <string>
 
@@ -26,6 +28,7 @@ BOOL WINAPI TestWriteFile(HANDLE file, LPCVOID data, DWORD length,
 #include "../../windows/runner/startup_watchdog.cpp"
 #undef WriteFile
 #include "../../windows/runner/crash_record.cpp"
+#include "../../windows/runner/hang_monitor.cpp"
 
 void Require(bool condition, const char* message) {
   if (condition) return;
@@ -58,6 +61,51 @@ bool ImportsCrt(HMODULE module) {
 using Callback = HRESULT (*)(PVOID, const PWER_RUNTIME_EXCEPTION_INFORMATION,
                             BOOL*, PWSTR, PDWORD, PDWORD);
 
+DWORD WINAPI WaitInNativeWorker(LPVOID event) {
+  WaitForSingleObject(static_cast<HANDLE>(event), INFINITE);
+  return 0;
+}
+
+void TestNativePeerCapture() {
+  const HWND window = CreateWindowW(L"STATIC", L"", WS_POPUP, 0, 0, 1, 1,
+                                    nullptr, nullptr, nullptr, nullptr);
+  Require(window != nullptr, "Cannot create the fixture's UI window");
+  const HANDLE release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  Require(release != nullptr, "Cannot create the native worker event");
+  DWORD worker_id = 0;
+  const HANDLE worker =
+      CreateThread(nullptr, 0, WaitInNativeWorker, release, 0, &worker_id);
+  Require(worker != nullptr, "Cannot start the native worker");
+  hang_monitor::SetMainWindow(window);
+  hang_monitor::g_stop_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  Require(hang_monitor::g_stop_event != nullptr, "Cannot create the stop event");
+
+  hang_monitor::ThreadCapture capture;
+  std::thread inspector([&] { capture = hang_monitor::CaptureOtherThreads(false); });
+  inspector.join();
+  SetEvent(release);
+  Require(WaitForSingleObject(worker, 5000) == WAIT_OBJECT_0,
+          "The inspected native thread must resume");
+  CloseHandle(worker);
+  CloseHandle(release);
+  hang_monitor::Stop();
+  hang_monitor::SetMainWindow(nullptr);
+  DestroyWindow(window);
+
+  Require(capture.ui_cpu_ms && *capture.ui_cpu_ms < hang_monitor::kLowUiCpuMs,
+          "The sleeping UI thread must be classified as low CPU");
+  const auto worker_stack = std::find_if(
+      capture.threads.begin(), capture.threads.end(),
+      [&](const hang_monitor::OtherThread& thread) { return thread.id == worker_id; });
+  Require(worker_stack != capture.threads.end() && !worker_stack->frames.empty(),
+          "A later hang must include a native peer when the UI is waiting");
+  std::vector<ULONG_PTR> described;
+  std::string details;
+  Require(hang_monitor::AppendOtherThreads(capture, 0, &details, &described) == 0 &&
+              described.empty() && details.find("omitted") != std::string::npos,
+          "A full log budget must omit peer stacks");
+}
+
 int wmain(int argc, wchar_t** argv) {
   Require(argc == 2, "Pass the built WER DLL path");
   HMODULE module = LoadLibraryW(argv[1]);
@@ -82,6 +130,8 @@ int wmain(int argc, wchar_t** argv) {
   crash_record::g_wer.magic = CrashWerContext::kMagic;
   crash_record::g_wer.size = sizeof(CrashWerContext);
   wcscpy_s(crash_record::g_wer.log_path, log.c_str());
+  // Equivalent to the Dart encoder for the reading screen, 4 tabs, PDF, Semantics on.
+  OtzariaSetIncidentContext(3u | (2u << 4) | (1u << 8) | (4u << 9));
   crash_record::g_main_thread_id = GetCurrentThreadId();
   crash_record::g_crash_thread_id = GetCurrentThreadId();
   crash_record::g_record.ExceptionCode = EXCEPTION_ACCESS_VIOLATION;
@@ -128,6 +178,12 @@ int wmain(int argc, wchar_t** argv) {
     std::cout << "scenario=" << scenario << " recorded=" << complete
               << " bytes=" << before << "->" << after << std::endl;
   }
+  std::ifstream record(std::filesystem::path(log), std::ios::binary);
+  const std::string output(std::istreambuf_iterator<char>(record), {});
+  Require(output.find("Context: screen=reading; tabs=4; tab=pdf; semantics=on") !=
+              std::string::npos,
+          "The core crash record must include the captured UI context");
+  TestNativePeerCapture();
   CloseHandle(crash_record::g_crash_event);
   CloseHandle(crash_record::g_done_event);
   FreeLibrary(module);
