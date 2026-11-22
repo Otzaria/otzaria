@@ -14,6 +14,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
@@ -151,6 +152,45 @@ Future<void> main() async {
           .currentSearchIndex,
       0,
     );
+  }, skip: !engineReady);
+
+  testWidgets('חץ בין שתי התאמות רחוקות באותה הערה מסמן ומגלגל לשנייה', (
+    tester,
+  ) async {
+    final filler = List.filled(1500, 'מילה').join(' ');
+    textBookBloc = StubTextBookBloc(
+      _state(
+        content: '<i class="footnote">שבת $filler שבת</i>גוף הקטע',
+        withCommentary: false,
+      ),
+    );
+    final snippets = ValueNotifier<List<CommentarySearchSnippet>>(const []);
+    addTearDown(snippets.dispose);
+
+    final list = await search(tester, 'שבת', snippets);
+    expect(list.totalSearchResultsNotifier.value, 2);
+
+    final notesScroll = find.descendant(
+      of: find.byType(SingleChildScrollView),
+      matching: find.byType(Scrollable),
+    );
+    double offset() =>
+        tester.state<ScrollableState>(notesScroll.first).position.pixels;
+    int currentInNote() => tester
+        .widget<SmartTextWidget>(find.byType(SmartTextWidget).first)
+        .settings
+        .currentSearchIndex;
+
+    list.navigateToGlobalIndex(0);
+    await tester.pumpAndSettle();
+    expect(currentInNote(), 0);
+    final first = offset();
+
+    list.navigateSearchNext();
+    await tester.pumpAndSettle();
+    expect(list.currentSearchIndexNotifier.value, 1);
+    expect(currentInNote(), 1);
+    expect(offset(), greaterThan(first + 200));
   }, skip: !engineReady);
 }
 
