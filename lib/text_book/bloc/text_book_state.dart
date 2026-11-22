@@ -344,6 +344,7 @@ class TextBookLoaded extends TextBookState {
   final Set<int> selectedIndices;
   final bool pinLeftPane;
   final String searchText;
+  final Object? searchTextSource;
   final Map<String, Map<String, bool>> searchOptions;
   final Map<int, List<String>> alternativeWords;
   final Map<String, String> spacingValues;
@@ -440,6 +441,7 @@ class TextBookLoaded extends TextBookState {
     this.selectedIndices = const {},
     required this.pinLeftPane,
     required this.searchText,
+    this.searchTextSource,
     this.searchOptions = const {},
     this.alternativeWords = const {},
     this.spacingValues = const {},
@@ -656,6 +658,7 @@ class TextBookLoaded extends TextBookState {
     List<int>? visibleIndices,
     bool? pinLeftPane,
     String? searchText,
+    Object? searchTextSource,
     Map<String, Map<String, bool>>? searchOptions,
     Map<int, List<String>>? alternativeWords,
     Map<String, String>? spacingValues,
@@ -805,6 +808,9 @@ class TextBookLoaded extends TextBookState {
           : (selectedIndices ?? this.selectedIndices),
       pinLeftPane: pinLeftPane ?? this.pinLeftPane,
       searchText: searchText ?? this.searchText,
+      searchTextSource: searchText == null
+          ? this.searchTextSource
+          : searchTextSource,
       searchOptions: searchOptions ?? this.searchOptions,
       alternativeWords: alternativeWords ?? this.alternativeWords,
       spacingValues: spacingValues ?? this.spacingValues,
@@ -906,6 +912,7 @@ class TextBookLoaded extends TextBookState {
     _SetProp(selectedIndices),
     pinLeftPane,
     searchText,
+    searchTextSource,
     _SearchOptionsProp(searchOptions),
     _AlternativeWordsProp(alternativeWords),
     _SpacingValuesProp(spacingValues),

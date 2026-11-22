@@ -74,6 +74,7 @@ void main() {
                 focusNode: focusNode,
                 closeLeftPaneCallback: () {},
                 initialQuery: (state as TextBookLoaded).searchText,
+                initialQuerySource: state.searchTextSource,
                 simpleSearchRunner: (content, query) async => const [],
               ),
             ),
@@ -203,6 +204,16 @@ void main() {
       await tester.pump(echoDelay);
     });
 
+    testWidgets('חיפוש חיצוני יכול לבחור מחדש את השאילתה הקיימת', (
+      tester,
+    ) async {
+      final bloc = await pumpSearchView(tester, existingQuery: 'אב');
+      await tester.enterText(find.byType(TextField), 'אבג');
+      bloc.add(const UpdateSearchText('אב'));
+      await tester.pump();
+      expect(fieldText(tester), 'אב');
+    });
+
     testWidgets(
       'שינוי חיצוני אחרי כמה הדים שאוגדו לפריים אחד עם שאילתה חוזרת מגיע לשדה',
       (tester) async {
@@ -264,7 +275,12 @@ class _EchoTextBookBloc extends Bloc<TextBookEvent, TextBookState>
       // שנוחתת בינתיים.
       if (echoDelay > Duration.zero) await Future<void>.delayed(echoDelay);
       final current = state as TextBookLoaded;
-      emit(current.copyWith(searchText: event.text));
+      emit(
+        current.copyWith(
+          searchText: event.text,
+          searchTextSource: event.textSource,
+        ),
+      );
     });
     on<TextBookEvent>((event, emit) {});
   }

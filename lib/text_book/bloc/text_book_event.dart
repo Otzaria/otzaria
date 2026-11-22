@@ -264,6 +264,7 @@ class TogglePinLeftPane extends TextBookEvent {
 
 class UpdateSearchText extends TextBookEvent {
   final String text;
+  final Object? textSource;
   final Map<String, Map<String, bool>>? searchOptions;
   final Map<int, List<String>>? alternativeWords;
   final Map<String, String>? spacingValues;
@@ -278,6 +279,7 @@ class UpdateSearchText extends TextBookEvent {
 
   const UpdateSearchText(
     this.text, {
+    this.textSource,
     this.searchOptions,
     this.alternativeWords,
     this.spacingValues,
@@ -292,6 +294,7 @@ class UpdateSearchText extends TextBookEvent {
   @override
   List<Object?> get props => [
     text,
+    textSource,
     searchOptions,
     alternativeWords,
     spacingValues,

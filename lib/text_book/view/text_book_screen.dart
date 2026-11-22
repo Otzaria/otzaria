@@ -2574,6 +2574,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       repository,
       widget.tab.lines,
       state.searchText,
+      state.searchTextSource,
       state.searchOptions,
       state.alternativeWords,
       state.spacingValues,
@@ -2593,6 +2594,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       lines: widget.tab.lines,
       // הוא מעביר את טקסט החיפוש מה-state הנוכחי אל תוך רכיב החיפוש
       initialQuery: state.searchText,
+      initialQuerySource: state.searchTextSource,
       initialSearchOptions: state.searchOptions,
       initialAlternativeWords: state.alternativeWords,
       initialSpacingValues: state.spacingValues,

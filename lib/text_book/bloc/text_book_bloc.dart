@@ -2152,6 +2152,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       emit(
         currentState.copyWith(
           searchText: event.text,
+          searchTextSource: event.textSource,
           searchOptions: event.searchOptions,
           alternativeWords: event.alternativeWords,
           spacingValues: event.spacingValues,

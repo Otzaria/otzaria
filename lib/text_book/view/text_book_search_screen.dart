@@ -69,6 +69,7 @@ class TextBookSearchView extends StatefulWidget {
   /// נקרא אחרי מעבר לתוצאה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final String initialQuery;
+  final Object? initialQuerySource;
   final Map<String, Map<String, bool>> initialSearchOptions;
   final Map<int, List<String>> initialAlternativeWords;
   final Map<String, String> initialSpacingValues;
@@ -93,6 +94,7 @@ class TextBookSearchView extends StatefulWidget {
     required this.focusNode,
     required this.closeLeftPaneCallback,
     required this.initialQuery,
+    this.initialQuerySource,
     this.initialSearchOptions = const {},
     this.initialAlternativeWords = const {},
     this.initialSpacingValues = const {},
@@ -232,39 +234,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     ).forQuery(searchableInBookQuery(searchTextController.text) ?? '');
   }
 
-  /// שאילתות שהשדה שלח ל-BLoC וההד שלהן עוד לא חזר, לפי סדר השליחה.
-  final List<String> _pendingEchoes = [];
-  late final StreamSubscription<TextBookState> _blocQuerySubscription;
-  late String _blocQuery = widget.initialQuery;
-
-  /// [_blocQuery] הגיעה מבקשה של השדה עצמו, לא משינוי חיצוני.
-  bool _blocQueryIsEcho = false;
-
-  /// כל state נבדק לפי סדר ההגעה: בנייה אחת יכולה לאגד כמה מהם, ואף להיחסך
-  /// כשהשאילתה חזרה לערכה — ולכן ההד משויך לבקשה כאן ולא ב-didUpdateWidget.
-  void _trackBlocQuery(TextBookState state) {
-    if (state is! TextBookLoaded || state.searchText == _blocQuery) return;
-    _blocQuery = state.searchText;
-    final echoIndex = _pendingEchoes.indexOf(_blocQuery);
-    _blocQueryIsEcho = echoIndex >= 0;
-    // הדים מגיעים לפי סדר השליחה; אחרי שינוי חיצוני הד ישן כבר לא יגיע.
-    if (_blocQueryIsEcho) {
-      _pendingEchoes.removeRange(0, echoIndex + 1);
-    } else {
-      _pendingEchoes.clear();
-    }
-  }
-
-  void _sendSearchText(UpdateSearchText event) {
-    _pendingEchoes.add(event.text);
-    context.read<TextBookBloc>().add(event);
-  }
+  final _querySource = Object();
 
   void _syncBlocSearchTextState() {
     final activeParameters = _activeSearchParameters;
-    _sendSearchText(
+    context.read<TextBookBloc>().add(
       UpdateSearchText(
         searchTextController.text,
+        textSource: _querySource,
         searchOptions: activeParameters.searchOptions,
         alternativeWords: activeParameters.alternativeWords,
         spacingValues: activeParameters.customSpacing,
@@ -311,9 +288,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     if (searchableInBookQuery(widget.initialQuery) == null) {
       _settings = InBookSearchSettings.savedDefaults();
     }
-    _blocQuerySubscription = context.read<TextBookBloc>().stream.listen(
-      _trackBlocQuery,
-    );
     _syncBlocSearchTextState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -339,13 +313,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   void didUpdateWidget(TextBookSearchView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // עדכון שדה החיפוש אם initialQuery השתנה
-    final queryChanged = widget.initialQuery != oldWidget.initialQuery;
-    // ערך שהשדה עצמו שלח הוא הד, גם כשהוא מנורמל (issue #1430) וגם כשבינתיים
-    // הוקלדו אותיות נוספות (issue #5711) — לא שינוי חיצוני שדורס את ההקלדה.
-    final isEcho = _blocQueryIsEcho && widget.initialQuery == _blocQuery;
+    final queryChanged =
+        widget.initialQuery != oldWidget.initialQuery ||
+        !identical(widget.initialQuerySource, oldWidget.initialQuerySource);
+    // כמה עדכוני BLoC יכולים להגיע לפריים אחד, גם עם אותה שאילתה (#5711).
     final needsControllerSync =
-        widget.initialQuery != searchTextController.text && !isEcho;
+        !identical(widget.initialQuerySource, _querySource) &&
+        widget.initialQuery != searchTextController.text;
     final normalizedSearchMode = widget.initialSearchMode;
     // ה-bloc מחזיר את המדיניות האפקטיבית, ו"בכל סדר" אינו חל על מילה אחת.
     final widgetQuery = searchableInBookQuery(widget.initialQuery) ?? '';
@@ -1030,7 +1004,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   @override
   void dispose() {
-    unawaited(_blocQuerySubscription.cancel());
     _engineSearch.cancel();
     searchTextController.dispose();
     _selectedResult.dispose();
@@ -1238,9 +1211,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         }
         _settings = _settings.forQuery(query ?? '');
         final activeParameters = _activeSearchParameters;
-        _sendSearchText(
+        context.read<TextBookBloc>().add(
           UpdateSearchText(
             _searchableQuery(searchTextController.text) ?? '',
+            textSource: _querySource,
             searchOptions: activeParameters.searchOptions,
             alternativeWords: activeParameters.alternativeWords,
             spacingValues: activeParameters.customSpacing,
@@ -1264,9 +1238,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _carriedInQuery = null;
           _settings = InBookSearchSettings.savedDefaults();
         });
-        _sendSearchText(
+        context.read<TextBookBloc>().add(
           UpdateSearchText(
             '',
+            textSource: _querySource,
             searchOptions: const {},
             alternativeWords: const {},
             spacingValues: const {},
@@ -1327,9 +1302,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           controller: searchTextController,
           query: result.query,
           onQueryChanged: (value) {
-            _sendSearchText(
+            context.read<TextBookBloc>().add(
               UpdateSearchText(
                 value,
+                textSource: _querySource,
                 searchOptions: settings.searchOptions,
                 alternativeWords: settings.alternativeWords,
                 spacingValues: settings.spacingValues,
