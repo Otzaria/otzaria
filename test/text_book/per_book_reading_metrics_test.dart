@@ -2,6 +2,7 @@
 // ספר בנפרד" מופעלת (issue #2306). קודם המחוונים בחלונית שמעל הספר שינו תמיד
 // את ההגדרה הכללית — כלומר את כל הספרים.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -139,11 +140,12 @@ void main() {
     Future<(TextBookBloc, TextBookBloc)> pumpTab(
       WidgetTester tester, {
       required bool perBook,
+      Stream<SettingsState> settingsChanges = const Stream.empty(),
     }) async {
       settingsBloc = _MockSettingsBloc();
       whenListen(
         settingsBloc,
-        const Stream<SettingsState>.empty(),
+        settingsChanges,
         initialState: SettingsState.initial().copyWith(
           enablePerBookSettings: perBook,
         ),
@@ -223,6 +225,42 @@ void main() {
       }
       expect(saved?['commentatorsFontSize'], a.commentatorsFontSize);
       expect(saved?['lineHeight'], a.lineHeight);
+    });
+
+    testWidgets('חזרה לערך הכללי מחזירה את הספר הפתוח לרשת את הכללי', (
+      tester,
+    ) async {
+      final changes = StreamController<SettingsState>();
+      addTearDown(changes.close);
+      final (bookA, _) = await pumpTab(
+        tester,
+        perBook: true,
+        settingsChanges: changes.stream,
+      );
+      final global = SettingsState.initial().copyWith(
+        enablePerBookSettings: true,
+      );
+
+      await tapRight(tester, commentarySlider);
+      await tapRight(tester, lineHeightSlider);
+      expect((bookA.state as TextBookLoaded).lineHeight, isNotNull);
+
+      tester.widget<Slider>(commentarySlider).onChanged!(
+        global.commentatorsFontSize,
+      );
+      tester.widget<Slider>(lineHeightSlider).onChanged!(global.lineHeight);
+      await tester.pump();
+
+      // null = הספר יורש, כך ששינוי כללי מאוחר חל עליו בלי טעינה מחדש.
+      final a = bookA.state as TextBookLoaded;
+      expect(a.commentatorsFontSize, isNull);
+      expect(a.lineHeight, isNull);
+
+      // שינוי כללי בזמן שהספר פתוח חל עליו מיד.
+      changes.add(global.copyWith(commentatorsFontSize: 30, lineHeight: 1.8));
+      await tester.pump();
+      expect(tester.widget<Slider>(commentarySlider).value, 30);
+      expect(tester.widget<Slider>(lineHeightSlider).value, 1.8);
     });
 
     testWidgets('כשהשמירה לספר כבויה — משנים את ההגדרה הכללית', (tester) async {
