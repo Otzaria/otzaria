@@ -98,7 +98,8 @@ bool isOtzariaBookLink(String href) {
 /// ולכן הסכימה נבדקת בנפרד. קישור שנפסל מוצג כטקסט בלבד, בלי לאבד את תוכנו.
 ///
 /// [allowBookLinks] מתיר גם קישורים לספרי הספרייה (`book://` ו-
-/// [isOtzariaBookLink]) — רק ל-HTML, שבו משתמשים מדביקים קישורים כאלה.
+/// [isOtzariaBookLink]) — ל-HTML, Word ו-ODT, שבהם משתמשים מדביקים קישורים
+/// כאלה.
 String? safeLinkTarget(String href, {bool allowBookLinks = false}) {
   final trimmed = href.trim();
   if (trimmed.isEmpty) return null;
