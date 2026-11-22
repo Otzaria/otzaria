@@ -426,6 +426,10 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   // סדר הקישורים המוצגים, שעליו מבוססים היסטי החיפוש.
   List<Link> _orderedLinks = [];
+
+  /// ההערות המוצגות מעל המפרשים — תוצאות החיפוש שלהן קודמות למפרשים.
+  List<String> _searchNotes = const [];
+  final List<GlobalKey> _noteKeys = [];
   Map<String, int>? _searchResultOffsets;
 
   /// היעד שממתין לגלילה: שם המפרש, ואופציונלית מפתח הקטע המדויק.
@@ -716,16 +720,18 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     ];
   }
 
-  int _getItemSearchIndex(Link link) {
-    final linkKey = _getLinkKey(link);
-    if ((_searchResultsPerLink[linkKey] ?? 0) == 0) return -1;
+  int _getItemSearchIndex(Link link) => _searchIndexOf(_getLinkKey(link));
+
+  int _searchIndexOf(String key) {
+    if ((_searchResultsPerLink[key] ?? 0) == 0) return -1;
     return commentarySearchRelativeIndex(
-      key: linkKey,
+      key: key,
       currentIndex: _currentSearchIndexNotifier.value,
-      offsets: _searchResultOffsets ??= commentarySearchOffsets(
-        _orderedLinks.map(_getLinkKey),
-        _searchResultsPerLink,
-      ),
+      offsets: _searchResultOffsets ??= commentarySearchOffsets([
+        for (var i = 0; i < _searchNotes.length; i++)
+          commentaryNoteSearchKey(i),
+        ..._orderedLinks.map(_getLinkKey),
+      ], _searchResultsPerLink),
       countsByKey: _searchResultsPerLink,
     );
   }
@@ -1496,8 +1502,19 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     final generation = ++_searchScrollGeneration;
     _commentatorScrollGeneration++;
     _pendingScrollTarget = null;
-    if (_totalSearchResultsNotifier.value == 0 || _orderedLinks.isEmpty) return;
+    if (_totalSearchResultsNotifier.value == 0) return;
     var cumulativeIndex = 0;
+    for (var i = 0; i < _searchNotes.length; i++) {
+      final results = _searchResultsPerLink[commentaryNoteSearchKey(i)] ?? 0;
+      if (_currentSearchIndexNotifier.value < cumulativeIndex + results) {
+        _scrollToNoteMatch(
+          i,
+          _currentSearchIndexNotifier.value - cumulativeIndex,
+        );
+        return;
+      }
+      cumulativeIndex += results;
+    }
     Link? targetLink;
     for (final link in _orderedLinks) {
       final results = _searchResultsPerLink[_getLinkKey(link)] ?? 0;
@@ -1550,6 +1567,35 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
   }
 
+  /// מביא לתצוגה את ההתאמה [matchIndex] שבהערה [noteIndex], ובלי מיפוי אמין
+  /// — את ראש ההערה.
+  void _scrollToNoteMatch(int noteIndex, int matchIndex) {
+    final note = _noteKeys[noteIndex].currentContext;
+    final box = note?.findRenderObject();
+    if (note == null || box is! RenderBox) return;
+    final blocState = context.read<TextBookBloc>().state;
+    final top = blocState is! TextBookLoaded
+        ? null
+        : commentarySearchMatchTarget(
+            content: _searchNotes[noteIndex],
+            query: _activeSearchQuery,
+            displayProfile: blocState.commentaryDisplayProfile,
+            matchIndex: matchIndex,
+            partialWordMatch: _notesPartialWordMatch(),
+          )?.call(0, box)?.top;
+    if (top == null) {
+      Scrollable.ensureVisible(note, alignment: 0.1);
+      return;
+    }
+    final position = Scrollable.of(note).position;
+    final reveal = RenderAbstractViewport.of(
+      box,
+    ).getOffsetToReveal(box, 0.1, rect: Rect.fromLTWH(0, top, 0, 0));
+    position.jumpTo(
+      reveal.offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
+  }
+
   void _cancelSearchNavigation() {
     _cancelHeaderAnchor();
     _searchScrollGeneration++;
@@ -1572,6 +1618,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   /// מצב הספר כשהמונח הפעיל הוא מונח החיפוש בספר — הערות הספר מודגשות בו
   /// כמו טקסט הספר. null כשהמונח בא משדה החיפוש של המפרשים.
   TextBookLoaded? _bookSearchState(BuildContext context) {
+    if (widget.showSearch && _searchQueryNotifier.value.isNotEmpty) return null;
     final state = context.read<TextBookBloc>().state;
     final query = _activeSearchQuery;
     return state is TextBookLoaded &&
@@ -1579,6 +1626,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             query == state.searchText
         ? state
         : null;
+  }
+
+  /// כמו `partialWordHighlight` של `_NotesCommentaryWidget._renderSettings`:
+  /// ההערות נספרות באותה התאמה שבה הן מודגשות.
+  bool _notesPartialWordMatch() {
+    final book = _bookSearchState(context);
+    return book == null ||
+        literalPartialWordMatch(
+          _activeSearchQuery,
+          wholeWord: book.searchWholeWord,
+        );
   }
 
   void _scheduleSearchCompute() {
@@ -1591,6 +1649,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             ? blocState.commentaryDisplayProfile
             : TextDisplayProfile.defaults,
         includeSnippets: widget.externalSearchSnippetsNotifier != null,
+        notes: _searchNotes,
+        notesPartialWordMatch: _notesPartialWordMatch(),
       ),
     );
   }
@@ -1923,6 +1983,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               final currentIndexes = _currentIndexes(state);
 
               Widget? notesWidget;
+              _searchNotes = const [];
               if (notesIsActive) {
                 final relevantNotes = inline_notes.notesForLines(
                   state.content,
@@ -1931,14 +1992,23 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   decorateBody: (line, note, body) =>
                       noteBodyWithAnchors(state, line, note, body),
                 );
+                _searchNotes = relevantNotes;
+                while (_noteKeys.length < relevantNotes.length) {
+                  _noteKeys.add(GlobalKey());
+                }
                 if (relevantNotes.isNotEmpty) {
                   notesWidget = ListenableBuilder(
                     listenable: Listenable.merge([
                       _searchQueryNotifier,
                       widget.highlightQueryListenable,
+                      _currentSearchIndexNotifier,
+                      _totalSearchResultsNotifier,
                     ]),
                     builder: (context, _) => _NotesCommentaryWidget(
                       notes: relevantNotes,
+                      noteKeys: _noteKeys,
+                      noteSearchIndex: (i) =>
+                          _searchIndexOf(commentaryNoteSearchKey(i)),
                       searchQuery: _activeSearchQuery,
                       searchedBook: _bookSearchState(context),
                       fontSize: widget.fontSize,
