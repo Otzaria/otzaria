@@ -1,0 +1,152 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
+
+const _contentKey = ValueKey('content');
+const _paneKey = ValueKey('pane');
+
+class _Harness extends StatefulWidget {
+  const _Harness({required this.peek});
+
+  final NavPanelPeekController peek;
+
+  @override
+  State<_Harness> createState() => _HarnessState();
+}
+
+class _HarnessState extends State<_Harness> {
+  bool isOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: NavPanelToggleButton(
+            isOpen: isOpen,
+            peek: widget.peek,
+            onToggle: () => setState(() => isOpen = !isOpen),
+          ),
+        ),
+        Expanded(
+          child: NavSidePanel(
+            isOpen: isOpen,
+            peek: widget.peek,
+            paneWidth: 300,
+            minMainContentWidth: 500,
+            onClose: () => setState(() => isOpen = false),
+            paneContent: const SizedBox.expand(key: _paneKey),
+            mainContent: const SizedBox.expand(key: _contentKey),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+void main() {
+  late NavPanelPeekController peek;
+  late TestGesture mouse;
+
+  Future<void> pump(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    peek = NavPanelPeekController();
+    addTearDown(peek.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: _Harness(peek: peek)),
+      ),
+    );
+    mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(10, 700));
+    addTearDown(mouse.removePointer);
+  }
+
+  AdaptiveSidePane pane(WidgetTester tester) =>
+      tester.widget<AdaptiveSidePane>(find.byType(AdaptiveSidePane));
+
+  double contentWidth(WidgetTester tester) =>
+      tester.getSize(find.byKey(_contentKey)).width;
+
+  Offset button(WidgetTester tester) =>
+      tester.getCenter(find.byType(NavPanelToggleButton));
+
+  Future<void> hoverButton(WidgetTester tester) async {
+    await mouse.moveTo(button(tester));
+    await tester.pump(NavPanelPeekController.openDelay);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('ריחוף על הכפתור פותח מעל התוכן, בלי הצללה ובלי לצמצם אותו', (
+    tester,
+  ) async {
+    await pump(tester);
+    final fullWidth = contentWidth(tester);
+
+    await hoverButton(tester);
+
+    expect(pane(tester).isOpen, isTrue);
+    expect(pane(tester).floatOverContent, isTrue);
+    expect(pane(tester).showScrim, isFalse);
+    expect(contentWidth(tester), fullWidth);
+  });
+
+  testWidgets('מעבר קצר על הכפתור לא פותח', (tester) async {
+    await pump(tester);
+    await mouse.moveTo(button(tester));
+    await tester.pump(const Duration(milliseconds: 50));
+    await mouse.moveTo(const Offset(10, 700));
+    await tester.pumpAndSettle();
+
+    expect(pane(tester).isOpen, isFalse);
+  });
+
+  testWidgets('נשאר פתוח כשהעכבר עובר לחלונית, ונסגר רק ביציאה ממנה', (
+    tester,
+  ) async {
+    await pump(tester);
+    await hoverButton(tester);
+
+    await mouse.moveTo(tester.getCenter(find.byKey(_paneKey)));
+    await tester.pump(NavPanelPeekController.buttonToPaneGrace * 2);
+    expect(pane(tester).isOpen, isTrue);
+
+    // יציאה מהחלונית סוגרת מיד, בלי השהיה.
+    await mouse.moveTo(const Offset(10, 700));
+    await tester.pump();
+    expect(pane(tester).isOpen, isFalse);
+  });
+
+  testWidgets('לחיצה על הכפתור פותחת חלונית שדוחקת את התוכן', (tester) async {
+    await pump(tester);
+    final fullWidth = contentWidth(tester);
+    await hoverButton(tester);
+
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+
+    expect(peek.value, isFalse);
+    expect(pane(tester).isOpen, isTrue);
+    expect(pane(tester).floatOverContent, isFalse);
+    expect(contentWidth(tester), lessThan(fullWidth));
+
+    // יציאת העכבר לא סוגרת חלונית שנפתחה בלחיצה.
+    await mouse.moveTo(const Offset(10, 700));
+    await tester.pump(NavPanelPeekController.buttonToPaneGrace);
+    await tester.pumpAndSettle();
+    expect(pane(tester).isOpen, isTrue);
+
+    // ריחוף על הכפתור כשהיא פתוחה לא משנה כלום, ולחיצה סוגרת.
+    await hoverButton(tester);
+    expect(peek.value, isFalse);
+    await tester.tap(find.byType(NavPanelToggleButton));
+    await tester.pumpAndSettle();
+    expect(pane(tester).isOpen, isFalse);
+    expect(contentWidth(tester), fullWidth);
+  });
+}

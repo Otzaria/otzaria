@@ -171,7 +171,6 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
     index: textIndex,
     dedupeKey: dedupeKey,
     openLeftPane:
-        (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
         (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
   );
   final target = await resolveTalmudBavliPdfBook(textBook);

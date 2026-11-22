@@ -60,7 +60,6 @@ class SettingsRepository {
   /// חדש שיתווסף ל-DB יופיע מאליו ולא ייחשב כמסונן.
   static const String keySelectedLinkTypes = 'key-selected-link-types';
 
-  static const String keyPinSidebar = 'key-pin-sidebar';
   static const String keySidebarWidth = 'key-sidebar-width';
   static const String keyFacetFilteringWidth = 'key-facet-filtering-width';
   static const String keyExternalResultsFirst = 'key-external-results-first';
@@ -339,7 +338,6 @@ class SettingsRepository {
     keyDefaultSidebarOpen,
     keyDefaultCommentaryOpen,
     keySelectedLinkTypes,
-    keyPinSidebar,
     keySidebarWidth,
     keyFacetFilteringWidth,
     keyExternalResultsFirst,
@@ -559,10 +557,6 @@ class SettingsRepository {
       ),
       'defaultCommentaryOpen': _settings.getValue<bool>(
         keyDefaultCommentaryOpen,
-        defaultValue: false,
-      ),
-      'pinSidebar': _settings.getValue<bool>(
-        keyPinSidebar,
         defaultValue: false,
       ),
       'sidebarWidth': _settings.getValue<double>(
@@ -961,10 +955,6 @@ class SettingsRepository {
 
   Future<void> updateDefaultCommentaryOpen(bool value) async {
     await _settings.setValue(keyDefaultCommentaryOpen, value);
-  }
-
-  Future<void> updatePinSidebar(bool value) async {
-    await _settings.setValue(keyPinSidebar, value);
   }
 
   Future<void> updateSidebarWidth(double value) async {
@@ -1475,7 +1465,6 @@ class SettingsRepository {
     await _settings.setValue(keyContinuousReadingMode, false);
     await _settings.setValue(keyDefaultSidebarOpen, false);
     await _settings.setValue(keyDefaultCommentaryOpen, false);
-    await _settings.setValue(keyPinSidebar, false);
     await _settings.setValue(keySidebarWidth, 300.0);
     await _settings.setValue(keyFacetFilteringWidth, 235.0);
     await _settings.setValue(keyExternalResultsFirst, false);

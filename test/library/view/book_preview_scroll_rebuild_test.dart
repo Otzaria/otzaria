@@ -145,7 +145,6 @@ Future<void> main() async {
         removeNikud: false,
         visibleIndices: const [0],
         selectedIndex: null,
-        pinLeftPane: false,
         searchText: '',
       ),
     );

@@ -69,7 +69,6 @@ TextBookLoaded _continuousState({
     visibleIndices: const [0, 1, 2],
     selectedIndex: selectedIndex,
     selectedIndices: selectedIndex == null ? const {} : {selectedIndex},
-    pinLeftPane: false,
     searchText: '',
     continuousReadingMode: true,
   );

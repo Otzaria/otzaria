@@ -119,10 +119,9 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 /// המקום המינימלי לתוכן הספר כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה
-/// היא נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
+/// היא נפתחת כ-overlay.
 const double _kNavMinMainContentWidth = 520;
 
 // קבועים למצבי תצוגה (למניעת magic strings)
@@ -214,6 +213,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   // האם החלונית דוחקת את התוכן (wide). ב-overlay הרוחב לא משתנה ולכן ה-reanchor
   // מיותר — וה-jumpTo שלו מבטל אנימציית ניווט פעילה מבחירה בסרגל הצד.
   bool _paneUsesPushLayout = false;
+  final _navPeek = NavPanelPeekController();
 
   /// מונה כמה פעמים רץ ה-reanchor בעקבות פתיחה/סגירת החלונית. לבדיקת הרגרסיה:
   /// חייב לרוץ במצב push ולהידכא ב-overlay.
@@ -494,7 +494,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         showSplitView: currentState.showSplitView,
         removeNikud: settings.defaultRemoveNikud,
         forceCloseLeftPane: widget.isInCombinedView,
-        screenWidth: readingLayoutWidthOf(context),
         preserveState: true,
         preserveRemoveNikud: !nikudSettingsChanged,
         preserveRemovePunctuation: !punctuationSettingsChanged,
@@ -703,7 +702,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         preserveState: true,
         // בתצוגה משולבת, חלונית הצד תמיד סגורה
         forceCloseLeftPane: widget.isInCombinedView,
-        screenWidth: readingLayoutWidthOf(context),
       ),
     );
 
@@ -717,6 +715,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   @override
   void dispose() {
+    _navPeek.dispose();
     // ביטול רישום ה-FocusNode מ-FocusRepository (שימוש בהפניה שנשמרה)
     _focusRepository?.unregisterBookContentFocusNode(_bookContentFocusNode);
 
@@ -965,7 +964,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   removeNikud: settingsState.defaultRemoveNikud,
                   // בתצוגה משולבת, חלונית הצד תמיד סגורה
                   forceCloseLeftPane: widget.isInCombinedView,
-                  screenWidth: readingLayoutWidthOf(context),
                 ),
               );
             }
@@ -1130,24 +1128,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             compact: AppDensity.of(context).isCompact,
           ),
         ),
-        if (state.showLeftPane &&
-            (state.pinLeftPane ||
-                NavSidePanel.canPin(
-                  context,
-                  paneWidth: _sidebarWidth.value,
-                  minMainContentWidth: _kNavMinMainContentWidth,
-                )))
-          AppTopBarItem(
-            widget: NavPanelPinButton(
-              isPinned: state.pinLeftPane,
-              isGloballyPinned:
-                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
-                  false,
-              onToggle: () => context.read<TextBookBloc>().add(
-                TogglePinLeftPane(!state.pinLeftPane),
-              ),
-            ),
-          ),
         if (state.showPageShapeView)
           AppTopBarItem(widget: _buildPageShapeSettingsButton(context, state)),
       ],
@@ -1313,6 +1293,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ? TourTargetKeys.of(context).textBookNavigation
             : null,
         isOpen: state.showLeftPane,
+        peek: _navPeek,
         onToggle: () => context.read<TextBookBloc>().add(
           ToggleLeftPane(!state.showLeftPane),
         ),
@@ -2352,9 +2333,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildBody(BuildContext context, TextBookLoaded state) {
     return NavSidePanel(
       isOpen: state.showLeftPane,
-      isPinned: state.pinLeftPane,
-      isGloballyPinned:
-          Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ?? false,
+      peek: _navPeek,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth.value,
       minMainContentWidth: _kNavMinMainContentWidth,
@@ -2620,8 +2599,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay או
-  /// צפה); חלונית מוצמדת לצד התוכן נשארת פתוחה.
+  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay);
+  /// חלונית שדוחקת את התוכן, או פתוחה בריחוף, נשארת.
   void _closeLeftPaneIfCovering() {
     if (!mounted || _paneUsesPushLayout) return;
     context.read<TextBookBloc>().add(const ToggleLeftPane(false));

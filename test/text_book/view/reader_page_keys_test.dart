@@ -193,7 +193,6 @@ Future<TextBookTab> _mountReader(
     linksByLine: const {},
     tableOfContents: const [],
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
   );
   final bloc = StubTextBookBloc(initial);
@@ -264,7 +263,6 @@ Future<void> _mountCommentaries(WidgetTester tester) async {
       visibleIndices: const [0],
       selectedIndex: 0,
       selectedIndices: const {0},
-      pinLeftPane: false,
       searchText: '',
     ),
   );

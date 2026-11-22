@@ -74,7 +74,6 @@ Future<void> main() async {
       removeNikud: false,
       removePunctuation: false,
       visibleIndices: const [0, 1, 2, 3],
-      pinLeftPane: false,
       searchText: searchText,
       searchMode: SearchMode.exact,
       bookNotes: notes.build(),

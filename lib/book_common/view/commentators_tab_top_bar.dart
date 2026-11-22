@@ -1,5 +1,4 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:flutter/foundation.dart';
@@ -83,10 +82,8 @@ class CommentatorsTabTopBar extends StatelessWidget {
     required this.prevMajorTooltip,
     required this.nextMajorTooltip,
     required this.navPaneOpen,
-    required this.navPanePinned,
-    required this.canPinNavPane,
+    required this.navPeek,
     required this.onToggleNavPane,
-    required this.onTogglePin,
     required this.onPrevMajor,
     required this.onPrevMinor,
     required this.onNextMinor,
@@ -106,14 +103,8 @@ class CommentatorsTabTopBar extends StatelessWidget {
   final String prevMajorTooltip;
   final String nextMajorTooltip;
   final bool navPaneOpen;
-  final bool navPanePinned;
-
-  /// Whether the pane has room to sit beside the content
-  /// ([NavSidePanel.canPin]). Without it pinning changes nothing, so the pin
-  /// button is only shown for an existing pin, so it can still be removed.
-  final bool canPinNavPane;
+  final NavPanelPeekController navPeek;
   final VoidCallback onToggleNavPane;
-  final VoidCallback onTogglePin;
   final VoidCallback onPrevMajor;
   final VoidCallback onPrevMinor;
   final VoidCallback onNextMinor;
@@ -175,19 +166,10 @@ class CommentatorsTabTopBar extends StatelessWidget {
         AppTopBarItem(
           widget: NavPanelToggleButton(
             isOpen: navPaneOpen,
+            peek: navPeek,
             onToggle: onToggleNavPane,
           ),
         ),
-        if (navPanePinned || (navPaneOpen && canPinNavPane))
-          AppTopBarItem(
-            widget: NavPanelPinButton(
-              isPinned: navPanePinned,
-              isGloballyPinned:
-                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
-                  false,
-              onToggle: onTogglePin,
-            ),
-          ),
       ],
       center: ReaderNavCenter(
         placement: navPlacement,

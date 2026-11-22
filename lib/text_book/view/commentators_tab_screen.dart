@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/book_common/view/commentary_search_pane.dart';
@@ -46,7 +44,6 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:positioned_sliver_list/positioned_list.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
@@ -296,7 +293,7 @@ CommentatorsVerseStep? computeVerseStep(
 const double _kNavPaneWidth = 320;
 
 /// המקום המינימלי לתוכן כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
-/// נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
+/// נפתחת כ-overlay.
 const double _kNavMinMainContentWidth = 400;
 
 class CommentatorsTabScreen extends StatefulWidget {
@@ -447,7 +444,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   // בלשונית הצדדית שמסך זה בונה בעוד הרשימה מסוננת ברכיב הבן.
   final _typeSelection = CommentaryTypeSelection();
   bool _navPaneOpen = false;
-  bool _pinLeftPane = false;
+  final _navPeek = NavPanelPeekController();
   // רשימת המפרשים הנבחרים (עצמאית לחלונית זו, מסונכרנת פעם אחת עם מקור הפתיחה)
   List<String>? _selectedCommentatorsOverride;
   final _commentarySearchController = TextEditingController();
@@ -513,7 +510,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           showSplitView: false,
           removeNikud: settings.defaultRemoveNikud,
           loadCommentators: true,
-          screenWidth: readingLayoutWidthOf(context),
         ),
       );
     });
@@ -528,6 +524,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
   @override
   void dispose() {
+    _navPeek.dispose();
     _focus.unregisterTabContentFocusRequester(widget.tab);
     _navTabController.dispose();
     _searchHost.dispose();
@@ -805,18 +802,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                         child: Stack(
                           children: [
                             NavSidePanel(
-                              isOpen: _navPaneOpen || _pinLeftPane,
-                              isPinned: _pinLeftPane,
-                              isGloballyPinned:
-                                  Settings.getValue<bool>(
-                                    SettingsRepository.keyPinSidebar,
-                                  ) ??
-                                  false,
-                              onClose: () {
-                                if (!_pinLeftPane) {
-                                  setState(() => _navPaneOpen = false);
-                                }
-                              },
+                              isOpen: _navPaneOpen,
+                              peek: _navPeek,
+                              onClose: () =>
+                                  setState(() => _navPaneOpen = false),
                               alignment: AlignmentDirectional.centerEnd,
                               paneWidth: _kNavPaneWidth,
                               minMainContentWidth: _kNavMinMainContentWidth,
@@ -995,14 +984,14 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     setState(() => _navPaneOpen = !_navPaneOpen);
     if (_navPaneOpen && _navTabController.index == 0) {
       _scrollNavToSelectedChapter();
-      if (!_pinLeftPane) _focusNavigationSearch();
+      _focusNavigationSearch();
     }
   }
 
   void _focusNavigationSearch() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          !(_navPaneOpen || _pinLeftPane) ||
+          !_navPaneOpen ||
           _navTabController.index != 0 ||
           !TickerMode.valuesOf(context).enabled ||
           ModalRoute.of(context)?.isCurrent == false ||
@@ -1118,17 +1107,8 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       prevMajorTooltip: 'הפרק הקודם',
       nextMajorTooltip: 'הפרק הבא',
       navPaneOpen: _navPaneOpen,
-      navPanePinned: _pinLeftPane,
-      canPinNavPane: NavSidePanel.canPin(
-        context,
-        paneWidth: _kNavPaneWidth,
-        minMainContentWidth: _kNavMinMainContentWidth,
-      ),
+      navPeek: _navPeek,
       onToggleNavPane: _toggleNavPane,
-      onTogglePin: () {
-        setState(() => _pinLeftPane = !_pinLeftPane);
-        if (_pinLeftPane && !_navPaneOpen) _focusNavigationSearch();
-      },
       onPrevMajor: () => _navigateToPrevChapter(chapters),
       onPrevMinor: () => _navigateToPrevVerse(chapters),
       onNextMinor: () => _navigateToNextVerse(chapters),

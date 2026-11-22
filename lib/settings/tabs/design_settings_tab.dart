@@ -14,8 +14,6 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
-enum _SidebarMode { pinned, openOnBook, closed }
-
 enum _ThemeMode { light, system, dark }
 
 /// טאב הגדרות עיצוב
@@ -149,18 +147,17 @@ class DesignSettingsTab extends StatelessWidget {
     ),
     SettingsSearchEntry(
       id: 'design.layout.sidebar_mode',
-      title: 'חלונית ניווט בין כותרות',
-      subtitle: 'הצגה / אוטומטי / הסתרה של חלונית הניווט',
+      title: 'פתיחת חלונית הניווט בפתיחת ספר',
+      subtitle: 'חלונית הניווט בין כותרות',
       tab: SettingsTab.design,
       cardId: 'design.layout',
       keywords: [
         'סייד-בר',
         'תפריט',
+        'ניווט',
+        'כותרות',
         'הצגה',
-        'אוטומטי',
         'הסתרה',
-        'קבוע',
-        'גלילה',
       ],
     ),
     SettingsSearchEntry(
@@ -472,60 +469,21 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.layout',
                   title: context.settingsText('חלוניות עזר'),
                   children: [
-                    SettingsSegmentedTile<_SidebarMode>(
-                      title: context.settingsText('חלונית ניווט בין כותרות'),
+                    SettingsSwitchTile(
                       rtlIcon: FluentIcons.panel_left_24_regular,
-                      options: [
-                        SegmentOption(
-                          value: _SidebarMode.pinned,
-                          label: context.settingsText('הצגה'),
-                          subtitle: context.settingsText(
-                            'החלונית פתוחה ונעוצה תמיד',
-                          ),
-                        ),
-                        SegmentOption(
-                          value: _SidebarMode.openOnBook,
-                          label: context.settingsText('אוטומטי'),
-                          subtitle: context.settingsText(
-                            'החלונית נפתחת נעוצה עם הספר, ואפשר לבטל את הנעיצה או לסגור אותה',
-                          ),
-                        ),
-                        SegmentOption(
-                          value: _SidebarMode.closed,
-                          label: context.settingsText('הסתרה'),
-                          subtitle: context.settingsText(
-                            'החלונית לא תוצג אוטומטית עם פתיחת הספר',
-                          ),
-                        ),
-                      ],
-                      currentValue: state.pinSidebar
-                          ? _SidebarMode.pinned
-                          : state.defaultSidebarOpen
-                          ? _SidebarMode.openOnBook
-                          : _SidebarMode.closed,
-                      onChanged: (mode) {
-                        if (mode == _SidebarMode.pinned) {
-                          context.read<SettingsBloc>().add(
-                            UpdatePinSidebar(true),
-                          );
-                          context.read<SettingsBloc>().add(
-                            const UpdateDefaultSidebarOpen(true),
-                          );
-                        } else if (mode == _SidebarMode.openOnBook) {
-                          context.read<SettingsBloc>().add(
-                            UpdatePinSidebar(false),
-                          );
-                          context.read<SettingsBloc>().add(
-                            const UpdateDefaultSidebarOpen(true),
-                          );
-                        } else {
-                          context.read<SettingsBloc>().add(
-                            UpdatePinSidebar(false),
-                          );
-                          context.read<SettingsBloc>().add(
-                            const UpdateDefaultSidebarOpen(false),
-                          );
-                        }
+                      title: context.settingsText(
+                        'פתיחת חלונית הניווט בפתיחת ספר',
+                      ),
+                      subtitle: context.settingsText(
+                        state.defaultSidebarOpen
+                            ? 'חלונית הניווט תיפתח לצד הטקסט עם פתיחת הספר'
+                            : 'חלונית הניווט לא תיפתח אוטומטית עם פתיחת הספר',
+                      ),
+                      value: state.defaultSidebarOpen,
+                      onChanged: (value) {
+                        context.read<SettingsBloc>().add(
+                          UpdateDefaultSidebarOpen(value),
+                        );
                       },
                     ),
                     SettingsSwitchTile(

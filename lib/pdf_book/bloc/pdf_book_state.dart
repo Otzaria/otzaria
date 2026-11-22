@@ -155,7 +155,6 @@ class PdfBookLoaded extends PdfBookState {
 
   // Panes
   final bool showLeftPane;
-  final bool pinLeftPane;
   final double sidebarWidth;
   final bool showRightPane;
   final double rightPaneWidth;
@@ -183,7 +182,6 @@ class PdfBookLoaded extends PdfBookState {
     this.showZoomBar = false,
     this.layoutMode = PdfLayoutMode.regularView,
     this.showLeftPane = false,
-    this.pinLeftPane = false,
     this.sidebarWidth = 300.0,
     this.showRightPane = false,
     this.rightPaneWidth = 300.0,
@@ -209,7 +207,6 @@ class PdfBookLoaded extends PdfBookState {
     bool? showZoomBar,
     PdfLayoutMode? layoutMode,
     bool? showLeftPane,
-    bool? pinLeftPane,
     double? sidebarWidth,
     bool? showRightPane,
     double? rightPaneWidth,
@@ -236,7 +233,6 @@ class PdfBookLoaded extends PdfBookState {
       showZoomBar: showZoomBar ?? this.showZoomBar,
       layoutMode: layoutMode ?? this.layoutMode,
       showLeftPane: showLeftPane ?? this.showLeftPane,
-      pinLeftPane: pinLeftPane ?? this.pinLeftPane,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       showRightPane: showRightPane ?? this.showRightPane,
       rightPaneWidth: rightPaneWidth ?? this.rightPaneWidth,
@@ -260,7 +256,6 @@ class PdfBookLoaded extends PdfBookState {
     showZoomBar,
     layoutMode,
     showLeftPane,
-    pinLeftPane,
     sidebarWidth,
     showRightPane,
     rightPaneWidth,

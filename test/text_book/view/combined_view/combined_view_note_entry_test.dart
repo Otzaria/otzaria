@@ -583,7 +583,6 @@ TextBookLoaded _loadedState({
     selectedIndex: selectedIndex,
     selectedIndices: selectedIndex == null ? const {} : {selectedIndex},
     continuousReadingMode: continuous,
-    pinLeftPane: false,
     searchText: '',
     displayPolicy: displayPolicy,
   );

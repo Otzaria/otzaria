@@ -174,7 +174,6 @@ TextBookLoaded _loadedState({required List<Link> links}) => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

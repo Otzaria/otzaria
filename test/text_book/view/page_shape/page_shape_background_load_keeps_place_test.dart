@@ -65,7 +65,6 @@ TextBookLoaded _state(List<bool> loaded, {required bool continuous}) {
     removeNikud: false,
     visibleIndices: [_target],
     selectedIndex: _target,
-    pinLeftPane: false,
     searchText: '',
     supportsContinuousReadingMode: true,
     continuousReadingMode: continuous,

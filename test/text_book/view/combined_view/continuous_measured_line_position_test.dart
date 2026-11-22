@@ -164,7 +164,6 @@ Future<TextBookTab> _pump(WidgetTester tester) async {
       tableOfContents: const [],
       removeNikud: false,
       visibleIndices: const [0],
-      pinLeftPane: false,
       searchText: '',
       continuousReadingMode: true,
     ),

@@ -545,7 +545,6 @@ TextBookLoaded _loadedState() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }
@@ -575,7 +574,6 @@ TextBookLoaded _loadedStateWithCommentators(
     removeNikud: false,
     visibleIndices: [line],
     selectedIndex: line,
-    pinLeftPane: false,
     searchText: '',
   );
 }

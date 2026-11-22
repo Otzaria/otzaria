@@ -4,7 +4,6 @@ import 'package:otzaria/text_book/models/content_line_changes.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -346,7 +345,6 @@ class TextBookLoaded extends TextBookState {
   /// כל הקטעים שנבחרו להצגת מפרשים (Ctrl+לחיצה). [selectedIndex] תמיד נכלל בו
   /// כשאינו null. ריק = אין בחירה.
   final Set<int> selectedIndices;
-  final bool pinLeftPane;
   final String searchText;
   final Object? searchTextSource;
   final Map<String, Map<String, bool>> searchOptions;
@@ -445,7 +443,6 @@ class TextBookLoaded extends TextBookState {
     this.searchResultNavigation,
     this.linkSelectionRequestId = 0,
     this.selectedIndices = const {},
-    required this.pinLeftPane,
     required this.searchText,
     this.searchTextSource,
     this.searchOptions = const {},
@@ -517,7 +514,6 @@ class TextBookLoaded extends TextBookState {
       removeNikud: false,
       supportsContinuousReadingMode: false,
       continuousReadingMode: false,
-      pinLeftPane: Settings.getValue<bool>('key-pin-sidebar') ?? false,
       searchText: '',
       visibleIndices: [index],
       selectedTextForNote: null,
@@ -666,7 +662,6 @@ class TextBookLoaded extends TextBookState {
     Set<int>? selectedIndices,
     bool clearSelectedIndices = false,
     List<int>? visibleIndices,
-    bool? pinLeftPane,
     String? searchText,
     Object? searchTextSource,
     Map<String, Map<String, bool>>? searchOptions,
@@ -820,7 +815,6 @@ class TextBookLoaded extends TextBookState {
       selectedIndices: clearSelectedIndices
           ? const {}
           : (selectedIndices ?? this.selectedIndices),
-      pinLeftPane: pinLeftPane ?? this.pinLeftPane,
       searchText: searchText ?? this.searchText,
       searchTextSource: searchText == null
           ? this.searchTextSource
@@ -926,7 +920,6 @@ class TextBookLoaded extends TextBookState {
     searchResultNavigation,
     linkSelectionRequestId,
     _SetProp(selectedIndices),
-    pinLeftPane,
     searchText,
     searchTextSource,
     _SearchOptionsProp(searchOptions),

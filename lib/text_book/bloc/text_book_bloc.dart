@@ -39,7 +39,6 @@ import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
@@ -264,7 +263,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
-    on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<UpdateSearchResultLines>(_onUpdateSearchResultLines);
     on<ApplyFullBookContent>(_onApplyFullBookContent);
@@ -805,7 +803,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     List<CommentatorGroup> existingCommentatorGroups = const [];
     var existingCommentatorsLoaded = false;
     TextDisplayLayer? preservedDisplayOverrides;
-    bool? preservedPinLeftPane;
 
     if (state is TextBookLoaded && event.preserveState) {
       final currentState = state as TextBookLoaded;
@@ -832,7 +829,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       existingCommentatorGroups = currentState.commentatorGroups;
       existingCommentatorsLoaded = currentState.commentatorsLoaded;
       preservedDisplayOverrides = currentState.displayOverrides;
-      preservedPinLeftPane = currentState.pinLeftPane;
       pinpointHighlightIndex = currentState.pinpointHighlightIndex;
       pinpointHighlightText = currentState.pinpointHighlightText;
     } else if (state is TextBookInitial) {
@@ -1081,12 +1077,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       _setAwaitingInitialPageShapeVisibleSync(initialShowPageShapeView);
 
-      final initialShowLeftPane = event.forceCloseLeftPane
-          ? false
-          : resolveInitialReadingLeftPaneVisibility(
-              explicitOpen: showLeftPane,
-              screenWidth: event.screenWidth,
-            );
+      final initialShowLeftPane = !event.forceCloseLeftPane && showLeftPane;
       _hiddenCommentatorTitlesCache = await currentHiddenBookTitles();
       final protection = await protectionFuture;
       final bookNotes = await bookNotesFuture;
@@ -1133,11 +1124,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         // והחלונית מציגה "טוען" עד אז ולא "לא נמצאו" (issue #1130).
         linksLoading: event.loadCommentators && commentators.isEmpty,
         visibleIndices: visibleIndices,
-        // חלונית שנפתחת עם הספר נעוצה: לא נעוצה הייתה מכסה את הטקסט בהצללה.
-        pinLeftPane:
-            preservedPinLeftPane ??
-            ((Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-                initialShowLeftPane),
         searchText: searchText,
         searchTextSource: searchTextSource,
         searchOptions: searchOptions,
@@ -2122,21 +2108,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _pendingPinpoint = (
         text: event.highlightText,
         sectionIndex: event.permanentHighlightLine,
-      );
-    }
-  }
-
-  void _onTogglePinLeftPane(
-    TogglePinLeftPane event,
-    Emitter<TextBookState> emit,
-  ) {
-    if (state is TextBookLoaded) {
-      final currentState = state as TextBookLoaded;
-      emit(
-        currentState.copyWith(
-          pinLeftPane: event.pin,
-          selectedIndex: currentState.selectedIndex,
-        ),
       );
     }
   }

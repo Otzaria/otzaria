@@ -77,7 +77,6 @@ class HtmlLinkHandler {
         book: foundBook,
         index: index - 1, // המרה מ-1-based ל-0-based
         openLeftPane:
-            (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
             (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
       );
 
@@ -396,7 +395,6 @@ class HtmlLinkHandler {
         book: book,
         index: resolved.index ?? 0,
         openLeftPane:
-            (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
             (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
       );
 

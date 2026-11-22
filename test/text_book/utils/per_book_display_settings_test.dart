@@ -58,7 +58,6 @@ void main() {
     isTanach: isTanach,
     removeNikud: false,
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
   );
 

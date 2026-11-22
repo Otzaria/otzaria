@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -71,7 +72,6 @@ TextBookLoaded _loaded(
   visibleIndices: visibleIndices,
   selectedIndex: selectedIndex,
   selectedIndices: selectedIndices,
-  pinLeftPane: false,
   searchText: '',
 );
 
@@ -190,7 +190,7 @@ void main() {
     final tab = openOn(sourceWith(book, {3, 5, 7}), book);
     expect(await shownIndexes(tester, tab), [3, 5, 7]);
 
-    await tester.tap(find.byTooltip('הצג ניווט').first);
+    await tester.tap(find.byType(NavPanelToggleButton).first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);

@@ -124,12 +124,6 @@ void main() {
             defaultValue: false,
           ),
         ).thenReturn(false);
-        when(
-          mockSettingsWrapper.getValue<bool>(
-            SettingsRepository.keyPinSidebar,
-            defaultValue: false,
-          ),
-        ).thenReturn(false);
 
         final settings = await repository.loadSettings();
 
@@ -153,7 +147,6 @@ void main() {
         );
         expect(settings['defaultContinuousReadingMode'], false);
         expect(settings['defaultSidebarOpen'], false);
-        expect(settings['pinSidebar'], false);
       },
     );
 
@@ -262,12 +255,6 @@ void main() {
         ),
       ).thenReturn(true);
       when(
-        mockSettingsWrapper.getValue<bool>(
-          SettingsRepository.keyPinSidebar,
-          defaultValue: false,
-        ),
-      ).thenReturn(true);
-      when(
         mockSettingsWrapper.getValue<String>(
           SettingsRepository.keyPageShapeBottomFont,
           defaultValue: AppFonts.defaultFont,
@@ -297,7 +284,6 @@ void main() {
       );
       expect(settings['defaultContinuousReadingMode'], true);
       expect(settings['defaultSidebarOpen'], true);
-      expect(settings['pinSidebar'], true);
       // issue #849 — הגופן של "מפרשים תחתונים" נטען בעלייה דרך loadSettings.
       expect(settings['pageShapeBottomFont'], 'Tinos');
     });
@@ -472,9 +458,6 @@ void main() {
           SettingsRepository.keyDefaultSidebarOpen,
           false,
         ),
-      ).called(1);
-      verify(
-        mockSettingsWrapper.setValue(SettingsRepository.keyPinSidebar, false),
       ).called(1);
     });
 
