@@ -169,7 +169,15 @@ ${buildSetHostShortcutsScript(shortcuts)}
     e.composedPath = function () { return [field, document, window]; };
     var path = [window.capture, document.capture, field.bubble,
       document.bubble, window.bubble];
-    for (var i = 0; i < path.length && !stopped; i++) path[i].dispatchEvent(e);
+    for (var i = 0; i < path.length && !stopped && !e.cancelBubble; i++) path[i].dispatchEvent(e);
+    // Chrome clears the native propagation flag after dispatch, before timers.
+    var cancelBubbleDescriptor = Object.getOwnPropertyDescriptor(
+      Event.prototype, 'cancelBubble');
+    Object.defineProperty(e, 'cancelBubble', {
+      configurable: true,
+      get: function () { return false; },
+      set: function (value) { cancelBubbleDescriptor.set.call(e, value); }
+    });
     return hostPrevented;
   }
   function keydown(trusted) {
@@ -184,6 +192,10 @@ ${buildSetHostShortcutsScript(shortcuts)}
       pluginHandling = true;
       if (action === 'stop') e.stopPropagation();
       else if (action === 'stopImmediate') e.stopImmediatePropagation();
+      else if (action === 'cancelBubble') e.cancelBubble = true;
+      else if (action === 'cancelBubbleThenFalse') { e.cancelBubble = true; e.cancelBubble = false; }
+      else if (action === 'stopThenCancelBubbleFalse') { e.stopPropagation(); e.cancelBubble = false; }
+      else if (action === 'immediateStopThenCancelBubbleFalse') { e.stopImmediatePropagation(); e.cancelBubble = false; }
       else if (action === 'prevent') e.preventDefault();
       pluginHandling = false;
     };
@@ -192,6 +204,10 @@ ${buildSetHostShortcutsScript(shortcuts)}
   var s = run.scenario;
   if (s === 'fieldPrevents') field.addEventListener('keydown', plugin('field', 'prevent'));
   if (s === 'fieldStops') field.addEventListener('keydown', plugin('field', 'stop'));
+  if (s === 'fieldCancelBubble') field.addEventListener('keydown', plugin('field', 'cancelBubble'));
+  if (s === 'fieldCancelBubbleThenFalse') field.addEventListener('keydown', plugin('field', 'cancelBubbleThenFalse'));
+  if (s === 'fieldStopThenCancelBubbleFalse') field.addEventListener('keydown', plugin('field', 'stopThenCancelBubbleFalse'));
+  if (s === 'fieldImmediateStopThenCancelBubbleFalse') field.addEventListener('keydown', plugin('field', 'immediateStopThenCancelBubbleFalse'));
   if (s === 'windowSeesKey') window.addEventListener('keydown', plugin('window'));
   if (s === 'nestedListeners' || s === 'nestedListenersStop') {
     // רצף 1 מ-#5575: מאזין בשדה מוסיף מאזין ל-document, וזה מוסיף מאזין
@@ -214,10 +230,12 @@ ${buildSetHostShortcutsScript(shortcuts)}
       });
     });
   }
-  var hostPrevented = dispatch(keydown(s !== 'untrusted'));
+  var event = keydown(s !== 'untrusted');
+  var hostPrevented = dispatch(event);
   return new Promise(function (resolve) {
     setTimeout(function () {
-      resolve({ calls: calls, log: log, hostPrevented: hostPrevented });
+      resolve({ calls: calls, log: log, hostPrevented: hostPrevented,
+        cancelBubble: event.cancelBubble });
     }, 20);
   });
 }
@@ -626,6 +644,13 @@ void main() {
               {'key': closeTab, 'scenario': 'windowSeesKey'},
               {'key': closeTab, 'scenario': 'fieldPrevents'},
               {'key': closeTab, 'scenario': 'fieldStops'},
+              {'key': closeTab, 'scenario': 'fieldCancelBubble'},
+              {'key': closeTab, 'scenario': 'fieldCancelBubbleThenFalse'},
+              {'key': closeTab, 'scenario': 'fieldStopThenCancelBubbleFalse'},
+              {
+                'key': closeTab,
+                'scenario': 'fieldImmediateStopThenCancelBubbleFalse',
+              },
               {'key': closeTab, 'scenario': 'untrusted'},
               {
                 'key': {...closeTab, 'repeat': true},
@@ -644,7 +669,13 @@ void main() {
               isEmpty,
               isEmpty,
               isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
             ]);
+            expect(out[6]['cancelBubble'], isFalse);
+            expect(out[7]['cancelBubble'], isFalse);
             // הדף רואה את ההקשה כפי שהיא; המארח לא חוסם אותה בשדה.
             expect(out[3]['log'], ['window']);
             expect(out.map((r) => r['hostPrevented']), everyElement(isFalse));

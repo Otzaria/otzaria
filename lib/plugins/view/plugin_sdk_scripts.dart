@@ -110,8 +110,21 @@ const String _hostShortcutsJs = r'''
         return stop.apply(e, arguments);
       };
     });
+    var cancelBubbleDescriptor =
+        Object.getOwnPropertyDescriptor(Event.prototype, 'cancelBubble');
+    if (cancelBubbleDescriptor && cancelBubbleDescriptor.set) {
+      Object.defineProperty(e, 'cancelBubble', {
+        configurable: true,
+        get: function () { return cancelBubbleDescriptor.get.call(e); },
+        set: function (value) {
+          stopped = stopped || !!value;
+          cancelBubbleDescriptor.set.call(e, value);
+        }
+      });
+    }
     setTimeout(function () {
-      if (stopped || e.defaultPrevented || !window.flutter_inappwebview) return;
+      if (stopped || e.defaultPrevented ||
+          !window.flutter_inappwebview) return;
       window.flutter_inappwebview.callHandler('otzaria_host_shortcut', match.id);
     }, 0);
   }
