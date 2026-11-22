@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria/app_report/services/windows_exit_evidence.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 
@@ -21,13 +22,23 @@ abstract class AppCrashSession {
   static Future<CrashCandidate?> detectAndStartSession({
     required String version,
     UncleanExitDetector? detector,
+    void Function()? onSessionScanDone,
+    WindowsExitEvidenceReader? readWindowsExit,
   }) async {
     if (!isSupported) return null;
-    final active =
-        detector ?? UncleanExitDetector(processStartedAt: processStartTime());
-    final candidate = await active.detectPreviousCrash();
-    await active.startSession(version: version);
-    return candidate;
+    final UncleanExitDetector active;
+    final ({CrashCandidate? candidate, SessionLock? unmatchedSession}) scan;
+    try {
+      active =
+          detector ?? UncleanExitDetector(processStartedAt: processStartTime());
+      scan = await active.scanPreviousExit();
+      await active.startSession(version: version);
+    } finally {
+      onSessionScanDone?.call();
+    }
+    final session = scan.unmatchedSession;
+    if (session == null || readWindowsExit == null) return scan.candidate;
+    return active.corroborateWindowsExit(session, read: readWindowsExit);
   }
 
   /// מועמד לתקיעה שהשתחררה בהפעלה הנוכחית, לפי רשומת `App hang` האחרונה.

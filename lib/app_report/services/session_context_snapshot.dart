@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -43,7 +44,10 @@ class SessionContextSnapshot {
 
   /// התמונה רק אם נשמרה בהפעלה [session]. בלי נעילה (ANR) אין זיהוי אמין
   /// של ההפעלה: מספר תהליך עלול להיות בשימוש חוזר, וזמן יציאה אינו זמן התחלה.
-  Future<Map<String, dynamic>?> previousFor(SessionLock? session) async {
+  Future<Map<String, dynamic>?> previousFor(
+    SessionLock? session, {
+    DateTime? before,
+  }) async {
     if (session == null) return null;
     final snapshot = await previous;
     if (snapshot == null) return null;
@@ -51,8 +55,22 @@ class SessionContextSnapshot {
     final matches =
         snapshot['pid'] == session.pid &&
         savedAt != null &&
-        !savedAt.isBefore(session.startedAt);
+        !savedAt.isBefore(session.startedAt) &&
+        (before == null || !savedAt.isAfter(before));
     return matches ? snapshot : null;
+  }
+
+  /// הקשר הקודם והראיה התמציתית של מערכת ההפעלה, אם נמצאה.
+  Future<Map<String, dynamic>?> previousForIncident(
+    CrashCandidate candidate,
+  ) async {
+    final event = candidate.windowsExit;
+    final snapshot = await previousFor(
+      candidate.previousSession,
+      before: event?.occurredAt,
+    );
+    if (event == null) return snapshot;
+    return {...?snapshot, 'windowsExit': event.toJson()};
   }
 
   /// מתחיל לשמור. פעם אחת לתהליך.
@@ -123,5 +141,8 @@ class SessionContextSnapshot {
     'context':
         DeveloperDiagnostics.instance.contextProvider?.call() ?? const {},
     'searches': ActiveLexicalSearches.instance.collect(),
+    'accessibility': {
+      'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
+    },
   };
 }

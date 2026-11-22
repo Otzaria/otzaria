@@ -202,11 +202,17 @@ void CALLBACK WriteStartupLock(ULONG_PTR) {
   const DWORD pid = ::GetCurrentProcessId();
   const std::wstring path =
       dir + L"\\startup-" + std::to_wstring(pid) + L".lock";
-  char json[160];
+  FILETIME creation{}, exit{}, kernel{}, user{};
+  ::GetProcessTimes(::GetCurrentProcess(), &creation, &exit, &kernel, &user);
+  const auto creation_ticks =
+      (static_cast<unsigned long long>(creation.dwHighDateTime) << 32) |
+      creation.dwLowDateTime;
+  char json[192];
   snprintf(json, sizeof(json),
-           "{\"pid\":%lu,\"version\":\"%s\",\"startedAt\":\"%s\"}",
+           "{\"pid\":%lu,\"version\":\"%s\",\"startedAt\":\"%s\","
+           "\"windowsCreationFileTime\":%llu}",
            static_cast<unsigned long>(pid), g_wer.version,
-           g_started_at.c_str());
+           g_started_at.c_str(), creation_ticks);
   HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr,
                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (file == INVALID_HANDLE_VALUE) return;

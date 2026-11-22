@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,7 @@ import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/breakpad_envelope.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria/app_report/services/windows_exit_evidence.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/startup_timeline.dart';
@@ -40,12 +42,17 @@ void main() {
     processStartedAt: thisStart,
   );
 
-  void writeLock({int pid = 1000, DateTime? startedAt}) {
+  void writeLock({
+    int pid = 1000,
+    DateTime? startedAt,
+    int? windowsCreationFileTime,
+  }) {
     File(p.join(logs.path, UncleanExitDetector.lockFileName)).writeAsStringSync(
       jsonEncode({
         'pid': pid,
         'version': '0.9.97',
         'startedAt': (startedAt ?? previousStart).toIso8601String(),
+        'windowsCreationFileTime': ?windowsCreationFileTime,
       }),
     );
   }
@@ -117,6 +124,124 @@ void main() {
     writeLock();
     writeErrors(entry('Old', previousStart.subtract(const Duration(days: 1))));
     expect(await detector().detectPreviousCrash(), isNull);
+  });
+
+  group('ראיה מיומן Windows אחרי יציאה שקטה', () {
+    const creationFileTime = 0x1dd641d4200f000;
+    final event = WindowsExitEvidence(
+      eventId: 1002,
+      occurredAt: previousStart.add(const Duration(minutes: 3)),
+    );
+
+    test('הנעילה החדשה נכתבת לפני שמתחילה קריאת היומן', () async {
+      writeLock(windowsCreationFileTime: creationFileTime);
+      final active = detector();
+      final reading = Completer<(int, int, DateTime, DateTime)>();
+      final result = Completer<WindowsExitEvidence?>();
+      var scanDone = false;
+      final pending = AppCrashSession.detectAndStartSession(
+        version: 'test',
+        detector: active,
+        onSessionScanDone: () => scanDone = true,
+        readWindowsExit: (pid, ticks, from, until) {
+          reading.complete((pid, ticks, from, until));
+          return result.future;
+        },
+      );
+      expect(
+        await reading.future,
+        (1000, creationFileTime, previousStart, thisStart),
+      );
+      expect(scanDone, isTrue);
+      final current = SessionLock.tryParse(
+        File(active.lockPath).readAsStringSync(),
+      );
+      expect(current?.pid, 2000);
+      result.complete(event);
+      final candidate = await pending;
+      expect(candidate?.previousSession?.pid, 1000);
+      expect(candidate?.occurredInPreviousRun, isTrue);
+      expect(candidate?.isHang, isTrue);
+      expect(candidate?.windowsExit, same(event));
+      expect(candidate?.hasMinidump, isFalse);
+    });
+
+    test('גם נעילת runner מהפעלה שנכשלה לפני החשיפה נבדקת', () async {
+      final active = detector();
+      final startup = File(active.startupLockPath(1000));
+      startup.writeAsStringSync(
+        jsonEncode(
+          SessionLock(
+            pid: 1000,
+            version: 'test',
+            startedAt: previousStart,
+            windowsCreationFileTime: creationFileTime,
+          ).toJson(),
+        ),
+      );
+      final candidate = await AppCrashSession.detectAndStartSession(
+        version: 'test',
+        detector: active,
+        readWindowsExit: (_, _, _, _) async => WindowsExitEvidence(
+          eventId: 1000,
+          occurredAt: event.occurredAt,
+          exceptionCode: '0xc0000005',
+        ),
+      );
+      expect(candidate?.isHang, isFalse);
+      expect(candidate?.windowsExit?.exceptionCode, '0xc0000005');
+      expect(candidate?.signature?.exceptionType, '0xc0000005');
+      expect(candidate?.signature?.frames, isEmpty);
+      expect(await startup.exists(), isFalse);
+    });
+
+    test('נעילה ישנה או תהליך חי אינם מספיקים לשאילתת היומן', () async {
+      Future<WindowsExitEvidence?> unexpected(
+        int pid,
+        int ticks,
+        DateTime start,
+        DateTime until,
+      ) async => throw StateError('unexpected event query');
+
+      writeLock();
+      expect(
+        await AppCrashSession.detectAndStartSession(
+          version: 'test',
+          detector: detector(),
+          readWindowsExit: unexpected,
+        ),
+        isNull,
+      );
+
+      writeLock(windowsCreationFileTime: creationFileTime);
+      expect(
+        await AppCrashSession.detectAndStartSession(
+          version: 'test',
+          detector: detector(alive: (_) => true),
+          readWindowsExit: unexpected,
+        ),
+        isNull,
+      );
+    });
+
+    test('הראיה הקיימת בלוג מקבלת קדימות על פני שאילתת Windows', () async {
+      writeLock(windowsCreationFileTime: creationFileTime);
+      writeErrors(
+        entry(
+          'Unhandled Error',
+          previousStart.add(const Duration(minutes: 2)),
+          body: 'Exception: StateError: failed',
+        ),
+      );
+      final candidate = await AppCrashSession.detectAndStartSession(
+        version: 'test',
+        detector: detector(),
+        readWindowsExit: (_, _, _, _) async =>
+            throw StateError('unexpected event query'),
+      );
+      expect(candidate?.signature?.exceptionType, 'StateError');
+      expect(candidate?.windowsExit, isNull);
+    });
   });
 
   test('תהליך שעדיין חי אינו קריסה', () async {

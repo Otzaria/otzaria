@@ -31,6 +31,7 @@ import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/crash_report_flow.dart';
+import 'package:otzaria/app_report/services/windows_exit_evidence.dart';
 import 'package:otzaria/app_report/services/input_focus_diagnostics.dart';
 import 'package:otzaria/app_report/services/session_context_snapshot.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
@@ -1127,15 +1128,20 @@ Future<void> _runDeferredCrashCheck() async {
   try {
     final candidate = await AppCrashSession.detectAndStartSession(
       version: ErrorLogFile.appVersion,
-    ).whenComplete(_markCrashScanDone);
+      onSessionScanDone: _markCrashScanDone,
+      readWindowsExit:
+          Platform.isWindows &&
+              CrashReportFlow.currentMode() != AppCrashReportMode.never
+          ? readWindowsExitEvidence
+          : null,
+    );
     if (candidate == null) return;
     await CrashReportFlow(
       showPrompt: showCrashPromptOnNavigator,
       collector: AppReportCollector(
         includeCurrentContext: false,
-        previousRunContext: () => SessionContextSnapshot.instance.previousFor(
-          candidate.previousSession,
-        ),
+        previousRunContext: () =>
+            SessionContextSnapshot.instance.previousForIncident(candidate),
       ),
     ).handle(candidate);
   } catch (error, stackTrace) {

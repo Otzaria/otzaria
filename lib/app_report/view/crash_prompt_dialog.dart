@@ -90,9 +90,8 @@ class CrashPromptDialog extends StatefulWidget {
   static AppReportCollector collectorFor(CrashCandidate candidate) =>
       AppReportCollector(
         includeCurrentContext: !candidate.occurredInPreviousRun,
-        previousRunContext: () => SessionContextSnapshot.instance.previousFor(
-          candidate.previousSession,
-        ),
+        previousRunContext: () =>
+            SessionContextSnapshot.instance.previousForIncident(candidate),
       );
 
   static const String title = 'אוצריא נסגרה באופן לא צפוי';

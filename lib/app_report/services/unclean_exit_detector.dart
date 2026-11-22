@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
 import 'package:otzaria/app_report/services/breakpad_envelope.dart';
 import 'package:otzaria/app_report/services/minidump_signature.dart';
+import 'package:otzaria/app_report/services/windows_exit_evidence.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
@@ -20,16 +21,19 @@ class SessionLock {
     required this.pid,
     required this.version,
     required this.startedAt,
+    this.windowsCreationFileTime,
   });
 
   final int pid;
   final String version;
   final DateTime startedAt;
+  final int? windowsCreationFileTime;
 
   Map<String, dynamic> toJson() => {
     'pid': pid,
     'version': version,
     'startedAt': startedAt.toUtc().toIso8601String(),
+    'windowsCreationFileTime': ?windowsCreationFileTime,
   };
 
   static SessionLock? tryParse(String content) {
@@ -38,11 +42,15 @@ class SessionLock {
       if (json is! Map) return null;
       final pid = json['pid'];
       final startedAt = DateTime.tryParse('${json['startedAt']}');
-      if (pid is! int || startedAt == null) return null;
+      if (pid is! int || pid <= 0 || startedAt == null) return null;
+      final fileTime = json['windowsCreationFileTime'];
       return SessionLock(
         pid: pid,
         version: '${json['version'] ?? ''}',
         startedAt: startedAt,
+        windowsCreationFileTime: fileTime is int && fileTime > 0
+            ? fileTime
+            : null,
       );
     } catch (_) {
       return null;
@@ -63,6 +71,7 @@ class CrashCandidate {
     required this.hasMinidump,
     this.minidump,
     this.minidumpSignature,
+    this.windowsExit,
     this.kind = CrashIncidentKind.crash,
   }) : hangDuration = null,
        details = null,
@@ -81,7 +90,8 @@ class CrashCandidate {
        hasStartupStall = false,
        hasMinidump = false,
        minidump = null,
-       minidumpSignature = null;
+       minidumpSignature = null,
+       windowsExit = null;
 
   final CrashIncidentKind kind;
 
@@ -112,6 +122,8 @@ class CrashCandidate {
 
   /// חתימת [minidump] גם כש-[signature] נלקחה מרשומה ב-errors.txt.
   final CrashSignature? minidumpSignature;
+
+  final WindowsExitEvidence? windowsExit;
 }
 
 /// מזהה יציאה לא נקייה של ההפעלה הקודמת. לוגיקה בלבד — הקריאה מהעלייה
@@ -162,6 +174,9 @@ class UncleanExitDetector {
       pid: _currentPid,
       version: version,
       startedAt: _processStartedAt,
+      windowsCreationFileTime: Platform.isWindows && _currentPid == pid
+          ? await _currentWindowsCreationFileTime()
+          : null,
     );
     final file = File(lockPath);
     await file.parent.create(recursive: true);
@@ -206,7 +221,12 @@ class UncleanExitDetector {
   /// מחזיר מועמד לקריסה רק כשנשארה נעילה של תהליך שאינו חי, ויש ראיה לקריסה:
   /// רשומת שגיאה מאז תחילתו, `Startup stall`, או minidump של Sentry.
   /// נעילת עלייה מכסה תהליך שמת לפני שכתב את `session.lock`.
-  Future<CrashCandidate?> detectPreviousCrash() async {
+  Future<CrashCandidate?> detectPreviousCrash() async =>
+      (await scanPreviousExit()).candidate;
+
+  /// משאיר את הנעילה האחרונה לבדיקה משלימה אחרי רישום ההפעלה הנוכחית.
+  Future<({CrashCandidate? candidate, SessionLock? unmatchedSession})>
+  scanPreviousExit() async {
     for (final dir in _sentryDirs ?? defaultSentryDatabaseDirs()) {
       await pruneRecoveredMinidumps(dir);
     }
@@ -221,15 +241,16 @@ class UncleanExitDetector {
     if (lock != null && (lock.pid == _currentPid || _isStillRunning(lock))) {
       lock = null;
     }
+    final sessions = [?lock, ...abandoned];
     // הוותיקה מכולן: רשומות של כל ההפעלות שלא נסגרו נכנסות לבדיקה.
-    final previous = [?lock, ...abandoned].fold<SessionLock?>(
+    final previous = sessions.fold<SessionLock?>(
       null,
       (oldest, next) =>
           oldest == null || next.startedAt.isBefore(oldest.startedAt)
           ? next
           : oldest,
     );
-    if (previous == null) return null;
+    if (previous == null) return (candidate: null, unmatchedSession: null);
 
     final blocks = await _errorBlocksSince(
       previous.startedAt,
@@ -247,23 +268,66 @@ class UncleanExitDetector {
     final evidence = blocks
         .where((b) => b.isCrashEvidence || unrecoveredHang(b))
         .toList();
-    if (evidence.isEmpty && !dump.found) return null;
+    if (evidence.isEmpty && !dump.found) {
+      final latest = sessions.reduce(
+        (a, b) => a.startedAt.isAfter(b.startedAt) ? a : b,
+      );
+      return (
+        candidate: null,
+        unmatchedSession: latest.startedAt.isBefore(_processStartedAt)
+            ? latest
+            : null,
+      );
+    }
 
     final newestDump = dump.newest;
     final dumpSignature = newestDump == null
         ? null
         : await readMinidumpSignature(newestDump);
+    return (
+      candidate: CrashCandidate(
+        previousSession: previous,
+        entries: blocks,
+        signature: evidence.isNotEmpty
+            ? evidence.last.signature
+            : dumpSignature,
+        hasStartupStall: hasStall,
+        hasMinidump: dump.found,
+        minidump: newestDump,
+        minidumpSignature: dumpSignature,
+        kind: evidence.isNotEmpty && evidence.last.isAppHang
+            ? CrashIncidentKind.hang
+            : CrashIncidentKind.crash,
+      ),
+      unmatchedSession: null,
+    );
+  }
+
+  /// מגבש מועמד רק כשהמערכת תיעדה את סיום אותו מופע.
+  Future<CrashCandidate?> corroborateWindowsExit(
+    SessionLock session, {
+    WindowsExitEvidenceReader read = readWindowsExitEvidence,
+  }) async {
+    final creationFileTime = session.windowsCreationFileTime;
+    if (creationFileTime == null) return null;
+    final event = await read(
+      session.pid,
+      creationFileTime,
+      session.startedAt,
+      _processStartedAt,
+    );
+    if (event == null) return null;
+    final code = event.exceptionCode;
     return CrashCandidate(
-      previousSession: previous,
-      entries: blocks,
-      signature: evidence.isNotEmpty ? evidence.last.signature : dumpSignature,
-      hasStartupStall: hasStall,
-      hasMinidump: dump.found,
-      minidump: newestDump,
-      minidumpSignature: dumpSignature,
-      kind: evidence.isNotEmpty && evidence.last.isAppHang
-          ? CrashIncidentKind.hang
-          : CrashIncidentKind.crash,
+      previousSession: session,
+      entries: const [],
+      signature: code == null
+          ? null
+          : CrashSignature(exceptionType: code, frames: const []),
+      hasStartupStall: false,
+      hasMinidump: false,
+      kind: event.isHang ? CrashIncidentKind.hang : CrashIncidentKind.crash,
+      windowsExit: event,
     );
   }
 
@@ -447,6 +511,20 @@ class UncleanExitDetector {
   /// זמן יצירת התהליך ב-Windows (GetProcessTimes), או null.
   static DateTime? defaultProcessCreatedAt(int processId) {
     if (!Platform.isWindows) return null;
+    final ticks = _windowsProcessCreationFileTime(processId);
+    return ticks == null
+        ? null
+        : DateTime.utc(1601).add(Duration(microseconds: ticks ~/ 10));
+  }
+
+  static Future<int?>? _windowsCreationOfCurrentProcess;
+
+  static Future<int?> _currentWindowsCreationFileTime() =>
+      _windowsCreationOfCurrentProcess ??= Isolate.run(
+        () => _windowsProcessCreationFileTime(pid),
+      ).timeout(const Duration(seconds: 2), onTimeout: () => null);
+
+  static int? _windowsProcessCreationFileTime(int processId) {
     final handle = OpenProcess(
       PROCESS_QUERY_LIMITED_INFORMATION,
       false,
@@ -464,8 +542,7 @@ class UncleanExitDetector {
       ).value) {
         return null;
       }
-      final ticks = (times.ref.dwHighDateTime << 32) | times.ref.dwLowDateTime;
-      return DateTime.utc(1601).add(Duration(microseconds: ticks ~/ 10));
+      return (times.ref.dwHighDateTime << 32) | times.ref.dwLowDateTime;
     } finally {
       calloc.free(times);
       handle.value.close();

@@ -4,9 +4,12 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/services/session_context_snapshot.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria/app_report/services/windows_exit_evidence.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+
   late Directory tmp;
   late String path;
 
@@ -83,9 +86,44 @@ void main() {
       expect(await snapshot.previousFor(crashed), isNull);
     });
 
+    test('צילום שנכתב אחרי אירוע הסיום אינו מצורף', () async {
+      final snapshot = saved(pid: 4242, at: '2026-11-15T23:00:00.000Z');
+      expect(
+        await snapshot.previousFor(
+          crashed,
+          before: DateTime.utc(2026, 11, 15, 22, 50),
+        ),
+        isNull,
+      );
+    });
+
     test('בלי נעילה (ANR): אין התאמה אמינה להפעלה', () async {
       final snapshot = saved(pid: 77, at: '2026-11-15T23:00:00.000Z');
       expect(await snapshot.previousFor(null), isNull);
+    });
+  });
+
+  test('ראיית Windows מצורפת גם כשההפעלה לא הספיקה לשמור הקשר', () async {
+    final snapshot = SessionContextSnapshot(path: path);
+    final happenedAt = DateTime.utc(2026, 11, 15, 22, 6);
+    final candidate = CrashCandidate(
+      previousSession: SessionLock(
+        pid: 4242,
+        version: '1',
+        startedAt: DateTime.utc(2026, 11, 15, 22),
+      ),
+      entries: const [],
+      signature: null,
+      hasStartupStall: false,
+      hasMinidump: false,
+      windowsExit: WindowsExitEvidence(eventId: 1000, occurredAt: happenedAt),
+    );
+
+    expect(await snapshot.previousForIncident(candidate), {
+      'windowsExit': {
+        'eventId': 1000,
+        'occurredAt': happenedAt.toIso8601String(),
+      },
     });
   });
 
@@ -95,6 +133,16 @@ void main() {
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"pid": 1, "context"');
     expect(await SessionContextSnapshot(path: path).previous, isNull);
+  });
+
+  test('צילום ההפעלה שומר את מצב ה-Semantics שהיה פעיל בה', () async {
+    final handle = binding.ensureSemantics();
+    try {
+      await SessionContextSnapshot(path: path).record();
+    } finally {
+      handle.dispose();
+    }
+    expect(readSaved()['accessibility'], {'semanticsEnabled': true});
   });
 
   test('נכתב מחדש רק כשהתוכן השתנה', () async {

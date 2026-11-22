@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -78,6 +79,25 @@ int wmain(int argc, wchar_t** argv) {
   CloseHandle(marker);
   const auto log = startup_watchdog::ErrorLogPath();
   std::filesystem::create_directories(std::filesystem::path(log).parent_path());
+
+  crash_record::g_started_at = crash_record::TimestampMs();
+  crash_record::WriteStartupLock(0);
+  const auto startup_lock = std::filesystem::path(log).parent_path() /
+      (L"startup-" + std::to_wstring(GetCurrentProcessId()) + L".lock");
+  std::ifstream startup_file(startup_lock);
+  std::string startup_json;
+  std::getline(startup_file, startup_json);
+  startup_file.close();
+  FILETIME creation{}, exit{}, kernel{}, user{};
+  Require(GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user),
+          "Cannot query test process creation time");
+  const auto creation_ticks =
+      (static_cast<unsigned long long>(creation.dwHighDateTime) << 32) |
+      creation.dwLowDateTime;
+  Require(startup_json.find("\"windowsCreationFileTime\":" +
+                           std::to_string(creation_ticks) + "}") != std::string::npos,
+          "Startup lock must contain the exact process creation FILETIME");
+  std::filesystem::remove(startup_lock);
 
   crash_record::g_wer.magic = CrashWerContext::kMagic;
   crash_record::g_wer.size = sizeof(CrashWerContext);
