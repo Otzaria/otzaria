@@ -1007,5 +1007,23 @@ class SmokeEvidenceTest(PosixFixture):
                     self.validate()
 
 
+
+class MultiWindowBindingContractTest(unittest.TestCase):
+    def test_native_windows_require_framework_at_both_entrypoints(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "native-output"
+            cli = ["--output", str(output), "--scenario-set", "pdf-multi-window"]
+            with self.assertRaises(SystemExit):
+                runner.arguments(cli)
+            self.assertFalse(output.exists())
+            args = runner.arguments([*cli, "--binding-mode", "framework"])
+            self.assertEqual(args.scenario_set, "pdf-multi-window")
+            self.assertEqual(args.binding_mode, "framework")
+            args.binding_mode = "integration"
+            with self.assertRaisesRegex(ValueError, "requires the framework"):
+                runner.run(args)
+            self.assertFalse(output.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

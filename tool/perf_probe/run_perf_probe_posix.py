@@ -414,7 +414,9 @@ def launch_plan(output, args):
 def run(args, *, repository=REPOSITORY):
     probe_binding = binding_identity(args.binding_mode)
     if args.binding_mode == "framework" and args.scenario_set == "all":
-        raise ValueError("The framework target accepts pdf-reader or pdf-book-view")
+        raise ValueError("The framework target accepts pdf-reader, pdf-book-view or pdf-multi-window")
+    if args.scenario_set == "pdf-multi-window" and args.binding_mode != "framework":
+        raise ValueError("The multi-window scenario requires the framework binding")
     output = args.output
     if output.exists() or output.is_symlink():
         raise RuntimeError(f"Output directory already exists: {output}")
@@ -529,7 +531,7 @@ def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("profile", "release"), default="profile")
     parser.add_argument("--cache-state", choices=("cold", "warm"), default="cold")
-    parser.add_argument("--scenario-set", choices=("all", "pdf-reader", "pdf-book-view"), default="pdf-reader")
+    parser.add_argument("--scenario-set", choices=("all", "pdf-reader", "pdf-book-view", "pdf-multi-window"), default="pdf-reader")
     parser.add_argument("--binding-mode", choices=("integration", "framework"), default="integration")
     parser.add_argument("--pdf-case", type=Path)
     parser.add_argument("--warmup", type=int, default=1)
@@ -543,7 +545,9 @@ def arguments(argv=None):
     parser.add_argument("--display-mode", choices=("desktop", "xvfb"), default="desktop")
     args = parser.parse_args(argv)
     if args.binding_mode == "framework" and args.scenario_set == "all":
-        parser.error("--binding-mode framework accepts pdf-reader or pdf-book-view")
+        parser.error("--binding-mode framework accepts pdf-reader, pdf-book-view or pdf-multi-window")
+    if args.scenario_set == "pdf-multi-window" and args.binding_mode != "framework":
+        parser.error("--scenario-set pdf-multi-window requires --binding-mode framework")
     for key, low, high in (("warmup", 0, 10), ("repetitions", 1, 100), ("launches", 1, 30),
                            ("timeout_seconds", 60, 7200), ("build_timeout_seconds", 60, 7200)):
         if not low <= getattr(args, key) <= high:

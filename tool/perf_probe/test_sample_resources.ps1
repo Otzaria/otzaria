@@ -107,6 +107,18 @@ try {
   Assert-PerfEqual $tracked.dirty $true 'restoring sources cannot erase earlier dirty evidence'
   Assert-PerfEqual $tracked.sourceProvenance.afterBuild.statusPorcelain.Count 0 'later clean snapshot remains visible'
 
+  $postRun = @{}
+  Add-PerfSourceProvenance $sourceRepo $postRun 'beforeBuild'
+  Add-PerfSourceProvenance $sourceRepo $postRun 'afterBuild'
+  [IO.File]::AppendAllText((Join-Path $sourceRepo 'tracked.txt'), 'changed while the app ran')
+  Add-PerfSourceProvenance $sourceRepo $postRun 'afterRuns'
+  Assert-PerfEqual $postRun.dirty $true 'a source edit during native launch blocks comparison'
+  Assert-PerfEqual $postRun.sourceProvenance.afterRuns.statusPorcelain.Count 1 'post-run changed path is recorded'
+  Invoke-SourceGit @('restore', '--', 'tracked.txt')
+  Add-PerfSourceProvenance $sourceRepo $postRun 'afterRuns'
+  Assert-PerfEqual $postRun.dirty $true 'later cleanup cannot erase post-run source changes'
+  Assert-PerfEqual $postRun.sourceProvenance.afterRuns.statusPorcelain.Count 0 'a later clean post-run observation remains explicit'
+
   $newFile = 'untracked notes.txt'
   [IO.File]::WriteAllText((Join-Path $sourceRepo $newFile), "untracked-private-content`n")
   Add-PerfSourceProvenance $sourceRepo $clean 'afterBuild'

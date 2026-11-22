@@ -28,11 +28,15 @@ void main() {
     );
   });
 
-  test('framework is explicitly limited to the two PDF workloads', () {
-    for (final scenario in ['pdf-reader', 'pdf-book-view']) {
+  test('framework supports the native multi-window PDF workload', () {
+    for (final scenario in ['pdf-reader', 'pdf-book-view', 'pdf-multi-window']) {
       expect(() => PerfBindingMode.framework.validateScenario(scenario), returnsNormally);
     }
     expect(() => PerfBindingMode.integration.validateScenario('all'), returnsNormally);
+    expect(
+      () => PerfBindingMode.integration.validateScenario('pdf-multi-window'),
+      throwsArgumentError,
+    );
     expect(() => PerfBindingMode.framework.validateScenario('all'), throwsArgumentError);
     expect(() => PerfBindingMode.framework.validateScenario('unknown'), throwsArgumentError);
     expect(() => PerfBindingMode.parse('benchmarkLive'), throwsArgumentError);
