@@ -44,6 +44,7 @@ void main() {
 
   TextBookLoaded seed({
     required String searchText,
+    Object? searchTextSource,
     SearchMode searchMode = SearchMode.exact,
   }) => TextBookLoaded(
     book: book,
@@ -61,6 +62,7 @@ void main() {
     visibleIndices: const [0],
     pinLeftPane: false,
     searchText: searchText,
+    searchTextSource: searchTextSource,
     searchMode: searchMode,
     highlightText: 'ויאמר',
     permanentHighlightLine: 1,
@@ -70,6 +72,9 @@ void main() {
     pinpointHighlightText: 'אור',
     pinpointHighlightIndex: 4,
   );
+
+  // זהות חלונית החיפוש: אירוע בלי זהות נחשב חיפוש חיצוני חדש.
+  final paneSource = Object();
 
   InBookSearchTemplate template() => InBookSearchTemplate(
     wordDefaults: const {'קידומות דקדוקיות': true},
@@ -97,9 +102,17 @@ void main() {
   blocTest<TextBookBloc, TextBookState>(
     'snapshot שווה לפי ערך אינו פולט state נוסף',
     build: () => bloc,
-    seed: () => seed(searchText: 'ממון').copyWith(searchTemplate: template()),
-    act: (bloc) =>
-        bloc.add(UpdateSearchText('ממון', searchTemplate: template())),
+    seed: () => seed(
+      searchText: 'ממון',
+      searchTextSource: paneSource,
+    ).copyWith(searchTemplate: template()),
+    act: (bloc) => bloc.add(
+      UpdateSearchText(
+        'ממון',
+        textSource: paneSource,
+        searchTemplate: template(),
+      ),
+    ),
     expect: () => const <TextBookState>[],
   );
 
@@ -143,15 +156,16 @@ void main() {
   );
 
   blocTest<TextBookBloc, TextBookState>(
-    'סנכרון עם אותה שאילתה — אין פליטת state כלל, וההדגשה נשמרת',
+    'סנכרון עם אותה שאילתה — רק זהות החלונית משתנה, וההדגשה נשמרת',
     build: () => bloc,
     seed: () => seed(searchText: 'בראשית'),
     // בדיוק מה שחלונית החיפוש שולחת ב-initState שלה.
-    act: (bloc) => bloc.add(const UpdateSearchText('בראשית')),
-    // ה-state שנוצר זהה לקודם, ולכן Bloc אינו פולט אותו כלל — ההוכחה
-    // החזקה ביותר שסנכרון אינו משנה דבר. בלי ההגנה, ניקוי ההדגשה היה
-    // יוצר state שונה ונפלט כאן.
-    expect: () => const <TextBookState>[],
+    act: (bloc) => bloc.add(UpdateSearchText('בראשית', textSource: paneSource)),
+    // ה-state שנפלט שווה לקודם בכל שדה מלבד זהות החלונית. בלי ההגנה,
+    // ניקוי ההדגשה היה יוצר state שונה גם בשדות האחרים.
+    expect: () => [
+      seed(searchText: 'בראשית', searchTextSource: paneSource),
+    ],
     verify: (bloc) {
       final state = bloc.state as TextBookLoaded;
       expect(state.highlightText, 'ויאמר');
