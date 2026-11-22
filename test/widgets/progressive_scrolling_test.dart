@@ -193,6 +193,44 @@ void main() {
     }
   }
 
+  testWidgets('שתי הקשות קצרות בתוך הצעד הראשון מצטברות לשני צעדים', (
+    tester,
+  ) async {
+    final item = ItemScrollController();
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProgressiveScroll(
+          focusNode: focus,
+          scrollController: item,
+          child: ScrollablePositionedList.builder(
+            itemScrollController: item,
+            itemCount: 10000,
+            estimateExtent: (_, width) => 100,
+            itemBuilder: (_, index) =>
+                SizedBox(height: 100, child: Text('שורה $index')),
+          ),
+        ),
+      ),
+    );
+    focus.requestFocus();
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 75));
+    final midway = item.scrollController!.offset;
+    expect(midway, greaterThan(0));
+    expect(midway, lessThan(100));
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(item.scrollController!.offset, closeTo(200, 0.01));
+  });
+
   testWidgets('רק הצעד של הלחיצה מונפש; פריימי ההחזקה נעים ישירות', (
     tester,
   ) async {
