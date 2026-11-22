@@ -245,6 +245,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         current.copyWith(
           commentatorsFontSize: event.commentatorsFontSize,
           lineHeight: event.lineHeight,
+          clearCommentatorsFontSize:
+              event.inherit && event.commentatorsFontSize != null,
+          clearLineHeight: event.inherit && event.lineHeight != null,
         ),
       );
     });

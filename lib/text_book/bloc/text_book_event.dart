@@ -116,10 +116,17 @@ class UpdateBookReadingMetrics extends TextBookEvent {
   final double? commentatorsFontSize;
   final double? lineHeight;
 
-  const UpdateBookReadingMetrics({this.commentatorsFontSize, this.lineHeight});
+  /// הערכים שניתנו שווים להגדרה הכללית: הספר חוזר לרשת אותה, כמו בקובץ שלו.
+  final bool inherit;
+
+  const UpdateBookReadingMetrics({
+    this.commentatorsFontSize,
+    this.lineHeight,
+    this.inherit = false,
+  });
 
   @override
-  List<Object?> get props => [commentatorsFontSize, lineHeight];
+  List<Object?> get props => [commentatorsFontSize, lineHeight, inherit];
 }
 
 class ToggleLeftPane extends TextBookEvent {

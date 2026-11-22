@@ -623,7 +623,9 @@ class TextBookLoaded extends TextBookState {
     ContentLineChanges? contentChanges,
     double? fontSize,
     double? commentatorsFontSize,
+    bool clearCommentatorsFontSize = false,
     double? lineHeight,
+    bool clearLineHeight = false,
     bool? showLeftPane,
     bool? showSplitView,
     bool? showPageShapeView,
@@ -774,8 +776,10 @@ class TextBookLoaded extends TextBookState {
               ? this.contentChanges
               : null),
       fontSize: fontSize ?? this.fontSize,
-      commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
-      lineHeight: lineHeight ?? this.lineHeight,
+      commentatorsFontSize: clearCommentatorsFontSize
+          ? null
+          : commentatorsFontSize ?? this.commentatorsFontSize,
+      lineHeight: clearLineHeight ? null : lineHeight ?? this.lineHeight,
       showLeftPane: showLeftPane ?? this.showLeftPane,
       showSplitView: showSplitView ?? this.showSplitView,
       showPageShapeView: showPageShapeView ?? this.showPageShapeView,

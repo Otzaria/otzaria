@@ -286,6 +286,10 @@ class TextSettingsTab extends StatelessWidget {
         UpdateBookReadingMetrics(
           commentatorsFontSize: commentatorsFontSize,
           lineHeight: lineHeight,
+          // אותה הבחנה שבה savePerBookDisplaySettings מוחק את השדה מהקובץ.
+          inherit:
+              commentatorsFontSize == state.commentatorsFontSize ||
+              lineHeight == state.lineHeight,
         ),
       );
       savePerBookDisplaySettings(
