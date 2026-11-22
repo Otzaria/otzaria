@@ -93,14 +93,18 @@ void main() {
 
     final dots = find.text('…');
     expect(dots, findsOneWidget);
-    expect(find.byType(Scrollable), findsNothing);
+    // התצוגה המכווצת נגללת בגובה 4 השורות (issue #5761).
+    final collapsedHeight = tester.getSize(find.byType(Scrollable)).height;
 
     await tester.tap(dots);
     await tester.pumpAndSettle();
 
     // הלחצן נעלם והתוכן המלא נגלל בתוך החלונית.
     expect(find.text('…'), findsNothing);
-    expect(find.byType(Scrollable), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(Scrollable)).height,
+      greaterThan(collapsedHeight),
+    );
   });
 
   testWidgets('פרישה ליד תחתית המסך גדלה כלפי מטה בלבד, עד שולי המסך', (
@@ -112,7 +116,7 @@ void main() {
       path2: 'מפרש ד',
     );
     // ראש התוכן החתוך — משם התוכן הפרוש גדל כלפי מטה.
-    final contentTop = tester.getTopLeft(find.byType(ClipRect).first).dy;
+    final contentTop = tester.getTopLeft(find.byType(Scrollable)).dy;
     final screenHeight =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
 

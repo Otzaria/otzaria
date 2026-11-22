@@ -5,7 +5,6 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart'
     show DomElementExtension;
@@ -218,6 +217,9 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
   static const double _expandedBottomMargin = 24;
 
   bool _expanded = false;
+
+  /// בתצוגה המכווצת: יש תוכן מתחת לתחתית התצוגה הנגללת.
+  bool _moreBelow = false;
 
   AppSelectionAreaState? _selectionArea;
 
@@ -447,41 +449,42 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                         painter.preferredLineHeight * maxContentLines!;
                     painter.dispose();
 
-                    // התוכן נפרס בגובהו המלא (כותרות, מעברי שורה) ונחתך; "…"
-                    // מוצג רק כשהוא גבוה מהחיתוך.
-                    return ClipRect(
+                    // התוכן נגלל מיד בגובה 4 השורות; "…" מוצג כל עוד יש
+                    // תוכן מתחת לתחתית התצוגה.
+                    return NotificationListener<Notification>(
+                      onNotification: (notification) {
+                        final metrics = switch (notification) {
+                          ScrollMetricsNotification(:final metrics) ||
+                          ScrollNotification(:final metrics) => metrics,
+                          _ => null,
+                        };
+                        final moreBelow = (metrics?.extentAfter ?? 0) > 0;
+                        if (metrics != null && moreBelow != _moreBelow) {
+                          setState(() => _moreBelow = moreBelow);
+                        }
+                        return false;
+                      },
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxHeight: maxHeight),
-                        child: OverflowBox(
-                          maxHeight: double.infinity,
-                          fit: OverflowBoxFit.deferToChild,
-                          alignment: Alignment.topCenter,
-                          child: Stack(
-                            fit: StackFit.passthrough,
-                            children: [
-                              content,
-                              Positioned.fill(
-                                child: LayoutBuilder(
-                                  builder: (_, full) => Stack(
-                                    children: [
-                                      if (full.maxHeight > maxHeight)
-                                        Positioned(
-                                          bottom: full.maxHeight - maxHeight,
-                                          left: 0,
-                                          child: _ExpandContentButton(
-                                            fontSize: fontSize,
-                                            fontFamily: settingsState
-                                                .commentatorsFontFamily,
-                                            lineHeight: lineHeight,
-                                            onPressed: () => _expand(context),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
+                        child: Stack(
+                          children: [
+                            SingleChildScrollView(
+                              primary: false,
+                              child: content,
+                            ),
+                            if (_moreBelow)
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                child: _ExpandContentButton(
+                                  fontSize: fontSize,
+                                  fontFamily:
+                                      settingsState.commentatorsFontFamily,
+                                  lineHeight: lineHeight,
+                                  onPressed: () => _expand(context),
                                 ),
                               ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
                     );
