@@ -53,6 +53,10 @@ class _RetryLinkSelection extends TextBookSelectionEvent {
   const _RetryLinkSelection();
 }
 
+class _RetryPendingHighlight extends TextBookSelectionEvent {
+  const _RetryPendingHighlight();
+}
+
 class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // השאילתה עצמה רצה ב-Isolate, אבל כל טעינה גוררת פענוח התוצאה, מיזוג
   // הקישורים ובנייה מחדש של חלונית המפרשים על ה-thread שמצייר. הסף — ולא
@@ -205,6 +209,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   @visibleForTesting
   int? get pendingLinkSelectionForTesting => _pendingLinkSelection;
 
+  /// שורה שתודגש כשתוצג בפועל בטאב הפעיל (ראו [HighlightLineWhenVisible]).
+  int? _pendingHighlight;
+
+  @visibleForTesting
+  int? get pendingHighlightLineForTesting => _pendingHighlight;
+
   /// גודל גופן שהגיע (דרך `UpdateFontSize`) לפני שהטעינה הסתיימה. בעליית
   /// התוכנה ההגדרות נטענות מהר יותר מתוכן הספר, כך שעדכון הגופן עלול להגיע
   /// בזמן `Loading`. נשמר כאן ויוחל ב-`_onLoadContent` במעבר ל-`Loaded`.
@@ -225,7 +235,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     required TextBookInitial initialState,
     this.readingPosition,
     int? linkSelectedLine,
+    int? highlightLineWhenVisible,
   }) : _pendingLinkSelection = linkSelectedLine,
+       _pendingHighlight = highlightLineWhenVisible,
        _quickPreviewLoader =
            quickPreviewLoader ??
            SqliteDataProvider.instance.getBookQuickPreview,
@@ -261,6 +273,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
     on<TextBookSelectionEvent>(_onSelectionEvent);
     on<HighlightLine>(_onHighlightLine);
+    on<HighlightLineWhenVisible>((event, emit) {
+      _pendingHighlight = event.line;
+      _applyPendingHighlight(emit);
+    });
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
     on<UpdateSearchText>(_onUpdateSearchText);
@@ -301,13 +317,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     if (event.visible) {
+      _applyPendingHighlight(emit);
       _loadContentRangeInBackground(
         currentState.book,
         currentState.visibleIndices,
       );
       _warmContentCacheInBackground(currentState.book);
     } else {
-      _releaseContentOutsideWindow(currentState, emit);
+      // הדגשה שרצה בטאב שהוסתר הייתה פגה בלי שנראתה; היא תחזור כשיוצג שוב.
+      if (_highlightTimer?.isActive ?? false) {
+        _highlightTimer!.cancel();
+        _pendingHighlight = currentState.highlightedLine;
+        emit(currentState.copyWith(clearHighlight: true));
+      }
+      _releaseContentOutsideWindow(state as TextBookLoaded, emit);
       _releaseLinksOutsideWindow(state as TextBookLoaded, emit);
     }
   }
@@ -1893,6 +1916,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final currentState = state;
     if (currentState is! TextBookLoaded) return;
     if (_pendingLinkSelection != null) add(const _RetryLinkSelection());
+    if (_pendingHighlight != null) add(const _RetryPendingHighlight());
     final visibleIndicesNow = _currentVisibleLines();
     if (visibleIndicesNow.isEmpty ||
         !_hasMeaningfulVisibleIndicesChange(
@@ -1971,6 +1995,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     Emitter<TextBookState> emit,
   ) {
     // כל הבחירות מעובדות באותו תור, בלי ששידור חוזר יעקוף פעולה מאוחרת.
+    if (event is _RetryPendingHighlight) return _applyPendingHighlight(emit);
     if (event is UpdateSelectedIndex) {
       _pendingLinkSelection = null;
       _updateSelectedIndex(event, emit);
@@ -2058,17 +2083,38 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     HighlightLine event,
     Emitter<TextBookState> emit,
   ) {
+    _pendingHighlight = null;
+    _startHighlight(event.lineIndex, emit);
+  }
+
+  void _startHighlight(int line, Emitter<TextBookState> emit) {
     if (state is! TextBookLoaded) return;
     final currentState = state as TextBookLoaded;
-    emit(currentState.copyWith(highlightedLine: event.lineIndex));
+    emit(currentState.copyWith(highlightedLine: line));
 
     _highlightTimer?.cancel();
 
     _highlightTimer = Timer(const Duration(seconds: 2), () {
       if (!isClosed) {
-        add(ClearHighlightedLine(event.lineIndex));
+        add(ClearHighlightedLine(line));
       }
     });
+  }
+
+  /// מדגיש את השורה הממתינה כשהטאב פעיל והקורא מדד אותה על המסך. מיקום
+  /// שנמדד בלעדיה (המשתמש גלל למקום אחר) מבטל אותה, כדי שלא תודגש מאוחר.
+  void _applyPendingHighlight(Emitter<TextBookState> emit) {
+    final line = _pendingHighlight;
+    final position = readingPosition?.value;
+    if (line == null ||
+        state is! TextBookLoaded ||
+        !_isTabVisible ||
+        position == null ||
+        position.isTarget) {
+      return;
+    }
+    _pendingHighlight = null;
+    if (position.visibleLines.contains(line)) _startHighlight(line, emit);
   }
 
   void _onClearHighlightedLine(

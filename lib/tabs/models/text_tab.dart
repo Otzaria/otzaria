@@ -83,6 +83,20 @@ class TextBookTab extends OpenedTab {
     }
   }
 
+  /// שורה שתודגש כשתוצג בפועל (פתיחה מסימניה). הערך אינו נשמר בשולחן העבודה.
+  int? get highlightWhenVisibleLine => _highlightWhenVisibleLine;
+  int? _highlightWhenVisibleLine;
+
+  /// מדגיש לרגע את [line] כשהיא גלויה בטאב הפעיל, גם לפני שנוצר הקורא.
+  void highlightLineWhenVisible(int line) {
+    final currentBloc = _bloc;
+    if (currentBloc == null) {
+      _highlightWhenVisibleLine = line;
+    } else {
+      currentBloc.add(HighlightLineWhenVisible(line));
+    }
+  }
+
   /// נבנה בגישה הראשונה בלבד: פענוח ושמירת שולחן עבודה אינם צריכים BLoC חי.
   TextBookBloc get bloc => _bloc ??= _createBloc();
   TextBookBloc? _bloc;
@@ -264,6 +278,7 @@ class TextBookTab extends OpenedTab {
         initialState: _initialState,
         readingPosition: lines.position,
         linkSelectedLine: linkSelectedLine,
+        highlightLineWhenVisible: _highlightWhenVisibleLine,
       ),
     );
     if (_isDisposed) created.close();
