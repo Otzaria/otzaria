@@ -48,7 +48,7 @@ void main() {
         return result;
       });
       await _flush();
-      expect(writes, ['selected text']);
+      expect(writes, ['Page textPage textPag']);
       expect(completed, isFalse);
       expect(selection.hasSelectedText, isTrue);
       clipboardWrite!.complete();
@@ -70,7 +70,7 @@ void main() {
     final range = selection.range;
     expect(await actions.copy(keepSelection: true), PdfTextActionResult.copied);
     expect(selection.range, same(range));
-    expect(writes, ['selected text']);
+    expect(writes, ['Page textPage textPag']);
   });
 
   test(
@@ -103,6 +103,8 @@ void main() {
     'detached',
     'document',
     'selection',
+    'permission',
+    'page-content',
   ]) {
     void invalidate() {
       switch (change) {
@@ -116,20 +118,26 @@ void main() {
           controller.document = _Document(2);
         case 'selection':
           selection.range = _range(2, 2);
+        case 'permission':
+          selection.isCopyAllowed = false;
+        case 'page-content':
+          document.pages = [...document.pages]..[1] = _Page(2);
       }
     }
 
     test('copy stops after a pending text read when $change changes', () async {
-      final text = Completer<String>();
-      selection.readText = () => text.future;
+      final text = Completer<PdfPageText>();
+      document.pages[1].load = () => text.future;
       final copy = actions.copy();
       await _flush();
       invalidate();
-      text.complete('stale text');
+      text.complete(_text(2, 'stale text'));
       expect(await copy, PdfTextActionResult.none);
       expect(writes, isEmpty);
       expect(selection.clears, 0);
     });
+
+    if (change == 'permission' || change == 'page-content') continue;
 
     test(
       'pending select-all stops before another page or mutation on $change',
@@ -214,12 +222,182 @@ void main() {
       document.pages.first.load = () => Future.error(StateError('closed PDF'));
       expect(await actions.selectAll(), PdfTextActionResult.failed);
       expect(selection.updates, 0);
-      selection.readText = () => Future.error(StateError('closed PDF'));
+      document.pages[1].load = () => Future.error(StateError('closed PDF'));
       expect(await actions.copy(), PdfTextActionResult.failed);
       expect(writes, isEmpty);
       expect(selection.clears, 0);
     },
   );
+
+  test(
+    'same-page backward selection preserves Hebrew, accents and spaces',
+    () async {
+      const content = 'אבג שָׁלוֹם  ABC\nדהו';
+      final page = _text(1, content);
+      selection.range = PdfTextSelectionRange.fromPoints(
+        PdfTextSelectionPoint(page, content.length - 3),
+        PdfTextSelectionPoint(page, 2),
+      );
+      expect(
+        await actions.readSelectedText(),
+        content.substring(2, content.length - 2),
+      );
+      expect(
+        await actions.copy(keepSelection: true),
+        PdfTextActionResult.copied,
+      );
+      expect(writes.single, content.substring(2, content.length - 2));
+      expect(document.pages.every((page) => page.reads == 0), true);
+      expect(selection.reads, 0);
+    },
+  );
+
+  test(
+    'page order and blank middle pages match the inclusive selection',
+    () async {
+      controller.document = document = _Document(5);
+      selection.range = PdfTextSelectionRange.fromPoints(
+        PdfTextSelectionPoint(_text(5, 'END suffix'), 2),
+        PdfTextSelectionPoint(_text(1, 'prefix START\n'), 7),
+      );
+      document.pages[1].load = () async => _text(2, 'אבג\n');
+      document.pages[2].load = () async => _text(3, '');
+      document.pages[3].load = () async => _text(4, 'שָׁלוֹם  ABC ');
+      // Keep the library's existing normalization of raw-page whitespace.
+      final formatted = await (_Page(
+        4,
+      )..load = document.pages[3].load).loadStructuredText();
+      expect(
+        await actions.readSelectedText(),
+        'START\nאבג\n${formatted.fullText}END',
+      );
+      expect(document.pages.map((page) => page.reads), [0, 1, 1, 1, 0]);
+      expect(PdfPageTextCache.forDocument(document).length, 0);
+      expect(selection.reads, 0);
+    },
+  );
+
+  test(
+    'a stale cached middle page is neither reused nor replaced by a read',
+    () async {
+      final cache = PdfPageTextCache.forDocument(document);
+      document.pages[1].load = () async => _text(2, 'old content');
+      final stale = await cache.load(document.pages[1]);
+      final lease = cache.createLease()..updatePinnedPages([2]);
+      addTearDown(lease.dispose);
+      final bytes = cache.estimatedBytes;
+      document.pages = [...document.pages]
+        ..[1] = (_Page(2)..load = () async => _text(2, 'new content'));
+      expect(await actions.readSelectedText(), 'Page textnew contentPag');
+      expect(cache.length, 1);
+      expect(cache.estimatedBytes, bytes);
+      expect(cache.get(2), same(stale));
+      expect(document.pages[1].reads, 1);
+    },
+  );
+
+  test('read cancellation stops before another middle page', () async {
+    controller.document = document = _Document(5);
+    selection.range = _range(1, 5);
+    final pending = Completer<PdfPageText>();
+    document.pages[1].load = () => pending.future;
+    final read = actions.readSelectedText();
+    await _flush();
+    actions.cancel();
+    pending.complete(_text(2));
+    expect(await read, '');
+    expect(document.pages.map((page) => page.reads), [0, 1, 0, 0, 0]);
+    expect(selection.range, isNotNull);
+    expect(writes, isEmpty);
+  });
+
+  test(
+    'a replacement during a pending read cannot reach its consumer',
+    () async {
+      final pending = Completer<PdfPageText>();
+      document.pages[1].load = () => pending.future;
+      final read = actions.readSelectedText();
+      await _flush();
+      document.pages = [...document.pages]..[1] = _Page(2);
+      pending.complete(_text(2));
+      expect(await read, '');
+      expect(writes, isEmpty);
+    },
+  );
+
+  test(
+    'metadata updates outside the selection do not cancel its read',
+    () async {
+      controller.document = document = _Document(20);
+      final pending = Completer<PdfPageText>();
+      document.pages[1].load = () => pending.future;
+      final read = actions.readSelectedText();
+      await _flush();
+      document.pages = [...document.pages]..[19] = _Page(20);
+      pending.complete(_text(2, 'current text'));
+      expect(await read, 'Page textcurrent textPag');
+      expect(document.pages[1].reads, 1);
+      expect(document.pages[19].reads, 0);
+    },
+  );
+
+  test('metadata updates outside the selection do not cancel Copy', () async {
+    controller.document = document = _Document(20);
+    final pending = Completer<PdfPageText>();
+    document.pages[1].load = () => pending.future;
+    final copy = actions.copy(keepSelection: true);
+    await _flush();
+    document.pages = [...document.pages]..[19] = _Page(20);
+    pending.complete(_text(2, 'current text'));
+    expect(await copy, PdfTextActionResult.copied);
+    expect(writes, ['Page textcurrent textPag']);
+  });
+
+  test(
+    'a late extraction failure after cancellation is not sent to consumers',
+    () async {
+      final pending = Completer<PdfPageText>();
+      document.pages[1].load = () => pending.future;
+      final read = actions.readSelectedText();
+      await _flush();
+      actions.cancel();
+      pending.completeError(StateError('document closed'));
+      expect(await read, '');
+      expect(writes, isEmpty);
+    },
+  );
+
+  test('a newer read supersedes an older pending copy', () async {
+    final pending = Completer<PdfPageText>();
+    document.pages[1].load = () => pending.future;
+    final copy = actions.copy();
+    await _flush();
+    selection.range = _range(1, 1);
+    expect(await actions.readSelectedText(), 'Pag');
+    pending.complete(_text(2));
+    expect(await copy, PdfTextActionResult.none);
+    expect(writes, isEmpty);
+    expect(selection.clears, 0);
+  });
+
+  test(
+    'unloaded or forbidden selected text is not returned to consumers',
+    () async {
+      document.pages[1].isLoaded = false;
+      expect(await actions.readSelectedText(), '');
+      document.pages[1].isLoaded = true;
+      selection.isCopyAllowed = false;
+      expect(await actions.readSelectedText(), '');
+      expect(document.pages.every((page) => page.reads == 0), true);
+    },
+  );
+
+  test('failed text extraction remains an error for the consumer', () async {
+    document.pages[1].load = () => Future.error(StateError('closed PDF'));
+    await expectLater(actions.readSelectedText(), throwsStateError);
+    expect(writes, isEmpty);
+    expect(selection.clears, 0);
+  });
 }
 
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
@@ -281,12 +459,15 @@ class _Selection extends Fake implements PdfTextSelectionDelegate {
 }
 
 class _Document extends Fake implements PdfDocument {
-  _Document(int count) : pages = List.generate(count, (i) => _Page(i + 1)) {
+  _Document(int count) : _pages = List.generate(count, (i) => _Page(i + 1)) {
     addTearDown(_events.close);
   }
   final _events = StreamController<PdfDocumentEvent>.broadcast();
+  List<_Page> _pages;
   @override
-  final List<_Page> pages;
+  List<_Page> get pages => _pages;
+  @override
+  set pages(List<PdfPage> value) => _pages = value.cast<_Page>();
   @override
   Stream<PdfDocumentEvent> get events => _events.stream;
 }
