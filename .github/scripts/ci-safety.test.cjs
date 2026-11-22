@@ -24,6 +24,7 @@ function scripts(file) {
 }
 const mergeScript = scripts('automerge.yml')[1];
 const revertScript = scripts('dev_health.yml')[0];
+const gateScript = scripts('ci_gate.yml')[0];
 
 function check(name, suite, conclusion = 'success', id = suite * 10) {
   return { id, name, check_suite: { id: suite }, app: { slug: 'github-actions' },
@@ -102,6 +103,23 @@ console.log(JSON.stringify(value));
 
 test('merges when the current dev commit and all PR checks pass', t => {
   const s = fixture(t); s.execute(); assert.equal(s.merged(), true);
+});
+
+test('the CI gate discards output from a failed labels request', t => {
+  const s = fixture(t);
+  const output = path.join(s.dir, 'output');
+  s.execute(`set -eo pipefail
+sleep() { :; }
+gh() {
+  if [ ! -f "$RUNNER_TEMP/attempted" ]; then
+    touch "$RUNNER_TEMP/attempted"
+    echo run-ci
+    return 1
+  fi
+  echo unrelated
+}
+${gateScript}`, { ACTION: 'opened', GITHUB_OUTPUT: output });
+  assert.equal(readFileSync(output, 'utf8'), 'run=false\n');
 });
 
 for (const conclusion of ['failure', null]) {

@@ -85,6 +85,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # The action downloads these without retrying; a truncated download fails the job.
+      - name: Preinstall emulator and system image
+        run: bash .github/scripts/sdkmanager-install.sh emulator 'system-images;android-34;google_apis;x86_64'
+
       - name: Run engine SQLite integration test
         uses: reactivecircus/android-emulator-runner@v2
         with:
