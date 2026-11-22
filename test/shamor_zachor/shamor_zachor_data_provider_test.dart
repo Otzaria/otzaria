@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,8 +11,12 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration;
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
+import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/books.dart' show PdfBook;
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
+import 'package:pdfrx/pdfrx.dart';
 import '../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -235,6 +241,208 @@ void main() {
       expect(result.added, 0);
       expect(result.failed, 1);
     });
+  });
+
+  group('track PDF books in shamor zachor (issue #4345)', () {
+    // מזהה היברובוקס שחופף במקרה למזהה ספר רשמי ב-seforim.db.
+    PdfBook hebrewBooksPdf() => PdfBook(
+      title: 'ספר מהיברובוקס',
+      id: fixtureBookIds['בראשית'],
+      path: '/hebrewbooks/123.pdf',
+      externalLibraryId: 'hb:123',
+    );
+
+    ShamorZachorDataProvider buildProvider({
+      int pageCount = 3,
+      List<PdfOutlineNode> outline = const [],
+      Future<({int pageCount, List<PdfOutlineNode> outline})> Function(
+        String path,
+      )?
+      pdfInfoLoader,
+    }) => ShamorZachorDataProvider(
+      sqliteDataProvider: SqliteDataProvider.instance,
+      categoryTreeLoader:
+          ({
+            required String dbPath,
+            required List<int> trackedBookIds,
+          }) async {
+            throw Exception('force fallback');
+          },
+      pdfInfoLoader:
+          pdfInfoLoader ??
+          (path) async => (pageCount: pageCount, outline: outline),
+    );
+
+    Map<String, BookDetails> pdfBooks(ShamorZachorDataProvider provider) =>
+        provider.getCategory(ShamorZachorDataProvider.pdfCategoryName)?.books ??
+        const {};
+
+    List<dynamic> persistedPdfBooks() =>
+        jsonDecode(Settings.getValue<String>('sz:tracked_pdf_books') ?? '[]')
+            as List;
+
+    PdfOutlineNode node(
+      String title,
+      int page, [
+      List<PdfOutlineNode> children = const [],
+    ]) => PdfOutlineNode(
+      title: title,
+      dest: PdfDest(page, PdfDestCommand.xyz, null),
+      children: children,
+    );
+
+    test('PDF עם outline: הפריטים הם עלי ה-outline', () async {
+      final provider = buildProvider(
+        pageCount: 6,
+        outline: [
+          node('חלק א', 1, [node('פרק א', 1), node('פרק ב', 3)]),
+          node('חלק ב', 5),
+        ],
+      );
+      addTearDown(provider.dispose);
+      await provider.loadAllData();
+
+      final result = await provider.addPdfBooks([hebrewBooksPdf()]);
+
+      expect(result, (added: 1, failed: 0));
+      final details = pdfBooks(provider)['ספר מהיברובוקס']!;
+      expect(details.learnableItems.map((i) => i.displayLabel), [
+        'פרק א',
+        'פרק ב',
+        'חלק ב',
+      ]);
+      expect(details.learnableItems.map((i) => i.pageNumber), [1, 3, 5]);
+    });
+
+    test('PDF בלי outline: פריט לכל עמוד', () async {
+      final provider = buildProvider(pageCount: 3);
+      addTearDown(provider.dispose);
+      await provider.loadAllData();
+
+      await provider.addPdfBooks([hebrewBooksPdf()]);
+
+      final details = pdfBooks(provider)['ספר מהיברובוקס']!;
+      expect(details.learnableItems.map((i) => i.pageNumber), [1, 2, 3]);
+    });
+
+    test(
+      'מפתח ה-PDF לא מתנגש בספר רשמי עם אותו id, ונשמר בין הפעלות',
+      () async {
+        final provider = buildProvider();
+        addTearDown(provider.dispose);
+        await provider.loadAllData();
+        await provider.addPdfBooks([hebrewBooksPdf()]);
+
+        final key = pdfBooks(provider)['ספר מהיברובוקס']!.id!;
+        expect(key, isNegative);
+        expect(
+          provider.getBookDetails('תנ"ך', 'בראשית')!.id,
+          fixtureBookIds['בראשית'],
+        );
+        expect(provider.isBookTrackedById(key), isTrue);
+        expect(
+          provider.isBookTrackedById(fixtureBookIds['בראשית']!),
+          isFalse,
+        );
+        expect(provider.isPdfBookTracked(hebrewBooksPdf()), isTrue);
+
+        final reloaded = buildProvider();
+        addTearDown(reloaded.dispose);
+        await reloaded.loadAllData();
+        expect(pdfBooks(reloaded)['ספר מהיברובוקס']?.id, key);
+        expect(
+          (await reloaded.addPdfBooks([hebrewBooksPdf()])).added,
+          0,
+          reason: 'אותו PDF אינו נוסף פעמיים',
+        );
+
+        await reloaded.removeBookFromTracking(key);
+        expect(pdfBooks(reloaded), isEmpty);
+        expect(reloaded.isBookTrackedById(key), isFalse);
+      },
+    );
+
+    test('שני קובצי PDF בעלי שם זהה נשמרים במעקב זה לצד זה', () async {
+      final provider = buildProvider();
+      addTearDown(provider.dispose);
+      await provider.loadAllData();
+
+      final result = await provider.addPdfBooks([
+        PdfBook(title: 'שו"ת', path: '/hebrewbooks/a/שו"ת.pdf'),
+        PdfBook(title: 'שו"ת', path: '/hebrewbooks/b/שו"ת.pdf'),
+      ]);
+
+      expect(result, (added: 2, failed: 0));
+      final books = pdfBooks(provider);
+      expect(books, hasLength(2), reason: 'ספר אחד דרס את השני ברשימה');
+      expect(books.values.map((b) => b.id).toSet(), hasLength(2));
+      for (final id in books.values.map((b) => b.id!)) {
+        expect(provider.isBookTrackedById(id), isTrue);
+      }
+    });
+
+    test('ספר PDF אישי שהועבר לנתיב חדש נשאר במעקב לפי מזהה הספר', () async {
+      final provider = buildProvider();
+      addTearDown(provider.dispose);
+      await provider.loadAllData();
+      PdfBook personal(String path) => PdfBook(
+        title: 'סיכומים',
+        id: 5,
+        source: BookSource.user,
+        path: path,
+      );
+
+      await provider.addPdfBooks([personal('/old/סיכומים.pdf')]);
+      final moved = personal('/new/סיכומים.pdf');
+
+      expect(provider.isPdfBookTracked(moved), isTrue);
+      expect((await provider.addPdfBooks([moved])).added, 0);
+      expect(pdfBooks(provider), hasLength(1));
+      expect(
+        provider.isPdfBookTracked(
+          PdfBook(title: 'סיכומים', path: '/old/סיכומים.pdf'),
+        ),
+        isFalse,
+        reason: 'קובץ אחר באותו נתיב אינו הספר האישי שבמעקב',
+      );
+    });
+
+    test(
+      'רענון בזמן הוספת אצווה אינו מאבד אף PDF מהמעקב ומהתצוגה',
+      () async {
+        final secondInfo = Completer<void>();
+        final secondRequested = Completer<void>();
+        final provider = buildProvider(
+          pdfInfoLoader: (path) async {
+            if (path.endsWith('b.pdf')) {
+              secondRequested.complete();
+              await secondInfo.future;
+            }
+            return (pageCount: 2, outline: const <PdfOutlineNode>[]);
+          },
+        );
+        addTearDown(provider.dispose);
+        await provider.loadAllData();
+
+        final adding = provider.addPdfBooks([
+          PdfBook(title: 'ספר א', path: '/pdf/a.pdf'),
+          PdfBook(title: 'ספר ב', path: '/pdf/b.pdf'),
+        ]);
+        await secondRequested.future;
+        await provider.loadAllData();
+        secondInfo.complete();
+        final result = await adding;
+
+        expect(result, (added: 2, failed: 0));
+        expect(persistedPdfBooks(), hasLength(2));
+        expect(pdfBooks(provider).keys, containsAll(['ספר א', 'ספר ב']));
+
+        final reloaded = buildProvider();
+        addTearDown(reloaded.dispose);
+        await reloaded.loadAllData();
+        expect(pdfBooks(reloaded).keys, containsAll(['ספר א', 'ספר ב']));
+      },
+    );
   });
 }
 
