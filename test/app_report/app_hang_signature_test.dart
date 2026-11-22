@@ -92,6 +92,26 @@ void main() {
     expect(a.frames.first, startsWith('app.so+0x1922320 '));
   });
 
+  test('הקשר ומחסנית של תהליכון נוסף אינם משנים את החתימה', () {
+    const title =
+        '=== App hang 2026-10-30T02:00:00Z ===\n'
+        'Message: AppHang: UI thread not responding\n';
+    const stack =
+        'Stack (module+RVA):\n'
+        '  USER32.dll+0x152e6\n'
+        '  otzaria.exe+0x13144\n';
+    final before = parseErrorLogBlocks('$title$stack').single;
+    final after = parseErrorLogBlocks(
+      '${title}Context: screen=reading; tabs=4; tab=pdf; semantics=on\n'
+      'UI thread CPU: 0ms in 250ms\n'
+      '$stack--- Thread 42 "tokio-runtime-worker", CPU 15ms (0ms in last 250ms), '
+      '0 more with this stack, in loader ---\n'
+      'Stack (module+RVA):\n'
+      '  ntdll.dll+0xcafe\n',
+    ).single;
+    expect(after.signature.hash, before.signature.hash);
+  });
+
   group('מחסנית עמוקה: ראש, שורת השמטה ותחתית', () {
     String record(List<String> frames) =>
         '=== App hang 2026-10-30T02:00:00Z ===\n'

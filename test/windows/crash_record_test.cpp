@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <string>
 
@@ -26,6 +29,7 @@ BOOL WINAPI TestWriteFile(HANDLE file, LPCVOID data, DWORD length,
 #include "../../windows/runner/startup_watchdog.cpp"
 #undef WriteFile
 #include "../../windows/runner/crash_record.cpp"
+#include "../../windows/runner/hang_monitor.cpp"
 
 void Require(bool condition, const char* message) {
   if (condition) return;
@@ -58,6 +62,116 @@ bool ImportsCrt(HMODULE module) {
 using Callback = HRESULT (*)(PVOID, const PWER_RUNTIME_EXCEPTION_INFORMATION,
                             BOOL*, PWSTR, PDWORD, PDWORD);
 
+DWORD WINAPI WaitInNativeWorker(LPVOID event) {
+  WaitForSingleObject(static_cast<HANDLE>(event), INFINITE);
+  return 0;
+}
+
+std::string ReadLog(const std::wstring& path) {
+  std::ifstream record(std::filesystem::path(path), std::ios::binary);
+  return std::string(std::istreambuf_iterator<char>(record), {});
+}
+
+void TestLoaderPriority() {
+#if defined(_M_X64)
+  hang_monitor::LoadLoaderEntries();
+  Require(hang_monitor::LoaderProbeReady(), "Loader exports must be available");
+  const auto load = hang_monitor::g_loader_entries.front();
+  Require(load.address != 0 && hang_monitor::IsLoaderFrame(load.address),
+          "LdrLoadDll must be recognized even if the export lacks unwind data");
+  if (load.function_begin != 0) {
+    Require(hang_monitor::IsLoaderFrame(load.address + 1),
+            "LdrLoadDll must be recognized from a program counter in its body");
+  }
+  // משתמשים בכתובת מתוך טבלת החריגות, גם כשה-linker מחזיר thunk לסמל.
+  const auto image = reinterpret_cast<ULONG_PTR>(GetModuleHandleW(nullptr));
+  const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
+  const auto* nt =
+      reinterpret_cast<const IMAGE_NT_HEADERS*>(image + dos->e_lfanew);
+  const auto& directory =
+      nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+  const auto* unwind_entries =
+      reinterpret_cast<const RUNTIME_FUNCTION*>(image + directory.VirtualAddress);
+  bool checked_unwind = false;
+  for (size_t i = 0; i < directory.Size / sizeof(*unwind_entries); ++i) {
+    if (unwind_entries[i].EndAddress - unwind_entries[i].BeginAddress <= 1) continue;
+    const ULONG_PTR pc = image + unwind_entries[i].BeginAddress + 1;
+    DWORD64 lookup_image = 0;
+    const auto* function = RtlLookupFunctionEntry(pc, &lookup_image, nullptr);
+    if (function == nullptr || lookup_image != image) continue;
+    const auto* unwind = reinterpret_cast<const BYTE*>(image + function->UnwindData);
+    if (((unwind[0] >> 3) & UNW_FLAG_CHAININFO) != 0) continue;
+    Require(hang_monitor::FunctionBegin(pc, image) ==
+                image + function->BeginAddress,
+            "The guarded lookup must resolve an interior PC with unwind data");
+    checked_unwind = true;
+    break;
+  }
+  Require(checked_unwind, "The fixture must exercise a real x64 unwind entry");
+#endif
+  hang_monitor::ThreadCapture crowded;
+  for (size_t i = 0; i < hang_monitor::kMaxPeerStacks + 1; ++i) {
+    auto& thread = crowded.threads.emplace_back();
+    thread.id = static_cast<DWORD>(1 + i);
+    thread.frames.push_back(0x1234);
+  }
+  crowded.threads.back().in_loader = true;
+  hang_monitor::LimitPeerStacks(&crowded);
+  Require(crowded.threads.size() == hang_monitor::kMaxPeerStacks &&
+              crowded.threads.front().in_loader && crowded.omitted == 1,
+          "An idle loader thread must survive the stack limit");
+  std::string details;
+  std::vector<ULONG_PTR> frames;
+  hang_monitor::AppendOtherThreads(crowded, 128, &details, &frames);
+  Require(details.find("in loader") != std::string::npos && frames.size() == 1,
+          "The loader stack must be written first when the log budget is tight");
+}
+
+void TestNativePeerCapture() {
+  const HWND window = CreateWindowW(L"STATIC", L"", WS_POPUP, 0, 0, 1, 1,
+                                    nullptr, nullptr, nullptr, nullptr);
+  Require(window != nullptr, "Cannot create the fixture's UI window");
+  const HANDLE release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  Require(release != nullptr, "Cannot create the native worker event");
+  DWORD worker_id = 0;
+  const HANDLE worker =
+      CreateThread(nullptr, 0, WaitInNativeWorker, release, 0, &worker_id);
+  Require(worker != nullptr, "Cannot start the native worker");
+  Require(SUCCEEDED(SetThreadDescription(worker, L"tokio-runtime-worker\npeer")),
+          "Cannot name the native worker");
+  hang_monitor::LoadThreadNameReader();
+  hang_monitor::SetMainWindow(window);
+  hang_monitor::g_stop_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  Require(hang_monitor::g_stop_event != nullptr, "Cannot create the stop event");
+
+  hang_monitor::ThreadCapture capture;
+  std::thread inspector([&] { capture = hang_monitor::CaptureOtherThreads(false); });
+  inspector.join();
+  SetEvent(release);
+  Require(WaitForSingleObject(worker, 5000) == WAIT_OBJECT_0,
+          "The inspected native thread must resume");
+  CloseHandle(worker);
+  CloseHandle(release);
+  hang_monitor::Stop();
+  hang_monitor::SetMainWindow(nullptr);
+  DestroyWindow(window);
+
+  Require(capture.ui_cpu_ms && *capture.ui_cpu_ms < hang_monitor::kLowUiCpuMs,
+          "The sleeping UI thread must be classified as low CPU");
+  const auto worker_stack = std::find_if(
+      capture.threads.begin(), capture.threads.end(),
+      [&](const hang_monitor::OtherThread& thread) { return thread.id == worker_id; });
+  Require(worker_stack != capture.threads.end() && !worker_stack->frames.empty(),
+          "A later hang must include a native peer when the UI is waiting");
+  Require(worker_stack->name == "tokio-runtime-worker peer",
+          "Native thread names survive with line breaks removed");
+  std::vector<ULONG_PTR> described;
+  std::string details;
+  Require(hang_monitor::AppendOtherThreads(capture, 0, &details, &described) == 0 &&
+              described.empty() && details.find("omitted") != std::string::npos,
+          "A full log budget must omit peer stacks");
+}
+
 int wmain(int argc, wchar_t** argv) {
   Require(argc == 2, "Pass the built WER DLL path");
   HMODULE module = LoadLibraryW(argv[1]);
@@ -82,6 +196,8 @@ int wmain(int argc, wchar_t** argv) {
   crash_record::g_wer.magic = CrashWerContext::kMagic;
   crash_record::g_wer.size = sizeof(CrashWerContext);
   wcscpy_s(crash_record::g_wer.log_path, log.c_str());
+  // Equivalent to the Dart encoder for the reading screen, 4 tabs, PDF, Semantics on.
+  OtzariaSetIncidentContext(3u | (2u << 4) | (1u << 8) | (4u << 9));
   crash_record::g_main_thread_id = GetCurrentThreadId();
   crash_record::g_crash_thread_id = GetCurrentThreadId();
   crash_record::g_record.ExceptionCode = EXCEPTION_ACCESS_VIOLATION;
@@ -99,6 +215,8 @@ int wmain(int argc, wchar_t** argv) {
   info.exceptionRecord = crash_record::g_record;
   RtlCaptureContext(&info.context);
 
+  constexpr char kContextLine[] =
+      "Context: screen=reading; tabs=4; tab=pdf; semantics=on";
   for (int scenario = 0; scenario < 4; ++scenario) {
     const bool locked = scenario == 0;
     write_mode = scenario == 1 ? WriteMode::failed
@@ -125,9 +243,27 @@ int wmain(int argc, wchar_t** argv) {
     const auto after = std::filesystem::file_size(log);
     Require(complete ? after == before && after > 0 : after > before,
             "WER must retry a failed/partial write and skip a complete one");
+    const std::string record = ReadLog(log);
+    Require(record.find(kContextLine, complete ? 0 : before) != std::string::npos,
+            "The process writer and the WER fallback must both include context");
     std::cout << "scenario=" << scenario << " recorded=" << complete
               << " bytes=" << before << "->" << after << std::endl;
   }
+  CrashWerContext legacy = {};
+  memcpy(&legacy, &crash_record::g_wer, kLegacyCrashWerContextSize);
+  legacy.size = static_cast<DWORD>(kLegacyCrashWerContextSize);
+  legacy.recorded = 0;
+  const auto legacy_start = std::filesystem::file_size(log);
+  BOOL claimed = TRUE;
+  Require(callback(&legacy, &info, &claimed, nullptr, nullptr, nullptr) == S_OK &&
+              !claimed,
+          "The new WER DLL must accept the previous context layout");
+  const std::string legacy_record = ReadLog(log).substr(legacy_start);
+  Require(!legacy_record.empty() &&
+              legacy_record.find(kContextLine) == std::string::npos,
+          "A legacy runner must produce a report without the optional word");
+  TestLoaderPriority();
+  TestNativePeerCapture();
   CloseHandle(crash_record::g_crash_event);
   CloseHandle(crash_record::g_done_event);
   FreeLibrary(module);

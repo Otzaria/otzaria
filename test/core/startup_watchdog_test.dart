@@ -50,7 +50,9 @@ void main() {
 
     expect(
       source,
-      contains('return CaptureSuspendedStack(g_main_thread, frames);'),
+      contains(
+        'return CaptureSuspendedStack(g_main_thread, frames, kMaxFrames);',
+      ),
     );
     // בזמן ההשהיה רק syscalls ו-memcpy; פרישה ותרגום נוטלים נעילות.
     final captureStart = source.indexOf('bool CaptureSuspendedStack(HANDLE');
@@ -130,8 +132,11 @@ void main() {
       source.indexOf('std::string DescribeAddress('),
     );
     expect(pdbLines, contains('"Module PDB: "'));
-    expect(pdbLines, contains('GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT'));
-    expect(pdbLines, contains('DartImageBase(frame) != 0'));
+    expect(pdbLines, contains('::VirtualQuery('));
+    expect(pdbLines, contains('info.Type != MEM_IMAGE'));
+    expect(pdbLines, contains('::GetMappedFileNameW('));
+    expect(pdbLines, isNot(contains('::GetModuleHandle')));
+    expect(pdbLines, isNot(contains('::GetModuleFileNameW(')));
     final stall = source.substring(source.indexOf('void ReportStall('));
     expect(
       stall.indexOf('AppendBuildIdentitySection(frames, &report);'),
@@ -227,7 +232,8 @@ void main() {
       expect(
         watcher,
         contains(
-          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake);',
+          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake,'
+          '\n               &thread_bytes_left);',
         ),
       );
       expect(

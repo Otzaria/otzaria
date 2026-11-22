@@ -64,6 +64,7 @@ windows/runner/*
 !windows/runner/crash_wer.cpp
 !windows/runner/crash_wer.def
 !windows/runner/crash_wer_context.h
+!windows/runner/incident_context.h
 !windows/runner/image_identity.cpp
 !windows/runner/image_identity.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה

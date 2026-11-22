@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
+import 'package:otzaria/core/diagnostics/native_incident_context.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:path/path.dart' as p;
@@ -119,9 +121,15 @@ class SessionContextSnapshot {
     }
   }
 
-  static Map<String, Object?> _defaultCapture() => {
-    'context':
-        DeveloperDiagnostics.instance.contextProvider?.call() ?? const {},
-    'searches': ActiveLexicalSearches.instance.collect(),
-  };
+  static Map<String, Object?> _defaultCapture() {
+    final context =
+        DeveloperDiagnostics.instance.contextProvider?.call() ?? const {};
+    final semanticsEnabled = SemanticsBinding.instance.semanticsEnabled;
+    NativeIncidentContext.update(context, semanticsEnabled);
+    return {
+      'context': context,
+      'searches': ActiveLexicalSearches.instance.collect(),
+      'accessibility': {'semanticsEnabled': semanticsEnabled},
+    };
+  }
 }

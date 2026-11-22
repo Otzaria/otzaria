@@ -26,7 +26,8 @@ void Stop();
 // הראשי חי עד Stop, ולכן יש לעצור את hang_monitor לפניו.
 bool CaptureMainStack(std::vector<ULONG_PTR>* frames);
 // כמו CaptureMainStack ל-thread אחר; ה-handle צריך SUSPEND_RESUME ו-GET_CONTEXT.
-bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames);
+bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames,
+                        size_t frame_limit);
 // קורא זיכרון ומפת מודולים — רק אחרי שה-thread חודש.
 bool IsDartFrame(ULONG_PTR address);
 
