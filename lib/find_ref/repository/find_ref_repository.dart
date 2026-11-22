@@ -1545,7 +1545,7 @@ class FindRefRepository {
   })?
   _parseQuery(String rawRef) {
     // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
-    final ref = expandQueryAmudMarks(rawRef);
+    final ref = expandQueryLocatorAbbreviations(expandQueryAmudMarks(rawRef));
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) return null;
     final tokens = _tokenize(cleanedQuery);
@@ -1702,6 +1702,15 @@ class FindRefRepository {
         secondaryPhraseTokenCount[hit] = 1;
       }
     }
+
+    // התאמה מקורבת לספר שזוהה גם במילים בולעת את הזנב ("חזוא טהרות טהרות").
+    final exactBooks = {for (final hit in bookHits) (hit.bookId, hit.filePath)};
+    secondaryHits.removeWhere(
+      (hit) =>
+          bookQueryTokenCount > 1 &&
+          hit.matchRank == ReferenceBooksCache.fuzzyMatchRank &&
+          exactBooks.contains((hit.bookId, hit.filePath)),
+    );
 
     // ה-secondary בסוף, כך שיופיעו אחרי ה-primary בדירוג — גם כשאין primary.
     if (secondaryHits.isNotEmpty) {
@@ -3663,9 +3672,11 @@ class FindRefRepository {
     int prefixMatchTokensCount = 0,
   }) {
     final remaining = List<String>.from(queryTokens);
+    final stripped = <String>[];
 
     if (stripLeadingTokensCount > 0) {
       final toRemove = stripLeadingTokensCount.clamp(0, remaining.length);
+      stripped.addAll(remaining.take(toRemove));
       remaining.removeRange(0, toRemove);
     }
 
@@ -3675,6 +3686,8 @@ class FindRefRepository {
 
     for (var ti = 0; ti < titleTokens.length; ti++) {
       final token = titleTokens[ti];
+      // מילת כותרת שהכינוי כבר בלע ("חזוא טהרות") אינה בולעת שוב את הזנב.
+      if (stripped.remove(token)) continue;
       var idx = remaining.indexOf(token);
       // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו
       // [titleTokenWithoutConjunction].

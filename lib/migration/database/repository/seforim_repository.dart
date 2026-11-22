@@ -2245,6 +2245,20 @@ extension BookAcronymRepository on SeforimRepository {
     // חיפוש היררכי: יורד רמה-אחר-רמה עם תמיכה בטרנספוזיציית אותיות.
     final (:matches, :complete) = _searchTocHierarchically(cache, queryTokens);
     if (matches.isNotEmpty) {
+      // כותרת שם הספר תואמת מילה שחוזרת על השם ("חזוא טהרות טהרות").
+      if (complete &&
+          matches.length == 1 &&
+          cache.titleHeadingChildren.isNotEmpty &&
+          identical(
+            cache.childrenByParentId[matches.single.id],
+            cache.titleHeadingChildren,
+          )) {
+        final under = [
+          for (final e in _searchUnderTitleHeading(cache, queryTokens))
+            if (!e.ownTokens.every(cache.titleHeadingTokens.contains)) e,
+        ];
+        if (under.isNotEmpty) return [for (final e in under) e.toMap()];
+      }
       return [
         for (final e in matches)
           if (complete) e.toMap() else {...e.toMap(), 'partialMatch': true},

@@ -149,6 +149,32 @@ void main() {
     expect(expandQueryAmudMarks('סימן ע"ב'), 'סימן ע"ב');
   });
 
+  // issue #5795
+  test('expandQueryLocatorAbbreviations מרחיב ר"ת של פרק והלכה/משנה', () {
+    expect(
+      expandQueryLocatorAbbreviations('רמבם שבת פ"ב ה"ג'),
+      'רמבם שבת פרק ב הלכה ג',
+    );
+    expect(
+      expandQueryLocatorAbbreviations('משנה כלים פט״ז מ״ג'),
+      'משנה כלים פרק טז משנה ג',
+    );
+    expect(
+      expandQueryLocatorAbbreviations('ירושלמי ברכות ב ה"ג'),
+      'ירושלמי ברכות ב הלכה ג',
+    );
+    // לבדם הם מספרים: מזמור 82, פסוק 43, סימן 63, מגן אברהם.
+    for (final query in [
+      'תהלים פ"ב',
+      'תהלים קיט מ"ג',
+      'שו"ע או"ח ס"ג',
+      'שו"ע או"ח שח מ"א',
+      'ברכות ב מ"ג',
+    ]) {
+      expect(expandQueryLocatorAbbreviations(query), query, reason: query);
+    }
+  });
+
   test('isHebrewNumeral', () {
     for (final n in ['א', 'ב', 'יא', 'טו', 'טז', 'עא', 'קכ', 'קכא', 'תת']) {
       expect(isHebrewNumeral(n), isTrue, reason: n);
