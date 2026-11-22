@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -10,6 +12,7 @@ class PdfTextSelectionActions {
   final bool Function() isActive;
   int _generation = 0;
   ({String text, bool Function() selectionIsCurrent})? _snapshot;
+  StreamSubscription<PdfDocumentEvent>? _snapshotEvents;
 
   String? get selectedTextSnapshot {
     discardStaleSnapshot();
@@ -17,10 +20,14 @@ class PdfTextSelectionActions {
   }
 
   void discardStaleSnapshot() {
-    if (_snapshot?.selectionIsCurrent() == false) _snapshot = null;
+    if (_snapshot?.selectionIsCurrent() == false) releaseSelectedTextSnapshot();
   }
 
-  void releaseSelectedTextSnapshot() => _snapshot = null;
+  void releaseSelectedTextSnapshot() {
+    _snapshot = null;
+    unawaited(_snapshotEvents?.cancel());
+    _snapshotEvents = null;
+  }
 
   void cancel() => _generation++;
 
@@ -202,7 +209,13 @@ class PdfTextSelectionActions {
     }
     final text = result.toString();
     if (complete) {
+      releaseSelectedTextSnapshot();
       _snapshot = (text: text, selectionIsCurrent: selectionIsCurrent);
+      // ניקוי בחירה בעקבות אירועי מסמך אינו תמיד מפעיל onTextSelectionChange.
+      _snapshotEvents = document.events.listen(
+        (_) => discardStaleSnapshot(),
+        onDone: releaseSelectedTextSnapshot,
+      );
     }
     return text;
   }

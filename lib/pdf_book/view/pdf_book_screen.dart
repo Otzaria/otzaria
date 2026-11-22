@@ -1514,6 +1514,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             if (mounted) setState(() {});
           });
         }
+        _pdfTextSelectionActions.releaseSelectedTextSnapshot();
         _pdfTextSelectionActions.cancel();
         if (!mounted) return;
         _pageTurnController.stop(canceled: false);
@@ -3946,6 +3947,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.personalNoteNavigationRequests.removeListener(
       _onPersonalNoteNavigationRequested,
     );
+    _pdfTextSelectionActions.releaseSelectedTextSnapshot();
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _nextFitIsPage.dispose();
