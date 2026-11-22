@@ -152,6 +152,30 @@ void main() {
       expect(created, 1);
     });
 
+    test('עדכון בלי wrap נוגע רק בתוספות ובקבוצה האחרונה', () {
+      final initial = List.generate(1000, (i) => _match(i + 1));
+      final results = PdfSearchResultList<_Result>(_Result.new);
+      results.update(initial, generation: 1);
+      final last = results.last;
+
+      final unchanged = _CountedMatches(initial);
+      results.update(unchanged, generation: 1);
+      expect(unchanged.reads, lessThan(10));
+
+      final appended = _CountedMatches([
+        ...initial,
+        _match(1000),
+        _match(1001),
+      ]);
+      results.update(appended, generation: 1);
+      expect(appended.reads, lessThan(30));
+      expect(results[999], same(last));
+      expect(results.groupedItems[1998], 1000);
+      expect(results.groupedItems[2000], same(results[1000]));
+      expect(results.groupedItems[2001], 1001);
+      expect(results.visualIndexForPage(1001), 2001);
+    });
+
     test('wrap והוספה באמצע שומרים אובייקטים ומעדכנים ניווט וקיבוץ', () {
       var created = 0;
       final results = PdfSearchResultList<_Result>((match, id) {
@@ -264,6 +288,22 @@ void main() {
       expect(() => results.groupedItems[2], throwsRangeError);
     });
   });
+}
+
+class _CountedMatches extends Fake implements List<PdfTextSearchResult> {
+  _CountedMatches(this.matches);
+
+  final List<PdfTextSearchResult> matches;
+  int reads = 0;
+
+  @override
+  int get length => matches.length;
+
+  @override
+  PdfTextSearchResult operator [](int index) {
+    reads++;
+    return matches[index];
+  }
 }
 
 class _Result {
