@@ -1368,23 +1368,27 @@ void _workerMain(_Bootstrap bootstrap) {
         title,
         queryTokens: (book['queryTokens'] as List).cast<String>(),
       );
-      if (toc.isEmpty && fallback != null) {
+      final tocFellBack = toc.isEmpty && fallback != null;
+      if (tocFellBack) {
         toc = await repo.getTocEntriesForReference(
           bookId,
           title,
           queryTokens: fallback,
         );
       }
-      progress.out.add({
-        'toc': toc,
-        'altToc': altTokens == null
-            ? const <Map<String, dynamic>>[]
-            : await repo.getAltTocEntriesForReference(
-                bookId,
-                title,
-                queryTokens: altTokens,
-              ),
-      });
+      var altToc = const <Map<String, dynamic>>[];
+      for (final tokens in [
+        altTokens,
+        if (altTokens != null && tocFellBack) fallback,
+      ]) {
+        if (tokens == null || altToc.isNotEmpty) continue;
+        altToc = await repo.getAltTocEntriesForReference(
+          bookId,
+          title,
+          queryTokens: tokens,
+        );
+      }
+      progress.out.add({'toc': toc, 'altToc': altToc});
     }
     return progress.out.length >= books.length;
   }

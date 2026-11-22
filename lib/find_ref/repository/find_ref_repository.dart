@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math' show Random;
+import 'dart:math' show Random, min;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
@@ -1911,10 +1911,19 @@ class FindRefRepository {
       remainingByHit: remainingByHit,
     );
     final plans = await _planTocLookups(search, bookHits, remainingByHit);
+    final tocResponses = plans.requests.isEmpty
+        ? const <TocBatchResult>[]
+        : await _awaitCurrent(_fetchTocBatch(repository, plans.requests));
     final exactLines = await _awaitCurrent(
       _resolveExactLines(
         bookHits,
         remainingByHit,
+        namedSectionBookIds: {
+          for (var i = 0; i < bookHits.length; i++)
+            if (plans.plans[i].requestIndex case final index?)
+              if (_tocNamesSection(bookHits[i], tocResponses[index].toc))
+                bookHits[i].bookId,
+        },
         // זנב הדיבור כבר נחתך מהטוקנים, וספירת טווח מול השאילתה הגולמית
         // הייתה מודדת אותו.
         tokensAfterRange: search.isDibburQuery
@@ -1922,9 +1931,6 @@ class FindRefRepository {
             : _tokensAfterRange(search.rawQuery, queryTokens),
       ),
     );
-    final tocResponses = plans.requests.isEmpty
-        ? const <TocBatchResult>[]
-        : await _awaitCurrent(_fetchTocBatch(repository, plans.requests));
 
     // התוצאות, בסדר הספרים.
     final results = <DbReferenceResult>[];
@@ -2046,9 +2052,13 @@ class FindRefRepository {
           bookTitle: hit.title,
           queryTokens: [...sectionTokens, ...remainingTokens],
           fallbackTokens: sectionTokens.isEmpty ? null : remainingTokens,
+          // "טור חומ לג ב": סעיף ב בחלק חושן משפט בלבד; הנסיגה כמו ב-TOC.
           altTocTokens: altBookIds != null && !altBookIds.contains(hit.bookId)
               ? null
-              : remainingTokens,
+              : [
+                  ..._spelledOutSection(hit.bookId, sectionTokens),
+                  ...remainingTokens,
+                ],
         ));
       }
     }
@@ -2302,7 +2312,8 @@ class FindRefRepository {
         ),
       );
       final fallback = book.fallbackTokens;
-      if (toc.isEmpty && fallback != null) {
+      final tocFellBack = toc.isEmpty && fallback != null;
+      if (tocFellBack) {
         toc = await _awaitCurrent(
           _fetchTocEntries(
             repository,
@@ -2313,19 +2324,22 @@ class FindRefRepository {
         );
       }
       final altTokens = book.altTocTokens;
-      out.add((
-        toc: toc,
-        altToc: altTokens == null
-            ? const <Map<String, dynamic>>[]
-            : await _awaitCurrent(
-                _fetchAltTocEntries(
-                  repository,
-                  book.bookId,
-                  book.bookTitle,
-                  queryTokens: altTokens,
-                ),
-              ),
-      ));
+      var altToc = const <Map<String, dynamic>>[];
+      for (final tokens in [
+        altTokens,
+        if (altTokens != null && tocFellBack) fallback,
+      ]) {
+        if (tokens == null || altToc.isNotEmpty) continue;
+        altToc = await _awaitCurrent(
+          _fetchAltTocEntries(
+            repository,
+            book.bookId,
+            book.bookTitle,
+            queryTokens: tokens,
+          ),
+        );
+      }
+      out.add((toc: toc, altToc: altToc));
     }
     return out;
   }
@@ -3366,6 +3380,29 @@ class FindRefRepository {
     return section;
   }
 
+  /// האם זנב הכינוי ("טור יוד") הוא חלק שנמצא בתוכן העניינים, ולא סתם המשך
+  /// השם ("חזקוני על התורה").
+  bool _tocNamesSection(ReferenceBookHit hit, List<Map<String, dynamic>> toc) {
+    final section = _spelledOutSection(hit.bookId, _acronymSectionTokens(hit));
+    if (section.isEmpty) return false;
+    for (final entry in toc) {
+      final words = _tokenize(_normalizeForMatch(entry['reference'] as String));
+      for (var i = 0; i < words.length; i++) {
+        for (var n = 2; section.length == 1 && n <= 3; n++) {
+          final window = words.sublist(i, min(i + n, words.length));
+          if (hebrewAbbreviationMatchesWords(section.single, window)) {
+            return true;
+          }
+        }
+        if (i + section.length <= words.length &&
+            listEquals(words.sublist(i, i + section.length), section)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /// מזהה שאילתת דיבור-המתחיל: סמן ד"ה אחרי שם הספר, ואחריו לפחות מילה אחת.
   /// מחזיר את ראש השאילתה (שם הספר וציון פנימי) ואת טקסט הדיבור.
   @visibleForTesting
@@ -3456,6 +3493,7 @@ class FindRefRepository {
     List<ReferenceBookHit> bookHits,
     Map<ReferenceBookHit, List<String>> remainingByHit, {
     int tokensAfterRange = 0,
+    Set<int> namedSectionBookIds = const {},
   }) async {
     final resolve = resolveLineRefs;
     if (resolve == null) return const {};
@@ -3510,13 +3548,14 @@ class FindRefRepository {
     }
 
     // שם החלק הושמט ("טור שט ג"): ההפניה עשויה להתקיים בכמה חלקים, וכל אחד
-    // מוצע. רק לספרים שהמפתח המלא לא פתר.
+    // מוצע. רק לספרים שהמפתח המלא לא פתר, ולא כשהשאילתה נקבה בחלק ("טור יוד").
     final resolvePartial = resolvePartialLineRefs;
     if (resolvePartial != null) {
       for (final entry in bookIdsByKey.entries) {
         final unresolved = [
           for (final id in entry.value)
-            if (!resolved.containsKey(id)) id,
+            if (!resolved.containsKey(id) && !namedSectionBookIds.contains(id))
+              id,
         ];
         if (unresolved.isEmpty) continue;
         final partialKey = buildPartialRefKey(entry.key)!;

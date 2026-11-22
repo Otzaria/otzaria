@@ -34,12 +34,17 @@ void main() {
   };
 
   late List<({List<int> bookIds, String refKey})> lookups;
+  late List<List<String>> altTocQueries;
 
   FindRefRepository buildRepo({
     bool withIndex = true,
     bool withPartialKeys = true,
     Future<String> Function(int bookId)? getCategoryPath,
+    List<String> altToc = const [],
+    String tocLocation = 'לב',
+    List<int>? altStructureBookIds,
   }) {
+    altTocQueries = [];
     lookups = [];
     return FindRefRepository(
       dataRepository: MockDataRepository(),
@@ -71,14 +76,26 @@ void main() {
               orderIndex: entry.key.toDouble(),
             ),
       ],
+      getAltStructureBookIds: altStructureBookIds == null
+          ? null
+          : () async => altStructureBookIds,
       getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async => [
-        {
-          'reference': '$bookTitle לב',
-          'segment': 600,
-          'level': 2,
-          'dbLineId': 1,
-        },
+        if (tocLocation.isNotEmpty)
+          {
+            'reference': '$bookTitle $tocLocation',
+            'segment': 600,
+            'level': 2,
+            'dbLineId': 1,
+          },
       ],
+      getAltTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+        altTocQueries.add(queryTokens!);
+        return [
+          for (final ref in altToc)
+            if (queryTokens.every(ref.split(' ').contains))
+              {'reference': ref, 'segment': 900, 'level': 2, 'dbLineId': 9},
+        ];
+      },
       resolvePartialLineRefs: !withIndex || !withPartialKeys
           ? null
           : (bookIds, partialKey) async => {
@@ -239,6 +256,55 @@ void main() {
       results.where((r) => r.isSourceLine).map((r) => r.segment),
       unorderedEquals([7000, 7100]),
     );
+  });
+
+  // issue #5748 — "טור יורה דעה קפד ג" הגיע לשורה "חושן משפט, קפד, ג".
+  test('חלק שנקוב בשאילתה ("טור חומ שי ב") אינו מוצע בחלק אחר', () async {
+    AcronymsCache.instance.setAcronymsForTesting({
+      380: ['טור חומ', 'טור חושן משפט'],
+    });
+    addTearDown(() => AcronymsCache.instance.setAcronymsForTesting({}));
+
+    final results = await buildRepo(
+      tocLocation: 'חושן משפט סימן שי',
+    ).findRefs('טור חומ שי ב');
+
+    expect(results, isNotEmpty);
+    expect(results.where((r) => r.isSourceLine), isEmpty);
+  });
+
+  test('זנב כינוי שאינו בתוכן העניינים אינו חוסם את השורה החלקית', () async {
+    AcronymsCache.instance.setAcronymsForTesting({
+      380: ['טור חומ', 'טור חושן משפט'],
+    });
+    addTearDown(() => AcronymsCache.instance.setAcronymsForTesting({}));
+
+    final results = await buildRepo().findRefs('טור חומ שי ב');
+
+    expect(results.where((r) => r.isSourceLine), isNotEmpty);
+  });
+
+  test('סעיף מתוכן העניינים החלופי רק בחלק שנקוב בשאילתה', () async {
+    final results = await buildRepo(
+      altToc: [
+        'חושן משפט סימן לג סעיף ב',
+        'יורה דעה סימן לג סעיף ב',
+      ],
+    ).findRefs('טור חושן משפט לג ב');
+
+    expect(altTocQueries.first, ['חושן', 'משפט', 'לג', 'ב']);
+    expect(results.where((r) => r.isAltToc).map((r) => r.reference), [
+      'טור חושן משפט סימן לג סעיף ב',
+    ]);
+  });
+
+  test('נסיגת תוכן העניינים מדלגת על ספר בלי מבנה AltToc', () async {
+    await buildRepo(
+      tocLocation: '',
+      altStructureBookIds: [],
+    ).findRefs('טור חושן משפט לג ב');
+
+    expect(altTocQueries, isEmpty);
   });
 
   test('מסד בלי מפתחות חלקיים נשאר ברמת ה-TOC', () async {
