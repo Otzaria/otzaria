@@ -264,6 +264,8 @@ class TogglePinLeftPane extends TextBookEvent {
 
 class UpdateSearchText extends TextBookEvent {
   final String text;
+
+  /// זהות חלונית החיפוש. חיפוש חיצוני מקבל זהות חדשה לכל אירוע.
   final Object? textSource;
   final Map<String, Map<String, bool>>? searchOptions;
   final Map<int, List<String>>? alternativeWords;

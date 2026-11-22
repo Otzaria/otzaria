@@ -766,6 +766,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) async {
     TextBook book;
     String searchText;
+    Object? searchTextSource;
     String highlightText = '';
     int? permanentHighlightLine;
     Map<String, Map<String, bool>> searchOptions = {};
@@ -797,6 +798,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       book = currentState.book;
       searchText = currentState.searchText;
+      searchTextSource = currentState.searchTextSource;
       highlightText = currentState.highlightText;
       permanentHighlightLine = currentState.permanentHighlightLine;
       searchOptions = currentState.searchOptions;
@@ -1122,6 +1124,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ((Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
                 initialShowLeftPane),
         searchText: searchText,
+        searchTextSource: searchTextSource,
         searchOptions: searchOptions,
         alternativeWords: alternativeWords,
         spacingValues: spacingValues,
@@ -2152,7 +2155,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       emit(
         currentState.copyWith(
           searchText: event.text,
-          searchTextSource: event.textSource,
+          searchTextSource: event.textSource ?? Object(),
           searchOptions: event.searchOptions,
           alternativeWords: event.alternativeWords,
           spacingValues: event.spacingValues,
