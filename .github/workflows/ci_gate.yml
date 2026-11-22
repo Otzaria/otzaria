@@ -32,9 +32,12 @@ jobs:
           decide() { echo "run=$1" >> "$GITHUB_OUTPUT"; echo "run=$1: $2"; exit 0; }
           # תקלת API רגעית (504, timeout) לא תכשיל את השער או תדלג על ה-CI.
           retry() {
-            local attempt
+            local attempt output
             for attempt in 1 2 3; do
-              "$@" && return 0
+              if output=$("$@"); then
+                printf '%s\n' "$output"
+                return 0
+              fi
               [ "$attempt" = 3 ] || sleep $((attempt * 10))
             done
             return 1
