@@ -588,16 +588,15 @@ void main() {
         expect(body.pixels, greaterThan(0));
         expect(header.pixels, 0);
         expect(tester.getTopLeft(scrollables.first), headerTop);
-        expect(header.maxScrollExtent, greaterThan(0));
-        header.jumpTo(header.maxScrollExtent);
-        await pumpFrames(tester);
-        expect(tester.takeException(), isNull);
+        // הכותרת מוגבלת לשתי שורות (issue #5742), ולכן אינה גולשת.
+        expect(header.maxScrollExtent, 0);
         final title = find.descendant(
           of: scrollables.first,
           matching: find.byType(Text),
         );
         expect(title, findsOneWidget);
         expect(tester.widget<Text>(title).data, contains(longTitle));
+        expect(tester.widget<Text>(title).maxLines, 2);
         final headerBounds = tester.getRect(scrollables.first);
         final textBounds = tester.getRect(title);
         expect(
