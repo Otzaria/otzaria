@@ -123,6 +123,7 @@ void main() {
         final image = await page.render(
           fullWidth: page.width,
           fullHeight: page.height,
+          backgroundColor: 0x00000000,
         );
         expect(image, isNotNull);
         try {
