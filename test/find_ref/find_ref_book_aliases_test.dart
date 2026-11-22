@@ -136,6 +136,79 @@ void main() {
     });
   });
 
+  test('כותרת מדויקת בלי "על" קודמת לכתיב חלופי של ספר אחר (#5710)', () async {
+    const kilayim = (
+      id: 557,
+      title: 'רמב"ם על משנה כלאים',
+      acronyms: ['רמב"ם משנה כלאים'],
+    );
+    const kelim = (
+      id: 558,
+      title: 'רמב"ם על משנה כלים',
+      acronyms: ['ספר רמבם כלים', 'כלים לרמבם'],
+    );
+    final titles = await titlesFor('רמבם משנה כלים', const [kilayim, kelim]);
+
+    expect(titles.first, kelim.title);
+  });
+
+  group('מילה אחרונה קטועה בהקלדה (#5721)', () {
+    const nimukeiBavaKamma = (
+      id: 2379,
+      title: 'נימוקי יוסף על בבא קמא',
+      acronyms: ['נימוקי יוסף בבא קמא', 'נימוקי יוסף על בק'],
+    );
+    const nimukeiBavaBatra = (
+      id: 2382,
+      title: 'נימוקי יוסף על בבא בתרא',
+      acronyms: ['נימוקי יוסף בבא בתרא', 'נימוקי יוסף על בב'],
+    );
+    for (final query in [
+      'נימוקי יוסף בבא ק',
+      'נימוקי יוסף בבא קמ',
+      'נימוקי יוסף על בבא ק',
+    ]) {
+      test('"$query" — נימוקי יוסף על בבא קמא', () async {
+        final titles = await titlesFor(query, const [
+          nimukeiBavaBatra,
+          nimukeiBavaKamma,
+        ]);
+        expect(titles, [nimukeiBavaKamma.title]);
+      });
+    }
+
+    test('נימוקי יוסף בב מציע את בבא קמא אחרי הכינוי המדויק', () async {
+      final titles = await titlesFor('נימוקי יוסף בב', const [
+        nimukeiBavaKamma,
+        nimukeiBavaBatra,
+      ]);
+
+      expect(titles, [nimukeiBavaBatra.title, nimukeiBavaKamma.title]);
+    });
+
+    test('מיקום אחרי הכינוי המדויק נשאר הפניה לספר שבו נמצא', () async {
+      seedLibrary(const [nimukeiBavaKamma, nimukeiBavaBatra]);
+      final reference = '${nimukeiBavaBatra.title} דף ג';
+      final results = await buildFindRefRepo(
+        tocEntries: {
+          nimukeiBavaBatra.id: [
+            {'reference': reference, 'segment': 7, 'level': 1},
+          ],
+        },
+      ).findRefs('נימוקי יוסף בב ג');
+
+      expect(results.map((r) => r.reference), [reference]);
+    });
+
+    test('דף שאינו קיים אינו מחזיר ספר ששמו אינו מכיל את המילה', () async {
+      final titles = await titlesFor('נימוקי יוסף בבא ש', const [
+        nimukeiBavaBatra,
+        nimukeiBavaKamma,
+      ]);
+      expect(titles, isEmpty);
+    });
+  });
+
   test('כינוי מילולי של ספר קודם לכותרת בלי מילת קישור של ספר אחר', () async {
     final titles = await titlesFor('רמב"ם שבועות', const [
       (id: 540, title: 'רמב"ם על שבועות', acronyms: <String>[]),

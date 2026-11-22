@@ -1276,6 +1276,43 @@ class FindRefRepository {
     }
 
     final results = await resultsFor(queryTokens, books, detection);
+    final soleResult = results.singleOrNull;
+    // שו"ת/תשובות עוברים קודם בהחלפת הסוגה, שמוצאת את השם המלא.
+    if (queryTokens.length > 1 &&
+        query.dibbur == null &&
+        !_genrePrefixes.contains(query.tokens.first) &&
+        (results.isEmpty ||
+            (soleResult != null &&
+                detection.phraseTokenCount == queryTokens.length &&
+                _isExactAliasBookResult(soleResult, detection)))) {
+      final truncated = _truncatedLastWordHits(books, queryTokens);
+      // "נימוקי יוסף בב": הכינוי לבבא בתרא נשאר ראשון, ואחריו השלמות ל"בב".
+      if (soleResult != null) {
+        truncated.removeWhere(
+          (hit) => !hit.acronymLastWordTruncated || hit.matchesExactAlias,
+        );
+      }
+      if (truncated.isNotEmpty) {
+        final completions = await _awaitCurrent(
+          _enrichWithPaths(
+            _rankResults(
+              [for (final hit in truncated) _bookResult(hit)],
+              queryTokens,
+              bookMatchRanks: _bookMatchRanks((
+                hits: truncated,
+                phraseTokenCount: queryTokens.length,
+                secondaryPhraseTokenCount: const {},
+              ), queryTokens),
+              rawQuery: query.ref,
+            ),
+          ),
+        );
+        return [
+          ...results,
+          ...completions.take(_maxResultCap - results.length),
+        ];
+      }
+    }
     final original = query.tokens;
     if (results.isNotEmpty ||
         original.length < 2 ||
@@ -1325,6 +1362,47 @@ class FindRefRepository {
   }
 
   static const _genrePrefixes = {'שות', 'תשובות'};
+
+  static bool _isExactAliasBookResult(
+    DbReferenceResult result,
+    _BookDetection detection,
+  ) =>
+      result.source.isOfficial &&
+      result.reference == result.title &&
+      result.segment == 0 &&
+      result.sourceLineId == 0 &&
+      !result.isAltToc &&
+      !result.isSourceLine &&
+      !result.isCategoryMatch &&
+      !result.isPartialTocMatch &&
+      detection.hits.any(
+        (hit) =>
+            hit.matchesExactAlias &&
+            hit.bookId == result.bookId &&
+            (hit.bookId > 0 || hit.filePath == result.filePath),
+      );
+
+  /// ספרים שכל מילות השאילתה הן תחיליות רצופות בשמם, למשל "נימוקי יוסף בבא ק".
+  List<ReferenceBookHit> _truncatedLastWordHits(
+    _BookSearch books,
+    List<String> queryTokens,
+  ) {
+    return [
+      // הצירוף שכבר בסריקה המשותפת; ההתאמה לכל השאילתה נבדקת כאן.
+      for (final hit in books.search(
+        queryTokens.take(books.maxPhraseTokens).join(' '),
+        limit: books.bookSearchLimit,
+      ))
+        if (hit.matchRank == 4
+            ? _phraseAppearsAsTokens(
+                bookNameMatchForm(hit.matchedTerm ?? '').split(' '),
+                queryTokens,
+              )
+            : hit.matchRank <= 2 &&
+                  _phraseAppearsAsTokens(hit.titleTokens, queryTokens))
+          hit,
+    ];
+  }
 
   /// הטוקנים המנורמלים של השאילתה; `null` כשלא נשאר בה דבר לחפש.
   ({
@@ -1512,6 +1590,22 @@ class FindRefRepository {
     Map<_BookKey, _BookMatchRank>? into,
   }) {
     final bookMatchRanks = into ?? <_BookKey, _BookMatchRank>{};
+    // שם ואחריו מיקום. כינוי שמשותף לכמה ספרים ("רשב"א") אינו שמו של אחד מהם.
+    final named = <String, Set<_BookKey>>{};
+    if (source.isOfficial && detection.phraseTokenCount < queryTokens.length) {
+      for (final hit in detection.hits) {
+        if (hit.namesBookExactly &&
+            (hit.bookId > 0 || hit.filePath.isNotEmpty) &&
+            !detection.secondaryPhraseTokenCount.containsKey(hit)) {
+          (named[hit.normalizedTitle] ??= {}).add(
+            _bookKey(source, hit.bookId, hit.filePath),
+          );
+        }
+      }
+    }
+    final namedBooks = named.length == 1
+        ? named.values.single
+        : const <_BookKey>{};
     for (final hit in detection.hits) {
       if (hit.bookId > 0 || hit.filePath.isNotEmpty) {
         final key = _bookKey(source, hit.bookId, hit.filePath);
@@ -1542,6 +1636,7 @@ class FindRefRepository {
                     (token) => titleWords.contains(bookNameMatchToken(token)),
                   )) ||
               (previous?.wholeName ?? false),
+          namesBook: namedBooks.contains(key) || (previous?.namesBook ?? false),
         );
       }
     }
@@ -3681,6 +3776,7 @@ class FindRefRepository {
                     r.reference,
                   ))),
           exactAliasMatch: bookMatch?.exactAlias ?? false,
+          namesBook: !r.isPartialTocMatch && (bookMatch?.namesBook ?? false),
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
@@ -3859,7 +3955,12 @@ typedef _UserBooksVersion = ({
 /// ספר בכל מסד: מקור, מזהה, ונתיב הקובץ רק ל-PDF שמחוץ למסד (מזהה שלילי).
 typedef _BookKey = (String source, int bookId, String filePath);
 
-typedef _BookMatchRank = ({int rank, bool exactAlias, bool wholeName});
+typedef _BookMatchRank = ({
+  int rank,
+  bool exactAlias,
+  bool wholeName,
+  bool namesBook,
+});
 
 _BookKey _bookKey(BookSource source, int bookId, String filePath) =>
     (source.wireKey, bookId, bookId > 0 ? '' : filePath);
