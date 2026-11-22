@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
@@ -10,6 +11,7 @@ import 'package:otzaria/tools/biographies/repository/biographies_repository.dart
 import 'package:otzaria/tools/biographies/widgets/biographies_credit_line.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
+import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
 import 'package:otzaria/widgets/layout/tool_scaffold.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
@@ -41,6 +43,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   final ScrollController _eraScroll = ScrollController();
   BiographiesBundle? _bundle;
   Map<String, Biography> _byId = const {};
+  Map<String, List<Book>> _booksByBiography = const {};
   List<Biography> _filteredResults = [];
   String? _era;
   bool _isLoading = true;
@@ -108,6 +111,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       });
       // השדה גלוי גם בטעינה, ומה שהוקלד בה מסנן עכשיו את הרשימה הטעונה.
       _performSearch(_searchController.text);
+      _loadLibraryBooks();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -118,6 +122,30 @@ class _BiographiesScreenState extends State<BiographiesScreen>
     }
     consumeToolQuery();
   }
+
+  /// Works become links to their books once the library has loaded.
+  Future<void> _loadLibraryBooks() async {
+    try {
+      final books = await _repository.libraryBooksByBiography();
+      if (mounted) setState(() => _booksByBiography = books);
+    } catch (e) {
+      debugPrint('[Biographies] library books unavailable: $e');
+    }
+  }
+
+  BiographyCard _card(Biography bio, {Key? key, bool expanded = false}) =>
+      BiographyCard(
+        key: key,
+        biography: bio,
+        canOpen: _byId.containsKey,
+        onOpen: _openEntry,
+        bookForWork: (title) => BiographiesRepository.bookForWork(
+          title,
+          _booksByBiography[bio.id] ?? const [],
+        ),
+        onOpenBook: (book) => openBook(context, book, null, ''),
+        initiallyExpanded: expanded,
+      );
 
   void _performSearch(String query) {
     final inEra = _era == null
@@ -222,12 +250,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         itemCount: _filteredResults.length,
         itemBuilder: (context, index) {
           final bio = _filteredResults[index];
-          return BiographyCard(
-            key: ValueKey(bio.id),
-            biography: bio,
-            canOpen: _byId.containsKey,
-            onOpen: _openEntry,
-          );
+          return _card(bio, key: ValueKey(bio.id));
         },
       ),
     );
@@ -248,12 +271,10 @@ class _BiographiesScreenState extends State<BiographiesScreen>
           ),
         ),
         const SizedBox(height: AppTokens.spaceXS),
-        BiographyCard(
+        _card(
+          bio,
           key: ValueKey('opened-${_opened.length}-${bio.id}'),
-          biography: bio,
-          canOpen: _byId.containsKey,
-          onOpen: _openEntry,
-          initiallyExpanded: true,
+          expanded: true,
         ),
       ],
     );
