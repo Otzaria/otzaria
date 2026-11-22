@@ -416,6 +416,31 @@ void main() {
     await _finish(tester, service);
   });
 
+  testWidgets('גרירה מיד אחרי לחיצה אינה סוגרת את העורך', (tester) async {
+    final service = await _begin(tester, [_source]);
+    await tester.pumpWidget(_app(_paragraph(service, 0, _source)));
+    await tester.pumpAndSettle();
+    await _click(tester, tester.getCenter(find.byType(SmartTextWidget)));
+    final point = tester.getCenter(find.byType(EditableText));
+    await tester.tapAt(point, kind: PointerDeviceKind.mouse);
+    await tester.pump(const Duration(milliseconds: 50));
+    final drag = await tester.startGesture(
+      point,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await drag.moveBy(const Offset(-80, 0));
+    await drag.up();
+    await tester.pumpAndSettle();
+    final selection = tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .firstOrNull
+        ?.controller
+        .selection;
+    await _finish(tester, service);
+    expect(selection?.isCollapsed, isFalse);
+  });
+
   group('לחיצה שאינה כפולה אינה יוצאת מהעריכה', () {
     Future<Offset> open(WidgetTester tester) async {
       final service = await _begin(tester, [_source]);
