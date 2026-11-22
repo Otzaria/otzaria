@@ -12,8 +12,11 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../test/helpers/seforim_fixture_db.dart';
+import '../../tool/perf_probe/make_pdf_print_preview_fixtures.dart';
 
-const perfFixtureVersion = 'synthetic-v2';
+const perfFixtureVersion = 'synthetic-v3-pdf';
+const perfPdfTitle = 'מדידת PDF';
+const perfPdfPageCount = 600;
 const perfBooks = <String, int>{
   'מדידה קצרה': 128,
   'מדידה בינונית': 4096,
@@ -39,6 +42,7 @@ class PerfFixture {
   String get libraryPath => p.join(root.path, 'library');
   String get dbPath => p.join(libraryPath, 'seforim.db');
   String get pluginPath => p.join(root.path, 'fixture-plugin');
+  String get pdfPath => p.join(root.path, 'pdf', 'reader-mixed.pdf');
   String get appDataPath => p.join(root.path, 'app-data');
   late String id;
 
@@ -93,6 +97,7 @@ class PerfFixture {
         dbPath,
         p.join(libraryPath, 'lexical.db'),
         p.join(pluginPath, 'index.html'),
+        pdfPath,
       ])
         (await sha256.bind(File(path).openRead()).first).toString(),
     ];
@@ -155,6 +160,9 @@ class PerfFixture {
     }
     await Directory(pluginPath).create();
     await File(p.join(pluginPath, 'index.html')).writeAsString(perfPluginHtml);
+    final pdf = File(pdfPath);
+    await pdf.parent.create();
+    await writePdfProbeFixture(pdf, pageCount: perfPdfPageCount, mixed: true);
   }
 
   Future<void> _seedSettings() async {
@@ -184,6 +192,8 @@ class PerfFixture {
         SettingsRepository.keyFontSize: 22.0,
         SettingsRepository.keyDefaultSidebarOpen: false,
         SettingsRepository.keyDefaultCommentaryOpen: false,
+        SettingsRepository.keyEnablePerBookSettings: false,
+        SettingsRepository.keyPdfBookViewByDefault: false,
         SettingsRepository.keyFollowSystemTheme: false,
         SettingsRepository.keyDarkMode: false,
         'key-auto-backup-frequency': 'none',

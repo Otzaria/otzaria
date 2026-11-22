@@ -26,6 +26,9 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -37,9 +40,11 @@ import 'package:otzaria/plugins/services/plugin_webview_runtime.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -49,6 +54,7 @@ import 'package:path/path.dart' as p;
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import 'support/perf_fixture.dart';
+import 'support/perf_pdf_reader.dart';
 import 'support/perf_recorder.dart';
 
 void main() {
@@ -83,6 +89,10 @@ void main() {
       'PERF_REPETITIONS',
       const String.fromEnvironment('PERF_REPETITIONS', defaultValue: '5'),
     ),
+  );
+  final scenarioSet = perfOption(
+    'PERF_SCENARIO_SET',
+    const String.fromEnvironment('PERF_SCENARIO_SET', defaultValue: 'all'),
   );
   final preparationOnly =
       perfOption(
@@ -144,12 +154,13 @@ void main() {
         );
       }
       if (!['cold', 'warm'].contains(cacheState) ||
+          !const {'all', 'pdf-reader'}.contains(scenarioSet) ||
           warmup < 0 ||
           warmup > 10 ||
           repetitions < 1 ||
           repetitions > 100) {
         throw ArgumentError(
-          'Invalid cache state, warmup (0..10), or repetitions (1..100).',
+          'Invalid cache state, scenario set, warmup (0..10), or repetitions (1..100).',
         );
       }
       await output.create(recursive: true);
@@ -181,12 +192,16 @@ void main() {
         'cores': Platform.numberOfProcessors,
         'startedAt': DateTime.now().millisecondsSinceEpoch,
         'fixtureBooks': perfBooks,
+        'fixturePdf': {'pages': perfPdfPageCount, 'mixedPageSizes': true},
+        'scenarioSet': scenarioSet,
         'limitations': [
           'Cold means a fresh app data directory; OS filesystem caches are not evicted.',
           'Startup begins at Dart main; native engine/process initialization is separate.',
           'Condition polling resolution is 16 ms; frames use engine timestamps.',
           'Heap samples are outside action latency, without forced garbage collection.',
           'Private bytes are not native-only memory; RSS minus Dart heap is not computed.',
+          'PDF controller_ready is document/layout readiness, not a painted page.',
+          'PDF final_image_ready is the final image for the current view recorded into the layer tree, not GPU presentation.',
         ],
       });
       if (preparationOnly) {
@@ -285,21 +300,26 @@ void main() {
           'searchMode': 'exact',
           'searchResultLimit': 100,
           'searchGrouping': 'none',
+          'pdfLayout': 'regularView',
+          'pdfPageCount': perfPdfPageCount,
+          'scenarioSet': scenarioSet,
         },
       });
       rec.counters = scenario.counters;
       await rec.heap.connect();
       await scenario.closeTabs();
-      await rec.phase(
-        'index.fixture_prepare',
-        scenario.indexFixture,
-        warmup: true,
-      );
-      await scenario.installPlugin();
+      if (scenarioSet == 'all') {
+        await rec.phase(
+          'index.fixture_prepare',
+          scenario.indexFixture,
+          warmup: true,
+        );
+        await scenario.installPlugin();
+      }
       for (var round = 0; round < warmup + repetitions; round++) {
         scenario.iteration = round < warmup ? round : round - warmup;
         scenario.warmup = round < warmup;
-        await scenario.run();
+        await scenario.run(pdfReaderOnly: scenarioSet == 'pdf-reader');
       }
       final errorsAfter = await errorsFile.exists()
           ? await errorsFile.readAsString()
@@ -323,6 +343,10 @@ void main() {
       rec.skip(
         'queues.depth',
         'The application exposes active work and indexing state, not complete queue depths.',
+      );
+      rec.skip(
+        'pdf.reader.first_preview_image',
+        'pdfrx 2.13.1 exposes final visible-image readiness, not the first painted preview. Controller readiness and page paint callbacks can precede any image; screenshot readback is not added to this workload.',
       );
     } catch (error) {
       runError = error;
@@ -394,7 +418,11 @@ class _Scenario {
     details: details,
   );
 
-  Future<void> run() async {
+  Future<void> run({required bool pdfReaderOnly}) async {
+    if (pdfReaderOnly) {
+      await _pdfReader();
+      return;
+    }
     for (final title in perfBooks.keys) {
       final kind = switch (perfBooks[title]) {
         128 => 'short',
@@ -461,6 +489,7 @@ class _Scenario {
     await _notes();
     await _plugin();
     await _preview();
+    await _pdfReader();
     await phase('lifecycle.tabs_cycle', () async {
       await openText(perfBooks.keys.first);
       await openText(perfBooks.keys.last);
@@ -523,6 +552,7 @@ class _Scenario {
         (tab) => switch (tab) {
           TextBookTab() => tab.bloc.isClosed,
           SearchingTab() => tab.searchBloc.isClosed,
+          PdfBookTab() => !tab.pdfViewerController.isReady,
           ToolTab() =>
             PluginRuntimeDispatcher.instance.controllerOf(
                   tab.toolId,
@@ -821,6 +851,93 @@ class _Scenario {
         () => find.byType(PrintingScreen).evaluate().isEmpty,
         'PDF preview disposed',
       );
+    });
+  }
+
+  PdfBookBloc? _pdfBloc(PdfBookTab tab) {
+    final screen = find.byWidgetPredicate(
+      (widget) => widget is PdfBookScreen && identical(widget.tab, tab),
+    );
+    final builders = find.descendant(
+      of: screen,
+      matching: find.byType(BlocBuilder<PdfBookBloc, PdfBookState>),
+    );
+    if (builders.evaluate().isEmpty) return null;
+    return tester.element(builders.first).read<PdfBookBloc>();
+  }
+
+  Future<void> _pdfReader() async {
+    final tab = PdfBookTab(
+      book: PdfBook(title: perfPdfTitle, path: fixture.pdfPath),
+      pageNumber: 1,
+    )..savedLayoutMode = PdfLayoutMode.regularView;
+    final checkpoints = <String, double>{};
+    await phase('pdf.reader.open', () async {
+      await measurePdfReaderOpening(
+        open: () {
+          context.read<NavigationBloc>().add(NavigateToScreen(Screen.reading));
+          tabs.add(AddTab(tab));
+        },
+        controllerReady: () {
+          final state = _pdfBloc(tab)?.state;
+          if (state is PdfBookError) throw StateError(state.message);
+          return identical(tabs.state.currentTab, tab) &&
+              state is PdfBookLoaded &&
+              tab.pdfViewerController.isReady;
+        },
+        // PdfBookScreen replaces the tab's controller when it mounts.
+        controller: () => tab.pdfViewerController,
+        pageNumber: 1,
+        nextFrame: () => tester.pump(),
+        checkpointsMs: checkpoints,
+      );
+    }, details: {'page': 1, 'checkpointsMs': checkpoints});
+
+    final controller = tab.pdfViewerController;
+    final bloc = _pdfBloc(tab)!;
+    if (controller.pageCount != perfPdfPageCount) {
+      throw StateError('PDF fixture has ${controller.pageCount} pages');
+    }
+    for (final fraction in [0.75, 0.1]) {
+      final target = (perfPdfPageCount * fraction).floor();
+      final direction = fraction == 0.75 ? 'forward' : 'backward';
+      await phase('pdf.reader.jump_$direction', () async {
+        await controller
+            .goToPage(pageNumber: target, duration: Duration.zero)
+            .timeout(const Duration(seconds: 45));
+        await waitForPdfFinalImage(
+          controller,
+          pageNumber: target,
+          nextFrame: () => tester.pump(),
+        );
+      }, details: {'page': target, 'fraction': fraction});
+    }
+    final zoomPage = (perfPdfPageCount * 0.1).floor();
+    final zoomDetails = <String, Object?>{
+      'page': zoomPage,
+      'anchor': 'pageCenter',
+      'requestedZoomFactor': 2,
+    };
+    await phase('pdf.reader.zoom', () async {
+      final zoom = controller.currentZoom;
+      zoomDetails['zoomBefore'] = zoom;
+      await controller
+          .setZoom(
+            controller.layout.pageLayouts[zoomPage - 1].center,
+            zoom * 2,
+            duration: Duration.zero,
+          )
+          .timeout(const Duration(seconds: 45));
+      await waitForPdfFinalImage(
+        controller,
+        pageNumber: zoomPage,
+        nextFrame: () => tester.pump(),
+      );
+      zoomDetails['zoomAfter'] = controller.currentZoom;
+    }, details: zoomDetails);
+    await phase('pdf.reader.close', () async {
+      await closeTabs();
+      await _wait(() => bloc.isClosed, 'PDF reader bloc disposed');
     });
   }
 }

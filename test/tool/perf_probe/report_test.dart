@@ -336,6 +336,91 @@ void main() {
     });
   });
 
+  group('PDF readiness checkpoints', () {
+    Map<String, dynamic> opening({
+      double controller = 3,
+      double? image = 8,
+      int iteration = 0,
+      bool warmup = false,
+      String status = 'passed',
+    }) => phase(
+      name: 'pdf.reader.open',
+      iteration: iteration,
+      warmup: warmup,
+      status: status,
+      extra: {
+        'details': {
+          'checkpointsMs': {
+            'controller_ready': controller,
+            'final_image_ready': ?image,
+          },
+        },
+      },
+    );
+
+    test('same-origin checkpoints exclude warmup and failed opens', () {
+      final value = report([
+        opening(controller: 9, image: 10, warmup: true),
+        opening(),
+        opening(controller: 4, image: 9, iteration: 1),
+        opening(controller: 1, image: null, iteration: 2, status: 'failed'),
+      ]);
+      final points = scenario(value, 'pdf.reader.open')['checkpointsMs'];
+      expect(points['controller_ready']['count'], 2);
+      expect(points['controller_ready']['p50'], 3);
+      expect(points['final_image_ready']['p95'], 9);
+      final markdown = renderProbeMarkdown(value);
+      expect(markdown, contains('controller_ready | 2 | 3.000'));
+      expect(markdown, contains('final_image_ready | 2 | 8.000'));
+    });
+
+    test(
+      'missing checkpoint stays unavailable instead of biasing the sample',
+      () {
+        final value = report([opening(), opening(image: null, iteration: 1)]);
+        final points = scenario(value, 'pdf.reader.open')['checkpointsMs'];
+        expect(points['controller_ready']['count'], 2);
+        expect(points['final_image_ready'], isNull);
+        expect(renderProbeMarkdown(value), contains('final_image_ready | —'));
+      },
+    );
+
+    test('checkpoint outside action interval is rejected', () {
+      for (final value in [-1.0, 11.0, double.nan]) {
+        expect(() => report([opening(image: value)]), throwsFormatException);
+      }
+    });
+
+    test('comparison retains both independently observed endpoints', () {
+      final comparison = compareProbeReports(
+        report([opening()]),
+        report([opening(controller: 4, image: 6)]),
+      );
+      final metrics = comparison['scenarios'].single['metrics'];
+      expect(metrics['checkpointsMs.controller_ready.p50']['delta'], 1);
+      expect(metrics['checkpointsMs.final_image_ready.p50']['delta'], -2);
+      expect(
+        metrics['checkpointsMs.final_image_ready.p50']['deltaPercent'],
+        -25,
+      );
+    });
+
+    test('reader smoke and full workload are not comparable', () {
+      Map<String, dynamic> workload(String value) => report(
+        [opening()],
+        changes: {
+          'settings': {'scenarioSet': value},
+        },
+      );
+      final comparison = compareProbeReports(
+        workload('all'),
+        workload('pdf-reader'),
+      );
+      expect(comparison['comparable'], isFalse);
+      expect(comparison['reasons'], contains('metadata:settings'));
+    });
+  });
+
   group('משאבים ועץ תהליכים', () {
     test('דגימות מחוץ לסדר אינן סופרות פעמיים את אותו חלון CPU', () {
       expect(
