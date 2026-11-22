@@ -160,6 +160,51 @@ void main() {
       );
     });
 
+    testWidgets('כשל בשמירת רשימת השחזור אינו מוחק את סשן החלון', (
+      tester,
+    ) async {
+      final windows = FakeViewWindows(tester);
+      final opener = ViewWindowOpener(
+        registry: windows.registry,
+        native: windows.native,
+        sessions: _FailingClosedStore(),
+        restoreMainWindow: () async => false,
+      );
+      await tester.pumpWidget(
+        MultiViewHost(registry: windows.registry, child: const SizedBox()),
+      );
+      await closeView(tester, opener, windows, '["lost"]');
+
+      // אין רשימת שחזור, ולכן השורה נשארת ותשוחזר בהפעלה הבאה.
+      expect((await store.load(2))?.tabsJson, '["lost"]');
+    });
+
+    testWidgets('כשל בשמירת רשימת השחזור אינו מוחק את סשן הראשי', (
+      tester,
+    ) async {
+      final windows = FakeViewWindows(tester);
+      final opener = ViewWindowOpener(
+        registry: windows.registry,
+        native: windows.native,
+        sessions: _FailingClosedStore(),
+        restoreMainWindow: () async => false,
+      );
+      await tester.pumpWidget(
+        MultiViewHost(registry: windows.registry, child: const SizedBox()),
+      );
+      await store.save(
+        UserStateSlot.main,
+        tabsJson: '["main"]',
+        currentIndex: 0,
+      );
+      // כמו AppWindowListener בסגירת הראשי כשחלון אחר נשאר פתוח.
+      final discarded = await store.load(UserStateSlot.main);
+      await store.delete(UserStateSlot.main);
+      await opener.beforeMainWindowHides(session: discarded);
+
+      expect((await store.load(UserStateSlot.main))?.tabsJson, '["main"]');
+    });
+
     testWidgets('מספר החלונות שנזכרים מוגבל גם בין הפעלות', (tester) async {
       final (first, opener) = await launch(tester);
       for (var i = 0; i <= ViewWindowOpener.closedLimit; i++) {
@@ -170,4 +215,11 @@ void main() {
       expect(restarted.closedCountForTest, ViewWindowOpener.closedLimit - 1);
     });
   });
+}
+
+/// מסד שבו כתיבת רשימת החלונות שנסגרו נכשלת (דיסק מלא, קובץ נעול).
+class _FailingClosedStore extends WindowSessionStore {
+  @override
+  Future<void> saveClosed(List<WindowSession> sessions) async =>
+      throw const FileSystemException('disk full');
 }
