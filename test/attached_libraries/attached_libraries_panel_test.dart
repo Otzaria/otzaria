@@ -14,6 +14,7 @@ import 'package:otzaria/attached_libraries/repository/attached_libraries_reposit
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -183,11 +184,14 @@ void main() {
     expect(find.text('הוסף קובץ מסד'), findsOneWidget);
     expect(find.text('הוסף תיקיית מסדים'), findsOneWidget);
     // מסד לא נגיש אינו מציע בחירת מיקום בעץ.
-    expect(find.text('תחת ספרים אישיים'), findsNWidgets(2));
+    expect(find.text('בנפרד ב׳ספרים אישיים׳'), findsNWidgets(2));
   });
 
   group('attached DB placement labels explain the result (issue #2387)', () {
-    testWidgets('תוויות הבורר אומרות מה קורה, ושורת הסבר לפי הבחירה', (
+    const separate = 'בנפרד ב׳ספרים אישיים׳';
+    const merge = 'מיזוג לעץ הספרייה הכללי';
+
+    testWidgets('תוויות הבורר אומרות לאן הולכים הספרים, בלי שורת הסבר', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1400, 900);
@@ -201,44 +205,52 @@ void main() {
 
       expect(find.text('בנפרד'), findsNothing);
       expect(find.text('ממוזג'), findsNothing);
-      expect(find.text('תחת ספרים אישיים'), findsNWidgets(2));
-      expect(find.text('מיזוג לעץ הספרייה'), findsNWidgets(2));
+      expect(find.text(separate), findsNWidgets(2));
+      expect(find.text(merge), findsNWidgets(2));
+      // כמו שאר השורות בכרטיס — בלי שורת הסבר נוספת מתחת לכותרת.
+      expect(find.textContaining('ספרים אישיים/'), findsNothing);
+      expect(find.textContaining('ההגדרה למסד זה בלבד'), findsNothing);
 
-      const perDb = 'ההגדרה למסד זה בלבד, בלי קשר למיזוג תיקיות הספרים האישיים';
-      expect(
-        find.text('ספרי המסד מוצגים תחת "ספרים אישיים/ראשון". $perDb'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('קטגוריות המסד ממוזגות לעץ הספרייה לפי שם. $perDb'),
-        findsOneWidget,
-      );
-
-      // לחיצה על מקטע עדיין משנה את המיקום, וההסבר מתעדכן.
-      await tester.tap(find.text('מיזוג לעץ הספרייה').first);
+      // לחיצה על מקטע עדיין משנה את המיקום.
+      await tester.tap(find.text(merge).first);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(repository.placements, [
         ('ראשון', AttachedLibraryPlacement.mergeIntoLibrary),
       ]);
-      expect(
-        find.text('קטגוריות המסד ממוזגות לעץ הספרייה לפי שם. $perDb'),
-        findsNWidgets(2),
-      );
     });
 
-    testWidgets('בחלון צר התווית המלאה נשארת, בלי גלישה', (tester) async {
+    testWidgets('בחלון רחב הבורר לצד הכותרת, כמו בשורות שמעליו', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpPanel(tester, _FakeRepository([_library('ראשון')]));
+
+      final title = tester.getRect(find.textContaining('ראשון').first);
+      final control = tester.getRect(
+        find.byType(AppSegmentedControl<AttachedLibraryPlacement>),
+      );
+      expect(control.top, lessThan(title.bottom));
+    });
+
+    testWidgets('בחלון צר הבורר מתחת לכותרת, בתוויות המלאות ובלי גלישה', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await pumpPanel(tester, _FakeRepository([_library('ראשון')]));
 
       expect(tester.takeException(), isNull);
-      expect(find.text('תחת ספרים אישיים'), findsOneWidget);
-      expect(
-        find.textContaining('ספרים אישיים/ראשון'),
-        findsOneWidget,
+      expect(find.text(separate), findsOneWidget);
+      expect(find.text(merge), findsOneWidget);
+      final title = tester.getRect(find.textContaining('ראשון').first);
+      final control = tester.getRect(
+        find.byType(AppSegmentedControl<AttachedLibraryPlacement>),
       );
+      expect(control.top, greaterThanOrEqualTo(title.bottom));
     });
   });
 

@@ -422,10 +422,12 @@ class _AttachedLibraryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final separateLabel = context.settingsText('בנפרד ב׳ספרים אישיים׳');
+    final mergeLabel = context.settingsText('מיזוג לעץ הספרייה הכללי');
     return SettingsActionTile(
-      // הבורר מתחת לשורת ההסבר שלו: בתוויות המלאות הוא רחב מכדי לעמוד לצד
-      // הכותרת והתגיות, ובהגדלת טקסט היה גולש מהשורה.
-      stacked: true,
+      // הבורר לצד הכותרת, כמו בשורות שמעליו; כשהתוויות המלאות לא משאירות
+      // מקום לכותרת ולתגיות — מתחתיה.
+      columnBelowWidth: _sideBySideWidth(context, [separateLabel, mergeLabel]),
       icon: library.hidden
           ? FluentIcons.database_24_regular
           : FluentIcons.database_24_filled,
@@ -485,21 +487,6 @@ class _AttachedLibraryTile extends StatelessWidget {
                 ),
             ],
           ),
-          // התוויות לבדן נראו ככפילות של מיזוג התיקיות האישיות (#2387).
-          if (library.isOk) ...[
-            const SizedBox(height: 4),
-            Text(
-              [
-                _placementResult(context, library.placement),
-                context.settingsText(
-                  'ההגדרה למסד זה בלבד, בלי קשר למיזוג תיקיות הספרים האישיים',
-                ),
-              ].join('. '),
-              style: AppTextStyles.settingSubtitle.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ],
           if (library.isOk && linksIncomplete && !linksBuilding) ...[
             const SizedBox(height: 4),
             ActionButton.neutral(
@@ -550,22 +537,14 @@ class _AttachedLibraryTile extends StatelessWidget {
               options: [
                 SegmentOption(
                   value: AttachedLibraryPlacement.separateRoot,
-                  label: context.settingsText('תחת ספרים אישיים'),
+                  label: separateLabel,
                   shortLabel: context.settingsText('בנפרד'),
-                  tooltip: _placementResult(
-                    context,
-                    AttachedLibraryPlacement.separateRoot,
-                  ),
                   icon: FluentIcons.folder_24_regular,
                 ),
                 SegmentOption(
                   value: AttachedLibraryPlacement.mergeIntoLibrary,
-                  label: context.settingsText('מיזוג לעץ הספרייה'),
+                  label: mergeLabel,
                   shortLabel: context.settingsText('ממוזג'),
-                  tooltip: _placementResult(
-                    context,
-                    AttachedLibraryPlacement.mergeIntoLibrary,
-                  ),
                   icon: FluentIcons.merge_24_regular,
                 ),
               ],
@@ -575,19 +554,25 @@ class _AttachedLibraryTile extends StatelessWidget {
     );
   }
 
-  /// מה קורה לספרי המסד בכל מיקום — לפי `DatabaseLibraryProvider`.
-  String _placementResult(
-    BuildContext context,
-    AttachedLibraryPlacement placement,
-  ) => switch (placement) {
-    AttachedLibraryPlacement.separateRoot => context.settingsText(
-      'ספרי המסד מוצגים תחת "ספרים אישיים/{name}"',
-      args: {'name': library.displayName},
-    ),
-    AttachedLibraryPlacement.mergeIntoLibrary => context.settingsText(
-      'קטגוריות המסד ממוזגות לעץ הספרייה לפי שם',
-    ),
-  };
+  /// הרוחב שממנו הבורר נכנס לצד הכותרת: התוויות בסגנון המקטע, ולכל מקטע
+  /// אייקון וריווח (64), ועוד הסמל, הריווח, התפריט ומקום לכותרת (360).
+  static double _sideBySideWidth(BuildContext context, List<String> labels) {
+    final theme = Theme.of(context);
+    final style =
+        theme.segmentedButtonTheme.style?.textStyle?.resolve(const {}) ??
+        theme.textTheme.labelLarge;
+    var width = 360.0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      width += painter.width + 64;
+      painter.dispose();
+    }
+    return width;
+  }
 
   Widget _statusChip(BuildContext context) {
     final (label, tone) = switch (library.status) {
