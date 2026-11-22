@@ -309,7 +309,7 @@ The binding UI standard is the design system in `docs/design-system/`. Read only
 
 | Document | Use it for |
 |---|---|
-| `DESIGN_SYSTEM.md` | The standard. Start with its "מתחילים כאן" section (need → component table, the five things never to write, what to do when ui_lint fails). Then: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5), RTL/keyboard/accessibility (§6), themes (§7), and how to work with it (§8: picking a token, building a dialog/field/card/screen, loading-empty-error states, new components, exceptions, ui_lint failures, required tests) |
+| `DESIGN_SYSTEM.md` | The standard. Start with its "מתחילים כאן" section (need → component table, the five things never to write, what to do when ui_lint fails). Then: tokens (§2), component catalog (§3), layer boundaries (§4), responsive rules (§5: breakpoints, the "no room" policy, `testResponsive`, touch, platform matrix), RTL/keyboard/accessibility (§6), themes (§7), and how to work with it (§8: picking a token, building a dialog/field/card/screen, loading-empty-error states, new components, exceptions, ui_lint failures, required tests, and the short QA checklist in §8.8) |
 | `DESIGN_DECISIONS.md` | Settled decisions (DD-xx). Follow them; do not re-decide in a PR. Each one lists the alternatives, the reason, what is implemented and the commits |
 | `CI_ENFORCEMENT.md` | The `tool/ui_lint` rules, baseline, goldens and CI guards |
 
@@ -317,7 +317,7 @@ Component-specific usage notes (icons, UiSnack catalogs, settings strings, nav p
 
 ### Core rules
 - Pick a role, not a value. Colour comes from `ColorScheme` / `AppSurfaces`, UI text from `textTheme` (no `fontSize:` or literal `fontFamily` in feature code), and spacing, radius (8 only), icon size and motion from `AppTokens` / `AppDensity` / `AppMotion`. Book-content typography comes from the reading settings. Do not add colour overrides in feature files.
-- Layout decisions use `WindowClass` or the parent's `LayoutBuilder` constraints, never orientation. Use directional APIs (`EdgeInsetsDirectional`, `AlignmentDirectional`, `start`/`end`).
+- Layout decisions use `WindowClass` or the parent's `LayoutBuilder` constraints, never orientation. When something does not fit, shorten the label, move it to "more", wrap, or scroll; never drop an essential action (`DESIGN_SYSTEM.md` §5.4). A new screen gets a `testResponsive` scene in `test/design_system/responsive/` (§5.5, `docs/agent_ui_reference.md` §14). Use directional APIs (`EdgeInsetsDirectional`, `AlignmentDirectional`, `start`/`end`).
 - Every icon-only button has a `tooltip`. A tappable widget that is not a Material button needs `Semantics(button:)`, Enter/Space and focus.
 - Icons: prefer `otzaria_icons` for its supported cases, and use Fluent for generic chrome and the documented exceptions. `OtzariaIcons` always uses plain `Icon`; registered directional Fluent icons use `RtlIcon`. Never use Material/Cupertino icons, and never flip icons manually.
 - New settings, navigation and tour strings use `context.settingsText` and `settings_en.arb`. Regenerate the catalog and run `flutter test test/settings/l10n/`.
@@ -336,8 +336,9 @@ Never add a raw `AlertDialog`/`Dialog`/`TextButton`/`FilledButton`/`OutlinedButt
 | Choice | `AppSegmentedControl`, `AppDropdownField`, `AppPopupMenuButton` / `showAnchoredAppMenu` | `lib/widgets/controls/`, `lib/widgets/misc/` |
 | Cards and results | `AppCard`, `ResultCardFrame`, `ToolResultCardShell`, `ToolResultsHeader`, `MetaChip` | `lib/widgets/layout/` |
 | Section headings | `AppSectionLabel` | `lib/widgets/text/` |
+| Link inside text, colour choice circle | `AppInlineLink` / `AppColorSwatch` | `lib/widgets/text/`, `lib/widgets/controls/` |
 | Loading, empty, error, notices | `LoadingIndicator` / `SkeletonLines`, `OtzariaEmptyState`, `OtzariaErrorState`, `AppInfoBanner`, `UiSnack` | `lib/widgets/feedback/`, `lib/core/ui_snack.dart` |
-| Screen layout | `AppTopBar`, `ToolScaffold`, `AdaptiveSidePane`, `ContextOverlayPanel`, `NavSidePanel`, `SearchResultNavigator` | `lib/widgets/layout/`, `lib/widgets/navigation/` |
+| Screen layout | `AppTopBar`, `ToolScaffold`, `AdaptiveSidePane` / `ContextOverlayPanel` (dimensions from `SidePaneSpecs`), `NavSidePanel`, `SearchResultNavigator` | `lib/widgets/layout/`, `lib/widgets/navigation/` |
 | Settings | `SettingsCard` and its tiles (`SettingsSwitchTile`, `SettingsDropdownTile`, `SettingsSegmentedTile`, `SettingsSliderTile`, `SettingsPathTile`, `SettingsActionTile`) | `lib/settings/widgets/` |
 | Window caption (Windows) | `AppWindowCaption`, `AppCaptionIconButton` | `lib/core/windowing/` |
 
