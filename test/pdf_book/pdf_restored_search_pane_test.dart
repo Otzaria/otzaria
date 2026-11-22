@@ -14,6 +14,7 @@ import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
 import 'package:otzaria/pdf_book/view/pdf_outlines_screen.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
@@ -166,6 +167,44 @@ void main() {
     final dynamic screen = tester.state(find.byType(PdfBookScreen));
     return screen.textSearcher as PdfTextSearchSession;
   }
+
+  testWidgets('בחירת הדגשה מתקדמת שורדת בנייה מחדש של אותו טאב', (
+    tester,
+  ) async {
+    final mount = ValueNotifier(0);
+    addTearDown(mount.dispose);
+    final tab = await openRestored(
+      tester,
+      '',
+      wrapScreen: (screen) => ValueListenableBuilder<int>(
+        valueListenable: mount,
+        builder: (_, value, _) => KeyedSubtree(
+          key: ValueKey(value),
+          child: screen,
+        ),
+      ),
+    );
+    final first = searcherOf(tester) as CenteredTextSearchSession;
+    first.startPageHighlights('page');
+    await settle(tester, 10);
+    final matches = first.pageHighlights(1)!;
+    expect(matches, hasLength(3));
+    final selected = first.goToPageHighlight(matches[1]);
+    await settle(tester, 6);
+    await selected;
+    expect(tab.pdfSearchPageHighlight!.start, matches[1].start);
+    mount.value++;
+    await settle(tester, 30);
+    final restored = searcherOf(tester) as CenteredTextSearchSession;
+    expect(restored, isNot(same(first)));
+    restored.startPageHighlights('page');
+    await settle(tester, 10);
+    expect(restored.pageHighlightAnchor!.start, matches[1].start);
+    final next = restored.navigatePageHighlight(forward: true);
+    await settle(tester, 6);
+    await next;
+    expect(tab.pdfSearchPageHighlight!.start, matches[2].start);
+  });
 
   testWidgets('טעינת סימניות אינה חוטפת פוקוס מחלונית שהופעלה בינתיים', (
     tester,
