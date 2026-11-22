@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tools/biographies/data/author_biography_links.dart';
 import 'package:otzaria/tools/biographies/data/biographies_codec.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
@@ -25,6 +27,7 @@ class BiographiesRepository {
 
   final Future<String> Function() _updatedPathProvider;
   final Future<ByteData> Function(String key) _loadAsset;
+  final Future<List<Book>> Function() _libraryBooks;
 
   Future<BiographiesBundle>? _loading;
   Future<Map<String, String>>? _bundledAuthorLinks;
@@ -32,9 +35,13 @@ class BiographiesRepository {
   BiographiesRepository({
     Future<String> Function()? updatedPathProvider,
     Future<ByteData> Function(String key)? loadAsset,
+    Future<List<Book>> Function()? libraryBooks,
   }) : _updatedPathProvider =
            updatedPathProvider ?? AppPaths.getBiographiesPath,
-       _loadAsset = loadAsset ?? rootBundle.load;
+       _loadAsset = loadAsset ?? rootBundle.load,
+       _libraryBooks =
+           libraryBooks ??
+           (() async => (await DataRepository.instance.library).getAllBooks());
 
   /// Loads the bundle once; repeated (also concurrent) calls share the Future.
   ///
@@ -64,6 +71,28 @@ class BiographiesRepository {
       for (final item in ids.entries)
         if (entries[item.value] case final Biography entry) item.key: entry,
     };
+  }
+
+  /// Books of the official library by title, leaving out a title that
+  /// several of them share.
+  Future<Map<String, Book>> libraryBooksByTitle() async {
+    final byTitle = <String, Book?>{};
+    for (final book in await _libraryBooks()) {
+      if (!book.isOfficialLibraryBook) continue;
+      byTitle[book.title] = byTitle.containsKey(book.title) ? null : book;
+    }
+    return {
+      for (final MapEntry(:key, :value) in byTitle.entries) key: ?value,
+    };
+  }
+
+  /// The library book of [work]: the first of its mapped titles found in
+  /// [booksByTitle]. A work without a mapping has none.
+  static Book? bookForWork(BiographyWork work, Map<String, Book> booksByTitle) {
+    for (final title in work.books) {
+      if (booksByTitle[title] case final Book book) return book;
+    }
+    return null;
   }
 
   Future<Map<String, String>> _loadAuthorLinks() async {

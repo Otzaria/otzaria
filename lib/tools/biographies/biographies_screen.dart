@@ -43,7 +43,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   final ScrollController _eraScroll = ScrollController();
   BiographiesBundle? _bundle;
   Map<String, Biography> _byId = const {};
-  Map<String, List<Book>> _booksByBiography = const {};
+  Map<String, Book> _libraryBooks = const {};
   List<Biography> _filteredResults = [];
   String? _era;
   bool _isLoading = true;
@@ -111,7 +111,11 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       });
       // השדה גלוי גם בטעינה, ומה שהוקלד בה מסנן עכשיו את הרשימה הטעונה.
       _performSearch(_searchController.text);
-      _loadLibraryBooks();
+      if (bundle.entries.any(
+        (bio) => bio.works.any((w) => w.books.isNotEmpty),
+      )) {
+        _loadLibraryBooks();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -123,11 +127,11 @@ class _BiographiesScreenState extends State<BiographiesScreen>
     consumeToolQuery();
   }
 
-  /// Works become links to their books once the library has loaded.
+  /// Mapped works become links to their books once the library has loaded.
   Future<void> _loadLibraryBooks() async {
     try {
-      final books = await _repository.libraryBooksByBiography();
-      if (mounted) setState(() => _booksByBiography = books);
+      final books = await _repository.libraryBooksByTitle();
+      if (mounted) setState(() => _libraryBooks = books);
     } catch (e) {
       debugPrint('[Biographies] library books unavailable: $e');
     }
@@ -139,10 +143,8 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         biography: bio,
         canOpen: _byId.containsKey,
         onOpen: _openEntry,
-        bookForWork: (title) => BiographiesRepository.bookForWork(
-          title,
-          _booksByBiography[bio.id] ?? const [],
-        ),
+        bookForWork: (work) =>
+            BiographiesRepository.bookForWork(work, _libraryBooks),
         onOpenBook: (book) => openBook(context, book, null, ''),
         initiallyExpanded: expanded,
       );

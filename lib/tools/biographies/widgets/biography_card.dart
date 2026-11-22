@@ -23,8 +23,8 @@ class BiographyCard extends StatefulWidget {
   /// Opens the entry with this id.
   final ValueChanged<String>? onOpen;
 
-  /// The library book a work title names, if any.
-  final Book? Function(String title) bookForWork;
+  /// The library book of a work, if any.
+  final Book? Function(BiographyWork work) bookForWork;
 
   /// Opens a book of the library.
   final ValueChanged<Book>? onOpenBook;
@@ -43,7 +43,7 @@ class BiographyCard extends StatefulWidget {
 
   static bool _never(String id) => false;
 
-  static Book? _noBook(String title) => null;
+  static Book? _noBook(BiographyWork work) => null;
 
   @override
   State<BiographyCard> createState() => _BiographyCardState();
@@ -278,16 +278,14 @@ class _BiographyCardState extends State<BiographyCard> {
     );
   }
 
-  /// A work's title, as a link when it names a book of the library.
+  /// A work's title, as a link when it has a book in the library.
   Widget _work(
     BiographyWork work,
     ColorScheme cs,
     TextStyle bodyStyle,
     TextStyle linkStyle,
   ) {
-    final book = widget.onOpenBook == null
-        ? null
-        : widget.bookForWork(work.title);
+    final book = widget.onOpenBook == null ? null : widget.bookForWork(work);
     return Text.rich(
       TextSpan(
         style: bodyStyle.copyWith(fontWeight: FontWeight.w600),
