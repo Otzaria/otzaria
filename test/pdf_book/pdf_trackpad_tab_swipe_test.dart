@@ -508,11 +508,13 @@ void main() {
         settle: false,
         beforeEnd: () async {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-          releasedAt = controller.visibleRect.top;
+          releasedAt = controller.visibleRect.center.dy;
         },
       );
       await frames(tester, 90);
-      expect(controller.visibleRect.top, closeTo(releasedAt, 1));
+      // הזום מתייצב סביב המצביע שבמרכז, ולכן המרכז זז רק מעט; החלקה
+      // לפי דגימות הזום הייתה מזיזה אותו מאות פיקסלים.
+      expect(controller.visibleRect.center.dy, closeTo(releasedAt, 30));
     });
 
     testWidgets('הנחת אצבעות על לוח המגע עוצרת את ההחלקה', (tester) async {

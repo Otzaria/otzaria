@@ -321,6 +321,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // ולכן כל מסלול צריך נעילת ציר נפרדת.
   final TrackpadAxisLock _trackpadAxisLock = TrackpadAxisLock();
   final TrackpadAxisLock _trackpadPanAxisLock = TrackpadAxisLock();
+
+  /// המחווה הנוכחית כללה זום (Ctrl): דגימות המהירות שלה אינן גלילה.
+  bool _trackpadPanZoomed = false;
   late final _trackpadFling = TrackpadFling(
     onDelta: _scrollPhysicsProvider.pan,
     onInterrupt: _scrollPhysicsProvider.stop,
@@ -480,6 +483,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final Offset scrollDelta;
     if (HardwareKeyboard.instance.isControlPressed) {
       _trackpadPanAxisLock.reset();
+      _trackpadPanZoomed = true;
       scrollDelta = -panDelta;
     } else {
       scrollDelta = _trackpadPanAxisLock.applyDelta(-panDelta);
@@ -500,7 +504,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _handleTrackpadPanEnd(Offset velocity) {
     final axis = _trackpadPanAxisLock.lockedAxis;
     _trackpadPanAxisLock.reset();
-    if (HardwareKeyboard.instance.isControlPressed) return;
+    final zoomed = _trackpadPanZoomed;
+    _trackpadPanZoomed = false;
+    if (zoomed || HardwareKeyboard.instance.isControlPressed) return;
     _trackpadFling.start(this, switch (axis) {
       Axis.vertical => Offset(0, velocity.dy),
       Axis.horizontal => Offset(velocity.dx, 0),
