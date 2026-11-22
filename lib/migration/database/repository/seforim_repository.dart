@@ -3013,6 +3013,12 @@ extension BookAcronymRepository on SeforimRepository {
         ownTokensOf: index._ownTokensOf,
         pathTokensOf: index.refTokensOf,
         refMaskOf: (i) => index.refMasks[i],
+        rootOwnTokensOf: (i) {
+          while (index.parentOf(i) >= 0) {
+            i = index.parentOf(i);
+          }
+          return index._ownTokensOf(i);
+        },
       ).toList();
       return index
           ._orderedMatches(bookId, entries, matches)
@@ -3028,6 +3034,12 @@ extension BookAcronymRepository on SeforimRepository {
       queryTokens,
       ownTokensOf: (entry) => entry.ownTokens,
       pathTokensOf: (entry) => entry.pathTokens,
+      rootOwnTokensOf: (entry) {
+        while (entry.parent != null) {
+          entry = entry.parent!;
+        }
+        return entry.ownTokens;
+      },
     );
     return matches.map((e) => e.toTocMap()).toList();
   }
@@ -3089,6 +3101,7 @@ extension BookAcronymRepository on SeforimRepository {
     required List<String> Function(T) ownTokensOf,
     required List<String> Function(T) pathTokensOf,
     int Function(T)? refMaskOf,
+    List<String> Function(T)? rootOwnTokensOf,
     bool structureAliases = false,
   }) {
     if (tokens.isEmpty) return const [];
@@ -3141,6 +3154,13 @@ extension BookAcronymRepository on SeforimRepository {
       final pathTokens = checkedPath ?? pathTokensOf(e);
       for (var i = 0; i < tokens.length; i++) {
         if (alternatives[i].any(pathTokens.contains)) continue;
+        // "אוח" ← "אורח חיים": ראשי תיבות של כותרת השורש, כמו בתוכן העניינים.
+        if (i == 0 &&
+            rootOwnTokensOf != null &&
+            !isHebrewNumeral(tokens[0]) &&
+            hebrewAbbreviationMatchesWords(tokens[0], rootOwnTokensOf(e))) {
+          continue;
+        }
         // כמו ב-[_searchTocFlat]: שם חלופי רק בכותרת העלה עצמה.
         if (structureAliases &&
             matchesOtherStructureWord(tokens[i], ownTokens)) {
@@ -3161,6 +3181,7 @@ extension BookAcronymRepository on SeforimRepository {
       ownTokensOf: ownTokensOf,
       pathTokensOf: pathTokensOf,
       refMaskOf: refMaskOf,
+      rootOwnTokensOf: rootOwnTokensOf,
       structureAliases: true,
     );
   }
