@@ -396,6 +396,20 @@ double bracketMarkerFractionInLine(
   return (offset / clean.length).clamp(0.0, 1.0);
 }
 
+/// מיקום יחסי (0..1) בשורה של סמן הכותרת שבסוף [reference] ("... סימן שח סעיף ו"
+/// → `[סעיף ו]`): הסיומת הארוכה ביותר שיש לה סמן בשורה. 0 בלי סמן.
+double bracketMarkerFractionForReference(String rawLine, String reference) {
+  final clean = cleanLineForSearch(rawLine);
+  if (!clean.contains('[')) return 0;
+  final words = reference.trim().split(RegExp(r'\s+'));
+  for (var i = 0; i < words.length; i++) {
+    final key = RegExp.escape(words.sublist(i).join(' '));
+    final match = RegExp('\\[$key[\\] ]').firstMatch(clean);
+    if (match != null) return (match.start / clean.length).clamp(0.0, 1.0);
+  }
+  return 0;
+}
+
 /// מיקום יחסי (0..1) של המילים שעליהן נכתבה [note] בשורת המקור [rawLine],
 /// במרחב הנקי של [matchFractionInLine]. 0 להערת שורה שלמה או לעוגן שלא נמצא.
 double noteAnchorFractionInLine(String rawLine, PersonalNote? note) {

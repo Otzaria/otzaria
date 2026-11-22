@@ -2429,7 +2429,7 @@ class _CombinedViewState extends State<CombinedView> {
     final itemCount = layout.itemCount;
     // כמו ב-buildOuterList: פתיחה במיקום הטאב (תצוגה מקדימה של תוצאת
     // חיפוש נפתחת בקטע שנמצא, לא בראש הספר).
-    final anchor = widget.tab.readingAnchor;
+    final anchor = widget.tab.openingReadingAnchor(state);
     final initialIndex = layout.itemForLine(anchor.line);
     final clampedInitial = itemCount == 0
         ? 0
@@ -2575,7 +2575,7 @@ class _CombinedViewState extends State<CombinedView> {
     _commentaryCardKeys.removeWhere(
       (line, _) => !state.selectedIndices.contains(line),
     );
-    final anchor = widget.tab.readingAnchor;
+    final anchor = widget.tab.openingReadingAnchor(state);
     final initialIndex = layout.itemForLine(anchor.line);
     final itemCount = layout.itemCount;
     final clampedInitial = itemCount == 0

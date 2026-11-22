@@ -556,6 +556,48 @@ void main() {
     expect((event.tab as TextBookTab).index, 12);
   });
 
+  // #5748: כל סעיפי סימן שח בשורה אחת — הטאב יודע לאיזה סמן בתוכה לגלול.
+  group('תוצאת תוכן עניינים חלופי שהיא סמן בתוך שורה', () {
+    testWidgets('הטאב נושא את ההפניה, בלי הדגשה ובלי היסטוריה', (tester) async {
+      final book = TextBook(id: 1, title: 'טור, אורח חיים');
+      final event = await _openResultEvent(
+        tester,
+        library: _libraryWith([book]),
+        history: [Bookmark(ref: 'טור', book: book, index: 40)],
+        result: const DbReferenceResult(
+          title: 'טור, אורח חיים',
+          reference: 'טור, אורח חיים סימן שח סעיף ו',
+          segment: 30,
+          bookId: 1,
+          isAltToc: true,
+        ),
+      );
+
+      final tab = event.tab as TextBookTab;
+      expect(tab.index, 30);
+      expect(tab.markerReference, 'טור, אורח חיים סימן שח סעיף ו');
+      expect(tab.highlightText, isEmpty);
+      expect(tab.permanentHighlightLine, isNull);
+      expect(event.navigateToPositionIfReused, isTrue);
+    });
+
+    testWidgets('תוצאה רגילה אינה נושאת הפניה', (tester) async {
+      final book = TextBook(id: 1, title: 'טור, אורח חיים');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        result: const DbReferenceResult(
+          title: 'טור, אורח חיים',
+          reference: 'טור, אורח חיים סימן שח',
+          segment: 30,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).markerReference, isNull);
+    });
+  });
+
   testWidgets('תוצאת ספר בלבד ממקדת טאב קיים בלי לגלול אותו', (tester) async {
     final book = TextBook(id: 1, title: 'בראשית');
     final event = await _openResultEvent(

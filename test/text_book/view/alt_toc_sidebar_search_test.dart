@@ -32,6 +32,7 @@ class _RecordingLines extends LineScrollController {
     int line, {
     double alignment = kReadingAnchorAlignment,
     double intraLineFraction = 0,
+    double? Function(int line)? resolveFraction,
     Duration duration = const Duration(milliseconds: 250),
     Curve curve = Curves.ease,
     bool rememberPosition = true,

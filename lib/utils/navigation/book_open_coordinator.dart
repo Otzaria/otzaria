@@ -50,6 +50,7 @@ class BookOpenCoordinator {
     ExternalBookMatches? externalMatches,
     bool navigate = true,
     bool captureHistory = true,
+    String? markerReference,
   }) {
     final tab = buildTab(
       book,
@@ -64,6 +65,7 @@ class BookOpenCoordinator {
       selectLine: selectLine,
       initialCommentators: initialCommentators,
       externalMatches: externalMatches,
+      markerReference: markerReference,
     );
     openTab(
       tab,
@@ -136,6 +138,7 @@ class BookOpenCoordinator {
     List<String>? initialCommentators,
     String? dedupeKey,
     ExternalBookMatches? externalMatches,
+    String? markerReference,
   }) {
     // deep link עם הדגשה ממוקדת מציין במפורש סעיף יעד; חייבים לכבד אותו במדויק
     // (גם כש‑index=0) ולא ליפול חזרה להיסטוריית קריאה — אחרת ההדגשה תופיע במקום
@@ -233,6 +236,7 @@ class BookOpenCoordinator {
       dedupeKey: dedupeKey,
       externalMatches: externalMatches,
       linkSelectedLine: selectLine ? initialIndex : null,
+      markerReference: useHistoryPosition ? null : markerReference,
     )..historySlot = latestEntry?.historySlot;
     // ספר שנקרא רק בשולחנות אחרים מקבל slot חדש, כדי שלא ידרוס את רשומתם.
     if (latestEntry == null && bookEntries.isNotEmpty) {

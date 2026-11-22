@@ -33,7 +33,7 @@ import 'package:otzaria/search/models/search_configuration.dart'
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart'
     show kSearchResultAnchorAlignment;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
-    show matchFractionInLine;
+    show bracketMarkerFractionForReference, matchFractionInLine;
 import 'package:otzaria/utils/text/ref_helper.dart';
 
 /// כמה כרטיסיות שנסגרו נשמרות לשחזור. מוגבל כי כל רשומה מחזיקה מופע טאב חי.
@@ -946,10 +946,22 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetText = _resolveTextBookTab(existingTab, incomingTab);
       if (targetText == null) return;
       final targetIndex = incomingTab.index;
+      final marker = incomingTab.markerReference;
+      double? resolveMarker(int line) {
+        final state = targetText.blocState;
+        if (state is! TextBookLoaded ||
+            line >= state.content.length ||
+            !state.isContentLineLoaded(line)) {
+          return null;
+        }
+        return bracketMarkerFractionForReference(state.content[line], marker!);
+      }
+
       // יעד שנקבע לפני שהקורא מחובר נשמר ומבוצע בחיבור; tab.index מתעדכן מיד.
       final navigation = targetText.lines.scrollToLine(
         targetIndex,
         alignment: 0,
+        resolveFraction: marker == null ? null : resolveMarker,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );

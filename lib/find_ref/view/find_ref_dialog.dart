@@ -711,6 +711,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       navigateToPositionIfReused: hasExplicitLocation,
       requiresStableLayout: openAsPdf,
       initialCommentators: initialCommentators,
+      markerReference: ref.isAltToc ? ref.reference : null,
     );
     _recordOpenedRef(ref);
   }
