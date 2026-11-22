@@ -2867,6 +2867,18 @@ extension BookAcronymRepository on SeforimRepository {
             .toList();
       }
 
+      // "פ"ב" ← "פרק ב" כשאין "פרק פב" ("תהלים פ"ב" נשאר מזמור 82).
+      if (found.isEmpty && token.length == 2 && token.startsWith('פ')) {
+        found = searchScope
+            .where(
+              (e) =>
+                  e.ownTokens.length >= 2 &&
+                  e.ownTokens[0] == 'פרק' &&
+                  e.ownTokens[1] == token[1],
+            )
+            .toList();
+      }
+
       // "סימן מז" מול "שאלה מז", "כלל לה" מול "שער לה": רק בכותרת שבה גם
       // המספר שאחריו.
       if (found.isEmpty && isStructureWord(token) && i + 1 < tokens.length) {

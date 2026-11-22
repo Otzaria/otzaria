@@ -439,6 +439,28 @@ void main() {
     expect(rows.map((e) => e['reference']), [title]);
   });
 
+  test('"פ"ב" מגיע לפרק ב רק כשאין פרק פב', () async {
+    final mishna = await seferWithChildren('משנה ברכות', ['פרק א', 'פרק ב']);
+    expect(
+      (await mishna.getTocEntriesForReference(
+        1,
+        'משנה ברכות',
+        queryTokens: ['פב'],
+      )).map((e) => e['reference']),
+      ['משנה ברכות פרק ב'],
+    );
+
+    final tehillim = await seferWithChildren('תהלים', ['פרק ב', 'פרק פב']);
+    expect(
+      (await tehillim.getTocEntriesForReference(
+        1,
+        'תהלים',
+        queryTokens: ['פב'],
+      )).map((e) => e['reference']),
+      ['תהלים פרק פב'],
+    );
+  });
+
   test('כינוי שבלע מילת כותרת אינו בולע אותה שוב מהזנב', () async {
     ReferenceBookHit hit(String term, int rank) => ReferenceBookHit(
       bookId: 1,
