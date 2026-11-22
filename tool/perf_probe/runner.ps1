@@ -68,6 +68,35 @@ function Merge-PerfOutputs([string[]]$Directories) {
   } finally { $journal.Dispose(); $samples.Dispose(); $errors.Dispose() }
 }
 
+function Write-PerfFrameworkFailureDiagnostics([string]$Directory) {
+  # Read only this launch's owned files, at most 16 KiB per file.
+  foreach ($name in @('completion.json', 'stdout.log', 'stderr.log')) {
+    try {
+      $stream = [IO.File]::Open(
+        (Join-Path $Directory $name), [IO.FileMode]::Open,
+        [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+      try {
+        $length = $stream.Length
+        $offset = if ($name -eq 'completion.json') { 0L } else { [Math]::Max(0L, $length - 16384L) }
+        [void]$stream.Seek($offset, [IO.SeekOrigin]::Begin)
+        $count = [int][Math]::Min(16384L, $length - $offset)
+        $buffer = [byte[]]::new($count)
+        $read = 0
+        while ($read -lt $count) {
+          $received = $stream.Read($buffer, $read, $count - $read)
+          if ($received -eq 0) { break }
+          $read += $received
+        }
+      } finally { $stream.Dispose() }
+      Write-Host "Framework failure evidence: $name (offset $offset, $read of $length bytes)"
+      Write-Host ([Text.Encoding]::UTF8.GetString($buffer, 0, $read))
+    } catch {
+      # Diagnostics must never replace the benchmark's original failure.
+      Write-Host ('Framework failure evidence unavailable for {0}: {1}' -f $name, $_.Exception.Message)
+    }
+  }
+}
+
 function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
                            [string]$DataDirectory, [string]$Cache, [int]$Index,
                            [bool]$PreparationOnly = $false) {
@@ -116,6 +145,11 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
     if ($process.HasExited -and $process.ExitCode -ne 0) {
       throw "Benchmark exited unsuccessfully (exit $($process.ExitCode))."
     }
+  } catch {
+    if ($BindingMode -eq 'framework') {
+      Write-PerfFrameworkFailureDiagnostics $Directory
+    }
+    throw
   } finally {
     try {
       New-Item -ItemType File -Path $stop -Force | Out-Null

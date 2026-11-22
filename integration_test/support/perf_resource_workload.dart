@@ -287,7 +287,9 @@ PerfResourceProbeSession createPerfResourceProbeSession(
         await _wait(
           () {
             captureErrors();
-            return find.byType(App).evaluate().isNotEmpty &&
+            // app.main yields before the ordinary binding attaches its root.
+            return binding.rootElement != null &&
+                find.byType(App).evaluate().isNotEmpty &&
                 StartupTimeline.instance.toJson()['revealMs'] != null;
           },
           'usable app window',
