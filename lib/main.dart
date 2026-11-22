@@ -25,6 +25,7 @@ import 'package:otzaria/attached_libraries/repository/attached_libraries_reposit
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/android_anr_source.dart';
+import 'package:otzaria/app_report/services/android_hang_monitor.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
@@ -953,6 +954,7 @@ Future<void> _initializeRestartableRuntime() async {
   unawaited(_runDeferredPortableShortcut());
   unawaited(_runDeferredCrashCheck());
   unawaited(_runDeferredAnrCheck());
+  unawaited(_runDeferredAndroidHangMonitor());
   unawaited(_runDeferredAttachedLibraries());
   unawaited(_runDeferredLibraryChangesNotes());
   unawaited(_runDeferredCapabilitiesWrite());
@@ -1136,6 +1138,19 @@ Future<void> _runDeferredCrashCheck() async {
     ).handle(candidate);
   } catch (error, stackTrace) {
     _logNonFatalInitializationError('Crash report check', error, stackTrace);
+  }
+}
+
+Future<void> _runDeferredAndroidHangMonitor() async {
+  if (kIsWeb || !Platform.isAndroid) return;
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () {},
+    );
+    await AndroidHangMonitor().start();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Hang monitor', error, stackTrace);
   }
 }
 
