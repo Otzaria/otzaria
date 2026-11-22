@@ -16,7 +16,7 @@ Map<String, Object?> generated({
 }) => {
   'schemaVersion': 1,
   'source': {'kind': 'generated', 'pageCount': pages},
-  if (navigation != null) 'navigation': navigation,
+  'navigation': ?navigation,
 };
 
 PerfPdfCase parse(Object? value) =>
