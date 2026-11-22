@@ -26,6 +26,8 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:path/path.dart' as p;
 
+import 'support/perf_pdf_reader.dart';
+
 final _outFile = File(
   p.join(Directory.systemTemp.path, 'otzaria_perf_probe', 'spinner_diag.json'),
 );
@@ -34,83 +36,106 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('pdf book-view idle spinner diag', timeout: Timeout.none, (
-    tester,
-  ) async {
-    _outFile.parent.createSync(recursive: true);
-    if (_outFile.existsSync()) _outFile.deleteSync();
-
-    app.main(const <String>[]);
-    await _waitUntil(
+  testWidgets(
+    'pdf book-view idle spinner diag',
+    timeout: const Timeout(Duration(minutes: 8)),
+    (
       tester,
-      () => find.byType(App).evaluate().isNotEmpty,
-      timeout: const Duration(minutes: 3),
-    );
+    ) async {
+      _outFile.parent.createSync(recursive: true);
+      if (_outFile.existsSync()) _outFile.deleteSync();
 
-    final ctx = tester.element(find.byType(App));
-    final tabsBloc = ctx.read<TabsBloc>();
-    final library = await DataRepository.instance.library;
-    await _pumpFor(tester, const Duration(seconds: 8));
-    tabsBloc.add(CloseAllTabs());
-    await _pumpFor(tester, const Duration(seconds: 2));
+      app.main(const <String>[]);
+      await _waitUntil(
+        tester,
+        () => find.byType(App).evaluate().isNotEmpty,
+        description: 'application widget',
+        timeout: const Duration(minutes: 3),
+      );
 
-    final pdfBook = library
-        .getAllBooks()
-        .whereType<PdfBook>()
-        .where((b) => b.title.contains('ברכות') && File(b.path).existsSync())
-        .firstOrNull;
-    if (pdfBook == null) {
-      _write({'error': 'no PDF book found'});
-      return;
-    }
+      final ctx = tester.element(find.byType(App));
+      final tabsBloc = ctx.read<TabsBloc>();
+      final library = await DataRepository.instance.library;
+      await _pumpFor(tester, const Duration(seconds: 8));
+      tabsBloc.add(CloseAllTabs());
+      await _pumpFor(tester, const Duration(seconds: 2));
 
-    // שחזור התרחיש המלא: טאב PDF רגיל פתוח ברקע (מתחרה על ה-worker של
-    // pdfrx), ורק אז נפתח טאב תצוגת-הספר שבו נצפה הרינדור הרציף.
-    final regularTab = PdfBookTab(book: pdfBook, pageNumber: 2);
-    tabsBloc.add(AddTab(regularTab));
-    ctx.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
-    await _waitUntil(
-      tester,
-      () => regularTab.pdfViewerController.isReady,
-      timeout: const Duration(seconds: 90),
-    );
-    await _pumpFor(tester, const Duration(seconds: 5));
+      final pdfBook = library
+          .getAllBooks()
+          .whereType<PdfBook>()
+          .where((b) => b.title.contains('ברכות') && File(b.path).existsSync())
+          .firstOrNull;
+      if (pdfBook == null) {
+        _write({'error': 'no PDF book found'});
+        throw StateError(
+          'No existing PDF book containing ברכות in the library',
+        );
+      }
 
-    final tab = PdfBookTab(book: pdfBook, pageNumber: 2)
-      ..savedLayoutMode = PdfLayoutMode.bookView;
-    tabsBloc.add(AddTab(tab));
-    await _waitUntil(
-      tester,
-      () => tab.pdfViewerController.isReady,
-      timeout: const Duration(seconds: 90),
-    );
-    // זמן התייצבות ארוך — לוודא שהספינר שנצפה איננו טעינה לגיטימית שטרם תמה.
-    await _pumpFor(tester, const Duration(seconds: 25));
+      // שחזור התרחיש המלא: טאב PDF רגיל פתוח ברקע (מתחרה על ה-worker של
+      // pdfrx), ורק אז נפתח טאב תצוגת-הספר שבו נצפה הרינדור הרציף.
+      final regularTab = PdfBookTab(book: pdfBook, pageNumber: 2);
+      tabsBloc.add(AddTab(regularTab));
+      ctx.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
+      await _waitUntil(
+        tester,
+        () => regularTab.pdfViewerController.isReady,
+        description: 'background PDF controller',
+        timeout: const Duration(seconds: 90),
+      );
+      await _pumpFor(tester, const Duration(seconds: 5));
 
-    final diag = <String, Object?>{
-      'controllerReady': tab.pdfViewerController.isReady,
-      'linksLoading': tab.linksLoadingNotifier.value,
-      'pdfScreenMounted': find.byType(PdfBookScreen).evaluate().isNotEmpty,
-      'spinners': <Map<String, Object?>>[],
-    };
-    for (final el in find.byType(CircularProgressIndicator).evaluate()) {
-      final chain = <String>[];
-      el.visitAncestorElements((ancestor) {
-        chain.add(ancestor.widget.runtimeType.toString());
-        return chain.length < 30;
-      });
-      (diag['spinners'] as List).add({'ancestors': chain});
-    }
+      final tab = PdfBookTab(book: pdfBook, pageNumber: 2)
+        ..savedLayoutMode = PdfLayoutMode.bookView;
+      tabsBloc.add(AddTab(tab));
+      await _waitUntil(
+        tester,
+        () => tab.pdfViewerController.isReady,
+        description: 'book-view PDF controller',
+        timeout: const Duration(seconds: 90),
+      );
+      // זמן התייצבות ארוך — לוודא שהספינר שנצפה איננו טעינה לגיטימית שטרם תמה.
+      await _pumpFor(tester, const Duration(seconds: 25));
+      if (regularTab.savedLayoutMode != PdfLayoutMode.regularView ||
+          tab.savedLayoutMode != PdfLayoutMode.bookView) {
+        throw StateError(
+          'The diagnostic requires regularView behind bookView; '
+          'the installed profile overrode one of these layout modes.',
+        );
+      }
 
-    // דגימת קצב פריימים בפועל במנוחה, לאימות שהספינר הוא שמניע את הרינדור.
-    var frames = 0;
-    void onTimings(List<FrameTiming> t) => frames += t.length;
-    binding.addTimingsCallback(onTimings);
-    await _pumpFor(tester, const Duration(seconds: 4));
-    diag['framesIn4s'] = frames;
+      final diag = <String, Object?>{
+        'controllerReady': tab.pdfViewerController.isReady,
+        'linksLoading': tab.linksLoadingNotifier.value,
+        'pdfScreenMounted': find.byType(PdfBookScreen).evaluate().isNotEmpty,
+        'layoutMode': tab.savedLayoutMode?.name,
+        'visibleRenderState':
+            tab.pdfViewerController.visibleRenderState.value.name,
+        'spinners': <Map<String, Object?>>[],
+      };
+      for (final el in find.byType(CircularProgressIndicator).evaluate()) {
+        final chain = <String>[];
+        el.visitAncestorElements((ancestor) {
+          chain.add(ancestor.widget.runtimeType.toString());
+          return chain.length < 30;
+        });
+        (diag['spinners'] as List).add({'ancestors': chain});
+      }
 
-    _write(diag);
-  });
+      // דגימת קצב פריימים בפועל במנוחה, לאימות שהספינר הוא שמניע את הרינדור.
+      var frames = 0;
+      void onTimings(List<FrameTiming> t) => frames += t.length;
+      binding.addTimingsCallback(onTimings);
+      try {
+        await _pumpFor(tester, const Duration(seconds: 4));
+      } finally {
+        binding.removeTimingsCallback(onTimings);
+      }
+      diag['framesIn4s'] = frames;
+
+      _write(diag);
+    },
+  );
 }
 
 void _write(Map<String, Object?> data) {
@@ -131,12 +156,14 @@ Future<void> _pumpFor(WidgetTester tester, Duration duration) async {
 Future<void> _waitUntil(
   WidgetTester tester,
   bool Function() condition, {
+  required String description,
   required Duration timeout,
-}) async {
-  final end = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(end)) {
-    if (condition()) return;
+}) => waitForPdfProbeCondition(
+  condition,
+  description,
+  timeout: timeout,
+  advance: () async {
     await tester.pump(const Duration(milliseconds: 100));
     await Future<void>.delayed(const Duration(milliseconds: 100));
-  }
-}
+  },
+);

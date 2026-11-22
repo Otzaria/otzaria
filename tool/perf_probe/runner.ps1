@@ -3,6 +3,7 @@
 param(
   [ValidateSet('profile', 'debug', 'release')][string]$Mode = 'profile',
   [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
+  [ValidateSet('all', 'pdf-reader')][string]$ScenarioSet = 'all',
   [ValidateRange(0, 10)][int]$Warmup = 1,
   [ValidateRange(1, 100)][int]$Repetitions = 5,
   [ValidateRange(1, 30)][int]$Launches = 3,
@@ -73,6 +74,7 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
         PERF_OUTPUT_DIR = $Directory; PERF_DATA_DIR = $DataDirectory
         PERF_CACHE_STATE = $Cache; PERF_LAUNCH_INDEX = "$Index"
         PERF_WARMUP = "$Warmup"; PERF_REPETITIONS = "$Repetitions"
+        PERF_SCENARIO_SET = $ScenarioSet
         PERF_PREPARE_ONLY = $(if ($PreparationOnly) { '1' } else { '0' })
       }
     $ticks = $process.StartTime.ToUniversalTime().Ticks
@@ -157,6 +159,7 @@ try {
   $manifest = @{
     schemaVersion = 2; protocolVersion = 2; commit = $commit; dirty = $dirty
     buildMode = $Mode; cacheState = $CacheState; hardwareId = $HardwareId
+    scenarioSet = $ScenarioSet
     os = "windows-$($os.Version)-$($os.BuildNumber)"; flutterVersion = $sdk.frameworkRevision
     warmup = $Warmup; repetitions = $Repetitions; launchCount = $Launches
     sampling = @{ intervalMs = 500; treeRefreshMs = 2000; heap = ($Mode -ne 'release') }
