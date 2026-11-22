@@ -134,22 +134,21 @@ ULONG_PTR DartImageBase(ULONG_PTR address) {
 // שורת "Module PDB:" לכל מודול PE שמופיע בפריימים; app.so אינו PE.
 void AppendModulePdbLines(const std::vector<ULONG_PTR>& frames,
                           std::string* report) {
-  std::vector<HMODULE> seen;
+  std::vector<ULONG_PTR> seen;
   for (const ULONG_PTR frame : frames) {
-    if (DartImageBase(frame) != 0) continue;
-    HMODULE module = nullptr;
-    if (!::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                              reinterpret_cast<LPCWSTR>(frame), &module) ||
-        std::find(seen.begin(), seen.end(), module) != seen.end()) {
+    MEMORY_BASIC_INFORMATION info = {};
+    if (::VirtualQuery(reinterpret_cast<LPCVOID>(frame), &info,
+                       sizeof(info)) == 0 || info.Type != MEM_IMAGE) {
       continue;
     }
-    seen.push_back(module);
-    const std::string key = image_identity::ModulePdbKey(
-        ReadBytes, reinterpret_cast<ULONG_PTR>(module));
+    const auto base = reinterpret_cast<ULONG_PTR>(info.AllocationBase);
+    if (std::find(seen.begin(), seen.end(), base) != seen.end()) continue;
+    seen.push_back(base);
+    const std::string key = image_identity::ModulePdbKey(ReadBytes, base);
     if (key.empty()) continue;
-    wchar_t path[MAX_PATH] = {0};
-    const DWORD length = ::GetModuleFileNameW(module, path, MAX_PATH);
+    wchar_t path[MAX_PATH] = {};
+    const DWORD length = ::GetMappedFileNameW(
+        ::GetCurrentProcess(), reinterpret_cast<LPVOID>(frame), path, MAX_PATH);
     if (length == 0 || length >= MAX_PATH) continue;
     *report += "Module PDB: " + NarrowPathTail(path) + " " + key + "\n";
   }

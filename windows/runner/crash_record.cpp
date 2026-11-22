@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "crash_wer_context.h"
+#include "incident_context.h"
 #include "startup_watchdog.h"
 
 namespace crash_record {
@@ -22,8 +23,6 @@ constexpr size_t kMaxFrames = 64;
 
 LPTOP_LEVEL_EXCEPTION_FILTER g_previous = nullptr;
 std::atomic<bool> g_claimed{false};
-std::atomic<uint32_t> g_diagnostic_context{0};
-static_assert(std::atomic<uint32_t>::is_always_lock_free);
 HANDLE g_crash_event = nullptr;
 HANDLE g_done_event = nullptr;
 HANDLE g_writer = nullptr;
@@ -250,23 +249,8 @@ LONG WINAPI OnUnhandledException(EXCEPTION_POINTERS* info) {
 }  // namespace
 
 void AppendDiagnosticContext(std::string* report) {
-  const uint32_t state = g_diagnostic_context.load(std::memory_order_relaxed);
-  // אותו קידוד כמו NativeIncidentContext.encode ב-Dart.
-  constexpr const char* screens[] = {
-      "unknown", "library", "find", "reading", "search", "settings"};
-  constexpr const char* tabs[] = {
-      "none", "text", "pdf", "commentators", "pdfCommentators",
-      "search", "tool", "combined", "other"};
-  const uint32_t screen = state & 0xfu;
-  const uint32_t tab = (state >> 4) & 0xfu;
-  if (screen == 0 || screen >= ARRAYSIZE(screens) || tab >= ARRAYSIZE(tabs))
-    return;
-  char line[128];
-  snprintf(line, sizeof(line),
-           "Context: screen=%s; tabs=%u; tab=%s; semantics=%s\n",
-           screens[screen], (state >> 9) & 0xffffu, tabs[tab],
-           (state & 0x100u) != 0 ? "on" : "off");
-  *report += line;
+  const LONG state = ::InterlockedCompareExchange(&g_wer.diagnostic_context, 0, 0);
+  AppendIncidentContext(static_cast<uint32_t>(state), report);
 }
 
 void Install() {
@@ -299,5 +283,6 @@ void BeginSession() {
 }  // namespace crash_record
 
 extern "C" __declspec(dllexport) void OtzariaSetIncidentContext(uint32_t state) {
-  crash_record::g_diagnostic_context.store(state, std::memory_order_relaxed);
+  ::InterlockedExchange(&crash_record::g_wer.diagnostic_context,
+                        static_cast<LONG>(state));
 }

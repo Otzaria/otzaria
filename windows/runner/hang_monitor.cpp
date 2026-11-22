@@ -4,6 +4,7 @@
 #include <tlhelp32.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <optional>
 #include <string>
@@ -68,24 +69,35 @@ ULONGLONG MsSinceLaunch() {
   return current > start ? (current - start) / 10000 : 0;
 }
 
-std::string ThreadName(HANDLE thread) {
-  using GetThreadDescriptionFn = HRESULT(WINAPI*)(HANDLE, PWSTR*);
-  static const auto get_description = reinterpret_cast<GetThreadDescriptionFn>(
+using GetThreadDescriptionFn = HRESULT(WINAPI*)(HANDLE, PWSTR*);
+GetThreadDescriptionFn g_get_thread_description = nullptr;
+
+void LoadThreadNameReader() {
+  g_get_thread_description = reinterpret_cast<GetThreadDescriptionFn>(
       ::GetProcAddress(::GetModuleHandleW(L"kernel32.dll"),
                        "GetThreadDescription"));
+}
+
+std::string ThreadName(HANDLE thread) {
   PWSTR wide = nullptr;
-  if (get_description == nullptr || FAILED(get_description(thread, &wide)) ||
-      wide == nullptr) {
+  if (g_get_thread_description == nullptr ||
+      FAILED(g_get_thread_description(thread, &wide)) || wide == nullptr) {
     return "";
   }
-  char name[128] = {0};
-  ::WideCharToMultiByte(CP_UTF8, 0, wide, -1, name, sizeof(name) - 1, nullptr,
-                        nullptr);
+  char name[128] = {};
+  int chars = 0;
+  while (chars < 42 && wide[chars] != L'\0') ++chars;
+  if (chars > 0 && wide[chars - 1] >= 0xd800 && wide[chars - 1] <= 0xdbff)
+    --chars;
+  const int bytes = chars == 0 ? 0 : ::WideCharToMultiByte(
+      CP_UTF8, WC_ERR_INVALID_CHARS, wide, chars, name, sizeof(name), nullptr,
+      nullptr);
   ::LocalFree(wide);
-  for (char& ch : name) {
-    if (ch == '\n' || ch == '\r') ch = ' ';
+  for (int i = 0; i < bytes; ++i) {
+    const auto ch = static_cast<unsigned char>(name[i]);
+    if (ch < 32 || ch == 127) name[i] = ' ';
   }
-  return name;
+  return std::string(name, bytes);
 }
 
 std::optional<ULONGLONG> ThreadCpuMs(HANDLE thread) {
@@ -108,6 +120,7 @@ struct OtherThread {
   std::string name;
   std::vector<ULONG_PTR> frames;
   int same_stack = 0;
+  bool in_loader = false;
 };
 
 struct ThreadCapture {
@@ -120,6 +133,90 @@ std::optional<ULONGLONG> CpuDelta(std::optional<ULONGLONG> before,
                                   std::optional<ULONGLONG> after) {
   if (!before || !after || *after < *before) return std::nullopt;
   return *after - *before;
+}
+
+#if defined(_M_X64)
+ULONG_PTR g_ntdll_begin = 0;
+ULONG_PTR g_ntdll_end = 0;
+
+struct LoaderEntry {
+  ULONG_PTR address = 0;
+  ULONG_PTR function_begin = 0;
+};
+std::array<LoaderEntry, 3> g_loader_entries{};
+
+ULONG_PTR FunctionBegin(ULONG_PTR pc, ULONG_PTR expected_base) {
+  __try {
+    DWORD64 image_base = 0;
+    const auto* function = ::RtlLookupFunctionEntry(pc, &image_base, nullptr);
+    if (image_base != expected_base) return 0;
+    for (unsigned depth = 0; function != nullptr && depth < 32; ++depth) {
+      const auto* info =
+          reinterpret_cast<const BYTE*>(image_base) + function->UnwindData;
+      if (((info[0] >> 3) & UNW_FLAG_CHAININFO) == 0)
+        return image_base + function->BeginAddress;
+      const BYTE codes = info[2];
+      function = reinterpret_cast<const RUNTIME_FUNCTION*>(
+          info + 4 + ((codes + 1) & ~1) * 2);
+    }
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return 0;
+  }
+  return 0;
+}
+
+void LoadLoaderEntries() {
+  if (g_ntdll_begin != 0) return;
+  const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+  MODULEINFO info = {};
+  if (ntdll == nullptr ||
+      !::GetModuleInformation(::GetCurrentProcess(), ntdll, &info, sizeof(info)))
+    return;
+  g_ntdll_begin = reinterpret_cast<ULONG_PTR>(info.lpBaseOfDll);
+  g_ntdll_end = g_ntdll_begin + info.SizeOfImage;
+  constexpr const char* names[] = {
+      "LdrLoadDll", "LdrUnloadDll", "LdrInitializeThunk"};
+  for (size_t i = 0; i < g_loader_entries.size(); ++i) {
+    const auto address =
+        reinterpret_cast<ULONG_PTR>(::GetProcAddress(ntdll, names[i]));
+    if (address < g_ntdll_begin || address >= g_ntdll_end) continue;
+    g_loader_entries[i] = {address, FunctionBegin(address, g_ntdll_begin)};
+  }
+}
+
+bool IsLoaderFrame(ULONG_PTR pc, bool from_return_address = false) {
+  if (pc < g_ntdll_begin || pc >= g_ntdll_end) return false;
+  const ULONG_PTR begin =
+      FunctionBegin(pc - (from_return_address ? 1 : 0), g_ntdll_begin);
+  return std::any_of(g_loader_entries.begin(), g_loader_entries.end(),
+                     [&](const LoaderEntry& entry) {
+                       return pc == entry.address ||
+                              (begin != 0 && begin == entry.function_begin);
+                     });
+}
+
+bool LoaderProbeReady() { return g_ntdll_begin != 0; }
+#else
+void LoadLoaderEntries() {}
+bool IsLoaderFrame(ULONG_PTR, bool) { return false; }
+bool LoaderProbeReady() { return false; }
+#endif
+
+bool InLoader(const std::vector<ULONG_PTR>& frames) {
+  for (size_t i = 0; i < frames.size(); ++i) {
+    if (IsLoaderFrame(frames[i], i != 0))
+      return true;
+  }
+  return false;
+}
+
+void LimitPeerStacks(ThreadCapture* capture) {
+  std::stable_partition(capture->threads.begin(), capture->threads.end(),
+                        [](const OtherThread& thread) { return thread.in_loader; });
+  while (capture->threads.size() > kMaxPeerStacks) {
+    capture->omitted += 1 + static_cast<size_t>(capture->threads.back().same_stack);
+    capture->threads.pop_back();
+  }
 }
 
 ThreadCapture CaptureOtherThreads(bool first_report) {
@@ -197,9 +294,12 @@ ThreadCapture CaptureOtherThreads(bool first_report) {
                                 ? a.recent_cpu_ms > b.recent_cpu_ms
                                 : a.cpu_ms > b.cpu_ms;
                    });
+  const bool probe_loader = low_ui_cpu && LoaderProbeReady();
+  const size_t capture_limit =
+      probe_loader ? kMaxThreadCandidates : kMaxPeerStacks;
   for (size_t i = 0; i < threads.size(); ++i) {
     OtherThread& thread = threads[i];
-    if (i >= kMaxPeerStacks ||
+    if (i >= capture_limit ||
         ::WaitForSingleObject(g_stop_event, 0) == WAIT_OBJECT_0) {
       ++capture.omitted;
       ::CloseHandle(thread.handle);
@@ -207,7 +307,7 @@ ThreadCapture CaptureOtherThreads(bool first_report) {
     }
     startup_watchdog::CaptureThreadStack(thread.handle, &thread.frames,
                                          kMaxPeerFrames);
-    const std::string name = ThreadName(thread.handle);
+    thread.name = ThreadName(thread.handle);
     ::CloseHandle(thread.handle);
     thread.handle = nullptr;
     if (thread.frames.empty()) continue;
@@ -218,10 +318,7 @@ ThreadCapture CaptureOtherThreads(bool first_report) {
             })) {
       continue;
     }
-    thread.name = name == "DartWorker" ||
-                          name.compare(0, 11, "io.flutter.") == 0
-                      ? name
-                      : "native";
+    thread.in_loader = probe_loader && InLoader(thread.frames);
     const auto same = std::find_if(
         capture.threads.begin(), capture.threads.end(),
         [&](const OtherThread& other) { return other.frames == thread.frames; });
@@ -231,6 +328,7 @@ ThreadCapture CaptureOtherThreads(bool first_report) {
       capture.threads.push_back(std::move(thread));
     }
   }
+  LimitPeerStacks(&capture);
   return capture;
 }
 
@@ -243,9 +341,10 @@ size_t AppendOtherThreads(const ThreadCapture& capture, size_t max_bytes,
     char header[256];
     snprintf(header, sizeof(header),
              "--- Thread %lu \"%s\", CPU %llums (%llums in last %lums), "
-             "%d more with this stack ---\n",
+             "%d more with this stack%s ---\n",
              thread.id, thread.name.c_str(), thread.cpu_ms,
-             thread.recent_cpu_ms, kCpuWindowMs, thread.same_stack);
+             thread.recent_cpu_ms, kCpuWindowMs, thread.same_stack,
+             thread.in_loader ? ", in loader" : "");
     std::string section = header;
     startup_watchdog::AppendStack(thread.frames, &section);
     if (section.size() > max_bytes - used) {
@@ -391,6 +490,8 @@ void ReportProcessStall(ULONGLONG gap_ms) {
 }
 
 void WatcherLoop() {
+  LoadThreadNameReader();
+  LoadLoaderEntries();
   native_exception_log::Install(::GetWindowThreadProcessId(g_window, nullptr));
   ULONGLONG last_tick = ::GetTickCount64();
   ULONGLONG last_awake = AwakeMs();

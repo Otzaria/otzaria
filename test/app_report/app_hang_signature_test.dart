@@ -104,8 +104,8 @@ void main() {
     final after = parseErrorLogBlocks(
       '${title}Context: screen=reading; tabs=4; tab=pdf; semantics=on\n'
       'UI thread CPU: 0ms in 250ms\n'
-      '$stack--- Thread 42 "native", CPU 15ms (0ms in last 250ms), '
-      '0 more with this stack ---\n'
+      '$stack--- Thread 42 "tokio-runtime-worker", CPU 15ms (0ms in last 250ms), '
+      '0 more with this stack, in loader ---\n'
       'Stack (module+RVA):\n'
       '  ntdll.dll+0xcafe\n',
     ).single;

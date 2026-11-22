@@ -132,8 +132,11 @@ void main() {
       source.indexOf('std::string DescribeAddress('),
     );
     expect(pdbLines, contains('"Module PDB: "'));
-    expect(pdbLines, contains('GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT'));
-    expect(pdbLines, contains('DartImageBase(frame) != 0'));
+    expect(pdbLines, contains('::VirtualQuery('));
+    expect(pdbLines, contains('info.Type != MEM_IMAGE'));
+    expect(pdbLines, contains('::GetMappedFileNameW('));
+    expect(pdbLines, isNot(contains('::GetModuleHandle')));
+    expect(pdbLines, isNot(contains('::GetModuleFileNameW(')));
     final stall = source.substring(source.indexOf('void ReportStall('));
     expect(
       stall.indexOf('AppendBuildIdentitySection(frames, &report);'),
