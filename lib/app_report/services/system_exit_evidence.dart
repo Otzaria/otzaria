@@ -200,11 +200,11 @@ class _WindowsEvent {
       return false;
     }
     if (time.isBefore(start) || time.isAfter(end)) return false;
-    // תהליך שנוצר אחרי תחילת ההפעלה קיבל את ה-pid בשימוש חוזר.
+    // יצירת התהליך יכולה להקדים את ציר העלייה של Dart; זמן חסר אינו ראיה.
     final created = _fileTime(
       field(isCrash ? 'ProcessCreationTime' : 'StartTime', isCrash ? 9 : 3),
     );
-    return created == null ||
+    return created != null &&
         !created.isAfter(start.add(const Duration(seconds: 2)));
   }
 
@@ -298,23 +298,30 @@ class _WindowsEvent {
       .replaceAll('&amp;', '&');
 }
 
+/// מסנן לאירועי קרנל גם מאתחולים קודמים.
+@visibleForTesting
+List<String> linuxOomJournalArguments(DateTime start, DateTime end) => [
+  '-q',
+  '--no-pager',
+  '-o',
+  'short-unix',
+  '--since',
+  '@${start.millisecondsSinceEpoch ~/ 1000}',
+  '--until',
+  '@${end.millisecondsSinceEpoch ~/ 1000 + 1}',
+  '_TRANSPORT=kernel',
+];
+
 Future<SystemExitEvidence?> _readLinuxOomKill(
   int pid,
   DateTime start,
   DateTime end,
   Duration timeout,
 ) async {
-  final process = await Process.start('journalctl', [
-    '-k',
-    '-q',
-    '--no-pager',
-    '-o',
-    'short-unix',
-    '--since',
-    '@${start.millisecondsSinceEpoch ~/ 1000}',
-    '--until',
-    '@${end.millisecondsSinceEpoch ~/ 1000 + 1}',
-  ]);
+  final process = await Process.start(
+    'journalctl',
+    linuxOomJournalArguments(start, end),
+  );
   unawaited(process.stderr.drain<void>());
   try {
     // סינון על הזרם: יומן קרנל של ימים לא נשמר בזיכרון.

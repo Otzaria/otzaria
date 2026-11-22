@@ -32,7 +32,10 @@ String crashEventXml({
     "<Data Name='IntegratorReportId'>d75c7d28-65cf-4007-af3b-ee917ca8b695</Data>"
     "<Data Name='PackageFullName'></Data></EventData></Event>";
 
-String hangEventXml({String processId = '0x4e7c'}) =>
+String hangEventXml({
+  String processId = '0x4e7c',
+  String creation = '0x1dd7a861481c2f7',
+}) =>
     "<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>"
     "<System><Provider Name='Application Hang'/><EventID>1002</EventID>"
     "<TimeCreated SystemTime='2026-11-22T13:40:07.1472915Z'/>"
@@ -40,7 +43,7 @@ String hangEventXml({String processId = '0x4e7c'}) =>
     "<Data Name='AppName'>otzaria.exe</Data>"
     "<Data Name='AppVersion'>0.9.99.0</Data>"
     "<Data Name='ProcessId'>$processId</Data>"
-    "<Data Name='StartTime'>0x1dd7a861481c2f7</Data>"
+    "<Data Name='StartTime'>$creation</Data>"
     "<Data Name='TerminationTime'>4294967295</Data>"
     r"<Data Name='ExeFileName'>C:\Users\moshe\otzaria\otzaria.exe</Data>"
     "<Data Name='ReportId'>ea95c5d4-f7ef-43ee-8443-077c0e476a2e</Data>"
@@ -110,6 +113,22 @@ void main() {
       );
     });
 
+    test('זמן יצירה חסר, פגום או אפס אינו מוכיח את זהות התהליך', () {
+      for (final creation in ['', 'invalid', '0x0']) {
+        expect(windows([crashEventXml(creation: creation)]), isNull);
+        expect(windows([hangEventXml(creation: creation)]), isNull);
+      }
+    });
+
+    test('זמן יצירה לפני התחלת Dart עדיין שייך להפעלה', () {
+      final created = start.subtract(const Duration(minutes: 1));
+      final ticks = created.difference(DateTime.utc(1601)).inMicroseconds * 10;
+      expect(
+        windows([crashEventXml(creation: '0x${ticks.toRadixString(16)}')]),
+        isNotNull,
+      );
+    });
+
     test('נתיב בשם המודול נחתך לשם הקובץ', () {
       final evidence = windows([
         crashEventXml(module: r'C:\Users\moshe\plugins\x.dll'),
@@ -172,6 +191,20 @@ void main() {
         'nodemask=(null),cpuset=/,mems_allowed=0,global_oom,'
         'task_memcg=/user.slice/user-1000.slice/session-2.scope,'
         'task=$name,pid=$pid,uid=1000';
+
+    test('פקודת היומן מסננת קרנל וזמן בלי להגביל לאתחול הנוכחי', () {
+      expect(linuxOomJournalArguments(linuxStart, linuxEnd), [
+        '-q',
+        '--no-pager',
+        '-o',
+        'short-unix',
+        '--since',
+        '@${linuxStart.millisecondsSinceEpoch ~/ 1000}',
+        '--until',
+        '@${linuxEnd.millisecondsSinceEpoch ~/ 1000 + 1}',
+        '_TRANSPORT=kernel',
+      ]);
+    });
 
     test('הריגת OOM של ה-pid: סוג ונתוני זיכרון בלבד', () {
       final evidence = linux([oomKill(linuxPid), killed(linuxPid)])!;
