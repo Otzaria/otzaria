@@ -72,9 +72,6 @@ public final class AssistantModel: ObservableObject {
     @Published var presets: [AssistantPreset] = []
     @Published var presetId = ""
     @Published var customChecked = Set<String>()
-    /// nil — אין release של מחברי זמננו שאפשר לאמת, ואז האפשרות אינה מוצגת.
-    @Published var zmanenuOffer: ZmanenuOffer?
-    @Published var zmanenuChecked = false
 
     @Published var outputBase: URL
     @Published var outputFellBack = false
@@ -93,7 +90,6 @@ public final class AssistantModel: ObservableObject {
     /// היציאה אושרה (או שאין מה לאשר) — Cmd-Q שבא אחריה אינו שואל שוב.
     private var quitConfirmed = false
     private var loader: ReleaseLoader?
-    private var zmanenuLoader: ZmanenuLoader?
     private var loadGeneration = 0
     private var runner: PreparationRunner?
     private var lastPlan: PreparationPlan?
@@ -231,8 +227,6 @@ public final class AssistantModel: ObservableObject {
                 self.showFailure(error.offline ? .offline : .load, error)
             case .success(let release):
                 self.loaded(release.manifest)
-                // כאן ולא ב-loaded: הבדיקות וצילומי המסך טוענים מניפסט בלי רשת.
-                self.loadZmanenu()
             }
         }
     }
@@ -242,26 +236,6 @@ public final class AssistantModel: ObservableObject {
         otherTargets = Self.computeOtherTargets(manifest)
         history = [.welcome]
         page = .mode
-    }
-
-    /// ברקע ובלי שגיאה: כשאין release, האפשרות פשוט אינה מופיעה.
-    private func loadZmanenu() {
-        guard zmanenuLoader == nil, zmanenuOffer == nil else { return }
-        let loader = ZmanenuLoader()
-        zmanenuLoader = loader
-        loader.load(english: english) { [weak self] offer in
-            self?.zmanenuOffer = offer
-            self?.zmanenuLoader = nil
-        }
-    }
-
-    var zmanenuAvailable: Bool {
-        zmanenuOffer != nil && Zmanenu.isOffered(target)
-    }
-
-    /// מחברי זמננו כשסומנו וזמינים ליעד, אחרת nil.
-    var selectedZmanenu: ZmanenuOffer? {
-        zmanenuAvailable && zmanenuChecked ? zmanenuOffer : nil
     }
 
     /// ביטול החיבור מחזיר למסך הפתיחה; תשובה מאוחרת של הטעינה נזרקת.
@@ -470,12 +444,9 @@ public final class AssistantModel: ObservableObject {
         guard let manifest = manifest else { return }
         let plan: PreparationPlan
         do {
-            // למחשב הזה — לתיקיית האיסוף של אוצריא; למחשב אחר — לצד קובצי הבחירה.
             plan = try PreparationPlan.make(
                 manifest: manifest, selectedIds: selectedMembers, target: target,
-                english: english, subfolderName: subfolderName,
-                zmanenu: selectedZmanenu,
-                zmanenuDirectory: mode == .thisComputer ? Zmanenu.dropDirectory() : nil
+                english: english, subfolderName: subfolderName
             )
         } catch let failure as AssistantError {
             failedWhileLoading = false

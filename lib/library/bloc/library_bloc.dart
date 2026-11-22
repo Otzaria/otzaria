@@ -492,7 +492,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       }
       visited.add(current);
 
-      path.insert(0, current.pathSegment ?? current.title);
+      path.insert(0, current.title);
       current = current.parent;
     }
 
@@ -505,14 +505,16 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
     Category current = rootCategory;
 
-    for (final segment in path) {
-      final child = current.subCategories
-          .where(
-            (category) => (category.pathSegment ?? category.title) == segment,
-          )
-          .firstOrNull;
-      if (child == null) break;
-      current = child;
+    for (final categoryName in path) {
+      try {
+        final found = current.subCategories
+            .where((cat) => cat.title == categoryName)
+            .first;
+        current = found;
+      } catch (e) {
+        // אם לא מצאנו את התיקייה, נחזיר את הקרובה ביותר
+        return current;
+      }
     }
 
     return current;
@@ -711,9 +713,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
   Category? _historyCategoryAtPath(Library library, String path) {
     Category category = library;
-    for (final segment in path.split('/').where((part) => part.isNotEmpty)) {
+    for (final title in path.split('/').where((part) => part.isNotEmpty)) {
       final child = category.subCategories
-          .where((sub) => (sub.pathSegment ?? sub.title) == segment)
+          .where((sub) => sub.title == title)
           .firstOrNull;
       if (child == null) return null;
       category = child;

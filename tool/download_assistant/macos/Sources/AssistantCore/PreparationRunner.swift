@@ -65,19 +65,16 @@ public struct PreparationResult: Equatable {
     public let keptSplitAssets: [String]
     /// ההסברים של הרכיבים שהוכנו, לעמוד הסיום.
     public var outputNotes: [String] = []
-    /// תיקיית האיסוף של אוצריא כשמחברי זמננו נכתבו אליה (למחשב הזה), אחרת nil.
-    public var zmanenuDirectory: URL?
 
     public init(
         outputDirectory: URL, producedFiles: [URL], revealTarget: URL, keptSplitAssets: [String],
-        outputNotes: [String] = [], zmanenuDirectory: URL? = nil
+        outputNotes: [String] = []
     ) {
         self.outputDirectory = outputDirectory
         self.producedFiles = producedFiles
         self.revealTarget = revealTarget
         self.keptSplitAssets = keptSplitAssets
         self.outputNotes = outputNotes
-        self.zmanenuDirectory = zmanenuDirectory
     }
 }
 
@@ -350,11 +347,7 @@ public final class PreparationRunner {
     private func produceOutput() throws -> PreparationResult {
         let directory = outputDirectory
         var produced: [URL] = []
-        // גודל לא ידוע מראש (0) נלקח מהקובץ שירד.
-        let zmanenuBytes = plan.zmanenu?.downloads.reduce(Int64(0)) {
-            $0 + (fileSize(cache.fileURL($1.name)) ?? $1.size)
-        } ?? 0
-        let total = plan.actions.reduce(zmanenuBytes) { sum, action in
+        let total = plan.actions.reduce(Int64(0)) { sum, action in
             switch action {
             case .place(let item, _): return sum + item.size
             case .assemble(_, let size, _, _, _, _): return sum + size
@@ -439,28 +432,12 @@ public final class PreparationRunner {
                 produced.append(destination)
             }
         }
-        if let offer = plan.zmanenu {
-            let base = done
-            let placed = try placeZmanenu(
-                offer, in: plan.zmanenuDirectory ?? directory,
-                sourceURL: { self.cache.fileURL($0.name) },
-                progress: { copied in
-                    self.post(PreparationStatus(
-                        phase: .copying, title: PreparationStatus.copyingTitle, detail: offer.downloads.first?.caption ?? "",
-                        doneBytes: base + copied, totalBytes: total, eta: self.currentEta()
-                    ))
-                },
-                isCancelled: { self.isCancelled }
-            )
-            if plan.zmanenuDirectory == nil { produced += placed }
-        }
         return PreparationResult(
             outputDirectory: directory,
             producedFiles: produced,
             revealTarget: produced.count == 1 ? produced[0] : directory,
             keptSplitAssets: plan.keptSplitAssets,
-            outputNotes: plan.outputNotes,
-            zmanenuDirectory: plan.zmanenu == nil ? nil : plan.zmanenuDirectory
+            outputNotes: plan.outputNotes
         )
     }
 

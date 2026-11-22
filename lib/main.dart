@@ -20,7 +20,6 @@ import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/plugins/services/startup_crash_counter.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
-import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
@@ -67,7 +66,6 @@ import 'package:otzaria/core/data_root_writability_warning.dart';
 import 'package:otzaria/core/personal_data_missing_warning.dart';
 import 'package:otzaria/core/cli_command.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/sqlite_memory_release.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/info/app_info_cli.dart';
@@ -1314,34 +1312,8 @@ Future<void> _runDeferredAttachedLibraryUpdates() async {
   } on TimeoutException {
     // Continue anyway, or the check never runs.
   }
-  final updates = AttachedLibraryUpdateService.instance;
   try {
-    // חבילה במיקום האיסוף מותקנת גם במצב לא מקוון — אין בה פנייה לרשת.
-    final dropped = await updates.importDroppedPackages();
-    for (final MapEntry(key: entry, value: result) in dropped.entries) {
-      if (result == OfficialPackageResult.installed) {
-        UiSnack.show(
-          SettingsMessages.officialLibraryInstalled(entry.displayName),
-        );
-      } else if (result != OfficialPackageResult.alreadyInstalled) {
-        UiSnack.showError(
-          SettingsMessages.droppedOfficialPackageRejected(
-            entry.offlinePackageName!,
-            AttachedLibrariesBloc.packageMessage(result),
-          ),
-        );
-      }
-    }
-    await updates.adoptManualCopies();
-  } catch (error, stackTrace) {
-    _logNonFatalInitializationError(
-      'Official library packages',
-      error,
-      stackTrace,
-    );
-  }
-  try {
-    await updates.runScheduledCheck();
+    await AttachedLibraryUpdateService.instance.runScheduledCheck();
   } catch (error, stackTrace) {
     _logNonFatalInitializationError(
       'Attached library updates',

@@ -11,9 +11,6 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-import '../../tool/release/download_assistant_selection.dart'
-    show kZmanenuArchiveName, kZmanenuDropFolder;
-
 /// טסטים על סקריפטי ה-Inno Setup. הם אינם נבנים ב-CI של הטסטים, ולכן ההגנה
 /// היחידה עליהם היא קריאת הטקסט ואימות האינוריאנטות שמקשרות ביניהם לבין
 /// [AppPaths] — שם האפליקציה קוראת את אותם מסמנים ומפתחות.
@@ -737,33 +734,6 @@ void main() {
         ),
       );
     });
-  });
-
-  group('חבילת מחברי זמננו לצד המתקין', () {
-    for (final name in [_regular, _full]) {
-      test('$name: מועתקת למיקום האיסוף של שורש הנתונים, גם בהתקנה ניידת', () {
-        final script = _script(name);
-        final files = _squeeze(
-          _sections(script, 'Files').join().replaceAll('\\\n', ' '),
-        );
-        expect(
-          files,
-          contains(
-            'Source: "{src}\\$kZmanenuArchiveName*"; '
-            'DestDir: "{code:GetOfficialDropDir}"; Flags: external '
-            'skipifsourcedoesntexist',
-          ),
-        );
-        final routine = _routine(script, 'function GetOfficialDropDir(');
-        expect(routine, contains('if PortableMode then'));
-        expect(routine, contains("ExpandConstant('{app}') + '\\otzaria_data'"));
-        expect(routine, contains("ExpandConstant('{userappdata}\\otzaria')"));
-        expect(
-          routine,
-          contains("'\\${kZmanenuDropFolder.replaceAll('/', '\\')}'"),
-        );
-      });
-    }
   });
 
   group('חלקי הספרייה והאינדקס לצד המתקין הרגיל', () {
@@ -3025,12 +2995,8 @@ void main() {
         script.replaceAll(manifestConst, ''),
         isNot(contains('otzaria-')),
       );
-      // explorer.exe ו-curl.exe הם תוכניות מערכת, לא נכסים של release. מחברי
-      // זמננו אינו במניפסט: שמו הוא החוזה עם האפליקציה (offlinePackageName).
-      const zmanenuConst = "ZmanenuArchive = 'zmanenu-offline.tar.zst';";
-      expect(script, contains(zmanenuConst));
+      // explorer.exe ו-curl.exe הם תוכניות מערכת, לא נכסים של release.
       final literals = script
-          .replaceAll(zmanenuConst, '')
           .replaceAll(r"ExpandConstant('{win}\explorer.exe')", '')
           .replaceAll(r"ExpandConstant('{win}\Sysnative\curl.exe')", '')
           .replaceAll(r"ExpandConstant('{sys}\curl.exe')", '');
@@ -3093,22 +3059,10 @@ void main() {
       final connectAdds = RegExp(r'ConnectPage\.Add\(').allMatches(script);
       expect(connectAdds, hasLength(1));
       expect(fetch, contains("ConnectPage.Add(Url, FileName, '')"));
-      // ושל מחברי זמננו: רשימת ה-release ומניפסט החלקים, שהם מקור ה-hash שלו.
       expect(
         RegExp(r'FetchToTemp\(').allMatches(script).length,
-        5,
-        reason: 'רק רשימות ה-release והמניפסטים יורדים בלי hash',
-      );
-      expect(
-        RegExp(
-          r'FetchToTemp\(',
-        ).allMatches(_routine(script, 'procedure LoadZmanenu(')),
-        hasLength(2),
-      );
-      expect(
-        _routine(script, 'function BuildQueue('),
-        contains('QueueAdd(ZmanenuUrl[Z], ZmanenuName[Z], ZmanenuSha[Z],'),
-        reason: 'מחברי זמננו יורד רק עם sha256 מה-API או ממניפסט החלקים',
+        3,
+        reason: 'רק רשימת ה-release והמניפסט יורדים בלי hash',
       );
       expect(
         _routine(script, 'function FetchReleaseJson('),
@@ -3266,8 +3220,8 @@ void main() {
       final queue = _routine(script, 'function BuildQueue(');
       expect(
         RegExp('CachedFileIsGood').allMatches(queue).length,
-        3,
-        reason: 'חלקים, נכס יחיד ומחברי זמננו חייבים לדלג כשהם כבר מאומתים',
+        2,
+        reason: 'גם חלקים וגם נכס יחיד חייבים לדלג כשהם כבר מאומתים',
       );
       expect(queue, contains('Continue;'));
     });
@@ -3317,10 +3271,7 @@ void main() {
         final prepare = _routine(script, 'function PrepareOutput()');
         final copy = _routine(script, 'function CopyToOutput(');
         // לפי מספר קבצים: 4 קבצים קטנים מתוך 7 = 57%, ושם נתקע על הקובץ הענק.
-        expect(
-          prepare,
-          contains('Total := UiSelectedSize() + ZmanenuSelectedSize();'),
-        );
+        expect(prepare, contains('Total := UiSelectedSize();'));
         expect(prepare, isNot(contains('SetProgress(Produced, Total)')));
         expect(
           copy,
@@ -4105,15 +4056,8 @@ void main() {
         contains("AssetUrl('Otzaria/otzaria', PinnedTag, ManifestAsset)"),
         reason: 'המניפסט חייב לרדת מאותו תג שנקרא — לא מ-latest שוב',
       );
-      // מחברי זמננו אינו קשור לתג של אוצריא. כתובת latest שלו היא הנסיגה
-      // היחידה כשה-API אינו עונה, וחלק מגרסה אחרת נדחה ב-sha256 של המניפסט.
       expect(
-        _script(
-          _assistant,
-        ).replaceAll(
-          _routine(_script(_assistant), 'function ZmanenuAssetUrl('),
-          '',
-        ),
+        _script(_assistant),
         isNot(contains('releases/latest/download')),
         reason: 'כתובת latest מתחלפת באמצע ההורדה ומערבבת שתי גרסאות',
       );
@@ -4388,15 +4332,10 @@ void main() {
           }
         }
       }
-      // מפתח בלי שפה רק לשמות שאינם מוצגים: תת-התיקייה של החוזה ותיקיית האיסוף.
-      expect(_messages(script, 'CustomMessages')['']!.keys, [
-        'ContractSubfolder',
-        'ZmanenuDropFolder',
-      ]);
+      // מפתח בלי שפה רק לשם החוזה המשותף, שאינו מוצג.
       expect(
-        _messages(script, 'CustomMessages')['']!['ZmanenuDropFolder'],
-        r'מסדים אישיים\להתקנה',
-        reason: 'kZmanenuDropFolder במימוש הייחוס, בלוכסן של Windows',
+        _messages(script, 'CustomMessages')['']!.keys,
+        ['ContractSubfolder'],
       );
       final hebrew = RegExp(r'[֐-׿]');
       for (final MapEntry(key: key, value: value) in _messages(
@@ -4769,7 +4708,6 @@ void main() {
           r'{localappdata}\אוצריא',
           'תלמוד בבלי',
           r'{autopf}\אוצריא',
-          r'\מסדים אישיים\להתקנה',
         ];
         final offenders = [
           for (final l in _codeLiterals(_script(name)))

@@ -18,8 +18,7 @@ export 'library_extraction_control.dart' show LibraryImportCancelled;
 
 /// פורס את [package] אל [destination] בזרימה אחת: קריאת החלקים לפי הסדר,
 /// SHA-256 של כל חלק ושל השלם, פענוח zstd ופריסת tar — בלי ארכיון ביניים.
-/// התוצאה היא `destination/<books|index>/…` ([anyRoot] — כל שורש); בכשל נשארת
-/// פריסה חלקית שהקורא מוחק.
+/// התוצאה היא `destination/<books|index>/…`; בכשל נשארת פריסה חלקית שהקורא מוחק.
 Future<void> extractLibraryPackage({
   required LibraryPackage package,
   required PackageFolder folder,
@@ -28,7 +27,6 @@ Future<void> extractLibraryPackage({
   void Function(int bytesRead)? onBytes,
   bool Function()? isCancelled,
   int maxOutputBytes = kDefaultMaxExtractedBytes,
-  bool anyRoot = false,
 }) async {
   final budget = LibraryExtractionBudget(
     maxOutputBytes,
@@ -40,7 +38,7 @@ Future<void> extractLibraryPackage({
   );
   final tar = TarStreamExtractor(
     destination,
-    rootFolder: anyRoot ? null : package.kind.rootFolder,
+    rootFolder: package.kind.rootFolder,
     maxOutputBytes: maxOutputBytes,
     checkCancelled: budget.checkCancelled,
   );

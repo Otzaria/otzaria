@@ -290,26 +290,6 @@ abstract class SettingsMessages {
   static String attachedUpdateInstalled(String name, int version) =>
       'המסד "$name" עודכן לגרסה $version';
   static const String attachedLibrariesRescanned = 'המסדים נבדקו מחדש';
-  static String officialLibraryInstalled(String name) =>
-      'המסד הרשמי "$name" הותקן';
-  static String officialLibraryIntegrityMismatch(String name) =>
-      'המסד "$name" שונה מהגרסה הרשמית ולא יעודכן. נדרשת הורדה מלאה בהגדרות.';
-  static const String officialPackageInstalled = 'המסד הרשמי הותקן מהחבילה';
-  static const String officialPackageAlreadyInstalled =
-      'גרסה זו של המסד הרשמי כבר מותקנת';
-  static const String officialPackageNotPackage =
-      'הקובץ אינו חבילה לא-מקוונת של מסד רשמי';
-  static const String officialPackageBadSignature =
-      'החבילה אינה חתומה בחתימה הרשמית ולא הותקנה';
-  static const String officialPackageCorrupt =
-      'המסד שבחבילה פגום או שאינו תואם לחתימה, ולא הותקן';
-  static const String officialPackageOlder =
-      'החבילה מכילה גרסה ישנה מזו שמותקנת, ולא הותקנה';
-  static const String officialPackageNoSpace =
-      'אין מספיק מקום פנוי להתקנת המסד מהחבילה';
-  static const String officialPackageFailed = 'התקנת המסד מהחבילה נכשלה';
-  static String droppedOfficialPackageRejected(String file, String reason) =>
-      'החבילה $file לא הותקנה ונשארה במקומה: $reason';
   static String attachedLibraryError(Object error) =>
       'שגיאה בטיפול במסד: $error';
 

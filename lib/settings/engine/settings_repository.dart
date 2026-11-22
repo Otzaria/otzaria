@@ -192,18 +192,6 @@ class SettingsRepository {
       'key-attached-library-pending-updates';
   static const String keyLastAttachedLibraryUpdateCheck =
       'key-last-attached-library-update-check';
-
-  /// מסדים רשמיים שהמשתמש סירב להורדתם או הסיר (JSON).
-  static const String keyDeclinedOfficialLibraries =
-      'key-declined-official-libraries';
-
-  /// ניסיונות זיהוי של עותק ידני כרשמי (JSON: נתיב ⇒ טביעת הקובץ ומועד).
-  static const String keyOfficialAdoptionAttempts =
-      'key-official-adoption-attempts';
-
-  /// חבילות שנדחו במיקום האיסוף (JSON: שם ⇒ גודל ומועד של קובציה).
-  static const String keyRejectedOfficialPackages =
-      'key-rejected-official-packages';
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
@@ -400,9 +388,6 @@ class SettingsRepository {
     keyAttachedLibraryFolders,
     keyAttachedLibraryPendingUpdates,
     keyLastAttachedLibraryUpdateCheck,
-    keyDeclinedOfficialLibraries,
-    keyOfficialAdoptionAttempts,
-    keyRejectedOfficialPackages,
     keyEnableHtmlLinks,
     keyPersonalNotesCollapsedByDefault,
     keyCompactMenuMode,

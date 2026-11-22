@@ -72,8 +72,6 @@ class PluginSettingsAccessPolicy {
     SettingsRepository.keyAttachedLibraries,
     SettingsRepository.keyAttachedLibraryFolders,
     SettingsRepository.keyAttachedLibraryPendingUpdates,
-    SettingsRepository.keyOfficialAdoptionAttempts,
-    SettingsRepository.keyRejectedOfficialPackages,
     SettingsRepository.keyErrorReportSenderEmail,
   };
 

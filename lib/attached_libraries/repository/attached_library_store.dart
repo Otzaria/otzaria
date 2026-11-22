@@ -31,9 +31,8 @@ class AttachedLibraryStore {
     return libraries;
   }
 
-  /// שוכח את מקורות העדכונים הנעוצים ואת סימון "רשמי", כך שהסריקה הבאה
-  /// נועצת מחדש מהקובץ עצמו. לרשימה שהגיעה מארכיון גיבוי — ארכיון אינו מקור
-  /// מהימן למפתח או לאימות.
+  /// שוכח את מקורות העדכונים הנעוצים, כך שהסריקה הבאה נועצת מחדש מהקובץ
+  /// עצמו. לרשימה שהגיעה מארכיון גיבוי — ארכיון אינו מקור מהימן למפתח.
   Future<void> forgetUpdatePins() async {
     final libraries = loadLibrariesOrNull();
     if (libraries == null) return;
@@ -43,7 +42,6 @@ class AttachedLibraryStore {
           clearUpdateSource: true,
           updateSourceMismatch: false,
           updateSourceProbed: false,
-          clearOfficial: true,
         ),
     ]);
   }
@@ -53,31 +51,6 @@ class AttachedLibraryStore {
         SettingsRepository.keyAttachedLibraries,
         jsonEncode([for (final library in libraries) library.toJson()]),
       );
-
-  /// מזהי מסדים רשמיים שהמשתמש סירב להם או הסיר.
-  Set<String> loadDeclinedOfficial() => {
-    for (final item in _decodeList(
-      Settings.getValue<String>(
-        SettingsRepository.keyDeclinedOfficialLibraries,
-      ),
-    ))
-      if (item is String) item,
-  };
-
-  Future<void> setOfficialDeclined(
-    String libraryId, {
-    required bool declined,
-  }) async {
-    final current = loadDeclinedOfficial();
-    final changed = declined
-        ? current.add(libraryId)
-        : current.remove(libraryId);
-    if (!changed) return;
-    await Settings.setValue<String>(
-      SettingsRepository.keyDeclinedOfficialLibraries,
-      jsonEncode(current.toList()),
-    );
-  }
 
   List<String> loadFolders() => [
     for (final item in _decodeList(

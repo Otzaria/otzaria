@@ -123,9 +123,7 @@ class _AttachedCatalogBuild {
   /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
   int order(num? orderIndex) {
     final own = orderIndex?.toInt() ?? 999;
-    // גם תיקייה מוצהרת עשויה להיות משותפת לכמה מסדים, ולכן ממוינת לפי עדיפות.
-    if (library.rootFolder == null &&
-        library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
+    if (library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
       return own;
     }
     return _kAttachedMergedOrderBase +
@@ -2020,7 +2018,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final _attachedCachedKeys = BookKeySet();
-
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, PendingAttachedCatalog<AttachedCatalogRows>>
   _pendingAttachedCatalogs = {};
@@ -4188,7 +4185,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
-    final declaredFolders = <String, Category>{};
     _attachedBooksById.clear();
     _attachedDbVersions.clear();
     _attachedDuplicateVersions.clear();
@@ -4216,7 +4212,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             metadata: metadata,
             versionLinks: rows.versionLinks,
           ),
-          declaredFolders,
         );
       } catch (e, stackTrace) {
         debugPrint('⚠️ Error appending attached library ${attached.slug}: $e');
@@ -4296,7 +4291,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   void _addAttachedLibraryToCatalog(
     Library library,
     _AttachedCatalogBuild build,
-    Map<String, Category> declaredFolders,
   ) {
     final categories = [
       for (final row in build.categoryRows) db_models.Category.fromJson(row),
@@ -4324,51 +4318,30 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Category ensureLibraryRoot() {
       final existing = libraryRoot;
       if (existing != null) return existing;
-      // תיקייה מוצהרת יושבת בשורש הספרייה ומשותפת רק למסדים שהצהירו עליה,
-      // ולא מתמזגת לקטגוריה רשמית או אישית באותו שם.
-      final rootFolder = build.library.rootFolder;
-      final parent = rootFolder == null
-          ? _personalRootFor(library, build.metadata)
-          : library;
-      final title = rootFolder ?? build.library.displayName;
-      final folderKey = rootFolder == null ? null : _mergeTitleKey(rootFolder);
-      final shared = declaredFolders[folderKey];
-      if (shared != null) return libraryRoot = shared;
+      final personal = _personalRootFor(library, build.metadata);
       final created = Category(
-        title: title,
-        pathSegment: folderKey == null
-            ? null
-            : Category.attachedRootPathSegment(folderKey),
+        title: build.library.displayName,
         description: '',
         shortDescription: '',
         order: _kAttachedRootOrder + build.library.priority,
         subCategories: [],
         books: [],
-        parent: parent,
+        parent: personal,
       );
-      parent.subCategories.add(created);
-      if (folderKey != null) declaredFolders[folderKey] = created;
+      personal.subCategories.add(created);
       return libraryRoot = created;
     }
 
     final roots = [...?build.categoriesByParent[null]]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final merge =
-        build.library.rootFolder == null &&
         build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
-    // תיקייה מוצהרת משותפת למסדים, ולכן קטגוריות באותו שם מתמזגות בתוכה.
-    final mergeParent = merge
-        ? library
-        : build.library.rootFolder != null && roots.isNotEmpty
-        ? ensureLibraryRoot()
-        : null;
-    final rootTargets = mergeParent == null
-        ? null
-        : CategoryMergeTargets(
-            mergeParent.subCategories,
+    final rootTargets = merge
+        ? CategoryMergeTargets(
+            library.subCategories,
             DatabaseLibraryProvider._mergeTitleKey,
-            exclude: merge ? declaredFolders.containsValue : null,
-          );
+          )
+        : null;
     for (final root in roots) {
       if (rootTargets == null) {
         final parent = ensureLibraryRoot();
@@ -4377,7 +4350,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       }
       final existing = rootTargets.find(root.title);
       if (existing == null) {
-        rootTargets.add(_buildAttachedCategory(root, mergeParent!, build));
+        rootTargets.add(_buildAttachedCategory(root, library, build));
       } else {
         _appendAttachedContent(existing, root, build);
       }
@@ -4787,9 +4760,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final List<String> path = [];
     final Set<Category> visited = {};
     while (category != null && !visited.contains(category)) {
-      if (category.title == 'ספריית אוצריא' && category.pathSegment == null) {
-        break;
-      }
+      if (category.title == 'ספריית אוצריא') break;
       visited.add(category);
       path.insert(0, category.title);
       category = category.parent;
