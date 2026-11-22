@@ -1632,8 +1632,11 @@ class BookTitleIndex {
           titleTokens: _titleTokens[book.id],
         );
     final rank = matchRank;
+    // התאמה מקורבת לא מורידה את הכותרת המדויקת בלי מילת הקישור (#5710).
     ReferenceBookHit titleAsAlias() =>
-        rank == null ? hit(3, null) : hit(rank, matchedTerm, hasAlias: true);
+        rank == null || rank == ReferenceBooksCache.fuzzyMatchRank
+        ? hit(3, null)
+        : hit(rank, matchedTerm, hasAlias: true);
     if (matchRank != null) {
       scan.add(hit(matchRank, matchedTerm, hasAlias: exactAlias));
     }

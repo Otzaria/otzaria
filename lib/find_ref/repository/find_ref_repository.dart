@@ -1276,6 +1276,23 @@ class FindRefRepository {
     }
 
     final results = await resultsFor(queryTokens, books, detection);
+    if (results.isEmpty && query.dibbur == null) {
+      final truncated = _truncatedLastWordHits(books, queryTokens);
+      if (truncated.isNotEmpty) {
+        return _enrichWithPaths(
+          _rankResults(
+            [for (final hit in truncated) _bookResult(hit)],
+            queryTokens,
+            bookMatchRanks: _bookMatchRanks((
+              hits: truncated,
+              phraseTokenCount: queryTokens.length,
+              secondaryPhraseTokenCount: const {},
+            ), queryTokens),
+            rawQuery: query.ref,
+          ),
+        );
+      }
+    }
     final original = query.tokens;
     if (results.isNotEmpty ||
         original.length < 2 ||
@@ -1325,6 +1342,30 @@ class FindRefRepository {
   }
 
   static const _genrePrefixes = {'שות', 'תשובות'};
+
+  /// ספרים ששמם מתחיל בכל השאילתה כשהמילה האחרונה קטועה. אות-מספר אחרונה
+  /// ("נימוקי יוסף בבא ק") נקראת כסעיף, וכשאין סעיף כזה זו מילה בהקלדה (#5721).
+  List<ReferenceBookHit> _truncatedLastWordHits(
+    _BookSearch books,
+    List<String> queryTokens,
+  ) {
+    if (queryTokens.length < 2) return const [];
+    return [
+      // הצירוף שכבר בסריקה המשותפת; ההתאמה לכל השאילתה נבדקת כאן.
+      for (final hit in books.search(
+        queryTokens.take(books.maxPhraseTokens).join(' '),
+        limit: books.bookSearchLimit,
+      ))
+        if (hit.matchRank == 4
+            ? _phraseAppearsAsTokens(
+                bookNameMatchForm(hit.matchedTerm ?? '').split(' '),
+                queryTokens,
+              )
+            : hit.matchRank <= 2 &&
+                  _phraseAppearsAsTokens(hit.titleTokens, queryTokens))
+          hit,
+    ];
+  }
 
   /// הטוקנים המנורמלים של השאילתה; `null` כשלא נשאר בה דבר לחפש.
   ({
