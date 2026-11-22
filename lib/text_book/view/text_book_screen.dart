@@ -102,6 +102,7 @@ import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -2686,12 +2687,25 @@ Future<void> _setFontSize(
   return savePerBookDisplaySettings(context, state, fontSize: size);
 }
 
+int _nextRescanRequestId = 0;
+
+/// מחכה לסריקה של ההקשה הזו: סריקה אחרת שרצה במקביל מסתיימת בנפרד.
 Future<void> _rescanPersonalBook(CustomFoldersBloc bloc, TextBook book) async {
-  final done = bloc.stream.firstWhere((state) => !state.isSyncing);
-  bloc.add(RescanCustomFolders(folderOfFile: book.filePath));
+  // שלילי: המזהים החיוביים של תוספים ושל בקשות האינדוקס מגיעים גם הם
+  // ל-RefreshLibrary.requestIds.
+  final requestId = --_nextRescanRequestId;
+  final done = bloc.stream.firstWhere(
+    (state) => state.completedScan?.requestId == requestId,
+  );
+  bloc.add(
+    RescanCustomFolders(folderOfFile: book.filePath, requestId: requestId),
+  );
   final result = await done;
-  if (result.error != null) {
-    UiSnack.showError(result.error!);
+  final scan = result.completedScan!;
+  if (!scan.isSuccess) {
+    UiSnack.showError(SettingsMessages.customFolderSyncFailed);
+  } else if (scan.errors.isNotEmpty) {
+    UiSnack.showError(SettingsMessages.customFolderScanErrors(scan.errors));
   } else if (result.message != null) {
     UiSnack.show(result.message!);
   }
