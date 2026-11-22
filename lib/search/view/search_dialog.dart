@@ -588,7 +588,7 @@ class _SearchDialogState extends State<SearchDialog> {
     );
     var withOptions = mode == SearchMode.exact || mode == SearchMode.advanced;
     // פר-מילה ("זהה לכל המילים" כבוי) המפה הגלובלית אינה המוצג בחלונית,
-    // ולכן נשמרים רק המרווח, הטווח והסדר.
+    // ולכן נשמרים רק המרווח וסדר המילים.
     final perWord =
         mode == SearchMode.advanced && !_searchTab.useGlobalSearchOptions.value;
     final confirmed = await showTwoActionsDialog(
@@ -634,8 +634,8 @@ class _SearchDialogState extends State<SearchDialog> {
       final options = Map.of(_searchTab.globalSearchOptions);
       if (mode == SearchMode.exact) {
         SearchDefaults.saveExactDefaults(options);
-      } else {
-        if (!perWord) SearchDefaults.saveDefaults(options);
+      } else if (!perWord) {
+        SearchDefaults.saveDefaults(options);
         SearchDefaults.saveMatchPolicyDefault(state.configuration.matchPolicy);
       }
       SearchDefaults.saveDistanceDefault(state.distance);

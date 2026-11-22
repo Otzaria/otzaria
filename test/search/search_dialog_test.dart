@@ -1875,6 +1875,10 @@ Future<void> main() async {
           await pumpWithTab(tester, SearchMode.advanced);
           tab.useGlobalSearchOptions.value = false;
           tab.globalSearchOptions.clear();
+          tab.searchBloc.add(
+            UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+          );
+          await tester.pumpAndSettle();
           await openDefaultMode(tester);
 
           expect(includeOptions, findsNothing);
@@ -1892,6 +1896,10 @@ Future<void> main() async {
           expect(next.globalSearchOptions, {'קידומות דקדוקיות': true});
           expect(next.searchBloc.state.distance, 5);
           expect(next.searchBloc.state.anyOrder, isTrue);
+          expect(
+            next.searchBloc.state.configuration.matchPolicy.proximityScope,
+            SearchScope.wordDistance,
+          );
         },
       );
 
