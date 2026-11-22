@@ -66,6 +66,35 @@ try {
   Assert-PerfEqual $clean.sourceProvenance.beforeBuild.statusPorcelain.Count 0 'empty source status is recorded'
   Assert-PerfEqual $clean.sourceProvenance.beforeBuild.trackedDiffSummary.Count 0 'empty source diff is recorded'
 
+  $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+  Copy-Item -LiteralPath (Join-Path $repo '.gitattributes') -Destination $sourceRepo
+  $headers = @('linux/flutter/generated_plugin_registrant.h', 'windows/flutter/generated_plugin_registrant.h')
+  foreach ($header in $headers) {
+    $destination = Join-Path $sourceRepo $header
+    New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
+    [IO.File]::WriteAllText($destination, "// Generated header`nvoid RegisterPlugins();`n")
+  }
+  Invoke-SourceGit @('add', '.')
+  Invoke-SourceGit @('-c', 'user.name=Perf fixture', '-c', 'user.email=perf-fixture@example.invalid',
+    'commit', '--quiet', '--no-gpg-sign', '-m', 'generated headers')
+  Invoke-SourceGit @('config', 'core.autocrlf', 'true')
+  foreach ($header in $headers) {
+    $destination = Join-Path $sourceRepo $header
+    Remove-Item -LiteralPath $destination
+    Invoke-SourceGit @('checkout', '--', $header)
+    Assert-PerfEqual ([IO.File]::ReadAllText($destination).Contains("`r")) $false "LF checkout for $header"
+    [IO.File]::WriteAllText($destination, "// Generated header`nvoid RegisterPlugins();`n")
+  }
+  $regenerated = @{}
+  Add-PerfSourceProvenance $sourceRepo $regenerated 'beforeBuild'
+  Assert-PerfEqual $regenerated.dirty $false 'identical Flutter LF headers keep provenance clean'
+  [IO.File]::AppendAllText((Join-Path $sourceRepo $headers[0]), "// real content change`n")
+  Add-PerfSourceProvenance $sourceRepo $regenerated 'afterBuild'
+  Assert-PerfEqual $regenerated.dirty $true 'real generated-header changes still block comparison'
+  Assert-PerfEqual (($regenerated.sourceProvenance.afterBuild.trackedDiffSummary -join "`n") -match 'generated_plugin_registrant.h') $true 'real header changes remain in the diff'
+  Invoke-SourceGit @('restore', '--', $headers[0])
+  Invoke-SourceGit @('config', 'core.autocrlf', 'false')
+
   [IO.File]::WriteAllText((Join-Path $sourceRepo 'tracked.txt'), "private-content-must-not-be-uploaded`n")
   $tracked = @{}
   Add-PerfSourceProvenance $sourceRepo $tracked 'beforeBuild'
@@ -107,3 +136,5 @@ try {
   Assert-PerfEqual $missing.ContainsKey('dirty') $false 'failed inspection never records dirty=false'
 } finally { Remove-Item -LiteralPath $sourceRepo -Recurse -Force }
 Write-Host 'PASS: PowerShell parsing, process identity/ancestry, orphan retention, locale, missing-data and source provenance contracts.'
+# Handled native failures above must not become the Actions step's exit code.
+exit 0
