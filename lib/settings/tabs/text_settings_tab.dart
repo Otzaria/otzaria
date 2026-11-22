@@ -282,14 +282,15 @@ class TextSettingsTab extends StatelessWidget {
     final bookState = state.enablePerBookSettings ? book?.state : null;
     final perBook = bookState is TextBookLoaded ? bookState : null;
     void setBookMetric({double? commentatorsFontSize, double? lineHeight}) {
+      final settings = context.read<SettingsBloc>().state;
       book!.add(
         UpdateBookReadingMetrics(
           commentatorsFontSize: commentatorsFontSize,
           lineHeight: lineHeight,
           // אותה הבחנה שבה savePerBookDisplaySettings מוחק את השדה מהקובץ.
           inherit:
-              commentatorsFontSize == state.commentatorsFontSize ||
-              lineHeight == state.lineHeight,
+              commentatorsFontSize == settings.commentatorsFontSize ||
+              lineHeight == settings.lineHeight,
         ),
       );
       savePerBookDisplaySettings(
@@ -329,7 +330,7 @@ class TextSettingsTab extends StatelessWidget {
       applyWhileDragging: isDialog,
       icon: FluentIcons.text_align_distributed_vertical_24_regular,
       label: context.settingsText('מרווח בין שורות'),
-      value: (perBook?.lineHeight ?? state.lineHeight).clamp(1.0, 3.0),
+      value: state.lineHeightForBook(perBook?.lineHeight).clamp(1.0, 3.0),
       min: 1.0,
       max: 3.0,
       divisions: 20,
@@ -372,10 +373,11 @@ class TextSettingsTab extends StatelessWidget {
                   applyWhileDragging: isDialog,
                   icon: OtzariaIcons.beit_near_alef_24_filled,
                   label: context.settingsText('גודל גופן מפרשים'),
-                  value:
-                      (perBook?.commentatorsFontSize ??
-                              state.commentatorsFontSize)
-                          .clamp(10, 40),
+                  value: state
+                      .commentatorsFontSizeForBook(
+                        perBook?.commentatorsFontSize,
+                      )
+                      .clamp(10, 40),
                   min: 10,
                   max: 40,
                   onChanged: (value) => perBook != null

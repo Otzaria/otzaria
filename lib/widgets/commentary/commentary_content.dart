@@ -246,7 +246,7 @@ class _CommentaryContentState extends State<CommentaryContent>
                 fontWeight: settingsState.commentatorsFontBold
                     ? FontWeight.bold
                     : null,
-                lineHeight: widget.lineHeight ?? settingsState.lineHeight,
+                lineHeight: settingsState.lineHeightForBook(widget.lineHeight),
                 partialWordHighlight: true,
               );
 

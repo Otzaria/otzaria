@@ -20,11 +20,9 @@ class UnloadedParagraphPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final globalLineHeight = context.select(
-      (SettingsBloc bloc) => bloc.state.lineHeight,
+    final effectiveLineHeight = context.select(
+      (SettingsBloc bloc) => bloc.state.lineHeightForBook(lineHeight),
     );
-    return SizedBox(
-      height: lineCount * fontSize * (lineHeight ?? globalLineHeight),
-    );
+    return SizedBox(height: lineCount * fontSize * effectiveLineHeight);
   }
 }

@@ -12,9 +12,10 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 double commentatorsFontSizeOf(BuildContext context, SettingsState settings) =>
     context.select((TextBookBloc bloc) {
       final state = bloc.state;
-      return state is TextBookLoaded ? state.commentatorsFontSize : null;
-    }) ??
-    settings.commentatorsFontSize;
+      return settings.commentatorsFontSizeForBook(
+        state is TextBookLoaded ? state.commentatorsFontSize : null,
+      );
+    });
 
 /// שמירת שינוי בהגדרות התצוגה של הספר (גופן/ניקוד/פיסוק/פיצול/רצף) פר-ספר.
 ///
@@ -33,8 +34,8 @@ Future<void> savePerBookDisplaySettings(
   bool? removePunctuation,
   bool? continuousReadingMode,
 }) async {
-  final settingsBloc = context.read<SettingsBloc>();
-  if (!settingsBloc.state.enablePerBookSettings) {
+  final settings = context.read<SettingsBloc>().state;
+  if (!settings.enablePerBookSettings) {
     return;
   }
 
@@ -63,11 +64,10 @@ Future<void> savePerBookDisplaySettings(
     return;
   }
 
-  final defaultFontSize = settingsBloc.state.fontSize;
+  final defaultFontSize = settings.fontSize;
   final defaultShowSplitView =
       Settings.getValue<bool>('key-splited-view') ?? true;
-  final defaultContinuousReading =
-      settingsBloc.state.defaultContinuousReadingMode;
+  final defaultContinuousReading = settings.defaultContinuousReadingMode;
 
   // עדכון אטומי: ה-load וה-merge מבוצעים בתוך תור הכתיבה כדי למנוע דריסה
   // הדדית עם שמירות מקבילות על אותו קובץ (רוחבי טורים, מפרשים).
@@ -83,14 +83,12 @@ Future<void> savePerBookDisplaySettings(
     }
     if (commentatorsFontSize != null) {
       newCommentatorsFontSize =
-          commentatorsFontSize == settingsBloc.state.commentatorsFontSize
+          commentatorsFontSize == settings.commentatorsFontSize
           ? null
           : commentatorsFontSize;
     }
     if (lineHeight != null) {
-      newLineHeight = lineHeight == settingsBloc.state.lineHeight
-          ? null
-          : lineHeight;
+      newLineHeight = lineHeight == settings.lineHeight ? null : lineHeight;
     }
 
     if (showSplitView != null) {

@@ -24,8 +24,11 @@ import 'package:otzaria/settings/tabs/text_settings_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/view/widgets/unloaded_paragraph_placeholder.dart';
+import 'package:path/path.dart' as p;
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../test_helpers/stub_settings_bloc.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -37,6 +40,11 @@ void main() {
 
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // טעינות המסד ברקע יכולות להימשך אחרי מחיקת הגדרות הספר הזמניות.
+    await Settings.setValue<String>(
+      SettingsRepository.keyDatabasesPath,
+      p.join(await AppPaths.getDataRootPath(), 'databases'),
+    );
     tempDataRoot = await Directory.systemTemp.createTemp('per_book_metrics');
     AppPaths.debugOverrideDataRootPath(tempDataRoot.path);
   });
@@ -104,6 +112,45 @@ void main() {
       },
     );
   }
+
+  testWidgets('כיבוי השמירה משעה התאמות שכבר נטענו עד להפעלה מחדש', (
+    tester,
+  ) async {
+    final enabled = SettingsState.initial().copyWith(
+      enablePerBookSettings: true,
+    );
+    final settingsBloc = StubSettingsBloc(enabled);
+    addTearDown(settingsBloc.close);
+
+    await tester.pumpWidget(
+      BlocProvider<SettingsBloc>.value(
+        value: settingsBloc,
+        child: const Center(
+          child: UnloadedParagraphPlaceholder(
+            lineCount: 2,
+            fontSize: 10,
+            lineHeight: 2,
+          ),
+        ),
+      ),
+    );
+    final placeholder = find.byType(UnloadedParagraphPlaceholder);
+    expect(tester.getSize(placeholder).height, 40);
+    expect(settingsBloc.state.commentatorsFontSizeForBook(30), 30);
+
+    settingsBloc.emit(enabled.copyWith(enablePerBookSettings: false));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(placeholder).height, enabled.lineHeight * 20);
+    expect(
+      settingsBloc.state.commentatorsFontSizeForBook(30),
+      enabled.commentatorsFontSize,
+    );
+
+    settingsBloc.emit(enabled);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(placeholder).height, 40);
+    expect(settingsBloc.state.commentatorsFontSizeForBook(30), 30);
+  });
 
   group('המחוונים בחלונית שמעל הספר', () {
     late _MockSettingsBloc settingsBloc;

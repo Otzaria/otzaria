@@ -1793,9 +1793,9 @@ class _CombinedViewState extends State<CombinedView> {
         await ContextMenuUtils.copyFormattedText(
           context: context,
           savedSelectedText: commentarySelection.text,
-          fontSize:
-              (book is TextBookLoaded ? book.commentatorsFontSize : null) ??
-              settingsState.commentatorsFontSize,
+          fontSize: settingsState.commentatorsFontSizeForBook(
+            book is TextBookLoaded ? book.commentatorsFontSize : null,
+          ),
           link: commentarySelection.link,
           removeNikud: removeNikud,
           copyProfile: profile,
@@ -1977,7 +1977,7 @@ class _CombinedViewState extends State<CombinedView> {
       fontSize: widget.textSize,
       fontFamily: settingsState.fontFamily,
       fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-      lineHeight: state.lineHeight ?? settingsState.lineHeight,
+      lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     );
   }
 
@@ -2375,12 +2375,12 @@ class _CombinedViewState extends State<CombinedView> {
                                                     .forSnapshot(notes);
                                             return SmoothWheelScroll(
                                               child: ScrollPositionReanchor(
-                                                layoutKey: (
-                                                  state.lineHeight,
-                                                  context.select(
-                                                    (SettingsBloc bloc) =>
-                                                        bloc.state.lineHeight,
-                                                  ),
+                                                layoutKey: context.select(
+                                                  (SettingsBloc bloc) => bloc
+                                                      .state
+                                                      .lineHeightForBook(
+                                                        state.lineHeight,
+                                                      ),
                                                 ),
                                                 preferredIndex:
                                                     _selectedItemIndex(state),
@@ -2524,7 +2524,7 @@ class _CombinedViewState extends State<CombinedView> {
         (SettingsBloc bloc) => (
           fontFamily: bloc.state.fontFamily,
           fontBold: bloc.state.fontBold,
-          lineHeight: bloc.state.lineHeight,
+          lineHeight: bloc.state.lineHeightForBook(state.lineHeight),
           textMaxWidth: bloc.state.textMaxWidth,
         ),
       );
@@ -2549,7 +2549,7 @@ class _CombinedViewState extends State<CombinedView> {
           metrics.fontFamily,
           metrics.fontBold ? FontWeight.bold : FontWeight.normal,
         ),
-        lineHeight: state.lineHeight ?? metrics.lineHeight,
+        lineHeight: metrics.lineHeight,
         styleKey: setting,
         textWidth: columnWidthOrNull,
         crossAxisPadding: crossAxisPadding,
@@ -3241,7 +3241,7 @@ class _CombinedViewState extends State<CombinedView> {
       fontSize: widget.textSize,
       fontFamily: settingsState.fontFamily,
       fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-      lineHeight: state.lineHeight ?? settingsState.lineHeight,
+      lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     ),
   );
 
@@ -3295,7 +3295,7 @@ class _CombinedViewState extends State<CombinedView> {
     fontSize: widget.textSize,
     fontFamily: settingsState.fontFamily,
     fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-    lineHeight: state.lineHeight ?? settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     sectionHeadings: _sectionHeadingsByLine,
     lineHtml: (line) => _lineHtml(
       line,

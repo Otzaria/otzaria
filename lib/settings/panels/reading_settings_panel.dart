@@ -28,10 +28,10 @@ class ReadingSettingsPanel extends StatelessWidget {
   static bool _isPageShape(TextBookState state) =>
       state is TextBookLoaded && state.showPageShapeView;
 
-  static (double?, double?) _bookMetrics(TextBookState state) =>
+  static (double?, double?)? _bookMetrics(TextBookState state) =>
       state is TextBookLoaded
       ? (state.commentatorsFontSize, state.lineHeight)
-      : (null, null);
+      : null;
 
   @override
   Widget build(BuildContext context) {
