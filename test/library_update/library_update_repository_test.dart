@@ -138,6 +138,7 @@ void main() {
         plan,
         onDbReplaced: () {
           expect(DbReadWorker.corruptDatabaseDetected.value, isFalse);
+          expect(File('$dbPath.applying').existsSync(), isFalse);
           DbReadWorker.corruptDatabaseDetected.value = true;
         },
       );
@@ -2931,7 +2932,8 @@ class _GatedAfterBeginRecovery extends LibraryDbRecoveryService {
 
 class _FailingFinishRecovery extends LibraryDbRecoveryService {
   @override
-  void finishSuccess(String dbPath) => throw StateError('commit failed');
+  Future<void> finishSuccessAsync(String dbPath) =>
+      throw StateError('commit failed');
 }
 
 class _ThrowingRefreshService extends LibraryRuntimeRefreshService {

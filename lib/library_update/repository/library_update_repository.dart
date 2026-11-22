@@ -1110,6 +1110,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         dbPath: dbPath,
         body: (scope) async {
           var recoveryStarted = false;
+          Future<void>? backupCleanup;
           try {
             _throwIfCancelled(isCancelled);
             recoveryStarted = true;
@@ -1126,7 +1127,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             scope.markDbReplaced();
             _deleteQuietly('$newDbPath-wal');
             _deleteQuietly('$newDbPath-shm');
-            recovery.finishSuccess(dbPath);
+            backupCleanup = recovery.finishSuccessAsync(dbPath);
             DbReadWorker.corruptDatabaseDetected.value = false;
             // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
             // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
@@ -1148,6 +1149,8 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             }
             rethrow;
           }
+          // מחוץ ל-try: אחרי onDbReplaced כשל בניקוי הגיבוי אסור שיפעיל rollback.
+          await backupCleanup;
         },
       );
     });
@@ -1212,7 +1215,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           onApplyProgress: onApplyProgress,
         );
         DbReadWorker.clearBookCacheIfRunning();
-        recovery.finishSuccess(dbPath);
+        await recovery.finishSuccessAsync(dbPath);
         return booksTouched;
       } catch (error) {
         await recovery.rollback(dbPath);
