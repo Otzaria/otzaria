@@ -47,6 +47,35 @@ void main() {
     expect(bloc.state.availability.phase, SemanticAvailabilityPhase.ready);
   });
 
+  test('הספרים המכוסים נטענים כשהחיפוש מוכן, ורק כשביקשו אותם', () async {
+    final backend = FakeBackend()..covered = {'id:1', 'uid:4'};
+    final repository = buildRepository(
+      root: root,
+      backend: backend,
+      locator: FakeLocator(releaseV30()),
+    );
+    final settings = SemanticSearchBloc(repository: repository)
+      ..add(const SemanticSearchStarted());
+    addTearDown(settings.close);
+    final dialog = SemanticSearchBloc(
+      repository: repository,
+      loadCoveredBooks: true,
+    )..add(const SemanticSearchStarted());
+    addTearDown(dialog.close);
+    await waitFor(
+      () =>
+          dialog.state.availability.phase ==
+          SemanticAvailabilityPhase.needsDownload,
+    );
+    expect(dialog.state.coveredBooks, isEmpty);
+
+    dialog.add(const SemanticDownloadRequested());
+    await waitFor(() => dialog.state.coveredBooks.isNotEmpty);
+    expect(dialog.state.coveredBooks, {'id:1', 'uid:4'});
+    expect(settings.state.coveredBooks, isEmpty);
+    expect(backend.calls.where((c) => c == 'coveredBooks'), hasLength(1));
+  });
+
   test('סגירת הדיאלוג אינה עוצרת הורדה, ופתיחה מחדש מציגה את מצבה', () async {
     installModelFiles(root);
     final gate = Completer<void>();

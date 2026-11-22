@@ -1652,4 +1652,47 @@ void main() {
       expect(repository.availability.pausedByUser, isFalse);
     });
   });
+
+  group('ספרים מכוסים', () {
+    test('נשמרים עד שהסט משתנה', () async {
+      final backend = FakeBackend()
+        ..vectors = const SemanticVectorsSummary(
+          present: true,
+          identityDigest: 'a',
+          libraryVersion: 39,
+        )
+        ..covered = {'id:1', 'uid:4774'};
+      final repository = buildRepository(root: root, backend: backend);
+      int computed() => backend.calls.where((c) => c == 'coveredBooks').length;
+
+      expect(await repository.coveredBooks(), {'id:1', 'uid:4774'});
+      expect(await repository.coveredBooks(), {'id:1', 'uid:4774'});
+      expect(computed(), 1);
+      expect(repository.lastCoveredBooks, {'id:1', 'uid:4774'});
+
+      backend
+        ..vectors = const SemanticVectorsSummary(
+          present: true,
+          identityDigest: 'a',
+          libraryVersion: 40,
+        )
+        ..covered = {'id:1'};
+      expect(await repository.coveredBooks(), {'id:1'});
+      expect(computed(), 2);
+    });
+
+    test('בלי סט מותקן או בכשל — ריק', () async {
+      final backend = FakeBackend()..covered = {'id:1'};
+      final repository = buildRepository(root: root, backend: backend);
+
+      expect(await repository.coveredBooks(), isEmpty);
+      expect(backend.calls, isNot(contains('coveredBooks')));
+
+      backend.vectorsInfoFailure = const SemanticFailure(
+        SemanticFailureKind.artifactCorrupt,
+        'damaged',
+      );
+      expect(await repository.coveredBooks(), isEmpty);
+    });
+  });
 }

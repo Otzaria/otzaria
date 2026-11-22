@@ -26,6 +26,7 @@ class SemanticModePanel extends StatelessWidget {
     this.queryTrailingAction,
     required this.scopeSelection,
     required this.onScopeChanged,
+    this.coveredBooks = const {},
     required this.includeLexical,
     required this.onIncludeLexicalChanged,
     required this.groupIdenticalText,
@@ -46,6 +47,9 @@ class SemanticModePanel extends StatelessWidget {
   final Widget? queryTrailingAction;
   final Set<String> scopeSelection;
   final ValueChanged<Set<String>> onScopeChanged;
+
+  /// ספרים לא רשמיים שיש להם וקטורים, ולכן מוצעים בהיקף גם בלי התאמה מילולית.
+  final Set<String> coveredBooks;
   final bool includeLexical;
   final ValueChanged<bool> onIncludeLexicalChanged;
   final bool groupIdenticalText;
@@ -332,6 +336,7 @@ class SemanticModePanel extends StatelessWidget {
                 key: ValueKey(includeLexical),
                 selected: scopeSelection,
                 officialBooksOnly: !includeLexical,
+                coveredBooks: coveredBooks,
                 onChanged: onScopeChanged,
               ),
               FilterChip(

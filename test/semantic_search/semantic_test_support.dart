@@ -221,6 +221,18 @@ class FakeBackend implements SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   }) async => throw UnimplementedError();
 
+  /// מה ש-[coveredBooks] מחזיר; כל קריאה נרשמת ב-[calls].
+  Set<String> covered = const {};
+
+  @override
+  Future<Set<String>> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('coveredBooks');
+    return covered;
+  }
+
   @override
   Future<SemanticBackendStatus> open(SemanticOpenRequest request) async {
     calls.add('open');

@@ -81,6 +81,18 @@ class _FakeEngine implements SearchEngine {
   }
 
   @override
+  Future<SemanticCoveredBooks> semanticCoveredBooks({
+    required String vectorsDir,
+    required SemanticCancellationToken cancellation,
+  }) async => SemanticCoveredBooks(
+    filePaths: ['id:1', 'uid:4774', 'db:zmanenu:12'],
+    setKey: vectorsDir,
+    generation: BigInt.from(10),
+    vectorsLibraryVersion: 39,
+    recoveredFromPrevious: false,
+  );
+
+  @override
   Future<SemanticStatus> openSemanticArtifact({
     required SemanticArtifactInput config,
   }) async {
@@ -218,6 +230,16 @@ void main() {
     expect(engine.installInput?.publishedManifestSha256, 'ab');
     expect(summary.kind, 'base');
     expect(summary.libraryVersion, 30);
+    expect(tokens.single.isDisposed, isTrue);
+  });
+
+  test('coveredBooks מחזיר את מפתחות הספרים מכל המקורות', () async {
+    final covered = await adapter.coveredBooks(
+      '/root/vectors',
+      cancel: SemanticCancelHandle(),
+    );
+
+    expect(covered, {'id:1', 'uid:4774', 'db:zmanenu:12'});
     expect(tokens.single.isDisposed, isTrue);
   });
 

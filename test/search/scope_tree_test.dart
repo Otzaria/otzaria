@@ -696,6 +696,16 @@ void main() {
       isTrue,
     );
 
+    final covered = ScopeTree.fromLibrary(
+      library,
+    ).officialOnly(alsoKeep: {'uid:3', 'db:lib:4'});
+    expect(covered.rootNodes.map((n) => n.title), ['תנ״ך', 'אישי', 'מצורף']);
+    expect(covered.allBookNodes().map((n) => n.title), [
+      'בראשית',
+      'עוד',
+      'זר',
+    ]);
+
     final noPersonal = ScopeTree.fromLibrary(library).withoutUserBooks();
     expect(noPersonal.rootNodes.map((n) => n.title), ['תנ״ך', 'מצורף']);
     expect(noPersonal.allBookNodes().map((n) => n.title), ['בראשית', 'זר']);

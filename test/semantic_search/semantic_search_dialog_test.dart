@@ -93,6 +93,11 @@ class _FakeRepository extends SemanticSearchRepository {
   @override
   Future<SemanticAvailability> refresh() async => current;
 
+  Set<String> covered = const {};
+
+  @override
+  Future<Set<String>> coveredBooks() async => covered;
+
   /// הבדיקה הראשונה הסתיימה: המאגר משדר מצב חדש.
   void emit(SemanticAvailability next) {
     current = next;

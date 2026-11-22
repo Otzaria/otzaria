@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -144,9 +145,15 @@ class ScopeTree {
     'withoutUserBooksScopeTree',
   );
 
-  /// העץ בלי ספרים אישיים ומצורפים, ובלי קטגוריות שנותרו ריקות.
-  ScopeTree officialOnly() =>
-      _officialOnlyCache[this] ??= _pruned((book) => book.source.isOfficial);
+  /// העץ בלי ספרים אישיים ומצורפים, מלבד אלה שמפתחם ב-[alsoKeep],
+  /// ובלי קטגוריות שנותרו ריקות.
+  ScopeTree officialOnly({Set<String> alsoKeep = const {}}) => alsoKeep.isEmpty
+      ? _officialOnlyCache[this] ??= _pruned((book) => book.source.isOfficial)
+      : _pruned(
+          (book) =>
+              book.source.isOfficial ||
+              alsoKeep.contains(BookIdentity.keyOf(book)),
+        );
 
   /// העץ בלי ספרים אישיים, ובלי קטגוריות שנותרו ריקות.
   ScopeTree withoutUserBooks() =>

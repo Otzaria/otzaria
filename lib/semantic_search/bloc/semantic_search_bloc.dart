@@ -15,9 +15,12 @@ export 'semantic_search_state.dart';
 class SemanticSearchBloc
     extends Bloc<SemanticSearchEvent, SemanticSearchState> {
   final SemanticSearchRepository repository;
+
+  /// טוען את [SemanticSearchState.coveredBooks]; החישוב קורא את כל הסט.
+  final bool loadCoveredBooks;
   StreamSubscription<Object?>? _subscription;
 
-  SemanticSearchBloc({required this.repository})
+  SemanticSearchBloc({required this.repository, this.loadCoveredBooks = false})
     : super(
         SemanticSearchState(
           availability: repository.availability,
@@ -49,15 +52,16 @@ class SemanticSearchBloc
       );
     });
     on<SemanticDataRemovalRequested>(_onRemovalRequested);
-    on<SemanticAvailabilityUpdated>(
-      (event, emit) => emit(
+    on<SemanticAvailabilityUpdated>((event, emit) async {
+      emit(
         state.copyWith(
           availability: event.availability,
           modelChoice: repository.modelChoice,
           activeModelChoice: repository.activeModelChoice,
         ),
-      ),
-    );
+      );
+      await _loadCoveredBooks(emit);
+    });
   }
 
   Future<void> _onStarted(
@@ -69,6 +73,12 @@ class SemanticSearchBloc
     );
     final availability = await repository.refresh();
     emit(state.copyWith(availability: availability));
+    await _loadCoveredBooks(emit);
+  }
+
+  Future<void> _loadCoveredBooks(Emitter<SemanticSearchState> emit) async {
+    if (!loadCoveredBooks || !state.availability.isUsable) return;
+    emit(state.copyWith(coveredBooks: await repository.coveredBooks()));
   }
 
   Future<void> _onQuantizationChanged(

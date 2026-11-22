@@ -274,5 +274,43 @@ void main() {
       );
       expect(officialCategoryFilter(null), isNull);
     });
+
+    test('ספרים אישיים ומצורפים שהסט מכסה נתמכים גם בלי התאמה מילולית', () {
+      final library = Library(
+        categories: [
+          category('תנ״ך', [TextBook(title: 'בראשית')]),
+          category('אוסף מצורף', [
+            TextBook(id: 3, title: 'ספר', source: BookSource.attached('lib')),
+          ]),
+          category('ספרים אישיים', [
+            TextBook(id: 4, title: 'שלי', source: BookSource.user),
+            TextBook(id: 5, title: 'אחר', source: BookSource.user),
+          ]),
+        ],
+      );
+      const covered = {'db:lib:3', 'uid:4'};
+      final filter = officialCategoryFilter(library, coveredBooks: covered);
+      bool supported(String facet) => isSemanticScopeFacetSupported(
+        facet,
+        isOfficialCategory: filter,
+        coveredBooks: covered,
+      );
+
+      expect(supported('/אוסף מצורף'), isTrue);
+      expect(supported('/אוסף מצורף/db:lib:3'), isTrue);
+      expect(supported('/ספרים אישיים'), isTrue);
+      expect(supported('/ספרים אישיים/uid:4'), isTrue);
+      expect(supported('/ספרים אישיים/uid:5'), isFalse);
+      expect(supported('/uid:5'), isFalse);
+      expect(supported('/לא קיים'), isFalse);
+      expect(
+        isSemanticScopeFacetSupported(
+          '/ספרים אישיים',
+          isOfficialCategory: filter,
+        ),
+        isTrue,
+      );
+      expect(isSemanticScopeFacetSupported('/ספרים אישיים'), isFalse);
+    });
   });
 }

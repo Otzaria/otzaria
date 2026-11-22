@@ -322,6 +322,7 @@ class _SearchDialogState extends State<SearchDialog> {
       _semanticBloc = SemanticSearchBloc(
         repository:
             widget.semanticRepository ?? SemanticSearchRepository.instance,
+        loadCoveredBooks: true,
       )..add(const SemanticSearchStarted());
       // מצב מבוקש במפורש (קיצור חיפוש מתקדם, איתור) וכרטיסייה בעריכה
       // גוברים על זיכרון הסשן.
@@ -1152,7 +1153,11 @@ class _SearchDialogState extends State<SearchDialog> {
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
-    final isOfficialCategory = officialCategoryFilter(library);
+    final coveredBooks = _semanticBloc?.state.coveredBooks ?? const <String>{};
+    final isOfficialCategory = officialCategoryFilter(
+      library,
+      coveredBooks: coveredBooks,
+    );
     final selection = parsedCategory.categoryFound
         ? [
             ...parsedCategory.facets!,
@@ -1164,6 +1169,7 @@ class _SearchDialogState extends State<SearchDialog> {
         facet,
         includeLexical: _semanticIncludeLexical,
         isOfficialCategory: isOfficialCategory,
+        coveredBooks: coveredBooks,
       ),
     )) {
       UiSnack.showError(SemanticSearchMessages.unsupportedScope);
@@ -1222,6 +1228,7 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildSemanticPanel(SemanticAvailability availability) {
     return SemanticModePanel(
       availability: availability,
+      coveredBooks: _semanticBloc?.state.coveredBooks ?? const <String>{},
       debug: widget.semanticDebugPreview,
       queryController: _searchTab.queryController,
       queryFocusNode: _searchTab.searchFieldFocusNode,

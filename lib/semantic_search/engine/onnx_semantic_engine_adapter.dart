@@ -88,6 +88,18 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   });
 
   @override
+  Future<Set<String>> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) => _withToken(cancel, (token) async {
+    final covered = await (await _engine()).semanticCoveredBooks(
+      vectorsDir: vectorsDir,
+      cancellation: token,
+    );
+    return covered.filePaths.toSet();
+  });
+
+  @override
   Future<SemanticBackendStatus> open(SemanticOpenRequest request) => _guard(
     () async => mapStatus(
       await (await _engine()).openSemanticArtifact(

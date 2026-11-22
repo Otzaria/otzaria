@@ -44,8 +44,12 @@ class SearchScopeMenuButton extends StatefulWidget {
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
 
-  /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
+  /// מציג רק ספרים מהספרייה הרשמית ואת [coveredBooks] — בחיפוש החכם,
+  /// הספרים שיש להם וקטורים.
   final bool officialBooksOnly;
+
+  /// מפתחות ספרים לא רשמיים שמוצגים גם עם [officialBooksOnly].
+  final Set<String> coveredBooks;
 
   /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
   final bool excludeUserBooks;
@@ -55,6 +59,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.officialBooksOnly = false,
+    this.coveredBooks = const {},
     this.excludeUserBooks = false,
   });
 
@@ -82,7 +87,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   int _baseBookGeneration = 0;
 
   ScopeTree _visibleTree(ScopeTree tree) => widget.officialBooksOnly
-      ? tree.officialOnly()
+      ? tree.officialOnly(alsoKeep: widget.coveredBooks)
       : widget.excludeUserBooks
       ? tree.withoutUserBooks()
       : tree;
@@ -164,6 +169,20 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     _savedScopes = SearchScopePreferences.loadSavedScopes();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScopeMenuButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!setEquals(oldWidget.coveredBooks, widget.coveredBooks)) _resetTree();
+  }
+
+  void _resetTree() {
+    _treeCache = null;
+    _treeFuture = null;
+    _baseBookGeneration++;
+    _baseBookNodesCache = null;
+    _baseBookNodesFuture = null;
   }
 
   @override
@@ -324,11 +343,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         final enabled = library != null;
         if (!identical(library, _library)) {
           _library = library;
-          _treeCache = null;
-          _treeFuture = null;
-          _baseBookGeneration++;
-          _baseBookNodesCache = null;
-          _baseBookNodesFuture = null;
+          _resetTree();
         }
 
         return OverlayPortal(

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -36,7 +37,7 @@ bool isWholeLibraryScope(Iterable<String> selection) {
   return categories.isEmpty || categories.contains('/');
 }
 
-/// מפתחות של ספרים אישיים ושל מסדים מצורפים — אין להם וקטורים.
+/// מפתחות של ספרים אישיים ושל מסדים מצורפים — וקטורים רק כשהסט מכסה אותם.
 final RegExp _nonOfficialBookKey = RegExp(r'^(uid|db):');
 final RegExp _bookKeySegment = RegExp(r'^(id|uid|ext|db):|\|');
 
@@ -52,29 +53,38 @@ List<String> semanticScopeFacets(Iterable<String> selection) {
 }
 
 /// האם facet של ספר או קטגוריה נתמך, לפני נרמול של בחירת כל הספרייה.
+/// [coveredBooks] — מפתחות הספרים שהסט מכסה (ראו [officialCategoryFilter]).
 bool isSemanticScopeFacetSupported(
   String facet, {
   bool includeLexical = false,
   bool Function(String facet)? isOfficialCategory,
+  Set<String> coveredBooks = const {},
 }) {
   if (includeLexical || facet == '/' || FacetHelper.isDimensionFacet(facet)) {
     return true;
   }
-  if (BookDatabaseResolver.likelySource(categoryPath: facet) !=
-      BookSource.official) {
-    return false;
-  }
   final segments = facet.split('/');
+  final isBook = _bookKeySegment.hasMatch(segments.last);
+  if (isBook && coveredBooks.contains(segments.last)) return true;
   if (segments.any(_nonOfficialBookKey.hasMatch)) return false;
-  final categoryPath = _bookKeySegment.hasMatch(segments.last)
+  final categoryPath = isBook
       ? segments.sublist(0, segments.length - 1).join('/')
       : facet;
-  return categoryPath.isEmpty ||
-      (isOfficialCategory?.call(categoryPath) ?? true);
+  final searchableCategory = isOfficialCategory?.call(categoryPath);
+  if (searchableCategory != true &&
+      BookDatabaseResolver.likelySource(categoryPath: facet) !=
+          BookSource.official) {
+    return false;
+  }
+  return categoryPath.isEmpty || (searchableCategory ?? true);
 }
 
-/// האם בקטגוריה של [facet] יש ספר מהספרייה הרשמית; `null` כשהספרייה לא נטענה.
-bool Function(String facet)? officialCategoryFilter(Library? library) {
+/// האם בקטגוריה של [facet] יש ספר רשמי או ספר שמפתחו ב-[coveredBooks];
+/// `null` כשהספרייה לא נטענה.
+bool Function(String facet)? officialCategoryFilter(
+  Library? library, {
+  Set<String> coveredBooks = const {},
+}) {
   if (library == null) return null;
   return (facet) {
     // פסיק בשם תיקייה הוא מפריד ב-facet, ולכן משווים לנתיב ה-facet של התיקייה.
@@ -85,10 +95,16 @@ bool Function(String facet)? officialCategoryFilter(Library? library) {
         return facet == path || facet.startsWith('$path/');
       }).firstOrNull;
     }
-    return category != null && _hasOfficialBook(category);
+    return category != null && _hasSearchableBook(category, coveredBooks);
   };
 }
 
-bool _hasOfficialBook(Category category) =>
-    category.books.any((book) => book.source.isOfficial) ||
-    category.subCategories.any(_hasOfficialBook);
+bool _hasSearchableBook(Category category, Set<String> coveredBooks) =>
+    category.books.any(
+      (book) =>
+          book.source.isOfficial ||
+          coveredBooks.contains(BookIdentity.keyOf(book)),
+    ) ||
+    category.subCategories.any(
+      (child) => _hasSearchableBook(child, coveredBooks),
+    );

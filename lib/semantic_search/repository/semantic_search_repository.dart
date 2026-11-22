@@ -543,6 +543,37 @@ class SemanticSearchRepository {
     cancel: cancel ?? SemanticCancelHandle(),
   );
 
+  ({SemanticVectorsSummary vectors, Future<Set<String>> books})? _covered;
+
+  /// מפתחות האינדקס של הספרים שהסט המותקן מכסה — גם אישיים ומצורפים.
+  /// החישוב קורא את כל הסט, ולכן נשמר עד שהסט משתנה; בכשל — קבוצה ריקה.
+  Future<Set<String>> coveredBooks() async {
+    try {
+      final directory = (await _paths()).vectorsDirectory;
+      final vectors = await vectorsInfo();
+      if (!vectors.present) return const <String>{};
+      var cached = _covered;
+      if (cached == null || cached.vectors != vectors) {
+        cached = _covered = (
+          vectors: vectors,
+          books: _backend.coveredBooks(
+            directory,
+            cancel: SemanticCancelHandle(),
+          ),
+        );
+      }
+      return _lastCoveredBooks = await cached.books;
+    } catch (error, stackTrace) {
+      _covered = null;
+      _log('coveredBooks', error, stackTrace);
+      return const <String>{};
+    }
+  }
+
+  /// התשובה האחרונה של [coveredBooks] שכבר הושלמה, בלי לחשב.
+  Set<String> get lastCoveredBooks => _lastCoveredBooks;
+  Set<String> _lastCoveredBooks = const {};
+
   /// תמונת המנוע לטלמטריה: מצב, זהות המודל, החבילה והוקטורים המותקנים.
   Future<SemanticEngineSnapshot> engineSnapshot() async {
     final status = await _safeStatus();
