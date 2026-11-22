@@ -17,7 +17,10 @@ from run_installed_plugin_linux import (
 
 def pdf_runtime_report():
     return {"status": "passed", "platform": "linux", "bundlePathsVerified": True,
-            "ownedDocumentsRemaining": 0, "ownedTabsRemaining": 0, "indexingActiveAfter": False}
+            "ownedDocumentsRemaining": 0, "ownedTabsRemaining": 0, "indexingActiveAfter": False,
+            "steps": {name: {"status": "passed"} for name in (
+                "view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown",
+            )}}
 
 
 class LinuxSessionTest(unittest.TestCase):
@@ -256,6 +259,18 @@ class LinuxSessionTest(unittest.TestCase):
                 missing = pdf_runtime_report()
                 del missing[field]
                 invalid.append(missing)
+            missing_steps = pdf_runtime_report()
+            del missing_steps["steps"]
+            invalid.append(missing_steps)
+            invalid.append({**pdf_runtime_report(), "steps": []})
+            for name in pdf_runtime_report()["steps"]:
+                missing_step = pdf_runtime_report()
+                del missing_step["steps"][name]
+                invalid.append(missing_step)
+                for status in ("notRun", "failed"):
+                    failed_step = pdf_runtime_report()
+                    failed_step["steps"][name]["status"] = status
+                    invalid.append(failed_step)
             for pdf in invalid:
                 report["pdfRuntime"] = pdf
                 path.write_text(json.dumps({"installedPluginProbe": report}))

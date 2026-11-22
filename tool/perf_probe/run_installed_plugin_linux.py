@@ -126,6 +126,12 @@ def require_linux_result(root):
         ("ownedDocumentsRemaining", 0), ("ownedTabsRemaining", 0), ("indexingActiveAfter", False),
     )):
         raise RuntimeError("Actual-bundle PDF runtime and teardown evidence must pass")
+    steps = pdf.get("steps")
+    if not isinstance(steps, dict) or any(
+        not isinstance(steps.get(name), dict) or steps[name].get("status") != "passed"
+        for name in ("view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown")
+    ):
+        raise RuntimeError("All required PDF runtime steps must pass")
     return {"path": str(reports[0]), "runId": run_id, "status": "passed"}
 
 
