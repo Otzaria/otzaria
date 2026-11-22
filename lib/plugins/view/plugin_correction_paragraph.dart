@@ -250,6 +250,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       nikud: widget.settings.removeNikud,
       teamim: widget.settings.removeTeamim,
     );
+    controller.setHighlight(widget.settings);
     controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
