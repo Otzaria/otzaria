@@ -5,6 +5,7 @@ import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart'
     show PdfLayoutMode;
+import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 import '../test_helpers/pdf_document_dispose.dart';
@@ -50,6 +51,8 @@ void main() {
     }))!;
     addTearDown(() => disposePdfDocument(tester, document));
     final controller = PdfViewerController();
+    final memo = BookViewLayoutMemo();
+    addTearDown(memo.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -57,10 +60,9 @@ void main() {
           PdfDocumentRefDirect(document),
           controller: controller,
           params: PdfViewerParams(
-            layoutPages: (pages, params) => buildBookViewPageLayout(
-              pageSizes: [
-                for (final page in pages) Size(page.width, page.height),
-              ],
+            onDocumentChanged: memo.bindDocument,
+            layoutPages: (pages, params) => memo.layout(
+              pages,
               hasCover: true,
               verticalMargin: params.margin * 2,
             ),
@@ -119,6 +121,57 @@ void main() {
     }
     return controller.pageNumber!;
   }
+
+  testWidgets('PDFium: מידה מדויקת מחליפה אומדן בטעינה הדרגתית', (
+    tester,
+  ) async {
+    const pages = 200;
+    final document = (await tester.runAsync(() async {
+      final source = pw.Document();
+      for (var i = 0; i < pages; i++) {
+        source.addPage(
+          pw.Page(
+            pageFormat: i == pages - 1
+                ? const PdfPageFormat(700, 900)
+                : const PdfPageFormat(400, 600),
+            build: (_) => pw.SizedBox(),
+          ),
+        );
+      }
+      return PdfDocument.openData(
+        await source.save(),
+        sourceName: 'book-layout-progressive.pdf',
+        useProgressiveLoading: true,
+      );
+    }))!;
+    addTearDown(() => disposePdfDocument(tester, document));
+    final memo = BookViewLayoutMemo()..bindDocument(document);
+    addTearDown(memo.dispose);
+    expect(document.pages.last.isLoaded, isFalse);
+    final estimated = memo.layout(
+      document.pages,
+      hasCover: true,
+      verticalMargin: 16,
+    );
+    expect(estimated.pageLayouts.last.size, const Size(400, 600));
+    await tester.runAsync(
+      () => document.reloadPages(pageNumbersToReload: [pages]),
+    );
+    await tester.pump();
+    final measured = memo.layout(
+      document.pages,
+      hasCover: true,
+      verticalMargin: 16,
+    );
+    expect(document.pages.last.isLoaded, isTrue);
+    expect(measured, isNot(same(estimated)));
+    expect(measured.pageLayouts.last.size, const Size(700, 900));
+    expect(measured.pageLayouts.first, estimated.pageLayouts.first);
+    expect(
+      memo.layout(document.pages, hasCover: true, verticalMargin: 16),
+      same(measured),
+    );
+  });
 
   group('העמוד הנוכחי בתצוגת ספר (issue #1712)', () {
     testWidgets('מוגדל: חלקה התחתון של כפולה וראש כפולה בסוף הספר', (
