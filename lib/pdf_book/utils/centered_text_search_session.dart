@@ -101,8 +101,12 @@ class CenteredTextSearchSession extends PdfTextSearchSession {
     _highlightNavigation++;
   }
 
-  List<PdfTextSearchResult>? pageHighlights(int pageNumber) =>
-      _pageHighlights.matchesForPage(pageNumber);
+  List<PdfTextSearchResult>? pageHighlights(int pageNumber) {
+    if (_disposed) return null;
+
+    _observeHighlightDocument();
+    return _pageHighlights.matchesForPage(pageNumber);
+  }
 
   void cancelPageHighlightNavigation() => _highlightNavigation++;
 
@@ -255,7 +259,6 @@ class CenteredTextSearchSession extends PdfTextSearchSession {
       return;
     }
     if (!isActive || _disposed) return;
-    _observeHighlightDocument();
     _paintedPages.add(page.pageNumber);
     if (!_paintPending) {
       _paintPending = true;

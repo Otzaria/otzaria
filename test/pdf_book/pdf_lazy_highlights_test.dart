@@ -611,6 +611,43 @@ Future<void> main() async {
     expect(controller.selections, [100]);
   }, skip: !engineReady);
 
+  testWidgets('שינוי תוכן בזמן הצגת תוצאה אינו בוחר הדגשה ישנה', (
+    tester,
+  ) async {
+    final (controller, session) = create(100);
+    await _pumpSearch(tester, session);
+    Future<void> settle() async {
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+    }
+
+    await settle();
+    final gate = controller.navigationGate = Completer<void>();
+    await tester.tap(find.byType(SearchResultTile).first);
+    await settle();
+    expect(session.pageHighlights(100), isNotEmpty);
+    expect(controller.selections, isEmpty);
+    session.textByPage[100] = 'תוכן מוחלף';
+    controller.pdf.changes.add(
+      PdfDocumentPageStatusChangedEvent(
+        controller.pdf,
+        changes: {
+          100: PdfPageStatusChange.modified(page: controller.pdf.pages[99]),
+        },
+      ),
+    );
+    await settle();
+    expect(session.pageHighlights(100), isNull);
+    gate.complete();
+    await settle();
+    expect(controller.selections, isEmpty);
+    expect(session.pageHighlightAnchor, isNull);
+  }, skip: !engineReady);
+
   testWidgets('מעבר ממתקדם לפשוט אינו מפעיל בדיקת שכבת טקסט מוקדמת', (
     tester,
   ) async {

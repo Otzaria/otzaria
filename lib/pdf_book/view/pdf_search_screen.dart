@@ -677,6 +677,14 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           return null;
         }
       }
+      // בזמן הצגת העמוד, המסמך יכול לפסול התאמות שהחילוץ כבר החזיר.
+      if (pageHighlighter != null &&
+          !identical(
+            highlightedMatches,
+            pageHighlighter.pageHighlights(pageNumber),
+          )) {
+        return null;
+      }
       final pageMatches = pageHighlighter != null
           ? highlightedMatches ?? const <PdfTextSearchResult>[]
           : range == null
