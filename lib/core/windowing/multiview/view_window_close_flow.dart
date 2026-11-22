@@ -104,11 +104,15 @@ class ViewWindowCloseFlow {
         }
         if (_abandoned.isCompleted) return false;
         // מכאן הסגירה שאושרה מושלמת גם אם העץ נבנה מחדש.
-        await opener.rememberClosed(entry.slot, keptRow: staysInDock);
+        // לא נשמר לשחזור: השורה נשארת ותשוחזר בהפעלה הבאה, במקום לאבד אותה.
+        final remembered = await opener.rememberClosed(
+          entry.slot,
+          keptRow: staysInDock,
+        );
         // סגירה מכוונת מוחקת את הסשן; קודם endSession, ששמירה באמצע לא תחזיר אותו.
         entry.endSession();
         try {
-          if (!staysInDock) await _discardSession(entry.slot);
+          if (!staysInDock && remembered) await _discardSession(entry.slot);
         } catch (e) {
           // השורה תאומץ בהפעלה הבאה; החלון נסגר בכל מקרה.
           debugPrint('view window close: discard failed: $e');

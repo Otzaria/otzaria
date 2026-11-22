@@ -128,10 +128,10 @@ void main() {
         tabsJson: '["main1","main2"]',
         currentIndex: 0,
       );
-      // כמו AppWindowListener: הסשן נמחק, ואז הראשי מוסתר.
-      final discarded = await store.load(UserStateSlot.main);
+      // כמו AppWindowListener: הסשן נשמר לשחזור, ורק אז נמחק.
+      final session = await store.load(UserStateSlot.main);
+      expect(await opener.beforeMainWindowHides(session: session), isTrue);
       await store.delete(UserStateSlot.main);
-      await opener.beforeMainWindowHides(session: discarded);
 
       final (second, restarted) = await launch(tester);
       expect(await settle(tester, restarted.restoreLastClosedWindow()), isTrue);
@@ -198,9 +198,10 @@ void main() {
         currentIndex: 0,
       );
       // כמו AppWindowListener בסגירת הראשי כשחלון אחר נשאר פתוח.
-      final discarded = await store.load(UserStateSlot.main);
-      await store.delete(UserStateSlot.main);
-      await opener.beforeMainWindowHides(session: discarded);
+      final session = await store.load(UserStateSlot.main);
+      if (await opener.beforeMainWindowHides(session: session)) {
+        await store.delete(UserStateSlot.main);
+      }
 
       expect((await store.load(UserStateSlot.main))?.tabsJson, '["main"]');
     });

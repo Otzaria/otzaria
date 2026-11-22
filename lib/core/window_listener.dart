@@ -410,16 +410,16 @@ class AppWindowListener extends WindowListener {
         await _shutdownProcessAfterFlush(flushFailure);
       } else {
         // אחרי ה-flush מוחקים סשן שנסגר במכוון; החלון האחרון במק שומר אותו.
-        final discarded = isLast
-            ? null
-            : await TabsRepository().discardWindowSession();
+        // נמחק רק אחרי שנשמר לשחזור; בכשל השורה נשארת להפעלה הבאה.
+        final tabs = TabsRepository();
+        final session = isLast ? null : await tabs.loadWindowSession();
+        final remembered = await ViewWindowOpener.instance
+            .beforeMainWindowHides(session: session);
+        if (session != null && remembered) await tabs.discardWindowSession();
 
         // ה-flush של החלון האחרון ירוץ גם כאן (isolate אחד): בלי השהיה
         // הסשן שנמחק היה נכתב מחדש. הטיוטות שייכות לכל החלונות ונשארות.
         WindowTabsSession.current.suspend();
-        await ViewWindowOpener.instance.beforeMainWindowHides(
-          session: discarded,
-        );
         InProcessTabDrops.instance.setMainShown(false);
         // הנראות נשמרת לפי חלון: רק התוספים של הראשי מושהים.
         PluginRuntimeDispatcher.instance.setWindowShown(false);

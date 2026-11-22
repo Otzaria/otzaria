@@ -67,6 +67,8 @@ void main() {
     await database.database;
     sessions = WindowSessionStore(database: database);
     TabsRepository.debugSessions = sessions;
+    // רשימת החלונות שנסגרו של ViewWindowOpener.instance; בלעדיה הסשן לא נמחק.
+    UserStateDatabase.instance.overridePath('${tmp.path}/closed.db');
   });
 
   tearDown(() async {
@@ -77,6 +79,7 @@ void main() {
     AppPaths.debugProfileDataRootPath = null;
     TabsRepository.debugSessions = null;
     database.close();
+    UserStateDatabase.instance.close();
     runner.uninstall();
     RunnerWindowChannel.debugSupportedOverride = null;
     ViewFocusSync.resetForTest();

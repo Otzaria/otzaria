@@ -285,20 +285,29 @@ class TabsRepository {
     );
   }
 
-  /// מוחק את סשן החלון הזה — כשהמשתמש סוגר חלון שאינו האחרון, אחרי
-  /// ה-flush. בלי המחיקה ההפעלה הבאה הייתה מחזירה כרטיסיות שנסגרו במכוון.
-  /// מחזיר את הסשן שנמחק, כדי ש-Ctrl+Shift+T יוכל להחזיר אותו (#5495).
-  Future<WindowSession?> discardWindowSession() async {
+  /// סשן החלון הזה, כדי ש-Ctrl+Shift+T יוכל להחזיר אותו (#5495); null
+  /// כשאין משבצת, אין שורה או שהקריאה נכשלה.
+  Future<WindowSession?> loadWindowSession() async {
     final slot = _sessionSlot;
     if (slot == null) return null;
     try {
+      return await _store.load(slot);
+    } catch (e) {
+      debugPrint('⚠️ loadWindowSession failed: $e');
+      return null;
+    }
+  }
+
+  /// מוחק את סשן החלון הזה — כשהמשתמש סוגר חלון שאינו האחרון, אחרי
+  /// ה-flush. בלי המחיקה ההפעלה הבאה הייתה מחזירה כרטיסיות שנסגרו במכוון.
+  Future<void> discardWindowSession() async {
+    final slot = _sessionSlot;
+    if (slot == null) return;
+    try {
       window._cancelPendingIndex();
-      final session = await _store.load(slot).catchError((Object _) => null);
       await _store.delete(slot);
-      return session;
     } catch (e) {
       debugPrint('⚠️ discardWindowSession failed: $e');
-      return null;
     }
   }
 
