@@ -18,7 +18,7 @@ class AppReportDraft extends Equatable {
     this.trigger = AppReportTrigger.manual,
     this.signature,
     this.minidump,
-    this.includeMinidump = true,
+    this.includeMinidump = false,
   });
 
   final AppReportType type;
@@ -75,7 +75,7 @@ class AppReportDraft extends Equatable {
           AppReportTrigger.manual,
       signature: CrashSignature.fromJson(json['signature']),
       minidump: AppReportMinidump.fromJson(json['minidump']),
-      includeMinidump: json['includeMinidump'] as bool? ?? true,
+      includeMinidump: json['includeMinidump'] as bool? ?? false,
       title: json['title'] as String? ?? '',
       description: json['description'] as String? ?? '',
       steps: json['steps'] as String? ?? '',
