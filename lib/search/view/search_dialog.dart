@@ -587,6 +587,10 @@ class _SearchDialogState extends State<SearchDialog> {
       args: {'mode': modeLabel},
     );
     var withOptions = mode == SearchMode.exact || mode == SearchMode.advanced;
+    // פר-מילה ("זהה לכל המילים" כבוי) המפה הגלובלית אינה המוצג בחלונית,
+    // ולכן נשמרים רק המרווח, הטווח והסדר.
+    final perWord =
+        mode == SearchMode.advanced && !_searchTab.useGlobalSearchOptions.value;
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('קביעת מצב ברירת המחדל'),
@@ -605,7 +609,11 @@ class _SearchDialogState extends State<SearchDialog> {
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                     title: Text(
-                      context.settingsText('כולל האפשרויות הנוכחיות'),
+                      context.settingsText(
+                        perWord
+                            ? 'כולל המרווח וסדר המילים הנוכחיים'
+                            : 'כולל האפשרויות הנוכחיות',
+                      ),
                     ),
                   ),
                 ],
@@ -627,19 +635,18 @@ class _SearchDialogState extends State<SearchDialog> {
       if (mode == SearchMode.exact) {
         SearchDefaults.saveExactDefaults(options);
       } else {
-        // פר-מילה ("זהה לכל המילים" כבוי) המפה הגלובלית אינה המוצג בחלונית.
-        if (_searchTab.useGlobalSearchOptions.value) {
-          SearchDefaults.saveDefaults(options);
-        }
+        if (!perWord) SearchDefaults.saveDefaults(options);
         SearchDefaults.saveMatchPolicyDefault(state.configuration.matchPolicy);
       }
       SearchDefaults.saveDistanceDefault(state.distance);
       SearchDefaults.saveAnyOrderDefault(state.anyOrder);
     }
     UiSnack.show(
-      withOptions
-          ? LibraryMessages.searchModeAndOptionsSetAsDefault(modeLabel)
-          : LibraryMessages.searchModeSetAsDefault(modeLabel),
+      !withOptions
+          ? LibraryMessages.searchModeSetAsDefault(modeLabel)
+          : perWord
+          ? LibraryMessages.searchModeAndSpacingSetAsDefault(modeLabel)
+          : LibraryMessages.searchModeAndOptionsSetAsDefault(modeLabel),
     );
   }
 

@@ -52,6 +52,9 @@ abstract class LibraryMessages {
   static String searchModeAndOptionsSetAsDefault(String mode) =>
       'חיפוש חדש ייפתח מעכשיו במצב $mode, עם האפשרויות, המרווח וסדר המילים הנוכחיים';
 
+  static String searchModeAndSpacingSetAsDefault(String mode) =>
+      'חיפוש חדש ייפתח מעכשיו במצב $mode, עם המרווח וסדר המילים הנוכחיים';
+
   static const String searchIndexMissing =
       'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.';
 
