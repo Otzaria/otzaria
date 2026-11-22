@@ -219,7 +219,7 @@ class CopyUtils {
     } else if (copyWithHeaders == 'book_and_path') {
       header = currentPath.isNotEmpty ? '$bookName, $currentPath' : bookName;
     } else if (copyWithHeaders == 'path_only') {
-      header = currentPath.isNotEmpty ? currentPath : bookName;
+      header = currentPath;
     } else {
       return originalText;
     }
