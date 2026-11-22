@@ -7288,6 +7288,8 @@ try {
 פורמט הפתיחה) ואינו מחליף אותם. ההקשר אינו נכלל בברירת המחדל, ואינו מוצג
 בספרים מספקים חיצוניים (`type: 'external'`). ההרשאה היא `reader.context_menu`,
 כמו בשאר ההקשרים, ו־`bookTypes`/`bookSources` מסננים לפי הספר שנלחץ.
+עבור רישום במניפסט יש להגדיר `minAppVersion: "0.9.99"`. בגרסאות קודמות
+רישום פריט שמכיל את ההקשר נדחה ב־`error.unsupported_context`.
 
 אין ספר פתוח ואין מיקום: ב־`selection` יש את זהות הספר (`id`, `bookId`,
 `bookUid`, `type`, `source`, ו־`external` כשיש), את `bookTitle` ואת
@@ -7295,14 +7297,22 @@ try {
 תורה`). `text` ו־`selectedText` ריקים, ו־`currentRef`/`currentIndex` הם `null`.
 
 ```json
-"contextMenuItems": [
-  {
-    "id": "add-to-plan",
-    "title": "הוסף לתוכנית הלימוד",
-    "contexts": ["library-book"],
-    "openPlugin": true
+{
+  "minAppVersion": "0.9.99",
+  "permissions": ["app.startup_contributions", "reader.context_menu"],
+  "contributes": {
+    "startup": {
+      "contextMenuItems": [
+        {
+          "id": "add-to-plan",
+          "title": "הוסף לתוכנית הלימוד",
+          "contexts": ["library-book"],
+          "openPlugin": true
+        }
+      ]
+    }
   }
-]
+}
 ```
 
 **בחירה חוצת־פסקאות — `selection.sections` (מ-`0.9.97`):**
