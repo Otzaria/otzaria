@@ -195,6 +195,7 @@ void main() {
       final repository = build();
       final library = (await repository.importFile(fixture('a'))).library!;
       await registry.enableEngineSources();
+      final original = await File(library.path).readAsBytes();
       final staged = fixture('staged');
       final swap = _RecordingSwap(calls);
 
@@ -209,6 +210,7 @@ void main() {
       );
 
       expect(calls, ['a=a.db', 'a=null', 'swap', 'restore', 'a=a.db']);
+      expect(await File(library.path).readAsBytes(), original);
     });
   });
 
@@ -301,13 +303,20 @@ class _RecordingSwap extends AttachedUpdateFileSwap {
   final List<String> calls;
 
   @override
-  Future<void> swapIn(String target, String staged) async => calls.add('swap');
+  Future<void> swapIn(String target, String staged) async {
+    calls.add('swap');
+    await super.swapIn(target, staged);
+  }
 
+  // Records only a real restore: without a backup, restore is a no-op.
   @override
-  Future<void> restore(String target) async => calls.add('restore');
-
-  @override
-  Future<void> discardBackup(String target) async {}
+  Future<void> restore(String target) async {
+    if (!await File(AttachedUpdateFileSwap.backupPathFor(target)).exists()) {
+      return;
+    }
+    calls.add('restore');
+    await super.restore(target);
+  }
 }
 
 class _LockedSwap extends AttachedUpdateFileSwap {
