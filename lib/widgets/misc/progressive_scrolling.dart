@@ -228,21 +228,27 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
     }
   }
 
+  /// יעד הצעד שבדרך — הקשה נוספת בזמן האנימציה ממשיכה ממנו ולא מהמיקום החלקי.
+  double? _stepTarget;
+
   void _step(int direction) {
     final position = _position;
     if (position == null) return;
-    final target = (position.pixels + 100 * direction).clamp(
+    final target = ((_stepTarget ?? position.pixels) + 100 * direction).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
     if (target == position.pixels) return;
+    _stepTarget = target;
     unawaited(
       AppMotion.scrollPosition(
         position,
         target,
         AppTokens.animFast,
         curve: Curves.linear,
-      ),
+      ).whenComplete(() {
+        if (_stepTarget == target) _stepTarget = null;
+      }),
     );
   }
 
