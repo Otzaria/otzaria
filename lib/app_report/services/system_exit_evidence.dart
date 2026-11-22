@@ -329,23 +329,34 @@ Future<SystemExitEvidence?> _readLinuxOomKill(
         .take(_maxEvents)
         .toList()
         .timeout(timeout);
-    return linuxOomKillEvidence(lines, pid: pid, start: start, end: end);
+    return linuxOomKillEvidence(
+      lines,
+      pid: pid,
+      processName: p.basename(Platform.resolvedExecutable),
+      start: start,
+      end: end,
+    );
   } finally {
     process.kill();
   }
 }
 
-/// הריגת OOM של [pid] בדיוק, משורות `journalctl -k -o short-unix`.
+/// הריגת OOM של [pid] ו-[processName] בדיוק (אין זמן יצירה נגד pid ממוחזר).
 /// נשמרים רק סוג האירוע ונתוני הזיכרון — לא השורה (שם מחשב, uid, cgroup).
 @visibleForTesting
 SystemExitEvidence? linuxOomKillEvidence(
   Iterable<String> lines, {
   required int pid,
+  required String processName,
   required DateTime start,
   required DateTime end,
 }) {
-  final killed = RegExp('Killed process $pid \\(');
-  final oomKill = RegExp('oom-kill:.*[,:]pid=$pid,');
+  // שם התהליך בקרנל (comm) נחתך ל-15 תווים.
+  final comm = RegExp.escape(
+    processName.length > 15 ? processName.substring(0, 15) : processName,
+  );
+  final killed = RegExp('Killed process $pid \\($comm\\)');
+  final oomKill = RegExp('oom-kill:.*[,:]task=$comm,pid=$pid,');
   var found = false;
   String? anonRss;
   String? totalVm;

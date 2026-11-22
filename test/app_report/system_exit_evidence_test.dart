@@ -156,21 +156,22 @@ void main() {
     SystemExitEvidence? linux(List<String> lines) => linuxOomKillEvidence(
       lines,
       pid: linuxPid,
+      processName: 'otzaria',
       start: linuxStart,
       end: linuxEnd,
     );
 
-    String killed(int pid, {double? at}) =>
+    String killed(int pid, {double? at, String name = 'otzaria'}) =>
         '${at ?? inWindow} my-laptop kernel: Out of memory: Killed process '
-        '$pid (otzaria) total-vm:9000000kB, anon-rss:5000000kB, '
+        '$pid ($name) total-vm:9000000kB, anon-rss:5000000kB, '
         'file-rss:0kB, shmem-rss:0kB, UID:1000 pgtables:20000kB '
         'oom_score_adj:0';
 
-    String oomKill(int pid) =>
+    String oomKill(int pid, {String name = 'otzaria'}) =>
         '$inWindow my-laptop kernel: oom-kill:constraint=CONSTRAINT_NONE,'
         'nodemask=(null),cpuset=/,mems_allowed=0,global_oom,'
         'task_memcg=/user.slice/user-1000.slice/session-2.scope,'
-        'task=otzaria,pid=$pid,uid=1000';
+        'task=$name,pid=$pid,uid=1000';
 
     test('הריגת OOM של ה-pid: סוג ונתוני זיכרון בלבד', () {
       final evidence = linux([oomKill(linuxPid), killed(linuxPid)])!;
@@ -186,6 +187,16 @@ void main() {
       expect(linux([killed(9999), oomKill(9999)]), isNull);
       // pid שמכיל את ה-pid הקודם כתת-מחרוזת.
       expect(linux([killed(43210), oomKill(14321)]), isNull);
+    });
+
+    test('pid ממוחזר של תהליך אחר אינו נספר', () {
+      expect(
+        linux([
+          killed(linuxPid, name: 'chrome'),
+          oomKill(linuxPid, name: 'chrome'),
+        ]),
+        isNull,
+      );
     });
 
     test('הריגה מחוץ לחלון הזמן אינה נספרת', () {
