@@ -1276,19 +1276,24 @@ class FindRefRepository {
     }
 
     final results = await resultsFor(queryTokens, books, detection);
-    if (results.isEmpty && query.dibbur == null) {
+    // שו"ת/תשובות עוברים קודם בהחלפת הסוגה, שמוצאת את השם המלא.
+    if (results.isEmpty &&
+        query.dibbur == null &&
+        !_genrePrefixes.contains(query.tokens.first)) {
       final truncated = _truncatedLastWordHits(books, queryTokens);
       if (truncated.isNotEmpty) {
-        return _enrichWithPaths(
-          _rankResults(
-            [for (final hit in truncated) _bookResult(hit)],
-            queryTokens,
-            bookMatchRanks: _bookMatchRanks((
-              hits: truncated,
-              phraseTokenCount: queryTokens.length,
-              secondaryPhraseTokenCount: const {},
-            ), queryTokens),
-            rawQuery: query.ref,
+        return _awaitCurrent(
+          _enrichWithPaths(
+            _rankResults(
+              [for (final hit in truncated) _bookResult(hit)],
+              queryTokens,
+              bookMatchRanks: _bookMatchRanks((
+                hits: truncated,
+                phraseTokenCount: queryTokens.length,
+                secondaryPhraseTokenCount: const {},
+              ), queryTokens),
+              rawQuery: query.ref,
+            ),
           ),
         );
       }
@@ -1343,8 +1348,8 @@ class FindRefRepository {
 
   static const _genrePrefixes = {'שות', 'תשובות'};
 
-  /// ספרים ששמם מתחיל בכל השאילתה כשהמילה האחרונה קטועה. אות-מספר אחרונה
-  /// ("נימוקי יוסף בבא ק") נקראת כסעיף, וכשאין סעיף כזה זו מילה בהקלדה (#5721).
+  /// בשאילתה בלי תוצאות: ספרים שכל מילותיה הן תחיליות רצופות בשמם. כך "ק" ב"נימוקי
+  /// יוסף בבא ק", שנקראה כדף שאינו קיים, היא מילה באמצע הקלדה (#5721).
   List<ReferenceBookHit> _truncatedLastWordHits(
     _BookSearch books,
     List<String> queryTokens,

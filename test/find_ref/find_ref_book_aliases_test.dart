@@ -176,6 +176,14 @@ void main() {
         expect(titles, [nimukeiBavaKamma.title]);
       });
     }
+
+    test('דף שאינו קיים אינו מחזיר ספר ששמו אינו מכיל את המילה', () async {
+      final titles = await titlesFor('נימוקי יוסף בבא ש', const [
+        nimukeiBavaBatra,
+        nimukeiBavaKamma,
+      ]);
+      expect(titles, isEmpty);
+    });
   });
 
   test('כינוי מילולי של ספר קודם לכותרת בלי מילת קישור של ספר אחר', () async {
