@@ -27,4 +27,33 @@ void main() {
       }
     }
   });
+  test(
+    'שינוי במפה אחרי הקריאה הראשונה לא יוצר פער בין החיפוש לרשימה הממוינת',
+    () {
+      final map = {'פרק ב': 20, 'פרק א': 10};
+      final headings = PdfHeadings(headingsMap: map, bookTitle: 'ספר');
+      final sorted = headings.getSortedHeadings();
+
+      map['פרק ג'] = 30;
+      try {
+        headings.headingsMap['פרק ד'] = 40;
+      } on UnsupportedError {
+        // צילום בלתי ניתן לשינוי — גם זה עקבי.
+      }
+
+      final sortedKeys = headings
+          .getSortedHeadings()
+          .map((e) => e.key)
+          .toList();
+      for (final key in ['פרק ג', 'פרק ד']) {
+        expect(
+          headings.getLineNumberForHeading(key) != null,
+          sortedKeys.contains(key),
+          reason: key,
+        );
+      }
+      expect(headings.headingsMap.keys.toSet(), sortedKeys.toSet());
+      expect(sortedKeys, sorted.map((e) => e.key));
+    },
+  );
 }
