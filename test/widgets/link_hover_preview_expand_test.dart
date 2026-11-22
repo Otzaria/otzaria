@@ -19,6 +19,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -361,6 +362,56 @@ void main() {
     final panel = materials.last;
     expect(button.color, Theme.of(host).colorScheme.surfaceContainerHigh);
     expect(button.color, panel.color);
+  });
+
+  group('גלילה מיידית בחלונית של 4 שורות (issue #5761)', () {
+    testWidgets('גלגלת על התוכן המכווץ גוללת אותו בלי ללחוץ על "…"', (
+      tester,
+    ) async {
+      await pumpPreview(tester, path2: 'מפרש יב');
+      expect(find.text('…'), findsOneWidget);
+
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      // מרכז התצוגה בת 4 השורות, לא מרכז התוכן המלא שגבוה ממנה.
+      await tester.sendEventToBinding(
+        pointer.hover(
+          tester.getTopLeft(find.byType(SmartTextWidget)) +
+              const Offset(120, 10),
+        ),
+      );
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, 40)));
+      await pumpFrames(tester);
+
+      final scrollables = find.descendant(
+        of: find.byType(LinkHoverPreviewContent),
+        matching: find.byType(Scrollable),
+      );
+      expect(scrollables, findsOneWidget);
+      expect(
+        tester.state<ScrollableState>(scrollables).position.pixels,
+        greaterThan(0),
+        reason: 'התוכן המכווץ נחתך ואינו נגלל',
+      );
+    });
+
+    testWidgets('בסוף הגלילה "…" נעלם ואינו מסתיר את סוף התוכן', (
+      tester,
+    ) async {
+      await pumpPreview(tester, path2: 'מפרש יג');
+
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      // מרכז התצוגה בת 4 השורות, לא מרכז התוכן המלא שגבוה ממנה.
+      await tester.sendEventToBinding(
+        pointer.hover(
+          tester.getTopLeft(find.byType(SmartTextWidget)) +
+              const Offset(120, 10),
+        ),
+      );
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, 2000)));
+      await pumpFrames(tester);
+
+      expect(find.text('…'), findsNothing);
+    });
   });
 
   testWidgets('תוכן קצר אינו מציג לחצן פרישה', (tester) async {
