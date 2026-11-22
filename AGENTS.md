@@ -74,7 +74,7 @@ Follow the user's task scope. Do not create Markdown files for plans, progress l
 
 Several contributors work on `dev` in parallel and their pull requests are merged continuously. A change that ignores them duplicates work or conflicts as soon as theirs is merged.
 
-- **Before starting** - list open PRs (`gh pr list -R Otzaria/otzaria --state open --json number,author,title,files`) and look for the same issue or the files you plan to change. If an open PR already fixes the issue, do not fix it again. If one touches the same code, build on its approach or coordinate in that PR.
+- **Before starting** - list open PRs (`gh pr list -R Otzaria/otzaria --state open --limit 1000 --json number,author,title,files`) and look for the same issue or the files you plan to change. If an open PR already fixes the issue, do not fix it again. If one touches the same code, build on its approach or coordinate in that PR.
 - **Before opening a PR** - check each overlapping open PR for conflicts with yours: `git fetch upstream pull/<N>/head:pr-<N>` and `git merge-tree --write-tree pr-<N> HEAD`.
 - **In the PR description** - name every overlapping open PR and whether it merges cleanly with yours.
 
