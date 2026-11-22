@@ -133,6 +133,17 @@ void main() {
       expect(text, isNot(contains('רחב מדי')));
     });
 
+    testWidgets('סינון ממדי (תקופה) על כל הספרייה נחשב חיפוש מסונן', (
+      WidgetTester tester,
+    ) async {
+      await _pumpResults(
+        tester,
+        truncated: true,
+        facets: const ['/', '/era/ראשונים'],
+      );
+      expect(bannerText(tester), contains('גם בתוך הספרים שנבחרו'));
+    });
+
     testWidgets('חיפוש בכל הספרייה: ניסוח כללי ואותה עצה', (
       WidgetTester tester,
     ) async {

@@ -836,7 +836,9 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             // ההרחבות בעדיפות הגבוהה הוגשו. מציגים באנר קבוע מעל הרשימה.
             return Column(
               children: [
-                _buildTruncatedBanner(context),
+                _buildTruncatedBanner(
+                  scoped: state.currentFacets.any((f) => f != '/'),
+                ),
                 Expanded(child: scrollView),
               ],
             );
@@ -1208,9 +1210,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     );
   }
 
-  Widget _buildTruncatedBanner(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(
+  /// תקציב ההרחבות במנוע נמדד מול כל האינדקס ולא מול הספרים שבסינון, ולכן
+  /// צמצום ההיקף אינו מחזיר את הצורות שנחתכו — העצה היא לכבות הרחבות.
+  Widget _buildTruncatedBanner({required bool scoped}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceSM,
         AppTokens.spaceSM,
         AppTokens.spaceSM,
@@ -1219,8 +1223,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       child: AppInfoBanner(
         tone: AppInfoBannerTone.warning,
         message:
-            'ייתכן שהתוצאות חלקיות: החיפוש רחב מדי ולכן הוצגו רק חלק '
-            'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
+            'ייתכן שהתוצאות חלקיות: מילה נפוצה בחיפוש התרחבה (קידומות, סיומות, '
+            'כתיב מלא וכד׳) ליותר מדי צורות בספרייה, ולכן נבדקו רק הצורות '
+            'הנפוצות שלה${scoped ? ' — גם בתוך הספרים שנבחרו' : ''}. '
+            'כבו את ההרחבות במילים הקצרות או הוסיפו מילה.',
       ),
     );
   }
