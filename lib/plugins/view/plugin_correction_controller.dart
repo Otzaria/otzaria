@@ -27,6 +27,9 @@ const CorrectionFormat _plainFormat = (
   heading: null,
 );
 
+typedef CorrectionUndoValue = ({String canonical, TextEditingValue editing});
+typedef _Edit = ({_EditorState state, TextEditingValue value});
+
 /// הטקסט המלא של הפסקה ועיצובו. כל עריכה ממוזגת אליו, וכל ערך בהיסטוריית
 /// הביטול נושא אותו.
 class _EditorState {
@@ -70,13 +73,15 @@ class PluginCorrectionController extends TextEditingController {
   late _EditorState _sourceState;
   TextEditingValue? _editingValue;
   Object _epoch = Object();
-  ({TextEditingValue before, TextEditingValue after, _EditorState result})?
-  _pending;
+  ({TextEditingValue before, TextEditingValue after, _Edit result})? _pending;
+  final VoidCallback? onEdit;
+  ValueNotifier<CorrectionUndoValue>? _undoValue;
 
   PluginCorrectionController(
     String raw, {
     this._removeNikud = false,
     this._removeTeamim = false,
+    this.onEdit,
   }) {
     setSource(raw);
   }
@@ -95,6 +100,28 @@ class PluginCorrectionController extends TextEditingController {
     _epoch = Object();
     _pending = null;
     _setFormattedValue(TextEditingValue(text: _state.projection.visible));
+    _resetUndo();
+  }
+
+  /// ערכי ביטול שמשתנים גם כשעריכה משנה רק סימנים מוסתרים.
+  ValueNotifier<CorrectionUndoValue> get undoValue => _undoValue!;
+
+  CorrectionUndoValue get _snapshot => (canonical: canonical, editing: value);
+
+  void _resetUndo() {
+    _undoValue?.dispose();
+    _undoValue = ValueNotifier(_snapshot);
+  }
+
+  void applyUndoValue(CorrectionUndoValue snapshot) {
+    undoValue.value = snapshot;
+    value = snapshot.editing;
+  }
+
+  @override
+  void dispose() {
+    undoValue.dispose();
+    super.dispose();
   }
 
   /// מחליף מה מוסתר, בלי לגעת בטקסט המלא; הבחירה עוברת למקומה בטקסט הגלוי.
@@ -116,7 +143,7 @@ class PluginCorrectionController extends TextEditingController {
 
   /// הטקסט המלא שיתקבל אם [after] יחליף את הערך הנוכחי.
   String canonicalAfter(TextEditingValue after) =>
-      _prefix + _stateAfter(after).projection.full + _suffix;
+      _prefix + _editAfter(after).state.projection.full + _suffix;
 
   /// שחזור טיוטה שאין עמה היסטוריית עריכה: העיצוב נגזר ממקור הפסקה.
   void restoreCanonical(String canonical) {
@@ -128,6 +155,7 @@ class PluginCorrectionController extends TextEditingController {
     );
     _pending = null;
     _showState(_stateOf(text, formats), value);
+    _resetUndo();
   }
 
   _EditorState _stateOf(String full, List<CorrectionFormat> formats) =>
@@ -161,7 +189,7 @@ class PluginCorrectionController extends TextEditingController {
     return TextEditingValue(
       text: next.visible,
       selection: selection.isValid
-          ? TextSelection(
+          ? selection.copyWith(
               baseOffset: map(selection.baseOffset),
               extentOffset: map(selection.extentOffset),
             )
@@ -174,6 +202,8 @@ class PluginCorrectionController extends TextEditingController {
 
   @override
   set value(TextEditingValue newValue) {
+    final previous = _state;
+    final wasComposing = !value.composing.isCollapsed;
     if (newValue is _FormattedEditingValue &&
         identical(newValue.epoch, _epoch)) {
       final state = newValue.state.withHiding(
@@ -190,13 +220,25 @@ class PluginCorrectionController extends TextEditingController {
       }
       _state = state;
     } else if (newValue.text != text) {
-      _state =
-          !newValue.selection.isValid &&
-              newValue.text == _sourceState.projection.visible
-          ? _sourceState
-          : _stateAfter(newValue);
+      final edit = _editAfter(newValue);
+      // שינוי הטקסט בעיצומה של הרכבה עלול להחזיר את המקלדת לאותו קלט שוב.
+      if (!newValue.composing.isCollapsed && newValue.text != edit.value.text) {
+        return;
+      }
+      _state = edit.state;
+      newValue = edit.value;
     }
+    _pending = null;
     _setFormattedValue(newValue);
+    final changed = previous.projection.full != _state.projection.full;
+    if (changed) onEdit?.call();
+    if (value.composing.isCollapsed &&
+        value.selection.isValid &&
+        (changed ||
+            wasComposing ||
+            !undoValue.value.editing.selection.isValid)) {
+      undoValue.value = _snapshot;
+    }
   }
 
   void _setFormattedValue(TextEditingValue value) {
@@ -234,8 +276,15 @@ class PluginCorrectionController extends TextEditingController {
   }
 
   /// המצב אחרי ש-[after] מחליף את הערך הנוכחי.
-  _EditorState _stateAfter(TextEditingValue after) {
-    if (after.text == text) return _state;
+  _Edit _editAfter(TextEditingValue after) {
+    if (after is _FormattedEditingValue && identical(after.epoch, _epoch)) {
+      return (state: after.state, value: after);
+    }
+    if (after.text == text) return (state: _state, value: after);
+    if (!after.selection.isValid &&
+        after.text == _sourceState.projection.visible) {
+      return (state: _sourceState, value: after);
+    }
     final before = value;
     final pending = _pending;
     if (pending != null && pending.before == before && pending.after == after) {
@@ -303,12 +352,19 @@ class PluginCorrectionController extends TextEditingController {
 
   /// ממזג את העריכה אל הטקסט המלא: רק הטווח שנערך מוחלף, כולל הסימנים
   /// המוסתרים שבתוכו, וכל השאר נשאר כמות שהוא.
-  _EditorState _edit(TextEditingValue before, TextEditingValue after) {
+  _Edit _edit(TextEditingValue before, TextEditingValue after) {
     final range = _editRange(before, after);
     final delta = after.text.length - before.text.length;
     final removed = before.text.substring(range.start, range.end);
     final added = after.text.substring(range.start, range.end + delta);
-    final (prefix, suffix) = _commonAffixes(removed, added);
+    final explicitSelection =
+        before.selection.isValid &&
+        !before.selection.isCollapsed &&
+        before.selection.start == range.start &&
+        before.selection.end == range.end;
+    final (prefix, suffix) = explicitSelection
+        ? (0, 0)
+        : _commonAffixes(removed, added);
     final inserted = added.substring(prefix, added.length - suffix);
     final projection = _state.projection;
     final start = projection.fullOffset(range.start + prefix);
@@ -324,11 +380,41 @@ class PluginCorrectionController extends TextEditingController {
           : null,
     ).sublist(prefix, added.length - suffix);
     final fullFormats = _state.fullFormats;
-    return _stateOf(projection.full.replaceRange(start, end, inserted), [
+    final state = _stateOf(projection.full.replaceRange(start, end, inserted), [
       ...fullFormats.sublist(0, start),
       ...insertedFormats,
       ...fullFormats.sublist(end),
     ]);
+    final projected = state.projection;
+    if (after.text == projected.visible) return (state: state, value: after);
+
+    final visibleStart = range.start + prefix;
+    final insertedEnd = visibleStart + inserted.length;
+    int map(int offset) {
+      if (offset < 0) return offset;
+      if (offset < visibleStart) {
+        return projected.visibleOffset(projection.fullOffset(offset));
+      }
+      if (offset <= insertedEnd) {
+        return projected.visibleOffset(start + offset - visibleStart);
+      }
+      final beforeOffset = offset - delta;
+      return projected.visibleOffset(
+        projection.fullOffset(beforeOffset) + inserted.length - (end - start),
+      );
+    }
+
+    return (
+      state: state,
+      value: after.copyWith(
+        text: projected.visible,
+        selection: after.selection.copyWith(
+          baseOffset: map(after.selection.baseOffset),
+          extentOffset: map(after.selection.extentOffset),
+        ),
+        composing: TextRange.empty,
+      ),
+    );
   }
 
   /// אורך הרצף המשותף בתחילת [removed] ו-[added], ואורך הרצף המשותף בסופם.

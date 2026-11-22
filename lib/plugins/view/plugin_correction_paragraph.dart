@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -51,6 +52,10 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   bool _corrected = false;
   bool _showEditor = false;
   PluginCorrectionController? _controller;
+  final _editorKey = GlobalKey();
+  GlobalKey<State<UndoHistory<CorrectionUndoValue>>> _undoHistory = GlobalKey();
+  ValueNotifier<CorrectionUndoValue>? _historyValue;
+  final _systemUndo = UndoHistoryController();
   FocusNode? _focus;
   FocusNode? _activationFocus;
   Offset? _editPosition;
@@ -100,6 +105,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   void _focusChanged() {
     if (!mounted) return;
     setState(() => _showEditor = _focus!.hasFocus);
+    _registerSystemUndo();
     final handoff = _handoff;
     if (!_focus!.hasFocus || handoff == null) return;
     _handoff = null;
@@ -113,6 +119,26 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       final top = render.localToGlobal(Offset(0, y));
       editor.widget.controller.selection = TextSelection.fromPosition(
         render.getPositionForPoint(Offset(handoff.dx, top.dy)),
+      );
+    });
+  }
+
+  void _registerSystemUndo() {
+    if (defaultTargetPlatform != TargetPlatform.iOS || !_focus!.hasFocus) {
+      return;
+    }
+    // גם לשדה הפנימי יש היסטוריה. מערכת ההפעלה צריכה את זו של המקור המלא.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final Object? history = _undoHistory.currentState;
+      if (!mounted ||
+          _focus?.hasFocus != true ||
+          history is! UndoManagerClient) {
+        return;
+      }
+      UndoManager.client = history;
+      UndoManager.setUndoState(
+        canUndo: _systemUndo.value.canUndo,
+        canRedo: _systemUndo.value.canRedo,
       );
     });
   }
@@ -214,6 +240,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.sourceText,
         removeNikud: widget.settings.removeNikud,
         removeTeamim: widget.settings.removeTeamim,
+        onEdit: _applyText,
       );
       _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
@@ -286,7 +313,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     }
   }
 
-  void _applyText(String text) {
+  void _applyText() {
     try {
       _registry.editParagraph(
         widget.tabId,
@@ -342,7 +369,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       settings.fontFamily,
       widget.sourceText,
     );
-    return RtlTextField(
+    final field = RtlTextField(
+      key: _editorKey,
       controller: _controller!,
       focusNode: _focus!,
       maxLines: null,
@@ -365,7 +393,22 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         height: settings.lineHeight,
       ),
       inputFormatters: [TextInputFormatter.withFunction(_validate)],
-      onChanged: _applyText,
+    );
+    final controller = _controller!;
+    if (!identical(_historyValue, controller.undoValue)) {
+      _historyValue = controller.undoValue;
+      _undoHistory = GlobalKey();
+      _registerSystemUndo();
+    }
+    return UndoHistory<CorrectionUndoValue>(
+      key: _undoHistory,
+      value: controller.undoValue,
+      controller: _systemUndo,
+      focusNode: _focus!,
+      shouldChangeUndoStack: (before, next) =>
+          next.editing.selection.isValid && before?.canonical != next.canonical,
+      onTriggered: controller.applyUndoValue,
+      child: field,
     );
   }
 
@@ -375,6 +418,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _controller?.dispose();
     _focus?.dispose();
     _activationFocus?.dispose();
+    _systemUndo.dispose();
     super.dispose();
   }
 }

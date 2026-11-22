@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -135,6 +136,130 @@ void main() {
   final windows = TargetPlatformVariant.only(TargetPlatform.windows);
 
   group('ניקוד מוסתר', () {
+    testWidgets('הדבקת ניקוד ממפה את הסמן ומאפשרת להמשיך להקליד', (
+      tester,
+    ) async {
+      const source = 'א';
+      final service = await begin(tester, source);
+      await tester.pumpWidget(paragraph(service, source, nikud: true));
+      await open(tester);
+      await edit(tester, caretBefore: 1, text: 'אב$_patah', caretAfter: 3);
+      expect(editor(tester).controller.text, 'אב');
+      expect(editor(tester).controller.selection.extentOffset, 2);
+      await edit(tester, caretBefore: 2, text: 'אבג', caretAfter: 3);
+      expect(canonical(service, source), 'אב$_patahג');
+      await finish(tester, service);
+    });
+
+    testWidgets('החלפת בחירה מסירה גם את הניקוד של אות זהה', (
+      tester,
+    ) async {
+      const source = 'ב$_patahב$_holam';
+      final service = await begin(tester, source);
+      await tester.pumpWidget(paragraph(service, source, nikud: true));
+      await open(tester);
+      editor(tester).controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 2,
+      );
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ב',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(canonical(service, source), 'ב');
+      await finish(tester, service);
+    });
+
+    testWidgets('הדבקה מתפריט ההקשר שומרת ניקוד וממקמת את הסמן', (
+      tester,
+    ) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async =>
+            call.method == 'Clipboard.getData' ? {'text': 'ב$_holam'} : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      const source = 'ב$_patahב$_patah';
+      final service = await begin(tester, source);
+      await tester.pumpWidget(paragraph(service, source, nikud: true));
+      await open(tester);
+      await edit(tester, caretBefore: 2, text: 'בבג', caretAfter: 3);
+      editor(tester).controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 3,
+      );
+      final click = await tester.startGesture(
+        tester.getCenter(find.byType(EditableText)),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await click.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('הדבק'));
+      await tester.pumpAndSettle();
+      expect(clean(tester).text, 'ב');
+      expect(clean(tester).selection.extentOffset, 1);
+      expect(canonical(service, source), 'ב$_holam');
+      await finish(tester, service);
+    });
+
+    testWidgets('ניקוד בהרכבה נשמר אחרי אישור המקלדת', (tester) async {
+      const source = 'א';
+      final service = await begin(tester, source);
+      await tester.pumpWidget(paragraph(service, source, nikud: true));
+      await open(tester);
+      editor(tester).controller.selection = const TextSelection.collapsed(
+        offset: 1,
+      );
+      const composing = TextEditingValue(
+        text: 'אב$_patah',
+        selection: TextSelection.collapsed(offset: 3),
+        composing: TextRange(start: 1, end: 3),
+      );
+      tester.testTextInput.updateEditingValue(composing);
+      await tester.pump();
+      expect(editor(tester).controller.value, composing);
+      tester.testTextInput.updateEditingValue(
+        composing.copyWith(composing: TextRange.empty),
+      );
+      await tester.pump();
+      expect(editor(tester).controller.text, 'אב');
+      expect(editor(tester).controller.selection.extentOffset, 2);
+      expect(canonical(service, source), 'אב$_patah');
+      await finish(tester, service);
+    });
+
+    testWidgets('שינוי ניקוד בלבד נשמר וניתן לביטול ולביצוע חוזר', (
+      tester,
+    ) async {
+      const source = 'אב';
+      final service = await begin(tester, source);
+      await tester.pumpWidget(paragraph(service, source, nikud: true));
+      await open(tester);
+      await edit(tester, caretBefore: 1, text: 'א\nב', caretAfter: 2);
+      await edit(tester, caretBefore: 4, text: 'א\r\nב$_patah', caretAfter: 5);
+      expect(editor(tester).controller.text, 'א\r\nב');
+      expect(canonical(service, source), 'א\nב$_patah');
+      await edit(tester, caretBefore: 4, text: 'א\r\nב$_patah', caretAfter: 5);
+      expect(canonical(service, source), 'א\nב$_patah$_patah');
+      await undo(tester);
+      expect(canonical(service, source), 'א\nב$_patah');
+      await undo(tester);
+      expect(editor(tester).controller.text, 'א\r\nב');
+      expect(canonical(service, source), 'א\nב');
+      await undo(tester, redo: true);
+      expect(canonical(service, source), 'א\nב$_patah');
+      await finish(tester, service);
+    }, variant: windows);
+
     testWidgets('מחיקת האות הראשונה מוחקת את הניקוד שלה ולא של השנייה', (
       tester,
     ) async {
@@ -258,6 +383,34 @@ void main() {
   });
 
   group('ביטול וביצוע חוזר', () {
+    testWidgets('ביטול וביצוע חוזר של iOS שומרים ניקוד מוסתר', (
+      tester,
+    ) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.undoManager,
+        (_) async => null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.undoManager,
+          null,
+        ),
+      );
+      const source = 'אב';
+      final service = await begin(tester, source);
+      await tester.pumpWidget(paragraph(service, source, nikud: true));
+      await open(tester);
+      await edit(tester, caretBefore: 2, text: 'אב$_patah', caretAfter: 3);
+      expect(canonical(service, source), 'אב$_patah');
+      UndoManager.client!.handlePlatformUndo(UndoDirection.undo);
+      await tester.pump();
+      expect(canonical(service, source), source);
+      UndoManager.client!.handlePlatformUndo(UndoDirection.redo);
+      await tester.pump();
+      expect(canonical(service, source), 'אב$_patah');
+      await finish(tester, service);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
     testWidgets('מחיקה וביטול מחזירים את הניקוד', (tester) async {
       const source = 'ש$_qamats$_shinDotלו$_holamם עו$_holamל$_qamatsם';
       final service = await begin(tester, source);

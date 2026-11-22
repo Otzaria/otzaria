@@ -339,7 +339,6 @@ void main() {
             expect((await latestSnapshot())['revision'], 3);
           }
           editor.controller!.text = 'הדבקה ידנית\n<i>עם תגית</i>';
-          editor.onChanged!(editor.controller!.text);
           await tester.pump();
           expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
           expect((await latestSnapshot())['revision'], 3);
