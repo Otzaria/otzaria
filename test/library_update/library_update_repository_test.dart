@@ -2648,6 +2648,10 @@ void main() {
         ).existsSync(),
         isFalse,
       );
+      final totalHint = File(
+        p.join(tmp.path, 'library_update_cache', 'verify_total_bytes.txt'),
+      ).readAsStringSync();
+      expect(int.parse(totalHint), greaterThan(0));
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
