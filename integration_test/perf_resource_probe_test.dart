@@ -53,6 +53,7 @@ import 'package:otzaria/work_status/work_status_item.dart';
 import 'package:path/path.dart' as p;
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+import '../tool/perf_probe/src/pdf_reader_case.dart';
 import 'support/perf_fixture.dart';
 import 'support/perf_pdf_reader.dart';
 import 'support/perf_recorder.dart';
@@ -93,6 +94,10 @@ void main() {
   final scenarioSet = perfOption(
     'PERF_SCENARIO_SET',
     const String.fromEnvironment('PERF_SCENARIO_SET', defaultValue: 'all'),
+  );
+  final pdfCasePath = perfOption(
+    'PERF_PDF_CASE',
+    const String.fromEnvironment('PERF_PDF_CASE'),
   );
   final preparationOnly =
       perfOption(
@@ -170,7 +175,10 @@ void main() {
         throw StateError('The output directory already contains a run.');
       }
       canWriteOutput = true;
-      final fixture = PerfFixture(Directory(dataPath));
+      final fixture = PerfFixture(
+        Directory(dataPath),
+        pdfReaderCase: await PerfPdfCase.load(pdfCasePath),
+      );
       await fixture.prepare(preparationOnly: preparationOnly);
       fixtureId = fixture.id;
       final rec = recorder = PerfRecorder(
@@ -192,7 +200,12 @@ void main() {
         'cores': Platform.numberOfProcessors,
         'startedAt': DateTime.now().millisecondsSinceEpoch,
         'fixtureBooks': perfBooks,
-        'fixturePdf': {'pages': perfPdfPageCount, 'mixedPageSizes': true},
+        'fixturePdf': {
+          'pages': fixture.pdfReaderCase.pageCount,
+          'mixedPageSizes': fixture.pdfReaderCase.mixedPageSizes,
+          'source': fixture.pdfReaderCase.sourceKind.name,
+          'sha256': fixture.pdfSha256,
+        },
         'scenarioSet': scenarioSet,
         'limitations': [
           'Cold means a fresh app data directory; OS filesystem caches are not evicted.',
@@ -301,7 +314,8 @@ void main() {
           'searchResultLimit': 100,
           'searchGrouping': 'none',
           'pdfLayout': 'regularView',
-          'pdfPageCount': perfPdfPageCount,
+          'pdfPageCount': fixture.pdfReaderCase.pageCount,
+          'pdfReaderCase': fixture.pdfReaderCase.toComparisonJson(),
           'scenarioSet': scenarioSet,
         },
       });
@@ -867,9 +881,11 @@ class _Scenario {
   }
 
   Future<void> _pdfReader() async {
+    final pdfCase = fixture.pdfReaderCase;
+    final targets = pdfCase.navigationTargets;
     final tab = PdfBookTab(
       book: PdfBook(title: perfPdfTitle, path: fixture.pdfPath),
-      pageNumber: 1,
+      pageNumber: targets.initialPage,
     )..savedLayoutMode = PdfLayoutMode.regularView;
     final checkpoints = <String, double>{};
     await phase('pdf.reader.open', () async {
@@ -881,46 +897,47 @@ class _Scenario {
         controllerReady: () {
           final state = _pdfBloc(tab)?.state;
           if (state is PdfBookError) throw StateError(state.message);
-          return identical(tabs.state.currentTab, tab) &&
+          final ready =
+              identical(tabs.state.currentTab, tab) &&
               state is PdfBookLoaded &&
               tab.pdfViewerController.isReady;
+          if (ready) pdfCase.verifyPageCount(tab.pdfViewerController.pageCount);
+          return ready;
         },
         // PdfBookScreen replaces the tab's controller when it mounts.
         controller: () => tab.pdfViewerController,
-        pageNumber: 1,
+        pageNumber: targets.initialPage,
         nextFrame: () => tester.pump(),
         checkpointsMs: checkpoints,
       );
-    }, details: {'page': 1, 'checkpointsMs': checkpoints});
+    }, details: {'page': targets.initialPage, 'checkpointsMs': checkpoints});
 
     final controller = tab.pdfViewerController;
     final bloc = _pdfBloc(tab)!;
-    if (controller.pageCount != perfPdfPageCount) {
-      throw StateError('PDF fixture has ${controller.pageCount} pages');
-    }
-    for (final fraction in [0.75, 0.1]) {
-      final target = (perfPdfPageCount * fraction).floor();
-      final direction = fraction == 0.75 ? 'forward' : 'backward';
-      await phase('pdf.reader.jump_$direction', () async {
+    for (final jump in [
+      (direction: 'forward', page: targets.forwardPage),
+      (direction: 'backward', page: targets.backwardPage),
+    ]) {
+      await phase('pdf.reader.jump_${jump.direction}', () async {
         await controller
-            .goToPage(pageNumber: target, duration: Duration.zero)
+            .goToPage(pageNumber: jump.page, duration: Duration.zero)
             .timeout(const Duration(seconds: 45));
         await waitForPdfFinalImage(
           controller,
-          pageNumber: target,
+          pageNumber: jump.page,
           nextFrame: () => tester.pump(),
         );
-      }, details: {'page': target, 'fraction': fraction});
+      }, details: {'page': jump.page});
     }
-    final zoomPage = (perfPdfPageCount * 0.1).floor();
+    final zoomPage = targets.zoomPage;
     final zoomDetails = <String, Object?>{
       'page': zoomPage,
       'anchor': 'pageCenter',
-      'requestedZoomFactor': 2,
+      'requestedZoomFactor': targets.zoomFactor,
     };
     await phase('pdf.reader.zoom', () async {
       final zoom = controller.currentZoom;
-      final targetZoom = (zoom * 2).clamp(
+      final targetZoom = (zoom * targets.zoomFactor).clamp(
         controller.minScale,
         controller.maxScale,
       );

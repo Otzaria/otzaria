@@ -12,6 +12,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -21,24 +22,47 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../../integration_test/support/perf_pdf_reader.dart';
 import '../../../tool/perf_probe/make_pdf_print_preview_fixtures.dart';
+import '../../../tool/perf_probe/src/pdf_reader_case.dart';
 import '../../helpers/memory_settings_cache.dart';
 import '../../test_helpers/pdf_document_dispose.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
-  testWidgets('reader checkpoints observe real PDFium paint after navigation', (
+  _testReaderCase(PerfPdfCase.defaults);
+  _testReaderCase(
+    PerfPdfCase.fromJson({
+      'schemaVersion': 1,
+      'source': {'kind': 'generated', 'pageCount': 10},
+      'navigation': {
+        'initialPage': 2,
+        'forwardPage': 9,
+        'backwardPage': 3,
+        'zoomFactor': 1.5,
+      },
+    }, baseDirectory: Directory.systemTemp.path),
+  );
+}
+
+void _testReaderCase(PerfPdfCase pdfCase) {
+  testWidgets('reader follows ${pdfCase.pageCount}-page case with PDFium', (
     tester,
   ) async {
+    final targets = pdfCase.navigationTargets;
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await Settings.init(cacheProvider: MemorySettingsCache());
-    final directory = Directory.systemTemp.createTempSync('pdf-reader-probe-');
+    final directory = Directory.systemTemp.createTempSync(
+      'pdf-reader-probe-',
+    );
     addTearDown(() => directory.deleteSync(recursive: true));
     const channel = MethodChannel('plugins.flutter.io/path_provider');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => directory.path);
+    messenger.setMockMethodCallHandler(
+      channel,
+      (_) async => directory.path,
+    );
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     final originalModule = Pdfrx.pdfiumModulePath;
     final module = Platform.isWindows
@@ -54,12 +78,16 @@ void main() {
     final file = File('${directory.path}/reader.pdf');
     await tester.runAsync(() async {
       await pdfrxFlutterInitialize();
-      await writePdfProbeFixture(file, pageCount: 600, mixed: true);
+      await writePdfProbeFixture(
+        file,
+        pageCount: pdfCase.pageCount,
+        mixed: true,
+      );
     });
     final tab = PdfBookTab(
       book: PdfBook(title: 'קורא למדידה', path: file.path),
-      pageNumber: 1,
-    );
+      pageNumber: targets.initialPage,
+    )..savedLayoutMode = PdfLayoutMode.regularView;
     final initialController = tab.pdfViewerController;
     final tabs = TabsBloc(repository: _TabsRepository());
     // ignore: invalid_use_of_visible_for_testing_member
@@ -108,10 +136,12 @@ void main() {
       controllerReady: () {
         final state = readerBloc()?.state;
         if (state is PdfBookError) throw StateError(state.message);
-        return state is PdfBookLoaded && tab.pdfViewerController.isReady;
+        final ready = state is PdfBookLoaded && tab.pdfViewerController.isReady;
+        if (ready) pdfCase.verifyPageCount(tab.pdfViewerController.pageCount);
+        return ready;
       },
       controller: () => tab.pdfViewerController,
-      pageNumber: 1,
+      pageNumber: targets.initialPage,
       nextFrame: () => tester.pump(),
       checkpointsMs: checkpoints,
       advance: advance,
@@ -120,15 +150,18 @@ void main() {
     final controller = tab.pdfViewerController;
     final document = controller.document;
     expect(controller, isNot(same(initialController)));
-    expect(document.pages, hasLength(600));
+    expect(document.pages, hasLength(pdfCase.pageCount));
     expect(checkpoints.keys, ['controller_ready', 'final_image_ready']);
     expect(
       checkpoints['final_image_ready'],
       greaterThanOrEqualTo(checkpoints['controller_ready']!),
     );
-    expect(controller.visibleRenderState.value, PdfVisibleRenderState.ready);
+    expect(
+      controller.visibleRenderState.value,
+      PdfVisibleRenderState.ready,
+    );
 
-    for (final page in [450, 60]) {
+    for (final page in [targets.forwardPage, targets.backwardPage]) {
       await controller.goToPage(pageNumber: page, duration: Duration.zero);
       await waitForPdfFinalImage(
         controller,
@@ -136,7 +169,10 @@ void main() {
         nextFrame: () => tester.pump(),
         advance: advance,
       );
-      expect(controller.visibleRenderState.value, PdfVisibleRenderState.ready);
+      expect(
+        controller.visibleRenderState.value,
+        PdfVisibleRenderState.ready,
+      );
       expect(
         controller.layout.pageLayouts[page - 1].overlaps(
           controller.visibleRect,
@@ -144,21 +180,22 @@ void main() {
         isTrue,
       );
     }
-    const page = 60;
+    final page = targets.zoomPage;
     final zoom = controller.currentZoom;
+    final targetZoom = zoom * targets.zoomFactor;
     await controller.setZoom(
       controller.layout.pageLayouts[page - 1].center,
-      zoom * 2,
+      targetZoom,
       duration: Duration.zero,
     );
     await waitForPdfFinalImage(
       controller,
       pageNumber: page,
       nextFrame: () => tester.pump(),
-      expectedZoom: zoom * 2,
+      expectedZoom: targetZoom,
       advance: advance,
     );
-    expect(controller.currentZoom, closeTo(zoom * 2, 0.001));
+    expect(controller.currentZoom, closeTo(targetZoom, 0.001));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await waitForPdfProbeCondition(

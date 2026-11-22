@@ -13,8 +13,9 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../../test/helpers/seforim_fixture_db.dart';
 import '../../tool/perf_probe/make_pdf_print_preview_fixtures.dart';
+import '../../tool/perf_probe/src/pdf_reader_case.dart';
 
-const perfFixtureVersion = 'synthetic-v3-pdf';
+const perfFixtureVersion = 'synthetic-v4-pdf-cases';
 const perfPdfTitle = 'מדידת PDF';
 const perfPdfPageCount = 600;
 const perfBooks = <String, int>{
@@ -37,14 +38,16 @@ String perfLine(int index) => index % 32 == 0
           'גלילה וחיפוש עם מספרים 0123456789 ואותיות ABC.';
 
 class PerfFixture {
-  PerfFixture(this.root);
+  PerfFixture(this.root, {this.pdfReaderCase = PerfPdfCase.defaults});
   final Directory root;
+  final PerfPdfCase pdfReaderCase;
   String get libraryPath => p.join(root.path, 'library');
   String get dbPath => p.join(libraryPath, 'seforim.db');
   String get pluginPath => p.join(root.path, 'fixture-plugin');
   String get pdfPath => p.join(root.path, 'pdf', 'reader-mixed.pdf');
   String get appDataPath => p.join(root.path, 'app-data');
   late String id;
+  late String pdfSha256;
 
   Future<void> prepare({required bool preparationOnly}) async {
     if (!p.isAbsolute(root.path)) {
@@ -78,7 +81,12 @@ class PerfFixture {
       await Directory(appDataPath).create(recursive: true);
       await _seedSettings();
       await marker.writeAsString(
-        jsonEncode({'version': perfFixtureVersion, 'fixtureId': id}),
+        jsonEncode({
+          'version': perfFixtureVersion,
+          'fixtureId': id,
+          'pdfSha256': pdfSha256,
+          'pdfReaderCase': pdfReaderCase.toComparisonJson(),
+        }),
         flush: true,
       );
     }
@@ -92,6 +100,19 @@ class PerfFixture {
   }
 
   Future<String> _identity() async {
+    final parentType = await FileSystemEntity.type(
+      File(pdfPath).parent.path,
+      followLinks: false,
+    );
+    if (parentType != FileSystemEntityType.directory &&
+        parentType != FileSystemEntityType.notFound) {
+      throw StateError('Prepared PDF must remain in its owned directory.');
+    }
+    final type = await FileSystemEntity.type(pdfPath, followLinks: false);
+    if (type != FileSystemEntityType.file &&
+        type != FileSystemEntityType.notFound) {
+      throw StateError('Prepared PDF must be an owned regular file.');
+    }
     final hashes = <String>[
       for (final path in [
         dbPath,
@@ -101,10 +122,17 @@ class PerfFixture {
       ])
         (await sha256.bind(File(path).openRead()).first).toString(),
     ];
+    pdfSha256 = hashes.last;
+    if (pdfReaderCase.externalSha256 != null &&
+        pdfSha256 != pdfReaderCase.externalSha256) {
+      throw StateError('Prepared PDF does not match source.sha256.');
+    }
+    hashes.add(jsonEncode(pdfReaderCase.toComparisonJson()));
     return '$perfFixtureVersion:${sha256.convert(utf8.encode(hashes.join(':')))}';
   }
 
   Future<void> _create() async {
+    await _createPdf();
     final library = await Directory(libraryPath).create(recursive: true);
     final source = SeforimFixtureDb.create(library, SeforimFixtureVariant.full);
     final db = sqlite3.open(source);
@@ -160,9 +188,22 @@ class PerfFixture {
     }
     await Directory(pluginPath).create();
     await File(p.join(pluginPath, 'index.html')).writeAsString(perfPluginHtml);
+  }
+
+  Future<void> _createPdf() async {
+    await pdfReaderCase.verifyExternalSource();
     final pdf = File(pdfPath);
     await pdf.parent.create();
-    await writePdfProbeFixture(pdf, pageCount: perfPdfPageCount, mixed: true);
+    if (pdfReaderCase.sourceKind == PerfPdfSourceKind.external) {
+      await File(pdfReaderCase.sourcePath!).copy(pdf.path);
+      await pdfReaderCase.verifyExternalSource();
+    } else {
+      await writePdfProbeFixture(
+        pdf,
+        pageCount: pdfReaderCase.pageCount,
+        mixed: pdfReaderCase.mixedPageSizes!,
+      );
+    }
   }
 
   Future<void> _seedSettings() async {

@@ -15,6 +15,8 @@ on:
       - 'test/plugins/services/webview_backend_observation_test.dart'
       - 'test/tool/perf_probe/webview_probe_metrics_test.dart'
       - 'test/tool/perf_probe/pdf_reader_probe*'
+      - 'test/tool/perf_probe/pdf_reader_case_test.dart'
+      - 'test/tool/perf_probe/pdf_case_fixture_test.dart'
       - 'test/tool/perf_probe/perf_fixture_test.dart'
       - 'test/tool/perf_probe/report_test.dart'
       - 'integration_test/support/webview_probe_fixture.dart'
@@ -52,6 +54,11 @@ on:
         type: choice
         options: [all, pdf-reader]
         default: all
+      pdf_page_count:
+        description: Generated PDF size (real PDF inputs stay local)
+        type: choice
+        options: ['10', '100', '600', '1000', '10000']
+        default: '600'
 
 permissions:
   contents: read
@@ -190,11 +197,18 @@ jobs:
           PROBE_REPETITIONS: ${{ inputs.repetitions || 1 }}
           PROBE_SCENARIOS: ${{ inputs.scenario_set || 'pdf-reader' }}
           PROBE_WARMUP: ${{ github.event_name == 'workflow_dispatch' && 1 || 0 }}
+          PROBE_PDF_PAGES: ${{ inputs.pdf_page_count || '600' }}
         run: |
+          $pdfCase = Join-Path $env:RUNNER_TEMP 'pdf-reader-case.json'
+          @{
+            schemaVersion = 1
+            source = @{ kind = 'generated'; pageCount = [int]$env:PROBE_PDF_PAGES; mixedPageSizes = $true }
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $pdfCase -Encoding utf8
           ./tool/perf_probe/run_perf_probe.ps1 -Mode $env:PROBE_MODE `
             -CacheState $env:PROBE_CACHE -Launches ([int]$env:PROBE_LAUNCHES) `
             -Repetitions ([int]$env:PROBE_REPETITIONS) `
             -ScenarioSet $env:PROBE_SCENARIOS -Warmup ([int]$env:PROBE_WARMUP) `
+            -PdfCase $pdfCase `
             -OutputDirectory (Join-Path $env:RUNNER_TEMP 'perf-results') `
             -HardwareId "github-hosted-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
       - name: Upload observations, including partial failures
