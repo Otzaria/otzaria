@@ -445,6 +445,7 @@ void main() {
       required int steps,
       required int stepMs,
       bool settle = true,
+      Future<void> Function()? beforeEnd,
     }) async {
       final center = tester.getCenter(find.byType(PageView));
       final gesture = await tester.createGesture(
@@ -459,6 +460,7 @@ void main() {
         );
         await tester.pump();
       }
+      await beforeEnd?.call();
       await gesture.panZoomEnd(
         timeStamp: Duration(milliseconds: stepMs * (steps + 1)),
       );
@@ -489,6 +491,28 @@ void main() {
         controller.visibleRect.top - top,
         closeTo(60 / controller.currentZoom, 1),
       );
+    });
+
+    testWidgets('זום עם Ctrl שמשתחרר לפני הרמת האצבעות אינו מחליק', (
+      tester,
+    ) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      late double releasedAt;
+      await verticalPan(
+        tester,
+        step: -30,
+        steps: 8,
+        stepMs: 8,
+        settle: false,
+        beforeEnd: () async {
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          releasedAt = controller.visibleRect.top;
+        },
+      );
+      await frames(tester, 90);
+      expect(controller.visibleRect.top, closeTo(releasedAt, 1));
     });
 
     testWidgets('הנחת אצבעות על לוח המגע עוצרת את ההחלקה', (tester) async {
