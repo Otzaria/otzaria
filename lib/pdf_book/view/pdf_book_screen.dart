@@ -4859,8 +4859,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       copyDisplayProfile: policy.resolve(
         TextDisplaySlot.commentaryDisplay.copyWith(channel: TextChannel.copy),
       ),
-      openBookCallback: (tab) =>
-          openPreparedTab(context, tab, insertAdjacent: true),
+      openBookCallback: (tab) => openPreparedTab(
+        context,
+        tab,
+        insertAdjacent: true,
+        navigateToPositionIfReused: true,
+      ),
       fontSize: settingsState.commentatorsFontSize,
       onClose: () {
         _setRightPaneVisibility(false);
