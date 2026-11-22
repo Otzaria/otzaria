@@ -616,8 +616,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     widget.onPaneHoverChanged?.call(false);
   }
 
+  // בלי opaque: false — MouseRegion כזה מחזיר false מ-hitTest, ולחיצה בחלונית
+  // הצפה עוברת גם לתוכן שמתחתיה (שלוקח את הפוקוס משדה החיפוש).
   Widget _mainHoverRegion() => MouseRegion(
-    opaque: false,
+    hitTestBehavior: HitTestBehavior.deferToChild,
     onHover: (_) => _resolvePendingPaneExit(),
     child: _mainContent,
   );
@@ -626,7 +628,6 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     final onHover = widget.onPaneHoverChanged;
     if (onHover == null) return child;
     return MouseRegion(
-      opaque: false,
       hitTestBehavior: HitTestBehavior.deferToChild,
       onEnter: (_) {
         _paneExitPending = false;

@@ -10,9 +10,10 @@ const _contentKey = ValueKey('content');
 const _paneKey = ValueKey('pane');
 
 class _Harness extends StatefulWidget {
-  const _Harness({required this.peek});
+  const _Harness({required this.peek, this.onContentPointerDown});
 
   final NavPanelPeekController peek;
+  final VoidCallback? onContentPointerDown;
 
   @override
   State<_Harness> createState() => _HarnessState();
@@ -41,7 +42,11 @@ class _HarnessState extends State<_Harness> {
             minMainContentWidth: 500,
             onClose: () => setState(() => isOpen = false),
             paneContent: const SizedBox.expand(key: _paneKey),
-            mainContent: const SizedBox.expand(key: _contentKey),
+            mainContent: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (_) => widget.onContentPointerDown?.call(),
+              child: const SizedBox.expand(key: _contentKey),
+            ),
           ),
         ),
       ],
@@ -52,8 +57,10 @@ class _HarnessState extends State<_Harness> {
 void main() {
   late NavPanelPeekController peek;
   late TestGesture mouse;
+  late int contentPointerDowns;
 
   Future<void> pump(WidgetTester tester) async {
+    contentPointerDowns = 0;
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -61,7 +68,12 @@ void main() {
     addTearDown(peek.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: _Harness(peek: peek)),
+        home: Scaffold(
+          body: _Harness(
+            peek: peek,
+            onContentPointerDown: () => contentPointerDowns++,
+          ),
+        ),
       ),
     );
     mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -122,6 +134,24 @@ void main() {
     await mouse.moveTo(const Offset(10, 700));
     await tester.pump();
     expect(pane(tester).isOpen, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  // אחרת לחיצה בשדה החיפוש מגיעה גם לספר, והוא לוקח ממנו את הפוקוס.
+  testWidgets('לחיצה בחלונית בריחוף לא עוברת לתוכן שמתחתיה', (tester) async {
+    await pump(tester);
+    await hoverButton(tester);
+    final inPane = tester.getCenter(find.byKey(_paneKey));
+    await mouse.moveTo(inPane);
+    await tester.pump();
+
+    await mouse.down(inPane);
+    await mouse.up();
+    await tester.pump();
+
+    expect(contentPointerDowns, 0);
+    expect(peek.value, isTrue);
+    await mouse.moveTo(const Offset(10, 700));
     await tester.pump(const Duration(seconds: 1));
   });
 
