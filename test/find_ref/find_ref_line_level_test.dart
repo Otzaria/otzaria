@@ -42,6 +42,7 @@ void main() {
     Future<String> Function(int bookId)? getCategoryPath,
     List<String> altToc = const [],
     String tocLocation = 'לב',
+    List<int>? altStructureBookIds,
   }) {
     altTocQueries = [];
     lookups = [];
@@ -75,13 +76,17 @@ void main() {
               orderIndex: entry.key.toDouble(),
             ),
       ],
+      getAltStructureBookIds: altStructureBookIds == null
+          ? null
+          : () async => altStructureBookIds,
       getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async => [
-        {
-          'reference': '$bookTitle $tocLocation',
-          'segment': 600,
-          'level': 2,
-          'dbLineId': 1,
-        },
+        if (tocLocation.isNotEmpty)
+          {
+            'reference': '$bookTitle $tocLocation',
+            'segment': 600,
+            'level': 2,
+            'dbLineId': 1,
+          },
       ],
       getAltTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
         altTocQueries.add(queryTokens!);
@@ -291,6 +296,15 @@ void main() {
     expect(results.where((r) => r.isAltToc).map((r) => r.reference), [
       'טור חושן משפט סימן לג סעיף ב',
     ]);
+  });
+
+  test('נסיגת תוכן העניינים מדלגת על ספר בלי מבנה AltToc', () async {
+    await buildRepo(
+      tocLocation: '',
+      altStructureBookIds: [],
+    ).findRefs('טור חושן משפט לג ב');
+
+    expect(altTocQueries, isEmpty);
   });
 
   test('מסד בלי מפתחות חלקיים נשאר ברמת ה-TOC', () async {

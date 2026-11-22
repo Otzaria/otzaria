@@ -280,7 +280,10 @@ void main() {
       }
 
       for (final part in ['אורח חיים', 'חושן משפט']) {
-        add('סעיף ו', 2, add('סימן שח', 1, add(part, 0, null)));
+        final root = add(part, 0, null);
+        add('סעיף ו', 2, add('סימן שח', 1, root));
+        add('סעיף א', 2, add('סימן א', 1, root));
+        add('סעיף א', 2, add('סימן ב', 1, root));
       }
       return bookId;
     }
@@ -305,6 +308,15 @@ void main() {
           'אורח חיים סימן שח סעיף ו',
         ]);
         expect(await references(bookId, ['שח', 'ו']), hasLength(2));
+        for (final tokens in [
+          ['אוח', 'א', 'א'],
+          ['אוח', 'סימן', 'א', 'סעיף', 'א'],
+          ['אורח', 'חיים', 'א', 'א'],
+        ]) {
+          expect(await references(bookId, tokens), [
+            'אורח חיים סימן א סעיף א',
+          ]);
+        }
       });
     }
   });

@@ -2325,7 +2325,10 @@ class FindRefRepository {
       }
       final altTokens = book.altTocTokens;
       var altToc = const <Map<String, dynamic>>[];
-      for (final tokens in [altTokens, if (tocFellBack) fallback]) {
+      for (final tokens in [
+        altTokens,
+        if (altTokens != null && tocFellBack) fallback,
+      ]) {
         if (tokens == null || altToc.isNotEmpty) continue;
         altToc = await _awaitCurrent(
           _fetchAltTocEntries(

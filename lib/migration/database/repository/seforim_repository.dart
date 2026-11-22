@@ -3118,6 +3118,9 @@ extension BookAcronymRepository on SeforimRepository {
       for (final token in tokens) hebrewTokenAlternatives(token),
     ];
     final lastAlts = alternatives.last;
+    final repeatsLastNumeral =
+        isHebrewNumeral(tokens.last) &&
+        tokens.take(tokens.length - 1).contains(tokens.last);
     // ציון דף עשוי להתאים גם בלי טוקן העמוד בעלה או בנתיב.
     final lastMask = cite == null && refMaskOf != null
         ? altTocTokenMask(lastAlts)
@@ -3152,6 +3155,12 @@ extension BookAcronymRepository on SeforimRepository {
       if (tokens.length == 1) return true;
       // כל טוקני השאילתה חייבים להופיע בנתיב המלא (בכל סדר).
       final pathTokens = checkedPath ?? pathTokensOf(e);
+      // ב"סימן א סעיף א" המספר צריך להופיע גם בסימן שמעל הסעיף.
+      if (repeatsLastNumeral &&
+          (ownTokens.first == 'סימן' || ownTokens.first == 'סעיף') &&
+          pathTokens.where(lastAlts.contains).take(2).length < 2) {
+        return false;
+      }
       for (var i = 0; i < tokens.length; i++) {
         if (alternatives[i].any(pathTokens.contains)) continue;
         // "אוח" ← "אורח חיים": ראשי תיבות של כותרת השורש, כמו בתוכן העניינים.

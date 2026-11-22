@@ -1377,7 +1377,10 @@ void _workerMain(_Bootstrap bootstrap) {
         );
       }
       var altToc = const <Map<String, dynamic>>[];
-      for (final tokens in [altTokens, if (tocFellBack) fallback]) {
+      for (final tokens in [
+        altTokens,
+        if (altTokens != null && tocFellBack) fallback,
+      ]) {
         if (tokens == null || altToc.isNotEmpty) continue;
         altToc = await repo.getAltTocEntriesForReference(
           bookId,
