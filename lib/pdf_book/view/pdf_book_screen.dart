@@ -3105,9 +3105,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         pages: pages,
         pageImages: Map.of(pageImages),
         renderScale: renderScale,
+        isNeeded: _isSpreadNeeded(spreadStartPage),
       );
       entry.budgetEntry = reservation.commit(
-        isNeeded: _isSpreadNeeded(spreadStartPage),
+        isNeeded: entry.isNeeded,
         retainedBytes: pageImages.values.fold<int>(
           0,
           (bytes, image) => bytes + image.width * image.height * 8,
@@ -3156,8 +3157,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       _spreadCache.remove(spreadStartPage)?.dispose();
       return false;
     }
-    entry.budgetEntry?.touch(isNeeded: _isSpreadNeeded(spreadStartPage));
-    return entry.renderScale >= _requiredSpreadRenderScale(controller);
+    final sharpEnough =
+        entry.renderScale >= _requiredSpreadRenderScale(controller);
+    entry.setNeeded(sharpEnough && _isSpreadNeeded(spreadStartPage));
+    return sharpEnough;
   }
 
   bool _spreadPagesAreCurrent(PdfDocument document, List<PdfPage> pages) =>
@@ -3429,17 +3432,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _spreadCancellationTokens[render.key]?.cancel();
       }
     }
+    if (_spreadCache.isEmpty) return;
+    final controller = widget.tab.pdfViewerController;
+    final requiredScale = _requiredSpreadRenderScale(controller);
     final toRemove = <int>[];
     for (final cached in _spreadCache.entries) {
-      final needed = _isSpreadNeeded(cached.key);
-      cached.value.budgetEntry?.touch(isNeeded: needed);
-      if (!needed ||
-          !identical(
-            widget.tab.pdfViewerController.document,
-            cached.value.document,
-          ) ||
-          !_spreadPagesAreCurrent(cached.value.document, cached.value.pages)) {
+      final entry = cached.value;
+      if (!_isSpreadNeeded(cached.key) ||
+          !identical(controller.document, entry.document) ||
+          !_spreadPagesAreCurrent(entry.document, entry.pages)) {
         toRemove.add(cached.key);
+      } else {
+        entry.setNeeded(entry.renderScale >= requiredScale);
       }
     }
     for (final spread in toRemove) {
@@ -6356,6 +6360,7 @@ class _PdfSpreadCacheEntry {
   final List<PdfPage> pages;
   final Map<int, ui.Image> pageImages;
   final double renderScale;
+  bool _isNeeded;
   PdfImageCacheEntry? budgetEntry;
 
   _PdfSpreadCacheEntry({
@@ -6363,7 +6368,16 @@ class _PdfSpreadCacheEntry {
     required this.pages,
     required this.pageImages,
     required this.renderScale,
+    required this._isNeeded,
   });
+
+  bool get isNeeded => _isNeeded;
+
+  void setNeeded(bool needed) {
+    if (_isNeeded == needed) return;
+    _isNeeded = needed;
+    budgetEntry?.touch(isNeeded: needed);
+  }
 
   void dispose() {
     budgetEntry?.dispose();

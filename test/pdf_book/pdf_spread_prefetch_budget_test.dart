@@ -314,6 +314,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('prefetch replaces stale spread under a tight budget', (
+    tester,
+  ) async {
+    final document = _ControlledDocument();
+    final reader = await pumpReader(tester, document);
+    final baseline = pdfSharedImageBudget.estimatedBytes;
+    reader.controller.zoom = 0.55;
+    reader.notifyPage();
+    await _until(tester, () => document.calls.length == 3);
+    await _settle(tester);
+    final sharpSpreadReservation = 2 * 300 * 450 * 12;
+    pdfSharedImageBudget.maximumBytes = baseline + sharpSpreadReservation;
+    reader.controller.zoom = 1.1;
+    reader.notifyPage();
+    await _settle(tester, rounds: 20);
+    final sharpCalls = document.calls.where((call) => call.image.width == 300);
+    expect(sharpCalls.map((call) => call.page), containsAll([2, 3]));
+  });
+
   testWidgets('אותו מדרג זום משתמש בתמונות; מדרג גבוה מרנדר תמונה חדה', (
     tester,
   ) async {
