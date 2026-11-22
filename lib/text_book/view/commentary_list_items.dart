@@ -459,6 +459,9 @@ class _NotesCommentaryWidget extends StatefulWidget {
   /// מפתח לכל הערה — יעד הניווט לתוצאת חיפוש שבה.
   final List<GlobalKey> noteKeys;
 
+  /// התוצאה הנוכחית בתוך כל הערה, או -1 כשהנוכחית אינה בה.
+  final int Function(int index) noteSearchIndex;
+
   /// מונח החיפוש של הרשימה — גם תוצאת חיפוש בספר שנחתה בהערה.
   final String searchQuery;
 
@@ -482,6 +485,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
   const _NotesCommentaryWidget({
     required this.notes,
     required this.noteKeys,
+    required this.noteSearchIndex,
     required this.searchQuery,
     required this.searchedBook,
     required this.fontSize,
@@ -769,7 +773,12 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                           ),
                           child: SmartTextWidget(
                             text: note,
-                            settings: renderSettings,
+                            settings: renderSettings.copyWith(
+                              // מונח החיפוש בספר מודגש בכללי הספר, לא בספירה.
+                              currentSearchIndex: widget.searchedBook == null
+                                  ? widget.noteSearchIndex(index)
+                                  : -1,
+                            ),
                             onOpenBook: (tab) {
                               if (tab is TextBookTab) {
                                 widget.openBookCallback(tab);

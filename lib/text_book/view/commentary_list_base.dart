@@ -720,11 +720,12 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     ];
   }
 
-  int _getItemSearchIndex(Link link) {
-    final linkKey = _getLinkKey(link);
-    if ((_searchResultsPerLink[linkKey] ?? 0) == 0) return -1;
+  int _getItemSearchIndex(Link link) => _searchIndexOf(_getLinkKey(link));
+
+  int _searchIndexOf(String key) {
+    if ((_searchResultsPerLink[key] ?? 0) == 0) return -1;
     return commentarySearchRelativeIndex(
-      key: linkKey,
+      key: key,
       currentIndex: _currentSearchIndexNotifier.value,
       offsets: _searchResultOffsets ??= commentarySearchOffsets([
         for (var i = 0; i < _searchNotes.length; i++)
@@ -1504,12 +1505,15 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (_totalSearchResultsNotifier.value == 0) return;
     var cumulativeIndex = 0;
     for (var i = 0; i < _searchNotes.length; i++) {
-      cumulativeIndex += _searchResultsPerLink[commentaryNoteSearchKey(i)] ?? 0;
-      if (_currentSearchIndexNotifier.value < cumulativeIndex) {
-        final note = _noteKeys[i].currentContext;
-        if (note != null) Scrollable.ensureVisible(note, alignment: 0.1);
+      final results = _searchResultsPerLink[commentaryNoteSearchKey(i)] ?? 0;
+      if (_currentSearchIndexNotifier.value < cumulativeIndex + results) {
+        _scrollToNoteMatch(
+          i,
+          _currentSearchIndexNotifier.value - cumulativeIndex,
+        );
         return;
       }
+      cumulativeIndex += results;
     }
     Link? targetLink;
     for (final link in _orderedLinks) {
@@ -1561,6 +1565,34 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       }
       return;
     }
+  }
+
+  /// מביא לתצוגה את ההתאמה [matchIndex] שבהערה [noteIndex], ובלי מיפוי אמין
+  /// — את ראש ההערה.
+  void _scrollToNoteMatch(int noteIndex, int matchIndex) {
+    final note = _noteKeys[noteIndex].currentContext;
+    final box = note?.findRenderObject();
+    if (note == null || box is! RenderBox) return;
+    final blocState = context.read<TextBookBloc>().state;
+    final top = blocState is! TextBookLoaded
+        ? null
+        : commentarySearchMatchTarget(
+            content: _searchNotes[noteIndex],
+            query: _activeSearchQuery,
+            displayProfile: blocState.commentaryDisplayProfile,
+            matchIndex: matchIndex,
+          )?.call(0, box)?.top;
+    if (top == null) {
+      Scrollable.ensureVisible(note, alignment: 0.1);
+      return;
+    }
+    final position = Scrollable.of(note).position;
+    final reveal = RenderAbstractViewport.of(
+      box,
+    ).getOffsetToReveal(box, 0.1, rect: Rect.fromLTWH(0, top, 0, 0));
+    position.jumpTo(
+      reveal.offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
   }
 
   void _cancelSearchNavigation() {
@@ -1967,10 +1999,14 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                     listenable: Listenable.merge([
                       _searchQueryNotifier,
                       widget.highlightQueryListenable,
+                      _currentSearchIndexNotifier,
+                      _totalSearchResultsNotifier,
                     ]),
                     builder: (context, _) => _NotesCommentaryWidget(
                       notes: relevantNotes,
                       noteKeys: _noteKeys,
+                      noteSearchIndex: (i) =>
+                          _searchIndexOf(commentaryNoteSearchKey(i)),
                       searchQuery: _activeSearchQuery,
                       searchedBook: _bookSearchState(context),
                       fontSize: widget.fontSize,
