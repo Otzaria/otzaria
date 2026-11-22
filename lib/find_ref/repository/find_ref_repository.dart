@@ -1558,6 +1558,22 @@ class FindRefRepository {
     Map<_BookKey, _BookMatchRank>? into,
   }) {
     final bookMatchRanks = into ?? <_BookKey, _BookMatchRank>{};
+    // שם ואחריו מיקום. כינוי שמשותף לכמה ספרים ("רשב"א") אינו שמו של אחד מהם.
+    final named = <String, Set<_BookKey>>{};
+    if (source.isOfficial && detection.phraseTokenCount < queryTokens.length) {
+      for (final hit in detection.hits) {
+        if (hit.namesBookExactly &&
+            (hit.bookId > 0 || hit.filePath.isNotEmpty) &&
+            !detection.secondaryPhraseTokenCount.containsKey(hit)) {
+          (named[hit.normalizedTitle] ??= {}).add(
+            _bookKey(source, hit.bookId, hit.filePath),
+          );
+        }
+      }
+    }
+    final namedBooks = named.length == 1
+        ? named.values.single
+        : const <_BookKey>{};
     for (final hit in detection.hits) {
       if (hit.bookId > 0 || hit.filePath.isNotEmpty) {
         final key = _bookKey(source, hit.bookId, hit.filePath);
@@ -1588,6 +1604,7 @@ class FindRefRepository {
                     (token) => titleWords.contains(bookNameMatchToken(token)),
                   )) ||
               (previous?.wholeName ?? false),
+          namesBook: namedBooks.contains(key) || (previous?.namesBook ?? false),
         );
       }
     }
@@ -3727,6 +3744,7 @@ class FindRefRepository {
                     r.reference,
                   ))),
           exactAliasMatch: bookMatch?.exactAlias ?? false,
+          namesBook: bookMatch?.namesBook ?? false,
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
@@ -3905,7 +3923,12 @@ typedef _UserBooksVersion = ({
 /// ספר בכל מסד: מקור, מזהה, ונתיב הקובץ רק ל-PDF שמחוץ למסד (מזהה שלילי).
 typedef _BookKey = (String source, int bookId, String filePath);
 
-typedef _BookMatchRank = ({int rank, bool exactAlias, bool wholeName});
+typedef _BookMatchRank = ({
+  int rank,
+  bool exactAlias,
+  bool wholeName,
+  bool namesBook,
+});
 
 _BookKey _bookKey(BookSource source, int bookId, String filePath) =>
     (source.wireKey, bookId, bookId > 0 ? '' : filePath);

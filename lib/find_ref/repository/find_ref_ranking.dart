@@ -194,6 +194,7 @@ class FindRefRankKey<T> {
     this.punctuationAgrees = true,
     this.directNameMatch = false,
     this.exactAliasMatch = false,
+    this.namesBook = false,
   });
 
   final T item;
@@ -206,6 +207,9 @@ class FindRefRankKey<T> {
 
   /// הספר נמצא לפי כינוי מדויק (טבלת הכינויים), ולא לפי מילות שמו.
   final bool exactAliasMatch;
+
+  /// השאילתה היא שמו המדויק של הספר (כותרת או כינוי) ואחריו מיקום.
+  final bool namesBook;
   final bool startsWithMatch;
 
   /// מ-[FindRefRankQuery.titleMatch]: נקבע פעם אחת לכותרת ולא בכל השוואה.
@@ -313,6 +317,11 @@ int compareFindRefRelevance(
       return bTier.compareTo(aTier);
     }
     return aTier.compareTo(bTier);
+  }
+
+  // "שמות רבה מה": הספר שנקרא בשמו לפני מפרשיו, שאינם ספרי יסוד כמוהו (#5741).
+  if (aTier == null && a.namesBook != b.namesBook) {
+    return a.namesBook ? -1 : 1;
   }
 
   // 6. סדר הדורות בין מפרשים — orderIndex לבדו מערבב דורות מענפי-עץ שונים.
