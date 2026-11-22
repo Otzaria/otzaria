@@ -208,13 +208,13 @@ void main() {
     await tester.pumpWidget(_wrap(settingsBloc));
     await tester.pumpAndSettle();
     expect(find.text(localTileTitle), findsOneWidget);
-    expect(find.byType(Switch), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(2));
 
     await setHebrewBooksPath(r'C:\HebrewBooks');
     changes.add(SettingsRepository.keyHebrewBooksPath);
     await tester.pumpAndSettle();
     expect(find.text(localTileTitle), findsOneWidget);
-    expect(find.byType(Switch), findsNWidgets(2));
+    expect(find.byType(Switch), findsNWidgets(3));
   });
 
   testWidgets('המתג מוסתר כשהיברובוקס כבר מוצג מהקטלוג', (tester) async {
@@ -230,7 +230,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(localTileTitle), findsOneWidget);
-    expect(find.byType(Switch), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(2));
   });
 
   testWidgets('כיבוי המתג משדר UpdateShowLocalHebrewBooks', (tester) async {
@@ -239,7 +239,7 @@ void main() {
     await tester.pumpWidget(_wrap(settingsBloc));
     await tester.pumpAndSettle();
 
-    // המתג הראשון בעמוד הוא "הצג תצוגה מקדימה"; זה של הספרים המקומיים אחרון.
+    // מתגי כרטיס התצוגה קודמים; זה של הספרים המקומיים אחרון.
     await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
 
@@ -294,7 +294,7 @@ void main() {
         reason: 'תוצאת חיפוש היברובוקס צריכה להציג את תנאי הזמינות',
       );
       expect(find.text(item.explanation), findsOneWidget);
-      expect(find.byType(Switch), findsOneWidget);
+      expect(find.byType(Switch), findsNWidgets(2));
       expect(settingsBloc.dispatched, isEmpty);
       expect(cache.writes, isEmpty);
       expect(
@@ -332,17 +332,17 @@ void main() {
     addTearDown(settingsBloc.close);
     await tester.pumpWidget(_wrap(settingsBloc));
     await tester.pumpAndSettle();
-    expect(find.byType(Switch), findsNWidgets(2));
+    expect(find.byType(Switch), findsNWidgets(3));
     cache.writes.clear();
     settingsBloc.add(const UpdateShowExternalBooks(true));
     settingsBloc.add(const UpdateShowHebrewBooks(true));
     await tester.pumpAndSettle();
     expect(find.text(localTileTitle), findsOneWidget);
-    expect(find.byType(Switch), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(2));
     expect(find.text(unavailableCases.last.explanation), findsOneWidget);
     settingsBloc.add(const UpdateShowHebrewBooks(false));
     await tester.pumpAndSettle();
-    expect(find.byType(Switch), findsNWidgets(2));
+    expect(find.byType(Switch), findsNWidgets(3));
     expect(settingsBloc.state.showLocalHebrewBooks, isFalse);
     expect(cache.writes, isEmpty);
   });

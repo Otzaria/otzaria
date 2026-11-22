@@ -8,7 +8,7 @@ void runDetectionDeepLink(
   String query, {
   required TextEditingController controller,
   required FindRefBloc bloc,
-  required void Function({required bool closeIfOpen}) openDialog,
+  void Function({required bool closeIfOpen})? openDialog,
 }) {
   controller.text = query;
   controller.selection = TextSelection.collapsed(offset: query.length);
@@ -19,5 +19,5 @@ void runDetectionDeepLink(
   } else {
     bloc.add(SearchRefRequested(query));
   }
-  openDialog(closeIfOpen: false);
+  openDialog?.call(closeIfOpen: false);
 }

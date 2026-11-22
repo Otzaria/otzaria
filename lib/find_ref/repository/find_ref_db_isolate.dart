@@ -467,6 +467,12 @@ class FindRefDbIsolate {
     return _castRows(res);
   }
 
+  /// כל טבלת `book_base_text` (ספר → ספרי הבסיס שלו, עם כותרותיהם).
+  Future<List<Map<String, dynamic>>> getBookBaseTexts() async {
+    final res = await _request('bookBaseTexts', const {});
+    return _castRows(res);
+  }
+
   /// שולף ומכין את קאש הכינויים כולו ב-worker, בלי לממש עשרות אלפי שורות
   /// SQLite על ה-UI isolate.
   Future<AcronymCacheData> getBookAcronymCache() async {
@@ -1173,6 +1179,12 @@ void _workerMain(_Bootstrap bootstrap) {
           throw StateError('seforim.db unavailable for allLocalBooksSlim');
         }
         return repo.database.bookDao.selectAllLocalBooksSlim();
+      case 'bookBaseTexts':
+        final repo = await ensureRepo();
+        if (repo == null) {
+          throw StateError('seforim.db unavailable for bookBaseTexts');
+        }
+        return repo.loadBookBaseTexts();
       case 'bookAcronymCache':
         final repo = await ensureRepo();
         if (repo == null) {

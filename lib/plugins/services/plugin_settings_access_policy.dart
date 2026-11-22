@@ -1,3 +1,4 @@
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
 /// המקור היחיד לקביעה אילו הגדרות תוכנה תוסף רשאי לקרוא — משמש גם את
@@ -66,6 +67,7 @@ class PluginSettingsAccessPolicy {
     'key-current-workspace-id',
     'key-saved-alternative-words',
     'key-plugin-search-selections',
+    FindRefPreferenceStore.scoresKey,
     SettingsRepository.keyCustomFolders,
     SettingsRepository.keyAttachedLibraries,
     SettingsRepository.keyAttachedLibraryFolders,

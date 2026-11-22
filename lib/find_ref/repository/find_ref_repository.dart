@@ -14,6 +14,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/find_ref/book_name_match.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/repository/alt_toc_flat_entry.dart';
 import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
@@ -416,6 +417,10 @@ class FindRefRepository {
   })?
   resolveDibburim;
 
+  /// Injection for testing: שורות `book_base_text` (bookId, baseBookId,
+  /// baseTitle). In production: [FindRefDbIsolate.getBookBaseTexts].
+  final Future<List<Map<String, dynamic>>> Function()? loadBookBaseTexts;
+
   /// סדר הדור של ספר רשמי מקאש בזיכרון, או null כשהקאש לא נטען.
   /// In production: [GenerationCache].
   final int? Function(int bookId)? cachedEraOrder;
@@ -490,6 +495,12 @@ class FindRefRepository {
 
   /// קאש מזהי הספרים בעלי מבנה AltToc (ראה [getAltStructureBookIds]).
   Set<int>? _altBookIdsCache;
+
+  /// ספרי הבסיס של כל ספר רשמי, לדירוג האישי ולרישום פתיחות.
+  Map<int, List<FindRefPreferenceBook>>? _baseBooksCache;
+
+  /// מתחלף ב-[clearCaches], כדי ששליפה שהתחילה לפניו לא תקבע מפה ישנה.
+  int _baseBooksEpoch = 0;
 
   /// מפתחות הדירוג של ספרים רשמיים ונתיב הקטגוריה שממנו חושבו.
   final Map<int, ({String? path, String title, FindRefBookRank rank})>
@@ -577,6 +588,7 @@ class FindRefRepository {
     this.resolveLineRefs,
     this.resolvePartialLineRefs,
     this.resolveDibburim,
+    this.loadBookBaseTexts,
     this.cachedEraOrder,
     this.getBookEras,
     this.getCategoryPathSync,
@@ -631,6 +643,8 @@ class FindRefRepository {
     _commentatorsCache.clear();
     _altTocFlatCache = null;
     _altBookIdsCache = null;
+    _baseBooksCache = null;
+    _baseBooksEpoch++;
     _bookRanks.clear();
     _altBookRanksCache = null;
     _dropUserBooks();
@@ -671,6 +685,102 @@ class FindRefRepository {
     } catch (e) {
       debugPrint('[FindRef] alt book ids fetch failed: $e');
       return null;
+    }
+  }
+
+  /// ספרי הבסיס מ-`book_base_text`. כשל מחזיר ריק בלי לקבע אותו בקאש.
+  Future<Map<int, List<FindRefPreferenceBook>>> _getBaseBooks() async {
+    final cached = _baseBooksCache;
+    if (cached != null) return cached;
+    final epoch = _baseBooksEpoch;
+    try {
+      final fn = loadBookBaseTexts;
+      final List<Map<String, dynamic>> rows;
+      if (fn != null) {
+        rows = await fn();
+      } else {
+        final repository = SqliteDataProvider.instance.repository;
+        if (repository == null) return const {};
+        rows = await repository.loadBookBaseTexts();
+      }
+      final map = <int, List<FindRefPreferenceBook>>{};
+      for (final row in rows) {
+        final bookId = row['bookId'];
+        final baseId = row['baseBookId'];
+        final baseTitle = row['baseTitle'];
+        if (bookId is! int || baseId is! int || baseTitle is! String) continue;
+        (map[bookId] ??= []).add((
+          key: FindRefPreferences.officialBaseKey(baseId),
+          title: baseTitle,
+        ));
+      }
+      if (epoch == _baseBooksEpoch) _baseBooksCache = map;
+      return map;
+    } catch (e) {
+      debugPrint('[FindRef] base books fetch failed: $e');
+      return const {};
+    }
+  }
+
+  /// רושם בהעדפות האישיות ספר שנפתח מדיאלוג האיתור. כשל נבלע.
+  /// [openedFrom] — שורת התוצאה שמתפריט המפרשים שלה נפתח הספר; נרשמת איתו.
+  Future<void> recordFindRefOpen({
+    required BookSource source,
+    required int? bookId,
+    required String title,
+    bool isPdf = false,
+    String filePath = '',
+    DbReferenceResult? openedFrom,
+  }) async {
+    try {
+      if (!FindRefPreferenceStore.isEnabled) return;
+      final configuration = FindRefPreferenceStore.configurationRevision;
+      final libraryEpoch = _baseBooksEpoch;
+      // הספר שנפתח ואחריו ספר השורה; מי שאין לו זהות מדולג, והשני נרשם לבדו.
+      final opened = <FindRefPreferenceBook>[];
+      final bases = <FindRefPreferenceBook>[];
+      Future<void> add(
+        BookSource source,
+        int? bookId,
+        String title, {
+        bool isPdf = false,
+        String filePath = '',
+      }) async {
+        final key = FindRefPreferences.bookKey(
+          source: source,
+          bookId: bookId,
+          isPdf: isPdf,
+          filePath: filePath,
+        );
+        if (key == null || opened.any((book) => book.key == key)) return;
+        opened.add((key: key, title: title));
+        if (source.isOfficial && bookId != null && bookId > 0) {
+          bases.addAll((await _getBaseBooks())[bookId] ?? const []);
+        }
+      }
+
+      await add(source, bookId, title, isPdf: isPdf, filePath: filePath);
+      if (openedFrom != null) {
+        await add(
+          openedFrom.source,
+          openedFrom.bookId,
+          openedFrom.title,
+          isPdf: openedFrom.isPdf,
+          filePath: openedFrom.filePath,
+        );
+      }
+      if (opened.isEmpty ||
+          libraryEpoch != _baseBooksEpoch ||
+          configuration != FindRefPreferenceStore.configurationRevision) {
+        return;
+      }
+      await FindRefPreferenceStore.recordOpen(
+        opened.first,
+        baseBooks: bases,
+        companions: opened.skip(1),
+      );
+    } catch (e) {
+      debugPrint('[FindRef] recording opened book failed: $e');
     }
   }
 
@@ -1160,17 +1270,25 @@ class FindRefRepository {
     return [for (final order in orders) order!];
   }
 
+  /// [preferences] — העדפות אישיות לדירוג; רק דיאלוג האיתור מעביר אותן.
+  /// בלעדיהן הסדר דטרמיניסטי ואינו תלוי במשתמש.
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) {
     if (_disposed) return Future.error(const FindRefQueryCancelled());
     cancelPendingSearch();
-    return _runSearch(ref, includePersonalBooks: includePersonalBooks);
+    return _runSearch(
+      ref,
+      includePersonalBooks: includePersonalBooks,
+      preferences: preferences,
+    );
   }
 
   /// כמו [findRefs] בלי לבטל איתורים קודמים — לקוראים שמריצים כמה במקביל
   /// (תוספים). עדיין מתבטל ב-[cancelPendingSearch], ב-[findRefs] וב-dispose.
+  /// לעולם אינו מותאם אישית: תוסף חייב לקבל אותו סדר אצל כל משתמש.
   Future<List<DbReferenceResult>> findRefsConcurrently(
     String ref, {
     bool includePersonalBooks = false,
@@ -1182,10 +1300,15 @@ class FindRefRepository {
   Future<List<DbReferenceResult>> _runSearch(
     String ref, {
     required bool includePersonalBooks,
+    FindRefPreferences? preferences,
   }) {
     final generation = _searchGeneration;
     return runZoned(
-      () => _findRefs(ref, includePersonalBooks: includePersonalBooks),
+      () => _findRefs(
+        ref,
+        includePersonalBooks: includePersonalBooks,
+        preferences: preferences,
+      ),
       zoneValues: {_searchGenerationZoneKey: generation},
     );
   }
@@ -1204,6 +1327,7 @@ class FindRefRepository {
   Future<List<DbReferenceResult>> _findRefs(
     String rawRef, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async {
     final query = _parseQuery(rawRef);
     if (query == null) return const [];
@@ -1218,6 +1342,14 @@ class FindRefRepository {
     await _ensureReferenceBooksLoaded();
 
     final visibility = await _currentVisibility();
+    final personal = preferences == null || preferences.isEmpty
+        ? null
+        : _PersonalRanking(
+            preferences,
+            preferences.bases.isEmpty
+                ? const {}
+                : await _awaitCurrent(_getBaseBooks()),
+          );
     // בדיקת הגרסה ב-worker רצה בזמן הזיהוי הרשמי, ולא אחריו.
     final userBooks = includePersonalBooks
         ? (_loadUserBooks()..ignore())
@@ -1228,7 +1360,7 @@ class FindRefRepository {
     final eraQuery = _detectEraQuery(queryTokens);
     if (eraQuery != null) {
       final eraResults = await _awaitCurrent(
-        _findByEra(eraQuery.era, eraQuery.topicTokens, visibility),
+        _findByEra(eraQuery.era, eraQuery.topicTokens, visibility, personal),
       );
       if (eraResults.isNotEmpty) return eraResults;
     }
@@ -1269,6 +1401,7 @@ class FindRefRepository {
         bookMatchRanks: _bookMatchRanks(detection, tokens),
         includePersonalBooks: includePersonalBooks,
         userBooks: userBooks,
+        personal: personal,
       );
       return tokens.length == 1
           ? _singleWordResults(search)
@@ -1719,6 +1852,7 @@ class FindRefRepository {
       dibburMatches: dibburMatches,
       preserveSubstringTail: true,
       rawQuery: search.rawQuery,
+      personal: search.personal,
     );
     return await _awaitCurrent(_enrichWithPaths(ranked));
   }
@@ -1850,6 +1984,7 @@ class FindRefRepository {
       directMatches: directMatches,
       dibburMatches: dibburMatches,
       rawQuery: search.rawQuery,
+      personal: search.personal,
     );
     return await _awaitCurrent(_enrichWithPaths(ranked));
   }
@@ -2256,6 +2391,7 @@ class FindRefRepository {
     CommentaryEra era,
     List<String> topicTokens,
     FindRefVisibility visibility,
+    _PersonalRanking? personal,
   ) async {
     final injected = searchByEraAndTopic;
     final List<ReferenceBookHit> hits;
@@ -2305,7 +2441,7 @@ class FindRefRepository {
     ];
 
     final unique = _dedupeRefs(results);
-    final ranked = _rankResults(unique, topicTokens);
+    final ranked = _rankResults(unique, topicTokens, personal: personal);
     return await _enrichWithPaths(ranked);
   }
 
@@ -3661,6 +3797,7 @@ class FindRefRepository {
     Set<DbReferenceResult> dibburMatches = const {},
     bool preserveSubstringTail = false,
     String rawQuery = '',
+    _PersonalRanking? personal,
   }) {
     if (results.length < 2) return results;
     final quotedWords = quotedWordsOf(rawQuery, _normalizeForMatch);
@@ -3836,7 +3973,14 @@ class FindRefRepository {
     // את מפתח-הרלוונטיות של התוצאה האחרונה שבחיתוך — כך שתוצאות שווֹת-רלוונטיות
     // מוצגות יחד. הרשימה נעצרת רק כשמגיעים לתוצאה *פחות* רלוונטית.
     if (decorated.length <= _baseResultCap) {
-      return decorated.map((d) => d.item).toList();
+      if (personal == null) return decorated.map((d) => d.item).toList();
+      return _rankedItems(
+        decorated,
+        [for (var i = 0; i < decorated.length; i++) i],
+        decorated.length,
+        rankQuery,
+        personal,
+      );
     }
     final boundary = decorated[_baseResultCap - 1];
     var end = _baseResultCap;
@@ -3851,27 +3995,67 @@ class FindRefRepository {
       end = _maxResultCap;
     }
 
-    final capped = [for (var i = 0; i < end; i++) decorated[i]];
+    final kept = [for (var i = 0; i < end; i++) i];
 
     // issue #839: התאמות תת-מחרוזת מדורגות אחרי כל התאמות-התחילית, וחיתוך
     // שגבולו בתוכן מחק אותן כליל — מובטחת להן מכסה בזנב, בלי לשנות דירוג.
     if (preserveSubstringTail && end < decorated.length) {
       var quota =
           _substringTailQuota -
-          capped.where((d) => d.isSubstringMatch(query.text)).length;
+          decorated
+              .take(end)
+              .where((d) => d.isSubstringMatch(query.text))
+              .length;
       for (
         var i = end;
-        i < decorated.length && quota > 0 && capped.length < _maxResultCap;
+        i < decorated.length && quota > 0 && kept.length < _maxResultCap;
         i++
       ) {
         if (decorated[i].isSubstringMatch(query.text)) {
-          capped.add(decorated[i]);
+          kept.add(i);
           quota--;
         }
       }
     }
 
-    return [for (final d in capped) d.item];
+    return _rankedItems(decorated, kept, end, rankQuery, personal);
+  }
+
+  /// [kept] — מה שנשאר מ-[decorated] אחרי החיתוך ב-[cutoff]. בלי העדפות זה
+  /// הפלט כולו; איתן הסידור האישי רק מזיז שורות בתוכו ומוסיף מעטות.
+  static List<DbReferenceResult> _rankedItems(
+    List<FindRefRankKey<DbReferenceResult>> decorated,
+    List<int> kept,
+    int cutoff,
+    FindRefRankQuery query,
+    _PersonalRanking? personal,
+  ) {
+    if (personal == null) return [for (final i in kept) decorated[i].item];
+    final books = <String?>[];
+    final affinities = <double>[];
+    final byBookTitle = <(String, String), double>{};
+    for (final key in decorated) {
+      final r = key.item;
+      final book = personal.keyOf(r);
+      books.add(book);
+      affinities.add(
+        book == null
+            ? 0
+            : byBookTitle.putIfAbsent(
+                (book, r.title),
+                () => personal.affinityOf(r, book),
+              ),
+      );
+    }
+    final order = personalizeFindRefOrder(
+      decorated,
+      kept,
+      query,
+      cutoff: cutoff,
+      books: books,
+      affinities: affinities,
+    );
+    return [for (final i in order) decorated[i].item];
   }
 
   String _normalizeForMatch(String input) => normalizeForFindRefMatch(input);
@@ -4115,6 +4299,7 @@ class _FindRefSearch {
     required this.bookMatchRanks,
     required this.includePersonalBooks,
     this.userBooks,
+    this.personal,
   });
 
   /// השאילתה אחרי הרחבת ע"א/ע"ב, לפני הנרמול.
@@ -4132,8 +4317,35 @@ class _FindRefSearch {
   /// טעינת הספרים האישיים, שהתחילה עם השאילתה.
   final Future<_SecondaryIndex>? userBooks;
 
+  /// הדירוג האישי של השאילתה; `null` לכל קורא שאינו דיאלוג האיתור.
+  final _PersonalRanking? personal;
+
   bool get isDibburQuery => dibburPrefix != null;
 
   FindRefVisibility? get visibilityFilter =>
       visibility.selection.isEmpty ? null : visibility;
+}
+
+/// ההעדפות האישיות של שאילתה אחת, עם ספרי הבסיס שלפיהם מחושבת הזיקה.
+class _PersonalRanking {
+  _PersonalRanking(this.preferences, this.baseBooks);
+
+  final FindRefPreferences preferences;
+  final Map<int, List<FindRefPreferenceBook>> baseBooks;
+
+  String? keyOf(DbReferenceResult r) => FindRefPreferences.bookKey(
+    source: r.source,
+    bookId: r.bookId,
+    isPdf: r.isPdf,
+    filePath: r.filePath,
+  );
+
+  double affinityOf(DbReferenceResult r, String key) => preferences.affinity(
+    key: key,
+    title: r.title,
+    // מזהה של ספר לא-רשמי שייך למסד אחר, ואין לו שורות ב-book_base_text.
+    baseBooks: r.source.isOfficial && r.bookId > 0
+        ? baseBooks[r.bookId] ?? const []
+        : const [],
+  );
 }

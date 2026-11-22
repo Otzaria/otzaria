@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
@@ -13,6 +14,7 @@ import 'package:otzaria/find_ref/view/find_ref_dialog.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -39,6 +41,28 @@ class _FakeRepository implements FindRefRepository {
   final List<DbCommentatorEntry> commentators;
   int commentatorRequests = 0;
 
+  /// הספרים שנרשמו בהעדפות האישיות: מפתח הספר וכותרתו.
+  final List<String> recordedOpens = [];
+
+  @override
+  Future<void> recordFindRefOpen({
+    required BookSource source,
+    required int? bookId,
+    required String title,
+    bool isPdf = false,
+    String filePath = '',
+    DbReferenceResult? openedFrom,
+  }) async {
+    final key = FindRefPreferences.bookKey(
+      source: source,
+      bookId: bookId,
+      isPdf: isPdf,
+      filePath: filePath,
+    );
+    final from = openedFrom == null ? '' : ' <- ${openedFrom.reference}';
+    recordedOpens.add('$key $title$from');
+  }
+
   @override
   bool get respectHiddenLibrary => false;
 
@@ -52,7 +76,14 @@ class _FakeRepository implements FindRefRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
-  }) async => results;
+    FindRefPreferences? preferences,
+  }) async {
+    preferencesCalls.add(preferences);
+    return results;
+  }
+
+  /// ההעדפות שהועברו לכל איתור; null = סדר שאינו מותאם אישית.
+  final List<FindRefPreferences?> preferencesCalls = [];
 
   @override
   Future<List<DbCommentatorEntry>> getCommentatorsForResult(
@@ -598,6 +629,162 @@ void main() {
 
     expect((tab as PdfBookTab).book.path, r'C:\books\scan.pdf');
     expect(tab.book.id, isNull);
+  });
+
+  group('סדר מותאם בפתיחת הדיאלוג', () {
+    const result = DbReferenceResult(
+      title: 'בראשית',
+      reference: 'בראשית פרק א',
+      segment: 0,
+      bookId: 1,
+    );
+    setUp(() async {
+      await FindRefPreferenceStore.setEnabled(true);
+      FindRefPreferenceStore.clear();
+      FindRefPreferenceStore.recordOpen((key: 'o|1', title: 'בראשית'));
+    });
+
+    tearDown(FindRefPreferenceStore.clear);
+
+    testWidgets('פתיחה חוזרת מרעננת סדר מותאם רק אם ההעדפות אופסו מאז', (
+      tester,
+    ) async {
+      final repository = _FakeRepository([result]);
+      await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        repository: repository,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(repository.preferencesCalls.single, isNotNull);
+
+      Future<void> reopen() async {
+        Navigator.of(tester.element(find.byType(FindRefDialog))).pop();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('open'));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+      }
+
+      // בלי שינוי בהעדפות הרשימה המוצגת נשארת, בלי איתור חוזר.
+      await reopen();
+      expect(repository.preferencesCalls, hasLength(1));
+
+      Navigator.of(tester.element(find.byType(FindRefDialog))).pop();
+      await tester.pumpAndSettle();
+      FindRefPreferenceStore.clear();
+      await tester.tap(find.text('open'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(repository.preferencesCalls, hasLength(2));
+      expect(repository.preferencesCalls.last, isNull);
+      expect(find.text(result.reference), findsOneWidget);
+    });
+  });
+
+  group('רישום בהעדפות האישיות', () {
+    const result = DbReferenceResult(
+      title: 'בראשית',
+      reference: 'בראשית פרק א',
+      segment: 0,
+      bookId: 1,
+    );
+    const rashiEntry = DbCommentatorEntry(
+      title: 'רש"י על בראשית',
+      bookId: 81,
+      targetSegment: 5,
+    );
+
+    testWidgets('פתיחת תוצאה רושמת את ספר התוצאה', (tester) async {
+      final repository = _FakeRepository([result]);
+      await _openResultEvent(
+        tester,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        result: result,
+        repository: repository,
+      );
+
+      expect(repository.recordedOpens, ['o|1 בראשית']);
+    });
+
+    testWidgets('פתיחת מפרש מהתפריט רושמת את המפרש יחד עם שורת התוצאה שלו', (
+      tester,
+    ) async {
+      final repository = _FakeRepository([result], commentators: [rashiEntry]);
+      await _openResultEvent(
+        tester,
+        library: _libraryWith([
+          TextBook(id: 1, title: 'בראשית'),
+          TextBook(id: 81, title: 'רש"י על בראשית'),
+        ]),
+        result: result,
+        commentator: rashiEntry,
+        repository: repository,
+      );
+
+      expect(repository.recordedOpens, [
+        'o|81 רש"י על בראשית <- בראשית פרק א',
+      ]);
+    });
+
+    testWidgets('PDF מהדיסק נרשם לפי הנתיב', (tester) async {
+      const pdf = DbReferenceResult(
+        title: 'סריקה',
+        reference: 'סריקה',
+        segment: 0,
+        isPdf: true,
+        filePath: r'C:\books\scan.pdf',
+      );
+      final repository = _FakeRepository([pdf]);
+      await _openResultEvent(
+        tester,
+        library: _libraryWith([]),
+        result: pdf,
+        repository: repository,
+      );
+
+      expect(repository.recordedOpens, [r'f|C:\books\scan.pdf סריקה']);
+    });
+
+    testWidgets('מעבר לכרטיסייה הפתוחה נרשם גם הוא', (tester) async {
+      final repository = _FakeRepository([result]);
+      await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        repository: repository,
+        openTabs: [
+          TextBookTab(book: TextBook(id: 1, title: 'בראשית'), index: 5),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(repository.recordedOpens, isEmpty);
+
+      await tester.tap(find.byTooltip('עבור לכרטיסייה הפתוחה'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(repository.recordedOpens, ['o|1 בראשית']);
+    });
+
+    testWidgets('הצגת תוצאות בלי פתיחה אינה רושמת דבר', (tester) async {
+      final repository = _FakeRepository([result]);
+      await _showDialogWithResults(
+        tester,
+        result: result,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        repository: repository,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.text(result.reference), findsOneWidget);
+      expect(repository.recordedOpens, isEmpty);
+    });
   });
 
   group('כפתור "עבור לכרטיסייה הפתוחה"', () {
