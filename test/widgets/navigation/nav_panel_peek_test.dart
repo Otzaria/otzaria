@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -120,6 +122,46 @@ void main() {
     await mouse.moveTo(const Offset(10, 700));
     await tester.pump();
     expect(pane(tester).isOpen, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('חזרה מהחלונית אל הכפתור לא סוגרת ופותחת שוב', (tester) async {
+    await pump(tester);
+    await hoverButton(tester);
+    await mouse.moveTo(tester.getCenter(find.byKey(_paneKey)));
+    await tester.pump();
+
+    await mouse.moveTo(button(tester));
+    await tester.pump();
+    expect(peek.value, isTrue);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('תפריט שנפתח מתוך החלונית לא סוגר אותה', (tester) async {
+    await pump(tester);
+    await hoverButton(tester);
+    await mouse.moveTo(tester.getCenter(find.byKey(_paneKey)));
+    await tester.pump();
+
+    final navigator = Navigator.of(tester.element(find.byKey(_paneKey)));
+    unawaited(
+      showGeneralDialog<void>(
+        context: tester.element(find.byKey(_paneKey)),
+        barrierDismissible: false,
+        pageBuilder: (_, _, _) => const SizedBox(width: 10, height: 10),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await mouse.moveBy(const Offset(1, 0));
+    await tester.pump();
+    expect(peek.value, isTrue);
+
+    navigator.pop();
+    await tester.pumpAndSettle();
+    await mouse.moveTo(const Offset(10, 700));
+    await tester.pump();
+    expect(peek.value, isFalse);
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('לחיצה על הכפתור פותחת חלונית שדוחקת את התוכן', (tester) async {

@@ -450,6 +450,7 @@ class SettingsRepository {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
     await _migrateSearchResultsFontSize();
+    await _migratePinSidebar();
     await removeUnrecognizedShortcuts();
     return readSettings();
   }
@@ -1426,6 +1427,15 @@ class SettingsRepository {
         defaultValue: AppFonts.defaultReadingSize,
       ),
     );
+  }
+
+  /// הצמדת החלונית הוסרה; מי שהצמיד ממשיך לקבל אותה פתוחה בפתיחת ספר.
+  Future<void> _migratePinSidebar() async {
+    const legacyKey = 'key-pin-sidebar';
+    final pinned = _settings.getValue<bool?>(legacyKey, defaultValue: null);
+    if (pinned == null) return;
+    if (pinned) await _settings.setValue(keyDefaultSidebarOpen, true);
+    await _settings.remove(legacyKey);
   }
 
   /// Write all default settings to persistent storage

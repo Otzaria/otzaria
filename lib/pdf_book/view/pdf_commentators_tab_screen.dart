@@ -153,7 +153,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   static const int _commentatorsTabIndex = 1;
   static const int _searchTabIndex = 2;
 
-  /// האם פאנל הצד פתוח, והאם הוא נעוץ (לא נסגר אוטומטית)
+  /// האם חלונית הניווט פתוחה בלחיצה (דוחקת את התוכן).
   bool _navPaneOpen = false;
   final _navPeek = NavPanelPeekController();
 

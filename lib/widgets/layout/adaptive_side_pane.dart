@@ -337,6 +337,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       _isDragging = false;
       _dragStartedInWideMode = null;
     });
+    _resolvePendingPaneExit();
   }
 
   Widget _buildResizeHandle(bool paneOnRight, bool currentlyWide) {
@@ -603,15 +604,40 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     );
   }
 
+  // גרירה, או תפריט/דיאלוג שנפתח מתוך החלונית, מוציאים ממנה את העכבר בלי
+  // שעזב אותה. היציאה נדחית עד סוף הגרירה או עד ריחוף על התוכן.
+  bool _paneExitPending = false;
+
+  bool get _routeIsCurrent => ModalRoute.of(context)?.isCurrent ?? true;
+
+  void _resolvePendingPaneExit() {
+    if (!_paneExitPending || _isDragging || !_routeIsCurrent) return;
+    _paneExitPending = false;
+    widget.onPaneHoverChanged?.call(false);
+  }
+
+  Widget _mainHoverRegion() => MouseRegion(
+    opaque: false,
+    onHover: (_) => _resolvePendingPaneExit(),
+    child: _mainContent,
+  );
+
   Widget _paneHoverRegion(Widget child) {
     final onHover = widget.onPaneHoverChanged;
     if (onHover == null) return child;
     return MouseRegion(
       opaque: false,
       hitTestBehavior: HitTestBehavior.deferToChild,
-      onEnter: (_) => onHover(true),
+      onEnter: (_) {
+        _paneExitPending = false;
+        onHover(true);
+      },
       onExit: (_) {
-        if (!_isDragging) onHover(false);
+        if (_isDragging || !_routeIsCurrent) {
+          _paneExitPending = true;
+        } else {
+          onHover(false);
+        }
       },
       child: child,
     );
@@ -638,7 +664,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ClipRect(
       child: Stack(
         children: [
-          Positioned.fill(child: _mainContent),
+          Positioned.fill(child: _mainHoverRegion()),
           IgnorePointer(
             ignoring: !widget.isOpen,
             child: Stack(
@@ -723,7 +749,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     return Stack(
       children: [
-        Positioned.fill(child: _mainContent),
+        Positioned.fill(child: _mainHoverRegion()),
         IgnorePointer(
           ignoring: !widget.isOpen,
           child: Stack(

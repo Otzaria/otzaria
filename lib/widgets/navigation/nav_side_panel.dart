@@ -18,11 +18,18 @@ class NavPanelPeekController extends ValueNotifier<bool> {
   static const Duration buttonToPaneGrace = Duration(milliseconds: 150);
 
   Timer? _timer;
+  Timer? _leftPaneRecently;
 
   void buttonHoverChanged(bool inside) {
     _timer?.cancel();
     if (inside) {
-      if (!value) _timer = Timer(openDelay, () => value = true);
+      if (value) return;
+      // חזרה מהחלונית אל הכפתור פותחת מיד, אחרת החלונית נסגרת ונפתחת שוב.
+      if (_leftPaneRecently?.isActive ?? false) {
+        value = true;
+      } else {
+        _timer = Timer(openDelay, () => value = true);
+      }
     } else if (value) {
       _timer = Timer(buttonToPaneGrace, () => value = false);
     }
@@ -30,17 +37,24 @@ class NavPanelPeekController extends ValueNotifier<bool> {
 
   void paneHoverChanged(bool inside) {
     _timer?.cancel();
-    if (!inside) value = false;
+    if (inside) return;
+    if (value) {
+      _leftPaneRecently?.cancel();
+      _leftPaneRecently = Timer(buttonToPaneGrace, () {});
+    }
+    value = false;
   }
 
   void dismiss() {
     _timer?.cancel();
+    _leftPaneRecently?.cancel();
     value = false;
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _leftPaneRecently?.cancel();
     super.dispose();
   }
 }

@@ -1098,6 +1098,51 @@ void main() {
       });
     });
 
+    group('הצמדת החלונית שהוסרה', () {
+      Future<void> loadWithPin(bool? pinned) async {
+        when(
+          mockSettingsWrapper.getValue<bool>(
+            'settings_initialized',
+            defaultValue: false,
+          ),
+        ).thenReturn(true);
+        when(
+          mockSettingsWrapper.getValue<bool?>(
+            'key-pin-sidebar',
+            defaultValue: null,
+          ),
+        ).thenReturn(pinned);
+        await repository.loadSettings();
+      }
+
+      test('מי שהצמיד מקבל פתיחה עם פתיחת ספר, והמפתח הישן נמחק', () async {
+        await loadWithPin(true);
+        verify(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyDefaultSidebarOpen,
+            true,
+          ),
+        ).called(1);
+        verify(mockSettingsWrapper.remove('key-pin-sidebar')).called(1);
+      });
+
+      test('לא מוצמד: רק מוחק את המפתח הישן', () async {
+        await loadWithPin(false);
+        verifyNever(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyDefaultSidebarOpen,
+            any,
+          ),
+        );
+        verify(mockSettingsWrapper.remove('key-pin-sidebar')).called(1);
+      });
+
+      test('בלי מפתח ישן לא נוגע בכלום', () async {
+        await loadWithPin(null);
+        verifyNever(mockSettingsWrapper.remove('key-pin-sidebar'));
+      });
+    });
+
     // "צפיפות ממשק": null ("אוטומטי") מוחק את המפתח, ובלי מפתח הצפיפות לפי
     // גודל החלון. "רגיל"/"מצומצם" נשמרים כמו קודם.
     group('updateCompactMenuMode', () {
