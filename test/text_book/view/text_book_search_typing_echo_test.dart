@@ -202,6 +202,34 @@ void main() {
       // הסנכרון שולח את השאילתה שוב; ממתינים להד שלה.
       await tester.pump(echoDelay);
     });
+
+    testWidgets(
+      'שינוי חיצוני אחרי כמה הדים שאוגדו לפריים אחד עם שאילתה חוזרת מגיע לשדה',
+      (tester) async {
+        // ההדים חוזרים רק אחרי שלוש השליחות, ולכן נבנים בפריים אחד.
+        const slowEcho = Duration(milliseconds: 600);
+        final bloc = await pumpSearchView(
+          tester,
+          existingQuery: '',
+          echoDelay: slowEcho,
+        );
+        for (final typed in ['אב', 'אבג', 'אב']) {
+          await tester.enterText(find.byType(TextField), typed);
+          await tester.pump(kSearchFieldDebounce);
+        }
+        await tester.pump(slowEcho);
+        await tester.pump();
+        expect(fieldText(tester), 'אב');
+        expect((bloc.state as TextBookLoaded).searchText, 'אב');
+
+        bloc.add(const UpdateSearchText('אבג'));
+        await tester.pump(slowEcho);
+        await tester.pump();
+        expect(fieldText(tester), 'אבג');
+
+        await tester.pump(slowEcho);
+      },
+    );
   });
 }
 
