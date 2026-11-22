@@ -56,9 +56,9 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onResume() {
+        hangMonitorChannel?.onResume()
         super.onResume()
         androidUpdateChannel?.onResume()
-        hangMonitorChannel?.onResume()
     }
 
     override fun onPause() {

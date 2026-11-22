@@ -954,6 +954,7 @@ Future<void> _initializeRestartableRuntime() async {
   unawaited(_runDeferredPortableShortcut());
   unawaited(_runDeferredCrashCheck());
   unawaited(_runDeferredAnrCheck());
+  unawaited(_runDeferredAndroidHangMonitor());
   unawaited(_runDeferredAttachedLibraries());
   unawaited(_runDeferredLibraryChangesNotes());
   unawaited(_runDeferredCapabilitiesWrite());
@@ -1140,8 +1141,20 @@ Future<void> _runDeferredCrashCheck() async {
   }
 }
 
-/// גלאי התקיעות של אנדרואיד, ותקיעה של הפעלה קודמת: ANR מ-ApplicationExitInfo
-/// של המערכת, או תקיעה שהגלאי רשם ולא השתחררה.
+Future<void> _runDeferredAndroidHangMonitor() async {
+  if (kIsWeb || !Platform.isAndroid) return;
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () {},
+    );
+    await AndroidHangMonitor().start();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Hang monitor', error, stackTrace);
+  }
+}
+
+/// ANR של הפעלה קודמת באנדרואיד, מ-ApplicationExitInfo של המערכת.
 Future<void> _runDeferredAnrCheck() async {
   if (kIsWeb || !Platform.isAndroid) return;
   try {
@@ -1151,29 +1164,20 @@ Future<void> _runDeferredAnrCheck() async {
   } on TimeoutException {
     // ממשיכים בכל זאת — אחרת ה-ANR לא ידווח כלל.
   }
-  final hangMonitor = AndroidHangMonitor();
-  try {
-    await hangMonitor.start();
-  } catch (error, stackTrace) {
-    _logNonFatalInitializationError('Hang monitor', error, stackTrace);
-  }
   try {
     if (CrashReportFlow.currentMode() == AppCrashReportMode.never) return;
     final anr = await AndroidAnrSource().takeNewAnr();
-    // נבדקת גם כשיש ANR, כדי שאותה תקיעה לא תוצע שוב בהפעלה הבאה.
-    final hang = await hangMonitor.takeUnrecoveredHang();
-    final candidate = anr == null
-        ? hang
-        : CrashCandidate.hang(
-            signature: anr.signature,
-            details: anr.details,
-            occurredInPreviousRun: true,
-          );
-    if (candidate == null) return;
+    if (anr == null) return;
     await CrashReportFlow(
       showPrompt: showCrashPromptOnNavigator,
       collector: AppReportCollector(includeCurrentContext: false),
-    ).handle(candidate);
+    ).handle(
+      CrashCandidate.hang(
+        signature: anr.signature,
+        details: anr.details,
+        occurredInPreviousRun: true,
+      ),
+    );
   } catch (error, stackTrace) {
     _logNonFatalInitializationError('ANR report check', error, stackTrace);
   }

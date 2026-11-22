@@ -237,8 +237,15 @@ class UncleanExitDetector {
     );
     final hasStall = blocks.any((b) => b.isStartupStall);
     final dump = await _minidumpSince(previous.startedAt);
+    // תקיעה שהשתחררה כבר דווחה בזמן ריצה; שלא השתחררה — התהליך נהרג תקוע.
+    bool unrecoveredHang(ErrorLogBlock hang) =>
+        hang.isAppHang &&
+        !blocks.any(
+          (b) =>
+              b.isAppHangRecovered && !b.timestamp!.isBefore(hang.timestamp!),
+        );
     final evidence = blocks
-        .where((b) => b.isCrashEvidence || _isUnrecoveredHang(b, blocks))
+        .where((b) => b.isCrashEvidence || unrecoveredHang(b))
         .toList();
     if (evidence.isEmpty && !dump.found) return null;
 
@@ -291,31 +298,6 @@ class UncleanExitDetector {
       // תיקייה לא קריאה אינה ראיה.
     }
     return abandoned;
-  }
-
-  /// תקיעה שהשתחררה כבר דווחה בזמן ריצה; שלא השתחררה — התהליך נהרג תקוע.
-  static bool _isUnrecoveredHang(
-    ErrorLogBlock hang,
-    List<ErrorLogBlock> blocks,
-  ) =>
-      hang.isAppHang &&
-      !blocks.any(
-        (b) => b.isAppHangRecovered && !b.timestamp!.isBefore(hang.timestamp!),
-      );
-
-  /// תקיעה שלא השתחררה מאז [since] ועד תחילת התהליך הנוכחי. באנדרואיד אין
-  /// נעילת הפעלה, ולכן הקורא שומר בעצמו עד היכן כבר בדק.
-  Future<CrashCandidate?> detectUnrecoveredHang({
-    required DateTime since,
-  }) async {
-    final blocks = await _errorBlocksSince(since, until: _processStartedAt);
-    final hangs = blocks.where((b) => _isUnrecoveredHang(b, blocks));
-    if (hangs.isEmpty) return null;
-    return CrashCandidate.hang(
-      signature: hangs.last.signature,
-      entries: blocks,
-      occurredInPreviousRun: true,
-    );
   }
 
   /// התקיעה האחרונה שהתהליך הנוכחי רשם, אחרי שהגלאי הנייטיב דיווח שהשתחררה.

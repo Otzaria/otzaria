@@ -2,155 +2,208 @@ package org.otzaria.otzaria
 
 import android.os.Debug
 import android.os.Handler
-import android.os.HandlerThread
 import android.os.Looper
+import android.os.Message
 import android.os.Process
 import android.os.SystemClock
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
-/**
- * המקביל של `hang_monitor.cpp`: Dart רץ על ה-thread הראשי, ולכן תקיעה שלו היא תקיעת ה-UI.
- * ANR של המערכת נרשם רק אם המשתמש נגע במסך התקוע; הגלאי רושם גם בלי מגע.
- */
-class HangMonitorChannel(messenger: BinaryMessenger) {
-    private val channel = MethodChannel(messenger, CHANNEL)
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val lock = Any()
-
-    private var logPath: String? = null
-    private var version = "unknown"
-    private var worker: HandlerThread? = null
-    private var workerHandler: Handler? = null
-    private var resumed = false
-    private var resumedAt = 0L
-    private var pingSentAt = 0L
-    private var hangStartedAt = 0L
-    private var hangReported = false
-    private var reportedHangs = 0
+internal class HangMonitorChannel(messenger: BinaryMessenger) {
+    private val channel = MethodChannel(messenger, "otzaria/hang_monitor")
+    var isStarted = false
+        private set
 
     init {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "start" -> {
-                    synchronized(lock) {
-                        logPath = call.argument<String>("logPath")
-                        version = call.argument<String>("version") ?: version
+                    val path = call.argument<String>("logPath")
+                    if (path.isNullOrEmpty()) {
+                        result.error("MISSING_LOG_PATH", null, null)
+                    } else {
+                        isStarted = true
+                        ProcessHangMonitor.start(path, call.argument<String>("version") ?: "unknown")
+                        result.success(null)
                     }
-                    updatePolling()
-                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
         }
     }
 
-    fun onResume() {
-        synchronized(lock) {
-            resumed = true
-            resumedAt = SystemClock.uptimeMillis()
-        }
-        updatePolling()
-    }
+    fun onResume() = ProcessHangMonitor.onResume(this)
 
-    fun onPause() {
-        synchronized(lock) { resumed = false }
-        updatePolling()
-    }
+    fun onPause() = ProcessHangMonitor.onPause(this)
 
     fun dispose() {
+        onPause()
+        isStarted = false
         channel.setMethodCallHandler(null)
+    }
+
+    fun reportRecovery(id: String, durationMs: Long, record: String) {
+        channel.invokeMethod(
+            "appHangRecovered",
+            mapOf("hangId" to id, "durationMs" to durationMs, "record" to record),
+        )
+    }
+}
+
+/** לכל תהליך יש לולאת UI אחת, גם כשיותר מפעילות אחת בחזית. */
+private object ProcessHangMonitor {
+    private const val POLL_INTERVAL_MS = 1000L
+    private const val HUNG_THRESHOLD_MS = 5000L
+    private const val MAX_REPORTED_HANGS = 5
+    private const val MAX_FRAMES = 48
+
+    private data class LogConfig(val path: String, val version: String)
+
+    private class Probe(val sentAt: Long) {
+        var hang: Hang? = null
+    }
+
+    private class Hang(
+        val id: String,
+        val log: LogConfig,
+        val detectedAt: Long,
+        val unansweredMs: Long,
+        val resumedForMs: Long,
+    ) {
+        var record: String? = null // נגיש רק ב-worker.
+    }
+
+    private val lock = Any()
+    private val resumed = linkedSetOf<HangMonitorChannel>()
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val worker by lazy {
+        ScheduledThreadPoolExecutor(1) { task ->
+            Thread(task, "otzaria-hang-monitor").apply { isDaemon = true }
+        }.apply { removeOnCancelPolicy = true }
+    }
+
+    private var log: LogConfig? = null
+    private var polling: ScheduledFuture<*>? = null
+    private var generation = 0L
+    private var resumedAt = 0L
+    private var pending: Probe? = null
+    private var reportedHangs = 0
+
+    fun start(path: String, version: String) {
         synchronized(lock) {
-            resumed = false
-            logPath = null
+            log = LogConfig(path, version)
+            startPolling()
         }
-        updatePolling()
     }
 
-    private fun updatePolling() {
+    fun onResume(channel: HangMonitorChannel) {
         synchronized(lock) {
-            val shouldRun = resumed && logPath != null
-            if (shouldRun && worker == null) {
-                val thread = HandlerThread("otzaria-hang-monitor").apply { start() }
-                worker = thread
-                workerHandler = Handler(thread.looper).also { it.postDelayed(poll, POLL_INTERVAL_MS) }
-            } else if (!shouldRun && worker != null) {
-                workerHandler?.removeCallbacksAndMessages(null)
-                worker?.quitSafely()
-                worker = null
-                workerHandler = null
-                // בדיקה שעוד לא נענתה שייכת לתקופה שבחזית; ברקע אין מה למדוד.
-                pingSentAt = 0L
-            }
+            if (resumed.isEmpty()) resumedAt = SystemClock.uptimeMillis()
+            resumed.add(channel)
+            startPolling()
         }
     }
 
-    private val poll = object : Runnable {
-        override fun run() {
-            check()
-            synchronized(lock) {
-                // worker שהוחלף בזמן הבדיקה כבר מתזמן את עצמו; אחרת היו שתי שרשראות.
-                if (Looper.myLooper() == worker?.looper) workerHandler?.postDelayed(this, POLL_INTERVAL_MS)
-            }
+    fun onPause(channel: HangMonitorChannel) {
+        synchronized(lock) {
+            if (!resumed.remove(channel) || resumed.isNotEmpty()) return
+            generation++
+            polling?.cancel(false)
+            polling = null
+            // עצם הכניסה ל-onPause מעידה שהלולאה חזרה לענות.
+            pending?.let { finishProbe(it, notifyGeneration = null) }
+            pending = null
         }
     }
 
-    private fun check() {
+    private fun startPolling() {
+        if (resumed.isEmpty() || log == null || polling != null) return
+        val expectedGeneration = generation
+        polling = worker.scheduleWithFixedDelay(
+            { check(expectedGeneration) },
+            0L,
+            POLL_INTERVAL_MS,
+            TimeUnit.MILLISECONDS,
+        )
+    }
+
+    private fun check(expectedGeneration: Long) {
+        val handler = mainHandler
         val now = SystemClock.uptimeMillis()
-        synchronized(lock) {
-            if (pingSentAt == 0L) {
-                pingSentAt = now
-                mainHandler.post(pong)
+        val debugger = Debug.isDebuggerConnected()
+        val hang = synchronized(lock) {
+            if (expectedGeneration != generation) return
+            val config = log ?: return
+            val probe = pending
+            if (probe == null) {
+                val next = Probe(now)
+                pending = next
+                // מחסום סנכרון של הציור אינו מעיד שהלולאה עצמה תקועה.
+                Message.obtain(handler) { answer(next) }.apply { isAsynchronous = true }.sendToTarget()
                 return
             }
-            val waited = now - pingSentAt
-            if (hangStartedAt != 0L || waited < HUNG_THRESHOLD_MS) return
-            // מחובר debugger: עצירה בנקודת עצירה אינה תקיעה.
-            if (Debug.isDebuggerConnected()) return
-            hangStartedAt = pingSentAt
-            hangReported = reportedHangs < MAX_REPORTED_HANGS && logPath != null
-            if (!hangReported) return
-            reportedHangs++
-            // בתוך ה-lock: ה-pong לא יכתוב את השחרור לפני רשומת התקיעה.
-            append(logPath ?: return, hangRecord(waited, pingSentAt - resumedAt))
+            val waited = now - probe.sentAt
+            if (probe.hang != null || waited < HUNG_THRESHOLD_MS || debugger ||
+                reportedHangs >= MAX_REPORTED_HANGS
+            ) return
+
+            val id = "${Process.myPid()}-${Process.getStartUptimeMillis()}-${++reportedHangs}"
+            Hang(id, config, now, waited, probe.sentAt - resumedAt).also { probe.hang = it }
         }
+
+        val record = hangRecord(hang)
+        if (append(hang.log.path, record)) hang.record = record
     }
 
-    private val pong = Runnable {
-        val path: String
-        val durationMs: Long
+    private fun answer(probe: Probe) {
         synchronized(lock) {
-            val started = hangStartedAt
-            pingSentAt = 0L
-            if (started == 0L) return@Runnable
-            hangStartedAt = 0L
-            if (!hangReported) return@Runnable
-            path = logPath ?: return@Runnable
-            durationMs = SystemClock.uptimeMillis() - started
+            if (probe !== pending) return
+            pending = null
+            finishProbe(probe, generation)
         }
-        append(path, "\n=== App hang recovered ${utcTimestamp()} ===\nDuration: ${durationMs}ms\n")
-        channel.invokeMethod("appHangRecovered", mapOf("durationMs" to durationMs))
     }
 
-    private fun hangRecord(waitedMs: Long, sinceResumeMs: Long): String {
-        val sinceLaunch = SystemClock.uptimeMillis() - Process.getStartUptimeMillis()
+    private fun finishProbe(probe: Probe, notifyGeneration: Long?) {
+        val hang = probe.hang ?: return
+        val durationMs = SystemClock.uptimeMillis() - probe.sentAt
+        val recoveredAt = System.currentTimeMillis()
+        // אותו תור שומר על סדר הכתיבה של התקיעה ושל ההתאוששות.
+        worker.execute {
+            val record = hang.record ?: return@execute
+            val recovery = "\n=== App hang recovered ${utcTimestamp(recoveredAt)} ===\n" +
+                "Hang ID: ${hang.id}\nDuration: ${durationMs}ms\n"
+            if (!append(hang.log.path, recovery) || notifyGeneration == null) return@execute
+            mainHandler.post {
+                val recipient = synchronized(lock) {
+                    if (notifyGeneration == generation) resumed.lastOrNull { it.isStarted } else null
+                }
+                recipient?.reportRecovery(hang.id, durationMs, record)
+            }
+        }
+    }
+
+    private fun hangRecord(hang: Hang): String {
+        val sinceLaunch = hang.detectedAt - Process.getStartUptimeMillis()
         val stack = Looper.getMainLooper().thread.stackTrace
         return buildString {
-            append("\n=== App hang ${utcTimestamp()} ===\n")
-            append("Version: $version\n")
-            // בלי מספרים בשורה: ממנה נגזר סוג החתימה (AppHang).
+            append("\n=== App hang ${utcTimestamp(System.currentTimeMillis())} ===\n")
+            append("Version: ${hang.log.version}\n")
             append("Message: AppHang: UI thread not responding\n")
+            append("Hang ID: ${hang.id}\n")
             append("Detected: ${sinceLaunch}ms after launch\n")
-            append("Unanswered: ${waitedMs}ms\n")
-            append("Resumed: ${sinceResumeMs}ms before the hang\n")
-            // Dart והמנוע רצים מתוך callback של ה-looper, ולכן אין להם פריימי Java.
+            append("Unanswered: ${hang.unansweredMs}ms\n")
+            append("Resumed: ${hang.resumedForMs}ms before the probe\n")
             if (stack.firstOrNull()?.methodName == "nativePollOnce") {
-                append("Main thread: inside a native looper callback (Dart or engine)\n")
+                append("Main thread: native looper boundary (Dart and engine frames unavailable)\n")
             }
             append("Stack:\n")
             stack.take(MAX_FRAMES).forEach { append("  at ").append(it).append('\n') }
@@ -158,24 +211,18 @@ class HangMonitorChannel(messenger: BinaryMessenger) {
         }
     }
 
-    private fun append(path: String, text: String) {
+    private fun append(path: String, text: String): Boolean =
         try {
             File(path).apply { parentFile?.mkdirs() }.appendText(text)
-        } catch (_: Exception) {
-            // לוג לא נגיש אינו סיבה להפיל את האפליקציה.
+            true
+        } catch (_: IOException) {
+            false
+        } catch (_: SecurityException) {
+            false
         }
-    }
 
-    private fun utcTimestamp(): String =
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+    private fun utcTimestamp(at: Long): String =
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
             .apply { timeZone = TimeZone.getTimeZone("UTC") }
-            .format(Date())
-
-    companion object {
-        private const val CHANNEL = "otzaria/hang_monitor"
-        private const val POLL_INTERVAL_MS = 1000L
-        private const val HUNG_THRESHOLD_MS = 5000L
-        private const val MAX_REPORTED_HANGS = 5
-        private const val MAX_FRAMES = 48
-    }
+            .format(Date(at))
 }
