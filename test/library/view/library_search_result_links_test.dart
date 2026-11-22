@@ -294,6 +294,46 @@ void main() {
         expect(libraryBloc.state.currentCategory, same(data.tur));
       });
 
+      testWidgets('Tab מהשורה מגיע לקישורי המחבר והקטגוריה, ו-Enter מפעיל', (
+        tester,
+      ) async {
+        final data = await pump(tester);
+        bool focusedOn(String text) =>
+            FocusManager.instance.primaryFocus ==
+            Focus.of(tester.element(link('בית יוסף', text)));
+
+        Focus.of(tester.element(find.text('בית יוסף'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(focusedOn('רבי יוסף קארו'), isTrue);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(focusedOn('הלכה'), isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(focusedOn('טור'), isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await settle(tester);
+        expect(libraryBloc.state.currentCategory, same(data.tur));
+      });
+
+      testWidgets('Enter על קישור המחבר שהגיעו אליו במקלדת מציג את ספריו', (
+        tester,
+      ) async {
+        await pump(tester);
+
+        Focus.of(tester.element(find.text('בית יוסף'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await settle(tester);
+
+        expect(libraryBloc.state.authorFilter, 'רבי יוסף קארו');
+      });
+
       testWidgets('לחיצה על השורה עצמה עדיין בוחרת את הספר', (tester) async {
         final data = await pump(tester);
 
