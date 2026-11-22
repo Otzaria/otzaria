@@ -3770,8 +3770,7 @@ class _BookPointerActivationState extends State<_BookPointerActivation> {
 }
 
 /// קישורים בשורת ספר (מחבר, תיקיות הנתיב): לחיצה, Enter או רווח מפעילים
-/// אותם ולא את השורה. מחוץ למסלול הפוקוס, כמו תפריט השורה — חיצים ו-Tab
-/// עוצרים רק על השורות.
+/// אותם ולא את השורה. Tab מהשורה מגיע אליהם — זו הדרך היחידה אליהם במקלדת.
 class _RowLinks extends StatelessWidget {
   const _RowLinks({
     required this.links,
@@ -3817,8 +3816,6 @@ class _RowLinks extends StatelessWidget {
         ),
       );
     }
-    return ExcludeFocusTraversal(
-      child: Row(mainAxisSize: MainAxisSize.min, children: children),
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
   }
 }
