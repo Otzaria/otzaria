@@ -26,6 +26,8 @@ class _Controller extends Fake implements PdfViewerController {
   @override
   Rect visibleRect = const Rect.fromLTWH(0, 0, 100, 100);
   @override
+  double currentZoom = 1;
+  @override
   final layout = PdfPageLayout(
     pageLayouts: const [
       Rect.fromLTWH(0, 0, 100, 100),
@@ -36,6 +38,28 @@ class _Controller extends Fake implements PdfViewerController {
 }
 
 void main() {
+  test(
+    'a ready target at the old zoom cannot count as a zoom sample',
+    () async {
+      final controller = _Controller();
+      await expectLater(
+        waitForPdfFinalImage(
+          controller,
+          pageNumber: 1,
+          nextFrame: () async {},
+          expectedZoom: 1.5,
+        ),
+        throwsStateError,
+      );
+      await waitForPdfFinalImage(
+        controller,
+        pageNumber: 1,
+        nextFrame: () async => controller.currentZoom = 1.5,
+        expectedZoom: 1.5,
+      );
+    },
+  );
+
   test(
     'ready from the old viewport cannot finish before the new frame',
     () async {
