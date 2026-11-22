@@ -230,8 +230,9 @@ void main() {
       expect(format('separate_line_before'), 'שבת ד, ג\nטקסט');
     });
 
-    test('בלי נתיב נופל לשם הספר ולא מדביק סוגריים ריקים', () {
-      expect(format('same_line_after_brackets', path: ''), 'טקסט (רשב"א)');
+    test('בלי נתיב מעתיק את הטקסט בלבד: בלי שם הספר ובלי סוגריים ריקים', () {
+      expect(format('same_line_after_brackets', path: ''), 'טקסט');
+      expect(format('separate_line_before', path: ''), 'טקסט');
     });
   });
 }
