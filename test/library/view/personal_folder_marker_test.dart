@@ -526,6 +526,39 @@ void main() {
         );
 
         testWidgets(
+          'התפריט והאישור מציינים את תיקיית המקור ואת הקטגוריות האחיות שיוסרו, '
+          'גם כשלקטגוריה ולתיקייה אותו שם',
+          (tester) async {
+            // "/home/me/הורדות" ממוזגת: "הורדות" ו"שבת" הן תתי-התיקיות שלה.
+            final same = _category(
+              'הורדות',
+              books: [fileBook('א', '/home/me/הורדות/הורדות/א.txt')],
+            );
+            final sibling = _category(
+              'שבת',
+              books: [fileBook('ב', '/home/me/הורדות/שבת/ב.txt')],
+            );
+            _library([same, sibling]);
+            final downloads = _folder('/home/me/הורדות');
+            final harness = _FoldersHarness([downloads]);
+            await _pumpGridItem(tester, same, bloc: harness.bloc);
+
+            await tester.tap(find.byTooltip('אפשרויות נוספות'));
+            await tester.pumpAndSettle();
+            final action = find.text('מחק את התיקייה "הורדות" מהספרייה');
+            expect(action, findsOneWidget);
+            await tester.tap(action);
+            await tester.pumpAndSettle();
+
+            expect(find.textContaining('/home/me/הורדות'), findsOneWidget);
+            expect(find.textContaining('"שבת"'), findsOneWidget);
+            await tester.tap(find.text('ביטול'));
+            await tester.pumpAndSettle();
+            expect(harness.deletedFromDb, isEmpty);
+          },
+        );
+
+        testWidgets(
           'אין הסרה לקטגוריה בשורש שאין לה תיקייה מוגדרת אחת בדיוק',
           (tester) async {
             final twoFolders = _category(
