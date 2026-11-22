@@ -1736,6 +1736,210 @@ Future<void> main() async {
     expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
   });
 
+  group(
+    'קביעת מצב ברירת מחדל שומרת גם את האפשרויות הנוכחיות (issue #5185)',
+    () {
+      late SearchingTab tab;
+
+      Future<void> pumpWithTab(WidgetTester tester, SearchMode mode) async {
+        final historyBloc = MockHistoryBloc();
+        final indexingBloc = MockIndexingBloc();
+        final navigationBloc = MockNavigationBloc();
+        whenListen(
+          historyBloc,
+          const Stream<HistoryState>.empty(),
+          initialState: HistoryLoaded([]),
+        );
+        whenListen(
+          indexingBloc,
+          const Stream<IndexingState>.empty(),
+          initialState: IndexingInitial(),
+        );
+        whenListen(
+          navigationBloc,
+          const Stream<NavigationState>.empty(),
+          initialState: const NavigationState(currentScreen: Screen.search),
+        );
+        tab = SearchingTab.newSearch('חיפוש', '', mode: mode);
+        addTearDown(() async {
+          await tester.binding.setSurfaceSize(null);
+          // השמירה מעדכנת גם את הסשן — בלי איפוס היא מזליגה לטסטים הבאים.
+          SearchDefaults.rememberSessionMode(SearchMode.exact);
+          SearchDefaults.rememberSessionExactOptions(const {});
+          SearchDefaults.rememberSessionOptions(const {});
+          SearchDefaults.rememberSessionDistance(0);
+          SearchDefaults.rememberSessionAnyOrder(false);
+          SearchDefaults.rememberSessionMatchPolicy(SearchMatchPolicy.standard);
+          tab.dispose();
+          await historyBloc.close();
+          await indexingBloc.close();
+          await navigationBloc.close();
+        });
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.pumpWidget(
+          _buildDialogHarness(
+            theme: ThemeData(useMaterial3: true),
+            historyBloc: historyBloc,
+            indexingBloc: indexingBloc,
+            navigationBloc: navigationBloc,
+            dialog: SearchDialog(existingTab: tab),
+          ),
+        );
+        await tester.pumpAndSettle();
+        // מה שהמשתמש סימן בחלונית: קידומות וסיומות, מרווח 5, בכל סדר.
+        tab.globalSearchOptions
+          ..clear()
+          ..addAll({'קידומות דקדוקיות': true, 'סיומות דקדוקיות': true});
+        tab.searchBloc
+          ..add(UpdateDistanceWithoutSearch(5))
+          ..add(UpdateWordOrderWithoutSearch(true));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> openDefaultMode(WidgetTester tester) async {
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-defaults-menu')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-default-mode')),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      final includeOptions = find.text('כולל האפשרויות הנוכחיות');
+
+      testWidgets('חיפוש רגיל: אישור שומר את המצב, האפשרויות, המרווח והסדר', (
+        tester,
+      ) async {
+        await pumpWithTab(tester, SearchMode.exact);
+        await openDefaultMode(tester);
+        expect(includeOptions, findsOneWidget);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
+        expect(SearchDefaults.loadExactDefaults(), {
+          'קידומות דקדוקיות': true,
+          'סיומות דקדוקיות': true,
+        });
+        expect(SearchDefaults.loadDistanceDefault(), 5);
+        expect(SearchDefaults.loadAnyOrderDefault(), isTrue);
+      });
+
+      testWidgets('חיפוש מתקדם: נשמר גם טווח הקרבה', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        tab.searchBloc.add(
+          UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+        );
+        await tester.pumpAndSettle();
+        await openDefaultMode(tester);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
+        expect(SearchDefaults.loadDefaults(), {
+          'קידומות דקדוקיות': true,
+          'סיומות דקדוקיות': true,
+        });
+        expect(SearchDefaults.loadDistanceDefault(), 5);
+        expect(
+          SearchDefaults.loadMatchPolicyDefault().proximityScope,
+          SearchScope.sameParagraph,
+        );
+      });
+
+      testWidgets('מתקדם פר-מילה: ברירת המחדל של האפשרויות אינה נדרסת', (
+        tester,
+      ) async {
+        SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+        await pumpWithTab(tester, SearchMode.advanced);
+        // "זהה לכל המילים" כבוי (כמו אחרי שחזור מההיסטוריה): המפה הגלובלית
+        // אינה מה שמוצג בחלונית.
+        tab.useGlobalSearchOptions.value = false;
+        tab.globalSearchOptions.clear();
+        await openDefaultMode(tester);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadDefaults(), {'קידומות דקדוקיות': true});
+        expect(SearchDefaults.loadDistanceDefault(), 5);
+      });
+
+      testWidgets(
+        'מתקדם פר-מילה: האישור אינו מבטיח את האפשרויות שאינן נשמרות',
+        (
+          tester,
+        ) async {
+          SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+          await pumpWithTab(tester, SearchMode.advanced);
+          tab.useGlobalSearchOptions.value = false;
+          tab.globalSearchOptions.clear();
+          tab.searchBloc.add(
+            UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+          );
+          await tester.pumpAndSettle();
+          await openDefaultMode(tester);
+
+          expect(includeOptions, findsNothing);
+          expect(find.text('כולל המרווח וסדר המילים הנוכחיים'), findsOneWidget);
+          await tester.tap(find.text('קבע כברירת מחדל'));
+          await tester.pumpAndSettle();
+
+          // חיפוש חדש: האפשרויות הן ברירת המחדל הקודמת, המרווח והסדר מהחלונית.
+          final next = SearchingTab.newSearch('חיפוש', '');
+          addTearDown(next.dispose);
+          expect(
+            next.searchBloc.state.configuration.searchMode,
+            SearchMode.advanced,
+          );
+          expect(next.globalSearchOptions, {'קידומות דקדוקיות': true});
+          expect(next.searchBloc.state.distance, 5);
+          expect(next.searchBloc.state.anyOrder, isTrue);
+          expect(
+            next.searchBloc.state.configuration.matchPolicy.proximityScope,
+            SearchScope.wordDistance,
+          );
+        },
+      );
+
+      testWidgets('בלי הסימון נשמר המצב בלבד', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        await openDefaultMode(tester);
+        await tester.tap(includeOptions);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
+        expect(SearchDefaults.loadDefaults(), isEmpty);
+        expect(SearchDefaults.loadDistanceDefault(), 0);
+        expect(SearchDefaults.loadAnyOrderDefault(), isFalse);
+      });
+
+      testWidgets('ביטול אינו שומר דבר', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        await openDefaultMode(tester);
+        await tester.tap(find.text('ביטול'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
+        expect(SearchDefaults.loadDefaults(), isEmpty);
+        expect(SearchDefaults.loadDistanceDefault(), 0);
+      });
+
+      testWidgets('במקורב אין אפשרויות מילה — אין סימון', (tester) async {
+        await pumpWithTab(tester, SearchMode.fuzzy);
+        await openDefaultMode(tester);
+        expect(includeOptions, findsNothing);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+        expect(SearchDefaults.loadModeDefault(), SearchMode.fuzzy);
+        expect(SearchDefaults.loadDistanceDefault(), 0);
+      });
+    },
+  );
+
   testWidgets('תפריט ברירות המחדל של המתקדם שומר ומחזיר את המרווח (#2360)', (
     WidgetTester tester,
   ) async {

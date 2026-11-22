@@ -1202,6 +1202,8 @@
   "קביעת מצב ברירת המחדל": "Set the default mode",
   "כל חיפוש חדש ייפתח מעכשיו במצב \"{mode}\". ניתן לשנות זאת שוב בכל עת.": "Every new search will now open in \"{mode}\" mode. You can change this again at any time.",
   "קבע כברירת מחדל": "Set as default",
+  "כולל האפשרויות הנוכחיות": "Including the current options",
+  "כולל המרווח וסדר המילים הנוכחיים": "Including the current spacing and word order",
   "קביעת ברירת מחדל לחיפוש מתקדם": "Set defaults for advanced search",
   "ברירות מחדל לחיפוש": "Search defaults",
   "חזרה לברירת מחדל": "Restore default",

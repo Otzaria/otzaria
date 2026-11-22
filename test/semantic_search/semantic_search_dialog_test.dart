@@ -1149,6 +1149,29 @@ void main() {
     });
   });
 
+  testWidgets(
+    'קביעת המצב החכם כברירת מחדל — בלי סימון אפשרויות (issue #5185)',
+    (tester) async {
+      addTearDown(() => SearchDefaults.rememberSessionSemantic(false));
+      await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-defaults-menu')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-default-mode')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('כולל האפשרויות הנוכחיות'), findsNothing);
+      await tester.tap(find.text('קבע כברירת מחדל'));
+      await tester.pumpAndSettle();
+      expect(SearchDefaults.loadSemanticDefault(), isTrue);
+      expect(SearchDefaults.loadDistanceDefault(), 0);
+    },
+  );
+
   testWidgets('בשדה החיפוש החכם יש ניקוי והיסטוריה', (tester) async {
     await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
     await tester.tap(_semanticSegment);

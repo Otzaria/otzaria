@@ -576,17 +576,50 @@ class _SearchDialogState extends State<SearchDialog> {
 
   /// קביעת מצב החיפוש הנוכחי כמצב שבו ייפתח כל חיפוש חדש. הפריט בתפריט
   /// נלחץ בטעות, ולכן השמירה עוברת דרך אישור. [mode] הוא null במצב החכם.
+  /// במצב הרגיל והמתקדם האישור שומר כברירת מחדל גם את האפשרויות שבחלונית,
+  /// אלא אם המשתמש ביטל את הסימון (issue #5185).
   Future<void> _confirmSetModeAsDefault(SearchMode? mode) async {
     final modeLabel = context.settingsText(
       mode?.shortLabel ?? kSemanticSearchModeLabel,
     );
+    final message = context.settingsText(
+      'כל חיפוש חדש ייפתח מעכשיו במצב "{mode}". ניתן לשנות זאת שוב בכל עת.',
+      args: {'mode': modeLabel},
+    );
+    var withOptions = mode == SearchMode.exact || mode == SearchMode.advanced;
+    // פר-מילה ("זהה לכל המילים" כבוי) המפה הגלובלית אינה המוצג בחלונית,
+    // ולכן נשמרים רק המרווח וסדר המילים.
+    final perWord =
+        mode == SearchMode.advanced && !_searchTab.useGlobalSearchOptions.value;
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('קביעת מצב ברירת המחדל'),
-      content: context.settingsText(
-        'כל חיפוש חדש ייפתח מעכשיו במצב "{mode}". ניתן לשנות זאת שוב בכל עת.',
-        args: {'mode': modeLabel},
-      ),
+      content: withOptions ? null : message,
+      customContent: withOptions
+          ? StatefulBuilder(
+              builder: (context, setDialogState) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(message),
+                  CheckboxListTile(
+                    value: withOptions,
+                    onChanged: (value) =>
+                        setDialogState(() => withOptions = value ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      context.settingsText(
+                        perWord
+                            ? 'כולל המרווח וסדר המילים הנוכחיים'
+                            : 'כולל האפשרויות הנוכחיות',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : null,
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('קבע כברירת מחדל'),
     );
@@ -596,7 +629,25 @@ class _SearchDialogState extends State<SearchDialog> {
     } else {
       SearchDefaults.saveModeDefault(mode);
     }
-    UiSnack.show(LibraryMessages.searchModeSetAsDefault(modeLabel));
+    if (withOptions) {
+      final state = _searchTab.searchBloc.state;
+      final options = Map.of(_searchTab.globalSearchOptions);
+      if (mode == SearchMode.exact) {
+        SearchDefaults.saveExactDefaults(options);
+      } else if (!perWord) {
+        SearchDefaults.saveDefaults(options);
+        SearchDefaults.saveMatchPolicyDefault(state.configuration.matchPolicy);
+      }
+      SearchDefaults.saveDistanceDefault(state.distance);
+      SearchDefaults.saveAnyOrderDefault(state.anyOrder);
+    }
+    UiSnack.show(
+      !withOptions
+          ? LibraryMessages.searchModeSetAsDefault(modeLabel)
+          : perWord
+          ? LibraryMessages.searchModeAndSpacingSetAsDefault(modeLabel)
+          : LibraryMessages.searchModeAndOptionsSetAsDefault(modeLabel),
+    );
   }
 
   /// תפריט ברירות המחדל של המצב הנוכחי — פעולה נדירה, ולכן בתפריט
