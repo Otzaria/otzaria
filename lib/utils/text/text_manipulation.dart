@@ -1308,9 +1308,12 @@ String _highlightTextOutsideTags(String text, String style) {
     if (tagStart < 0) break;
     final tagEnd = text.indexOf('>', tagStart + 1);
     if (tagEnd < 0) break;
+    // ציון מפרש מוזרק נשאר כמות שהוא — הדגשה בתוכו צובעת את האות שלו.
+    final anchorEnd = _linkAnchorElementEnd(text, tagStart);
+    final end = anchorEnd == -1 ? tagEnd + 1 : anchorEnd;
     writeText(text.substring(position, tagStart));
-    result.write(text.substring(tagStart, tagEnd + 1));
-    position = tagEnd + 1;
+    result.write(text.substring(tagStart, end));
+    position = end;
   }
   writeText(text.substring(position));
   return result.toString();
@@ -1382,6 +1385,8 @@ List<_HighlightMatch> _findHighlightMatches(
   bool isSearchResultLine = false,
   bool isFuzzy = false,
 }) {
+  // אות ציון המפרש אינה חלק מהמקור: בלי הסתרתה ציטוט/חיפוש שחוצה אותה לא נמצא.
+  data = _maskLinkAnchors(data);
   final userRegex = compiled.userRegex;
   if (userRegex != null) {
     return userRegex
@@ -1574,8 +1579,8 @@ List<_HighlightMatch> _crossLineMatches(
   final matcher = compiled.matcher;
   final userRegex = compiled.userRegexCrossesLines ? compiled.userRegex : null;
   if (matcher == null && userRegex == null) return const [];
-  final left = lineFirst ? line : neighbour;
-  final right = lineFirst ? neighbour : line;
+  final left = _maskLinkAnchors(lineFirst ? line : neighbour);
+  final right = _maskLinkAnchors(lineFirst ? neighbour : line);
   final leftEnd = crossLineContentRange(left).end;
   final rightStart = crossLineContentRange(right).start;
   final joined = '${left.substring(0, leftEnd)} ${right.substring(rightStart)}';
@@ -2183,6 +2188,26 @@ final RegExp _linkAnchorClasses = RegExp(
   r'''(?:^|\s)class\s*=\s*(["'])(.*?)\1''',
   caseSensitive: false,
 );
+
+/// מחליף כל ציון מפרש מוזרק (`link-anchor`) בתג ריק באותו אורך: המתאם מדלג על
+/// תגים, והאופסטים נשארים תקפים לשורה המקורית.
+String _maskLinkAnchors(String text) {
+  if (!text.contains('link-anchor')) return text;
+  final result = StringBuffer();
+  var written = 0;
+  for (var i = text.indexOf('<'); i != -1; i = text.indexOf('<', i + 1)) {
+    final end = _linkAnchorElementEnd(text, i);
+    if (end == -1) continue;
+    result
+      ..write(text.substring(written, i))
+      ..write('<a${'x' * (end - i - 3)}>');
+    written = end;
+    i = end - 1;
+  }
+  if (written == 0) return text;
+  result.write(text.substring(written));
+  return result.toString();
+}
 
 int _linkAnchorElementEnd(String text, int start) {
   final tagEnd = _htmlTagEnd(text, start);
