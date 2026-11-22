@@ -23,11 +23,28 @@ class PdfSearchResultList<T extends Object> extends ListBase<T> {
       _generation = generation;
     }
     if (identical(_matches, matches)) return;
-    final previous = {for (final page in _pages) page.number: page};
-    final pages = <_PageBatch>[];
-    final pageEnds = <int>[];
-    final groupEnds = <int>[];
-    for (var start = 0; start < matches.length;) {
+    // pdfrx שומר את זהות ההתאמות שכבר פורסמו; הוספה לפני האחרונה מזיזה אותה.
+    final oldLength = _matches.length;
+    final append =
+        oldLength > 0 &&
+        matches.length >= oldLength &&
+        identical(_matches[0], matches[0]) &&
+        identical(_matches[oldLength - 1], matches[oldLength - 1]);
+    final previous = append
+        ? const <int, _PageBatch>{}
+        : {for (final page in _pages) page.number: page};
+    final pages = append ? _pages : <_PageBatch>[];
+    final pageEnds = append ? _pageEnds : <int>[];
+    final groupEnds = append ? _groupEnds : <int>[];
+    var start = append ? oldLength : 0;
+    if (append &&
+        start < matches.length &&
+        matches[start].pageNumber == pages.last.number) {
+      start -= pages.removeLast().count;
+      pageEnds.removeLast();
+      groupEnds.removeLast();
+    }
+    while (start < matches.length) {
       final first = matches[start];
       final cached = previous[first.pageNumber];
       var end = start + (cached?.count ?? 0);
@@ -134,6 +151,7 @@ class PdfSearchResultList<T extends Object> extends ListBase<T> {
   static int _pageEnd(List<PdfTextSearchResult> matches, int start) {
     final page = matches[start].pageNumber;
     var low = start + 1;
+    if (low == matches.length || matches[low].pageNumber != page) return low;
     var high = matches.length;
     while (low < high) {
       final mid = (low + high) ~/ 2;
