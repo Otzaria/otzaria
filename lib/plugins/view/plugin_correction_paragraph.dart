@@ -55,7 +55,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   static _PluginCorrectionParagraphState? _active;
   Timer? _tapTimer;
   Offset? _lastTapUp;
-  Offset? _downAt;
+  PointerDownEvent? _tapDown;
 
   /// השורה שנלחצה כבר גלויה, ולכן מיד אחרי הפעלה בעכבר השדה אינו גולל את
   /// עצמו כדי לחשוף את הסמן, והדף אינו זז מתחת לעכבר.
@@ -127,6 +127,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _cancelTimers() {
+    _tapDown = null;
     _clearTap();
     _revealTimer?.cancel();
     _revealTimer = null;
@@ -160,24 +161,35 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _editorPointerDown(PointerDownEvent event) {
-    _downAt = null;
-    if (_corrected || event.buttons != kPrimaryButton) return;
-    final last = _lastTapUp;
-    if (_tapTimer?.isActive == true &&
-        last != null &&
-        (event.position - last).distance <= kDoubleTapSlop) {
-      _stopEditing(refocusReader: true);
-      return;
+    _tapDown = !_corrected && event.buttons == kPrimaryButton ? event : null;
+  }
+
+  void _editorPointerMove(PointerMoveEvent event) {
+    final down = _tapDown;
+    if (down != null &&
+        event.pointer == down.pointer &&
+        (event.position - down.position).distance > kTouchSlop) {
+      _tapDown = null;
+      _clearTap();
     }
-    _downAt = event.position;
   }
 
   void _editorPointerUp(PointerUpEvent event) {
-    final down = _downAt;
-    _downAt = null;
+    final down = _tapDown;
+    _tapDown = null;
+    final last = _lastTapUp;
     _clearTap();
-    // גרירה (סימון טקסט) אינה לחיצה.
-    if (down == null || (event.position - down).distance > kTouchSlop) return;
+    if (_corrected ||
+        down == null ||
+        event.pointer != down.pointer ||
+        (event.position - down.position).distance > kTouchSlop ||
+        event.timeStamp - down.timeStamp >= kLongPressTimeout) {
+      return;
+    }
+    if (last != null && (down.position - last).distance <= kDoubleTapSlop) {
+      _stopEditing(refocusReader: true);
+      return;
+    }
     _lastTapUp = event.position;
     _tapTimer = Timer(kDoubleTapTimeout, _clearTap);
   }
@@ -458,8 +470,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
           ),
           child: Listener(
             onPointerDown: _editorPointerDown,
+            onPointerMove: _editorPointerMove,
             onPointerUp: _editorPointerUp,
-            onPointerCancel: (_) => _downAt = null,
+            onPointerCancel: (_) {
+              _tapDown = null;
+              _clearTap();
+            },
             child: _CaretRoom(
               suppressReveal: () => _suppressReveal,
               child: _buildEditor(),
