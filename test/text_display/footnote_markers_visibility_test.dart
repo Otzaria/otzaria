@@ -60,6 +60,14 @@ void main() {
       );
     });
 
+    test('הסרת הסמן אינה מחברת מילים, בשני כיווני הריווח', () {
+      String strip(String line) => removeFootnoteMarkers(line);
+      expect(strip('אב <sup class="footnote-marker">א</sup>גד'), 'אב גד');
+      expect(strip('אב<sup class="footnote-marker">א</sup> גד'), 'אב גד');
+      expect(strip('אב <sup class="footnote-marker">א</sup> גד'), 'אב גד');
+      expect(strip('אב <sup class="footnote-marker">א</sup>'), 'אב');
+    });
+
     test('טלאי: JSON, מיזוג, ירושה וקיצור דינמי', () {
       const patch = TextDisplayPatch(footnoteMarkers: MarkVisibility.hide);
       expect(patch.isEmpty, isFalse);
