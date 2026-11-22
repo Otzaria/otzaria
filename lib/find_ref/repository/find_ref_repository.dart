@@ -3973,6 +3973,7 @@ class FindRefRepository {
     // את מפתח-הרלוונטיות של התוצאה האחרונה שבחיתוך — כך שתוצאות שווֹת-רלוונטיות
     // מוצגות יחד. הרשימה נעצרת רק כשמגיעים לתוצאה *פחות* רלוונטית.
     if (decorated.length <= _baseResultCap) {
+      if (personal == null) return decorated.map((d) => d.item).toList();
       return _rankedItems(
         decorated,
         [for (var i = 0; i < decorated.length; i++) i],
@@ -3994,7 +3995,6 @@ class FindRefRepository {
       end = _maxResultCap;
     }
 
-    final capped = [for (var i = 0; i < end; i++) decorated[i]];
     final kept = [for (var i = 0; i < end; i++) i];
 
     // issue #839: התאמות תת-מחרוזת מדורגות אחרי כל התאמות-התחילית, וחיתוך
@@ -4002,14 +4002,16 @@ class FindRefRepository {
     if (preserveSubstringTail && end < decorated.length) {
       var quota =
           _substringTailQuota -
-          capped.where((d) => d.isSubstringMatch(query.text)).length;
+          decorated
+              .take(end)
+              .where((d) => d.isSubstringMatch(query.text))
+              .length;
       for (
         var i = end;
-        i < decorated.length && quota > 0 && capped.length < _maxResultCap;
+        i < decorated.length && quota > 0 && kept.length < _maxResultCap;
         i++
       ) {
         if (decorated[i].isSubstringMatch(query.text)) {
-          capped.add(decorated[i]);
           kept.add(i);
           quota--;
         }

@@ -15,6 +15,7 @@ import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -445,6 +446,7 @@ class BackupService {
   /// האם המפתח אינו הגדרה כלל, לפי [_nonSettingKeyPrefixes].
   @visibleForTesting
   static bool isNonSettingKey(String key) =>
+      key == FindRefPreferenceStore.scoresKey ||
       _nonSettingKeyPrefixes.any(key.startsWith);
 
   /// האם המפתח מגובה. מסנן את [nonPortableSettingsKeys] ואת מה שאינו הגדרה.
