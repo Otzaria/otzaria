@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -48,6 +49,7 @@ SearchResult _result(int i) => SearchResult(
 Future<void> _pumpResults(
   WidgetTester tester, {
   required bool truncated,
+  List<String> facets = const ['/'],
 }) async {
   final searchBloc = RecordingSearchBloc(
     SearchState(
@@ -55,6 +57,10 @@ Future<void> _pumpResults(
       totalResults: 2,
       results: [_result(1), _result(2)],
       resultsTruncated: truncated,
+      configuration: SearchConfiguration(
+        currentFacets: facets,
+        searchScopeFacets: facets,
+      ),
     ),
   );
   final settingsBloc = MockSettingsBloc();
@@ -105,5 +111,48 @@ void main() {
   testWidgets('הבאנר אינו מוצג כשהתוצאות מלאות', (WidgetTester tester) async {
     await _pumpResults(tester, truncated: false);
     expect(find.textContaining(_bannerNeedle), findsNothing);
+  });
+
+  group('באנר תוצאות חלקיות בחיפוש מסונן (issue #5759)', () {
+    String bannerText(WidgetTester tester) =>
+        tester.widget<AppInfoBanner>(find.byType(AppInfoBanner)).message;
+
+    testWidgets('חיפוש בספרים נבחרים: הבאנר אומר שהקיצור חל גם בתוכם', (
+      WidgetTester tester,
+    ) async {
+      await _pumpResults(
+        tester,
+        truncated: true,
+        facets: const ['/תלמוד בבלי/סדר טהרות/נדה'],
+      );
+      final text = bannerText(tester);
+      expect(text, contains(_bannerNeedle));
+      expect(text, contains('גם בתוך הספרים שנבחרו'));
+      expect(text, contains('קידומות'));
+      // צמצום ההיקף אינו עוזר — אסור לרמוז שהחיפוש "רחב מדי".
+      expect(text, isNot(contains('רחב מדי')));
+    });
+
+    testWidgets('חיפוש בכל הספרייה: ניסוח כללי ואותה עצה', (
+      WidgetTester tester,
+    ) async {
+      await _pumpResults(tester, truncated: true);
+      final text = bannerText(tester);
+      expect(text, contains(_bannerNeedle));
+      expect(text, isNot(contains('גם בתוך הספרים שנבחרו')));
+      expect(text, contains('קידומות'));
+      expect(text, isNot(contains('רחב מדי')));
+    });
+
+    testWidgets('בלי חריגה מהתקציב אין באנר גם בחיפוש מסונן', (
+      WidgetTester tester,
+    ) async {
+      await _pumpResults(
+        tester,
+        truncated: false,
+        facets: const ['/תלמוד בבלי/סדר טהרות/נדה'],
+      );
+      expect(find.byType(AppInfoBanner), findsNothing);
+    });
   });
 }
