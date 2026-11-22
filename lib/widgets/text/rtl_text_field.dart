@@ -964,8 +964,18 @@ class _HardBreakController extends TextEditingController {
   @override
   set value(TextEditingValue value) {
     restoredClean = value is HardBreakValue ? value.clean : null;
+    var raw = value is HardBreakValue ? value.plain : value;
+    // לחיצה בסוף שורה נוחתת בין \r ל-\n, ושם הסמן מצויר ומקליד בשורה הבאה.
+    final selection = raw.selection;
+    final base = snapOffsetOutOfCrlf(raw.text, selection.baseOffset);
+    final extent = snapOffsetOutOfCrlf(raw.text, selection.extentOffset);
+    if (base != selection.baseOffset || extent != selection.extentOffset) {
+      raw = raw.copyWith(
+        selection: selection.copyWith(baseOffset: base, extentOffset: extent),
+      );
+    }
     try {
-      super.value = value is HardBreakValue ? value.plain : value;
+      super.value = raw;
     } finally {
       restoredClean = null;
     }
