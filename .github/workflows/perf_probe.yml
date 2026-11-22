@@ -224,6 +224,7 @@ jobs:
           $report = Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'perf-results/report.json') -Raw | ConvertFrom-Json
           if ($report.successful -ne $true) { throw 'The app measurement run did not pass.' }
           if ($report.metadata.settings.resourceObservationVersion -ne 1) { throw 'PDF resource observation version is missing.' }
+          if ($report.metadata.settings.framePolicy -ne 'fullyLive') { throw 'The integration frame policy is missing or unexpected.' }
           foreach ($name in @('pdf.reader.open', 'pdf.reader.close', 'pdf.reader.idle_after_close')) {
             $rows = @($report.scenarios | Where-Object name -eq $name)
             if ($rows.Count -ne 1 -or $rows[0].status -ne 'passed' -or $rows[0].measured -lt 1) { throw "Missing measured phase: $name" }

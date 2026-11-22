@@ -508,6 +508,7 @@ void main() {
       'processPeakEstimatedBytes': peak,
     };
     const settings = {
+      'framePolicy': 'fullyLive',
       'resourceObservationVersion': perfResourceObservationVersion,
       'pdfImageBudgetMaximumBytes': 100,
       'pdfPostCloseIdleMs': 3000,
@@ -806,6 +807,23 @@ void main() {
         ]),
         throwsFormatException,
       );
+    });
+
+    test('different or missing frame policies cannot be compared', () {
+      final current = observedReport([phase()]);
+      expect(compareProbeReports(current, current)['comparable'], isTrue);
+      for (final incompatibleSettings in [
+        {...settings, 'framePolicy': 'benchmarkLive'},
+        {...settings}..remove('framePolicy'),
+      ]) {
+        final incompatible = observedReport(
+          [phase()],
+          changes: {'settings': incompatibleSettings},
+        );
+        final comparison = compareProbeReports(current, incompatible);
+        expect(comparison['comparable'], isFalse);
+        expect(comparison['reasons'], contains('metadata:settings'));
+      }
     });
 
     test('older or differently configured observations cannot be compared', () {

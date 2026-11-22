@@ -221,6 +221,8 @@ void main() {
           'PDF final_image_ready is the final image for the current view recorded into the layer tree, not GPU presentation.',
           'PDF image budget bytes are caller estimates for this window, not native/GPU allocation measurements.',
           'PDF budget peak is since budget construction, including warmup and earlier phases; it is never reset.',
+          'Post-close observation means no user actions under the integration binding, not quiescent production idle.',
+          'The fullyLive integration binding schedules continuous frames; CPU and frame samples include that harness work.',
         ],
       });
       if (preparationOnly) {
@@ -315,6 +317,7 @@ void main() {
           'scrollPixels': 30,
           'pollIntervalMs': 16,
           'rssIntervalMs': 250,
+          'framePolicy': binding.framePolicy.name,
           'resourceObservationVersion': perfResourceObservationVersion,
           'pdfImageBudgetMaximumBytes': pdfSharedImageBudget.maximumBytes,
           'pdfPostCloseIdleMs': perfPdfPostCloseIdle.inMilliseconds,
