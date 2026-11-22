@@ -1168,7 +1168,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     required String? loadedText,
   }) {
     if (!hasPluginContextMenuItems) return const [];
-    final controller = widget.tab.pdfViewerController;
     final pageNumber = _menuPageNumber(tapPosition, hasSelection: hasSelection);
     return buildPdfPluginMenuEntries(
       book: widget.tab.book,
@@ -1176,8 +1175,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       currentRef: pdfPageRef(widget.tab, pageNumber),
       hasSelection: hasSelection,
       loadedText: loadedText,
-      readSelectedText: () =>
-          controller.textSelectionDelegate.getSelectedText(),
+      readSelectedText: _readPdfTextSelection,
       copyAllowed: _isPdfCopyAllowed(),
       menuContext: menuContext,
     );
@@ -1220,6 +1218,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _pdfTextSelectionActions.copy(keepSelection: keepSelection),
         errorMessage: CommonMessages.textCopyError,
       );
+
+  Future<String> _readPdfTextSelection() async {
+    try {
+      return await _pdfTextSelectionActions.readSelectedText();
+    } catch (_) {
+      if (mounted && _isPdfVisible) {
+        UiSnack.showError(PdfMessages.textSelectionFailed);
+      }
+      return '';
+    }
+  }
 
   Future<void> _selectAllPdfText() => _showPdfTextActionResult(
     _pdfTextSelectionActions.selectAll(),
@@ -1305,9 +1314,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final selection =
         loadedSelection ??
         ReaderMenuSelection(
-          await controller.textSelectionDelegate.getSelectedText(),
+          await _readPdfTextSelection(),
         );
-    if (!mounted) return;
+    if (!mounted || !_isPdfVisible || selection.cleaned.isEmpty) return;
     openGlobalSearch(context, selection.cleaned, insertAdjacent: true);
   }
 
