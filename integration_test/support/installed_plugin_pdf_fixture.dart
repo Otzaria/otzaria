@@ -22,6 +22,7 @@ Uint8List createInstalledPdfFixture() {
   for (var i = 0; i < installedPdfPageSizes.length; i++) {
     final size = installedPdfPageSizes[i];
     final content =
+        '1 g 0 0 ${size.width} ${size.height} re f 0 g\n'
         'BT /F1 12 Tf 20 ${size.height - 30} Td '
         '($installedPdfQuery ${installedPdfPageToken(i + 1)}) Tj ET\n'
         '0 g 20 20 60 60 re f\n';
