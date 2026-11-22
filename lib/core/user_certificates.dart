@@ -9,17 +9,17 @@ const MethodChannel userCertificatesChannel = MethodChannel(
   'otzaria/user_certificates',
 );
 
-/// מוסיף ל-[context] את תעודות ה-CA שהמשתמש התקין באנדרואיד (מאגר "user").
+/// מחזיר את תעודות ה-CA שהמשתמש התקין באנדרואיד (מאגר "user"), כ-PEM.
 ///
 /// dart:io סומך רק על תעודות המערכת, ולכן תעודת סינון שהותקנה במכשיר (נטפרי
-/// וכדומה) גרמה ל-CERTIFICATE_VERIFY_FAILED בכל הורדה (issue #1305). מחזיר
-/// את מספר התעודות שנוספו; תעודה פגומה מדולגת ואינה עוצרת את השאר.
-Future<int> trustUserInstalledCertificates(
-  SecurityContext context, {
+/// וכדומה) גרמה ל-CERTIFICATE_VERIFY_FAILED בכל הורדה (issue #1305). הערוץ
+/// זמין רק ב-isolate הראשי, ולכן התוצאה עוברת כבתים ל-isolates האחרים
+/// (ראו `trustCertificates`). תעודה פגומה מדולגת ואינה עוצרת את השאר.
+Future<List<Uint8List>> loadUserInstalledCertificateBytes({
   MethodChannel channel = userCertificatesChannel,
   bool? isAndroid,
 }) async {
-  if (!(isAndroid ?? (!kIsWeb && Platform.isAndroid))) return 0;
+  if (!(isAndroid ?? (!kIsWeb && Platform.isAndroid))) return const [];
   final List<Object?>? pems;
   try {
     pems = await channel.invokeListMethod<Object?>(
@@ -27,20 +27,23 @@ Future<int> trustUserInstalledCertificates(
     );
   } on PlatformException catch (e) {
     debugPrint('⚠️ קריאת תעודות המשתמש נכשלה: $e');
-    return 0;
+    return const [];
   } on MissingPluginException {
-    return 0;
+    return const [];
   }
-  var added = 0;
+  final valid = <Uint8List>[];
   for (final pem in pems ?? const <Object?>[]) {
     if (pem is! String || pem.isEmpty) continue;
+    final bytes = Uint8List.fromList(utf8.encode(pem));
     try {
-      context.setTrustedCertificatesBytes(utf8.encode(pem));
-      added++;
+      SecurityContext().setTrustedCertificatesBytes(bytes);
+      valid.add(bytes);
     } on TlsException catch (e) {
       debugPrint('⚠️ תעודת משתמש לא תקינה דולגה: ${e.message}');
     }
   }
-  if (added > 0) debugPrint('🔐 נוספו $added תעודות CA שהותקנו במכשיר');
-  return added;
+  if (valid.isNotEmpty) {
+    debugPrint('🔐 נמצאו ${valid.length} תעודות CA שהותקנו במכשיר');
+  }
+  return valid;
 }

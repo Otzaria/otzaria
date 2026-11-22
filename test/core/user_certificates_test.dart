@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/user_certificates.dart';
 
 /// issue #1305 — dart:io סומך רק על תעודות המערכת; תעודת סינון שהמשתמש
-/// התקין במכשיר (נטפרי וכדומה) חייבת להיכנס ל-SecurityContext כדי שההורדות
+/// התקין במכשיר (נטפרי וכדומה) חייבת להגיע ל-SecurityContext כדי שההורדות
 /// לא ייפלו ב-CERTIFICATE_VERIFY_FAILED.
 const _testCaPem =
     '-----BEGIN CERTIFICATE-----\n'
@@ -46,19 +46,18 @@ void main() {
   });
 
   group('תעודות CA שהותקנו במכשיר (issue #1305)', () {
-    test(
-      'תעודות המשתמש נוספות ל-SecurityContext; תעודה פגומה מדולגת',
-      () async {
-        mockCertificates([_testCaPem, 'not a certificate', _testCaPem]);
-        final context = SecurityContext();
-        final added = await trustUserInstalledCertificates(
-          context,
-          channel: channel,
-          isAndroid: true,
-        );
-        expect(added, 2);
-      },
-    );
+    test('תעודות המשתמש מוחזרות כבתים; תעודה פגומה מדולגת', () async {
+      mockCertificates([_testCaPem, 'not a certificate', _testCaPem]);
+      final certs = await loadUserInstalledCertificateBytes(
+        channel: channel,
+        isAndroid: true,
+      );
+      expect(certs, hasLength(2));
+      final context = SecurityContext();
+      for (final bytes in certs) {
+        context.setTrustedCertificatesBytes(bytes);
+      }
+    });
 
     test('מחוץ לאנדרואיד לא פונים לערוץ', () async {
       var called = false;
@@ -67,24 +66,22 @@ void main() {
             called = true;
             return <Object?>[];
           });
-      final added = await trustUserInstalledCertificates(
-        SecurityContext(),
+      final certs = await loadUserInstalledCertificateBytes(
         channel: channel,
         isAndroid: false,
       );
-      expect(added, 0);
+      expect(certs, isEmpty);
       expect(called, isFalse);
     });
 
-    test('ערוץ שאינו מיושם או ריק → 0 בלי חריגה', () async {
+    test('ערוץ שאינו מיושם או ריק → רשימה ריקה בלי חריגה', () async {
       mockCertificates(null);
       expect(
-        await trustUserInstalledCertificates(
-          SecurityContext(),
+        await loadUserInstalledCertificateBytes(
           channel: channel,
           isAndroid: true,
         ),
-        0,
+        isEmpty,
       );
     });
   });
