@@ -11,6 +11,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_library_up
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
+import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 
 part 'attached_libraries_event.dart';
@@ -265,7 +266,11 @@ class AttachedLibrariesBloc
     ImportOfficialLibraryPackage event,
     Emitter<AttachedLibrariesState> emit,
   ) => _run(emit, () async {
-    final result = await _updates.importOfflinePackage(event.path);
+    final result = await _updates.importOfflinePackageFromFolder(
+      event.folder,
+      event.archiveName,
+      selectedName: event.selectedName,
+    );
     final message = packageMessage(result);
     return _notice(
       message,

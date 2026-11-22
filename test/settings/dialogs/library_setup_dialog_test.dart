@@ -12,6 +12,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/dialog_owner.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -1039,16 +1040,24 @@ void main() {
         }
       }
 
-      await pickFolder(
-        tester,
-        _MemoryFolder('x', {
-          DatabaseConstants.databaseFileName: utf8.encode('db'),
-          DatabaseConstants.lexicalDatabaseFileName: utf8.encode('lex'),
-        }),
-      );
+      const packageName = 'zmanenu-offline.tar.zst';
+      final folder = _MemoryFolder('x', {
+        DatabaseConstants.databaseFileName: utf8.encode('db'),
+        DatabaseConstants.lexicalDatabaseFileName: utf8.encode('lex'),
+        '$packageName.part-000': [1],
+        '$packageName.part-001': [2],
+      });
+      final imported = <(PackageFolder, String)>[];
+      debugImportOfficialPackage = (source, name) async {
+        imported.add((source, name));
+        return OfficialPackageResult.installed;
+      };
+      addTearDown(() => debugImportOfficialPackage = null);
+      await pickFolder(tester, folder);
       await tester.tap(find.text('אישור'));
       await pumpUntil(() => find.text('הספרייה הותקנה').evaluate().isNotEmpty);
 
+      expect(imported, [(folder, packageName)]);
       expect(find.text('הספרייה הותקנה'), findsOneWidget);
       expect(find.text('הותקנו'), findsOneWidget);
       expect(find.text('חסרים'), findsOneWidget);
@@ -1068,6 +1077,8 @@ void main() {
       await tester.tap(find.text('סגור'));
       await tester.pumpAndSettle();
       expect(find.text('הספרייה הותקנה'), findsNothing);
+      await tester.pump(const Duration(seconds: 7));
+      await tester.pumpAndSettle();
     });
 
     for (final exit in ['Escape', 'X']) {

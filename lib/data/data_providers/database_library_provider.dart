@@ -2021,8 +2021,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final _attachedCachedKeys = BookKeySet();
 
-  /// התיקיות העליונות שמסדים מצורפים הצהירו עליהן, לפי מפתח מיזוג.
-  final Map<String, Category> _attachedDeclaredFolders = {};
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, PendingAttachedCatalog<AttachedCatalogRows>>
   _pendingAttachedCatalogs = {};
@@ -4190,7 +4188,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
-    _attachedDeclaredFolders.clear();
+    final declaredFolders = <String, Category>{};
     _attachedBooksById.clear();
     _attachedDbVersions.clear();
     _attachedDuplicateVersions.clear();
@@ -4218,6 +4216,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             metadata: metadata,
             versionLinks: rows.versionLinks,
           ),
+          declaredFolders,
         );
       } catch (e, stackTrace) {
         debugPrint('⚠️ Error appending attached library ${attached.slug}: $e');
@@ -4297,6 +4296,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   void _addAttachedLibraryToCatalog(
     Library library,
     _AttachedCatalogBuild build,
+    Map<String, Category> declaredFolders,
   ) {
     final categories = [
       for (final row in build.categoryRows) db_models.Category.fromJson(row),
@@ -4332,10 +4332,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           : library;
       final title = rootFolder ?? build.library.displayName;
       final folderKey = rootFolder == null ? null : _mergeTitleKey(rootFolder);
-      final shared = _attachedDeclaredFolders[folderKey];
+      final shared = declaredFolders[folderKey];
       if (shared != null) return libraryRoot = shared;
       final created = Category(
         title: title,
+        pathSegment: folderKey == null
+            ? null
+            : Category.attachedRootPathSegment(folderKey),
         description: '',
         shortDescription: '',
         order: _kAttachedRootOrder + build.library.priority,
@@ -4344,7 +4347,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         parent: parent,
       );
       parent.subCategories.add(created);
-      if (folderKey != null) _attachedDeclaredFolders[folderKey] = created;
+      if (folderKey != null) declaredFolders[folderKey] = created;
       return libraryRoot = created;
     }
 
@@ -4364,6 +4367,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         : CategoryMergeTargets(
             mergeParent.subCategories,
             DatabaseLibraryProvider._mergeTitleKey,
+            exclude: merge ? declaredFolders.containsValue : null,
           );
     for (final root in roots) {
       if (rootTargets == null) {
@@ -4783,7 +4787,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final List<String> path = [];
     final Set<Category> visited = {};
     while (category != null && !visited.contains(category)) {
-      if (category.title == 'ספריית אוצריא') break;
+      if (category.title == 'ספריית אוצריא' && category.pathSegment == null) {
+        break;
+      }
       visited.add(category);
       path.insert(0, category.title);
       category = category.parent;

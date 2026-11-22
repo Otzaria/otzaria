@@ -345,7 +345,7 @@ String categoryParentPath(Category category) {
 String pluginCategoryPath(Category? category, {required Category? root}) =>
     category == null || identical(category, root)
     ? ''
-    : category.path.substring(1).replaceAll('/', ', ');
+    : category.displayPath.substring(1).replaceAll('/', ', ');
 
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});

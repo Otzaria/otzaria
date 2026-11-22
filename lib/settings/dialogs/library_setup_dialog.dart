@@ -12,7 +12,7 @@ import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart'
 import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
 import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart'
-    show offlinePackageFiles;
+    show offlineArchiveNameOf;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -96,7 +96,7 @@ Future<void> Function(OfficialAttachedLibrary entry)? debugDownloadOfficial;
 
 /// מחליף בבדיקות את התקנת החבילה הלא-מקוונת של מסד רשמי.
 @visibleForTesting
-Future<OfficialPackageResult> Function(String zipPath)?
+Future<OfficialPackageResult> Function(PackageFolder folder, String name)?
 debugImportOfficialPackage;
 
 /// המסד הרשמי שמוצע יחד עם הספרייה; null כשאינו פעיל.
@@ -186,9 +186,6 @@ class _LibrarySetupDialogContentState
 
   /// מה נמצא בתיקיית המקור שנבחרה (פעולת [_LibraryAction.chooseFolder]).
   LibraryFolderScan? _source;
-
-  /// נתיב תיקיית המקור בשולחן העבודה; באנדרואיד (SAF) אין נתיב.
-  String? _sourcePath;
 
   /// "הורד גם את <המסד הרשמי>" — כבוי כברירת מחדל.
   bool _alsoDownloadOfficial = false;
@@ -297,7 +294,6 @@ class _LibrarySetupDialogContentState
       folder = path == null ? null : DirectoryPackageFolder(path);
     }
     if (folder == null || !mounted) return;
-    _sourcePath = folder is DirectoryPackageFolder ? folder.path : null;
     LibraryFolderScan scan;
     try {
       scan = await scanLibraryFolder(folder);
@@ -609,21 +605,32 @@ class _LibrarySetupDialogContentState
       );
       return;
     }
-    final folder = _sourcePath;
+    final folder = _source?.source?.folder;
     if (_action != _LibraryAction.chooseFolder || folder == null) return;
     final name = entry.offlinePackageName!;
-    unawaited(() async {
-      if ((await offlinePackageFiles(folder, name)).isEmpty) return;
-      final result =
-          await (debugImportOfficialPackage ??
-              AttachedLibraryUpdateService.instance.importOfflinePackage)(
-            p.join(folder, name),
-          );
-      final message = AttachedLibrariesBloc.packageMessage(result);
-      result == OfficialPackageResult.installed
-          ? UiSnack.show(message)
-          : UiSnack.showError(message);
-    }());
+    unawaited(
+      () async {
+        final files = await folder.list();
+        if (!files.any((file) => offlineArchiveNameOf(file.name) == name)) {
+          return;
+        }
+        final importer =
+            debugImportOfficialPackage ??
+            AttachedLibraryUpdateService
+                .instance
+                .importOfflinePackageFromFolder;
+        final result = await importer(folder, name);
+        final message = AttachedLibrariesBloc.packageMessage(result);
+        if (result == OfficialPackageResult.installed ||
+            result == OfficialPackageResult.alreadyInstalled) {
+          UiSnack.show(message);
+        } else {
+          UiSnack.showError(message);
+        }
+      }().catchError((Object e) {
+        debugPrint('[LibrarySetup] official package import failed: $e');
+      }),
+    );
   }
 
   @override

@@ -20,6 +20,7 @@ import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/library/hidden/hidden_library_filter.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -524,6 +525,74 @@ void main() {
       expect(officialTorah.books.every((b) => b.source.isOfficial), isTrue);
     },
   );
+
+  test('מיזוג מסד רגיל שומר על תיקייה מוצהרת נפרדת', () async {
+    final root = await attach(declaringFolder('מוצהר', 'ספריית רני'));
+    final regularPath = attachedFixture('רגיל', SeforimFixtureVariant.full);
+    final db = sqlite3.sqlite3.open(regularPath);
+    db.execute("UPDATE category SET title='ספריית רני' WHERE parentId IS NULL");
+    db.close();
+    final regular = await attach(regularPath);
+    await attached.setPlacement(
+      regular,
+      AttachedLibraryPlacement.mergeIntoLibrary,
+    );
+    final catalog = await buildCatalog();
+    final roots = catalog.subCategories.where((c) => c.title == 'ספריית רני');
+    expect(roots.map((c) => _booksUnder(c).map((b) => b.source).toSet()), [
+      {root.source},
+      {regular.source},
+    ]);
+  });
+
+  test('רענוני קטלוג מקבילים בונים שורשים נפרדים', () async {
+    await attach(declaringFolder('מוצהר', 'ספריית רני'));
+    await provider.initialize();
+    final catalogs = await Future.wait([
+      provider.buildLibraryCatalog({}, libraryPath),
+      provider.buildLibraryCatalog({}, libraryPath),
+    ]);
+    final roots = catalogs
+        .map((catalog) => _child(catalog, 'ספריית רני'))
+        .toList();
+    expect(roots.whereType<Category>(), hasLength(2));
+    expect(roots[0]!.parent, same(catalogs[0]));
+    expect(roots[1]!.parent, same(catalogs[1]));
+    expect(roots.map((c) => _booksUnder(c!).length), [2, 2]);
+  });
+
+  test('הסתרת תיקייה מוצהרת אינה מסתירה קטגוריה באותו שם', () async {
+    await attach(declaringFolder('מתנגש', 'תנ"ך'));
+    final catalog = await buildCatalog();
+    final matches = catalog.subCategories.where((c) => c.title == 'תנ"ך');
+    expect(matches, hasLength(2));
+    expect(matches.map((c) => c.path).toSet(), hasLength(2));
+    expect(matches.map((c) => c.displayPath).toSet(), {'/תנ"ך'});
+    final declared = matches.singleWhere(
+      (category) => category.personalSource?.isAttached == true,
+    );
+    final regular = matches.singleWhere(
+      (category) => !identical(category, declared),
+    );
+    final hidden = HiddenLibrarySelection(categoryPaths: {declared.path});
+    final filtered = filterHiddenFromLibrary(catalog, hidden);
+    expect(
+      filtered.subCategories
+          .singleWhere((category) => category.title == 'תנ"ך')
+          .path,
+      regular.path,
+    );
+    final filteredRegular = filterHiddenFromLibrary(
+      catalog,
+      HiddenLibrarySelection(categoryPaths: {regular.path}),
+    );
+    expect(
+      filteredRegular.subCategories
+          .singleWhere((category) => category.title == 'תנ"ך')
+          .path,
+      declared.path,
+    );
+  });
 
   test('שני מסדים שמצהירים על אותה תיקייה חולקים אותה', () async {
     await attach(declaringFolder('ראשון', 'ספריית רני'));

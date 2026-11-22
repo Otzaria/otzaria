@@ -90,6 +90,36 @@ class DirectoryPackageFolder extends PackageFolder {
       File(localPath(entry)).openRead();
 }
 
+/// קבצים שנבחרו במפורש, גם כשבורר הקבצים שומר כל אחד בתיקייה אחרת.
+class SelectedPackageFolder extends PackageFolder {
+  SelectedPackageFolder(Map<String, String> files, {required this.displayName})
+    : _files = Map.unmodifiable(files);
+
+  final Map<String, String> _files;
+
+  @override
+  final String displayName;
+
+  @override
+  Future<List<PackageFileEntry>> list() async => [
+    for (final entry in _files.entries)
+      PackageFileEntry(name: entry.key, size: await File(entry.value).length()),
+  ];
+
+  @override
+  Future<List<String>> folderNames() async => const [];
+
+  @override
+  Future<PackageFolder?> child(String name) async => null;
+
+  @override
+  String localPath(PackageFileEntry entry) => _files[entry.name]!;
+
+  @override
+  Stream<List<int>> openRead(PackageFileEntry entry) =>
+      File(localPath(entry)).openRead();
+}
+
 /// תיקייה שנבחרה ב-SAF באנדרואיד: ל-dart:io אין גישה אליה, והקריאה עוברת
 /// בנתחים דרך `FolderImportChannel.kt`. מתוך isolate נדרש קודם
 /// `BackgroundIsolateBinaryMessenger.ensureInitialized`.

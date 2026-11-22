@@ -2,6 +2,8 @@ import 'dart:ffi' show DynamicLibrary;
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:flutter/services.dart';
+
 import 'package:otzaria/empty_library/services/library_package/library_package.dart';
 import 'package:otzaria/empty_library/services/library_package/library_package_extractor.dart';
 import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
@@ -56,20 +58,34 @@ Future<List<String>> offlinePackageFiles(
 /// פורס את [archiveName] שבתיקייה [directory] אל [destination] ב-isolate:
 /// חלקים לפי הסדר עם אימות מניפסט החלקים, zstd ו-tar בזרם אחד — אותו קוד
 /// של חבילות הספרייה. זורק [FormatException] כשהחבילה חסרה או פגומה.
-Future<void> extractOfflinePackage(
-  String directory,
+Future<List<PackageFileEntry>> extractOfflinePackage(
+  PackageFolder folder,
   String archiveName,
   String destination, {
+  String? selectedName,
   DynamicLibrary Function() openZstd = openZstandardLib,
-}) => Isolate.run(() async {
-  final folder = DirectoryPackageFolder(directory);
-  final package = await scanNamedArchive(folder, archiveName);
-  if (package == null) throw FormatException('missing $archiveName');
-  await extractLibraryPackage(
-    package: package,
-    folder: folder,
-    destination: destination,
-    zstd: openZstd(),
-    anyRoot: true,
-  );
-});
+}) {
+  final token = folder.usesPlatformChannel ? RootIsolateToken.instance : null;
+  return Isolate.run(() async {
+    if (token != null) {
+      BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+    }
+    final package = await scanNamedArchive(
+      folder,
+      archiveName,
+      selectedName: selectedName,
+    );
+    if (package == null) throw FormatException('missing $archiveName');
+    await extractLibraryPackage(
+      package: package,
+      folder: folder,
+      destination: destination,
+      zstd: openZstd(),
+      anyRoot: true,
+    );
+    return [
+      for (final part in package.parts) part.entry,
+      ?package.manifestEntry,
+    ];
+  });
+}

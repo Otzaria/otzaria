@@ -35,12 +35,14 @@ class LibraryPackage {
     required this.archiveName,
     required this.parts,
     this.sha256,
+    this.manifestEntry,
   });
 
   final LibraryPackageKind kind;
   final String version;
   final String archiveName;
   final List<LibraryPackagePart> parts;
+  final PackageFileEntry? manifestEntry;
 
   /// ה-sha256 של הארכיון השלם, מהמניפסט.
   final String? sha256;
@@ -117,21 +119,30 @@ class _Group {
 }
 
 /// ארכיון tar.zst בשם קבוע ([archiveName]) בתיקייה, באותם כללים של חבילות
-/// הספרייה: חלקים עם מניפסט חלקים או בלעדיו, או קובץ שלם. null — לא נמצא.
-/// זורק [FormatException] על חלק חסר או מניפסט פגום.
+/// הספרייה. כשנבחר קובץ מפורש משתמשים רק בחבילה שאליה הוא שייך.
 Future<LibraryPackage?> scanNamedArchive(
   PackageFolder folder,
-  String archiveName,
-) async {
+  String archiveName, {
+  String? selectedName,
+}) async {
   final group = _Group(
     '',
     LibraryPackageKind.library,
     fixedName: archiveName,
   );
-  for (final entry in await folder.list()) {
-    if (entry.name == archiveName) {
-      group.whole = entry;
-    } else if (entry.name == '$archiveName.manifest.json') {
+  final entries = await folder.list();
+  final whole = entries.where((entry) => entry.name == archiveName).firstOrNull;
+  if (selectedName == archiveName || (selectedName == null && whole != null)) {
+    if (whole == null) return null;
+    group.whole = whole;
+    return _buildPackage(folder, group);
+  }
+  if (selectedName != null &&
+      !entries.any((entry) => entry.name == selectedName)) {
+    return null;
+  }
+  for (final entry in entries) {
+    if (entry.name == '$archiveName.manifest.json') {
       group.manifest = entry;
     } else if (entry.name.startsWith('$archiveName.part-')) {
       final number = int.tryParse(
@@ -287,6 +298,7 @@ Future<LibraryPackage> _fromManifest(
       archiveName: group.archiveName,
       parts: [LibraryPackagePart(entry: whole)],
       sha256: sha256,
+      manifestEntry: manifestEntry,
     );
   }
   final byName = {for (final e in group.parts.values) e.name: e};
@@ -315,6 +327,7 @@ Future<LibraryPackage> _fromManifest(
     archiveName: group.archiveName,
     parts: parts,
     sha256: sha256,
+    manifestEntry: manifestEntry,
   );
 }
 

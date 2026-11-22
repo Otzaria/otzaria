@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
@@ -427,7 +428,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
         .map((facet) {
           // facet בפורמט "/תנ"ך" או "/תנ"ך/ראשונים" - ניקח את החלק האחרון
           final parts = facet.split('/').where((p) => p.isNotEmpty).toList();
-          return parts.isNotEmpty ? parts.last : facet;
+          return parts.isEmpty
+              ? facet
+              : Category.displayNameForPathSegment(parts.last);
         })
         .toList();
     final tooltipMessage = 'חיפוש בקטגוריות: ${facetNames.join(', ')}';

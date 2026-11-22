@@ -23,6 +23,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_update_fet
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_host_policy.dart';
 import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart';
+import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_signature.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/update_check_frequency.dart';
@@ -393,7 +394,7 @@ class AttachedLibraryUpdateService {
         AttachedUpdateInProgress(offer, phase: AttachedUpdatePhase.install),
       );
 
-      await _normalizeJournal(staged);
+      if (official == null) await _normalizeJournal(staged);
       bool accept(AttachedLibraryProbeResult result) => official != null
           ? acceptsOfficial(
               result,
@@ -422,6 +423,7 @@ class AttachedLibraryUpdateService {
           official: installedOfficial!,
           accept: accept,
           replacing: library,
+          swap: swap,
         );
         await _savePending(path, null);
         _statuses.value = {..._statuses.value}..remove(path);
@@ -568,11 +570,19 @@ class AttachedLibraryUpdateService {
         throw const _UpdateFailure(AttachedUpdateError.notApplicable);
       }
       final target = await _repository.officialPathFor(entry.libraryId);
-      if (await File(target).exists() &&
-          await adoptIfSignedMatch(target, offer) != null) {
-        await _store.setOfficialDeclined(entry.libraryId, declined: false);
-        _set(key, AttachedUpdateInstalled(manifest.dbVersion));
-        return;
+      if (await File(target).exists()) {
+        final onDisk = await _probe(target);
+        final version = int.tryParse(onDisk.fingerprint?.dbVersion ?? '');
+        if (onDisk.slug == entry.libraryId &&
+            version != null &&
+            version > manifest.dbVersion) {
+          throw const AttachedOfficialOlderVersion();
+        }
+        if (await adoptIfSignedMatch(target, offer) != null) {
+          await _store.setOfficialDeclined(entry.libraryId, declined: false);
+          _set(key, AttachedUpdateInstalled(manifest.dbVersion));
+          return;
+        }
       }
       await Directory(p.dirname(target)).create(recursive: true);
       staged = AttachedUpdateFileSwap.stagedPathFor(target);
@@ -601,7 +611,6 @@ class AttachedLibraryUpdateService {
         key,
         AttachedUpdateInProgress(offer, phase: AttachedUpdatePhase.install),
       );
-      await _normalizeJournal(staged);
       bool accept(AttachedLibraryProbeResult result) => acceptsOfficial(
         result,
         libraryId: entry.libraryId,
@@ -618,6 +627,7 @@ class AttachedLibraryUpdateService {
           sha256: manifest.full.sha256,
         ),
         accept: accept,
+        swap: swap,
       );
       await _store.setOfficialDeclined(entry.libraryId, declined: false);
       _set(key, AttachedUpdateInstalled(manifest.dbVersion));
@@ -781,33 +791,75 @@ class AttachedLibraryUpdateService {
   /// חבילות במיקום האיסוף: חבילה שהותקנה, שכבר מותקנת או ישנה מהמותקנת
   /// נמחקת. חבילה שנדחתה נשארת, ואינה נפרסת שוב עד שקובציה משתנים.
   Future<Map<OfficialAttachedLibrary, OfficialPackageResult>>
-  importDroppedPackages() async {
+  importDroppedPackages() => _oneAtATime(_importDroppedPackages);
+
+  Future<Map<OfficialAttachedLibrary, OfficialPackageResult>>
+  _importDroppedPackages() async {
     final results = <OfficialAttachedLibrary, OfficialPackageResult>{};
     final directory = await _dropDirectory();
+    final folder = DirectoryPackageFolder(directory);
     final rejected = _loadRejectedPackages();
     var changed = false;
     for (final entry in OfficialAttachedLibraries.catalog) {
       final name = entry.offlinePackageName;
       if (name == null || !entry.isActive) continue;
       final files = await offlinePackageFiles(directory, name);
-      if (files.isEmpty) {
-        changed |= rejected.remove(name) != null;
-        continue;
-      }
-      final stamp = await _packageStamp(files);
-      if (rejected[name] == stamp) continue;
-      final result = await importOfflinePackage(p.join(directory, name));
-      results[entry] = result;
-      if (result == OfficialPackageResult.installed ||
-          result == OfficialPackageResult.alreadyInstalled ||
-          result == OfficialPackageResult.olderVersion) {
-        for (final file in files) {
-          await _deleteQuietly(file);
+      final whole = p.join(directory, name);
+      final splitManifest = p.join(directory, '$name.manifest.json');
+      final groups = [
+        (
+          key: '$name:whole',
+          files: files.where((path) => p.equals(path, whole)).toList(),
+        ),
+        (
+          key: '$name:parts',
+          files: files.where((path) => !p.equals(path, whole)).toList(),
+        ),
+      ];
+      changed |= rejected.remove(name) != null;
+      for (final group in groups) {
+        if (group.files.isEmpty) {
+          changed |= rejected.remove(group.key) != null;
+          continue;
         }
-        changed |= rejected.remove(name) != null;
-      } else {
-        rejected[name] = stamp;
-        changed = true;
+        final snapshot = {
+          for (final file in group.files)
+            p.basename(file): await _dropFileStamp(file),
+        };
+        final stamp =
+            snapshot.entries.map((e) => '${e.key}:${e.value}').toList()..sort();
+        final encodedStamp = jsonEncode(stamp);
+        if (rejected[group.key] == encodedStamp) continue;
+        final selected = group.files.contains(splitManifest)
+            ? splitManifest
+            : (group.files..sort()).first;
+        var consumed = const <PackageFileEntry>[];
+        final result = await _importOfflinePackage(
+          folder,
+          name,
+          selectedName: p.basename(selected),
+          onExtracted: (files) => consumed = files,
+        );
+        if (result == OfficialPackageResult.installed ||
+            result == OfficialPackageResult.alreadyInstalled ||
+            result == OfficialPackageResult.olderVersion) {
+          for (final file in consumed) {
+            final path = folder.localPath(file);
+            if (snapshot[file.name] case final previous?
+                when await _dropFileStamp(path) == previous) {
+              await _deleteQuietly(path);
+            }
+          }
+          changed |= rejected.remove(group.key) != null;
+        } else if (result != OfficialPackageResult.noSpace &&
+            result != OfficialPackageResult.failed) {
+          rejected[group.key] = encodedStamp;
+          changed = true;
+        }
+        if (!results.containsKey(entry) ||
+            result == OfficialPackageResult.installed) {
+          results[entry] = result;
+        }
       }
     }
     if (changed) {
@@ -819,17 +871,11 @@ class AttachedLibraryUpdateService {
     return results;
   }
 
-  /// גודל ומועד שינוי של כל קובצי החבילה.
-  static Future<String> _packageStamp(List<String> files) async {
-    final parts = <String>[];
-    for (final file in files) {
-      final stat = await File(file).stat();
-      parts.add(
-        '${p.basename(file)}:${stat.size}:'
-        '${stat.modified.millisecondsSinceEpoch}',
-      );
-    }
-    return (parts..sort()).join('|');
+  static Future<String?> _dropFileStamp(String path) async {
+    final stat = await File(path).stat();
+    if (stat.type != FileSystemEntityType.file) return null;
+    return '${stat.size}:${stat.modified.microsecondsSinceEpoch}:'
+        '${stat.changed.microsecondsSinceEpoch}';
   }
 
   static Map<String, Object?> _loadRejectedPackages() {
@@ -850,9 +896,28 @@ class AttachedLibraryUpdateService {
   /// נבדקת במפתח שבקוד, וה-sha256 של המסד מול המניפסט; רק אז המסד מותקן
   /// כעותק מנוהל רשמי ומאומת. גרסה ישנה מהמותקנת נדחית.
   Future<OfficialPackageResult> importOfflinePackage(String path) =>
-      _oneAtATime(() => _importOfflinePackage(path));
+      importOfflinePackageFromFolder(
+        DirectoryPackageFolder(p.dirname(path)),
+        offlineArchiveNameOf(path),
+        selectedName: p.basename(path),
+      );
 
-  Future<OfficialPackageResult> _importOfflinePackage(String path) async {
+  /// מתקין את החבילה מתיקייה שנבחרה, לרבות תיקיית SAF באנדרואיד.
+  Future<OfficialPackageResult> importOfflinePackageFromFolder(
+    PackageFolder folder,
+    String archiveName, {
+    String? selectedName,
+  }) => _oneAtATime(
+    () =>
+        _importOfflinePackage(folder, archiveName, selectedName: selectedName),
+  );
+
+  Future<OfficialPackageResult> _importOfflinePackage(
+    PackageFolder folder,
+    String archiveName, {
+    String? selectedName,
+    void Function(List<PackageFileEntry>)? onExtracted,
+  }) async {
     final officialDirectory = p.dirname(
       await _repository.officialPathFor('_'),
     );
@@ -865,16 +930,18 @@ class AttachedLibraryUpdateService {
     try {
       await Directory(unpacked).create(recursive: true);
       try {
-        await extractOfflinePackage(
-          p.dirname(path),
-          offlineArchiveNameOf(path),
+        final files = await extractOfflinePackage(
+          folder,
+          archiveName,
           unpacked,
+          selectedName: selectedName,
           openZstd: _openZstd,
         );
+        onExtracted?.call(files);
       } on FileSystemException {
         rethrow;
       } catch (e, st) {
-        _log('offline package $path', e, st);
+        _log('offline package ${folder.displayName}/$archiveName', e, st);
         return OfficialPackageResult.notPackage;
       }
       final manifestFile = File(p.join(unpacked, 'manifest.json'));
@@ -894,20 +961,6 @@ class AttachedLibraryUpdateService {
       );
       if (match == null) return OfficialPackageResult.badSignature;
       final (entry, manifest) = match;
-      final existing = _repository.libraries
-          .where((l) => l.official?.libraryId == entry.libraryId)
-          .firstOrNull;
-      final installed = int.tryParse(existing?.fingerprint?.dbVersion ?? '');
-      if (existing != null && installed != null) {
-        if (installed > manifest.dbVersion) {
-          return OfficialPackageResult.olderVersion;
-        }
-        if (installed == manifest.dbVersion &&
-            existing.isOfficial &&
-            existing.official!.sha256 == manifest.full.sha256) {
-          return OfficialPackageResult.alreadyInstalled;
-        }
-      }
       final database = p.join(unpacked, entry.offlineDatabaseName!);
       final expected = manifest.full;
       if (await File(database).length() != expected.size ||
@@ -915,14 +968,32 @@ class AttachedLibraryUpdateService {
               expected.sha256) {
         return OfficialPackageResult.hashMismatch;
       }
+      final managed = await _repository.officialPathFor(entry.libraryId);
+      final existing = _repository.libraries
+          .where((l) => l.official?.libraryId == entry.libraryId)
+          .firstOrNull;
       final inPlace = existing?.mode == AttachedLibraryMode.copy;
-      final target = inPlace
-          ? existing!.path
-          : await _repository.officialPathFor(entry.libraryId);
+      final target = inPlace ? existing!.path : managed;
+      final currentPath = existing?.path ?? managed;
+      if (await File(currentPath).exists()) {
+        final onDisk = await _probe(currentPath);
+        final installed = int.tryParse(onDisk.fingerprint?.dbVersion ?? '');
+        if (onDisk.slug == entry.libraryId && installed != null) {
+          if (installed > manifest.dbVersion) {
+            return OfficialPackageResult.olderVersion;
+          }
+          if (installed == manifest.dbVersion &&
+              existing?.isOk == true &&
+              existing?.isOfficial == true &&
+              await planner.installedSha256(currentPath) ==
+                  manifest.full.sha256) {
+            return OfficialPackageResult.alreadyInstalled;
+          }
+        }
+      }
       staged = AttachedUpdateFileSwap.stagedPathFor(target);
       await _deleteQuietly(staged);
       await File(database).rename(staged);
-      await _normalizeJournal(staged);
       final id = entry.libraryId;
       bool accept(AttachedLibraryProbeResult result) =>
           acceptsOfficial(result, libraryId: id, dbVersion: manifest.dbVersion);
@@ -950,13 +1021,16 @@ class AttachedLibraryUpdateService {
           official: official,
           accept: accept,
           replacing: existing,
+          swap: swap,
         );
         _set(target, AttachedUpdateInstalled(manifest.dbVersion));
       }
       await _store.setOfficialDeclined(id, declined: false);
       return OfficialPackageResult.installed;
+    } on AttachedOfficialOlderVersion {
+      return OfficialPackageResult.olderVersion;
     } catch (e, st) {
-      _log('offline install $path', e, st);
+      _log('offline install ${folder.displayName}/$archiveName', e, st);
       return errorOf(e) == AttachedUpdateError.noSpace
           ? OfficialPackageResult.noSpace
           : OfficialPackageResult.failed;
@@ -1283,6 +1357,7 @@ class AttachedLibraryUpdateService {
     AttachedUpdateArtifactMismatch() => AttachedUpdateError.downloadCorrupt,
     AttachedUpdateManifestException() => AttachedUpdateError.badManifest,
     AttachedUpdateVerificationFailed() => AttachedUpdateError.verifyFailed,
+    AttachedOfficialOlderVersion() => AttachedUpdateError.notApplicable,
     AttachedUpdateFileLocked() => AttachedUpdateError.fileLocked,
     FileSystemException(:final osError) => _fileError(osError?.errorCode),
     _ => AttachedUpdateError.unknown,

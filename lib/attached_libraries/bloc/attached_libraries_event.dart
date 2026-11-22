@@ -139,12 +139,18 @@ class CancelOfficialLibrary extends AttachedLibrariesEvent {
 
 /// התקנת מסד רשמי מחבילה לא-מקוונת (`<name>-offline.tar.zst`, שלם או בחלקים).
 class ImportOfficialLibraryPackage extends AttachedLibrariesEvent {
-  final String path;
+  final PackageFolder folder;
+  final String archiveName;
+  final String? selectedName;
 
-  const ImportOfficialLibraryPackage(this.path);
+  const ImportOfficialLibraryPackage(
+    this.folder,
+    this.archiveName, {
+    this.selectedName,
+  });
 
   @override
-  List<Object?> get props => [path];
+  List<Object?> get props => [folder, archiveName, selectedName];
 }
 
 /// "לא תודה" על הצעה, או החזרתה להצגה.

@@ -538,7 +538,7 @@ class CategoryScopeNode extends ScopeNode {
     : super(
         facet: FacetHelper.categoryFacet(category),
         title: category.title,
-        subtitle: category.path == '/' ? '' : category.path.substring(1),
+        subtitle: category.displayPath.substring(1),
       );
 
   CategoryScopeNode._pruned(ScopeNode source, List<ScopeNode> children)

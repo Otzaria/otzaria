@@ -21,6 +21,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_update_fet
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_signature.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
@@ -91,6 +92,13 @@ class _FakeDownloader extends AttachedUpdateDownloader {
   }
 }
 
+class _FailBackupCleanup extends AttachedUpdateFileSwap {
+  @override
+  Future<void> discardBackup(String target) async {
+    throw FileSystemException('backup cleanup failed', target);
+  }
+}
+
 String _sha(String path) =>
     sha256.convert(File(path).readAsBytesSync()).toString();
 
@@ -110,12 +118,15 @@ void main() {
   var now = DateTime(2026, 11, 21);
   late String dropDirectory;
 
-  AttachedLibraryUpdateService service() => AttachedLibraryUpdateService(
+  AttachedLibraryUpdateService service({
+    Future<AttachedLibraryProbeResult> Function(String)? probe,
+    AttachedUpdateFileSwap swap = const AttachedUpdateFileSwap(lockRetries: 1),
+  }) => AttachedLibraryUpdateService(
     repository: repository,
     fetcher: fetcher,
     downloader: downloader,
-    probe: (path) async => AttachedLibraryProbe.probeSync(path),
-    swap: const AttachedUpdateFileSwap(lockRetries: 1),
+    probe: probe ?? (path) async => AttachedLibraryProbe.probeSync(path),
+    swap: swap,
     diskSpace: (_) async => DiskSpaceInfo(volumeId: 'V', freeBytes: 1 << 40),
     workDirectory: () async => p.join(temp.path, 'work'),
     isOfflineMode: () => false,
@@ -912,6 +923,231 @@ void main() {
         );
       },
     );
+
+    test(
+      'a restored registry does not let an older signed package replace its database',
+      () async {
+        final svc = service();
+        final version3 = database(version: '3');
+        expect(
+          await svc.importOfflinePackage(package(version3, version: 3)),
+          OfficialPackageResult.installed,
+        );
+        final previous = repository.libraries.single;
+        await repository.setHidden(previous, true);
+        const store = AttachedLibraryStore();
+        await store.forgetUpdatePins();
+        registry.update(store.loadLibrariesOrNull()!);
+        await repository.rescan();
+        expect(repository.libraries.single.official, isNull);
+        final older = package(database());
+        final result = await svc.importOfflinePackage(older);
+        expect(
+          (
+            result,
+            repository.libraries.single.fingerprint?.dbVersion,
+            repository.libraries.single.hidden,
+            _sha(previous.path),
+          ),
+          (OfficialPackageResult.olderVersion, '3', true, _sha(version3)),
+        );
+      },
+    );
+
+    test(
+      'a failed official replacement preserves the existing database',
+      () async {
+        final svc = service();
+        final db = database(version: '3');
+        await svc.importOfflinePackage(package(db, version: 3));
+        final previous = repository.libraries.single;
+        const store = AttachedLibraryStore();
+        await store.forgetUpdatePins();
+        registry.update(store.loadLibrariesOrNull()!);
+        await repository.rescan();
+        final incoming = database(version: '4');
+        await expectLater(
+          repository.installOfficial(
+            incoming,
+            official: AttachedOfficialInstall(
+              libraryId: _id,
+              dbVersion: 4,
+              sha256: _sha(incoming),
+            ),
+            accept: (_) => false,
+          ),
+          throwsA(isA<AttachedUpdateVerificationFailed>()),
+        );
+        expect(File(previous.path).existsSync(), isTrue);
+        expect(_sha(previous.path), _sha(db));
+      },
+    );
+
+    test('the drop location can restore a missing managed database', () async {
+      final svc = service();
+      final db = database(version: '3');
+      await svc.importOfflinePackage(package(db, version: 3));
+      final previous = repository.libraries.single;
+      File(previous.path).deleteSync();
+      await repository.rescan();
+      expect(
+        repository.libraries.single.status,
+        AttachedLibraryStatus.unreachable,
+      );
+      package(db, version: 3, folder: dropDirectory);
+      expect(await svc.importDroppedPackages(), {
+        entry: OfficialPackageResult.installed,
+      });
+      expect(File(previous.path).existsSync(), isTrue);
+    });
+
+    test(
+      'an explicit whole package can be picked beside a rejected split package',
+      () async {
+        final svc = service();
+        package(
+          database(),
+          folder: dropDirectory,
+          split: true,
+          manifestOf: different(),
+        );
+        expect(await svc.importDroppedPackages(), {
+          entry: OfficialPackageResult.hashMismatch,
+        });
+        final next = database(version: '2');
+        final whole = package(next, version: 2, folder: dropDirectory);
+        expect(
+          await svc.importOfflinePackage(whole),
+          OfficialPackageResult.installed,
+        );
+        expect(repository.libraries.single.official!.dbVersion, 2);
+        expect(File(whole).existsSync(), isTrue);
+      },
+    );
+
+    test(
+      'an explicit split package can be picked beside a whole package',
+      () async {
+        final svc = service();
+        package(database(), folder: dropDirectory);
+        final next = database(version: '2');
+        final part = package(
+          next,
+          version: 2,
+          folder: dropDirectory,
+          split: true,
+        );
+        expect(
+          await svc.importOfflinePackage(part),
+          OfficialPackageResult.installed,
+        );
+        expect(repository.libraries.single.official!.dbVersion, 2);
+      },
+    );
+
+    test(
+      'drop collection deletes only the parts named by the selected manifest',
+      () async {
+        final svc = service();
+        final part = package(database(), folder: dropDirectory, split: true);
+        final extra = File(part.replaceFirst('.part-000', '.part-999'));
+        extra.writeAsStringSync('unused');
+        expect(await svc.importDroppedPackages(), {
+          entry: OfficialPackageResult.installed,
+        });
+        expect(Directory(dropDirectory).listSync().map((file) => file.path), [
+          extra.path,
+        ]);
+      },
+    );
+
+    test(
+      'drop collection keeps a whole package replaced during installation',
+      () async {
+        final oldPackage = package(database(), folder: dropDirectory);
+        final next = package(database(version: '2'), version: 2);
+        final svc = service(
+          probe: (path) async {
+            if (path.endsWith('.update-new')) {
+              File(next).copySync(oldPackage);
+              File(
+                oldPackage,
+              ).setLastModifiedSync(now.add(const Duration(hours: 1)));
+            }
+            return AttachedLibraryProbe.probeSync(path);
+          },
+        );
+        expect(await svc.importDroppedPackages(), {
+          entry: OfficialPackageResult.installed,
+        });
+        expect(_sha(oldPackage), _sha(next));
+        expect(repository.libraries.single.official!.dbVersion, 1);
+      },
+    );
+
+    test(
+      'crash recovery keeps a committed copy when backup cleanup failed',
+      () async {
+        final svc = service(swap: _FailBackupCleanup());
+        await svc.importOfflinePackage(package(database()));
+        final path = repository.libraries.single.path;
+        final next = database(version: '2');
+        expect(
+          await svc.importOfflinePackage(package(next, version: 2)),
+          OfficialPackageResult.installed,
+        );
+        final backup = File(AttachedUpdateFileSwap.backupPathFor(path));
+        expect(backup.existsSync(), isTrue);
+        registry.update(const AttachedLibraryStore().loadLibrariesOrNull()!);
+        await repository.recoverInterruptedUpdates();
+        expect(backup.existsSync(), isFalse);
+        expect(_sha(path), _sha(next));
+        expect(repository.libraries.single.official!.dbVersion, 2);
+      },
+    );
+
+    for (final split in [false, true]) {
+      test(
+        'picked ${split ? 'split' : 'whole'} package reads only selected cache files',
+        () async {
+          const archiveName = 'zmanenu-offline.tar.zst';
+          final svc = service();
+          final db = database(version: '2');
+          final source = package(db, version: 2, split: split);
+          final files = Directory(
+            p.dirname(source),
+          ).listSync().whereType<File>();
+          final picked = <String, String>{};
+          for (final file in files) {
+            final cache = await temp.createTemp('picker');
+            final copy = await file.copy(p.join(cache.path, 'cached'));
+            picked[p.basename(file.path)] = copy.path;
+          }
+          if (split) {
+            const missing = '$archiveName.part-001';
+            final partial = {...picked};
+            final path = partial.remove(missing)!;
+            final first = partial['$archiveName.part-000']!;
+            await File(path).copy(p.join(p.dirname(first), missing));
+            expect(
+              await svc.importOfflinePackageFromFolder(
+                SelectedPackageFolder(partial, displayName: archiveName),
+                archiveName,
+              ),
+              OfficialPackageResult.notPackage,
+            );
+          }
+          expect(
+            await svc.importOfflinePackageFromFolder(
+              SelectedPackageFolder(picked, displayName: archiveName),
+              archiveName,
+            ),
+            OfficialPackageResult.installed,
+          );
+          expect(_sha(repository.libraries.single.path), _sha(db));
+        },
+      );
+    }
 
     test('a newer package updates the installed copy in place', () async {
       final svc = service();

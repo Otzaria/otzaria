@@ -11,11 +11,14 @@ import 'package:otzaria/attached_libraries/models/attached_library_update_status
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
+import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart'
+    show offlineArchiveNameOf;
 import 'package:otzaria/attached_libraries/view/attached_library_update_view.dart';
 import 'package:otzaria/attached_libraries/view/external_link_index_tile.dart';
 import 'package:otzaria/attached_libraries/view/official_library_offer_tile.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -91,18 +94,52 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
   /// חבילה לא-מקוונת של מסד רשמי: התקנה ראשונה או עדכון ידני.
   Future<void> _importOfficialPackage() async {
     final bloc = context.read<AttachedLibrariesBloc>();
+    final dialogTitle = context.settingsText('בחר חבילת מסד רשמי');
+    if (Platform.isAndroid) {
+      final selected = await withFilePickerOwner(
+        context,
+        (picker) =>
+            picker.pickFiles(type: FileType.any, dialogTitle: dialogTitle),
+      );
+      if (!mounted || selected == null || selected.isEmpty) return;
+      final names = selected
+          .map((file) => offlineArchiveNameOf(file.name))
+          .toSet();
+      final paths = {
+        for (final file in selected)
+          if (file.path case final String path) file.name: path,
+      };
+      if (names.length != 1 || paths.length != selected.length) {
+        UiSnack.showError(SettingsMessages.officialPackageNotPackage);
+        return;
+      }
+      final name = names.single;
+      bloc.add(
+        ImportOfficialLibraryPackage(
+          SelectedPackageFolder(paths, displayName: name),
+          name,
+        ),
+      );
+      return;
+    }
     final file = await withFilePickerOwner(
       context,
       (picker) => picker.pickFile(
         // החלק הראשון (`.part-000`), מניפסט החלקים או הארכיון השלם.
         type: FileType.any,
-        dialogTitle: context.settingsText('בחר חבילת מסד רשמי'),
+        dialogTitle: dialogTitle,
         windowsOptions: modalWindowsOptions(context),
         linuxOptions: kModalLinuxOptions,
       ),
     );
-    if (file?.path case final String path) {
-      bloc.add(ImportOfficialLibraryPackage(path));
+    if (file?.path case final String path when mounted) {
+      bloc.add(
+        ImportOfficialLibraryPackage(
+          DirectoryPackageFolder(p.dirname(path)),
+          offlineArchiveNameOf(path),
+          selectedName: p.basename(path),
+        ),
+      );
     }
   }
 

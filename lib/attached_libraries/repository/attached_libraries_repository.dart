@@ -15,6 +15,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_store.dar
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/journal_mode.dart';
+import 'package:otzaria/utils/file/native_sha256.dart';
 import 'package:path/path.dart' as p;
 
 typedef AttachedLibraryProbeFn =
@@ -23,6 +24,11 @@ typedef AttachedLibraryProbeFn =
 /// The new database did not pass the post-install checks.
 class AttachedUpdateVerificationFailed implements Exception {
   const AttachedUpdateVerificationFailed();
+}
+
+/// בקשת התקנה לגרסה ישנה מהעותק הקיים.
+class AttachedOfficialOlderVersion implements Exception {
+  const AttachedOfficialOlderVersion();
 }
 
 /// תוצאת צירוף קובץ: [library] בהצלחה, אחרת [problem].
@@ -315,34 +321,29 @@ class AttachedLibrariesRepository {
     if (current == null) {
       throw FileSystemException('library is no longer attached', library.path);
     }
-    await _registry.close(current.slug);
-    final AttachedLibraryProbeResult result;
-    try {
-      await swap.swapIn(current.path, stagedPath);
-      result = await _probe(current.path);
-      if (!result.isOk || !accept(result)) {
-        throw const AttachedUpdateVerificationFailed();
-      }
-    } catch (_) {
-      await _registry.close(current.slug);
-      await swap.restore(current.path);
-      rethrow;
-    } finally {
-      await _registry.syncEngineSources();
-    }
-    await swap.discardBackup(current.path);
-    _clearStoredLineCaches();
-    // [accept] checked the key and library_id, so a moved manifest URL is
-    // re-pinned instead of being flagged as a changed source.
-    final updated = _applyProbe(
-      current.copyWith(clearUpdateSource: true, official: official),
-      result,
+    return _replaceAndCommit(
+      target: current.path,
+      stagedPath: stagedPath,
+      slug: current.slug,
+      previousAtTarget: current,
+      accept: accept,
+      official: official,
+      swap: swap,
+      commit: (result) async {
+        final updated = _applyProbe(
+          current.copyWith(clearUpdateSource: true, official: official),
+          result,
+        );
+        await _commit(
+          [
+            for (final other in _registry.libraries)
+              p.equals(other.path, current.path) ? updated : other,
+          ],
+          alsoChanged: {current.slug},
+        );
+        return updated;
+      },
     );
-    await _commit([
-      for (final other in _registry.libraries)
-        p.equals(other.path, current.path) ? updated : other,
-    ]);
-    return updated;
   });
 
   /// מיקום העותק המנוהל של מסד רשמי — בתיקייה נפרדת, כדי שעותק ידני של קובץ
@@ -350,61 +351,163 @@ class AttachedLibrariesRepository {
   Future<String> officialPathFor(String libraryId) async =>
       p.join(await _copyDirectory(), 'official', '$libraryId.db');
 
-  /// מכניס מסד רשמי שהורד ואומת ל-[officialPathFor] ומצרף אותו כעותק מנוהל.
-  /// [accept] בודק את הקובץ במקומו; כשל מוחק אותו. [replacing] — עותק רשמי
-  /// מקושר שהקובץ שלו אינו נכתב: מאבד את הסימון, והעותק המנוהל תופס את מקומו.
+  /// מתקין עותק מנוהל מאומת, תוך שמירת העותק הקיים עד לסיום ההתקנה.
+  /// [replacing] הוא העותק המקושר שאת העדפותיו מעבירים בלי לכתוב לקובץ שלו.
   Future<AttachedLibrary> installOfficial(
     String stagedPath, {
     required AttachedOfficialInstall official,
     required bool Function(AttachedLibraryProbeResult result) accept,
     AttachedLibrary? replacing,
+    AttachedUpdateFileSwap swap = const AttachedUpdateFileSwap(),
   }) => _serial(() async {
     final libraries = [..._registry.libraries];
-    final replaced = replacing == null
-        ? -1
-        : libraries.indexWhere((l) => p.equals(l.path, replacing.path));
-    for (var i = 0; i < libraries.length; i++) {
-      if (i != replaced &&
-          libraries[i].official?.libraryId == official.libraryId) {
-        throw FileSystemException('already installed', official.libraryId);
-      }
-    }
-    final previous = replaced < 0 ? null : libraries[replaced];
-    if (previous != null) {
-      libraries[replaced] = previous.copyWith(clearOfficial: true);
-    }
     final target = await officialPathFor(official.libraryId);
-    // רשומה קודמת באותו נתיב (סימון שנמחק בשחזור גיבוי) מוחלפת.
-    for (final stale in libraries.where((l) => p.equals(l.path, target))) {
-      await _registry.close(stale.slug);
-    }
-    libraries.removeWhere((l) => p.equals(l.path, target));
-    await _deleteDatabaseFiles(target);
-    await File(stagedPath).rename(target);
-    final result = await _probe(target);
-    if (!result.isOk || !accept(result)) {
-      await _deleteDatabaseFiles(target);
-      throw const AttachedUpdateVerificationFailed();
-    }
-    var library = _fromProbe(
-      target,
-      result,
-      mode: AttachedLibraryMode.copy,
-      priority: previous?.priority ?? _nextPriority(libraries),
-      official: official,
-    );
-    if (previous != null) {
-      library = library.copyWith(
-        placement: previous.placement,
-        hidden: previous.hidden,
+    final previous = replacing == null
+        ? null
+        : libraries.where((l) => p.equals(l.path, replacing.path)).firstOrNull;
+    if (replacing != null && previous == null) {
+      throw FileSystemException(
+        'library is no longer attached',
+        replacing.path,
       );
     }
-    await _commit(
-      [...libraries, library],
-      alsoChanged: {if (previous != null) library.slug},
+    if (libraries.any(
+      (l) =>
+          l.official?.libraryId == official.libraryId &&
+          !p.equals(l.path, target) &&
+          !identical(l, previous),
+    )) {
+      throw FileSystemException('already installed', official.libraryId);
+    }
+    final stale = libraries.where((l) => p.equals(l.path, target)).firstOrNull;
+    final preferred = previous ?? stale;
+    return _replaceAndCommit(
+      target: target,
+      stagedPath: stagedPath,
+      slug: stale?.slug ?? official.libraryId,
+      previousAtTarget: stale,
+      accept: accept,
+      official: official,
+      swap: swap,
+      commit: (result) async {
+        var library = _fromProbe(
+          target,
+          result,
+          mode: AttachedLibraryMode.copy,
+          priority: preferred?.priority ?? _nextPriority(libraries),
+          official: official,
+        );
+        if (preferred != null) {
+          library = library.copyWith(
+            placement: preferred.placement,
+            hidden: preferred.hidden,
+          );
+        }
+        await _commit(
+          [
+            for (final other in libraries)
+              if (!p.equals(other.path, target))
+                identical(other, previous)
+                    ? other.copyWith(clearOfficial: true)
+                    : other,
+            library,
+          ],
+          alsoChanged: {if (preferred != null) library.slug},
+        );
+        return library;
+      },
     );
-    return library;
   });
+
+  Future<AttachedLibrary> _replaceAndCommit({
+    required String target,
+    required String stagedPath,
+    required String slug,
+    required AttachedLibrary? previousAtTarget,
+    required bool Function(AttachedLibraryProbeResult result) accept,
+    required AttachedOfficialInstall? official,
+    required AttachedUpdateFileSwap swap,
+    required Future<AttachedLibrary> Function(AttachedLibraryProbeResult)
+    commit,
+  }) async {
+    await _registry.close(slug);
+    var installed = false;
+    final bool hadFile;
+    final AttachedLibrary updated;
+    try {
+      if (!await _discardCommittedOfficialBackup(previousAtTarget, swap)) {
+        await swap.restore(target);
+      }
+      final file = File(target);
+      hadFile = await file.exists();
+      if (hadFile) {
+        if (official != null) {
+          final onDisk = await _probe(target);
+          final version = int.tryParse(onDisk.fingerprint?.dbVersion ?? '');
+          if (onDisk.slug == official.libraryId &&
+              version != null &&
+              version > official.dbVersion) {
+            throw const AttachedOfficialOlderVersion();
+          }
+        }
+        await swap.swapIn(target, stagedPath);
+      } else if (official != null && !hasPendingJournalSync(target)) {
+        await File(stagedPath).rename(target);
+      } else {
+        throw FileSystemException('previous database is missing', target);
+      }
+      installed = true;
+      final result = await _probe(target);
+      if (!result.isOk || !accept(result)) {
+        throw const AttachedUpdateVerificationFailed();
+      }
+      updated = await commit(result);
+    } catch (_) {
+      if (installed) {
+        await _registry.close(slug);
+        if (await File(AttachedUpdateFileSwap.backupPathFor(target)).exists()) {
+          await swap.restore(target);
+        } else {
+          await _deleteDatabaseFiles(target);
+        }
+      }
+      rethrow;
+    } finally {
+      await _registry.syncEngineSources();
+    }
+    if (hadFile) {
+      try {
+        await swap.discardBackup(target);
+      } on FileSystemException catch (e) {
+        debugPrint(
+          '[AttachedLibraries] could not discard backup for $target: $e',
+        );
+      }
+    }
+    return updated;
+  }
+
+  Future<bool> _discardCommittedOfficialBackup(
+    AttachedLibrary? library,
+    AttachedUpdateFileSwap swap,
+  ) async {
+    if (library == null || !library.isOfficial) return false;
+    final path = library.path;
+    if (!await File(AttachedUpdateFileSwap.backupPathFor(path)).exists() ||
+        !await File(path).exists()) {
+      return false;
+    }
+    final String sha256;
+    try {
+      sha256 = await Isolate.run(() => sha256OfFileFast(path));
+    } on FileSystemException {
+      return false;
+    }
+    if (sha256 != library.official!.sha256) return false;
+    // הרשומה כבר נשמרה. שחזור כאן היה מחזיר מסד ישן במקום הקובץ המאומת.
+    await swap.discardBackup(path);
+    return true;
+  }
 
   /// מסמן את הקובץ שב-[path] כעותק רשמי מאומת, בלי להחליף אותו ובלי לכתוב
   /// אליו. [accept] בודק את הקובץ במקומו; קובץ בלי רשומה מצורף רק בנתיב הרשמי.
@@ -456,6 +559,7 @@ class AttachedLibrariesRepository {
   }) => _serial(() async {
     for (final library in _registry.libraries) {
       try {
+        await _discardCommittedOfficialBackup(library, swap);
         if (await swap.recover(library.path)) {
           await _registry.close(library.slug);
         }
@@ -583,6 +687,7 @@ class AttachedLibrariesRepository {
     ];
     final before = _registry.libraries;
     final changed =
+        alsoChanged.isNotEmpty ||
         before.length != resolved.length ||
         [
           for (var i = 0; i < resolved.length; i++) before[i] != resolved[i],

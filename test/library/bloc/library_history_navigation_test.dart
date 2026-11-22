@@ -84,6 +84,38 @@ void main() {
   );
 
   blocTest<LibraryBloc, LibraryState>(
+    'חזרה וקדימה מבחינות בין תיקיות באותו שם',
+    build: build,
+    act: (bloc) {
+      final attached = Category(
+        title: halacha.title,
+        pathSegment: Category.attachedRootPathSegment(halacha.title),
+        description: '',
+        shortDescription: '',
+        order: 2,
+        subCategories: [],
+        books: [],
+        parent: library,
+      );
+      library.subCategories.add(attached);
+      bloc
+        ..add(NavigateToCategory(halacha))
+        ..add(NavigateToCategory(attached))
+        ..add(const TravelLibraryHistory())
+        ..add(const TravelLibraryHistory(forward: true));
+    },
+    expect: () => [
+      at(halacha.path),
+      at(library.subCategories.last.path),
+      at(halacha.path),
+      at(library.subCategories.last.path),
+    ],
+    verify: (bloc) {
+      expect(bloc.state.currentCategory, same(library.subCategories.last));
+    },
+  );
+
+  blocTest<LibraryBloc, LibraryState>(
     'ניווט ידני בין בקשות מבטל קדימה ונרשם פעם אחת',
     build: build,
     act: (bloc) => bloc
