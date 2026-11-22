@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/breakpad_envelope.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
+import 'package:otzaria/app_report/services/system_exit_evidence.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/startup_timeline.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
 import 'minidump_fixture.dart';
@@ -117,6 +119,124 @@ void main() {
     writeLock();
     writeErrors(entry('Old', previousStart.subtract(const Duration(days: 1))));
     expect(await detector().detectPreviousCrash(), isNull);
+  });
+
+  group('סגירה שקטה: אירוע מערכת על ה-pid הקודם', () {
+    const crashEvidence = SystemExitEvidence(
+      isHang: false,
+      signature: CrashSignature(
+        exceptionType: '0xc0000005 libcef.dll+0x1234',
+        frames: ['libcef.dll+0x1234'],
+      ),
+      details: 'System event: Windows Application Error 1000',
+    );
+    final queries = <(int, DateTime, DateTime)>[];
+
+    UncleanExitDetector withSystemEvents(SystemExitEvidence? evidence) =>
+        UncleanExitDetector(
+          logsDirectory: logs.path,
+          sentryDatabaseDirs: [sentry.path],
+          isProcessAlive: (_) => false,
+          currentPid: 2000,
+          processStartedAt: thisStart,
+          systemExitEvidence: (pid, start, end) async {
+            queries.add((pid, start, end));
+            return evidence;
+          },
+        );
+
+    setUp(queries.clear);
+
+    test('נעילה בלבד + אירוע קריסה → מועמד עם חתימת האירוע', () async {
+      writeLock();
+      final candidate = await withSystemEvents(
+        crashEvidence,
+      ).detectPreviousCrash();
+      expect(queries.single, (1000, previousStart, thisStart));
+      expect(candidate!.kind, CrashIncidentKind.crash);
+      expect(candidate.previousSession!.pid, 1000);
+      expect(candidate.signature!.hash, crashEvidence.signature.hash);
+      expect(candidate.details, crashEvidence.details);
+      expect(candidate.hasMinidump, isFalse);
+      expect(
+        CrashReportDecision.titleFor(candidate),
+        '0xc0000005 libcef.dll+0x1234',
+      );
+    });
+
+    test('אירוע תקיעה שנסגרה → מועמד מסוג תקיעה', () async {
+      writeLock();
+      final candidate = await withSystemEvents(
+        const SystemExitEvidence(
+          isHang: true,
+          signature: CrashSignature(
+            exceptionType: 'Application Hang',
+            frames: [],
+          ),
+          details: 'System event: Windows Application Hang 1002',
+        ),
+      ).detectPreviousCrash();
+      expect(candidate!.isHang, isTrue);
+    });
+
+    test('נעילה בלבד בלי אירוע מערכת → אין מועמד, כמו קודם', () async {
+      writeLock();
+      expect(await withSystemEvents(null).detectPreviousCrash(), isNull);
+      expect(queries, hasLength(1));
+    });
+
+    test('קריאה שנכשלה נחשבת "אין ראיה"', () async {
+      writeLock();
+      final d = UncleanExitDetector(
+        logsDirectory: logs.path,
+        sentryDatabaseDirs: [sentry.path],
+        isProcessAlive: (_) => false,
+        currentPid: 2000,
+        processStartedAt: thisStart,
+        systemExitEvidence: (_, _, _) async => throw StateError('denied'),
+      );
+      expect(await d.detectPreviousCrash(), isNull);
+    });
+
+    test('יש רשומת קריסה ב-errors.txt: אירועי המערכת לא נשאלים', () async {
+      writeLock();
+      writeErrors(
+        entry(
+          'Unhandled Error',
+          previousStart.add(const Duration(hours: 1)),
+          body: 'Exception: StateError: x',
+        ),
+      );
+      final candidate = await withSystemEvents(
+        crashEvidence,
+      ).detectPreviousCrash();
+      expect(queries, isEmpty);
+      expect(candidate!.signature!.exceptionType, 'StateError');
+      expect(candidate.details, isNull);
+    });
+
+    test('בלי נעילה אירועי המערכת לא נשאלים', () async {
+      expect(
+        await withSystemEvents(crashEvidence).detectPreviousCrash(),
+        isNull,
+      );
+      expect(queries, isEmpty);
+    });
+
+    test('נעילת עלייה בלבד: נשאל ה-pid שלה', () async {
+      File(p.join(logs.path, 'startup-1500.lock')).writeAsStringSync(
+        jsonEncode({
+          'pid': 1500,
+          'version': '0.9.99',
+          'startedAt': previousStart.toIso8601String(),
+        }),
+      );
+      final candidate = await withSystemEvents(
+        crashEvidence,
+      ).detectPreviousCrash();
+      expect(queries.single.$1, 1500);
+      expect(candidate!.previousSession!.pid, 1500);
+    });
   });
 
   test('תהליך שעדיין חי אינו קריסה', () async {
