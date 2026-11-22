@@ -29,13 +29,13 @@ typedef PhysicalBounds = ({int left, int top, int width, int height});
 class _ClosedWindow {
   const _ClosedWindow.view(WindowSession this.session, {this.keptSlot})
     : isMain = false;
-  const _ClosedWindow.main(this.session) : keptSlot = null, isMain = true;
+  const _ClosedWindow.main(this.session, {this.keptSlot}) : isMain = true;
 
-  /// בראשי: הסשן שנמחק בהסתרה, להפעלה הבאה; null כשלא נמחק.
+  /// הסשן לשחזור; בראשי האחרון במק הסשן נשאר במשבצת.
   final WindowSession? session;
   final bool isMain;
 
-  /// המשבצת שהשורה שלה נשארה במסד (החלון האחרון במק); null כשנמחקה.
+  /// משבצת שנשארה במסד, בגלל כשל כתיבה או סגירת החלון האחרון במק.
   final int? keptSlot;
 }
 
@@ -99,7 +99,7 @@ class ViewWindowOpener implements WindowOpener {
   /// משבצות שממתינות לשחזור בהפעלה; חלון חדש אינו תופס אותן.
   final Set<int> _pendingRestore = {};
   final List<_ClosedWindow> _closed = [];
-  Future<void>? _savedClosedLoad;
+  bool _savedClosedLoaded = false;
   Future<void> _queue = Future.value();
   Future<void> _closeQueue = Future.value();
 
@@ -208,10 +208,15 @@ class ViewWindowOpener implements WindowOpener {
     return result;
   }
 
-  /// התור חי מעבר לבדיקה, וממשיך ב-zone שבו נוצר; ב-FakeAsync של בדיקה אחרת
-  /// הוא לא היה מתקדם לעולם.
+  /// מאפס את המופע המשותף בין בדיקות שמשתמשות במסד וב-FakeAsync נפרדים.
   @visibleForTesting
-  void resetCloseQueueForTest() => _closeQueue = Future.value();
+  void resetForTest() {
+    _queue = Future.value();
+    _closeQueue = Future.value();
+    _closed.clear();
+    _pendingRestore.clear();
+    _savedClosedLoaded = false;
+  }
 
   @override
   Future<bool> openWindow({
@@ -296,50 +301,82 @@ class ViewWindowOpener implements WindowOpener {
 
   @override
   Future<bool> restoreLastClosedWindow() => _serialized(() async {
-    await _loadSavedClosed();
-    while (_closed.isNotEmpty) {
-      final closed = _closed.last;
+    try {
+      await _loadSavedClosed();
+    } catch (error) {
+      debugPrint('load closed windows failed: $error');
+    }
+    for (final closed in _closed.reversed.toList()) {
       if (closed.isMain) {
-        // false: הראשי כבר גלוי, ממשיכים לחלון הקודם.
-        final restored = await _restoreMainWindow();
-        await _forget(closed);
-        if (restored) return true;
-        continue;
+        // בקשת הצגה יכולה להגיע לפני שה-runner הספיק להסתיר את הראשי.
+        if (!await _restoreMainWindow()) continue;
+        await _activateMain(closed);
+        return true;
       }
-      final session = closed.session!;
       if (!_canOpen) {
         await reportOpenWindowFailure();
         return false;
       }
-      final slot = registry.freeSlot(excluding: _pendingRestore);
-      await _store.delete(slot);
-      // השורה שנשארה תשוחזר כאן; בלי זה ההפעלה הבאה הייתה פותחת אותה שוב.
-      // משבצת שחלון חדש כבר תפס — השורה כבר שלו.
-      final kept = closed.keptSlot;
-      if (kept != null && kept != slot && !registry.isSlotOpen(kept)) {
-        await _store.delete(kept);
-      }
-      await _store.save(
-        slot,
-        tabsJson: session.tabsJson,
-        currentIndex: session.currentIndex,
-      );
-      if (session.activeWorkspaceId != null) {
-        await _store.saveActiveWorkspace(slot, session.activeWorkspaceId);
-      }
-      if (session.boundsJson != null) {
-        await _store.saveBounds(slot, session.boundsJson);
-      }
-      if (await _openSession(slot)) {
-        await _forget(closed);
-        return true;
-      }
-      // נכשל: השורה שנכתבה כאן אינה של אף חלון, והחלון נשאר לניסיון חוזר.
-      await _store.delete(slot);
-      return false;
+      return _restoreClosedView(closed);
     }
     return false;
   });
+
+  Future<bool> _restoreClosedView(_ClosedWindow closed) async {
+    final kept = closed.keptSlot;
+    final slot = !_savedClosedLoaded && kept != null
+        ? kept
+        : registry.freeSlot(excluding: {..._pendingRestore}..remove(kept));
+    if (slot == kept) {
+      if (!await _openSession(slot)) return false;
+      _pendingRestore.remove(slot);
+      _closed.remove(closed);
+      return true;
+    }
+
+    final original = _closed.toList();
+    await _replaceClosed(
+      original.where((entry) => entry != closed).toList(),
+      removeSlot: kept,
+      activate: closed.session!.atSlot(slot),
+    );
+    if (kept != null) _pendingRestore.remove(kept);
+
+    var opened = false;
+    try {
+      return opened = await _openSession(slot);
+    } finally {
+      if (!opened) {
+        await _rollbackRestore(original, closed, slot);
+      }
+    }
+  }
+
+  Future<void> _rollbackRestore(
+    List<_ClosedWindow> original,
+    _ClosedWindow closed,
+    int slot,
+  ) async {
+    final kept = closed.keptSlot;
+    try {
+      await _replaceClosed(
+        original,
+        removeSlot: slot,
+        activate: kept == null ? null : closed.session!.atSlot(kept),
+      );
+      if (kept != null) _pendingRestore.add(kept);
+    } catch (error) {
+      debugPrint('window restore rollback failed: $error');
+      _pendingRestore.add(slot);
+      _setClosed([
+        for (final entry in original)
+          if (entry == closed)
+            _ClosedWindow.view(closed.session!, keptSlot: slot)
+          else
+            entry,
+      ]);
+    }
+  }
 
   @override
   Future<bool> canOpenAnotherWindow() async => _canOpen;
@@ -497,50 +534,65 @@ class ViewWindowOpener implements WindowOpener {
     }
   }
 
-  /// נקרא אחרי ה-flush ולפני מחיקת הסשן, כדי ש-Ctrl+Shift+T יחזיר אותו.
-  /// [keptRow]: הסשן אינו נמחק (החלון האחרון במק).
-  /// false: הסשן לא נשמר לשחזור, ואין למחוק את השורה שלו.
-  Future<bool> rememberClosed(int slot, {bool keptRow = false}) async {
+  /// מעביר סשן של חלון שסיים לשמור לרשימת השחזור.
+  Future<bool> rememberClosed(int slot, {bool keptRow = false}) =>
+      _serialized(() async {
+        try {
+          final session = await _store.load(slot);
+          if (session == null) return true;
+          if (keptRow) _pendingRestore.add(slot);
+          return await _recordClose(
+            _ClosedWindow.view(session, keptSlot: keptRow ? slot : null),
+            removeSlot: keptRow ? null : slot,
+          );
+        } catch (error) {
+          _pendingRestore.add(slot);
+          debugPrint('rememberClosed failed: $error');
+          return false;
+        }
+      });
+
+  /// ממתין לחלונות שנפתחים ושומר את הסשן של הראשי לפני ההסתרה.
+  Future<bool> beforeMainWindowHides({int? slot}) => _serialized(() async {
+    WindowSession? session;
+    if (slot != null) {
+      try {
+        session = await _store.load(slot);
+      } catch (error) {
+        debugPrint('load main window session failed: $error');
+        await _recordClose(const _ClosedWindow.main(null));
+        return false;
+      }
+    }
+    return _recordClose(
+      _ClosedWindow.main(session),
+      removeSlot: session == null ? null : slot,
+    );
+  });
+
+  /// מחזיר את הסשן לשורת הראשי כשה-runner הציג אותו מחדש.
+  Future<bool> mainWindowShown() => _serialized(() async {
+    final main = _closed.where((entry) => entry.isMain).lastOrNull;
+    if (main == null) return true;
+    return _activateMain(main);
+  });
+
+  Future<bool> _activateMain(_ClosedWindow main) async {
+    final session = main.session;
+    if (session == null || main.keptSlot != null) {
+      _closed.remove(main);
+      return true;
+    }
     try {
-      final session = await _store.load(slot);
-      if (session == null) return true;
-      final closed = _ClosedWindow.view(
-        session,
-        keptSlot: keptRow ? slot : null,
+      await _replaceClosed(
+        _closed.where((entry) => entry != main).toList(),
+        activate: session,
       );
-      if (await _push(closed) || keptRow) return true;
-      // השורה נשארת; שחזור באותה הפעלה ימחק אותה, ולא תיפתח פעמיים.
-      _closed[_closed.indexOf(closed)] = _ClosedWindow.view(
-        session,
-        keptSlot: slot,
-      );
-      return false;
-    } catch (e) {
-      debugPrint('rememberClosed failed: $e');
+      return true;
+    } catch (error) {
+      debugPrint('restore main window session failed: $error');
       return false;
     }
-  }
-
-  /// לפני הסתרת החלון הראשי: חלון שעוד נפתח מוסתר עד הפריים הראשון,
-  /// וה-runner משאיר את התהליך חי רק בזכות חלון Dart גלוי.
-  /// [session] — הסשן שיימחק בהסתרה, כדי שיחזור גם אחרי הפעלה מחדש.
-  /// false: הסשן לא נשמר לשחזור, ואין למחוק את השורה שלו.
-  Future<bool> beforeMainWindowHides({WindowSession? session}) async {
-    final saved = await _push(_ClosedWindow.main(session));
-    Future<void> pending;
-    do {
-      pending = _queue;
-      await pending;
-    } while (!identical(pending, _queue));
-    return saved;
-  }
-
-  /// הראשי מוצג שוב: הסשן שלו נשמר שוב במשבצת שלו, ולכן הוא כבר אינו
-  /// חלון שנסגר — אחרת ההפעלה הבאה הייתה מחזירה את הכרטיסיות שלו פעמיים.
-  void mainWindowShown() {
-    if (!_closed.any((c) => c.isMain)) return;
-    _closed.removeWhere((c) => c.isMain);
-    unawaited(_saveClosed());
   }
 
   /// יציאה מהתוכנה, אחרי השטיפה: הסשנים נשארים להפעלה הבאה והחלונות נהרסים.
@@ -560,44 +612,74 @@ class ViewWindowOpener implements WindowOpener {
     return true;
   }
 
-  Future<bool> _push(_ClosedWindow closed) async {
-    await _loadSavedClosed();
-    _closed.add(closed);
-    if (_closed.length > closedLimit) _closed.removeAt(0);
-    return _saveClosed();
-  }
-
-  Future<void> _forget(_ClosedWindow closed) async {
-    _closed.remove(closed);
-    await _saveClosed();
-  }
-
-  /// החלונות שנסגרו בהפעלות קודמות קודמים לאלה של ההפעלה הזו (#5495).
-  /// נטען בשימוש הראשון ולא באתחול, כדי לא לעכב את הפריים הראשון.
-  Future<void> _loadSavedClosed() => _savedClosedLoad ??= () async {
-    try {
-      final saved = await _store.loadClosed();
-      _closed.insertAll(0, [for (final s in saved) _ClosedWindow.view(s)]);
-      while (_closed.length > closedLimit) {
-        _closed.removeAt(0);
-      }
-    } catch (e) {
-      debugPrint('load closed windows failed: $e');
+  Future<bool> _recordClose(_ClosedWindow closed, {int? removeSlot}) async {
+    List<_ClosedWindow> withEntry(_ClosedWindow entry) {
+      final next = [
+        for (final previous in _closed)
+          if (!entry.isMain || !previous.isMain || entry.session == null)
+            previous,
+        entry,
+      ];
+      if (next.length > closedLimit) next.removeAt(0);
+      return next;
     }
-  }();
 
-  /// רק סשנים שנמחקו: שורה שנשארה במסד תשוחזר ממילא בהפעלה הבאה.
-  Future<bool> _saveClosed() async {
     try {
-      await _store.saveClosed([
-        for (final c in _closed)
-          if (c.session case final s? when c.keptSlot == null) s,
-      ]);
+      await _loadSavedClosed();
+      await _replaceClosed(withEntry(closed), removeSlot: removeSlot);
       return true;
-    } catch (e) {
-      debugPrint('save closed windows failed: $e');
+    } catch (error) {
+      debugPrint('save closed windows failed: $error');
+      if (removeSlot == null) {
+        _setClosed(withEntry(closed));
+      } else if (closed.isMain) {
+        _setClosed(
+          withEntry(_ClosedWindow.main(closed.session, keptSlot: removeSlot)),
+        );
+      } else {
+        _pendingRestore.add(removeSlot);
+        _setClosed(
+          withEntry(_ClosedWindow.view(closed.session!, keptSlot: removeSlot)),
+        );
+      }
       return false;
     }
+  }
+
+  /// טוען את ההיסטוריה בשימוש הראשון, בלי להמתין לה באתחול.
+  Future<void> _loadSavedClosed() async {
+    if (_savedClosedLoaded) return;
+    final saved = await _store.loadClosed();
+    _closed.insertAll(0, [
+      for (final session in saved) _ClosedWindow.view(session),
+    ]);
+    if (_closed.length > closedLimit) {
+      _closed.removeRange(0, _closed.length - closedLimit);
+    }
+    _savedClosedLoaded = true;
+  }
+
+  Future<void> _replaceClosed(
+    List<_ClosedWindow> next, {
+    int? removeSlot,
+    WindowSession? activate,
+  }) async {
+    await _store.saveClosed(
+      [
+        for (final entry in next)
+          if (entry.session case final session? when entry.keptSlot == null)
+            session,
+      ],
+      removeSlot: removeSlot,
+      activate: activate,
+    );
+    _setClosed(next);
+  }
+
+  void _setClosed(List<_ClosedWindow> next) {
+    _closed
+      ..clear()
+      ..addAll(next);
   }
 
   @visibleForTesting

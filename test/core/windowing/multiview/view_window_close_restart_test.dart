@@ -117,7 +117,6 @@ void main() {
         opener: opener,
         confirm: confirm,
         flush: () async {},
-        discardSession: (_) async {},
       ),
     );
     final a = windows.registry.open(size: const Size(800, 600))!;
@@ -220,7 +219,6 @@ void main() {
           return true;
         },
         flush: () async {},
-        discardSession: (_) async {},
       ),
     );
     final a = windows.registry.open(size: const Size(800, 600))!;
@@ -278,7 +276,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
-  for (final phase in ['flush', 'remember', 'discard']) {
+  for (final phase in ['flush', 'remember', 'transfer']) {
     testWidgets('אתחול מחדש בזמן $phase מכבד את גבול סגירת הסשן', (
       tester,
     ) async {
@@ -293,7 +291,9 @@ void main() {
       final opener = ViewWindowOpener(
         registry: windows.registry,
         native: windows.native,
-        sessions: phase == 'remember' ? _GateSessions(wait) : null,
+        sessions: phase == 'flush'
+            ? null
+            : _GateSessions(wait, gateLoad: phase == 'remember'),
       );
       final contexts = await pumpApp(
         tester,
@@ -303,7 +303,6 @@ void main() {
           opener: opener,
           confirm: (_, _) async => true,
           flush: phase == 'flush' ? wait : () async {},
-          discardSession: phase == 'discard' ? (_) => wait() : (_) async {},
         ),
       );
       final entry = windows.registry.open(size: const Size(800, 600))!;
@@ -424,12 +423,27 @@ class _BootstrapState extends State<_Bootstrap> {
 }
 
 class _GateSessions extends WindowSessionStore {
-  _GateSessions(this.wait);
+  _GateSessions(this.wait, {required this.gateLoad});
   final Future<void> Function() wait;
+  final bool gateLoad;
 
   @override
   Future<WindowSession?> load(int slot) async {
-    await wait();
+    if (gateLoad) await wait();
     return WindowSession(slot: slot, tabsJson: '[]', currentIndex: 0);
+  }
+
+  @override
+  Future<void> saveClosed(
+    List<WindowSession> sessions, {
+    int? removeSlot,
+    WindowSession? activate,
+  }) async {
+    if (!gateLoad) await wait();
+    await super.saveClosed(
+      sessions,
+      removeSlot: removeSlot,
+      activate: activate,
+    );
   }
 }

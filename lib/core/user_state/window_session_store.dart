@@ -21,6 +21,15 @@ class WindowSession {
   final String? activeWorkspaceId;
   final String? boundsJson;
 
+  /// מעתיק את הסשן למשבצת היעד.
+  WindowSession atSlot(int slot) => WindowSession(
+    slot: slot,
+    tabsJson: tabsJson,
+    currentIndex: currentIndex,
+    activeWorkspaceId: activeWorkspaceId,
+    boundsJson: boundsJson,
+  );
+
   Map<String, Object?> toJson() => {
     'tabs': tabsJson,
     'index': currentIndex,
@@ -64,11 +73,41 @@ class WindowSessionStore {
       ?WindowSession.fromJson(json),
   ];
 
-  Future<void> saveClosed(List<WindowSession> sessions) => _lists.write(
-    'window_sessions',
-    'closed',
-    [for (final s in sessions) s.toJson()],
-  );
+  /// מעדכן את הרשימה ואת הסשנים הפעילים באותה טרנזקציה.
+  Future<void> saveClosed(
+    List<WindowSession> sessions, {
+    int? removeSlot,
+    WindowSession? activate,
+  }) => _database.enqueueWrite([
+    UserStateListStore.upsertStatement(
+      'window_sessions',
+      'closed',
+      jsonEncode([for (final session in sessions) session.toJson()]),
+    ),
+    if (removeSlot != null) _deleteStatement(removeSlot),
+    if (activate != null)
+      (
+        '''
+        INSERT INTO window_sessions
+          (slot, tabs_json, current_index, active_workspace_id, bounds_json, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(slot) DO UPDATE SET
+          tabs_json = excluded.tabs_json,
+          current_index = excluded.current_index,
+          active_workspace_id = excluded.active_workspace_id,
+          bounds_json = excluded.bounds_json,
+          updated_at = excluded.updated_at
+        ''',
+        [
+          activate.slot,
+          activate.tabsJson,
+          activate.currentIndex,
+          activate.activeWorkspaceId,
+          activate.boundsJson,
+          _now(),
+        ],
+      ),
+  ]);
 
   Future<void> save(
     int slot, {
@@ -300,11 +339,11 @@ class WindowSessionStore {
     }
   }
 
-  Future<void> delete(int slot) {
-    return _database.enqueueWrite([
-      ('DELETE FROM window_sessions WHERE slot = ?', [slot]),
-    ]);
-  }
+  Future<void> delete(int slot) =>
+      _database.enqueueWrite([_deleteStatement(slot)]);
+
+  static (String, List<Object?>) _deleteStatement(int slot) =>
+      ('DELETE FROM window_sessions WHERE slot = ?', [slot]);
 
   /// שורה ריקה, כדי ששולחן/גבולות יישמרו גם לפני שנשמרו כרטיסיות.
   static (String, List<Object?>) _ensureRow(int slot) => (
