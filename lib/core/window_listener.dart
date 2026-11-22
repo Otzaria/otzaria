@@ -215,6 +215,7 @@ class AppWindowListener extends WindowListener {
   VoidCallback? onWindowResizeOccurred;
   ({Future<void> done, bool quit})? _activeClose;
   Future<void>? _queuedClose;
+  Future<void>? _mainSessionActivation;
 
   /// הכנת עדכון פר-isolate, אחרי אישור הסגירה ולפני תחילת הכיבוי.
   static Future<void> Function()? prepareUpdateForClose;
@@ -405,19 +406,14 @@ class AppWindowListener extends WindowListener {
         await _shutdownProcessUpToFlush();
       }
       // ה-flush חייב להישאר בין שני חלקי כיבוי התהליך.
+      if (_mainSessionActivation case final activation?) await activation;
       final flushFailure = await _closeWindowScoped();
       if (endsProcess) {
         await _shutdownProcessAfterFlush(flushFailure);
       } else {
-        // אחרי ה-flush מוחקים סשן שנסגר במכוון; החלון האחרון במק שומר אותו.
-        if (!isLast) {
-          await TabsRepository().discardWindowSession();
-        }
-
-        // ה-flush של החלון האחרון ירוץ גם כאן (isolate אחד): בלי השהיה
-        // הסשן שנמחק היה נכתב מחדש. הטיוטות שייכות לכל החלונות ונשארות.
+        final slot = isLast ? null : WindowTabsSession.current.slot;
         WindowTabsSession.current.suspend();
-        await ViewWindowOpener.instance.beforeMainWindowHides();
+        await ViewWindowOpener.instance.beforeMainWindowHides(slot: slot);
         InProcessTabDrops.instance.setMainShown(false);
         // הנראות נשמרת לפי חלון: רק התוספים של הראשי מושהים.
         PluginRuntimeDispatcher.instance.setWindowShown(false);
@@ -716,8 +712,15 @@ class AppWindowListener extends WindowListener {
     ViewFocusSync.mainWindowActivated();
     // חלון שהוחזר מהסתרה מקבל פוקוס — זה האות שהוא מוצג שוב.
     PluginRuntimeDispatcher.instance.setWindowShown(true);
-    WindowTabsSession.current.resume();
+    if (InProcessTabDrops.instance.isMainShown) return;
     InProcessTabDrops.instance.setMainShown(true);
+    final activation = ViewWindowOpener.instance.mainWindowShown().then((_) {
+      // בכשל כתיבה, הארכיון נשאר כגיבוי והראשי יכול לשמור שינויים חדשים.
+      WindowTabsSession.current.resume();
+      _mainSessionActivation = null;
+    });
+    _mainSessionActivation = activation;
+    unawaited(activation);
   }
 
   @override
