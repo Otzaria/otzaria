@@ -1,7 +1,8 @@
 #Requires -Version 7.0
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$Commit,
-    [string]$FlutterVersion = '3.47.7'
+    [string]$FlutterVersion = '3.47.7',
+    [ValidateSet('x64', 'arm64')][string]$Architecture = 'x64'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -77,7 +78,7 @@ finally {
             -ExitEvidence $receipt.nativeExit -ApplicationErrors $receipt.applicationErrors
     } finally {
         Complete-InstalledPluginCrashDiagnostics -State $diagnostics -RepositoryRoot (Get-Location).Path `
-            -Identity $receipt.nativeExit -Failed ($exitCode -ne 0)
+            -Identity $receipt.nativeExit -Failed ($exitCode -ne 0) -Architecture $Architecture
     }
     $exitCode = Save-InstalledPluginRunReceipt -Receipt $receipt -Path $receiptPath -ExitCode $exitCode
 }
