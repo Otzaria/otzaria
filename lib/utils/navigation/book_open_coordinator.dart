@@ -12,6 +12,8 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/reading_tab_history.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/utils/reading_position.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
@@ -50,6 +52,7 @@ class BookOpenCoordinator {
     ExternalBookMatches? externalMatches,
     bool navigate = true,
     bool captureHistory = true,
+    double intraLineFraction = 0,
   }) {
     final tab = buildTab(
       book,
@@ -64,11 +67,13 @@ class BookOpenCoordinator {
       selectLine: selectLine,
       initialCommentators: initialCommentators,
       externalMatches: externalMatches,
+      intraLineFraction: intraLineFraction,
     );
     openTab(
       tab,
       insertAdjacent: insertAdjacent,
       navigateToPositionIfReused: index != null && navigateToPositionIfReused,
+      intraLineFraction: intraLineFraction,
       matchBookOnly: index == null,
       inSidePane: inSidePane,
       navigate: navigate,
@@ -90,6 +95,7 @@ class BookOpenCoordinator {
     bool inSidePane = false,
     bool navigate = true,
     bool captureHistory = true,
+    double intraLineFraction = 0,
   }) {
     final tabsState = tabsBloc.state;
     if (captureHistory && tabsState.hasOpenTabs) {
@@ -109,6 +115,7 @@ class BookOpenCoordinator {
               insertAdjacent: insertAdjacent,
               navigateToPositionIfReused: navigateToPositionIfReused,
               matchBookOnly: matchBookOnly,
+              intraLineFraction: intraLineFraction,
             ),
     );
     if (navigate) showReadingScreen();
@@ -121,7 +128,8 @@ class BookOpenCoordinator {
   /// מההיסטוריה, צורת-דף שמורה) — למסלולים שמוסיפים את הטאב בעצמם.
   ///
   /// [explicitIndex] מכבד את [index] גם כשהוא ברירת המחדל, ובניגוד ל-
-  /// [ignoreHistory] עדיין משחזר מההיסטוריה את המפרשים.
+  /// [ignoreHistory] עדיין משחזר מההיסטוריה את המפרשים. [intraLineFraction]
+  /// מכוון למקום בתוך שורת היעד המפורשת.
   OpenedTab buildTab(
     Book book,
     int index,
@@ -136,6 +144,7 @@ class BookOpenCoordinator {
     List<String>? initialCommentators,
     String? dedupeKey,
     ExternalBookMatches? externalMatches,
+    double intraLineFraction = 0,
   }) {
     // deep link עם הדגשה ממוקדת מציין במפורש סעיף יעד; חייבים לכבד אותו במדויק
     // (גם כש‑index=0) ולא ליפול חזרה להיסטוריית קריאה — אחרת ההדגשה תופיע במקום
@@ -218,6 +227,12 @@ class BookOpenCoordinator {
       initialIndex,
       initialReadingAnchor: useHistoryPosition
           ? lastOpened?.readingAnchor
+          : intraLineFraction > 0
+          ? ReadingAnchor(
+              line: initialIndex,
+              intraLineFraction: intraLineFraction,
+              alignment: initialReadingAlignment(initialIndex),
+            )
           : null,
       searchText: searchQuery,
       highlightText: effectiveHighlightText,

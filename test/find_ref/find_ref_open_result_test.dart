@@ -556,6 +556,67 @@ void main() {
     expect((event.tab as TextBookTab).index, 12);
   });
 
+  // #5748: כל סעיפי סימן שח בשורה אחת — פותחים בסמן [סעיף ו] שבתוכה.
+  group('תוצאת תוכן עניינים חלופי שהיא סמן בתוך שורה', () {
+    const line = '[סעיף א] אלף בית גימל [סעיף ו] דלת הא';
+    const altToc = DbReferenceResult(
+      title: 'טור, אורח חיים',
+      reference: 'טור, אורח חיים סימן שח סעיף ו',
+      segment: 30,
+      bookId: 1,
+      isAltToc: true,
+    );
+    late List<int> readLines;
+
+    setUp(() {
+      readLines = [];
+      FindRefDialog.readLineForTesting = (book, index) async {
+        readLines.add(index);
+        return line;
+      };
+    });
+    tearDown(() => FindRefDialog.readLineForTesting = null);
+
+    testWidgets('טאב חדש נפתח בסמן, בלי הדגשה', (tester) async {
+      final book = TextBook(id: 1, title: 'טור, אורח חיים');
+      final event = await _openResultEvent(
+        tester,
+        library: _libraryWith([book]),
+        history: [Bookmark(ref: 'טור', book: book, index: 40)],
+        result: altToc,
+      );
+
+      final tab = event.tab as TextBookTab;
+      final anchor = tab.lines.captureAnchor()!;
+      expect(readLines, [30]);
+      expect(anchor.line, 30);
+      expect(anchor.intraLineFraction, greaterThan(0));
+      expect(tab.highlightText, isEmpty);
+      expect(tab.permanentHighlightLine, isNull);
+      // טאב קיים של הספר מקבל את אותו מקום בשורה.
+      expect(event.navigateToPositionIfReused, isTrue);
+      expect(event.intraLineFraction, anchor.intraLineFraction);
+    });
+
+    testWidgets('תוצאה רגילה לא קוראת את השורה', (tester) async {
+      final book = TextBook(id: 1, title: 'טור, אורח חיים');
+      final event = await _openResultEvent(
+        tester,
+        library: _libraryWith([book]),
+        result: const DbReferenceResult(
+          title: 'טור, אורח חיים',
+          reference: 'טור, אורח חיים סימן שח',
+          segment: 30,
+          bookId: 1,
+        ),
+      );
+
+      expect(readLines, isEmpty);
+      expect(event.intraLineFraction, 0);
+      expect((event.tab as TextBookTab).lines.captureAnchor(), isNull);
+    });
+  });
+
   testWidgets('תוצאת ספר בלבד ממקדת טאב קיים בלי לגלול אותו', (tester) async {
     final book = TextBook(id: 1, title: 'בראשית');
     final event = await _openResultEvent(

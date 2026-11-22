@@ -26,7 +26,11 @@ import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/find_ref_deep_link.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart'
+    show bracketMarkerFractionForReference;
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -96,6 +100,10 @@ class FindRefDialog extends StatefulWidget {
   @visibleForTesting
   static void resetExamplesRotationForTesting([int offset = 0]) =>
       _FindRefDialogState._examplesOffset = offset;
+
+  /// קורא שורת ספר בבדיקות, במקום המסד.
+  @visibleForTesting
+  static Future<String?> Function(TextBook book, int line)? readLineForTesting;
 
   @override
   State<FindRefDialog> createState() => _FindRefDialogState();
@@ -699,6 +707,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
       );
     }
 
+    final intraLineFraction = ref.isAltToc && book is TextBook
+        ? await _altTocMarkerFraction(book, segment, ref.reference)
+        : 0.0;
+
     if (!mounted) return;
     Navigator.of(context).pop();
     openBook(
@@ -711,8 +723,36 @@ class _FindRefDialogState extends State<FindRefDialog> {
       navigateToPositionIfReused: hasExplicitLocation,
       requiresStableLayout: openAsPdf,
       initialCommentators: initialCommentators,
+      intraLineFraction: intraLineFraction,
     );
     _recordOpenedRef(ref);
+  }
+
+  /// כמה סעיפים שחולקים שורה אחת (סמני `[סעיף ו]`) — הגלילה מגיעה לסמן שבתוכה.
+  Future<double> _altTocMarkerFraction(
+    TextBook book,
+    int line,
+    String reference,
+  ) async {
+    // שיפור בלבד: כישלון בקריאת השורה לא מונע את פתיחת הספר בתחילתה.
+    try {
+      final text = await (FindRefDialog.readLineForTesting ?? _readLine)(
+        book,
+        line,
+      );
+      return text == null
+          ? 0
+          : bracketMarkerFractionForReference(text, reference);
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static Future<String?> _readLine(TextBook book, int line) async {
+    final range = await TextBookRepository(
+      fileSystem: FileSystemData.instance,
+    ).getBookContentRange(book, startLine: line, endLine: line);
+    return range?.lines.firstOrNull;
   }
 
   /// הכרטיסייה שבה ספר התוצאה כבר פתוח — לפי זהות הספר שבה [TabsBloc] ממחזר

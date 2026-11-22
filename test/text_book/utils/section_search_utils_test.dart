@@ -1041,6 +1041,32 @@ Future<void> main() async {
     });
   });
 
+  group('bracketMarkerFractionForReference (issue #5748)', () {
+    const line =
+        '[סעיף א] אלף בית [סעיף ב] גימל [ו] דלת [סעיף ו] הא [סעיף וא] וו';
+    double at(String marker) {
+      final clean = cleanLineForSearch(line);
+      return clean.indexOf(marker) / clean.length;
+    }
+
+    test('הסיומת הארוכה ביותר של ההפניה שיש לה סמן בשורה', () {
+      expect(
+        bracketMarkerFractionForReference(line, 'טור אורח חיים סימן שח סעיף ו'),
+        closeTo(at('[סעיף ו]'), 0.001),
+      );
+      expect(
+        bracketMarkerFractionForReference(line, 'טור אורח חיים סימן שח סעיף א'),
+        0,
+      );
+    });
+
+    test('בלי סמן נשארים בתחילת השורה', () {
+      expect(bracketMarkerFractionForReference(line, 'סימן שח סעיף ט'), 0);
+      expect(bracketMarkerFractionForReference('בלי סמנים', 'סעיף ו'), 0);
+      expect(bracketMarkerFractionForReference(line, ''), 0);
+    });
+  });
+
   group('bracketMarkerFractionInLine — דפי הגמרא ברי"ף (issue #5506)', () {
     const rif =
         "<b><big>גמ'</big></b> (דף ב:) תנו רבנן אלף בית גימל (דף ח: ע\"ש) "

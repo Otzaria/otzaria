@@ -638,6 +638,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         await _propagateNavigationToExistingTab(
           existingTab: matchingTab,
           incomingTab: event.tab,
+          intraLineFraction: event.intraLineFraction,
         );
       }
       // ההדגשה מדייקת את היעד בתוך השורה, אחרי הניווט למיקום המפורש.
@@ -922,6 +923,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   Future<void> _propagateNavigationToExistingTab({
     required OpenedTab existingTab,
     required OpenedTab incomingTab,
+    double intraLineFraction = 0,
   }) async {
     if (incomingTab is PdfBookTab) {
       final targetPdf = _resolvePdfBookTab(existingTab, incomingTab);
@@ -950,6 +952,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final navigation = targetText.lines.scrollToLine(
         targetIndex,
         alignment: 0,
+        intraLineFraction: intraLineFraction,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );

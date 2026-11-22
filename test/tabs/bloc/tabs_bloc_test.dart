@@ -642,6 +642,31 @@ void main() {
       },
     );
 
+    // #5748: כמה סעיפים בשורה אחת — הטאב הקיים מגיע לסמן שבתוך השורה.
+    test('טאב קיים מנווט למקום בתוך שורת היעד', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final existingTab = _createTextTab('ספר א', index: 0, categoryId: 1);
+
+      bloc.add(AddTab(existingTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(
+        OpenOrFocusTab(
+          _createTextTab('ספר א', index: 25, categoryId: 1),
+          navigateToPositionIfReused: true,
+          intraLineFraction: 0.6,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, hasLength(1));
+      final anchor = existingTab.lines.captureAnchor()!;
+      expect(anchor.line, 25);
+      expect(anchor.intraLineFraction, 0.6);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
     // #2587: סעיף בשו"ע אינו בתוכן העניינים, ולכן כותרת הטאב זהה לכותרת היעד.
     group('טאב פתוח באותה כותרת עם יעד בשורה אחרת', () {
       Future<(TabsBloc, TextBookTab)> openAndRetarget({

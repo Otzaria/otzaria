@@ -49,6 +49,9 @@ class OpenOrFocusTab extends TabsEvent {
   /// מאפשר למקד לפי זהות הספר גם כשאין יעד גלילה ידוע.
   final bool matchBookOnly;
 
+  /// המקום בתוך שורת היעד כשהטאב הממוחזר מנווט אליה.
+  final double intraLineFraction;
+
   /// פתיחה ברקע: תמיד טאב חדש (בלי מיקוד טאב קיים), והמשתמש נשאר על הנוכחי.
   final bool inBackground;
 
@@ -60,6 +63,7 @@ class OpenOrFocusTab extends TabsEvent {
     this.matchBookOnly = false,
     this.matchHistorySlot = false,
     this.inBackground = false,
+    this.intraLineFraction = 0,
   });
 
   @override
@@ -71,6 +75,7 @@ class OpenOrFocusTab extends TabsEvent {
     matchBookOnly,
     matchHistorySlot,
     inBackground,
+    intraLineFraction,
   ];
 }
 
