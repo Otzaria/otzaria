@@ -74,6 +74,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
   late final Ticker _ticker;
   Duration? _lastFrameTime;
   FocusNode? _ownFocusNode;
+  ({ScrollPosition position, double offset, Future<void> done})? _pendingStep;
 
   FocusNode get _focusNode =>
       widget.focusNode ?? (_ownFocusNode ??= FocusNode());
@@ -228,26 +229,37 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
     }
   }
 
-  /// יעד הצעד שבדרך — הקשה נוספת בזמן האנימציה ממשיכה ממנו ולא מהמיקום החלקי.
-  double? _stepTarget;
-
   void _step(int direction) {
     final position = _position;
+    final pending = _pendingStep;
+    if (pending != null && !identical(pending.position, position)) {
+      _pendingStep = null;
+    }
     if (position == null) return;
-    final target = ((_stepTarget ?? position.pixels) + 100 * direction).clamp(
+    // הקשה נוספת באותה רשימה ממשיכה מיעד הצעד שבדרך.
+    final pendingOffset = _pendingStep?.offset;
+    final target = ((pendingOffset ?? position.pixels) + 100 * direction).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
-    if (target == position.pixels) return;
-    _stepTarget = target;
+    if (target == position.pixels) {
+      if (pendingOffset != null) {
+        // גם צעד ללא תזוזה צריך לבטל את האנימציה בכיוון הקודם.
+        _pendingStep = null;
+        position.jumpTo(target);
+      }
+      return;
+    }
+    final animation = AppMotion.scrollPosition(
+      position,
+      target,
+      AppTokens.animFast,
+      curve: Curves.linear,
+    );
+    _pendingStep = (position: position, offset: target, done: animation);
     unawaited(
-      AppMotion.scrollPosition(
-        position,
-        target,
-        AppTokens.animFast,
-        curve: Curves.linear,
-      ).whenComplete(() {
-        if (_stepTarget == target) _stepTarget = null;
+      animation.whenComplete(() {
+        if (identical(_pendingStep?.done, animation)) _pendingStep = null;
       }),
     );
   }
@@ -272,6 +284,11 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
   }
 
   void _stopScrolling() {
+    _pendingStep = null;
+    _stopHold();
+  }
+
+  void _stopHold() {
     _ticker.stop();
     _scrollDirection = 0;
     _timePressedInSeconds = 0;
@@ -322,7 +339,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
         if (HardwareKeyboard.instance.logicalKeysPressed.contains(other)) {
           _startScrolling(-direction);
         } else {
-          _stopScrolling();
+          _stopHold();
         }
       }
     } else {
