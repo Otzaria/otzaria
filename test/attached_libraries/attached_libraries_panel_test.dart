@@ -10,6 +10,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
@@ -113,7 +114,10 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+    // Opening the panel fetches official offers; no network in tests.
+    OfficialAttachedLibraries.catalogForTesting = const [];
   });
+  tearDownAll(() => OfficialAttachedLibraries.catalogForTesting = null);
 
   setUp(() => libraryEvents = []);
 

@@ -214,6 +214,9 @@ Source: "bundled_plugins\{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPlugin
 ; נתוני החיפוש החכם שמסייע ההורדה מכין לצד המתקין, אל ליד תיקיית הספרייה.
 Source: "{src}\semantic-import\*"; DestDir: "{code:GetSemanticImportDir}"; \
   Flags: external recursesubdirs createallsubdirs skipifsourcedoesntexist ignoreversion uninsneveruninstall
+; חבילת מחברי זמננו שמסייע ההורדה מניח לצד המתקין, אל מיקום האיסוף של האפליקציה.
+Source: "{src}\zmanenu-offline.tar.zst*"; DestDir: "{code:GetOfficialDropDir}"; \
+  Flags: external skipifsourcedoesntexist ignoreversion uninsneveruninstall
 
 [INI]
 Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode and not IsPortableInstall
@@ -1523,6 +1526,16 @@ end;
 function GetSemanticImportDir(Param: String): String;
 begin
   Result := ExtractFileDir(GetLibraryBooksPath()) + '\semantic-import';
+end;
+
+// מיקום האיסוף של מסדים רשמיים באפליקציה (defaultDropDirectory), תחת שורש הנתונים.
+function GetOfficialDropDir(Param: String): String;
+begin
+  if PortableMode then
+    Result := ExpandConstant('{app}') + '\otzaria_data'
+  else
+    Result := ExpandConstant('{userappdata}\otzaria');
+  Result := Result + '\מסדים אישיים\להתקנה';
 end;
 
 // מוחק את כל הנתונים והספרים של אוצריא: ספריית הספרים המותאמת אישית

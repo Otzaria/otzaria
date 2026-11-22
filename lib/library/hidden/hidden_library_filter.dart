@@ -36,6 +36,7 @@ Category? _filterCategory(Category category, HiddenLibrarySelection hidden) {
 
   final copy = Category(
     title: category.title,
+    pathSegment: category.pathSegment,
     description: category.description,
     shortDescription: category.shortDescription,
     order: category.order,

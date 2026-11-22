@@ -103,13 +103,65 @@ class CheckAttachedLibraryUpdate extends AttachedLibrariesEvent {
 }
 
 /// Installs the update the user just approved in the confirmation dialog.
+/// [forceFull] replaces an official copy that no longer matches its version.
 class InstallAttachedLibraryUpdate extends AttachedLibrariesEvent {
   final AttachedLibrary library;
+  final bool forceFull;
 
-  const InstallAttachedLibraryUpdate(this.library);
+  const InstallAttachedLibraryUpdate(this.library, {this.forceFull = false});
 
   @override
-  List<Object?> get props => [library];
+  List<Object?> get props => [library, forceFull];
+}
+
+/// מביא את פרטי ההורדה של המסדים הרשמיים שאינם מותקנים (בפתיחת הכרטיס).
+class CheckOfficialLibraries extends AttachedLibrariesEvent {
+  const CheckOfficialLibraries();
+}
+
+class InstallOfficialLibrary extends AttachedLibrariesEvent {
+  final OfficialAttachedLibrary entry;
+
+  const InstallOfficialLibrary(this.entry);
+
+  @override
+  List<Object?> get props => [entry.libraryId];
+}
+
+class CancelOfficialLibrary extends AttachedLibrariesEvent {
+  final String libraryId;
+
+  const CancelOfficialLibrary(this.libraryId);
+
+  @override
+  List<Object?> get props => [libraryId];
+}
+
+/// התקנת מסד רשמי מחבילה לא-מקוונת (`<name>-offline.tar.zst`, שלם או בחלקים).
+class ImportOfficialLibraryPackage extends AttachedLibrariesEvent {
+  final PackageFolder folder;
+  final String archiveName;
+  final String? selectedName;
+
+  const ImportOfficialLibraryPackage(
+    this.folder,
+    this.archiveName, {
+    this.selectedName,
+  });
+
+  @override
+  List<Object?> get props => [folder, archiveName, selectedName];
+}
+
+/// "לא תודה" על הצעה, או החזרתה להצגה.
+class SetOfficialLibraryDeclined extends AttachedLibrariesEvent {
+  final String libraryId;
+  final bool declined;
+
+  const SetOfficialLibraryDeclined(this.libraryId, {required this.declined});
+
+  @override
+  List<Object?> get props => [libraryId, declined];
 }
 
 class CancelAttachedLibraryUpdate extends AttachedLibrariesEvent {

@@ -13,6 +13,7 @@
 #include "selection.h"
 #include "texts.h"
 #include "widgets.h"
+#include "zmanenu.h"
 
 typedef enum {
   PAGE_WELCOME,
@@ -111,6 +112,10 @@ struct Ui {
   GPtrArray *custom_cards;
   char *base_dir;
   gboolean fell_back;
+  /* NULL: no Contemporary Authors release that can be verified — not shown. */
+  OtzZmanenuOffer *zmanenu;
+  gboolean zmanenu_checked;
+  GCancellable *zmanenu_cancel;
 
   GCancellable *load_cancel;
   guint load_generation;
@@ -118,6 +123,7 @@ struct Ui {
   OtzJob *job;
   GPtrArray *job_ids;
   Target job_target;
+  gboolean job_zmanenu; /* the job carries Contemporary Authors */
   GCancellable *cancel;
   guint tick_id, tick_count;
   gint64 started_us;
@@ -855,6 +861,35 @@ static void on_other(GtkToggleButton *card, Ui *ui) {
   ui->other_index = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(card), "otz-value"));
 }
 
+static void on_zmanenu(GtkToggleButton *card, Ui *ui) {
+  if (ui->building) return;
+  ui->zmanenu_checked = gtk_toggle_button_get_active(card);
+}
+
+static gboolean zmanenu_available(Ui *ui) {
+  if (ui->zmanenu == NULL) return FALSE;
+  OtzTarget target = as_otz(current_target(ui));
+  return otz_zmanenu_is_offered(&target);
+}
+
+/* Checked and available for the target, else NULL. */
+static const OtzZmanenuOffer *selected_zmanenu(Ui *ui) {
+  return ui->zmanenu_checked && zmanenu_available(ui) ? ui->zmanenu : NULL;
+}
+
+/* A portable copy keeps its data beside itself, in a folder the assistant
+ * does not know, so the files go beside the selection as for another computer. */
+static gboolean zmanenu_to_drop_folder(Ui *ui, const Target *target) {
+  return ui->mode == MODE_THIS &&
+         g_strcmp0(target->format, OTZ_PORTABLE_PACKAGE_FORMAT) != 0;
+}
+
+/* "" when the size is unknown (no API reply). */
+static char *zmanenu_size_text(const OtzZmanenuOffer *offer) {
+  gint64 size = otz_zmanenu_download_size(offer);
+  return size > 0 ? otz_size_text(size) : g_strdup("");
+}
+
 static void on_preset(GtkToggleButton *card, Ui *ui) {
   if (ui->building || !gtk_toggle_button_get_active(card)) return;
   g_free(ui->preset_id);
@@ -951,6 +986,20 @@ static GtkWidget *presets_page(Ui *ui) {
                                  g_strcmp0(ui->preset_id, id) == 0,
                                  G_CALLBACK(on_preset), (int)i);
     g_object_set_data_full(G_OBJECT(card), "otz-id", g_strdup(id), g_free);
+  }
+  if (zmanenu_available(ui)) {
+    g_autofree char *size = zmanenu_size_text(ui->zmanenu);
+    g_autofree char *side = *size != '\0' ? otz_trf(S_CARD_SIZE, size, NULL) : NULL;
+    gboolean drop = zmanenu_to_drop_folder(ui, current_target(ui));
+    OtzCardSpec spec = {.title = otz_tr(S_ZMANENU_TITLE),
+                        .desc = otz_tr(drop ? S_ZMANENU_DESC_THIS : S_ZMANENU_DESC_OTHER),
+                        .side = side,
+                        .icon = "component",
+                        .check = TRUE};
+    GtkWidget *card = otz_card(&spec, NULL);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(card), ui->zmanenu_checked);
+    g_signal_connect(card, "toggled", G_CALLBACK(on_zmanenu), ui);
+    add_content(&frame, card);
   }
   ui->building = FALSE;
   nav_footer(ui, &frame, NULL);
@@ -1103,18 +1152,23 @@ static char *for_text(Ui *ui) {
 static GtkWidget *ready_page(Ui *ui) {
   Frame frame = frame_new(ui, otz_tr(S_READY_TITLE), otz_tr(S_READY_DESC),
                           otz_tr(S_READY_HINT), TRUE);
-  OtzSummaryRow rows[4];
+  OtzSummaryRow rows[5];
   int count = 0;
   g_autofree char *version = version_label(ui);
   if (version != NULL)
     rows[count++] = (OtzSummaryRow){.icon = "preset_update", .label = otz_tr(S_ROW_VERSION), .value = version};
   g_autoptr(GPtrArray) ids = selected_ids(ui);
+  const OtzZmanenuOffer *zmanenu = selected_zmanenu(ui);
+  g_autofree char *zmanenu_size = zmanenu != NULL ? zmanenu_size_text(zmanenu) : NULL;
   gboolean custom = find_preset(ui, ui->preset_id) == NULL;
   g_autofree char *size = otz_size_text(otz_members_download_size(ui->manifest, ids));
   g_autofree char *what =
       g_strconcat(preset_title(custom ? CUSTOM_ID : ui->preset_id), " · ", size, NULL);
   g_autofree char *what_icon = preset_icon(custom ? CUSTOM_ID : ui->preset_id);
   rows[count++] = (OtzSummaryRow){.icon = what_icon, .label = otz_tr(S_ROW_WHAT), .value = what};
+  if (zmanenu_size != NULL)
+    rows[count++] = (OtzSummaryRow){.icon = "component", .label = otz_tr(S_ROW_ZMANENU),
+                                    .value = zmanenu_size};
   g_autofree char *for_value = for_text(ui);
   g_autofree char *for_icon =
       ui->mode == MODE_THIS ? g_strdup("this_pc") : g_strdup(current_target(ui)->platform);
@@ -1353,6 +1407,11 @@ static void finish_guide(Ui *ui, GtkWidget *box) {
   }
   for (guint i = 0; i < ui->result_notes->len; i++)
     paragraph(box, g_ptr_array_index(ui->result_notes, i), 8);
+  if (ui->job_zmanenu)
+    paragraph(box,
+              otz_tr(zmanenu_to_drop_folder(ui, &ui->job_target) ? S_GUIDE_ZMANENU_THIS
+                                                                 : S_GUIDE_ZMANENU_OTHER),
+              8);
 }
 
 static void open_output(Ui *ui) { reveal_result(ui); }
@@ -1664,6 +1723,33 @@ static void show_failure(Ui *ui, Failure failure, const char *message,
 
 static void auto_run(Ui *ui);
 
+static void zmanenu_in_thread(GTask *task, gpointer source, gpointer task_data,
+                              GCancellable *cancellable) {
+  g_task_return_pointer(task, otz_zmanenu_load(cancellable),
+                        (GDestroyNotify)otz_zmanenu_offer_free);
+}
+
+static void on_zmanenu_loaded(GObject *source, GAsyncResult *async, gpointer data) {
+  Ui *ui = data;
+  OtzZmanenuOffer *offer = g_task_propagate_pointer(G_TASK(async), NULL);
+  if (offer == NULL) return;
+  if (ui->zmanenu != NULL) {
+    otz_zmanenu_offer_free(offer);
+    return;
+  }
+  ui->zmanenu = offer;
+  if (ui->page_id == PAGE_PRESETS && !ui->dialog_open) show_page(ui);
+}
+
+/* In the background and never an error: without a release the option is not
+ * shown. Not with --dev-manifest, so tests and screenshots stay offline. */
+static void load_zmanenu(Ui *ui) {
+  if (ui->zmanenu != NULL || ui->zmanenu_cancel != NULL) return;
+  ui->zmanenu_cancel = g_cancellable_new();
+  g_autoptr(GTask) task = g_task_new(NULL, ui->zmanenu_cancel, on_zmanenu_loaded, ui);
+  g_task_run_in_thread(task, zmanenu_in_thread);
+}
+
 static void loaded(Ui *ui, OtzManifest *manifest) {
   ui->manifest = manifest;
   compute_targets(ui);
@@ -1698,6 +1784,8 @@ static void on_manifest_loaded(GObject *source, GAsyncResult *async, gpointer da
     OtzManifest *manifest = g_steal_pointer(&result->manifest);
     free_load_result(result);
     loaded(ui, manifest);
+    if (ui->options->dev_manifest == NULL || *ui->options->dev_manifest == '\0')
+      load_zmanenu(ui);
     if (ui->options->dev_auto_preset != NULL) auto_run(ui);
     return;
   }
@@ -1933,17 +2021,32 @@ static void build_file_names(Ui *ui) {
   }
 }
 
+static void add_zmanenu_file_names(Ui *ui) {
+  if (!ui->job_zmanenu || ui->zmanenu == NULL) return;
+  for (guint i = 0; i < ui->zmanenu->downloads->len; i++) {
+    const OtzZmanenuFile *file = g_ptr_array_index(ui->zmanenu->downloads, i);
+    g_hash_table_insert(ui->file_names, g_strdup(file->name), g_strdup(otz_tr(S_ROW_ZMANENU)));
+  }
+}
+
 static char *subfolder_name(Ui *ui, const Target *target) {
   if (!ui->english) return NULL;
   return otz_trf(S_OUTPUT_SUBFOLDER, otz_platform_display_name(target->platform), NULL);
 }
 
+/* Contemporary Authors: on this computer into Otzaria's drop folder, for
+ * another one beside the selection. */
 static OtzJob *new_job(Ui *ui, GError **error) {
   OtzTarget target = as_otz(&ui->job_target);
   g_autofree char *cache = otz_cache_dir();
   g_autofree char *subfolder = subfolder_name(ui, &ui->job_target);
-  return otz_job_new(ui->manifest, ui->job_ids, &target, cache, ui->base_dir, subfolder,
-                     error);
+  const OtzZmanenuOffer *zmanenu = selected_zmanenu(ui);
+  g_autofree char *drop = zmanenu != NULL && zmanenu_to_drop_folder(ui, &ui->job_target)
+                               ? otz_zmanenu_drop_dir()
+                               : NULL;
+  ui->job_zmanenu = zmanenu != NULL;
+  return otz_job_new_with_zmanenu(ui->manifest, ui->job_ids, &target, cache, ui->base_dir,
+                                  subfolder, zmanenu, drop, error);
 }
 
 static void start(Ui *ui) {
@@ -1962,6 +2065,7 @@ static void start(Ui *ui) {
   ui->text_phase = OTZ_PHASE_DONE;
   ui->text_status = OTZ_ETA_CALCULATING;
   build_file_names(ui);
+  add_zmanenu_file_names(ui);
   show_page(ui);
   g_clear_object(&ui->cancel);
   ui->cancel = g_cancellable_new();
@@ -2179,6 +2283,9 @@ static void ui_clear(Ui *ui) {
   if (ui->job != NULL) otz_job_free(ui->job);
   g_clear_object(&ui->cancel);
   g_clear_object(&ui->load_cancel);
+  if (ui->zmanenu_cancel != NULL) g_cancellable_cancel(ui->zmanenu_cancel);
+  g_clear_object(&ui->zmanenu_cancel);
+  g_clear_pointer(&ui->zmanenu, otz_zmanenu_offer_free);
   if (!ui->borrowed_manifest) otz_manifest_free(ui->manifest);
   g_free(ui->pinned_tag);
   g_free(ui->os_release);

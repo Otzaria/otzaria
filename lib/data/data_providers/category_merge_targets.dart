@@ -2,8 +2,14 @@ import 'package:otzaria/library/models/library.dart';
 
 /// אינדקס קטגוריות אחיות לפי מפתח כותרת מנורמל.
 class CategoryMergeTargets {
-  CategoryMergeTargets(this._categories, this._normalizeTitle) {
-    _categories.forEach(_index);
+  CategoryMergeTargets(
+    this._categories,
+    this._normalizeTitle, {
+    bool Function(Category)? exclude,
+  }) {
+    for (final category in _categories) {
+      if (exclude?.call(category) != true) _index(category);
+    }
   }
 
   final List<Category> _categories;

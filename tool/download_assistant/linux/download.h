@@ -5,6 +5,7 @@
 
 #include "manifest.h"
 #include "selection.h"
+#include "zmanenu.h"
 
 #define OTZ_MAX_CONNECTIONS 3
 
@@ -49,6 +50,14 @@ OtzJob *otz_job_new(const OtzManifest *manifest, GPtrArray *selected_ids,
                     const OtzTarget *target, const char *cache_dir,
                     const char *base_dir, const char *subfolder_name,
                     GError **error);
+/* As otz_job_new, plus Contemporary Authors when zmanenu is set and offered for
+ * the target: into zmanenu_dir (Otzaria's drop folder on this computer), or
+ * NULL for beside the selection in the output folder. */
+OtzJob *otz_job_new_with_zmanenu(const OtzManifest *manifest, GPtrArray *selected_ids,
+                                 const OtzTarget *target, const char *cache_dir,
+                                 const char *base_dir, const char *subfolder_name,
+                                 const OtzZmanenuOffer *zmanenu,
+                                 const char *zmanenu_dir, GError **error);
 void otz_job_free(OtzJob *job);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(OtzJob, otz_job_free)
 

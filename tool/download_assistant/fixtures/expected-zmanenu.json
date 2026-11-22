@@ -1,0 +1,379 @@
+{
+  "archive": "zmanenu-offline.tar.zst",
+  "partsManifestName": "zmanenu-offline.tar.zst.manifest.json",
+  "dropFolder": "מסדים אישיים/להתקנה",
+  "offeredTargets": [
+    {
+      "target": {
+        "platform": "windows",
+        "architecture": "x64",
+        "packageFormat": ""
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "windows",
+        "architecture": "arm64",
+        "packageFormat": ""
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "macos",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "linux",
+        "architecture": "x64",
+        "packageFormat": "deb"
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "linux",
+        "architecture": "x64",
+        "packageFormat": "rpm"
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "linux",
+        "architecture": "x64",
+        "packageFormat": "portable"
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "linux",
+        "architecture": "arm64",
+        "packageFormat": "deb"
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "linux",
+        "architecture": "arm64",
+        "packageFormat": "rpm"
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "linux",
+        "architecture": "arm64",
+        "packageFormat": "portable"
+      },
+      "offered": true
+    },
+    {
+      "target": {
+        "platform": "android",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "offered": false
+    }
+  ],
+  "cases": [
+    {
+      "id": "whole",
+      "release": "zmanenu-release-whole.json",
+      "partsManifest": "",
+      "partsManifestUrl": null,
+      "offer": {
+        "tag": "v12",
+        "split": false,
+        "downloadSize": 3230,
+        "downloads": [
+          {
+            "name": "zmanenu-offline.tar.zst",
+            "size": 3230,
+            "sha256": "31916c8e031b280e9166f4e3c10c5d93394c79ace3bc73c80d14b0942f782446",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/download/v12/zmanenu-offline.tar.zst"
+          }
+        ],
+        "outputFiles": [
+          "zmanenu-offline.tar.zst"
+        ]
+      }
+    },
+    {
+      "id": "parts",
+      "release": "zmanenu-release-parts.json",
+      "partsManifest": "zmanenu-parts-manifest.json",
+      "partsManifestUrl": "https://github.com/Otzaria/zmanenu-library/releases/download/v12/zmanenu-offline.tar.zst.manifest.json",
+      "offer": {
+        "tag": "v12",
+        "split": true,
+        "downloadSize": 3230,
+        "downloads": [
+          {
+            "name": "zmanenu-offline.tar.zst.part-000",
+            "size": 1500,
+            "sha256": "574a9b24ef47f69b01b83164b4afd5f475cf6325937e35bdcf8e3092bbe71f67",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/download/v12/zmanenu-offline.tar.zst.part-000"
+          },
+          {
+            "name": "zmanenu-offline.tar.zst.part-001",
+            "size": 1500,
+            "sha256": "97b71de83e67032938736ed4f8678f7f8ca11fd2ec0e3b4b5319a90192d73c41",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/download/v12/zmanenu-offline.tar.zst.part-001"
+          },
+          {
+            "name": "zmanenu-offline.tar.zst.part-002",
+            "size": 230,
+            "sha256": "18fac9978c544ef7f34d736f857479d8e943f2797af153a4999c90c1525d7364",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/download/v12/zmanenu-offline.tar.zst.part-002"
+          }
+        ],
+        "outputFiles": [
+          "zmanenu-offline.tar.zst.part-000",
+          "zmanenu-offline.tar.zst.part-001",
+          "zmanenu-offline.tar.zst.part-002",
+          "zmanenu-offline.tar.zst.manifest.json"
+        ]
+      }
+    },
+    {
+      "id": "parts-without-api",
+      "release": "",
+      "partsManifest": "zmanenu-parts-manifest.json",
+      "partsManifestUrl": "https://github.com/Otzaria/zmanenu-library/releases/latest/download/zmanenu-offline.tar.zst.manifest.json",
+      "offer": {
+        "tag": "",
+        "split": true,
+        "downloadSize": 3230,
+        "downloads": [
+          {
+            "name": "zmanenu-offline.tar.zst.part-000",
+            "size": 1500,
+            "sha256": "574a9b24ef47f69b01b83164b4afd5f475cf6325937e35bdcf8e3092bbe71f67",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/latest/download/zmanenu-offline.tar.zst.part-000"
+          },
+          {
+            "name": "zmanenu-offline.tar.zst.part-001",
+            "size": 1500,
+            "sha256": "97b71de83e67032938736ed4f8678f7f8ca11fd2ec0e3b4b5319a90192d73c41",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/latest/download/zmanenu-offline.tar.zst.part-001"
+          },
+          {
+            "name": "zmanenu-offline.tar.zst.part-002",
+            "size": 230,
+            "sha256": "18fac9978c544ef7f34d736f857479d8e943f2797af153a4999c90c1525d7364",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/latest/download/zmanenu-offline.tar.zst.part-002"
+          }
+        ],
+        "outputFiles": [
+          "zmanenu-offline.tar.zst.part-000",
+          "zmanenu-offline.tar.zst.part-001",
+          "zmanenu-offline.tar.zst.part-002",
+          "zmanenu-offline.tar.zst.manifest.json"
+        ]
+      }
+    },
+    {
+      "id": "no-api-and-no-parts",
+      "release": "",
+      "partsManifest": "",
+      "partsManifestUrl": "https://github.com/Otzaria/zmanenu-library/releases/latest/download/zmanenu-offline.tar.zst.manifest.json",
+      "offer": {
+        "tag": "",
+        "split": false,
+        "downloadSize": 0,
+        "downloads": [
+          {
+            "name": "zmanenu-offline.tar.zst",
+            "size": 0,
+            "sha256": "",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/latest/download/zmanenu-offline.tar.zst"
+          }
+        ],
+        "outputFiles": [
+          "zmanenu-offline.tar.zst"
+        ]
+      }
+    },
+    {
+      "id": "whole-without-digest",
+      "release": "zmanenu-release-whole-without-digest.json",
+      "partsManifest": "",
+      "partsManifestUrl": null,
+      "offer": {
+        "tag": "v12",
+        "split": false,
+        "downloadSize": 3230,
+        "downloads": [
+          {
+            "name": "zmanenu-offline.tar.zst",
+            "size": 3230,
+            "sha256": "",
+            "url": "https://github.com/Otzaria/zmanenu-library/releases/download/v12/zmanenu-offline.tar.zst"
+          }
+        ],
+        "outputFiles": [
+          "zmanenu-offline.tar.zst"
+        ]
+      }
+    },
+    {
+      "id": "release-without-package",
+      "release": "zmanenu-release-without-package.json",
+      "partsManifest": "",
+      "partsManifestUrl": null,
+      "offer": null
+    }
+  ],
+  "otherComputer": [
+    {
+      "case": "whole",
+      "target": {
+        "platform": "windows",
+        "architecture": "x64",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-0.10.3-windows.exe",
+        "zmanenu-offline.tar.zst"
+      ],
+      "outputSubfolder": "אוצריא להתקנה ל-Windows"
+    },
+    {
+      "case": "whole",
+      "target": {
+        "platform": "android",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-android.apk"
+      ],
+      "outputSubfolder": ""
+    },
+    {
+      "case": "parts",
+      "target": {
+        "platform": "windows",
+        "architecture": "x64",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-0.10.3-windows.exe",
+        "zmanenu-offline.tar.zst.part-000",
+        "zmanenu-offline.tar.zst.part-001",
+        "zmanenu-offline.tar.zst.part-002",
+        "zmanenu-offline.tar.zst.manifest.json"
+      ],
+      "outputSubfolder": "אוצריא להתקנה ל-Windows"
+    },
+    {
+      "case": "parts",
+      "target": {
+        "platform": "android",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-android.apk"
+      ],
+      "outputSubfolder": ""
+    },
+    {
+      "case": "parts-without-api",
+      "target": {
+        "platform": "windows",
+        "architecture": "x64",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-0.10.3-windows.exe",
+        "zmanenu-offline.tar.zst.part-000",
+        "zmanenu-offline.tar.zst.part-001",
+        "zmanenu-offline.tar.zst.part-002",
+        "zmanenu-offline.tar.zst.manifest.json"
+      ],
+      "outputSubfolder": "אוצריא להתקנה ל-Windows"
+    },
+    {
+      "case": "parts-without-api",
+      "target": {
+        "platform": "android",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-android.apk"
+      ],
+      "outputSubfolder": ""
+    },
+    {
+      "case": "no-api-and-no-parts",
+      "target": {
+        "platform": "windows",
+        "architecture": "x64",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-0.10.3-windows.exe",
+        "zmanenu-offline.tar.zst"
+      ],
+      "outputSubfolder": "אוצריא להתקנה ל-Windows"
+    },
+    {
+      "case": "no-api-and-no-parts",
+      "target": {
+        "platform": "android",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-android.apk"
+      ],
+      "outputSubfolder": ""
+    },
+    {
+      "case": "whole-without-digest",
+      "target": {
+        "platform": "windows",
+        "architecture": "x64",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-0.10.3-windows.exe",
+        "zmanenu-offline.tar.zst"
+      ],
+      "outputSubfolder": "אוצריא להתקנה ל-Windows"
+    },
+    {
+      "case": "whole-without-digest",
+      "target": {
+        "platform": "android",
+        "architecture": "",
+        "packageFormat": ""
+      },
+      "preset": "basic",
+      "outputFiles": [
+        "otzaria-android.apk"
+      ],
+      "outputSubfolder": ""
+    }
+  ]
+}

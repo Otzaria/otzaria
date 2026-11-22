@@ -597,3 +597,212 @@ List<String> plannedOutputNotes(
   }
   return notes;
 }
+
+// ============================ מחברי זמננו ============================
+//
+// מסד ספרים רשמי שהמסייע מוריד בנוסף לבחירה, רק כשהמשתמש סימן זאת. המקור
+// הוא ה-release האחרון של [kZmanenuRepository] — לא המניפסט של אוצריא —
+// ולכן כשאין release (404 מה-API) או שאין בו חבילה, האפשרות אינה מוצגת.
+
+const String kZmanenuRepository = 'Otzaria/zmanenu-library';
+
+/// שם החבילה הלא-מקוונת; האפליקציה מזהה אותה בשם הזה (`offlinePackageName`).
+const String kZmanenuArchiveName = 'zmanenu-offline.tar.zst';
+
+/// מניפסט החלקים של `split_release_asset.sh`.
+const String kZmanenuPartsManifestName = '$kZmanenuArchiveName.manifest.json';
+
+/// תיקיית האיסוף, יחסית לתיקיית הנתונים של אוצריא
+/// (`AttachedLibraryUpdateService.defaultDropDirectory`).
+const String kZmanenuDropFolder = 'מסדים אישיים/להתקנה';
+
+/// היעדים שבהם האפליקציה מתקינה את החבילה מתיקייה. ב-Android בחירת התיקייה
+/// עוברת דרך SAF, שאינה מוסרת נתיב, והחבילה לא הייתה מותקנת.
+const Set<String> kZmanenuPlatforms = {'windows', 'macos', 'linux'};
+
+const String kZmanenuReleaseApiUrl =
+    'https://api.github.com/repos/$kZmanenuRepository/releases/latest';
+
+bool zmanenuIsOffered(AssistantTarget target) =>
+    kZmanenuPlatforms.contains(target.platform);
+
+final RegExp _safeName = RegExp(r'^[A-Za-z0-9._+-]+$');
+final RegExp _sha256Hex = RegExp(r'^[0-9a-f]{64}$');
+
+bool _isSafeName(String value) =>
+    _safeName.hasMatch(value) && value != '.' && value != '..';
+
+/// כתובת נכס. [tag] ריק — ה-API לא ענה, והכתובת היא של ה-release האחרון.
+String zmanenuAssetUrl(String tag, String name) => tag.isEmpty
+    ? 'https://github.com/$kZmanenuRepository/releases/latest/download/$name'
+    : 'https://github.com/$kZmanenuRepository/releases/download/$tag/$name';
+
+/// [sha256] ריק — קובץ שלם בלי hash ידוע: המסייע אינו מאמת אותו ואינו לוקח
+/// אותו מהמטמון, והאפליקציה מאמתת חתימה ו-sha256 בייבוא. [size] 0 — לא ידוע.
+typedef ZmanenuFile = ({String name, int size, String sha256, String url});
+
+/// מה שיורד. [split] — חלקים, ואחריהם נכתב מניפסט החלקים שכבר נקרא.
+class ZmanenuOffer {
+  const ZmanenuOffer({
+    required this.tag,
+    required this.downloads,
+    required this.split,
+  });
+
+  final String tag;
+  final List<ZmanenuFile> downloads;
+  final bool split;
+
+  int get downloadSize => downloads.fold(0, (sum, f) => sum + f.size);
+
+  /// הקבצים בתיקיית היעד, בסדר הכתיבה: מניפסט החלקים אחרון, כדי שהאפליקציה
+  /// לא תמצא חבילה חלקית.
+  List<String> get outputFiles => [
+    for (final file in downloads) file.name,
+    if (split) kZmanenuPartsManifestName,
+  ];
+
+  Map<String, Object> toJson() => {
+    'tag': tag,
+    'split': split,
+    'downloadSize': downloadSize,
+    'downloads': [
+      for (final f in downloads)
+        {'name': f.name, 'size': f.size, 'sha256': f.sha256, 'url': f.url},
+    ],
+    'outputFiles': outputFiles,
+  };
+}
+
+List<Map<String, Object?>> _releaseAssets(Map<String, Object?> release) =>
+    ((release['assets'] as List?) ?? const []).cast<Map<String, Object?>>();
+
+/// ה-sha256 מתוך `digest` של נכס ב-API (`sha256:<hex>`), או null.
+String? _assetSha256(Map<String, Object?> asset) {
+  final digest = asset['digest'];
+  if (digest is! String || !digest.startsWith('sha256:')) return null;
+  final hex = digest.substring('sha256:'.length);
+  return _sha256Hex.hasMatch(hex) ? hex : null;
+}
+
+/// הנכס של הארכיון השלם; [verified] — רק עם sha256 ב-`digest`.
+Map<String, Object?>? _wholeAsset(
+  Map<String, Object?> release, {
+  bool verified = true,
+}) {
+  for (final asset in _releaseAssets(release)) {
+    if (asset['name'] != kZmanenuArchiveName) continue;
+    final size = asset['size'];
+    if (size is int && size > 0 && (!verified || _assetSha256(asset) != null)) {
+      return asset;
+    }
+  }
+  return null;
+}
+
+/// התג של release מה-API; null כשאינו בטוח לנתיב.
+String? _releaseTag(Map<String, Object?> release) {
+  final tag = release['tag_name'];
+  return tag is String && _isSafeName(tag) ? tag : null;
+}
+
+/// מאיפה לקרוא את מניפסט החלקים, או null כשאין צורך או שאין כזה.
+/// [release] — תשובת `releases/latest` של ה-API; null כשה-API לא ענה (מגבלת
+/// קצב, חסימה) — אז הכתובת הישירה של ה-release האחרון, כמו בספרייה.
+String? zmanenuPartsManifestUrl(Map<String, Object?>? release) {
+  if (release == null) return zmanenuAssetUrl('', kZmanenuPartsManifestName);
+  final tag = _releaseTag(release);
+  if (tag == null || _wholeAsset(release) != null) return null;
+  final listed = _releaseAssets(
+    release,
+  ).any((a) => a['name'] == kZmanenuPartsManifestName);
+  return listed ? zmanenuAssetUrl(tag, kZmanenuPartsManifestName) : null;
+}
+
+/// ההורדה של מחברי זמננו, או null כשאין מה להציע.
+///
+/// קובץ שלם עם sha256 מה-API; אחרת חלקים לפי מניפסט החלקים ([partsManifest],
+/// שנקרא מ-[zmanenuPartsManifestUrl]); ובלי מניפסט חלקים — הקובץ השלם בלי
+/// sha256 (מה-API, או בלי ה-API מה-release האחרון, בגודל לא ידוע). המסייע
+/// אינו פורס את החבילה ואינו בודק את החתימה שבתוכה: האפליקציה עושה זאת בייבוא.
+ZmanenuOffer? zmanenuOffer(
+  Map<String, Object?>? release, {
+  Map<String, Object?>? partsManifest,
+}) {
+  var tag = '';
+  if (release != null) {
+    final releaseTag = _releaseTag(release);
+    if (releaseTag == null) return null;
+    tag = releaseTag;
+    if (_wholeAsset(release) case final whole?) {
+      return _wholeOffer(tag, whole['size'] as int, _assetSha256(whole)!);
+    }
+  }
+  if (partsManifest == null) {
+    if (release == null) return _wholeOffer(tag, 0, '');
+    final unverified = _wholeAsset(release, verified: false);
+    return unverified == null
+        ? null
+        : _wholeOffer(tag, unverified['size'] as int, '');
+  }
+  if (partsManifest['archive'] != kZmanenuArchiveName) return null;
+  final parts = partsManifest['parts'];
+  if (parts is! List || parts.isEmpty) return null;
+  final listed = release == null
+      ? null
+      : {for (final a in _releaseAssets(release)) a['name']: a['size']};
+  final downloads = <ZmanenuFile>[];
+  for (var i = 0; i < parts.length; i++) {
+    final part = parts[i];
+    if (part is! Map) return null;
+    final name = part['name'];
+    final size = part['size'];
+    final sha = part['sha256'];
+    if (name != '$kZmanenuArchiveName.part-${i.toString().padLeft(3, '0')}' ||
+        size is! int ||
+        size <= 0 ||
+        sha is! String ||
+        !_sha256Hex.hasMatch(sha)) {
+      return null;
+    }
+    // החלק חייב להיות נכס באותו release ובאותו גודל.
+    if (listed != null && listed[name] != size) return null;
+    downloads.add((
+      name: name as String,
+      size: size,
+      sha256: sha,
+      url: zmanenuAssetUrl(tag, name),
+    ));
+  }
+  final total = partsManifest['size'];
+  if (total is! int || total != downloads.fold(0, (s, f) => s + f.size)) {
+    return null;
+  }
+  return ZmanenuOffer(tag: tag, downloads: downloads, split: true);
+}
+
+ZmanenuOffer _wholeOffer(String tag, int size, String sha256) => ZmanenuOffer(
+  tag: tag,
+  split: false,
+  downloads: [
+    (
+      name: kZmanenuArchiveName,
+      size: size,
+      sha256: sha256,
+      url: zmanenuAssetUrl(tag, kZmanenuArchiveName),
+    ),
+  ],
+);
+
+/// הקבצים בתיקיית היעד כשמחברי זמננו יורדים למחשב אחר: לצד קובצי הבחירה,
+/// באותה תיקייה, ולכן הם נספרים בכלל "יותר מקובץ אחד → תת-תיקייה". למחשב
+/// הזה הם נכתבים לתיקיית האיסוף ואינם משנים את תיקיית הפלט.
+List<String> plannedOutputFilesWithZmanenu(
+  Map<String, Object?> manifest,
+  Iterable<String> selectedIds,
+  AssistantTarget target,
+  ZmanenuOffer offer,
+) => [
+  ...plannedOutputFiles(manifest, selectedIds, target),
+  if (zmanenuIsOffered(target)) ...offer.outputFiles,
+];

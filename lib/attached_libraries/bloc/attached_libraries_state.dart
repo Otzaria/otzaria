@@ -27,8 +27,15 @@ class AttachedLibrariesState extends Equatable {
   final bool isBusy;
   final AttachedLibrariesNotice? notice;
 
-  /// Update status per database path.
+  /// Update status per database path, and per official offer
+  /// ([AttachedLibraryUpdateService.officialKey]).
   final Map<String, AttachedUpdateStatus> updates;
+
+  /// מסדים רשמיים פעילים שאינם מותקנים.
+  final List<OfficialAttachedLibrary> officialOffers;
+
+  /// מזהי מסדים רשמיים שהמשתמש סירב להם או הסיר.
+  final Set<String> declinedOfficial;
 
   const AttachedLibrariesState({
     this.libraries = const [],
@@ -36,10 +43,22 @@ class AttachedLibrariesState extends Equatable {
     this.isBusy = false,
     this.notice,
     this.updates = const {},
+    this.officialOffers = const [],
+    this.declinedOfficial = const {},
   });
 
   AttachedUpdateStatus updateOf(AttachedLibrary library) =>
       updates[library.path] ?? const AttachedUpdateIdle();
+
+  AttachedUpdateStatus officialUpdateOf(String libraryId) =>
+      updates[AttachedLibraryUpdateService.officialKey(libraryId)] ??
+      const AttachedUpdateIdle();
+
+  /// הצעות שמוצגות במלואן — בלי אלה שנדחו.
+  List<OfficialAttachedLibrary> get shownOfficialOffers => [
+    for (final entry in officialOffers)
+      if (!declinedOfficial.contains(entry.libraryId)) entry,
+  ];
 
   AttachedLibrariesState copyWith({
     List<AttachedLibrary>? libraries,
@@ -47,6 +66,8 @@ class AttachedLibrariesState extends Equatable {
     bool? isBusy,
     AttachedLibrariesNotice? notice,
     Map<String, AttachedUpdateStatus>? updates,
+    List<OfficialAttachedLibrary>? officialOffers,
+    Set<String>? declinedOfficial,
   }) {
     return AttachedLibrariesState(
       libraries: libraries ?? this.libraries,
@@ -54,9 +75,19 @@ class AttachedLibrariesState extends Equatable {
       isBusy: isBusy ?? this.isBusy,
       notice: notice ?? this.notice,
       updates: updates ?? this.updates,
+      officialOffers: officialOffers ?? this.officialOffers,
+      declinedOfficial: declinedOfficial ?? this.declinedOfficial,
     );
   }
 
   @override
-  List<Object?> get props => [libraries, folders, isBusy, notice, updates];
+  List<Object?> get props => [
+    libraries,
+    folders,
+    isBusy,
+    notice,
+    updates,
+    [for (final entry in officialOffers) entry.libraryId],
+    declinedOfficial,
+  ];
 }

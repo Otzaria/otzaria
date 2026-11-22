@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -6,6 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:path/path.dart' as p;
+import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart'
+    show AttachedLibrariesBloc;
+import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
+import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart'
+    show offlineArchiveNameOf;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -82,6 +89,21 @@ Future<List<({bool isRemovable, String root})>> _androidStorageChoices() async {
         (isRemovable: true, root: option.libraryRoot!),
   ];
 }
+
+/// מחליף בבדיקות את הורדת המסד הרשמי שמתחילה אחרי התקנת הספרייה.
+@visibleForTesting
+Future<void> Function(OfficialAttachedLibrary entry)? debugDownloadOfficial;
+
+/// מחליף בבדיקות את התקנת החבילה הלא-מקוונת של מסד רשמי.
+@visibleForTesting
+Future<OfficialPackageResult> Function(PackageFolder folder, String name)?
+debugImportOfficialPackage;
+
+/// המסד הרשמי שמוצע יחד עם הספרייה; null כשאינו פעיל.
+OfficialAttachedLibrary? get _companionOfficial => OfficialAttachedLibraries
+    .catalog
+    .where((entry) => entry.isActive && entry.offlinePackageName != null)
+    .firstOrNull;
 
 enum _LibraryAction { moveContents, useInPlace, download, chooseFolder }
 
@@ -164,6 +186,9 @@ class _LibrarySetupDialogContentState
 
   /// מה נמצא בתיקיית המקור שנבחרה (פעולת [_LibraryAction.chooseFolder]).
   LibraryFolderScan? _source;
+
+  /// "הורד גם את <המסד הרשמי>" — כבוי כברירת מחדל.
+  bool _alsoDownloadOfficial = false;
 
   /// תיקייה שנבחרה לשימוש במקומה, והאם נמצא בה seforim.db לא-דחוס. שימוש
   /// במקום דורש DB מוכן — גרסה דחוסה מחייבת חילוץ, כלומר ייבוא רגיל.
@@ -565,6 +590,49 @@ class _LibrarySetupDialogContentState
     }
   }
 
+  /// אחרי שהספרייה הותקנה: הורדת המסד הרשמי שסומן, או התקנת החבילה שלו
+  /// מתיקיית המקור. רץ ברקע — הדיאלוג נסגר בלי להמתין.
+  void _startOfficialInstall() {
+    final entry = _companionOfficial;
+    if (entry == null) return;
+    if (_action == _LibraryAction.download && _alsoDownloadOfficial) {
+      unawaited(
+        (debugDownloadOfficial ??
+                AttachedLibraryUpdateService.instance.downloadOfficial)(entry)
+            .catchError((Object e) {
+              debugPrint('[LibrarySetup] official download failed: $e');
+            }),
+      );
+      return;
+    }
+    final folder = _source?.source?.folder;
+    if (_action != _LibraryAction.chooseFolder || folder == null) return;
+    final name = entry.offlinePackageName!;
+    unawaited(
+      () async {
+        final files = await folder.list();
+        if (!files.any((file) => offlineArchiveNameOf(file.name) == name)) {
+          return;
+        }
+        final importer =
+            debugImportOfficialPackage ??
+            AttachedLibraryUpdateService
+                .instance
+                .importOfflinePackageFromFolder;
+        final result = await importer(folder, name);
+        final message = AttachedLibrariesBloc.packageMessage(result);
+        if (result == OfficialPackageResult.installed ||
+            result == OfficialPackageResult.alreadyInstalled) {
+          UiSnack.show(message);
+        } else {
+          UiSnack.showError(message);
+        }
+      }().catchError((Object e) {
+        debugPrint('[LibrarySetup] official package import failed: $e');
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<EmptyLibraryBloc, EmptyLibraryState>(
@@ -597,6 +665,7 @@ class _LibrarySetupDialogContentState
           );
         }
         if (relocating) await _deleteOldAfterRelocation();
+        _startOfficialInstall();
         if (!context.mounted) return;
         final report = state.importReport;
         if (report != null && report.missing.isNotEmpty) {
@@ -826,6 +895,24 @@ class _LibrarySetupDialogContentState
                   chooseFolderOption,
                 ],
         ),
+        if (downloadSelected && !_hasLibrary && _companionOfficial != null)
+          CheckboxListTile(
+            value: _alsoDownloadOfficial,
+            onChanged: (value) =>
+                setState(() => _alsoDownloadOfficial = value ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            title: Text(
+              context.settingsText(
+                'הורד גם את {name}',
+                args: {'name': _companionOfficial!.displayName},
+              ),
+            ),
+            subtitle: Text(
+              context.settingsText(
+                'מסד ספרים רשמי נוסף. יותקן אחרי שהספרייה תותקן.',
+              ),
+            ),
+          ),
         if (chooseFolderSelected && source != null)
           _SourceComponents(
             found: _foundFiles(source),
