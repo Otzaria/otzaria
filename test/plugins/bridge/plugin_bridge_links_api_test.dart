@@ -681,8 +681,22 @@ void main() {
         'targetTitles': ['מקור א. ב'],
       });
 
-      expect(repository.capturedIncomingLimit, isNull);
+      expect(repository.capturedIncomingLimit, 2001);
       expect((result['links'] as List).single['sourceTitle'], 'מקור א. ב');
+    });
+
+    test('סינון לפי תחילית שומר את תקרת השליפה של הנכנסים', () async {
+      repository.links = List.filled(1999, rashi);
+      repository.incomingLinks = [mesorat, rashi, rashi];
+
+      final result = await getLinks({
+        'direction': 'both',
+        'targetTitlePrefixes': ['רש״י'],
+      });
+
+      expect(repository.capturedIncomingLimit, 2);
+      expect(result['links'], hasLength(2000));
+      expect(result['truncated'], isTrue);
     });
 
     test('המכסה של 2,000 רשומות חלה על both כולה', () async {
