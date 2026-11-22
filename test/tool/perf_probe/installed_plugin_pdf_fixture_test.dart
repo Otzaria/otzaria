@@ -96,6 +96,12 @@ void main() {
     controller.setCurrentPageNumber(3);
     expect(controller.pageNumber, 3);
     expect(installedPdfTargetReady(controller, 4), true);
+
+    // Drain the viewer's trailing-load timer before Flutter checks test invariants.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(
+      const PdfViewerBehaviorControlParams().trailingPageLoadingDelay,
+    );
   });
 
   test(
