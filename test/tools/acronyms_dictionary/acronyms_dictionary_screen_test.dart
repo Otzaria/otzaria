@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -67,6 +69,8 @@ List<String> _legacyResults(DictionaryLookupRepository repository, String raw) {
   });
   return results.map((entry) => entry.displayAcronym).toList();
 }
+
+const _letters = 'אבגדהוזחטיכלמנסעפצקרשת';
 
 void main() {
   testWidgets('מילון אמיתי: סדר שקול ונרמול יחיד לכל שאילתה', (tester) async {
@@ -148,12 +152,14 @@ void main() {
         reason: query,
       );
       expect(repository.legacyMatches, 0, reason: query);
-      final lists = tester.widgetList<ListView>(find.byType(ListView)).toList();
+      final lists = tester
+          .widgetList<SuperListView>(find.byType(SuperListView))
+          .toList();
       final actual = <String>[];
       if (lists.isNotEmpty) {
         final delegate =
             lists.single.childrenDelegate as SliverChildBuilderDelegate;
-        final context = tester.element(find.byType(ListView));
+        final context = tester.element(find.byType(SuperListView));
         for (var i = 0; i < delegate.childCount!; i++) {
           final card = delegate.builder(context, i)! as AcronymResultCard;
           actual.add(card.acronym);
@@ -232,5 +238,39 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AcronymResultCard), findsOneWidget);
+  });
+
+  testWidgets('קפיצה לסוף אלפי תוצאות בונה רק את כרטיסי היעד '
+      '(issue #4766)', (tester) async {
+    await pumpScreen(
+      tester,
+      DictionaryLookupRepository(
+        loadAcronyms: () async => {
+          for (var i = 0; i < 3000; i++)
+            // מפתחות שונים אחרי נרמול (ספרות מוסרות): אחרת הכול מתמזג לערך אחד.
+            'ש${_letters[i % 22]}${_letters[i ~/ 22 % 22]}${_letters[i ~/ 484]}':
+                [
+                  'פירוש ${'ארוך ' * (i % 9)}',
+                ],
+        },
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'ש');
+    await tester.pumpAndSettle();
+
+    var cardBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget is AcronymResultCard) cardBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(cardBuilds, lessThan(200));
   });
 }

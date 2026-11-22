@@ -53,12 +53,12 @@ Library _buildLibrary() {
   return Library(categories: [bavli, halacha]);
 }
 
-Future<void> _pumpDialog(WidgetTester tester) async {
+Future<void> _pumpDialog(WidgetTester tester, {Library? library}) async {
   final bloc = _MockLibraryBloc();
   whenListen(
     bloc,
     const Stream<LibraryState>.empty(),
-    initialState: LibraryState(library: _buildLibrary()),
+    initialState: LibraryState(library: library ?? _buildLibrary()),
   );
 
   await tester.pumpWidget(
@@ -159,6 +159,32 @@ void main() {
       ),
     );
     expect(categoryRow, findsOneWidget);
+  });
+
+  testWidgets('קפיצה לסוף תוצאות חיפוש ארוכות בונה רק את שורות היעד '
+      '(issue #4766)', (tester) async {
+    final category = _category('תיקייה');
+    category.books.addAll([
+      for (var i = 0; i < 3000; i++)
+        TextBook(title: 'ספר $i', id: i + 1, category: category),
+    ]);
+    await _pumpDialog(tester, library: Library(categories: [category]));
+    await tester.enterText(find.byType(TextField), 'ספר');
+    await tester.pumpAndSettle();
+
+    var rowBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget is CheckboxListTile) rowBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(rowBuilds, lessThan(200));
   });
 
   // DD-07: רשימה עם שורת חיפוש היא large בגובה 85% קבוע (UIL-001).

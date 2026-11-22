@@ -1,5 +1,7 @@
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -349,7 +351,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen>
       );
     }
 
-    return ListView.builder(
+    return SuperListView.builder(
       padding: const EdgeInsets.all(AppTokens.spaceMD),
       itemCount: _filteredResults.length,
       itemBuilder: (context, index) {

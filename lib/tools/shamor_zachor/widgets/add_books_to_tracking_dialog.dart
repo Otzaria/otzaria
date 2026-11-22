@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
@@ -400,7 +402,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
       );
     }
 
-    return ListView.builder(
+    return SuperListView.builder(
       padding: EdgeInsets.zero,
       itemCount: matches.length,
       itemBuilder: (context, index) =>
