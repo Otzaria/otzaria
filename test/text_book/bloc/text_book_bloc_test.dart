@@ -14,6 +14,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
@@ -1092,6 +1093,61 @@ void main() {
         expect((bloc.state as TextBookLoaded).searchResultNavigation, isNull);
       },
     );
+
+    group('מקור השאילתה בחיפוש בספר', () {
+      late TextBookBloc bloc;
+
+      TextBookLoaded loaded() => bloc.state as TextBookLoaded;
+
+      setUp(() async {
+        bloc = _createBloc(
+          repository: _FakeTextBookRepository(),
+          showPageShapeView: false,
+        );
+        addTearDown(bloc.close);
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
+        await _waitFor(() => bloc.state is TextBookLoaded, description: 'load');
+      });
+
+      test('רענון הגדרות תצוגה שומר את מקור השאילתה מהחלונית', () async {
+        final source = Object();
+        bloc.add(UpdateSearchText('ד', textSource: source));
+        await _waitFor(() => loaded().searchText == 'ד', description: 'query');
+        bloc.add(
+          const LoadContent(
+            fontSize: 22,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+            preserveState: true,
+          ),
+        );
+        await _waitFor(() => loaded().fontSize == 22, description: 'reload');
+        expect(loaded().searchText, 'ד');
+        expect(loaded().searchTextSource, same(source));
+      });
+
+      test('אותה שאילתה חיצונית מפורסמת מחדש לחלונית', () async {
+        const query = UpdateSearchText('אב');
+        bloc.add(query);
+        await _waitFor(() => loaded().searchText == 'אב', description: 'query');
+        final first = loaded();
+
+        bloc.add(query);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(loaded().searchText, first.searchText);
+        expect(loaded().searchTextSource, isNot(same(first.searchTextSource)));
+        expect(shouldRebuildReader(first, loaded()), isTrue);
+      });
+    });
 
     test('ניווט חיפוש מפורש נפרד מבחירת שורה ומתבטל בשינוי החיפוש', () async {
       final bloc = _createBloc(
