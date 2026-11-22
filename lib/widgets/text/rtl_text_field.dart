@@ -104,11 +104,17 @@ class _RtlTextFieldState extends State<RtlTextField> {
     _boundController.addListener(_restartCursorBlink);
     _effectiveFocusNode.addListener(_handleFocusChange);
 
-    // גם FocusNode שכבר בפוקוס: Flutter פותח מקלדת רק בשינוי פוקוס.
-    if (_effectiveFocusNode.hasPrimaryFocus ||
-        (widget.autofocus && widget.focusNode != null && Platform.isAndroid)) {
+    if (widget.autofocus && widget.focusNode != null && Platform.isAndroid) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _editable?.requestKeyboard();
+      });
+    } else if (_effectiveFocusNode.hasPrimaryFocus) {
+      // גם FocusNode שכבר בפוקוס: Flutter פותח מקלדת רק בשינוי פוקוס. אם
+      // הפוקוס עבר בינתיים (פקד אחר, מסך ברקע), requestKeyboard היה מחזיר אותו.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _effectiveFocusNode.hasPrimaryFocus) {
+          _editable?.requestKeyboard();
+        }
       });
     }
   }
