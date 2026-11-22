@@ -21,7 +21,7 @@ dependencies:
   github: 9.17.0
   args: 2.4.2
   crypto: 3.0.3
-  convert: 3.1.1
+  convert: 3.1.2
   http: 1.1.0
   toml: 0.14.0
 
