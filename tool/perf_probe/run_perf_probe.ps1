@@ -6,6 +6,7 @@ param(
   [switch]$SkipBackup,
   [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
   [ValidateSet('all', 'pdf-reader', 'pdf-book-view')][string]$ScenarioSet = 'all',
+  [ValidateSet('integration', 'framework')][string]$BindingMode = 'integration',
   [string]$PdfCase = '',
   [ValidateRange(0, 10)][int]$Warmup = 1,
   [ValidateRange(1, 100)][int]$Repetitions = 5,
@@ -20,11 +21,12 @@ $ErrorActionPreference = "Stop"
 
 if ($Target -eq 'integration_test/perf_resource_probe_test.dart') {
   & (Join-Path $PSScriptRoot 'runner.ps1') -Mode $Mode -CacheState $CacheState `
-    -ScenarioSet $ScenarioSet -PdfCase $PdfCase -Warmup $Warmup -Repetitions $Repetitions -Launches $Launches `
+    -ScenarioSet $ScenarioSet -BindingMode $BindingMode -PdfCase $PdfCase -Warmup $Warmup -Repetitions $Repetitions -Launches $Launches `
     -OutputDirectory $OutputDirectory -Baseline $Baseline -HardwareId $HardwareId `
     -TimeoutSeconds $TimeoutSeconds
   exit $LASTEXITCODE
 }
+if ($BindingMode -ne 'integration') { throw 'BindingMode is supported only by the isolated default target.' }
 if ($ScenarioSet -ne 'all') { throw 'ScenarioSet is supported only by the isolated default target.' }
 if ($PdfCase) { throw 'PdfCase is supported only by the isolated default target.' }
 if ($Mode -eq 'release') { throw 'Legacy flutter drive targets require profile or debug.' }

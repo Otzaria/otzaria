@@ -4,6 +4,7 @@ param(
   [ValidateSet('profile', 'debug', 'release')][string]$Mode = 'profile',
   [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
   [ValidateSet('all', 'pdf-reader', 'pdf-book-view')][string]$ScenarioSet = 'all',
+  [ValidateSet('integration', 'framework')][string]$BindingMode = 'integration',
   [string]$PdfCase = '',
   [ValidateRange(0, 10)][int]$Warmup = 1,
   [ValidateRange(1, 100)][int]$Repetitions = 5,
@@ -17,6 +18,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'source_provenance.ps1')
+Import-Module (Join-Path $PSScriptRoot 'probe_binding.psm1') -Force
+$bindingIdentity = Get-PerfBindingIdentity $BindingMode
+if ($BindingMode -eq 'framework' -and $ScenarioSet -eq 'all') {
+  throw 'The framework target accepts pdf-reader or pdf-book-view.'
+}
 if (-not $IsWindows) { throw 'The automated desktop runner requires Windows. See README.md for other platforms.' }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if ($Baseline) { $Baseline = [IO.Path]::GetFullPath($Baseline, $PWD.Path) }
@@ -104,6 +110,7 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
       Start-Sleep -Milliseconds 200
     }
     $result = Get-Content -LiteralPath $completion -Raw | ConvertFrom-Json
+    Assert-PerfBindingIdentity $result $BindingMode
     if ($result.status -ne 'passed') { throw "Benchmark failed; inspect $completion" }
     $process.Refresh()
     if ($process.HasExited -and $process.ExitCode -ne 0) {
@@ -168,7 +175,7 @@ try {
   $manifest = @{
     schemaVersion = 2; protocolVersion = 2; commit = $commit
     buildMode = $Mode; cacheState = $CacheState; hardwareId = $HardwareId
-    scenarioSet = $ScenarioSet
+    scenarioSet = $ScenarioSet; bindingMode = $BindingMode; probeTarget = $bindingIdentity.probeTarget
     os = "windows-$($os.Version)-$($os.BuildNumber)"; flutterVersion = $sdk.frameworkRevision
     warmup = $Warmup; repetitions = $Repetitions; launchCount = $Launches
     sampling = @{ intervalMs = 500; treeRefreshMs = 2000; heap = ($Mode -ne 'release') }
@@ -180,7 +187,7 @@ try {
   Add-PerfSourceProvenance $repo $manifest 'beforeBuild'
   Write-PerfJson (Join-Path $runDir 'manifest.json') $manifest
   try {
-    & flutter build windows "--$Mode" --no-pub --target=integration_test/perf_resource_probe_test.dart `
+    & flutter build windows "--$Mode" --no-pub "--target=$($bindingIdentity.probeTarget)" `
       --dart-define=SENTRY_DSN= --dart-define=INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE=false `
       2>&1 | Tee-Object -FilePath (Join-Path $runDir 'build.log')
     $buildExitCode = $LASTEXITCODE

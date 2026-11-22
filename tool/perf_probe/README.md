@@ -8,10 +8,71 @@
 [התרחיש הייעודי בהמשך](#android--חימום-מוקדם-ועלייה-במסלול-האפליקציה).
 
 ב־Windows הפקודה היא `run_perf_probe.ps1`, וב־Linux וב־macOS היא
-`run_perf_probe_posix.py`. כל אחת בונה את אותו יעד אינטגרציה פעם אחת,
+`run_perf_probe_posix.py`. כל אחת בונה את יעד המדידה הנבחר פעם אחת,
 מכינה ספרייה סינתטית בתהליך נפרד, ומריצה את האפליקציה בתהליכים חדשים עם
 נתונים מבודדים. הקוד נמצא ביעד הבדיקה בלבד: אין טיימרים, דוגמים או איסוף
 נוספים בבינארי הרגיל של משתמשי האפליקציה.
+
+## בחירת מנגנון הפריימים של המדידה
+
+ברירת המחדל נשארת `integration`. אפשר לבחור `framework` עבור
+`pdf-reader` או `pdf-book-view`: היעד
+`tool/perf_probe/framework_pdf_probe.dart` יוצר `WidgetsFlutterBinding`
+רגיל ו־`LiveWidgetController` ציבורי, ומפעיל את אותו `app.main`, אותו
+fixture ואותו קוד תרחיש שב־`integration_test/support/perf_resource_workload.dart`.
+הקורא, תצוגת הספר, תנאי המוכנות וסגירת המשאבים משותפים לשני היעדים.
+
+| מצב | binding | dispatcher | זהות תזמון בדוח |
+|---|---|---|---|
+| `integration` | `IntegrationTestWidgetsFlutterBinding` | `TestPlatformDispatcher` | `fullyLive` |
+| `framework` | `WidgetsFlutterBinding` | dispatcher מקורי של המנוע | `frameworkRequested` |
+
+`frameworkRequested` הוא תיאור של תזמון Flutter הרגיל, ולא ערך נוסף
+ב־enum של test binding. אין override של scheduler ואין מעבר זמני למדיניות
+אחרת. `LiveWidgetController` מבקש פריימים מפורשים רק בגבולות פעולה שדורשים
+אימות UI; חלון התצפית לאחר סגירת הקורא אינו מבקש פריימים. אנימציות,
+בקשות האפליקציה ואירועי מערכת נשארים פעילים ונמדדים. אין דרישה לאפס פריימים,
+ל־CPU אפסי או לאיפוס כל מוני הזיכרון.
+
+לפני שלבי PDF הנמדדים, היעד הרגיל מוודא שה־binding הוא בדיוק
+`WidgetsFlutterBinding` ושה־dispatcher אינו dispatcher של בדיקות.
+הוא גם ממתין לבקשת פריים מאוחרת מתוך Timer, דרך
+`SchedulerBinding.scheduleFrame` ועד callback של סוף הפריים. זו בדיקת
+תפקוד של המסלול המקורי, לא מקור לפריימים בחלון ההמתנה. הראיה נכתבת פעם
+אחת לכל הפעלה נמדדת ב־`notes`, ברשומה ששמה `framework.scheduler_contract`; ה־host guard
+דוחה ראיה חסרה, כפולה, עם זהות שגויה או עם זמן סיום שקדם לבקשה.
+
+חמשת השדות `bindingMode`, `bindingClass`, `framePolicy`,
+`platformDispatcher` ו־`probeTarget` נשמרים ב־settings של ההשוואה.
+שם היעד ומצבו נשמרים גם ב־manifest ובהשלמה האטומית שנכתבת רק אחרי סגירת
+ה־journal. ה־runner דורש התאמה ליעד שבנה. דוחות משני bindings שונים,
+או דוחות ישנים שחסרים בהם השדות, אינם זוג baseline/candidate תואם.
+
+```bash
+python3 -B tool/perf_probe/run_perf_probe_posix.py \
+  --binding-mode framework --scenario-set pdf-reader --mode profile \
+  --cache-state cold --warmup 0 --repetitions 1 --launches 1 \
+  --output /tmp/otzaria-perf/framework-reader
+```
+
+```powershell
+pwsh -File tool/perf_probe/run_perf_probe.ps1 `
+  -BindingMode framework -ScenarioSet pdf-book-view -Mode profile `
+  -CacheState cold -Warmup 0 -Repetitions 1 -Launches 1 `
+  -OutputDirectory C:\perf\framework-book
+```
+
+אפשר לבחור גם `release` באותם runners. ההפעלה וההשלמה אינן דורשות VM
+service או `flutter drive`; מדדי Dart heap במצב release נשארים `null`
+עם הסבר שהם אינם זמינים. הזיהוי הנפרד של build mode נשמר. בחירה ב־
+`framework` עם תרחיש `all` או עם יעד legacy נדחית במפורש.
+
+ה־CI מפעיל profile של reader וגם book-view ב־Windows בכל אחד משני
+ה־bindings. באותם jobs של Linux ו־macOS מופעלות שתי ריצות reader נפרדות
+עם guards נפרדים. ה־guard שומר על דרישות מוכנות, מקור נקי, hash של ה־PDF,
+תקציב תמונות וכיסוי CPU/RSS בזמן התצפית. הרצה ירוקה נדרשת עבור כל יעד
+ממשי; חוזי הקלט לבדם אינם מוכיחים שהבינארי הופעל. גם במצב הרגיל זו אפליקציה
+עם מכשור מדידה, ולא טענה לאפס overhead או תוצאה של הפצת release.
 
 ## הרצה ב־Linux וב־macOS
 
@@ -105,7 +166,8 @@ pwsh -File tool/perf_probe/run_perf_probe.ps1 `
 |---|---|
 | `-Mode debug` | אבחון פונקציונלי; אין להשוות את זמניו ל-profile/release |
 | `-Mode profile` | מסלול המדידות הרגיל; Dart heap זמין רק אם VM service זמין בפועל |
-| `-Mode release` | אותו יעד בדיקה נבנה ב-release ומופעל ישירות; אין תלות ב-flutter drive או ב-VM service |
+| `-Mode release` | יעד המדידה הנבחר נבנה ב-release ומופעל ישירות; אין תלות ב-flutter drive או ב-VM service |
+| `-BindingMode framework` | תזמון Flutter רגיל עם תרחיש `pdf-reader` או `pdf-book-view`; ברירת המחדל היא `integration` |
 | `-CacheState cold` | שורש נתוני אפליקציה חדש לכל הפעלה, עם fixture מוכן וללא אינדקס קודם |
 | `-CacheState warm` | הכנת fixture, הפעלה מלאה שאינה נספרת, ואז הפעלות חדשות על אותם נתונים ואינדקס |
 | `-ScenarioSet pdf-book-view` | תצוגת ספר עם שער, קפיצות, תמונה ממוזערת גלויה, שלושה זוגות דפדוף קדימה–אחורה וסגירה; נדרשים לפחות 5 עמודים |
@@ -298,13 +360,17 @@ timeout מכשילים את ההרצה. הדוח מציג אחוזונים נפ�
 משכו נשמר כ-`observationDurationMs`, ו-`latencyMs` נשאר חסר ואינו מושווה
 כאילו התקצרה פעולה. CPU/handles, זיכרון ומוני עבודה נשארים מדידים גם בחלון זה.
 
-זהו חלון ללא פעולות משתמש בתוך אפליקציית האינטגרציה, ולא מדידת מנוחה
-של אפליקציית production. ה־binding פועל עם `framePolicy=fullyLive` וממשיך
+במצב `integration`, זהו חלון ללא פעולות משתמש בתוך אפליקציית האינטגרציה,
+ולא מדידת מנוחה של אפליקציית production. ה־binding פועל עם
+`framePolicy=fullyLive` וממשיך
 לתזמן פריימים גם כאשר האפליקציה אינה מבקשת פריים נוסף
 ([מימוש Flutter הנמדד](https://github.com/flutter/flutter/blob/abaf9c523780a608bd46686fd5e53740a07077f8/packages/flutter_test/lib/src/binding.dart#L2789-L2825)).
 לכן מדידות ה־CPU והפריימים כוללות גם את עבודת סביבת הבדיקה; מספר פריימים
 בחלון הזה אינו כשלעצמו ראיה לאנימציה או לעבודה שנותרה בקורא לאחר סגירתו.
-אין שינוי במדיניות הפריימים או דיכוי אנימציות לצורך התצפית.
+במצב `framework`, חלון זה משתמש ב־binding הרגיל ללא בקשות פריים מצד
+כלי המדידה. כל הפריימים והפעילות שנצפו עדיין נשמרים בדוח; אין סינון של
+עבודת האפליקציה או מערכת ההפעלה. בשני המצבים אין שינוי זמני במדיניות
+הפריימים או דיכוי אנימציות לצורך התצפית.
 
 בדוח תקציב התמונות יש כיסוי נפרד לכל נקודת דגימה. אם דגימה חסרה בחזרה
 מוצלחת, אחוזוני אותה נקודה נשארים חסרים והשוואת המדד אינה זמינה; אין השלמה

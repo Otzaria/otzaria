@@ -22,9 +22,11 @@ sys.dont_write_bytecode = True
 if __package__:
     from .posix_engine import BundledFlutterEngine
     from .posix_resources import process_reader
+    from .probe_binding import binding_identity, validate_binding_identity
 else:
     from posix_engine import BundledFlutterEngine
     from posix_resources import process_reader
+    from probe_binding import binding_identity, validate_binding_identity
 
 
 FIELDS = ("epoch_ms", "pid", "name", "cpu_total_s", "ws_mb", "priv_mb",
@@ -258,12 +260,14 @@ def is_fixture_id(value):
     return isinstance(value, str) and re.fullmatch(r"synthetic-v4-pdf-cases:[0-9a-f]{64}", value) is not None
 
 
-def validate_completion(directory, *, pid, index, preparation, mode, scenario):
+def validate_completion(directory, *, pid, index, preparation, mode, scenario,
+                        binding_mode="integration"):
     completion = read_json(directory / "completion.json")
     if (not isinstance(completion, dict) or completion.get("status") != "passed"
             or completion.get("preparationOnly") is not preparation
             or completion.get("error") is not None or completion.get("testFailures") != []):
         raise RuntimeError(f"Application did not complete successfully: {directory}")
+    validate_binding_identity(completion, binding_mode)
     journal = directory / "phases.jsonl"
     if journal.is_symlink() or journal.stat().st_size > 128 * 1024 * 1024:
         raise RuntimeError("Invalid or oversized phase journal")
@@ -281,7 +285,8 @@ def validate_completion(directory, *, pid, index, preparation, mode, scenario):
         raise RuntimeError("Missing or duplicate process metadata/completion")
     meta, end = metadata[0], endings[0]
     required = {"pid": pid, "launchIndex": index, "schemaVersion": 2, "protocolVersion": 2,
-                "preparationOnly": preparation, "buildMode": mode, "scenarioSet": scenario}
+                "preparationOnly": preparation, "buildMode": mode, "scenarioSet": scenario,
+                "bindingMode": binding_mode, "probeTarget": binding_identity(binding_mode)["probeTarget"]}
     if any(type(meta.get(key)) is not type(value) or meta[key] != value for key, value in required.items()):
         raise RuntimeError("Application metadata does not match the owned launch")
     fixture = meta.get("fixtureId")
@@ -299,6 +304,7 @@ def invoke_launch(executable, directory, data, args, reader, *, index, preparati
                        PERF_CACHE_STATE="cold" if preparation or index < 0 else args.cache_state,
                        PERF_LAUNCH_INDEX=str(index), PERF_WARMUP=str(args.warmup),
                        PERF_REPETITIONS=str(args.repetitions), PERF_SCENARIO_SET=args.scenario_set,
+                       PERF_BINDING_MODE=args.binding_mode,
                        PERF_PDF_CASE=str(pdf_case), PERF_PREPARE_ONLY="1" if preparation else "0")
     launch = {"launchIndex": index, "preparationOnly": preparation, "startedAtUtc": utc_now()}
     count, errors, success = 0, [], False
@@ -319,7 +325,7 @@ def invoke_launch(executable, directory, data, args, reader, *, index, preparati
                     if (directory / "completion.json").exists():
                         fixture = validate_completion(directory, pid=process.pid, index=index,
                                                       preparation=preparation, mode=args.mode,
-                                                      scenario=args.scenario_set)
+                                                      scenario=args.scenario_set, binding_mode=args.binding_mode)
                         exit_code = child_exit(process)
                         if exit_code not in (None, 0):
                             raise RuntimeError(f"Application exited unsuccessfully ({exit_code})")
@@ -406,6 +412,9 @@ def launch_plan(output, args):
 
 
 def run(args, *, repository=REPOSITORY):
+    probe_binding = binding_identity(args.binding_mode)
+    if args.binding_mode == "framework" and args.scenario_set == "all":
+        raise ValueError("The framework target accepts pdf-reader or pdf-book-view")
     output = args.output
     if output.exists() or output.is_symlink():
         raise RuntimeError(f"Output directory already exists: {output}")
@@ -413,6 +422,7 @@ def run(args, *, repository=REPOSITORY):
     manifest = {"schemaVersion": 2, "protocolVersion": 2, "status": "running",
                 "startedAtUtc": utc_now(), "buildMode": args.mode, "cacheState": args.cache_state,
                 "scenarioSet": args.scenario_set, "warmup": args.warmup,
+                "bindingMode": args.binding_mode, "probeTarget": probe_binding["probeTarget"],
                 "repetitions": args.repetitions, "launchCount": args.launches,
                 "coldDefinition": "fresh application data; OS file cache is not flushed",
                 "startupOrigin": "Dart main; fixture preparation and native pre-main are excluded"}
@@ -450,7 +460,7 @@ def run(args, *, repository=REPOSITORY):
         source_provenance(repository, manifest, "beforeBuild")
         write_json(output / "manifest.json", manifest)
         try:
-            run_logged(["flutter", "build", system, f"--{args.mode}", "--no-pub", f"--target={TARGET}",
+            run_logged(["flutter", "build", system, f"--{args.mode}", "--no-pub", f"--target={probe_binding['probeTarget']}",
                         "--dart-define=SENTRY_DSN=",
                         "--dart-define=INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE=false"],
                        output / "build.log", cwd=repository, timeout=args.build_timeout_seconds)
@@ -516,6 +526,7 @@ def arguments(argv=None):
     parser.add_argument("--mode", choices=("profile", "release"), default="profile")
     parser.add_argument("--cache-state", choices=("cold", "warm"), default="cold")
     parser.add_argument("--scenario-set", choices=("all", "pdf-reader", "pdf-book-view"), default="pdf-reader")
+    parser.add_argument("--binding-mode", choices=("integration", "framework"), default="integration")
     parser.add_argument("--pdf-case", type=Path)
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repetitions", type=int, default=5)
@@ -527,6 +538,8 @@ def arguments(argv=None):
     parser.add_argument("--build-timeout-seconds", type=int, default=2400)
     parser.add_argument("--display-mode", choices=("desktop", "xvfb"), default="desktop")
     args = parser.parse_args(argv)
+    if args.binding_mode == "framework" and args.scenario_set == "all":
+        parser.error("--binding-mode framework accepts pdf-reader or pdf-book-view")
     for key, low, high in (("warmup", 0, 10), ("repetitions", 1, 100), ("launches", 1, 30),
                            ("timeout_seconds", 60, 7200), ("build_timeout_seconds", 60, 7200)):
         if not low <= getattr(args, key) <= high:
