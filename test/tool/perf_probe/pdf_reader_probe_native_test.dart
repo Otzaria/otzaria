@@ -155,6 +155,7 @@ void main() {
       controller,
       pageNumber: page,
       nextFrame: () => tester.pump(),
+      expectedZoom: zoom * 2,
       advance: advance,
     );
     expect(controller.currentZoom, closeTo(zoom * 2, 0.001));

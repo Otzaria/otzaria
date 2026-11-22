@@ -33,6 +33,7 @@ Future<void> waitForPdfFinalImage(
   PdfViewerController controller, {
   required int pageNumber,
   required Future<void> Function() nextFrame,
+  double? expectedZoom,
   Duration timeout = const Duration(seconds: 45),
   Future<void> Function()? advance,
 }) async {
@@ -55,6 +56,12 @@ Future<void> waitForPdfFinalImage(
         throw StateError('PDF visible rendering ended in ${state.name}');
       }
       if (state != PdfVisibleRenderState.ready) return false;
+      if (expectedZoom != null &&
+          (controller.currentZoom - expectedZoom).abs() > 0.000001) {
+        throw StateError(
+          'PDF rendered at zoom ${controller.currentZoom}, expected $expectedZoom',
+        );
+      }
       final page = controller.layout.pageLayouts[pageNumber - 1];
       if (!page.overlaps(controller.visibleRect)) {
         throw StateError('PDF rendered a view without target page $pageNumber');

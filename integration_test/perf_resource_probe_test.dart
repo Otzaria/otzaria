@@ -920,11 +920,19 @@ class _Scenario {
     };
     await phase('pdf.reader.zoom', () async {
       final zoom = controller.currentZoom;
+      final targetZoom = (zoom * 2).clamp(
+        controller.minScale,
+        controller.maxScale,
+      );
+      if (targetZoom - zoom <= 0.000001) {
+        throw StateError('PDF reader cannot zoom in from $zoom');
+      }
       zoomDetails['zoomBefore'] = zoom;
+      zoomDetails['targetZoom'] = targetZoom;
       await controller
           .setZoom(
             controller.layout.pageLayouts[zoomPage - 1].center,
-            zoom * 2,
+            targetZoom,
             duration: Duration.zero,
           )
           .timeout(const Duration(seconds: 45));
@@ -932,6 +940,7 @@ class _Scenario {
         controller,
         pageNumber: zoomPage,
         nextFrame: () => tester.pump(),
+        expectedZoom: targetZoom,
       );
       zoomDetails['zoomAfter'] = controller.currentZoom;
     }, details: zoomDetails);
