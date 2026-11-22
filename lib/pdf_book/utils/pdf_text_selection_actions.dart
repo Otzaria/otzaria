@@ -9,6 +9,18 @@ class PdfTextSelectionActions {
   final PdfViewerController controller;
   final bool Function() isActive;
   int _generation = 0;
+  ({String text, bool Function() selectionIsCurrent})? _snapshot;
+
+  String? get selectedTextSnapshot {
+    discardStaleSnapshot();
+    return _snapshot?.text;
+  }
+
+  void discardStaleSnapshot() {
+    if (_snapshot?.selectionIsCurrent() == false) _snapshot = null;
+  }
+
+  void releaseSelectedTextSnapshot() => _snapshot = null;
 
   void cancel() => _generation++;
 
@@ -16,9 +28,10 @@ class PdfTextSelectionActions {
     int generation,
     PdfDocument document,
     PdfTextSelectionRange? range,
-  ) {
-    if (generation != _generation ||
-        !isActive() ||
+  ) => generation == _generation && _matchesSelection(document, range);
+
+  bool _matchesSelection(PdfDocument document, PdfTextSelectionRange? range) {
+    if (!isActive() ||
         !controller.isReady ||
         !identical(controller.document, document)) {
       return false;
@@ -31,28 +44,23 @@ class PdfTextSelectionActions {
   }
 
   bool Function() _selectedTextGuard(
-    int generation,
     PdfDocument document,
     PdfTextSelectionRange range,
   ) {
-    final originalPages = document.pages;
-    var checkedPages = originalPages;
+    var checkedPages = document.pages;
     final start = range.start.text.pageNumber - 1;
     final end = range.end.text.pageNumber - 1;
     return () {
-      if (!_isCurrent(generation, document, range) ||
-          !controller.textSelectionDelegate.isCopyAllowed) {
-        return false;
-      }
+      if (!_matchesSelection(document, range)) return false;
       final currentPages = document.pages;
       if (start < 0 ||
           end >= currentPages.length ||
-          end >= originalPages.length) {
+          end >= checkedPages.length) {
         return false;
       }
       if (!identical(currentPages, checkedPages)) {
         for (var i = start; i <= end; i++) {
-          if (!identical(currentPages[i], originalPages[i])) return false;
+          if (!identical(currentPages[i], checkedPages[i])) return false;
         }
         checkedPages = currentPages;
       }
@@ -69,7 +77,11 @@ class PdfTextSelectionActions {
     if (range == null || !selection.isCopyAllowed) {
       return PdfTextActionResult.none;
     }
-    final isCurrent = _selectedTextGuard(generation, document, range);
+    final selectionIsCurrent = _selectedTextGuard(document, range);
+    bool isCurrent() =>
+        generation == _generation &&
+        selectionIsCurrent() &&
+        selection.isCopyAllowed;
     try {
       if (!isCurrent()) return PdfTextActionResult.none;
       if (document.pages
@@ -78,7 +90,12 @@ class PdfTextSelectionActions {
           .any((page) => !page.isLoaded)) {
         return PdfTextActionResult.loading;
       }
-      final text = await _readText(document, range, isCurrent);
+      final text = await _readText(
+        document,
+        range,
+        isCurrent: isCurrent,
+        selectionIsCurrent: selectionIsCurrent,
+      );
       if (!isCurrent() || text == null || text.isEmpty) {
         return PdfTextActionResult.none;
       }
@@ -87,6 +104,7 @@ class PdfTextSelectionActions {
       if (!isCurrent()) return PdfTextActionResult.none;
       if (!keepSelection) {
         await selection.clearTextSelection();
+        discardStaleSnapshot();
         if (!_isCurrent(generation, document, null)) {
           return PdfTextActionResult.none;
         }
@@ -100,28 +118,45 @@ class PdfTextSelectionActions {
   }
 
   /// קורא את הבחירה בלי להכניס גאומטריה של עמודי ביניים למטמון המשותף.
-  Future<String> readSelectedText() async {
+  Future<String?> readSelectedText({bool requireCopyPermission = true}) async {
     final generation = ++_generation;
-    if (!isActive() || !controller.isReady) return '';
+    if (!isActive() || !controller.isReady) return null;
     final document = controller.document;
     final selection = controller.textSelectionDelegate;
     final range = selection.textSelectionPointRange;
-    if (range == null || !selection.isCopyAllowed) return '';
-    final isCurrent = _selectedTextGuard(generation, document, range);
+    if (range == null || (requireCopyPermission && !selection.isCopyAllowed)) {
+      return null;
+    }
+    final selectionIsCurrent = _selectedTextGuard(document, range);
+    bool isCurrent() =>
+        generation == _generation &&
+        selectionIsCurrent() &&
+        (!requireCopyPermission || selection.isCopyAllowed);
     try {
-      final text = await _readText(document, range, isCurrent);
-      return isCurrent() ? text ?? '' : '';
+      final text = await _readText(
+        document,
+        range,
+        isCurrent: isCurrent,
+        selectionIsCurrent: selectionIsCurrent,
+        skipUnloadedPages: true,
+      );
+      return isCurrent() ? text : null;
     } catch (_) {
-      if (!isCurrent()) return '';
+      if (!isCurrent()) return null;
       rethrow;
     }
   }
 
   Future<String?> _readText(
     PdfDocument document,
-    PdfTextSelectionRange range,
-    bool Function() isCurrent,
-  ) async {
+    PdfTextSelectionRange range, {
+    required bool Function() isCurrent,
+    required bool Function() selectionIsCurrent,
+    bool skipUnloadedPages = false,
+  }) async {
+    if (!isCurrent()) return null;
+    final snapshot = selectedTextSnapshot;
+    if (snapshot != null) return snapshot;
     final first = range.start;
     final last = range.end;
     final pages = document.pages;
@@ -129,6 +164,7 @@ class PdfTextSelectionActions {
       return null;
     }
     final result = StringBuffer();
+    var complete = true;
     for (
       var number = first.text.pageNumber;
       number <= last.text.pageNumber;
@@ -136,7 +172,13 @@ class PdfTextSelectionActions {
     ) {
       if (!isCurrent()) return null;
       final page = pages[number - 1];
-      if (!page.isLoaded) return null;
+      if (!page.isLoaded &&
+          number != first.text.pageNumber &&
+          number != last.text.pageNumber) {
+        if (!skipUnloadedPages) return null;
+        complete = false;
+        continue;
+      }
       // cache.get אינו מאמת זהות עמוד לפני שאירוע החלפת התוכן מופץ.
       final text = number == first.text.pageNumber
           ? first.text
@@ -158,7 +200,11 @@ class PdfTextSelectionActions {
             .text,
       );
     }
-    return result.toString();
+    final text = result.toString();
+    if (complete) {
+      _snapshot = (text: text, selectionIsCurrent: selectionIsCurrent);
+    }
+    return text;
   }
 
   Future<PdfTextActionResult> selectAll() async {

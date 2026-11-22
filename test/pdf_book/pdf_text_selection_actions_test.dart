@@ -305,7 +305,7 @@ void main() {
     await _flush();
     actions.cancel();
     pending.complete(_text(2));
-    expect(await read, '');
+    expect(await read, isNull);
     expect(document.pages.map((page) => page.reads), [0, 1, 0, 0, 0]);
     expect(selection.range, isNotNull);
     expect(writes, isEmpty);
@@ -320,7 +320,7 @@ void main() {
       await _flush();
       document.pages = [...document.pages]..[1] = _Page(2);
       pending.complete(_text(2));
-      expect(await read, '');
+      expect(await read, isNull);
       expect(writes, isEmpty);
     },
   );
@@ -362,7 +362,7 @@ void main() {
       await _flush();
       actions.cancel();
       pending.completeError(StateError('document closed'));
-      expect(await read, '');
+      expect(await read, isNull);
       expect(writes, isEmpty);
     },
   );
@@ -381,14 +381,72 @@ void main() {
   });
 
   test(
-    'unloaded or forbidden selected text is not returned to consumers',
+    'lazy search ignores missing middle pages and retries them later',
     () async {
       document.pages[1].isLoaded = false;
-      expect(await actions.readSelectedText(), '');
+      expect(
+        await actions.readSelectedText(requireCopyPermission: false),
+        'Page textPag',
+      );
+      expect(actions.selectedTextSnapshot, isNull);
+      expect(document.pages[1].reads, 0);
+
       document.pages[1].isLoaded = true;
+      expect(
+        await actions.readSelectedText(requireCopyPermission: false),
+        'Page textPage textPag',
+      );
+      expect(actions.selectedTextSnapshot, 'Page textPage textPag');
+      expect(document.pages[1].reads, 1);
+    },
+  );
+
+  test(
+    'restricted documents retain search but withhold text from plugins and Copy',
+    () async {
       selection.isCopyAllowed = false;
-      expect(await actions.readSelectedText(), '');
-      expect(document.pages.every((page) => page.reads == 0), true);
+      expect(await actions.readSelectedText(), isNull);
+      expect(await actions.copy(), PdfTextActionResult.none);
+      expect(document.pages[1].reads, 0);
+
+      expect(
+        await actions.readSelectedText(requireCopyPermission: false),
+        'Page textPage textPag',
+      );
+      expect(actions.selectedTextSnapshot, 'Page textPage textPag');
+      expect(await actions.readSelectedText(), isNull);
+      expect(await actions.copy(), PdfTextActionResult.none);
+      expect(writes, isEmpty);
+    },
+  );
+
+  test(
+    'repeat Copy reuses plain text until the selection or page changes',
+    () async {
+      expect(
+        await actions.copy(keepSelection: true),
+        PdfTextActionResult.copied,
+      );
+      expect(actions.selectedTextSnapshot, writes.single);
+      actions.cancel();
+      expect(
+        await actions.copy(keepSelection: true),
+        PdfTextActionResult.copied,
+      );
+      expect(writes, ['Page textPage textPag', 'Page textPage textPag']);
+      expect(document.pages[1].reads, 1);
+
+      document.pages = [...document.pages]
+        ..[1] = (_Page(2)..load = () async => _text(2, 'new content'));
+      expect(actions.selectedTextSnapshot, isNull);
+      expect(await actions.readSelectedText(), 'Page textnew contentPag');
+
+      selection.range = _range(1, 1);
+      expect(actions.selectedTextSnapshot, isNull);
+      expect(await actions.readSelectedText(), 'Pag');
+
+      controller.document = _Document(3);
+      expect(actions.selectedTextSnapshot, isNull);
     },
   );
 
