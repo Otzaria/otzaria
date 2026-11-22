@@ -5,7 +5,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -568,24 +568,27 @@ class _AppTopBarLayoutState extends State<AppTopBarLayout>
   Timer? _hideTimer;
   bool _hovering = false;
   bool? _autoHide;
+  bool _entryPending = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reveal.duration = AppMotion.duration(context, _kAutoHideAnimDuration);
     final autoHide = AppTopBarScope._autoHideOf(context);
-    if (autoHide == _autoHide) return;
-    _autoHide = autoHide;
-    if (autoHide) {
-      // מוצג לרגע בכניסה, כדי שיהיה ברור לאן הסרגל נעלם.
-      _show();
-      _scheduleHide(_kAutoHideInitialDelay);
-      if (TickerMode.valuesOf(context).enabled) {
-        AppTopBarScope._onAutoHideEnteredOf(context)?.call(context);
-      }
-    } else {
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (autoHide != _autoHide) {
+      _autoHide = autoHide;
+      _entryPending = autoHide;
       _hideTimer?.cancel();
+      _reveal.value = autoHide ? 0.0 : 1.0;
+    }
+    // קורא שנטען ברקע נכנס להסתרה כשהוא מוצג, ולא כשהמסך המלא התחיל.
+    if (_entryPending && visible) {
+      _entryPending = false;
+      // מוצג לרגע בכניסה, כדי שיהיה ברור לאן הסרגל נעלם.
       _reveal.value = 1.0;
+      _scheduleHide(_kAutoHideInitialDelay);
+      AppTopBarScope._onAutoHideEnteredOf(context)?.call(context);
     }
   }
 
@@ -633,14 +636,14 @@ class _AppTopBarLayoutState extends State<AppTopBarLayout>
   @override
   Widget build(BuildContext context) {
     final autoHide = _autoHide!;
-    // סדר הילדים קבוע: התוכן ואחריו הסרגל, שמצויר מעליו ונבדק ראשון
-    // בלחיצות. מעבר למסך מלא משנה רק את המיקומים, בלי להעביר צמתים בעץ.
-    return CustomMultiChildLayout(
+    // סדר הילדים קבוע: מעבר למסך מלא משנה רק את המיקומים ואת סדר הציור,
+    // בלי להעביר צמתים בעץ.
+    return _TopBarMultiChildLayout(
       delegate: _TopBarLayoutDelegate(overlayBar: autoHide),
       children: [
         LayoutId(
           id: _TopBarLayoutSlot.body,
-          // הסרגל מצויר אחרי התוכן; קורא המסך עדיין מקריא אותו קודם.
+          // קורא המסך מקריא את הסרגל קודם גם כשהוא מצויר מעל התוכן.
           child: Semantics(
             container: true,
             sortKey: const OrdinalSortKey(1),
@@ -668,9 +671,7 @@ class _AppTopBarLayoutState extends State<AppTopBarLayout>
                           : 1.0;
                       // מעל התוכן הצל שמתחת לסרגל מפריד ביניהם; הוא נעלם עם הסרגל.
                       return ClipRect(
-                        clipper: _RevealClipper(
-                          autoHide ? _kShadowReach * t : 0,
-                        ),
+                        clipper: _RevealClipper(_kShadowReach * t),
                         child: Align(
                           alignment: Alignment.bottomCenter,
                           heightFactor: t,
@@ -712,6 +713,34 @@ class _RevealClipper extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(_RevealClipper oldClipper) => below != oldClipper.below;
+}
+
+/// בחלון רגיל התוכן מצויר אחרי הסרגל ומכסה את צלו, כמו ב-Column.
+class _TopBarMultiChildLayout extends CustomMultiChildLayout {
+  const _TopBarMultiChildLayout({
+    required _TopBarLayoutDelegate super.delegate,
+    super.children,
+  });
+
+  @override
+  RenderCustomMultiChildLayoutBox createRenderObject(BuildContext context) =>
+      _RenderTopBarLayout(delegate: delegate);
+}
+
+class _RenderTopBarLayout extends RenderCustomMultiChildLayoutBox {
+  _RenderTopBarLayout({required super.delegate});
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if ((delegate as _TopBarLayoutDelegate).overlayBar) {
+      defaultPaint(context, offset);
+      return;
+    }
+    for (var child = lastChild; child != null; child = childBefore(child)) {
+      final data = child.parentData! as MultiChildLayoutParentData;
+      context.paintChild(child, data.offset + offset);
+    }
+  }
 }
 
 class _TopBarLayoutDelegate extends MultiChildLayoutDelegate {

@@ -2280,12 +2280,25 @@ void main() {
         isTrue,
       );
 
+      // F9 פועל רק במסך מלא.
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
+
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
       await tester.pump();
       expect(fullscreen.state, isTrue);
       expect(geometry.calls, ['titleBar', 'fullScreen:true']);
       await tester.pump();
       expect(find.text(WindowMessages.fullscreenToolbarHint), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
+      expect(fullscreen.state, isTrue);
 
       geometry.calls.clear();
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
@@ -2973,7 +2986,11 @@ class _CapturingFilePicker extends FilePickerPlatform
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
+    on<SettingsEvent>((event, emit) {
+      if (event is UpdateFullscreenAutoHideToolbar) {
+        emit(state.copyWith(fullscreenAutoHideToolbar: event.autoHide));
+      }
+    });
   }
 
   void emitStateForTest(SettingsState state) => emit(state);

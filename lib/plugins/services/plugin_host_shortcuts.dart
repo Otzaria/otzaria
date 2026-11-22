@@ -100,6 +100,7 @@ class PluginHostShortcuts {
     'ctrl+7',
     'ctrl+8',
     'ctrl+9',
+    'f9',
     'f11',
   ];
 

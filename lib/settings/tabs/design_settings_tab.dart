@@ -104,6 +104,7 @@ class DesignSettingsTab extends StatelessWidget {
       keywords: [
         'מסך מלא',
         'ריכוז',
+        'F9',
         'סרגל',
         'הסתרה',
         'מופעל',

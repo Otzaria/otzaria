@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -318,4 +319,122 @@ void main() {
     expect(labels.indexOf('פעולה'), lessThan(labels.indexOf('תוכן')));
     handle.dispose();
   });
+
+  Future<void> pumpPlain(
+    WidgetTester tester, {
+    required ValueListenable<bool> autoHide,
+    ValueListenable<bool>? visible,
+    ValueSetter<BuildContext>? onEntered,
+    List<String>? paintLog,
+  }) async {
+    final settingsBloc = StubSettingsBloc(SettingsState.initial());
+    addTearDown(settingsBloc.close);
+    Widget recorder(String name, Widget? child) => CustomPaint(
+      painter: _PaintRecorder(() => paintLog?.add(name)),
+      child: child,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BlocProvider<SettingsBloc>.value(
+            value: settingsBloc,
+            child: ListenableBuilder(
+              listenable: Listenable.merge([autoHide, visible]),
+              builder: (context, _) => TickerMode(
+                enabled: visible?.value ?? true,
+                child: AppTopBarScope(
+                  autoHide: autoHide.value,
+                  onAutoHideEntered: onEntered,
+                  child: AppTopBarLayout(
+                    children: [
+                      AppTopBar(center: recorder('bar', const Text('כותרת'))),
+                      Expanded(
+                        child: recorder('body', const SizedBox.expand()),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  testWidgets('בחלון רגיל צל הסרגל לא נחתך, והתוכן מצויר אחריו כמו ב-Column', (
+    tester,
+  ) async {
+    final autoHide = ValueNotifier(false);
+    addTearDown(autoHide.dispose);
+    final paintLog = <String>[];
+    await pumpPlain(tester, autoHide: autoHide, paintLog: paintLog);
+
+    final clip = tester.renderObject<RenderClipRect>(
+      find
+          .ancestor(
+            of: find.byWidgetPredicate(
+              (w) => w is Align && w.alignment == Alignment.bottomCenter,
+            ),
+            matching: find.byType(ClipRect),
+          )
+          .first,
+    );
+    expect(
+      clip.clipper!.getClip(clip.size).bottom,
+      greaterThan(clip.size.height),
+    );
+    expect(paintLog, ['bar', 'body']);
+
+    paintLog.clear();
+    autoHide.value = true;
+    await tester.pump();
+    expect(paintLog, ['body', 'bar']);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('קורא שנטען ברקע מציג את הסרגל ואת ההודעה כשהוא עובר לחזית', (
+    tester,
+  ) async {
+    final autoHide = ValueNotifier(false);
+    final visible = ValueNotifier(false);
+    addTearDown(autoHide.dispose);
+    addTearDown(visible.dispose);
+    var entered = 0;
+    await pumpPlain(
+      tester,
+      autoHide: autoHide,
+      visible: visible,
+      onEntered: (_) => entered++,
+    );
+
+    autoHide.value = true;
+    await tester.pump(const Duration(seconds: 2));
+    expect(entered, 0);
+
+    visible.value = true;
+    await tester.pump();
+    expect(entered, 1);
+    expect(reveal(tester), 1.0);
+    await waitUntilHidden(tester);
+    expect(reveal(tester), 0.0);
+
+    visible.value = false;
+    await tester.pump();
+    visible.value = true;
+    await tester.pump();
+    expect(entered, 1);
+  });
+}
+
+class _PaintRecorder extends CustomPainter {
+  final VoidCallback onPaint;
+
+  _PaintRecorder(this.onPaint);
+
+  @override
+  void paint(Canvas canvas, Size size) => onPaint();
+
+  @override
+  bool shouldRepaint(_PaintRecorder oldDelegate) => true;
 }
