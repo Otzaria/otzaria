@@ -33,7 +33,7 @@ class TrackpadFling {
   }
 
   void _onPointer(PointerEvent event) {
-    if (event is PointerScrollEvent) {
+    if (event is PointerScrollEvent || event is PointerScaleEvent) {
       stop();
     } else if (event is PointerDownEvent || event is PointerPanZoomStartEvent) {
       stop();

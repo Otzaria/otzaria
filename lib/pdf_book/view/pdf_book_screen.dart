@@ -324,6 +324,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   /// המחווה הנוכחית כללה זום (Ctrl): דגימות המהירות שלה אינן גלילה.
   bool _trackpadPanZoomed = false;
+  bool _trackpadPanShiftedToHorizontal = false;
   late final _trackpadFling = TrackpadFling(
     onDelta: _scrollPhysicsProvider.pan,
     onInterrupt: _scrollPhysicsProvider.stop,
@@ -490,6 +491,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       if (scrollDelta == Offset.zero) {
         return;
       }
+      // pdfrx מנתב גלילה אנכית טהורה לאופקית כש-Shift לחוץ.
+      _trackpadPanShiftedToHorizontal =
+          scrollDelta.dx == 0 && HardwareKeyboard.instance.isShiftPressed;
     }
     widget.tab.pdfViewerController.handlePointerSignalEvent(
       PointerScrollEvent(
@@ -505,12 +509,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final axis = _trackpadPanAxisLock.lockedAxis;
     _trackpadPanAxisLock.reset();
     final zoomed = _trackpadPanZoomed;
+    final shiftedToHorizontal = _trackpadPanShiftedToHorizontal;
     _trackpadPanZoomed = false;
-    if (zoomed || HardwareKeyboard.instance.isControlPressed) return;
-    _trackpadFling.start(this, switch (axis) {
-      Axis.vertical => Offset(0, velocity.dy),
-      Axis.horizontal => Offset(velocity.dx, 0),
-      null => velocity,
+    _trackpadPanShiftedToHorizontal = false;
+    if (zoomed ||
+        HardwareKeyboard.instance.isControlPressed ||
+        velocity == Offset.zero ||
+        !_isPdfVisible) {
+      return;
+    }
+    _trackpadFling.start(this, switch ((shiftedToHorizontal, axis)) {
+      (true, _) => Offset(velocity.dy, 0),
+      (false, Axis.vertical) => Offset(0, velocity.dy),
+      (false, Axis.horizontal) => Offset(velocity.dx, 0),
+      (false, null) => velocity,
     });
   }
 
@@ -4178,6 +4190,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   void _releaseImagesWhileHidden() {
     _pdfTextSelectionActions.cancel();
+    _trackpadFling.stop();
     _scrollPhysicsProvider.stop();
     _stopContinuousScroll();
     _pageTurnController.stop(canceled: false);

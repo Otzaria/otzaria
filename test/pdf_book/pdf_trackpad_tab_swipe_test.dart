@@ -21,6 +21,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -532,6 +533,65 @@ void main() {
       await gesture.panZoomEnd();
       expect(stoppedAt - top, greaterThan(0));
       expect(controller.visibleRect.top, closeTo(stoppedAt, 1));
+    });
+
+    testWidgets('מעבר לכרטיסייה אחרת עוצר את ההחלקה ב-PDF', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8, settle: false);
+      await frames(tester, 3);
+      reader.tabs.add(const SetCurrentTab(0));
+      await tester.pump();
+      final stoppedAt = controller.visibleRect.top;
+      await frames(tester, 15);
+      reader.tabs.add(const SetCurrentTab(1));
+      await frames(tester, 60);
+      expect(controller.visibleRect.top, closeTo(stoppedAt, 1));
+    });
+
+    testWidgets('צביטה באירוע PointerScaleEvent עוצרת החלקה פעילה', (
+      tester,
+    ) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8, settle: false);
+      await frames(tester, 3);
+      final zoom = controller.currentZoom;
+      await tester.sendEventToBinding(
+        PointerScaleEvent(
+          kind: PointerDeviceKind.trackpad,
+          position: tester.getCenter(find.byType(PageView)),
+          scale: 1.3,
+        ),
+      );
+      await frames(tester, 60);
+      expect(controller.currentZoom, greaterThan(zoom * 1.15));
+    });
+
+    testWidgets('החלקה אנכית עם Shift ממשיכה אופקית גם אחרי שחרורו', (
+      tester,
+    ) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await controller.setZoom(
+        controller.centerPosition,
+        controller.currentZoom * 2,
+        duration: Duration.zero,
+      );
+      await frames(tester, 3);
+      final start = controller.visibleRect.center;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await verticalPan(
+        tester,
+        step: -15,
+        steps: 8,
+        stepMs: 8,
+        beforeEnd: () => tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft),
+      );
+      final end = controller.visibleRect.center;
+      final fingers = 120 / controller.currentZoom;
+      expect(end.dx - start.dx, greaterThan(fingers * 2));
+      expect(end.dy, closeTo(start.dy, 1));
     });
   });
 
