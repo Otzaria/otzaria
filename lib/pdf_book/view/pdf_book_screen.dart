@@ -64,6 +64,7 @@ import 'package:otzaria/pdf_book/utils/pdf_context_menu_builders.dart';
 import 'package:otzaria/pdf_book/utils/pdf_rendering_policy.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
+import 'package:otzaria/pdf_book/utils/trackpad_fling.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
 import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/pdf_book/view/widgets/open_url_confirmation.dart';
@@ -321,6 +322,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final TrackpadAxisLock _trackpadAxisLock = TrackpadAxisLock();
   final TrackpadAxisLock _trackpadPanAxisLock = TrackpadAxisLock();
 
+  /// המחווה הנוכחית כללה זום (Ctrl): דגימות המהירות שלה אינן גלילה.
+  bool _trackpadPanZoomed = false;
+  bool _trackpadPanShiftedToHorizontal = false;
+  late final _trackpadFling = TrackpadFling(
+    onDelta: _scrollPhysicsProvider.pan,
+    onInterrupt: _scrollPhysicsProvider.stop,
+  );
+
   // Pre-rendered spread cache: lets the page-turn animation start instantly
   // because the target spread snapshot is already in memory at click time.
   // Key = spread start page (1-indexed). Pages are rendered via pdfrx's
@@ -475,12 +484,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final Offset scrollDelta;
     if (HardwareKeyboard.instance.isControlPressed) {
       _trackpadPanAxisLock.reset();
+      _trackpadPanZoomed = true;
       scrollDelta = -panDelta;
     } else {
       scrollDelta = _trackpadPanAxisLock.applyDelta(-panDelta);
       if (scrollDelta == Offset.zero) {
         return;
       }
+      // pdfrx מנתב גלילה אנכית טהורה לאופקית כש-Shift לחוץ.
+      _trackpadPanShiftedToHorizontal =
+          scrollDelta.dx == 0 && HardwareKeyboard.instance.isShiftPressed;
     }
     widget.tab.pdfViewerController.handlePointerSignalEvent(
       PointerScrollEvent(
@@ -489,6 +502,28 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         scrollDelta: scrollDelta,
       ),
     );
+  }
+
+  /// הרמת האצבעות: החלקה בהמשך התנועה, על הציר הנעול אם יש (#3491).
+  void _handleTrackpadPanEnd(Offset velocity) {
+    final axis = _trackpadPanAxisLock.lockedAxis;
+    _trackpadPanAxisLock.reset();
+    final zoomed = _trackpadPanZoomed;
+    final shiftedToHorizontal = _trackpadPanShiftedToHorizontal;
+    _trackpadPanZoomed = false;
+    _trackpadPanShiftedToHorizontal = false;
+    if (zoomed ||
+        HardwareKeyboard.instance.isControlPressed ||
+        velocity == Offset.zero ||
+        !_isPdfVisible) {
+      return;
+    }
+    _trackpadFling.start(this, switch ((shiftedToHorizontal, axis)) {
+      (true, _) => Offset(velocity.dy, 0),
+      (false, Axis.vertical) => Offset(0, velocity.dy),
+      (false, Axis.horizontal) => Offset(velocity.dx, 0),
+      (false, null) => velocity,
+    });
   }
 
   late final PdfSearchIndexRestorer _searchIndexRestorer;
@@ -1617,7 +1652,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       >(
                         () => TrackpadPanRecognizer(
                           onPanDelta: _handleTrackpadPanDelta,
-                          onPanEnd: _trackpadPanAxisLock.reset,
+                          onPanEnd: _handleTrackpadPanEnd,
                           onPanZoomEvent: (event) {
                             final controller = widget.tab.pdfViewerController;
                             if (controller.isReady) {
@@ -3821,6 +3856,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _nextFitIsPage.dispose();
+    _trackpadFling.stop();
     _pageTurnController.stop(canceled: false);
     _stopContinuousScroll();
     _disposePageTurnSnapshot();
@@ -4154,6 +4190,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   void _releaseImagesWhileHidden() {
     _pdfTextSelectionActions.cancel();
+    _trackpadFling.stop();
     _scrollPhysicsProvider.stop();
     _stopContinuousScroll();
     _pageTurnController.stop(canceled: false);
