@@ -1581,6 +1581,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             query: _activeSearchQuery,
             displayProfile: blocState.commentaryDisplayProfile,
             matchIndex: matchIndex,
+            partialWordMatch: _notesPartialWordMatch(),
           )?.call(0, box)?.top;
     if (top == null) {
       Scrollable.ensureVisible(note, alignment: 0.1);
@@ -1617,6 +1618,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   /// מצב הספר כשהמונח הפעיל הוא מונח החיפוש בספר — הערות הספר מודגשות בו
   /// כמו טקסט הספר. null כשהמונח בא משדה החיפוש של המפרשים.
   TextBookLoaded? _bookSearchState(BuildContext context) {
+    if (widget.showSearch && _searchQueryNotifier.value.isNotEmpty) return null;
     final state = context.read<TextBookBloc>().state;
     final query = _activeSearchQuery;
     return state is TextBookLoaded &&

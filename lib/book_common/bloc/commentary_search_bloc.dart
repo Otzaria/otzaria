@@ -11,7 +11,7 @@ import 'package:otzaria/text_display/models/text_display_profile.dart';
 part 'commentary_search_event.dart';
 part 'commentary_search_state.dart';
 
-typedef _LinkSearchEntry = ({String key, String path});
+typedef _SearchEntry = ({String key, String path, bool isNote});
 
 /// מפתח החיפוש של ההערה [index] מתוך ההערות שבבקשה.
 String commentaryNoteSearchKey(int index) => 'notes:$index';
@@ -21,8 +21,8 @@ class CommentarySearchBloc
     extends Bloc<CommentarySearchEvent, CommentarySearchState> {
   final String Function(Link) keyOf;
   CommentarySearchRequested? _request;
-  List<_LinkSearchEntry> _entries = const [];
-  List<_LinkSearchEntry> _linkEntries = const [];
+  List<_SearchEntry> _entries = const [];
+  List<_SearchEntry> _linkEntries = const [];
 
   /// הקישורים שמהם נגזרו המפתחות והנתיבים בסדר התצוגה.
   List<Link> _keyedLinks = const [];
@@ -52,17 +52,26 @@ class CommentarySearchBloc
         ? _linkEntries
         : [
             for (final link in event.links)
-              (key: keyOf(link), path: link.path2),
+              (key: keyOf(link), path: link.path2, isNote: false),
+          ];
+    final previous = _request;
+    final entries = event.notes.isEmpty
+        ? linkEntries
+        : identical(linkEntries, _linkEntries) &&
+              previous?.notes.length == event.notes.length
+        ? _entries
+        : [
+            for (var i = 0; i < event.notes.length; i++)
+              (
+                key: commentaryNoteSearchKey(i),
+                path: kNotesCommentatorTitle,
+                isNote: true,
+              ),
+            ...linkEntries,
           ];
     _keyedLinks = event.links;
     _linkEntries = linkEntries;
-    final entries = [
-      for (var i = 0; i < event.notes.length; i++)
-        (key: commentaryNoteSearchKey(i), path: kNotesCommentatorTitle),
-      ...linkEntries,
-    ];
     final sameEntries = listEquals(_entries, entries);
-    final previous = _request;
     if (previous != null &&
         previous.query == event.query &&
         previous.displayProfile == event.displayProfile &&
@@ -92,7 +101,7 @@ class CommentarySearchBloc
 
   Future<void> _compute(
     CommentarySearchRequested request,
-    List<_LinkSearchEntry> entries,
+    List<_SearchEntry> entries,
     int generation,
   ) async {
     final notes = request.notes;
@@ -130,6 +139,7 @@ class CommentarySearchBloc
                     content: content,
                     query: request.query,
                     displayProfile: request.displayProfile,
+                    partialWordMatch: isNote && request.notesPartialWordMatch,
                   ),
                 ]
               : const [],
@@ -186,6 +196,7 @@ class CommentarySearchBloc
         pathsByKey: _pathsByKey,
         counts: counts,
         snippetsByKey: _snippets,
+        notesPartialWordMatch: _request!.notesPartialWordMatch,
       ),
     );
   }

@@ -10,11 +10,13 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/fake_commentary_library_provider.dart';
@@ -99,20 +101,23 @@ Future<void> main() async {
   testWidgets('חיפוש בכרטיסיית מפרשים סופר גם את ההערות (issue #5715)', (
     tester,
   ) async {
+    final filler = List.filled(100, 'מילה').join(' ');
     textBookBloc = StubTextBookBloc(
       _state(
-        content: '<i class="footnote">הלכות שבת ושבת</i>גוף הקטע',
+        content: '<i class="footnote">$filler לארבעים וחמש</i>גוף הקטע',
         withCommentary: false,
       ),
     );
     final snippets = ValueNotifier<List<CommentarySearchSnippet>>(const []);
     addTearDown(snippets.dispose);
 
-    final list = await search(tester, 'שבת', snippets);
+    final list = await search(tester, 'ארבעים וחמש', snippets);
 
-    expect(list.totalSearchResultsNotifier.value, 2);
+    expect(list.totalSearchResultsNotifier.value, 1);
     expect(snippets.value.map((s) => s.path), [kNotesCommentatorTitle]);
     expect(snippets.value.single.globalIndex, 0);
+    expect(snippets.value.single.partialWordMatch, isTrue);
+    expect(snippets.value.single.snippet, contains('לארבעים וחמש'));
   }, skip: !engineReady);
 
   testWidgets('הערות ומפרשים: ההערות נספרות ראשונות והמפרש אחריהן', (
@@ -162,6 +167,7 @@ Future<void> main() async {
       _state(
         content: '<i class="footnote">שבת $filler שבת</i>גוף הקטע',
         withCommentary: false,
+        bookSearchText: 'שבת',
       ),
     );
     final snippets = ValueNotifier<List<CommentarySearchSnippet>>(const []);
@@ -176,25 +182,36 @@ Future<void> main() async {
     );
     double offset() =>
         tester.state<ScrollableState>(notesScroll.first).position.pixels;
-    int currentInNote() => tester
-        .widget<SmartTextWidget>(find.byType(SmartTextWidget).first)
-        .settings
-        .currentSearchIndex;
+    String highlightedNote() {
+      final note = tester.widget<SmartTextWidget>(
+        find.byType(SmartTextWidget).first,
+      );
+      return TextRendererService.processText(note.text, note.settings);
+    }
+
+    const current = SearchHighlightCss.currentBackground;
+    const hit = SearchHighlightCss.hit;
 
     list.navigateToGlobalIndex(0);
     await tester.pumpAndSettle();
-    expect(currentInNote(), 0);
+    expect(highlightedNote(), matches('^<span[^>]*$current[^>]*>שבת</span>'));
+    expect(highlightedNote(), matches('<span[^>]*$hit[^>]*>שבת</span>\$'));
     final first = offset();
 
     list.navigateSearchNext();
     await tester.pumpAndSettle();
     expect(list.currentSearchIndexNotifier.value, 1);
-    expect(currentInNote(), 1);
+    expect(highlightedNote(), matches('^<span[^>]*$hit[^>]*>שבת</span>'));
+    expect(highlightedNote(), matches('<span[^>]*$current[^>]*>שבת</span>\$'));
     expect(offset(), greaterThan(first + 200));
   }, skip: !engineReady);
 }
 
-TextBookLoaded _state({required String content, required bool withCommentary}) {
+TextBookLoaded _state({
+  required String content,
+  required bool withCommentary,
+  String bookSearchText = '',
+}) {
   final link = Link(
     heRef: 'בדיקה א',
     index1: 1,
@@ -227,6 +244,6 @@ TextBookLoaded _state({required String content, required bool withCommentary}) {
     visibleIndices: const [0],
     selectedIndex: 0,
     pinLeftPane: false,
-    searchText: '',
+    searchText: bookSearchText,
   );
 }

@@ -45,6 +45,7 @@ List<CommentarySearchSnippet> orderCommentarySearchSnippets<T>({
   required String Function(T item) pathOf,
   required Map<String, int> countsByKey,
   required List<String> Function(String key, int count) snippetsOf,
+  bool Function(T item)? partialWordMatchOf,
 }) {
   final result = <CommentarySearchSnippet>[];
   var globalIndex = 0;
@@ -57,6 +58,7 @@ List<CommentarySearchSnippet> orderCommentarySearchSnippets<T>({
           path: pathOf(item),
           snippet: snippet,
           globalIndex: globalIndex,
+          partialWordMatch: partialWordMatchOf?.call(item) ?? false,
         ),
       );
     }
