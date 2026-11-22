@@ -112,5 +112,62 @@ void main() {
         }
       },
     );
+
+    for (final (rows, cols) in [(1, 1), (1, 2), (2, 2)]) {
+      test('progressive $rows x $cols composition preserves range and geometry '
+          '(${fromFile ? 'path' : 'bytes'})', () async {
+        final source = fromFile
+            ? PrintPdfSource.file(file.path)
+            : PrintPdfSource.data(bytes);
+        final document = await source.open(useProgressiveLoading: true);
+        late Uint8List output;
+        try {
+          expect(document.pages.where((page) => page.isLoaded), hasLength(1));
+          output = await composePdfSheets(
+            document,
+            firstIndex: 1,
+            lastIndex: 2,
+            rows: rows,
+            cols: cols,
+            sheetWidth: PdfPageFormat.a4.width,
+            sheetHeight: PdfPageFormat.a4.height,
+          );
+          expect(document.pages.where((page) => page.isLoaded), hasLength(1));
+        } finally {
+          await document.dispose();
+        }
+        final composed = await PrintPdfSource.data(output).open();
+        try {
+          final single = rows * cols == 1;
+          expect(composed.pages.length, single ? 2 : 1);
+          final text = StringBuffer();
+          for (var i = 0; i < composed.pages.length; i++) {
+            final page = composed.pages[i];
+            final expectedSize = single ? sizes[i + 1] : PdfPageFormat.a4;
+            expect(page.width, closeTo(expectedSize.width, 0.01));
+            expect(page.height, closeTo(expectedSize.height, 0.01));
+            text.write((await page.loadText())!.fullText);
+          }
+          expect(text.toString(), contains('vector-page-2'));
+          expect(text.toString(), contains('vector-page-3'));
+          expect(text.toString(), isNot(contains('vector-page-1')));
+          expect(
+            text.toString().indexOf('vector-page-2'),
+            lessThan(text.toString().indexOf('vector-page-3')),
+          );
+          if (!single) {
+            final structured = await composed.pages.first.loadStructuredText();
+            final first = structured.fullText.indexOf('vector-page-2');
+            final second = structured.fullText.indexOf('vector-page-3');
+            expect(
+              structured.charRects[first].left,
+              greaterThan(structured.charRects[second].left),
+            );
+          }
+        } finally {
+          await composed.dispose();
+        }
+      });
+    }
   }
 }
