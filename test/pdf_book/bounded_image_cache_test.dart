@@ -106,6 +106,46 @@ void main() {
     cache.dispose();
     expect(budget.estimatedBytes, 0);
   });
+
+  test('שמירת היסטוריה אינה מפנה תמונה שהצפיין עדיין צריך', () async {
+    final budget = PdfImageCacheBudget(maximumBytes: 1000);
+    final cache = BoundedImageCache<int>(maxBytes: 1000, budget: budget);
+    final source = await image10();
+    var evictions = 0;
+    final visibleNeighbor = budget
+        .tryReserve(800)!
+        .commit(
+          retainedBytes: 800,
+          isNeeded: true,
+          onEvict: () => evictions++,
+        )!;
+    try {
+      for (var page = 0; page < 100; page++) {
+        cache.put(page, source);
+      }
+      expect(evictions, 0);
+      expect(visibleNeighbor.isDisposed, isFalse);
+      expect(cache.length, 0);
+      expect(source.debugDisposed, isFalse);
+      expect(budget.pendingBytes, 0);
+      expect(budget.retainedBytes, 800);
+
+      visibleNeighbor.touch(isNeeded: false);
+      cache.put(100, source);
+      expect(evictions, 1);
+      expect(cache.length, 1);
+      final retained = cache.lookup(100)!;
+      expect(retained.debugDisposed, isFalse);
+      retained.dispose();
+    } finally {
+      visibleNeighbor.dispose();
+      cache.dispose();
+      source.dispose();
+    }
+    expect(budget.estimatedBytes, 0);
+    budget.dispose();
+  });
+
   test('put חוזר לאותו מפתח מחליף בלי לספור פעמיים', () async {
     final cache = BoundedImageCache<int>(maxBytes: 1000);
     final source = await image10();
