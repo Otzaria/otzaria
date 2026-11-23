@@ -6,6 +6,7 @@ const _comparisonKeys = [
   'fixtureId',
   'buildMode',
   'cacheState',
+  'scenarioSet',
   'hardwareId',
   'os',
   'flutterVersion',
@@ -191,6 +192,8 @@ Map<String, dynamic> buildProbeReport({
       meta['schemaVersion'] != 2) {
     throw FormatException('גרסת schema לא נתמכת: ${meta['schemaVersion']}');
   }
+  // Older full-suite reports predate the explicit workload field.
+  meta['scenarioSet'] ??= 'all';
   final legacy = meta['schemaVersion'] != 2;
   final runnerFailed = !legacy && meta['status'] != 'passed';
   final samplerErrors =
@@ -631,9 +634,12 @@ Map<String, dynamic> compareProbeReports(
   final beforeMeta = _map(baseline['metadata']);
   final afterMeta = _map(candidate['metadata']);
   for (final key in _comparisonKeys) {
-    if (beforeMeta[key] == null ||
-        afterMeta[key] == null ||
-        !_same(beforeMeta[key], afterMeta[key])) {
+    final defaultValue = key == 'scenarioSet' ? 'all' : null;
+    final beforeValue = beforeMeta[key] ?? defaultValue;
+    final afterValue = afterMeta[key] ?? defaultValue;
+    if (beforeValue == null ||
+        afterValue == null ||
+        !_same(beforeValue, afterValue)) {
       reasons.add('metadata:$key');
     }
   }

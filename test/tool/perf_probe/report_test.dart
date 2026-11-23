@@ -405,6 +405,37 @@ void main() {
       );
     });
 
+    test('conflicting runner and journal workloads block comparison', () {
+      final value = report(
+        [],
+        changes: {'scenarioSet': 'pdf-reader'},
+        records: [
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'all'},
+          opening(),
+          {'type': 'done'},
+        ],
+      );
+      expect(
+        value['comparisonEligibility'],
+        contains('conflicting_metadata:scenarioSet'),
+      );
+    });
+
+    test(
+      'top-level workloads block comparison even without nested settings',
+      () {
+        Map<String, dynamic> workload(String value) =>
+            report([opening()], changes: {'scenarioSet': value});
+
+        final comparison = compareProbeReports(
+          workload('all'),
+          workload('pdf-reader'),
+        );
+        expect(comparison['comparable'], isFalse);
+        expect(comparison['reasons'], contains('metadata:scenarioSet'));
+      },
+    );
+
     test('reader smoke and full workload are not comparable', () {
       Map<String, dynamic> workload(String value) => report(
         [opening()],
