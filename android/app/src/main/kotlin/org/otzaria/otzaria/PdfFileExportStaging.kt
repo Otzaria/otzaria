@@ -53,7 +53,10 @@ internal class PdfFileExportStaging private constructor(
             if (!OsConstants.S_ISREG(before.st_mode) || before.st_nlink != 1L || before.st_size <= 0L) {
                 throw PdfFileExportFailure("invalid_source", "The staged PDF must be a nonempty regular file")
             }
-            val descriptor = Os.open(path, OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
+            // אם המקור הוחלף ב־FIFO, פתיחה רגילה תמתין לכותב לפני fstat.
+            val flags = OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or
+                OsConstants.O_NOFOLLOW or OsConstants.O_NONBLOCK
+            val descriptor = Os.open(path, flags, 0)
             try {
                 val opened = Os.fstat(descriptor)
                 if (!sameIdentity(opened, before) || opened.st_nlink != 1L || !OsConstants.S_ISREG(opened.st_mode)) {
