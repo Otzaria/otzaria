@@ -123,3 +123,6 @@ http://hiruv.com
 # תוסף אורייתא יומי — חומרי העזר והבחינות של תוכנית אורייתא (עמוד וחזרה)
 https://oraysa-media.s3.amazonaws.com
 https://moodle.oraysa.org
+
+# תוסף ושננתם (org.vshinantem.shas-review) — שרת המבחנים ובדיקת התמצית. POST בלבד, פלט מובנה בעברית
+https://vshinantem-exams.vshinantem.workers.dev/v1
