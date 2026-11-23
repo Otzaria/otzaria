@@ -29,7 +29,10 @@ class PrintPdfSource {
         (File(sourcePath).absolute.path == destination.absolute.path ||
             (await destination.exists() &&
                 await File(sourcePath).exists() &&
-                await FileSystemEntity.identical(sourcePath, stagingPath)))) {
+                await FileSystemEntity.identical(
+                  await File(sourcePath).resolveSymbolicLinks(),
+                  await destination.resolveSymbolicLinks(),
+                )))) {
       throw ArgumentError('The PDF source cannot be its own staging file.');
     }
     var completed = false;
