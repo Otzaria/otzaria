@@ -774,3 +774,96 @@ flutter test --concurrency=1 \
 [Flutter Gradle: תצורת profile](https://github.com/flutter/flutter/blob/3.47.7/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt).
 דוגמאות Android העדכניות עשויות להשתמש ב־API חדש יותר; המדידה כאן משתמשת
 ב־API הנעול במאגר, עם `setShouldRunUiThreadStartUpTasks(false)`.
+
+## PDF בכמה חלונות native — תרחיש Q02
+
+התרחיש `pdf-multi-window` זמין רק עם `framework`: אותו `app.main`, אותו
+`PdfBookScreen`, ופתיחת חלון דרך `WindowOpener` של האפליקציה. אין החלפה של
+`hasRealPlatformDispatcher`, הזרקת engine ID, reader חלופי או שינוי ב־SDK.
+
+הכינו case דטרמיניסטי קטן בקובץ שמחוץ לעץ המקור:
+
+```json
+{"schemaVersion":1,"source":{"kind":"generated","pageCount":10,"mixedPageSizes":true}}
+```
+
+ב־Linux או macOS, מתוך checkout נקי ובסשן desktop:
+
+```bash
+python3 tool/perf_probe/run_perf_probe_posix.py \
+  --mode profile --binding-mode framework --scenario-set pdf-multi-window \
+  --pdf-case /absolute/path/multi-window-case.json --cache-state cold \
+  --warmup 0 --repetitions 1 --launches 1 --timeout-seconds 600 \
+  --output /absolute/path/fresh-multi-window-run
+```
+
+ב־Windows:
+
+```powershell
+./tool/perf_probe/run_perf_probe.ps1 -Mode profile -BindingMode framework `
+  -ScenarioSet pdf-multi-window -PdfCase C:/fixtures/multi-window-case.json `
+  -CacheState cold -Warmup 0 -Repetitions 1 -Launches 1 `
+  -TimeoutSeconds 600 -OutputDirectory C:/results/fresh-multi-window-run
+```
+
+נבדקים שני paths נפרדים עם תוכן PDF זהה ו־SHA-256 מאומת, כך ש־document cache
+משותף לפי path אינו מתחזה לשני מסמכים. כל חלון חייב להציג את עמוד היעד
+ולשמור את זהות ה־view, ה־native handle והמסמך. ניווט בשני הקוראים מתבצע בזמן
+עבודה שהוגשה לאינדוקס וליצירת פלט PDF דרך ה־APIs הקיימים. האינדקס חייב להחזיר
+את עמודים 2 ו־4; פלט N-up חייב לשמור את עמודים 2 ו־3 כטקסט וקטורי, בסדר RTL,
+ולהפיק bitmap אמיתי באמצעות Printing.raster.
+
+לאחר מכן נבדקים minimize/restore, סגירת החלון הנוסף ופתיחתו מחדש. בזמן כל
+מעבר מוגשת גם עבודת raster native. חפיפת האינטרוולים מתארת עבודה שהוגשה
+והמתנה להשלמתה; היא אינה הוכחה שמנועים native רצו בו־זמנית על CPU.
+כל מסמך וקבוצת futures נשארים בבעלות התרחיש עד להשלמת העבודה. בסגירה נדרשת
+גם סגירת events וגם המתנה ל־document.dispose. ב־Linux מחכים בנפרד להסרת
+ה־view מ־PlatformDispatcher, לאחר הסרתו מה־registry של האפליקציה.
+
+נשמרים journal, report, receipt נפרד לכל חזרה, PDF ה־N-up ו־PNG של הרסטר.
+כל receipt מתאר גם כשל חלקי וניסיונות cleanup. אין סגירת חלון לפי שם,
+ואין הכרזת הצלחה כאשר נשארו חלונות, מסמכים או futures של התרחיש.
+PDF חיצוני מתאים למדידות הקורא הרגילות, אך אינו נתמך בתרחיש זה: בדיקות
+האינדקס והפלט תלויות בתוכן הדטרמיניסטי של ה־fixture.
+
+תקציב התמונות נדגם מהאובייקט `pdfSharedImageBudget` המשותף לכל ה־views
+באותו Dart isolate. מזהה ה־schema ההיסטורי `current-window-ui-isolate` נשמר
+לתאימות הדוחות; אין פירושו שהמונה מבודד לפי חלון. `settings.pdfMultiWindowProtocol`
+מתעד במפורש את ההיקף המשותף ואת היעדר הייחוס לכל חלון. השיא נשאר מאז
+יצירת התקציב, בלי reset בתחילת שלב או חלון.
+
+### Windows release והמנוע שבאמת מופץ
+
+ב־CI מתווספות הרצות profile ו־release נפרדות של התרחיש. הרצת release בלבד
+משתמשת בפעולה הקיימת `.github/actions/patched-flutter-engine` עבור Flutter
+3.47.7 x64. ה־runner מאמת את `flutter_windows.dll` שבתוך ה־bundle מול
+`PATCHED_FLUTTER_DLL_SHA256` לפני כל launch; `engineRevision`, build mode
+ושני ה־hashes נשמרים ב־manifest וב־settings של ההשוואה. הוא אינו מסתפק
+בבדיקת קובץ המנוע שב־SDK cache.
+
+לשחזור מקומי לאחר התקנת אותה גרסת מנוע מאומתת, העבירו
+`-Mode release -ExpectedEngineSha256 <verified-sha256>`. אי־התאמה, קובץ חסר
+או שינוי DLL בין הבנייה להפעלה מכשילים את הריצה. ב־profile נשמר hash של
+ה־bundle שנמדד, בלי לייחס לו את תיקון ה־release. במצב release אין צורך
+ב־VM service או flutter drive; heap נשאר unavailable והשלמה נקראת מהפרוטוקול
+הקיים של האפליקציה.
+
+בדיקת ה־smoke המפורשת דורשת case בן 10 עמודים, launch קר אחד, חזרה אחת
+וללא warmup. היא משווה את הראיות, מקור Git נקי לפני/אחרי הבנייה ואחרי ההרצה,
+hashes של קובצי ה־PDF בפועל, זהות scheduler ו־engine, וכל שלבי החלונות:
+
+```bash
+dart tool/perf_probe/validate_pdf_multi_window.dart \
+  --root /absolute/path/fresh-multi-window-run \
+  --commit <measured-checkout-sha> --platform linux --mode profile
+```
+
+ב־Windows release יש להוסיף גם `--expected-engine-sha256 <verified-sha256>`.
+גם workflow_dispatch מאפשר לבחור `pdf-multi-window` עם `binding_mode=framework`.
+בחירה זו מפעילה במפורש smoke קבוע: cold, עשרה עמודים, launch אחד, חזרה אחת
+וללא warmup. `mode=release` מתקין את אותו patched engine ומחייב את אותו hash;
+הפרמטרים לשינוי כמות חזרות ו־warm/cold נשארים זמינים בהרצה ישירה של ה־runner.
+ה־runner עצמו ממשיך לתמוך בחזרות וב־cold/warm; validator זה ממוקד להרצת
+ה־CI הקצרה, ואין בו סף שיפור CPU, זיכרון או latency. readiness מתייחס לתמונה
+הסופית ב־layer tree, לא לרגע ההצגה ב־GPU. תרחיש זה אינו מפעיל שינה פיזית
+של המחשב ואינו שולח עבודה למדפסת פיזית.

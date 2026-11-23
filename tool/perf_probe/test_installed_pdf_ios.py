@@ -484,9 +484,27 @@ class OwnedSimulatorContracts(unittest.TestCase):
                 self.assertEqual(runner.run_driver(root, self.receipt(), COMMIT), 0)
             arguments = process.call_args.args[0]
             self.assertEqual(arguments[arguments.index("-d") + 1], UDID)
+            self.assertIn("--verbose", arguments)
             self.assertIn("--keep-app-running", arguments)
             self.assertNotIn("--use-existing-app", arguments)
             self.assertEqual(json.loads((root / "driver-command.json").read_text()), arguments)
+
+    def test_failed_driver_keeps_its_error_when_no_app_bundle_was_built(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "evidence"
+            with patch.object(runner, "command", return_value=COMMIT), \
+                    patch.object(runner, "create_simulator", return_value=self.receipt()), \
+                    patch.object(runner, "boot_simulator"), \
+                    patch.object(runner, "run_driver", return_value=1), \
+                    patch.object(runner, "collect_and_validate", side_effect=FileNotFoundError("missing bundle")) as collect, \
+                    patch.object(runner, "preserve_partial_output") as preserve, \
+                    patch.object(runner, "cleanup_simulator") as cleanup:
+                with self.assertRaisesRegex(ValueError, r"driver failed.*exit=1.*run.log"):
+                    runner.run(evidence, COMMIT)
+                collect.assert_not_called()
+                preserve.assert_called_once()
+                cleanup.assert_called_once()
+            self.assertTrue((evidence / "simulator.json").is_file())
 
     def test_boot_does_not_require_unix_executables_in_the_ios_runtime(self):
         receipt = self.receipt()

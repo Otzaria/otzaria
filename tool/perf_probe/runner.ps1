@@ -3,9 +3,10 @@
 param(
   [ValidateSet('profile', 'debug', 'release')][string]$Mode = 'profile',
   [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
-  [ValidateSet('all', 'pdf-reader', 'pdf-book-view')][string]$ScenarioSet = 'all',
+  [ValidateSet('all', 'pdf-reader', 'pdf-book-view', 'pdf-multi-window')][string]$ScenarioSet = 'all',
   [ValidateSet('integration', 'framework')][string]$BindingMode = 'integration',
   [string]$PdfCase = '',
+  [string]$ExpectedEngineSha256 = '',
   [ValidateRange(0, 10)][int]$Warmup = 1,
   [ValidateRange(1, 100)][int]$Repetitions = 5,
   [ValidateRange(1, 30)][int]$Launches = 3,
@@ -19,9 +20,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'source_provenance.ps1')
 Import-Module (Join-Path $PSScriptRoot 'probe_binding.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'probe_engine.psm1') -Force
 $bindingIdentity = Get-PerfBindingIdentity $BindingMode
 if ($BindingMode -eq 'framework' -and $ScenarioSet -eq 'all') {
   throw 'The framework target accepts pdf-reader or pdf-book-view.'
+}
+if ($ScenarioSet -eq 'pdf-multi-window' -and $BindingMode -ne 'framework') {
+  throw 'The multi-window scenario requires the framework binding.'
+}
+if ($ExpectedEngineSha256 -and ($Mode -ne 'release' -or $ExpectedEngineSha256 -notmatch '^[a-fA-F0-9]{64}$')) {
+  throw 'ExpectedEngineSha256 requires a release build and a SHA-256 digest.'
 }
 if (-not $IsWindows) { throw 'The automated desktop runner requires Windows. See README.md for other platforms.' }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -107,6 +115,7 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
   $sampler = $null
   $process = $null
   try {
+    Assert-PerfWindowsEngineUnchanged -Executable $Executable -Identity $manifest.engineIdentity
     $process = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
       -PassThru -RedirectStandardOutput (Join-Path $Directory 'stdout.log') `
       -RedirectStandardError (Join-Path $Directory 'stderr.log') -Environment @{
@@ -114,6 +123,7 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
         PERF_CACHE_STATE = $Cache; PERF_LAUNCH_INDEX = "$Index"
         PERF_WARMUP = "$Warmup"; PERF_REPETITIONS = "$Repetitions"
         PERF_SCENARIO_SET = $ScenarioSet
+        PERF_ENGINE_IDENTITY = ($manifest.engineIdentity | ConvertTo-Json -Depth 10 -Compress)
         PERF_PDF_CASE = $pdfCaseSnapshot
         PERF_PREPARE_ONLY = $(if ($PreparationOnly) { '1' } else { '0' })
       }
@@ -235,6 +245,8 @@ try {
   $executable = Join-Path $repo "build/windows/x64/runner/$modeFolder/otzaria.exe"
   if (-not (Test-Path -LiteralPath $executable)) { throw "Built executable not found: $executable" }
   $manifest.binarySha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
+  $manifest.engineIdentity = Get-PerfWindowsEngineIdentity -Executable $executable -Mode $Mode -EngineRevision $sdk.engineRevision -ExpectedSha256 $ExpectedEngineSha256
+  Write-PerfJson (Join-Path $runDir 'manifest.json') $manifest
   $warmData = Join-Path $runDir 'data/warm'
   if ($CacheState -eq 'warm') {
     Invoke-PerfLaunch $executable (Join-Path $runDir 'prepare-data') $warmData 'cold' -1 $true
@@ -255,6 +267,7 @@ try {
   $manifest.status = 'failed'
   $manifest.error = $_.Exception.Message
 } finally {
+  Add-PerfSourceProvenance $repo $manifest 'afterRuns'
   $manifest.endedAtUtc = [DateTime]::UtcNow.ToString('o')
   Write-PerfJson (Join-Path $runDir 'manifest.json') $manifest
   Merge-PerfOutputs $launchDirs.ToArray()

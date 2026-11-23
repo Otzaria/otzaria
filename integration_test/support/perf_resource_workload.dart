@@ -69,6 +69,9 @@ import 'perf_pdf_book_reader.dart';
 import 'perf_recorder.dart';
 
 import '../../tool/perf_probe/src/probe_binding.dart';
+import '../../tool/perf_probe/src/probe_engine.dart';
+import '../../tool/perf_probe/src/pdf_multi_window.dart';
+import 'perf_pdf_multi_window.dart';
 import '../../tool/perf_probe/src/probe_completion.dart';
 import 'perf_framework_scheduler.dart';
 
@@ -165,6 +168,14 @@ PerfResourceProbeSession createPerfResourceProbeSession(
     try {
       verifyPerfProbeBinding(binding, bindingMode);
       bindingMode.validateScenario(scenarioSet);
+      final engineIdentity = parsePerfEngineIdentity(
+        perfOption(
+          'PERF_ENGINE_IDENTITY',
+          const String.fromEnvironment('PERF_ENGINE_IDENTITY'),
+        ),
+        buildMode: perfBuildMode,
+        platform: Platform.operatingSystem,
+      );
       if (!p.isAbsolute(outputPath) ||
           !p.isAbsolute(dataPath) ||
           p.equals(outputPath, dataPath) ||
@@ -179,6 +190,7 @@ PerfResourceProbeSession createPerfResourceProbeSession(
             'all',
             'pdf-reader',
             'pdf-book-view',
+            'pdf-multi-window',
           }.contains(scenarioSet) ||
           warmup < 0 ||
           warmup > 10 ||
@@ -199,9 +211,17 @@ PerfResourceProbeSession createPerfResourceProbeSession(
         Directory(dataPath),
         pdfReaderCase: await PerfPdfCase.load(pdfCasePath),
       );
-      if (scenarioSet != 'pdf-reader' && fixture.pdfReaderCase.pageCount < 5) {
+      if ((scenarioSet == 'all' || scenarioSet == 'pdf-book-view') &&
+          fixture.pdfReaderCase.pageCount < 5) {
         throw ArgumentError(
           'The book-view scenario needs at least five PDF pages.',
+        );
+      }
+      if (scenarioSet == 'pdf-multi-window' &&
+          (fixture.pdfReaderCase.sourceKind != PerfPdfSourceKind.generated ||
+              fixture.pdfReaderCase.pageCount < 4)) {
+        throw ArgumentError(
+          'Multi-window QA requires a generated PDF with at least four pages.',
         );
       }
       await fixture.prepare(preparationOnly: preparationOnly);
@@ -243,7 +263,7 @@ PerfResourceProbeSession createPerfResourceProbeSession(
           'Private bytes are not native-only memory; RSS minus Dart heap is not computed.',
           'PDF controller_ready is document/layout readiness, not a painted page.',
           'PDF final_image_ready is the final image for the current view recorded into the layer tree, not GPU presentation.',
-          'PDF image budget bytes are caller estimates for this window, not native/GPU allocation measurements.',
+          'PDF image budget bytes are caller estimates shared by views in this Dart isolate, not per-window attribution or native/GPU allocation measurements.',
           'PDF budget peak is since budget construction, including warmup and earlier phases; it is never reset.',
           ...bindingMode.limitations,
         ],
@@ -297,7 +317,7 @@ PerfResourceProbeSession createPerfResourceProbeSession(
         );
         final context = tester.element(find.byType(App));
         final library = await DataRepository.instance.library;
-        scenario = _Scenario(tester, context, rec, library, fixture);
+        scenario = _Scenario(tester, context, rec, library, fixture, output);
         await scenario.openText(perfBooks.keys.first);
       }, sampleHeap: false);
       final startup = StartupTimeline.instance;
@@ -344,6 +364,9 @@ PerfResourceProbeSession createPerfResourceProbeSession(
           'pollIntervalMs': 16,
           'rssIntervalMs': 250,
           ...bindingMode.toComparisonJson(),
+          'engineBinary': ?engineIdentity,
+          if (scenarioSet == 'pdf-multi-window')
+            'pdfMultiWindowProtocol': perfPdfMultiWindowProtocol,
           'resourceObservationVersion': perfResourceObservationVersion,
           'pdfImageBudgetMaximumBytes': pdfSharedImageBudget.maximumBytes,
           'pdfPostCloseIdleMs': perfPdfPostCloseIdle.inMilliseconds,
@@ -359,7 +382,7 @@ PerfResourceProbeSession createPerfResourceProbeSession(
           'pdfPageCount': fixture.pdfReaderCase.pageCount,
           'pdfReaderCase': fixture.pdfReaderCase.toComparisonJson(),
           'scenarioSet': scenarioSet,
-          if (scenarioSet != 'pdf-reader')
+          if (scenarioSet == 'all' || scenarioSet == 'pdf-book-view')
             'pdfBookViewProtocol': {
               'version': 1,
               'layout': 'bookView',
@@ -410,20 +433,24 @@ PerfResourceProbeSession createPerfResourceProbeSession(
         );
       }
       rec.verifyAction?.call();
-      rec.skip(
-        'windows.native_open_close',
-        bindingMode == PerfBindingMode.integration
-            ? 'installWindowingOwner rejects TestPlatformDispatcher (hasRealPlatformDispatcher=false). Its synthetic engineId is not a native pointer; real-app diagnostics are required.'
-            : 'This PDF workload observes one native application window; native window open/close is a separate scenario.',
-      );
+      if (scenarioSet != 'pdf-multi-window') {
+        rec.skip(
+          'windows.native_open_close',
+          bindingMode == PerfBindingMode.integration
+              ? 'installWindowingOwner rejects TestPlatformDispatcher (hasRealPlatformDispatcher=false). Its synthetic engineId is not a native pointer; real-app diagnostics are required.'
+              : 'This PDF workload observes one native application window; native window open/close is a separate scenario.',
+        );
+      }
       rec.skip(
         'queues.depth',
         'The application exposes active work and indexing state, not complete queue depths.',
       );
       rec.skip(
-        scenarioSet == 'pdf-book-view'
-            ? 'pdf.book_view.first_preview_image'
-            : 'pdf.reader.first_preview_image',
+        switch (scenarioSet) {
+          'pdf-book-view' => 'pdf.book_view.first_preview_image',
+          'pdf-multi-window' => 'pdf.multi_window.first_preview_image',
+          _ => 'pdf.reader.first_preview_image',
+        },
         'pdfrx 2.13.1 exposes final visible-image readiness, not the first painted preview. Controller readiness and page paint callbacks can precede any image; screenshot readback is not added to this workload.',
       );
     } catch (error) {
@@ -460,12 +487,20 @@ Future<void> _wait(
 }
 
 class _Scenario {
-  _Scenario(this.tester, this.context, this.rec, this.library, this.fixture);
+  _Scenario(
+    this.tester,
+    this.context,
+    this.rec,
+    this.library,
+    this.fixture,
+    this.output,
+  );
   final WidgetController tester;
   final BuildContext context;
   final PerfRecorder rec;
   final Library library;
   final PerfFixture fixture;
+  final Directory output;
   int iteration = 0;
   bool warmup = false;
   TabsBloc get tabs => context.read<TabsBloc>();
@@ -501,6 +536,16 @@ class _Scenario {
   );
 
   Future<void> run({required String scenarioSet}) async {
+    if (scenarioSet == 'pdf-multi-window') {
+      await runPerfPdfMultiWindow(
+        controller: tester,
+        context: context,
+        fixture: fixture,
+        output: output,
+        phase: phase,
+      );
+      return;
+    }
     if (scenarioSet == 'pdf-book-view') {
       await _pdfBookView();
       await _observePdfAfterClose(prefix: 'pdf.book_view');

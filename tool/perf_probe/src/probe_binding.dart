@@ -32,11 +32,13 @@ enum PerfBindingMode {
   };
 
   void validateScenario(String scenario) {
-    if (!const {'all', 'pdf-reader', 'pdf-book-view'}.contains(scenario) ||
-        (this == framework && scenario == 'all')) {
+    final supported = this == framework
+        ? const {'pdf-reader', 'pdf-book-view', 'pdf-multi-window'}
+        : const {'all', 'pdf-reader', 'pdf-book-view'};
+    if (!supported.contains(scenario)) {
       throw ArgumentError(
         'The $name binding does not support scenario "$scenario". '
-        'The framework target accepts pdf-reader or pdf-book-view.',
+        'The framework target accepts pdf-reader, pdf-book-view or pdf-multi-window.',
       );
     }
   }

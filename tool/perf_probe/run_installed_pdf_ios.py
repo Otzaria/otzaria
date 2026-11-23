@@ -103,7 +103,7 @@ def cleanup_simulator(receipt):
 
 def run_driver(root, receipt, commit):
     environment = {**os.environ, "INSTALLED_PROBE_REPORTS": str(root / "host")}
-    args = ["flutter", "drive", "--debug", "-d", receipt["udid"], "--no-dds", "--no-pub",
+    args = ["flutter", "drive", "--verbose", "--debug", "-d", receipt["udid"], "--no-dds", "--no-pub",
             "--keep-app-running",
             "--driver=test_driver/installed_plugin_resource_probe.dart",
             "--target=integration_test/installed_pdf_ios_probe_test.dart",
@@ -179,6 +179,8 @@ def run(root, commit):
         boot_simulator(receipt)
         save(root / "simulator.json", receipt)
         exit_code = run_driver(root, receipt, commit)
+        require(exit_code == 0,
+                f"Native iOS integration driver failed (exit={exit_code}); see run.log")
         result = collect_and_validate(root, receipt, commit, exit_code)
     finally:
         if receipt is not None:
