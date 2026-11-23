@@ -1,16 +1,15 @@
 import 'dart:ui';
 
-/// האם חץ אופקי גולל בתוך המסמך במקום לדפדף: רק כשהמסמך רחב מהתצוגה ונותר
-/// בו תוכן מוסתר לכיוון החץ. בקצה, או כשהעמוד נכנס ברוחב, החץ מדפדף.
-bool pdfArrowPansHorizontally({
+/// המרחק שנותר לגלילה אופקית בתוך העמוד, ביחידות המסמך.
+double pdfHorizontalArrowTravel({
   required Rect visibleRect,
-  required double documentWidth,
+  required Rect pageRect,
   required bool towardLeft,
 }) {
-  // סטייה של פחות מנקודה אחת היא שארית עיגול, לא תוכן מוסתר.
   const tolerance = 0.5;
-  if (visibleRect.width >= documentWidth - tolerance) return false;
-  return towardLeft
-      ? visibleRect.left > tolerance
-      : visibleRect.right < documentWidth - tolerance;
+  if (visibleRect.width >= pageRect.width - tolerance) return 0;
+  final remaining = towardLeft
+      ? visibleRect.left - pageRect.left
+      : pageRect.right - visibleRect.right;
+  return remaining > tolerance ? remaining : 0;
 }

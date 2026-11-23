@@ -4,32 +4,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_horizontal_arrow.dart';
 
 void main() {
-  bool pans(Rect visible, {required bool towardLeft}) =>
-      pdfArrowPansHorizontally(
+  double travel(Rect visible, {required bool towardLeft}) =>
+      pdfHorizontalArrowTravel(
         visibleRect: visible,
-        documentWidth: 600,
+        pageRect: const Rect.fromLTWH(100, 0, 600, 500),
         towardLeft: towardLeft,
       );
 
   test('עמוד שנכנס ברוחב: החצים מדפדפים', () {
-    const fits = Rect.fromLTWH(-100, 0, 800, 500);
-    expect(pans(fits, towardLeft: true), isFalse);
-    expect(pans(fits, towardLeft: false), isFalse);
+    const fits = Rect.fromLTWH(50, 0, 700, 500);
+    expect(travel(fits, towardLeft: true), 0);
+    expect(travel(fits, towardLeft: false), 0);
   });
 
-  test('עמוד רחב מהתצוגה: גוללים לכיוון שנותר בו תוכן מוסתר', () {
-    const middle = Rect.fromLTWH(200, 0, 200, 500);
-    expect(pans(middle, towardLeft: true), isTrue);
-    expect(pans(middle, towardLeft: false), isTrue);
+  test('הגלילה מוגבלת למרחק שנותר עד קצה העמוד', () {
+    const middle = Rect.fromLTWH(250, 0, 200, 500);
+    expect(travel(middle, towardLeft: true), 150);
+    expect(travel(middle, towardLeft: false), 250);
   });
 
   test('בקצה העמוד החץ לכיוון הקצה מדפדף', () {
-    const leftEdge = Rect.fromLTWH(0.3, 0, 200, 500);
-    expect(pans(leftEdge, towardLeft: true), isFalse);
-    expect(pans(leftEdge, towardLeft: false), isTrue);
+    const leftEdge = Rect.fromLTWH(100.3, 0, 200, 500);
+    expect(travel(leftEdge, towardLeft: true), 0);
+    expect(travel(leftEdge, towardLeft: false), greaterThan(0));
 
-    const rightEdge = Rect.fromLTWH(399.8, 0, 200, 500);
-    expect(pans(rightEdge, towardLeft: false), isFalse);
-    expect(pans(rightEdge, towardLeft: true), isTrue);
+    const rightEdge = Rect.fromLTWH(499.8, 0, 200, 500);
+    expect(travel(rightEdge, towardLeft: false), 0);
+    expect(travel(rightEdge, towardLeft: true), greaterThan(0));
   });
 }
