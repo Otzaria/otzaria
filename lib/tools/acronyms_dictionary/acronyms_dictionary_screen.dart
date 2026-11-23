@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/tool_results_header.dart';
@@ -212,7 +214,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
               : '${_filteredResults.length} תוצאות',
         ),
         Expanded(
-          child: ListView.builder(
+          child: SuperListView.builder(
             padding: const EdgeInsets.all(AppTokens.spaceMD),
             itemCount: _filteredResults.length,
             itemBuilder: (context, index) {

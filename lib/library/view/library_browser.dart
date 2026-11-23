@@ -40,6 +40,8 @@ import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_blo
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -3364,7 +3366,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       customContent: SizedBox(
         width: 600,
         height: 400,
-        child: ListView.builder(
+        // ListView בונה בקפיצה בפס הגלילה כל שורה שבדרך (#4766).
+        child: SuperListView.builder(
           itemCount: books.length,
           itemBuilder: (context, i) => _buildListBookItem(books[i], 0),
         ),

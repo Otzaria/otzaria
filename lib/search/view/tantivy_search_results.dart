@@ -4,6 +4,8 @@ import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperSliverList;
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -968,7 +970,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
 
     return SliverPadding(
       padding: const EdgeInsets.all(16),
-      sliver: SliverList.builder(
+      // SliverList בונה בקפיצה בפס הגלילה כל כרטיס שבדרך (#4766).
+      sliver: SuperSliverList.builder(
         itemCount:
             state.results.length +
             ((showInlineLoadingIndicator || showLoadMoreButton) ? 1 : 0),

@@ -280,4 +280,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('הקידומת'), findsNothing);
   });
+
+  testWidgets('קפיצה לסוף אלפי תוצאות בונה רק את כרטיסי היעד '
+      '(issue #4766)', (tester) async {
+    const letters = 'אבגדהוזחטיכלמנסעפצקרשת';
+    final bloc = StubSettingsBloc();
+    addTearDown(bloc.close);
+    await tester.pumpWidget(
+      _wrap(
+        AramaicDictionaryScreen(
+          repository: DictionaryLookupRepository(
+            loadAramaicEntries: () async => [
+              for (var i = 0; i < 3000; i++)
+                AramaicDictionaryEntry(
+                  aramaic:
+                      'ש${letters[i % 22]}${letters[i ~/ 22 % 22]}'
+                      '${letters[i ~/ 484]}',
+                  hebrew: 'פירוש ${'ארוך ' * (i % 9)}',
+                ),
+            ],
+          ),
+        ),
+        bloc,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'ש');
+    await tester.pumpAndSettle();
+
+    var cardBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget is AramaicResultCard) cardBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(position.maxScrollExtent, greaterThan(50000));
+    expect(cardBuilds, lessThan(200));
+  });
 }
