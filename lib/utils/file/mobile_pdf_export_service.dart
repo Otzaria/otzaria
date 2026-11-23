@@ -77,8 +77,8 @@ class _MobilePdfExportService extends MobilePdfExportService {
 /// boundary (including cleanup after engine teardown).
 class MethodChannelMobilePdfExportBackend implements MobilePdfExportBackend {
   const MethodChannelMobilePdfExportBackend({
-    MethodChannel channel = const MethodChannel('otzaria/pdf_file_export'),
-  }) : _channel = channel;
+    this._channel = const MethodChannel('otzaria/pdf_file_export'),
+  });
 
   final MethodChannel _channel;
 

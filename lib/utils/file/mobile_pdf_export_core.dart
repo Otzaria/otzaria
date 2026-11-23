@@ -15,12 +15,10 @@ const mobilePdfExportDirectoryName = 'otzaria-pdf-exports-v1';
 class MobilePdfExportCoordinator {
   MobilePdfExportCoordinator({
     required this.platform,
-    required MobilePdfExportBackend backend,
-    required Future<Directory> Function() temporaryDirectory,
+    required this._backend,
+    required this._temporaryDirectory,
     Future<void> Function(Directory directory)? deleteStagingDirectory,
-  }) : _backend = backend,
-       _temporaryDirectory = temporaryDirectory,
-       _deleteStagingDirectory = deleteStagingDirectory ?? _deleteDirectory;
+  }) : _deleteStagingDirectory = deleteStagingDirectory ?? _deleteDirectory;
 
   final MobilePdfExportPlatform platform;
   final MobilePdfExportBackend _backend;
