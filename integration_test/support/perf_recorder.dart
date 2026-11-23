@@ -50,6 +50,17 @@ Map<String, Object?> frameMeasurements(List<FrameTiming> frames) => {
     'unavailableReason': 'No frame began inside the measured interval.',
 };
 
+Future<void> waitForPerfObservation(Duration duration) async {
+  final clock = Stopwatch()..start();
+  while (true) {
+    final remaining = duration - clock.elapsed;
+    if (remaining <= Duration.zero) return;
+    await Future<void>.delayed(
+      Duration(milliseconds: (remaining.inMicroseconds + 999) ~/ 1000),
+    );
+  }
+}
+
 class PerfRecorder {
   PerfRecorder(this.file, this.binding, {required this.launchIndex})
     : _sink = file.openWrite() {
@@ -63,6 +74,7 @@ class PerfRecorder {
   final _frames = <FrameTiming>[];
   final PerfHeapSampler heap = PerfHeapSampler();
   Map<String, Object?> Function()? counters;
+  Map<String, Object?> Function()? imageBudget;
   void Function()? verifyAction;
   bool _collecting = false;
   int _droppedFrames = 0;
@@ -89,12 +101,17 @@ class PerfRecorder {
     bool warmup = false,
     Map<String, Object?>? details,
     bool sampleHeap = true,
+    Duration? observationWindow,
   }) async {
     if (_collecting) {
       throw StateError('Nested performance phases are not supported.');
     }
+    if (observationWindow != null && observationWindow.inMilliseconds <= 0) {
+      throw ArgumentError.value(observationWindow, 'observationWindow');
+    }
     final heapBefore = sampleHeap ? await heap.sample() : null;
     final countersBefore = counters?.call();
+    final imageBudgetBefore = imageBudget?.call();
     _frames.clear();
     _droppedFrames = 0;
     _collecting = true;
@@ -137,6 +154,16 @@ class PerfRecorder {
       rssPeak = rssEnd;
     }
     final countersAfter = counters?.call();
+    final imageBudgetAfter = imageBudget?.call();
+    if (status == 'passed' &&
+        observationWindow != null &&
+        clock.elapsed < observationWindow) {
+      status = 'failed';
+      failure = StateError(
+        'Resource observation ended before its fixed window.',
+      );
+      failureStack = StackTrace.current;
+    }
     final wallClockDriftUs = (endUs - startUs - clock.elapsedMicroseconds)
         .abs();
     if (wallClockDriftUs > 50000) {
@@ -162,6 +189,10 @@ class PerfRecorder {
       'startMs': startUs ~/ 1000,
       'endMs': endUs ~/ 1000,
       'durationMs': clock.elapsedMicroseconds / 1000,
+      if (observationWindow != null) ...{
+        'measurementKind': 'resource-observation',
+        'observationWindowMs': observationWindow.inMilliseconds,
+      },
       'reason': reason,
       if (failure != null) 'error': '$failure',
       'rssStartBytes': rssStart,
@@ -181,6 +212,11 @@ class PerfRecorder {
             : 'Disabled during startup.',
       'countersBefore': countersBefore,
       'countersAfter': countersAfter,
+      'imageBudgetBefore': imageBudgetBefore,
+      'imageBudgetAfter': imageBudgetAfter,
+      if (imageBudget == null)
+        'imageBudgetUnavailableReason':
+            'No PDF image budget sampler configured.',
       'details': details,
     });
     await _sink.flush();

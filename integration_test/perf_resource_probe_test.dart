@@ -28,6 +28,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
@@ -53,8 +54,10 @@ import 'package:otzaria/work_status/work_status_item.dart';
 import 'package:path/path.dart' as p;
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+import '../tool/perf_probe/src/pdf_image_budget.dart';
 import '../tool/perf_probe/src/pdf_reader_case.dart';
 import 'support/perf_fixture.dart';
+import 'support/perf_pdf_image_budget.dart';
 import 'support/perf_pdf_reader.dart';
 import 'support/perf_recorder.dart';
 
@@ -186,6 +189,7 @@ void main() {
         binding,
         launchIndex: launchIndex,
       );
+      rec.imageBudget = () => capturePdfImageBudget(pdfSharedImageBudget);
       rec.write({
         'type': 'meta',
         'schemaVersion': 2,
@@ -215,6 +219,10 @@ void main() {
           'Private bytes are not native-only memory; RSS minus Dart heap is not computed.',
           'PDF controller_ready is document/layout readiness, not a painted page.',
           'PDF final_image_ready is the final image for the current view recorded into the layer tree, not GPU presentation.',
+          'PDF image budget bytes are caller estimates for this window, not native/GPU allocation measurements.',
+          'PDF budget peak is since budget construction, including warmup and earlier phases; it is never reset.',
+          'Post-close observation means no user actions under the integration binding, not quiescent production idle.',
+          'The fullyLive integration binding schedules continuous frames; CPU and frame samples include that harness work.',
         ],
       });
       if (preparationOnly) {
@@ -309,6 +317,10 @@ void main() {
           'scrollPixels': 30,
           'pollIntervalMs': 16,
           'rssIntervalMs': 250,
+          'framePolicy': binding.framePolicy.name,
+          'resourceObservationVersion': perfResourceObservationVersion,
+          'pdfImageBudgetMaximumBytes': pdfSharedImageBudget.maximumBytes,
+          'pdfPostCloseIdleMs': perfPdfPostCloseIdle.inMilliseconds,
           'searchQuery': perfQuery,
           'searchMode': 'exact',
           'searchResultLimit': 100,
@@ -424,17 +436,20 @@ class _Scenario {
     String name,
     Future<void> Function() action, {
     Map<String, Object?>? details,
+    Duration? observationWindow,
   }) => rec.phase(
     name,
     action,
     warmup: warmup,
     iteration: iteration,
     details: details,
+    observationWindow: observationWindow,
   );
 
   Future<void> run({required bool pdfReaderOnly}) async {
     if (pdfReaderOnly) {
       await _pdfReader();
+      await _observePdfAfterClose();
       return;
     }
     for (final title in perfBooks.keys) {
@@ -504,6 +519,7 @@ class _Scenario {
     await _plugin();
     await _preview();
     await _pdfReader();
+    await _observePdfAfterClose();
     await phase('lifecycle.tabs_cycle', () async {
       await openText(perfBooks.keys.first);
       await openText(perfBooks.keys.last);
@@ -513,9 +529,24 @@ class _Scenario {
     });
     await phase(
       'lifecycle.idle_after_close',
-      () => Future<void>.delayed(const Duration(seconds: 1)),
+      () => waitForPerfObservation(const Duration(seconds: 1)),
+      observationWindow: const Duration(seconds: 1),
     );
   }
+
+  Future<void> _observePdfAfterClose({String prefix = 'pdf.reader'}) => phase(
+    '$prefix.idle_after_close',
+    () async {
+      if (tabs.state.tabs.isNotEmpty) {
+        throw StateError('PDF idle observation requires closed tabs.');
+      }
+      await waitForPerfObservation(perfPdfPostCloseIdle);
+      if (tabs.state.tabs.isNotEmpty) {
+        throw StateError('A tab opened during the PDF idle observation.');
+      }
+    },
+    observationWindow: perfPdfPostCloseIdle,
+  );
 
   Future<TextBookTab> openText(String title) async {
     final book = library.getAllBooks().whereType<TextBook>().singleWhere(
