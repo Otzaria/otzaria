@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,7 +24,11 @@ void main() {
                 return Column(
                   children: [
                     if (showField)
-                      RtlTextField(focusNode: shared)
+                      RtlTextField(
+                        focusNode: shared,
+                        autofocus:
+                            defaultTargetPlatform == TargetPlatform.android,
+                      )
                     else
                       Focus(focusNode: shared, child: const SizedBox()),
                     Focus(focusNode: other, child: const Text('אחר')),
@@ -51,6 +56,10 @@ void main() {
       expect(shared.hasFocus, isFalse);
       expect(tester.testTextInput.hasAnyClients, isFalse);
     },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.android,
+      TargetPlatform.linux,
+    }),
   );
 
   testWidgets('שדה שעלה על FocusNode בפוקוס פותח מקלדת (#2536)', (
