@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "repository": "yom-chadash/otzaria",
+  "kind": "controlled source experiment; not a historical release baseline",
+  "candidate": "4006e950e5d816c6b32a4446dd29b5becafdd641",
+  "baseline": "e4ac99433506242d56ba7a16ebb9a5027bc4bf82",
+  "controlBasis": "candidate with exactly the six-file delta of Otzaria/otzaria#5800 reverted",
+  "revertedCommit": "9a1c6c691db4b13d487cc0532f58ae9f6c7505de",
+  "changedPaths": [
+    "lib/pdf_book/utils/pdf_book_layout.dart",
+    "lib/pdf_book/view/pdf_book_screen.dart",
+    "test/pdf_book/book_view_layout_memo_test.dart",
+    "test/pdf_book/pdf_book_layout_memo_callback_test.dart",
+    "test/pdf_book/pdf_book_view_current_page_test.dart",
+    "test/test_helpers/book_view_layout_document.dart"
+  ]
+}
