@@ -499,6 +499,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     if (savedCommentators != null) {
       _selectedCommentatorsOverride = List<String>.from(savedCommentators);
     }
+    if (widget.tab.applyBookSelection) {
+      widget.tab.applyBookSelection = false;
+      _applyBookSelection(savedCommentators);
+    }
     // טעינת הספר והמפרשים ב-BLoC העצמאי
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1016,9 +1020,34 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     _navTabController.animateTo(_commentatorsTabIndex);
   }
 
+  /// טוען את הבחירה האחרונה של כרטיסיית מפרשים לספר, אלא אם הקורא כבר שינה.
+  Future<void> _applyBookSelection(List<String>? opening) async {
+    try {
+      final saved = (await TextBookPerBookSettings.load(
+        widget.tab.sourceTab.book,
+      ))?.commentatorsTabSelection;
+      if (!mounted ||
+          saved == null ||
+          !identical(widget.tab.selectedCommentators, opening)) {
+        return;
+      }
+      widget.tab.selectedCommentators = List<String>.from(saved);
+      setState(() => _selectedCommentatorsOverride = saved);
+    } catch (e) {
+      debugPrint('⚠️ Failed to load commentators tab selection: $e');
+    }
+  }
+
   void _updateSelectedCommentators(List<String> list) {
     widget.tab.selectedCommentators = List<String>.from(list);
     setState(() => _selectedCommentatorsOverride = list);
+    TextBookPerBookSettings.saveCommentatorsTabSelection(
+      widget.tab.sourceTab.book,
+      list,
+    ).catchError(
+      (Object e) =>
+          debugPrint('⚠️ Failed to save commentators tab selection: $e'),
+    );
   }
 
   Future<void> _addBookmark(
@@ -1190,7 +1219,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           onTypeChipsChanged: (types) => _typeSelection.value = types,
           heCategories: bookCategoriesSource(state.book),
           onCategoryDefaultsSaved: () =>
-              TextBookPerBookSettings.clearActiveCommentators(state.book),
+              TextBookPerBookSettings.clearCommentatorsTabSelection(
+                state.book,
+                selected,
+              ),
         );
       },
     );
