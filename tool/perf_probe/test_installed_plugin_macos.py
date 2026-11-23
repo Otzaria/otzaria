@@ -189,6 +189,14 @@ class MacosInstalledPdfContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "native address"):
             self.accept()
 
+    def test_printing_canonical_owner_cannot_hide_a_foreign_loaded_image(self):
+        foreign = "/tmp/foreign-CoreGraphics"
+        self.loaded["images"].append(foreign)
+        self.loaded["symbols"]["CGContextDrawPDFPage"]["image"] = foreign
+        self.save_images()
+        with self.assertRaisesRegex(ValueError, "loaded Apple CoreGraphics framework"):
+            self.accept()
+
     def test_cached_pdfium_and_non_system_printing_owner_are_rejected(self):
         foreign = self.root / "cached-pdfium"
         foreign.write_bytes(b"foreign image")

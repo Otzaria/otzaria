@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 import '../../../tool/perf_probe/src/installed_pdf_macos_contract.dart';
 import '../../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
@@ -78,6 +78,14 @@ void main() {
       false,
     );
     expect(installedPdfMacosModuleErrors(images), isEmpty);
+  });
+
+  test('a system canonical path cannot hide a foreign printing owner', () {
+    final images = _images();
+    const foreign = '/tmp/foreign-CoreGraphics';
+    (images['images'] as List).add(foreign);
+    images['symbols']['CGContextDrawPDFPage']['image'] = foreign;
+    expect(installedPdfMacosModuleErrors(images), isNotEmpty);
   });
 
   for (final name in installedPdfMacosSymbols.values.expand((names) => names)) {

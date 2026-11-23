@@ -1,11 +1,10 @@
 import 'package:path/path.dart' as p;
 
-const installedPdfMacosSymbols = {
-  'pdfium': ['FPDF_LoadDocument', 'FPDF_RenderPageBitmap'],
-  'printing': ['CGPDFDocumentCreateWithProvider', 'CGContextDrawPDFPage'],
-};
-const installedPdfMacosSource = 'dyld image list + dladdr of process symbols';
-const installedPdfMacosPrinting = 'CoreGraphics (CGPDFDocument/CGContext)';
+import 'installed_pdf_darwin_contract.dart';
+
+const installedPdfMacosSymbols = installedPdfDarwinSymbols;
+const installedPdfMacosSource = installedPdfDarwinSource;
+const installedPdfMacosPrinting = installedPdfDarwinPrinting;
 
 /// הבעלות על הסמלים קושרת את הפעולות שנבדקו לספריות הטעונות בפועל.
 List<String> installedPdfMacosModuleErrors(Object? value) {
@@ -67,8 +66,9 @@ List<String> installedPdfMacosModuleErrors(Object? value) {
           errors.add('$name is not provided by the actual app bundle: $image');
         }
         pdfiumImages.add(image);
-      } else if (!p.posix.isWithin('/System/Library/Frameworks', image) &&
-          !p.posix.isWithin('/System/Library/PrivateFrameworks', image)) {
+      } else if (symbol['image'] != image ||
+          (!p.posix.isWithin('/System/Library/Frameworks', image) &&
+              !p.posix.isWithin('/System/Library/PrivateFrameworks', image))) {
         errors.add(
           '$name is not provided by an Apple system framework: $image',
         );
