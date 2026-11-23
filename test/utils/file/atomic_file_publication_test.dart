@@ -308,7 +308,15 @@ void main() {
             return false;
           },
         ),
-        throwsA(isA<FileSystemException>()),
+        throwsA(
+          Platform.isWindows
+              ? isA<FileSystemException>()
+              : isA<FileSystemException>().having(
+                  (error) => error.osError?.errorCode,
+                  'errno',
+                  posix.EEXIST,
+                ),
+        ),
       );
       expect(await destination.readAsString(), 'another save won');
       await expectNoStaging();

@@ -30,12 +30,14 @@ void _renameWithoutReplacing(String from, String to) {
     final source = from.toNativeUtf8(allocator: arena);
     final destination = to.toNativeUtf8(allocator: arena);
     if (Platform.isMacOS && _process.providesSymbol('renamex_np')) {
+      posix.clearErrno();
       if (_renamex(source, destination, _renameExclusive) != 0) {
         _renameFailed(to, posix.errno());
       }
       return;
     }
     if (Platform.isLinux && _process.providesSymbol('renameat2')) {
+      posix.clearErrno();
       if (_renameat2(_cwd, source, _cwd, destination, _renameNoReplace) != 0) {
         _renameFailed(to, posix.errno());
       }
