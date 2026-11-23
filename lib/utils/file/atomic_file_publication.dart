@@ -4,6 +4,8 @@ import 'dart:math';
 
 import 'package:path/path.dart' as p;
 
+import 'file_publication_permissions.dart';
+
 class DesktopSaveTarget {
   final String path;
   final bool overwriteApproved;
@@ -42,6 +44,10 @@ Future<bool> publishFileAtomically({
   var published = false;
   var failed = false;
   try {
+    makeFilePublicationPrivate(staging.path);
+    if (Platform.isWindows) {
+      await preserveFilePublicationPermissions(destination.path, staging.path);
+    }
     if (isCancelled?.call() ?? false) return false;
     await producer(staging.path);
     if (isCancelled?.call() ?? false) return false;
@@ -79,6 +85,7 @@ Future<bool> publishFileAtomically({
       if (previous != null) await previous;
       if (isCancelled?.call() ?? false) return false;
       await _checkOverwrite(destination.path, target.overwriteApproved);
+      await preserveFilePublicationPermissions(destination.path, staging.path);
       if (isCancelled?.call() ?? false) return false;
       // Same-directory rename has filesystem-specific guarantees. Never fall
       // back to writing over the destination when replacement fails.
