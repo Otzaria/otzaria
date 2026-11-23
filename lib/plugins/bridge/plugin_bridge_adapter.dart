@@ -15,7 +15,7 @@ import 'package:otzaria/book_protection/repository/book_protection_repository.da
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
-import 'package:otzaria/widgets/dialogs/input_dialog.dart';
+import 'package:otzaria/utils/file/desktop_save_target.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' show BlocProvider;
@@ -404,7 +404,7 @@ class PluginBridgeDependencies {
 
   /// פותח דיאלוג „שמור בשם” ומחזיר את הנתיב שנבחר, או `null` אם המשתמש ביטל.
   /// **אינו כותב** את הקובץ — הכתיבה נעשית באדפטר. אופציונלי; אם לא
-  /// סופק, האדפטר משתמש ב-[FilePicker.saveFile]. קיים כדי לאפשר הזרקה בבדיקות.
+  /// סופק, האדפטר בוחר תיקייה ושם בלי כתיבה. קיים כדי לאפשר הזרקה בבדיקות.
   final Future<String?> Function({
     required String suggestedName,
     List<String>? allowedExtensions,
@@ -6269,47 +6269,27 @@ class PluginBridgeAdapter {
   }) async {
     final context = rpcWindowContext;
     if (context == null || !context.mounted) return null;
-    final windowsOptions = modalWindowsOptions(context);
     if (!await verifySaferModePassword(context)) {
       return null;
     }
     if (!context.mounted) return null;
-    final folder = await withFilePickerOwner(
-      context,
-      (picker) => picker.getDirectoryPath(
-        dialogTitle: pluginSaveFolderDialogTitle(title),
-        windowsOptions: windowsOptions,
-        linuxOptions: kModalLinuxOptions,
-      ),
+    final target = await chooseDesktopSaveTarget(
+      context: context,
+      fileName: suggestedName,
+      extension: allowedExtensions?.firstOrNull,
+      dialogTitle: title,
+      confirmOverwrite: (fileName) {
+        _checkFileAccess();
+        return _dependencies.showWarningDialog(
+          title: 'הקובץ כבר קיים',
+          content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
+          subtitle: 'התוכן הקיים יוחלף.',
+        );
+      },
     );
-    if (folder == null) return null;
-
-    final dialogContext = context;
-    if (!dialogContext.mounted) return null;
-    final typed = await showInputDialog(
-      context: dialogContext,
-      title: title ?? 'שמירת קובץ',
-      labelText: 'שם הקובץ',
-      initialValue: suggestedName,
-      confirmText: 'שמור',
-    );
-    if (typed == null || !dialogContext.mounted) return null;
-
-    final fileName = pluginSaveFileName(typed, allowedExtensions?.firstOrNull);
-    final target = pluginSaveTargetPath(folder: folder, fileName: fileName);
     if (target == null) return null;
-
-    final exists = await File(target).exists();
     _checkFileAccess();
-    if (exists) {
-      final replace = await _dependencies.showWarningDialog(
-        title: 'הקובץ כבר קיים',
-        content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
-        subtitle: 'התוכן הקיים יוחלף.',
-      );
-      if (!replace || !dialogContext.mounted) return null;
-    }
-    return target;
+    return target.path;
   }
 
   /// מעתיק את ההעלאה ליעד: staging באותה תיקייה, ואז rename.
