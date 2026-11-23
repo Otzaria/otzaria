@@ -165,6 +165,8 @@ class SourceTests(unittest.TestCase):
                     "pdfReaderCase": comparison, "pdfPageCount": 17}}})
                 if mutation == "source":
                     pdf.write_bytes(b"changed while a native runner was active")
+                elif mutation == "source_removed":
+                    pdf.unlink()
                 elif mutation == "private_manifest":
                     case_path.write_text("{}", encoding="utf-8")
                 elif mutation == "runner_manifest":
@@ -181,7 +183,8 @@ class SourceTests(unittest.TestCase):
                 patch.object(pair, "validate_reports", return_value={"comparable": True}), \
                 contextlib.redirect_stdout(io.StringIO()):
             if mutation:
-                with self.assertRaises(ValueError):
+                expected_error = FileNotFoundError if mutation == "source_removed" else ValueError
+                with self.assertRaises(expected_error):
                     pair.run_pair(args)
             else:
                 pair.run_pair(args)
@@ -191,13 +194,18 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "failed" if mutation else "passed")
         if mutation:
             self.assertEqual(len(native_cases), 1)
+            self.assertNotIn(pdf.name, receipt["error"])
+            self.assertNotIn(request.name, receipt["error"])
+            if mutation == "source_removed":
+                self.assertIn("FileNotFoundError", receipt["error"])
         else:
             self.assertEqual(len(native_cases), 2)
             self.assertEqual(native_cases[0], native_cases[1])
             self.assertEqual(receipt["pdfCase"]["sourceSha256"], digest)
             self.assertEqual(receipt["settings"]["pages"], 17)
             self.assertEqual(pair.read_json(request), canonical)
-        self.assertEqual([(path.stat().st_uid, path.stat().st_gid) for path in (pdf, request)], input_owners)
+        if mutation != "source_removed":
+            self.assertEqual([(path.stat().st_uid, path.stat().st_gid) for path in (pdf, request)], input_owners)
         return args.output, pdf, request
 
     def test_both_windows_and_posix_runners_receive_the_same_private_case(self):
@@ -206,7 +214,7 @@ class SourceTests(unittest.TestCase):
                 self.external_pair(system)
 
     def test_edits_during_a_native_run_fail_the_pair_and_keep_worktree_cleanup(self):
-        for mutation in ("source", "private_manifest", "runner_manifest"):
+        for mutation in ("source", "source_removed", "private_manifest", "runner_manifest"):
             with self.subTest(mutation=mutation):
                 self.external_pair("Windows", mutation)
 

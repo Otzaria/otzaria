@@ -69,6 +69,24 @@ class PdfCaseSnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source.sha256"):
             self.prepare()
         self.assertFalse((self.output / "pdf-case.json").exists())
+        self.assertFalse((self.output / "corpus-source.pdf").exists())
+
+    def test_failed_copy_removes_only_its_own_staging_file(self):
+        private = self.output / "corpus-source.pdf"
+        source = self.pdf.read_bytes()
+        def failed_copy(path, *, target, maximum):
+            target.write(source[:4])
+            raise OSError("injected write failure")
+        with patch.object(cases, "_capture_input", side_effect=failed_copy), \
+                self.assertRaisesRegex(OSError, "injected write failure"):
+            cases._capture(self.pdf, copy_to=private)
+        self.assertFalse(private.exists())
+
+        private.write_bytes(b"preexisting file")
+        with self.assertRaises(FileExistsError):
+            cases._capture(self.pdf, copy_to=private)
+        self.assertEqual(private.read_bytes(), b"preexisting file")
+        self.assertEqual(self.pdf.read_bytes(), source)
 
     def test_manifest_changed_while_dart_validates_is_rejected(self):
         def changed(input_case, output):
@@ -177,6 +195,7 @@ class PdfCaseSnapshotTests(unittest.TestCase):
         with patch.object(cases, "_capture", side_effect=damaged), \
                 self.assertRaisesRegex(ValueError, "private PDF copy differs"):
             self.prepare()
+        self.assertFalse((self.output / "corpus-source.pdf").exists())
 
     def test_two_agreeing_reports_still_must_match_the_requested_case(self):
         snapshot = self.prepare()

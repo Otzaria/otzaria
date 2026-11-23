@@ -1,6 +1,5 @@
 """Keep a private, verified PDF case shared by both measured source snapshots."""
 
-from contextlib import nullcontext
 from dataclasses import dataclass
 import hashlib
 import json
@@ -24,34 +23,46 @@ class _FileIdentity:
 
 
 def _capture(path, *, copy_to=None, maximum=None):
+    if copy_to is None:
+        return _capture_input(path, maximum=maximum)
+    target = copy_to.open("xb")
+    try:
+        with target:
+            return _capture_input(path, target=target, maximum=maximum)
+    except BaseException:
+        copy_to.unlink(missing_ok=True)
+        raise
+
+
+def _capture_input(path, *, target=None, maximum=None):
     path = path.absolute()
     resolved = path.resolve(strict=True)
     observed = resolved.stat()
     if not stat.S_ISREG(observed.st_mode) or observed.st_size <= 0:
-        raise ValueError(f"PDF case inputs must be nonempty regular files: {path}")
+        raise ValueError("PDF case inputs must be nonempty regular files.")
     if maximum is not None and observed.st_size > maximum:
-        raise ValueError(f"PDF case manifest exceeds {maximum} bytes: {path}")
+        raise ValueError(f"PDF case manifest exceeds {maximum} bytes.")
     digest = hashlib.sha256()
-    with resolved.open("rb") as source, (copy_to.open("xb") if copy_to else nullcontext()) as target:
+    with resolved.open("rb") as source:
         before = os.fstat(source.fileno())
         remaining = before.st_size
         while remaining:
             block = source.read(min(1024 * 1024, remaining))
             if not block:
-                raise ValueError(f"PDF case input changed while reading: {path}")
+                raise ValueError("PDF case input changed while reading.")
             digest.update(block)
             if target is not None:
                 target.write(block)
             remaining -= len(block)
         if source.read(1):
-            raise ValueError(f"PDF case input changed while reading: {path}")
+            raise ValueError("PDF case input changed while reading.")
         after = os.fstat(source.fileno())
     # Windows stat can report birthtime as ctime while fstat reports change time.
     # Keep each API's complete time checks; compare the shared fields across APIs.
     if (not stat.S_ISREG(before.st_mode) or _stamp(observed)[:-1] != _stamp(before)[:-1]
             or _stamp(before) != _stamp(after) or path.resolve(strict=True) != resolved
             or _stamp(path.stat()) != _stamp(observed)):
-        raise ValueError(f"PDF case input changed while reading: {path}")
+        raise ValueError("PDF case input changed while reading.")
     return _FileIdentity(path, resolved, _stamp(after), digest.hexdigest(), after.st_size)
 
 
@@ -76,11 +87,15 @@ class PdfCaseSnapshot:
         if source["kind"] == "external":
             private = output / "corpus-source.pdf"
             external = _capture(Path(source["path"]), copy_to=private)
-            if external.sha256 != source["sha256"]:
-                raise ValueError("External PDF bytes do not match the requested source.sha256.")
-            copied = _capture(private)
-            if copied.sha256 != external.sha256 or copied.bytes != external.bytes:
-                raise ValueError("The private PDF copy differs from the requested source.")
+            try:
+                if external.sha256 != source["sha256"]:
+                    raise ValueError("External PDF bytes do not match the requested source.sha256.")
+                copied = _capture(private)
+                if copied.sha256 != external.sha256 or copied.bytes != external.bytes:
+                    raise ValueError("The private PDF copy differs from the requested source.")
+            except BaseException:
+                private.unlink(missing_ok=True)
+                raise
             guards.extend([external, copied])
             source["path"] = str(private)
         path = output / "pdf-case.json"
@@ -107,7 +122,7 @@ class PdfCaseSnapshot:
     def verify(self):
         for expected in self._guards:
             if _capture(expected.path) != expected:
-                raise ValueError(f"PDF case input or private snapshot changed: {expected.path}")
+                raise ValueError("PDF case input or private snapshot changed.")
 
     def verify_run(self, directory, report):
         self.verify()

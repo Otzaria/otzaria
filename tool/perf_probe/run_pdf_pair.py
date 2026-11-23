@@ -407,7 +407,8 @@ def run_pair(args: argparse.Namespace) -> None:
         receipt["status"] = "passed"
     except Exception as error:
         receipt["status"] = "failed"
-        receipt["error"] = str(error)
+        receipt["error"] = (f"{type(error).__name__}: {error.strerror or 'file operation failed'}"
+                            if isinstance(error, OSError) else str(error))
         raise
     finally:
         cleanup_errors = []
