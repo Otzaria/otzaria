@@ -164,7 +164,7 @@ List<String> installedReportErrors(Map<String, Object?> report) {
     errors.add('Dispatcher policy override was not restored');
   }
   final platform = report['platform'];
-  if (platform == 'linux' || platform == 'windows') {
+  if (installedPdfRuntimePlatforms.contains(platform)) {
     errors.addAll(
       installedPdfRuntimeErrors(
         report['pdfRuntime'],
