@@ -337,6 +337,50 @@ void main() {
     );
   }
 
+  test('טיוטה ישנה עם includeMinidump=true נפתחת בלי צירוף ה-dump', () async {
+    final service = build(MockClient((_) async => _json(500, {})));
+    final dump = AppReportMinidump(
+      gzipBytes: Uint8List.fromList(gzip.encode(ascii.encode('MDMP-old'))),
+      fileName: 'old.dmp',
+    );
+    // הפורמט הקודם שמר את ברירת המחדל true גם בלי בחירה של המשתמש.
+    final legacy = AppReportDraft(
+      type: AppReportType.crash,
+      title: 'קריסה',
+      description: 'תיאור',
+      steps: '',
+      email: '',
+      minidump: dump,
+    );
+    await ReportDraftStore.forDatabase(db).write(
+      id: 'old-draft',
+      kind: ReportDraftStore.appKind,
+      title: legacy.title,
+      payload: {...legacy.toJson(includeAttachments: false)}
+        ..['includeMinidump'] = true,
+      attachments: legacy.attachmentsJson(),
+      revision: 0,
+    );
+
+    final loaded = (await service.loadDraft())!;
+    expect(loaded.minidump?.fileName, 'old.dmp');
+    expect(loaded.includeMinidump, isFalse);
+
+    // בחירה מפורשת בפורמט החדש נשמרת.
+    await service.saveDraft(
+      AppReportDraft(
+        type: loaded.type,
+        title: loaded.title,
+        description: loaded.description,
+        steps: loaded.steps,
+        email: loaded.email,
+        minidump: loaded.minidump,
+        includeMinidump: true,
+      ),
+    );
+    expect((await service.loadDraft())!.includeMinidump, isTrue);
+  });
+
   test('409 then413 retains canonical schema2 and the complete dump', () async {
     final bodies = <Map<String, dynamic>>[];
     final service = build(
