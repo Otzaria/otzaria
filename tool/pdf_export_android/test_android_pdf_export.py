@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr
 
-from .run_android_pdf_export import APP, ENGINE_REVISION, EXPECTED_CASES, FRAMEWORK_REVISION, finalize_run, provider_blocks, source_receipt, validate_report
+from .run_android_pdf_export import APP, ENGINE_REVISION, EXPECTED_CASES, FRAMEWORK_REVISION, finalize_run, instrumentation_report, provider_blocks, source_receipt, validate_report
 
 
 def complete_report():
@@ -51,6 +51,17 @@ class EvidenceContracts(unittest.TestCase):
 
     def test_complete_contract(self):
         self.assertEqual(validate_report(self.report), 21)
+
+    def test_instrumentation_crash_is_not_masked_by_missing_json(self):
+        completed = subprocess.CompletedProcess([], 0, "INSTRUMENTATION_RESULT: shortMsg=Process crashed.\nINSTRUMENTATION_CODE: 0\n", "")
+        with self.assertRaisesRegex(ValueError, "Process crashed"):
+            instrumentation_report(completed, "cat: native-report.json: No such file or directory\n")
+
+    def test_normal_instrumentation_requires_a_parseable_native_report(self):
+        completed = subprocess.CompletedProcess([], 0, "INSTRUMENTATION_CODE: -1\n", "")
+        self.assertEqual(instrumentation_report(completed, json.dumps(self.report)), self.report)
+        with self.assertRaisesRegex(ValueError, "without a JSON native report"):
+            instrumentation_report(completed, "")
 
     def test_unowned_document_must_not_be_opened_or_deleted(self):
         for event in ("open-request:fixture-root", "delete-request:fixture-root"):

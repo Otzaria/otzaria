@@ -198,6 +198,16 @@ def finalize_run(actions, primary=None):
     return failures
 
 
+def instrumentation_report(completed, raw):
+    transcript = completed.stdout + completed.stderr
+    require(completed.returncode == 0 and "INSTRUMENTATION_CODE: -1" in completed.stdout,
+            "Instrumentation did not complete normally:\n" + transcript + "\nNative output:\n" + raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError("Instrumentation completed without a JSON native report:\n" + raw) from error
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="emulator-5554")
@@ -247,13 +257,12 @@ def main():
         run(adb + ["logcat", "-c"])
         completed = run(adb + ["shell", "am", "instrument", "-w", "-r", f"{TEST_APP}/{RUNNER}"], timeout=600, check=False)
         (output / "instrumentation.txt").write_text(completed.stdout + completed.stderr)
-        raw = run(adb + ["exec-out", "run-as", APP, "cat", "files/pdf-export-native-report.json"]).stdout
+        raw = run(adb + ["exec-out", "run-as", APP, "cat", "files/pdf-export-native-report.json"], check=False).stdout
         (output / "native-report.json").write_text(raw)
-        count = validate_report(json.loads(raw))
+        count = validate_report(instrumentation_report(completed, raw))
         screenshot = run(adb + ["exec-out", "run-as", APP, "cat", "files/pdf-export-picker.png"], binary=True).stdout
         require(screenshot.startswith(b"\x89PNG\r\n\x1a\n"), "Missing actual picker screenshot")
         (output / "documents-ui.png").write_bytes(screenshot)
-        require(completed.returncode == 0 and "INSTRUMENTATION_CODE: -1" in completed.stdout, "Instrumentation process did not complete normally")
     except BaseException as error:
         primary = error
         raise
