@@ -655,6 +655,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     final dynamicResult = _handleDynamicShortcut(event);
     if (dynamicResult != null) return dynamicResult;
 
+    // Ctrl+Tab, Ctrl+1..9, F11 ו-Esc מוצגים בהגדרות בכרטיס "קיצורים קבועים"
+    // (shortcuts_settings_tab.dart) — שינוי כאן מחייב עדכון גם שם.
     // Ctrl+Tab / Ctrl+Shift+Tab - מעבר בין טאבים.
     // לא משתמשים ב-matchesShortcut כדי לא להפוך ל-Cmd ב-Mac: Cmd+Tab
     // שמור למערכת ההפעלה, ולכן ב-Mac נשארים עם Ctrl פיזי (זמין שם).

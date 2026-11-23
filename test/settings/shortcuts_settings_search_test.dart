@@ -21,6 +21,10 @@ void main() {
         expect(entry.cardId, 'shortcuts.main');
         continue;
       }
+      if (entry.id == 'shortcuts.fixed') {
+        expect(entry.cardId, 'shortcuts.fixed');
+        continue;
+      }
       final prefix = cardByPrefix.keys.firstWhere(
         entry.id.startsWith,
         orElse: () => '',
@@ -32,7 +36,10 @@ void main() {
 
   test('לכל תוצאת קיצור יש מפתח פעולה תקף וייחודי', () {
     final entries = ShortcutsSettingsTab.searchEntries
-        .where((entry) => entry.id != 'shortcuts.reset')
+        .where(
+          (entry) =>
+              entry.id != 'shortcuts.reset' && entry.id != 'shortcuts.fixed',
+        )
         .toList();
     expect(entries, hasLength(53));
     expect(
