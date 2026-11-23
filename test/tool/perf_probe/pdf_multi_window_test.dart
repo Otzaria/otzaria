@@ -15,6 +15,19 @@ const _hash =
 const _primaryPath = '/fixture/מקור.pdf';
 const _secondaryPath = '/fixture/עותק.pdf';
 
+List<Map<String, dynamic>> _indexedSearches(String path) => [
+  for (final page in [2, 4])
+    {
+      'query': 'PDF preview fixture - page $page',
+      'page': page,
+      'totalHits': 1,
+      'matchingHits': 1,
+      'hits': [
+        {'filePath': path, 'isPdf': true, 'segment': (page - 1).toString()},
+      ],
+    },
+];
+
 Map<String, dynamic> _reader(
   String path,
   int view,
@@ -109,6 +122,7 @@ Map<String, dynamic> _fixture() => {
         'indexedBooks': 1,
         'indexedPath': _primaryPath,
         'verifiedPages': [2, 4],
+        'searchResults': _indexedSearches(_primaryPath),
       },
       'printing': {
         'sourcePages': [2, 3],
@@ -442,6 +456,29 @@ void main() {
     }
   });
 
+  test('indexing details must substantiate the verified page summary', () {
+    _reject((report) {
+      report['steps']['concurrentWork']['indexing'].remove('searchResults');
+    }, reason: 'page summary without detailed hits');
+    for (final mutation in {
+      'filePath': _secondaryPath,
+      'isPdf': false,
+      'segment': '0',
+    }.entries) {
+      _reject((report) {
+        final search =
+            report['steps']['concurrentWork']['indexing']['searchResults'][0];
+        search['hits'][0][mutation.key] = mutation.value;
+      }, reason: mutation.key);
+    }
+    _reject((report) {
+      final search =
+          report['steps']['concurrentWork']['indexing']['searchResults'][0];
+      search['hits'].add(search['hits'].single);
+      search['totalHits'] = 2;
+    }, reason: 'duplicate matching hit despite claimed count of one');
+  });
+
   test('vector export preserves source order, RTL, text and native raster', () {
     for (final entry in {
       'textPreserved': false,
@@ -661,7 +698,9 @@ Future<_SmokeFiles> _smoke({
   for (final reader in _readers(evidence)) {
     reader['path'] = reader['path'] == _primaryPath ? source.path : copy.path;
   }
-  evidence['steps']['concurrentWork']['indexing']['indexedPath'] = source.path;
+  final indexing = evidence['steps']['concurrentWork']['indexing'];
+  indexing['indexedPath'] = source.path;
+  indexing['searchResults'] = _indexedSearches(source.path);
   evidence['steps']['concurrentWork']['printing']['sha256'] = vectorHash;
   evidence['steps']['concurrentWork']['printing']['pngSha256'] =
       sha256.convert(pngBytes).toString();
@@ -778,6 +817,9 @@ Future<_SmokeFiles> _smoke({
       },
     },
   ];
+  await File(p.join(root.path, 'launch-000', 'launch.json')).writeAsString(
+    jsonEncode({'launchIndex': 0, 'pid': 123, 'identityStartTicks': '1234'}),
+  );
   await File(p.join(root.path, 'launch-000', 'completion.json')).writeAsString(
     jsonEncode({
       'status': 'passed',
@@ -795,6 +837,13 @@ Future<_SmokeFiles> _smoke({
 
 void _smokeTests() {
   group('actual smoke evidence and bundled engine identity', () {
+    test('rejects a journal attributed to a different process', () async {
+      final files = await _smoke();
+      files.records.first['pid'] = 456;
+      await files.save();
+      await expectLater(files.validate(), throwsFormatException);
+    });
+
     test('accepts all desktop profiles and the verified Windows release', () async {
       for (final platform in ['linux', 'macos', 'windows']) {
         final files = await _smoke(platform: platform);

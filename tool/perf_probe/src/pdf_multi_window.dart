@@ -1,3 +1,5 @@
+const _indexVerificationPages = [2, 4];
+
 const perfPdfMultiWindowProtocol = <String, Object?>{
   'version': 2,
   'nativeWindows': 2,
@@ -5,7 +7,7 @@ const perfPdfMultiWindowProtocol = <String, Object?>{
   'primaryPages': [1, 3],
   'secondaryPages': [2, 4],
   'reopenedPage': 2,
-  'indexVerificationPages': [2, 4],
+  'indexVerificationPages': _indexVerificationPages,
   'printSourcePages': [2, 3],
   'printRows': 1,
   'printColumns': 2,
@@ -132,6 +134,37 @@ bool _overlap(Object? first, Object? second) {
       (b['startUs'] as int) < (a['endUs'] as int);
 }
 
+bool _indexSearches(Object? value, Object? indexedPath) {
+  if (value is! List || value.length != _indexVerificationPages.length) {
+    return false;
+  }
+  for (var i = 0; i < _indexVerificationPages.length; i++) {
+    final page = _indexVerificationPages[i];
+    final search = _map(value[i]);
+    final hits = search['hits'];
+    if (search['page'] is! int ||
+        search['page'] != page ||
+        search['query'] != 'PDF preview fixture - page $page' ||
+        search['totalHits'] is! int ||
+        search['matchingHits'] is! int ||
+        search['matchingHits'] != 1 ||
+        hits is! List ||
+        search['totalHits'] != hits.length) {
+      return false;
+    }
+    final own = hits
+        .map(_map)
+        .where(
+          (hit) =>
+              hit['filePath'] == indexedPath &&
+              hit['isPdf'] == true &&
+              hit['segment'] == (page - 1).toString(),
+        );
+    if (own.length != 1) return false;
+  }
+  return true;
+}
+
 bool _raster(
   Object? value,
   String format, {
@@ -251,7 +284,8 @@ List<String> perfPdfMultiWindowErrors(Object? value) {
         indexing['indexedBooks'] is int &&
         indexing['indexedBooks'] == 1 &&
         indexing['indexedPath'] == source &&
-        _pages(indexing['verifiedPages'], const [2, 4]),
+        _pages(indexing['verifiedPages'], _indexVerificationPages) &&
+        _indexSearches(indexing['searchResults'], source),
     'The actual index did not return the expected PDF pages.',
   );
   final printing = _map(concurrent['printing']);

@@ -170,6 +170,18 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
         primary.single['buildMode'] == buildMode,
     'Expected one measured fixture with the actual build mode.',
   );
+  final launch = Directory(p.join(root.path, 'launch-000'));
+  final process = await _readJson(root, p.join(launch.path, 'launch.json'));
+  final appPid = primary.single['pid'];
+  final processStart = process['identityStartTicks'];
+  _require(
+    appPid is int &&
+        appPid > 0 &&
+        processStart is String &&
+        RegExp(r'^[1-9][0-9]*$').hasMatch(processStart),
+    'Missing native process identity.',
+  );
+  _fields(process, {'launchIndex': 0, 'pid': appPid});
   final sourcePath = p.join(root.path, 'data', 'cold-0', 'pdf', 'reader-mixed.pdf');
   final sourceHash = await _hash(root, sourcePath);
   _require(
@@ -205,7 +217,6 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
         p.equals(fixture['sourcePath'] as String, sourcePath),
     'Native readers used a different source fixture.',
   );
-  final launch = Directory(p.join(root.path, 'launch-000'));
   final receipts = (await launch.list(followLinks: false).toList())
       .whereType<Directory>()
       .where((entry) => p.basename(entry.path).startsWith('pdf-multi-window-'))
