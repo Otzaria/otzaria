@@ -44,6 +44,8 @@ class PrintPreviewController extends ChangeNotifier {
   bool get busy => _busy;
   bool get failed => _failed;
   bool get isStopped => _stopped || _disposed;
+
+  /// אומדן עד שהעמוד נדרש לתצוגה; גודל מדויק לפני רינדורו.
   ui.Size pageSize(int index) => _pageSizes[index];
 
   void reportError(Object error, StackTrace stack) {
@@ -98,7 +100,7 @@ class PrintPreviewController extends ChangeNotifier {
       if (stale()) return;
       PdfDocument? document;
       try {
-        document = await source.open(useProgressiveLoading: endPage != null);
+        document = await source.open(useProgressiveLoading: true);
         if (stale()) return;
         onPageCount(document.pages.length);
         if (stale()) return;
@@ -112,13 +114,10 @@ class PrintPreviewController extends ChangeNotifier {
           _firstPage,
           document.pages.length - 1,
         );
-        await _loadPageSizes(document, [
-          for (var i = _firstPage; i <= last; i++) i,
-        ]);
-        if (stale()) return;
-        _pageSizes = [
-          for (var i = _firstPage; i <= last; i++) document.pages[i].size,
-        ];
+        _pageSizes = List.filled(
+          last - _firstPage + 1,
+          document.pages.first.size,
+        );
         _source = source;
         notifyListeners();
         await _renderWindow(document, generation);
@@ -236,6 +235,15 @@ class PrintPreviewController extends ChangeNotifier {
     await _loadPageSizes(document, [
       for (final key in wanted) _firstPage + key.page,
     ]);
+    if (stale()) return;
+    var sizesChanged = false;
+    for (final key in wanted) {
+      final size = document.pages[_firstPage + key.page].size;
+      if (_pageSizes[key.page] == size) continue;
+      _pageSizes[key.page] = size;
+      sizesChanged = true;
+    }
+    if (sizesChanged) notifyListeners();
     if (stale()) return;
     final targets = _targetSizes(wanted);
     for (final item in _images.entries.toList()) {

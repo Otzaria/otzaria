@@ -25,33 +25,63 @@ class PdfFontFallback {
   );
 
   /// פותח את [filePath]. גופן שחסר נקבע בזמן הטעינה, ולכן אחרי רישום
-  /// גופנים חדשים המסמך נפתח מחדש. הרישום גלובלי — פתיחה חוזרת קורית פעם אחת.
+  /// גופנים חדשים מסמכים שנפתחו במקביל נפתחים מחדש פעם אחת.
   static Future<PdfDocument> openFile(
     String filePath, {
     PdfPasswordProvider? passwordProvider,
     bool useProgressiveLoading = false,
-  }) async {
-    Future<PdfDocument> open() => PdfDocument.openFile(
+  }) => _openDocument(
+    (provider) => PdfDocument.openFile(
       filePath,
-      passwordProvider: passwordProvider,
+      passwordProvider: provider,
       useProgressiveLoading: useProgressiveLoading,
-    );
+    ),
+    passwordProvider: passwordProvider,
+  );
 
-    final document = await open();
-    final missing = await _reportedMissingFonts(document);
-    if (missing.isEmpty) return document;
+  /// גם מסמך שנוצר בזיכרון יכול לקבל אירוע גופנים של פתיחת קובץ חופפת.
+  /// מסמך עם גופנים מוטמעים משתתף בגילוי בלי להזדקק לפתיחה נוספת.
+  static Future<PdfDocument> openDocument(
+    Future<PdfDocument> Function() loader, {
+    bool reopenOnFontChange = true,
+  }) => _openDocument(
+    (_) => loader(),
+    reopenOnFontChange: reopenOnFontChange,
+  );
 
-    final bool fontsLoaded;
-    try {
-      fontsLoaded = await _fontLoads.loadMissingFonts(missing);
-    } catch (_) {
-      return document;
+  static Future<PdfDocument> _openDocument(
+    Future<PdfDocument> Function(PdfPasswordProvider?) loader, {
+    PdfPasswordProvider? passwordProvider,
+    bool reopenOnFontChange = true,
+  }) async {
+    Future<PdfDocument> open({required bool allowReopen}) async {
+      var opening = _fontLoads.beginOpening();
+      Future<String?> requestPassword() async {
+        // הזנת סיסמה אינה עבודת מנוע: פתיחות אחרות צריכות להמשיך בינתיים.
+        _fontLoads.cancelOpening(opening);
+        final password = await passwordProvider!();
+        if (password != null) opening = _fontLoads.beginOpening();
+        return password;
+      }
+
+      try {
+        final document = await loader(
+          passwordProvider == null ? null : requestPassword,
+        );
+        final missing = await _reportedMissingFonts(document);
+        final fontsChanged = await _fontLoads.completeOpening(opening, missing);
+        if (!fontsChanged || !allowReopen) return document;
+
+        // ה־worker חייב להשתחרר מהמסמך לפני פתיחתו מחדש. גם הפתיחה
+        // החוזרת משתתפת בגילוי, כי היא עלולה לקבל אירוע של מסמך אחר.
+        await document.dispose();
+        return open(allowReopen: false);
+      } finally {
+        _fontLoads.cancelOpening(opening);
+      }
     }
-    if (!fontsLoaded) return document;
 
-    // ה-worker של pdfrx חייב להשתחרר מהמסמך לפני פתיחתו מחדש.
-    await document.dispose();
-    return open();
+    return open(allowReopen: reopenOnFontChange);
   }
 
   /// הפניה למסמך עבור [PdfViewer], עם אותו מפתח שמשמש [PdfDocumentRefFile].

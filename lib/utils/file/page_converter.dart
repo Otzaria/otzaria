@@ -10,6 +10,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/pdf_anchor_cache_entry.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/page_map_builder.dart';
+import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 typedef _PageMapKey = (String, BookCompositeKey?);
@@ -121,7 +122,10 @@ Future<_PdfAnchors> _getPdfAnchors(String pdfPath) async {
     PdfDocument? doc;
     try {
       // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
-      doc = await PdfDocument.openFile(pdfPath, useProgressiveLoading: true);
+      doc = await PdfFontFallback.openFile(
+        pdfPath,
+        useProgressiveLoading: true,
+      );
       anchors = collectPdfAnchors(await doc.loadOutline());
     } finally {
       // המתנה לשחרור בפועל — הטאב הסופי עשוי לפתוח מיד את אותו PDF, וה-worker

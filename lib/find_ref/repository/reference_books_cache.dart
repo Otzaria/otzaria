@@ -23,6 +23,7 @@ import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 /// In-memory cache for reference finding.
@@ -1020,7 +1021,10 @@ class ReferenceBooksCache {
     PdfDocument? doc;
     try {
       // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
-      doc = await PdfDocument.openFile(filePath, useProgressiveLoading: true);
+      doc = await PdfFontFallback.openFile(
+        filePath,
+        useProgressiveLoading: true,
+      );
       final outline = await doc.loadOutline();
       final entries = <(String, String, int)>[];
       _collectOutlineEntries(outline, entries, maxDepth: 2, currentDepth: 0);

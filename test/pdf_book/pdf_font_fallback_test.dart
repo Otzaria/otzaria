@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
+import 'package:otzaria/printing/print_pdf_source.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
 /// PDF עם טקסט עברי גלוי בגופן TrueType שאינו מוטמע — כמו מסכתות הבבלי
@@ -188,16 +190,203 @@ void main() {
       }
     });
   });
+
+  for (final memoryFirst in [true, false]) {
+    testWidgets('PDF להדפסה משתתף בגילוי גופנים (memoryFirst=$memoryFirst)', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await pdfrxFlutterInitialize();
+        final font = pw.Font.ttf(
+          await rootBundle.load(PdfFontFallback.bundledFallbackAsset),
+        );
+        final pdf = pw.Document()
+          ..addPage(
+            pw.Page(
+              build: (_) => pw.Text(
+                'שלום',
+                textDirection: pw.TextDirection.rtl,
+                style: pw.TextStyle(font: font, fontSize: 36),
+              ),
+            ),
+          );
+        final embeddedBytes = await pdf.save();
+        final source = PrintPdfSource.data(embeddedBytes);
+        const count = 10;
+        final face = 'OtzariaMixedHebrewFace$memoryFirst';
+        final paths = [
+          for (var i = 0; i < count; i++)
+            '${tempDir.path}/mixed-$memoryFirst-$i.pdf',
+        ];
+        for (final path in paths) {
+          await File(path).writeAsBytes(_nonEmbeddedHebrewPdf(face));
+        }
+        final original = PdfrxEntryFunctions.instance;
+        final backend = _ConcurrentFontBackend(original, count + 1);
+        PdfrxEntryFunctions.instance = backend;
+        try {
+          late Future<PdfDocument> memory;
+          if (memoryFirst) {
+            memory = source.open();
+            await backend.customReadStarted.future;
+          }
+          final files = [
+            for (final path in paths) PdfFontFallback.openFile(path),
+          ];
+          if (!memoryFirst) memory = source.open();
+          final documents = await Future.wait([...files, memory]);
+          final embedded = documents.last;
+          final observations = <Map<String, Object>>[];
+          for (final document in documents) {
+            observations.add({
+              'memory': identical(document, embedded),
+              'text': (await document.pages[0].loadStructuredText()).fullText,
+              'inkPixels': (await _renderHebrew(document)).inkPixels,
+            });
+          }
+          // ignore: avoid_print
+          print(
+            'PDF_MIXED_FONT_NATIVE ${jsonEncode({
+              'memoryFirst': memoryFirst,
+              'opens': backend.opened.length,
+              'customOpens': backend.customOpens,
+              'registrations': backend.registrations,
+              'reloads': backend.reloads,
+              'discovery': [
+                for (final doc in backend.opened.take(count + 1)) {'source': doc.sourceName, 'faces': doc.missingFaces},
+              ],
+              'documents': observations,
+            })}',
+          );
+          expect(backend.registrations, 1);
+          expect(backend.reloads, 1);
+          expect(backend.opened, hasLength(count * 2 + 1));
+          expect(backend.customOpens, 1);
+          expect(backend.customMemoryLimit, embeddedBytes.length);
+          expect(
+            backend.opened.take(count + 1).contains(embedded),
+            isTrue,
+          );
+          expect(
+            backend.opened
+                .take(count + 1)
+                .where((doc) => !identical(doc, embedded))
+                .every((doc) => doc.disposed),
+            isTrue,
+          );
+          expect(
+            observations.map((row) => row['text']),
+            everyElement(contains('שלום')),
+          );
+          expect(
+            observations.map((row) => row['inkPixels']),
+            everyElement(greaterThan(100)),
+          );
+          expect(await source.readBytes(), same(embeddedBytes));
+        } finally {
+          for (final document in backend.opened) {
+            if (!document.disposed) await document.dispose();
+          }
+          PdfrxEntryFunctions.instance = original;
+        }
+      });
+    });
+  }
+
+  for (final acceptPassword in [true, false]) {
+    testWidgets('הזנת סיסמה אינה חוסמת ספר אחר (accept=$acceptPassword)', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await pdfrxFlutterInitialize();
+        final lockedPath = '${tempDir.path}/password-$acceptPassword.pdf';
+        // אותו PDF עברי, מוצפן באמצעות pypdf 6.21.4 עם סיסמת otzaria-test.
+        final encoded = await File(
+          'test/fixtures/pdf/password_hebrew.pdf.base64',
+        ).readAsString();
+        await File(lockedPath).writeAsBytes(
+          base64Decode(encoded.replaceAll(RegExp(r'\s+'), '')),
+        );
+        final peerPath = '${tempDir.path}/password-peer-$acceptPassword.pdf';
+        await File(peerPath).writeAsBytes(
+          _nonEmbeddedHebrewPdf(
+            acceptPassword
+                ? 'OtzariaPasswordHebrewFace'
+                : 'OtzariaPasswordCancelledPeer',
+          ),
+        );
+        final original = PdfrxEntryFunctions.instance;
+        final backend = _ConcurrentFontBackend(original, 1);
+        PdfrxEntryFunctions.instance = backend;
+        final password = Completer<String?>();
+        final prompted = Completer<void>();
+        var prompts = 0;
+        final held = PdfFontFallback.openFile(
+          lockedPath,
+          passwordProvider: () {
+            prompts++;
+            if (!prompted.isCompleted) prompted.complete();
+            return password.future;
+          },
+        ).then<Object>((doc) => doc, onError: (Object error) => error);
+        Future<PdfDocument>? peer;
+        try {
+          await prompted.future.timeout(const Duration(seconds: 5));
+          peer = PdfFontFallback.openFile(peerPath);
+          final independent = await peer.timeout(const Duration(seconds: 5));
+          expect(password.isCompleted, isFalse);
+          expect(
+            (await independent.pages[0].loadStructuredText()).fullText,
+            contains('שלום'),
+          );
+          expect(
+            (await _renderHebrew(independent)).inkPixels,
+            greaterThan(100),
+          );
+          expect(backend.registrations, 1);
+          expect(backend.reloads, 1);
+          password.complete(acceptPassword ? 'otzaria-test' : null);
+          final result = await held;
+          if (acceptPassword) {
+            expect(result, isA<PdfDocument>());
+            final unlocked = result as PdfDocument;
+            expect(unlocked.isEncrypted, isTrue);
+            expect(
+              (await unlocked.pages[0].loadStructuredText()).fullText,
+              contains('שלום'),
+            );
+            expect((await _renderHebrew(unlocked)).inkPixels, greaterThan(100));
+            expect(backend.opened, hasLength(3));
+          } else {
+            expect(result, isA<PdfPasswordException>());
+            final afterCancel = await PdfFontFallback.openFile(peerPath);
+            expect(
+              (await afterCancel.pages[0].loadStructuredText()).fullText,
+              contains('שלום'),
+            );
+            expect(backend.opened, hasLength(3));
+          }
+          expect(prompts, 1);
+        } finally {
+          if (!password.isCompleted) password.complete(null);
+          await held;
+          try {
+            await peer;
+          } catch (_) {}
+          for (final document in backend.opened) {
+            if (!document.disposed) await document.dispose();
+          }
+          PdfrxEntryFunctions.instance = original;
+        }
+      });
+    });
+  }
 }
 
 Future<({Uint8List pixels, int inkPixels})> _renderHebrew(
   PdfDocument document,
 ) async {
   final image = await document.pages[0].render(
-    x: 300,
-    y: 95,
-    width: 140,
-    height: 80,
     backgroundColor: 0xffffffff,
   );
   if (image == null) throw StateError('PDFium did not render the Hebrew text');
@@ -222,6 +411,9 @@ class _ConcurrentFontBackend implements PdfrxEntryFunctions {
   final int initialDocuments;
   final opened = <_ObservedFontDocument>[];
   final _openedInitial = Completer<void>();
+  final customReadStarted = Completer<void>();
+  int customOpens = 0;
+  int? customMemoryLimit;
   int registrations = 0;
   int reloads = 0;
 
@@ -245,16 +437,50 @@ class _ConcurrentFontBackend implements PdfrxEntryFunctions {
     PdfPasswordProvider? passwordProvider,
     bool firstAttemptByEmptyPassword = true,
     bool useProgressiveLoading = false,
-  }) async {
+  }) => _record(
+    base.openFile(
+      filePath,
+      passwordProvider: passwordProvider,
+      firstAttemptByEmptyPassword: firstAttemptByEmptyPassword,
+      useProgressiveLoading: useProgressiveLoading,
+    ),
+  );
+
+  @override
+  Future<PdfDocument> openCustom({
+    required FutureOr<int> Function(Uint8List buffer, int position, int size)
+    read,
+    required int fileSize,
+    required String sourceName,
+    PdfPasswordProvider? passwordProvider,
+    bool firstAttemptByEmptyPassword = true,
+    bool useProgressiveLoading = false,
+    int? maxSizeToCacheOnMemory,
+    void Function()? onDispose,
+  }) {
+    customOpens++;
+    customMemoryLimit = maxSizeToCacheOnMemory;
+    return _record(
+      base.openCustom(
+        read: (buffer, position, size) {
+          final result = read(buffer, position, size);
+          if (!customReadStarted.isCompleted) customReadStarted.complete();
+          return result;
+        },
+        fileSize: fileSize,
+        sourceName: sourceName,
+        passwordProvider: passwordProvider,
+        firstAttemptByEmptyPassword: firstAttemptByEmptyPassword,
+        useProgressiveLoading: useProgressiveLoading,
+        maxSizeToCacheOnMemory: maxSizeToCacheOnMemory,
+        onDispose: onDispose,
+      ),
+    );
+  }
+
+  Future<PdfDocument> _record(Future<PdfDocument> operation) async {
     try {
-      final document = _ObservedFontDocument(
-        await base.openFile(
-          filePath,
-          passwordProvider: passwordProvider,
-          firstAttemptByEmptyPassword: firstAttemptByEmptyPassword,
-          useProgressiveLoading: useProgressiveLoading,
-        ),
-      );
+      final document = _ObservedFontDocument(await operation);
       opened.add(document);
       if (opened.length == initialDocuments && !_openedInitial.isCompleted) {
         _openedInitial.complete();
@@ -314,9 +540,17 @@ class _ConcurrentFontBackend implements PdfrxEntryFunctions {
 }
 
 class _ObservedFontDocument extends PdfDocument {
-  _ObservedFontDocument(this.base) : super(sourceName: base.sourceName);
+  _ObservedFontDocument(this.base) : super(sourceName: base.sourceName) {
+    _observations = base.events.listen((event) {
+      if (event is PdfDocumentMissingFontsEvent) {
+        missingFaces.addAll(event.missingFonts.map((query) => query.face));
+      }
+    });
+  }
 
   final PdfDocument base;
+  final missingFaces = <String>[];
+  late final StreamSubscription<PdfDocumentEvent> _observations;
   bool disposed = false;
   Future<void>? closing;
 
@@ -333,9 +567,13 @@ class _ObservedFontDocument extends PdfDocument {
   bool get isEncrypted => base.isEncrypted;
 
   @override
-  Future<void> dispose() => closing ??= base.dispose().then((_) {
+  Future<void> dispose() => closing ??= _dispose();
+
+  Future<void> _dispose() async {
+    await _observations.cancel();
+    await base.dispose();
     disposed = true;
-  });
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

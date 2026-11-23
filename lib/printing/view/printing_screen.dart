@@ -956,7 +956,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final hasRange = startPage > 1 || endPage != null;
     if (rows == 1 && cols == 1 && !hasRange) return sourcePdf.readBytes();
 
-    final doc = await sourcePdf.open();
+    final doc = await sourcePdf.open(useProgressiveLoading: true);
     try {
       final pageCount = doc.pages.length;
       if (_totalPdfPages == 0 && _isPdfSource && mounted) {

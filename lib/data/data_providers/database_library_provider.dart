@@ -73,6 +73,7 @@ import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'link_visibility_sql.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
 
@@ -3747,7 +3748,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     PdfDocument? document;
     try {
       // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
-      document = await PdfDocument.openFile(
+      document = await PdfFontFallback.openFile(
         file.path,
         useProgressiveLoading: true,
       );

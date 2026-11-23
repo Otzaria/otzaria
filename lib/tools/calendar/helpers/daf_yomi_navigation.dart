@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
@@ -199,7 +200,7 @@ Future<List<PdfOutlineNode>> _loadOutlineFromFile(PdfBook book) async {
   PdfDocument? document;
   try {
     // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
-    document = await PdfDocument.openFile(
+    document = await PdfFontFallback.openFile(
       book.path,
       useProgressiveLoading: true,
     );

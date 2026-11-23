@@ -221,6 +221,177 @@ void main() {
     },
   );
 
+  group('overlapping native font discovery', () {
+    test('an owner without an event waits for its peer to reload', () async {
+      final loaded = Completer<PdfFontLoadResult>();
+      final coordinator = PdfFontLoadCoordinator(load: (_) => loaded.future);
+      final emptyOwner = coordinator.beginOpening();
+      final eventOwner = coordinator.beginOpening();
+      var emptyFinished = false;
+      final first = coordinator.completeOpening(emptyOwner, const []).then((
+        value,
+      ) {
+        emptyFinished = true;
+        return value;
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(emptyFinished, isFalse);
+      final second = coordinator.completeOpening(eventOwner, [query('Shared')]);
+      await Future<void>.delayed(Duration.zero);
+      expect(emptyFinished, isFalse);
+      loaded.complete(loadedResult([query('Shared')]));
+      expect(await Future.wait([first, second]), [true, true]);
+    });
+
+    test('a failed native open releases other discovery waiters', () async {
+      final coordinator = PdfFontLoadCoordinator(
+        load: (_) => throw StateError('No font was requested'),
+      );
+      final firstOwner = coordinator.beginOpening();
+      final failedOwner = coordinator.beginOpening();
+      final first = coordinator.completeOpening(firstOwner, const []);
+      coordinator.cancelOpening(failedOwner);
+      coordinator.cancelOpening(failedOwner);
+      expect(await first, isFalse);
+      expect(
+        await coordinator.completeOpening(
+          coordinator.beginOpening(),
+          const [],
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'a later arrival is outside the completed discovery snapshot',
+      () async {
+        final coordinator = PdfFontLoadCoordinator(
+          load: (_) => throw StateError('No font was requested'),
+        );
+        final first = coordinator.completeOpening(
+          coordinator.beginOpening(),
+          const [],
+        );
+        final later = coordinator.beginOpening();
+        expect(await first.timeout(const Duration(seconds: 1)), isFalse);
+        coordinator.cancelOpening(later);
+      },
+    );
+
+    test('discovery does not wait for the final delivery of a peer', () async {
+      final coordinator = PdfFontLoadCoordinator(
+        load: (_) => throw StateError('No font was requested'),
+      );
+      final a = coordinator.beginOpening();
+      final b = coordinator.beginOpening();
+      final first = coordinator.completeOpening(a, const []);
+      final c = coordinator.beginOpening();
+      final second = coordinator.completeOpening(b, const []);
+      expect(await first.timeout(const Duration(seconds: 1)), isFalse);
+      final third = coordinator.completeOpening(c, const []);
+      expect(await Future.wait([second, third]), [false, false]);
+    });
+
+    test('already refreshed fonts do not reopen a later document', () async {
+      final coordinator = PdfFontLoadCoordinator(
+        load: (fonts) async => loadedResult(fonts),
+      );
+      expect(
+        await coordinator.completeOpening(
+          coordinator.beginOpening(),
+          [query('Shared')],
+        ),
+        isTrue,
+      );
+      expect(
+        await coordinator.completeOpening(
+          coordinator.beginOpening(),
+          const [],
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'refresh before a slow discovery still invalidates its document',
+      () async {
+        final loaded = Completer<PdfFontLoadResult>();
+        final coordinator = PdfFontLoadCoordinator(load: (_) => loaded.future);
+        final slow = coordinator.beginOpening();
+        final fast = coordinator.beginOpening();
+        final second = coordinator.completeOpening(fast, [query('Shared')]);
+        loaded.complete(loadedResult([query('Shared')]));
+        await Future<void>.delayed(Duration.zero);
+        final first = coordinator.completeOpening(slow, const []);
+        expect(await Future.wait([first, second]), [true, true]);
+      },
+    );
+
+    test(
+      'failed font loads release owners and allow another attempt',
+      () async {
+        var attempts = 0;
+        final coordinator = PdfFontLoadCoordinator(
+          load: (fonts) async {
+            if (++attempts == 1) throw StateError('registration failed');
+            return loadedResult(fonts);
+          },
+        );
+        expect(
+          await coordinator.completeOpening(
+            coordinator.beginOpening(),
+            [query('Retry')],
+          ),
+          isFalse,
+        );
+        expect(
+          await coordinator.completeOpening(
+            coordinator.beginOpening(),
+            [query('Retry')],
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test(
+      'one failed font batch does not hide another successful refresh',
+      () async {
+        final good = Completer<PdfFontLoadResult>();
+        final bad = Completer<PdfFontLoadResult>();
+        final coordinator = PdfFontLoadCoordinator(
+          load: (fonts) =>
+              fonts.first.face == 'Good' ? good.future : bad.future,
+        );
+        final a = coordinator.beginOpening();
+        final b = coordinator.beginOpening();
+        final first = coordinator.completeOpening(a, [query('Good')]);
+        final second = coordinator.completeOpening(b, [query('Bad')]);
+        bad.completeError(StateError('font unavailable'));
+        good.complete(loadedResult([query('Good')]));
+        expect(await Future.wait([first, second]), [true, true]);
+      },
+    );
+
+    test('invalid discovery input releases its pending opening', () async {
+      Iterable<PdfFontQuery> invalid() sync* {
+        throw StateError('invalid input');
+      }
+
+      final coordinator = PdfFontLoadCoordinator(
+        load: (fonts) async => loadedResult(fonts),
+      );
+      final a = coordinator.beginOpening();
+      final b = coordinator.beginOpening();
+      final first = coordinator.completeOpening(a, const []);
+      await expectLater(
+        coordinator.completeOpening(b, invalid()),
+        throwsStateError,
+      );
+      expect(await first, isFalse);
+    });
+  });
+
   group('locked PdfFontManager work counts', () {
     late PdfrxEntryFunctions previousBackend;
 
