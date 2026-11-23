@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
@@ -45,14 +47,23 @@ class PersonalNotesDatabase {
 
   Database? _database;
   Future<Database>? _opening;
+  Future<void>? _closing;
+  Future<void>? _reopenAfter;
 
   /// עולה בכל הוספה, עדכון או מחיקה של הערה, מכל מסלול שמירה.
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
-  /// Get or initialize the database
-  Future<Database> get database async {
+  /// מחזיר את חיבור ההערות, ופותח אותו בעת הצורך.
+  Future<Database> get database => _connection();
+
+  Future<Database> _connection() {
+    final reopenAfter = _reopenAfter;
+    if (reopenAfter != null) return reopenAfter.then((_) => _connection());
+    final closing = _closing;
+    if (closing != null) return closing.then((_) => _connection());
     final open = _database;
-    if (open != null) return open;
+    if (open != null) return Future.value(open);
+    // קריאות שנרשמו לפתיחה מקבלות את החיבור לפני הסגירה שממתינה לה.
     return _opening ??= _open();
   }
 
@@ -464,9 +475,34 @@ class PersonalNotesDatabase {
     );
   }
 
-  /// Close the database
-  Future<void> close() async {
-    await _opening?.then<void>((_) {}, onError: (_) {});
+  /// סוגר את המסד. בהעברת תיקייה ממתינים ל-[reopenAfter] לפני פתיחה מחדש.
+  Future<void> close({Future<void>? reopenAfter}) async {
+    if (reopenAfter != null) {
+      _reopenAfter = reopenAfter;
+      void clearGate() {
+        if (identical(_reopenAfter, reopenAfter)) _reopenAfter = null;
+      }
+
+      unawaited(
+        reopenAfter.then<void>(
+          (_) => clearGate(),
+          onError: (Object _) => clearGate(),
+        ),
+      );
+    }
+    final closing = _closing;
+    if (closing != null) return closing;
+    final opening = _opening;
+    if (opening == null) {
+      _closeDatabase();
+      return;
+    }
+    return _closing = opening
+        .then<void>((_) => _closeDatabase(), onError: (Object _) {})
+        .whenComplete(() => _closing = null);
+  }
+
+  void _closeDatabase() {
     final db = _database;
     if (db != null) {
       closeWithCheckpoint(db);

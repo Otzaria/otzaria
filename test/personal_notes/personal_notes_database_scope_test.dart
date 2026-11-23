@@ -92,6 +92,50 @@ void main() {
     expect(row['scope'], 'book');
   });
 
+  test('קריאה שמתחילה אחרי בקשת סגירה מקבלת חיבור חדש', () async {
+    final previous = await database.database;
+
+    final closing = database.close();
+    final reading = database.loadNotes('ספר');
+
+    await closing;
+    expect(await reading, isEmpty);
+    expect(database.openDatabase, isNot(same(previous)));
+  });
+
+  test('סגירה באמצע פתיחה ממתינה לקריאה ומאפשרת פתיחה מחדש', () async {
+    final firstReading = database.loadNotes('ספר');
+    final closing = database.close();
+    final secondReading = database.loadNotes('ספר');
+
+    expect(await firstReading, isEmpty);
+    await closing;
+    expect(await secondReading, isEmpty);
+    expect(database.openDatabase, isNotNull);
+  });
+
+  test('קריאה בזמן העברה ממתינה ופותחת את המסד במיקום החדש', () async {
+    await database.insertNote(_note('old'));
+    final moved = Completer<void>();
+    addTearDown(() {
+      if (!moved.isCompleted) moved.complete();
+    });
+    await database.close(reopenAfter: moved.future);
+    final pendingRead = database.loadNotes('ספר');
+    await Settings.setValue(
+      SettingsRepository.keyDatabasesPath,
+      '${root.path}/new-databases',
+    );
+
+    expect(database.openDatabase, isNull);
+    moved.complete();
+    expect(await pendingRead, isEmpty);
+    expect(
+      await File('${root.path}/new-databases/personal_notes.db').exists(),
+      isTrue,
+    );
+  });
+
   test('פתיחת המסד אינה חוסמת את ה-isolate הקורא (issue #5827)', () async {
     await database.loadNotes('ספר');
     final path = await AppPaths.resolveNotesDbPath('personal_notes.db');

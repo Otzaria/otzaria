@@ -354,7 +354,7 @@ Future<void> closeUserDatabasesForMove(Future<void> reopenAfter) async {
     UserBooksDatabaseHolder.instance.close(reopenAfter: reopenAfter),
     CacheDatabaseHolder.instance.close(reopenAfter: reopenAfter),
   ]);
-  await PersonalNotesDatabase.instance.close();
+  await PersonalNotesDatabase.instance.close(reopenAfter: reopenAfter);
   await PluginSystemDatabase.instance.close();
 }
 
