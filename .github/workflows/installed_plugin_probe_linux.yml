@@ -10,10 +10,15 @@ on:
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
       - 'test/tool/perf_probe/perf_fixture*_test.dart'
       - 'test/core/window_listener*_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_runtime_contract.dart'
+      - 'lib/pdf_book/**'
+      - 'lib/indexing/**'
+      - 'lib/printing/**'
       - 'lib/plugins/**'
       - 'lib/core/diagnostics/**'
       - 'lib/core/window_listener.dart'
@@ -156,6 +161,8 @@ jobs:
             2>&1 | tee "$INSTALLED_PROBE_ROOT/fixture-tests.log"
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_probe_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_startup_settings_test.dart \
             test/core/window_listener_native_visibility_test.dart \
@@ -205,7 +212,7 @@ jobs:
           stat -c '%n %s bytes' "$public" "$private" \
             | tee "$INSTALLED_PROBE_ROOT/pdfium-disk-bytes.txt"
 
-      - name: Run the actual installed plugin with X11, DBus and Openbox
+      - name: Run installed plugin and PDF runtime in the actual bundle
         timeout-minutes: 25
         run: |
           set -euo pipefail
