@@ -339,6 +339,58 @@ void main() {
     },
   );
 
+  for (final replaceDirectory in [false, true]) {
+    test(
+      'native staging refusal preserves replacement (directory=$replaceDirectory)',
+      () async {
+        final operation = fixture.start();
+        final request = await fixture.backend.firstExport.future;
+        final source = File(request.sourcePath);
+        if (replaceDirectory) {
+          await source.parent.delete(recursive: true);
+          await source.parent.create();
+        } else {
+          await source.delete();
+        }
+        await source.writeAsString('replacement must survive');
+        final reason = replaceDirectory
+            ? 'operation_directory_replaced'
+            : 'source_replaced';
+        final diagnostic = 'staging_cleanup_failed: $reason';
+        fixture.backend.complete(
+          request,
+          MobilePdfExportResult(
+            operationId: operation.id,
+            status: MobilePdfExportStatus.saved,
+            documentUri: 'content://provider/committed',
+            cleanupError: diagnostic,
+          ),
+        );
+        final result = await operation.result;
+        expect(result.status, MobilePdfExportStatus.saved);
+        expect(result.documentUri, 'content://provider/committed');
+        expect(result.cleanupStatus, MobilePdfExportCleanupStatus.notNeeded);
+        expect(result.cleanupError, diagnostic);
+        expect(await source.readAsString(), 'replacement must survive');
+      },
+    );
+  }
+
+  test('cleanup never removes an unexpected sibling in its child', () async {
+    final operation = fixture.start();
+    final request = await fixture.backend.firstExport.future;
+    final sibling = File(
+      p.join(File(request.sourcePath).parent.path, 'foreign.pdf'),
+    );
+    await sibling.writeAsString('foreign bytes');
+    fixture.backend.finish(request, MobilePdfExportStatus.saved);
+    final result = await operation.result;
+    expect(result.status, MobilePdfExportStatus.saved);
+    expect(result.cleanupError, contains('staging:'));
+    expect(await sibling.readAsString(), 'foreign bytes');
+    expect(await File(request.sourcePath).exists(), isFalse);
+  });
+
   test('secondary cleanup failure preserves a producer failure', () async {
     final operation = fixture.start(
       coordinator: fixture.coordinator(

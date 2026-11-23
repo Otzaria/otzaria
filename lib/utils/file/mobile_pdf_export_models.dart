@@ -12,6 +12,11 @@ enum MobilePdfExportCleanupStatus {
   unknown,
 }
 
+/// Native uses this diagnostic prefix when it cannot safely clean its staging
+/// file/directory (including identity replacement). Dart must not override that
+/// refusal with path-based deletion. It is independent of destination cleanup.
+const mobilePdfStagingCleanupFailurePrefix = 'staging_cleanup_failed:';
+
 /// One private, completed PDF handed to native code for copying/exporting.
 class MobilePdfExportRequest {
   const MobilePdfExportRequest({
@@ -60,10 +65,10 @@ class MobilePdfExportResult {
     String? optionalString(String key) {
       final field = value[key];
       if (field == null) return null;
-      if (field is! String || field.isEmpty) {
+      if (field is! String) {
         throw FormatException('Invalid mobile PDF export field: $key');
       }
-      return field;
+      return field.isEmpty ? null : field;
     }
 
     final id = optionalString('operationId');
@@ -103,6 +108,9 @@ class MobilePdfExportResult {
   /// Destination cleanup details, or a secondary `staging:` cleanup diagnostic.
   /// A staging failure never changes [status] or invents [residualDocument].
   final String? cleanupError;
+
+  bool get hasNativeStagingCleanupFailure =>
+      cleanupError?.contains(mobilePdfStagingCleanupFailurePrefix) ?? false;
 
   MobilePdfExportResult checkedFor(String expectedId) {
     if (operationId != expectedId ||
