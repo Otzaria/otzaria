@@ -997,24 +997,28 @@ void main() {
       expect(results.first['level'], equals(3));
     });
 
-    test('כש-ההיררכי מצליח ה-fallback לא נכנס — אין הזרקת "דף" מיותרת', () async {
-      final bookId = await buildBuriedDafBook('הזוהר המתורגם בראשית');
+    test(
+      'כש-ההיררכי מצליח ה-fallback לא נכנס — אין הזרקת "דף" מיותרת',
+      () async {
+        final bookId = await buildBuriedDafBook('הזוהר המתורגם בראשית');
 
-      // "בראשית" תואם היררכית את צומת הספר (L1) → ההיררכי מחזיר אותו וה-fallback
-      // נדלג. אסור שיופיעו ערכי ה"דף" העמוקים.
-      final results = await repository.getTocEntriesForReference(
-        bookId,
-        'הזוהר המתורגם בראשית',
-        queryTokens: ['בראשית'],
-      );
+        // "בראשית" חוזר על שם הספר ולכן מכוון לכותרת שתחתיו, וה-fallback נדלג.
+        // אסור שיופיעו ערכי ה"דף" העמוקים.
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'הזוהר המתורגם בראשית',
+          queryTokens: ['בראשית'],
+        );
 
-      expect(results, hasLength(1));
-      expect(results.first['level'], equals(1));
-      expect(
-        results.every((r) => !(r['reference'] as String).contains('דף')),
-        isTrue,
-      );
-    });
+        expect(results.map((r) => (r['reference'], r['level'])), [
+          ('הזוהר המתורגם בראשית פרשת בראשית', 2),
+        ]);
+        expect(
+          results.every((r) => !(r['reference'] as String).contains('דף')),
+          isTrue,
+        );
+      },
+    );
   });
 
   // ── ציטוט-דף: "ב" בודד לא תופס את צד ע"ב של כל דף במסכת ──────────────────

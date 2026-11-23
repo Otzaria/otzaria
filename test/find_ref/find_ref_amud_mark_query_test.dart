@@ -15,11 +15,15 @@ void main() {
   const yerushalmi = 2;
   const tehillim = 3;
   const shulchan = 4;
+  const mishnah = 5;
+  const priMegadim = 6;
   const titles = {
     bavli: 'ברכות',
     yerushalmi: 'ברכות ירושלמי',
     tehillim: 'תהלים',
     shulchan: 'שולחן ערוך אורח חיים',
+    mishnah: 'משנה ברכות',
+    priMegadim: 'פרי מגדים על אורח חיים',
   };
 
   /// כותרות ה-TOC בפורמט של ה-DB ("דף ב." = עמוד א).
@@ -28,6 +32,7 @@ void main() {
     yerushalmi: ['פרק ב הלכה א'],
     tehillim: ['פרק א', 'פרק עא', 'פרק עב'],
     shulchan: ['סימן עא', 'סימן עב'],
+    priMegadim: ['סימן מג'],
   };
 
   ReferenceBookHit hit(int bookId, int matchRank, String term) =>
@@ -45,6 +50,8 @@ void main() {
   List<ReferenceBookHit> searchBooks(String query, {int limit = 50}) => [
     if (query == 'ברכות') ...[hit(bavli, 0, query), hit(yerushalmi, 1, query)],
     if (query == 'תהלים') hit(tehillim, 0, query),
+    if (query == 'משנה ברכות') hit(mishnah, 0, query),
+    if (query == 'פמג') hit(priMegadim, 3, query),
     if (query == 'שוע אוח') hit(shulchan, 3, query),
   ];
 
@@ -74,6 +81,15 @@ void main() {
   }
 
   FindRefRepository buildRepo() => FindRefRepository(
+    resolveLineRefs: (bookIds, key) async => {
+      if (bookIds.contains(tehillim))
+        if (key == 'פט מג')
+          tehillim: (lineIndex: 1579, lineId: 1579, heRef: 'תהלים, פט, מג')
+        else if (key == 'ט ג')
+          tehillim: (lineIndex: 100, lineId: 100, heRef: 'תהלים, ט, ג'),
+      if (bookIds.contains(mishnah) && key == 'ב ג')
+        mishnah: (lineIndex: 10, lineId: 10, heRef: 'משנה ברכות, ב, ג'),
+    },
     dataRepository: MockDataRepository(),
     isReferenceBooksCacheLoaded: () => true,
     warmUpReferenceBooksCache: () async {},
@@ -147,6 +163,53 @@ void main() {
     expect(expandQueryAmudMarks('ברכות דף ע"א'), 'ברכות דף ע"א');
     expect(expandQueryAmudMarks('תהלים פרק ע"א'), 'תהלים פרק ע"א');
     expect(expandQueryAmudMarks('סימן ע"ב'), 'סימן ע"ב');
+  });
+
+  test('גרשיים בשני מספרים שומרים על תהלים פט:מג', () async {
+    expect(
+      await refsOf(tehillim, 'תהלים פ״ט מ״ג'),
+      ['תהלים, פט, מג'],
+    );
+  });
+
+  test('ראשי התיבות של פרי מגדים נשארים שם ספר לפני סימן מג', () async {
+    expect(
+      await refsOf(priMegadim, 'פמ״ג מ״ג'),
+      ['פרי מגדים על אורח חיים סימן מג'],
+    );
+  });
+
+  test('ר״ת משנה מורחבים כשאין הפניה מספרית', () async {
+    expect(
+      await refsOf(mishnah, 'משנה ברכות פ״ב מ״ג'),
+      ['משנה ברכות, ב, ג'],
+    );
+  });
+
+  // issue #5795
+  test('expandQueryLocatorAbbreviations מרחיב ר"ת של פרק והלכה/משנה', () {
+    expect(
+      expandQueryLocatorAbbreviations('רמבם שבת פ"ב ה"ג'),
+      'רמבם שבת פרק ב הלכה ג',
+    );
+    expect(
+      expandQueryLocatorAbbreviations('משנה כלים פט״ז מ״ג'),
+      'משנה כלים פרק טז משנה ג',
+    );
+    expect(
+      expandQueryLocatorAbbreviations('ירושלמי ברכות ב ה"ג'),
+      'ירושלמי ברכות ב הלכה ג',
+    );
+    // לבדם הם מספרים: מזמור 82, פסוק 43, סימן 63, מגן אברהם.
+    for (final query in [
+      'תהלים פ"ב',
+      'תהלים קיט מ"ג',
+      'שו"ע או"ח ס"ג',
+      'שו"ע או"ח שח מ"א',
+      'ברכות ב מ"ג',
+    ]) {
+      expect(expandQueryLocatorAbbreviations(query), query, reason: query);
+    }
   });
 
   test('isHebrewNumeral', () {

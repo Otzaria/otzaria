@@ -1329,7 +1329,32 @@ class FindRefRepository {
     bool includePersonalBooks = false,
     FindRefPreferences? preferences,
   }) async {
-    final query = _parseQuery(rawRef);
+    final ref = expandQueryAmudMarks(rawRef);
+    final expanded = expandQueryLocatorAbbreviations(ref);
+    Future<List<DbReferenceResult>> search(String query) => _findRefsForQuery(
+      query,
+      includePersonalBooks: includePersonalBooks,
+      preferences: preferences,
+    );
+    if (expanded == ref) return search(ref);
+
+    // ציטוט קיים (תהילים פ״ט מ״ג, פמ״ג מ״ג) קודם להרחבת המיקום.
+    final literalResults = await search(ref);
+    if (literalResults.any(
+      (r) => r.isSourceLine || (r.tocLevel > 0 && !r.isPartialTocMatch),
+    )) {
+      return literalResults;
+    }
+    final expandedResults = await search(expanded);
+    return expandedResults.isEmpty ? literalResults : expandedResults;
+  }
+
+  Future<List<DbReferenceResult>> _findRefsForQuery(
+    String ref, {
+    required bool includePersonalBooks,
+    FindRefPreferences? preferences,
+  }) async {
+    final query = _parseQuery(ref);
     if (query == null) return const [];
     var queryTokens = query.tokens;
 
@@ -1543,9 +1568,7 @@ class FindRefRepository {
     List<String> tokens,
     ({List<String> headTokens, String prefix})? dibbur,
   })?
-  _parseQuery(String rawRef) {
-    // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
-    final ref = expandQueryAmudMarks(rawRef);
+  _parseQuery(String ref) {
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) return null;
     final tokens = _tokenize(cleanedQuery);
@@ -1702,6 +1725,15 @@ class FindRefRepository {
         secondaryPhraseTokenCount[hit] = 1;
       }
     }
+
+    // התאמה מקורבת לספר שזוהה גם במילים בולעת את הזנב ("חזוא טהרות טהרות").
+    final exactBooks = {for (final hit in bookHits) (hit.bookId, hit.filePath)};
+    secondaryHits.removeWhere(
+      (hit) =>
+          bookQueryTokenCount > 1 &&
+          hit.matchRank == ReferenceBooksCache.fuzzyMatchRank &&
+          exactBooks.contains((hit.bookId, hit.filePath)),
+    );
 
     // ה-secondary בסוף, כך שיופיעו אחרי ה-primary בדירוג — גם כשאין primary.
     if (secondaryHits.isNotEmpty) {
@@ -3663,9 +3695,11 @@ class FindRefRepository {
     int prefixMatchTokensCount = 0,
   }) {
     final remaining = List<String>.from(queryTokens);
+    final stripped = <String>[];
 
     if (stripLeadingTokensCount > 0) {
       final toRemove = stripLeadingTokensCount.clamp(0, remaining.length);
+      stripped.addAll(remaining.take(toRemove));
       remaining.removeRange(0, toRemove);
     }
 
@@ -3675,6 +3709,8 @@ class FindRefRepository {
 
     for (var ti = 0; ti < titleTokens.length; ti++) {
       final token = titleTokens[ti];
+      // מילת כותרת שהכינוי כבר בלע ("חזוא טהרות") אינה בולעת שוב את הזנב.
+      if (stripped.remove(token)) continue;
       var idx = remaining.indexOf(token);
       // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו
       // [titleTokenWithoutConjunction].
