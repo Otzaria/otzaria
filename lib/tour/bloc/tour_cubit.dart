@@ -76,7 +76,6 @@ class TourCubit extends Cubit<TourState> {
   final Set<String> _openedTextBooks = <String>{};
   bool _hasOpenedTextBookThisSession = false;
   int _textSelectionCount = 0;
-  bool _linkHighlightSeen = false;
   bool _hasRegisteredCommentaryOpportunity = false;
   bool _commentaryOpportunityOpen = false;
   int _commentaryOpportunityScore = 0;
@@ -166,7 +165,7 @@ class TourCubit extends Cubit<TourState> {
   Future<void> recordInteraction(TourInteraction interaction) async {
     _rememberInteraction(interaction);
     _updateDerivedSignals(interaction);
-    _maybeShowLiveTip();
+    _maybeShowLiveTip(interaction);
   }
 
   void dismissLiveTip() {
@@ -333,10 +332,8 @@ class TourCubit extends Cubit<TourState> {
         _markTipResolved(LiveTipId.backupHint);
         break;
       case TourInteractionType.linkHighlightShown:
-        _linkHighlightSeen = true;
         break;
       case TourInteractionType.linkHighlightCleared:
-        _linkHighlightSeen = false;
         _markTipResolved(LiveTipId.linkHighlightHint);
         break;
       case TourInteractionType.currentTabChanged:
@@ -372,12 +369,12 @@ class TourCubit extends Cubit<TourState> {
     _persistResolvedTips(updatedResolved);
   }
 
-  void _maybeShowLiveTip() {
+  void _maybeShowLiveTip(TourInteraction interaction) {
     if (state.isActive || state.hasActiveLiveTip || _sessionTipShown) {
       return;
     }
 
-    final nextTipId = _resolveNextLiveTip();
+    final nextTipId = _resolveNextLiveTip(interaction);
     if (nextTipId == null) {
       return;
     }
@@ -394,7 +391,7 @@ class TourCubit extends Cubit<TourState> {
     );
   }
 
-  LiveTipId? _resolveNextLiveTip() {
+  LiveTipId? _resolveNextLiveTip(TourInteraction interaction) {
     if (_canShowTip(LiveTipId.sideBySideSuggestion) &&
         _shouldShowSideBySideSuggestion()) {
       return LiveTipId.sideBySideSuggestion;
@@ -411,8 +408,9 @@ class TourCubit extends Cubit<TourState> {
       return LiveTipId.commentaryHint;
     }
 
-    // טיפ הקשרי: נדרש ברגע שההדגשה מופיעה, ולכן אינו ממתין לסף הפעלות.
-    if (_canShowTip(LiveTipId.linkHighlightHint) && _linkHighlightSeen) {
+    // רק ברגע שההדגשה מופיעה: אחר כך היא עלולה להיעלם בלי Esc (חיפוש, מעבר טאב).
+    if (_canShowTip(LiveTipId.linkHighlightHint) &&
+        interaction.type == TourInteractionType.linkHighlightShown) {
       return LiveTipId.linkHighlightHint;
     }
 
