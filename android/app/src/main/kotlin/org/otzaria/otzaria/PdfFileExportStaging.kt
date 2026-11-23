@@ -61,8 +61,17 @@ internal class PdfFileExportStaging private constructor(
                 }
                 requireIdentity(root, rootIdentity, directory = true)
                 requireIdentity(directory, directoryIdentity, directory = true)
-                return PdfFileExportStaging(root, directory, file, rootIdentity, directoryIdentity, opened,
-                    FileInputStream(descriptor))
+                val input = object : FileInputStream(descriptor) {
+                    override fun close() {
+                        try {
+                            super.close()
+                        } finally {
+                            // באנדרואיד FileInputStream אינו הבעלים של מתאר שהועבר לבנאי.
+                            if (descriptor.valid()) Os.close(descriptor)
+                        }
+                    }
+                }
+                return PdfFileExportStaging(root, directory, file, rootIdentity, directoryIdentity, opened, input)
             } catch (error: Exception) {
                 try { Os.close(descriptor) } catch (closeError: Exception) { error.addSuppressed(closeError) }
                 throw error

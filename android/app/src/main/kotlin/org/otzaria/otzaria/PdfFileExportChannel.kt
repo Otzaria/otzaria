@@ -198,9 +198,16 @@ internal class PdfFileExportChannel(
             if (tree.scheme != "content" || !DocumentsContract.isTreeUri(tree)) {
                 throw PdfFileExportFailure("invalid_tree", "The picker did not return a document tree")
             }
-            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-            return DocumentsContract.createDocument(resolver, parent, "application/pdf", fileName)?.toString()
+            val treeId = DocumentsContract.getTreeDocumentId(tree)
+            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, treeId)
+            val created = DocumentsContract.createDocument(resolver, parent, "application/pdf", fileName)
                 ?: throw PdfFileExportFailure("create_failed", "The document provider did not create a PDF")
+            val documentId = created.pathSegments.lastOrNull()
+            if (documentId == null || documentId == treeId ||
+                created != DocumentsContract.buildDocumentUriUsingTree(tree, documentId)) {
+                throw PdfFileExportFailure("invalid_document", "The provider did not return a new document in the selected tree")
+            }
+            return created.toString()
         }
 
         override fun displayName(document: String): String? = resolver.query(

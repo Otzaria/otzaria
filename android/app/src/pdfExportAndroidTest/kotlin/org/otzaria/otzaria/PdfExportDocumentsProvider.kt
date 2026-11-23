@@ -165,6 +165,7 @@ class PdfExportDocumentsProvider : DocumentsProvider() {
         PdfExportFixture.events.add("create-enter")
         if (options.getBoolean("blockCreate")) PdfExportFixture.awaitRelease()
         if (options.getBoolean("createFailure")) throw FileNotFoundException("Fixture create failure")
+        if (options.getBoolean("createReturnsParent")) return parentDocumentId
         val id = "copy-${PdfExportFixture.sequence.incrementAndGet()}"
         val used = PdfExportFixture.documents.values.map { it.name }.toSet()
         var actualName = displayName
@@ -178,6 +179,7 @@ class PdfExportDocumentsProvider : DocumentsProvider() {
     }
 
     override fun openDocument(documentId: String, mode: String, signal: CancellationSignal?): ParcelFileDescriptor {
+        PdfExportFixture.events.add("open-request:$documentId")
         val document = PdfExportFixture.documents[documentId] ?: throw FileNotFoundException(documentId)
         if (mode == "r") return ParcelFileDescriptor.open(document.file, ParcelFileDescriptor.MODE_READ_ONLY)
         check(documentId != "existing") { "Existing user document must not be opened for writing" }
@@ -231,6 +233,7 @@ class PdfExportDocumentsProvider : DocumentsProvider() {
     }
 
     override fun deleteDocument(documentId: String) {
+        PdfExportFixture.events.add("delete-request:$documentId")
         check(documentId != "existing") { "Existing user document must not be deleted" }
         val document = PdfExportFixture.documents[documentId] ?: throw FileNotFoundException(documentId)
         PdfExportFixture.events.add("delete:$documentId")

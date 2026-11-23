@@ -51,6 +51,7 @@ class PdfExportInstrumentation : Instrumentation() {
             runCase("documents_ui_new_copy") { successfulExport(realPicker = true, pipe = false) }
             runCase("pipe_bytes_and_pdf_parity") { successfulExport(realPicker = false, pipe = true) }
             runCase("create_failure") { providerFailure("createFailure", "create_failed", "notNeeded") }
+            runCase("invalid_created_document") { invalidCreatedDocument() }
             runCase("output_open_failure") { providerFailure("openFailure", "write_failed", "deleted") }
             runCase("pipe_write_failure") { brokenPipe() }
             runCase("cancel_blocked_create") { cancelledCreate() }
@@ -192,6 +193,18 @@ class PdfExportInstrumentation : Instrumentation() {
         assertClean(id)
         if (option == "createFailure") check(documents().size == 1)
         else check(copyDocument().getBoolean("deleted"))
+        return JSONObject().put("result", JSONObject(result)).put("provider", snapshot())
+    }
+
+    private fun invalidCreatedDocument(): JSONObject {
+        reset(Bundle().apply { putBoolean("createReturnsParent", true) })
+        val id = startExport(padding = 4096)
+        val result = request("result", id)
+        check(result["status"] == "failed" && result["errorCode"] == "invalid_document") { result.toString() }
+        check(result["cleanupStatus"] == "notNeeded" && result["residualDocument"] == null)
+        check(documents().single().getString("id") == "existing")
+        check(hasEvent("create-enter") && !hasEvent("open-request:") && !hasEvent("delete-request:"))
+        assertClean(id)
         return JSONObject().put("result", JSONObject(result)).put("provider", snapshot())
     }
 

@@ -28,6 +28,10 @@ def complete_report():
             "ack": {"accepted": True}, "sourceHeldAfterAck": True, "terminalAtAck": False,
         }
     cases["saved_before_late_cancel_delivery"] = {"ack": {"accepted": False}, "result": {"status": "saved"}}
+    cases["invalid_created_document"] = {
+        "result": {"status": "failed", "errorCode": "invalid_document", "cleanupStatus": "notNeeded", "residualDocument": None},
+        "provider": {"events": ["create-enter"]},
+    }
     for name in ("detach_before_native_acquire", "detach_while_picker_open"):
         cases[name] = {"dartFinallyUsed": False, "result": {"status": "cancelled"}}
     cases["activity_detach_during_write"] = {"dartEngineDestroyed": True, "stagingRemoved": True,
@@ -46,7 +50,14 @@ class EvidenceContracts(unittest.TestCase):
         return next(row["evidence"] for row in self.report["cases"] if row["name"] == name)
 
     def test_complete_contract(self):
-        self.assertEqual(validate_report(self.report), 20)
+        self.assertEqual(validate_report(self.report), 21)
+
+    def test_unowned_document_must_not_be_opened_or_deleted(self):
+        for event in ("open-request:fixture-root", "delete-request:fixture-root"):
+            self.report = complete_report()
+            self.evidence("invalid_created_document")["provider"]["events"].append(event)
+            with self.assertRaisesRegex(ValueError, "Unowned document was opened or deleted"):
+                validate_report(self.report)
 
     def test_missing_or_duplicate_case_is_not_skipped(self):
         self.report["cases"].pop()

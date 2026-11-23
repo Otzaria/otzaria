@@ -26,6 +26,7 @@ EXPECTED_CASES = {
     "documents_ui_new_copy",
     "pipe_bytes_and_pdf_parity",
     "create_failure",
+    "invalid_created_document",
     "output_open_failure",
     "pipe_write_failure",
     "cancel_blocked_create",
@@ -75,6 +76,13 @@ def validate_report(report):
     picker = cases["documents_ui_new_copy"]
     require(picker["realDocumentsUi"] is True and picker["pickerPackage"].endswith(".documentsui"), "Actual DocumentsUI was not observed")
     require("test-grant" not in picker["provider"]["events"], "Real picker case used a fixture URI grant")
+    invalid = cases["invalid_created_document"]
+    result = invalid["result"]
+    require(result["status"] == "failed" and result["errorCode"] == "invalid_document" and
+            result["cleanupStatus"] == "notNeeded" and result["residualDocument"] is None, "Unowned document was accepted")
+    events = invalid["provider"]["events"]
+    require("create-enter" in events and not any(event.startswith(("open-request:", "delete-request:")) for event in events),
+            "Unowned document was opened or deleted")
     for name, cleanup in (
         ("cancel_blocked_write_deleted", "deleted"),
         ("cancel_blocked_write_unsupported_cleanup", "unsupported"),
