@@ -222,6 +222,245 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
+  Future<
+    ({
+      _CapturingPrintingPlatform platform,
+      void Function(Future<Uint8List> Function(PdfPageFormat)) replaceSource,
+    })
+  >
+  startPendingPrint(
+    WidgetTester tester,
+    Future<Uint8List> Function(PdfPageFormat) create,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.runAsync(pdfrxFlutterInitialize);
+    final platform = _CapturingPrintingPlatform();
+    PrintingPlatform.instance = platform;
+    final settingsBloc = _MockSettingsBloc();
+    whenListen(
+      settingsBloc,
+      const Stream<SettingsState>.empty(),
+      initialState: SettingsState.initial(),
+    );
+    late StateSetter rebuild;
+    var source = create;
+    await tester.pumpWidget(
+      RepositoryProvider<SettingsRepository>.value(
+        value: _FakeSettingsRepository(),
+        child: BlocProvider<SettingsBloc>.value(
+          value: settingsBloc,
+          child: MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(0.5)),
+              child: child!,
+            ),
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return PrintingScreen(
+                  data: Future.value(''),
+                  bookId: 'pending-print',
+                  createPdfOverride: source,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('הדפסה'));
+    await tester.pump();
+    expect(platform.onLayout, isNotNull);
+    return (
+      platform: platform,
+      replaceSource: (replacement) => rebuild(() => source = replacement),
+    );
+  }
+
+  Future<void> finishPendingPrint(
+    WidgetTester tester,
+    _CapturingPrintingPlatform platform,
+  ) async {
+    if (!platform.job.isCompleted) platform.job.complete(false);
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
+  }
+
+  testWidgets('תצוגה מקדימה והדפסה חולקות הפקת PDF שעדיין רצה', (tester) async {
+    final pending = Completer<Uint8List>();
+    var calls = 0;
+    final screen = await startPendingPrint(tester, (_) {
+      calls++;
+      return pending.future;
+    });
+    try {
+      expect(calls, 1);
+      final output = Future.value(screen.platform.onLayout!(PdfPageFormat.a4));
+      await tester.pump();
+      expect(calls, 1, reason: 'אותו מסמך לא מופק שוב בשביל המדפסת.');
+      final bytes = await tester.runAsync(_fivePagePdf);
+      pending.complete(bytes!);
+      expect(await _settle(tester, output), same(bytes));
+      expect(
+        await _settle(
+          tester,
+          Future.value(screen.platform.onLayout!(PdfPageFormat.a4)),
+        ),
+        same(bytes),
+      );
+      expect(calls, 1);
+    } finally {
+      await finishPendingPrint(tester, screen.platform);
+    }
+  });
+
+  testWidgets('פורמטים שונים מופקים בנפרד גם כשהם מסתיימים בסדר הפוך', (
+    tester,
+  ) async {
+    final a4 = Completer<Uint8List>();
+    final a5 = Completer<Uint8List>();
+    final calls = <PdfPageFormat>[];
+    final screen = await startPendingPrint(tester, (format) {
+      calls.add(format);
+      return format == PdfPageFormat.a4 ? a4.future : a5.future;
+    });
+    try {
+      final firstA5 = Future.value(screen.platform.onLayout!(PdfPageFormat.a5));
+      final secondA5 = Future.value(
+        screen.platform.onLayout!(PdfPageFormat.a5),
+      );
+      await tester.pump();
+      expect(calls, [PdfPageFormat.a4, PdfPageFormat.a5]);
+      final bytes = await tester.runAsync(_fivePagePdf);
+      final otherBytes = Uint8List.fromList(bytes!);
+      a5.complete(otherBytes);
+      expect(await _settle(tester, firstA5), same(otherBytes));
+      expect(await _settle(tester, secondA5), same(otherBytes));
+      final stillA4 = Future.value(screen.platform.onLayout!(PdfPageFormat.a4));
+      await tester.pump();
+      expect(calls, [PdfPageFormat.a4, PdfPageFormat.a5]);
+      a4.complete(bytes);
+      expect(await _settle(tester, stillA4), same(bytes));
+    } finally {
+      await finishPendingPrint(tester, screen.platform);
+    }
+  });
+
+  testWidgets('כשל הפקה משותף מגיע לכל הממתינים ואפשר לנסות שוב', (
+    tester,
+  ) async {
+    final preview = Completer<Uint8List>();
+    final failed = Completer<Uint8List>();
+    final retry = Completer<Uint8List>();
+    var printerCalls = 0;
+    final screen = await startPendingPrint(tester, (format) {
+      if (format == PdfPageFormat.a4) return preview.future;
+      return ++printerCalls == 1 ? failed.future : retry.future;
+    });
+    try {
+      Future<Object> printerResult() => Future.value(
+        screen.platform.onLayout!(PdfPageFormat.a5),
+      ).then<Object>((bytes) => bytes, onError: (Object error) => error);
+      final first = printerResult();
+      final second = printerResult();
+      await tester.pump();
+      expect(printerCalls, 1);
+      final error = StateError('generation failed');
+      failed.completeError(error);
+      expect(await _settle(tester, first), same(error));
+      expect(await _settle(tester, second), same(error));
+      final retried = printerResult();
+      await tester.pump();
+      expect(printerCalls, 2);
+      final bytes = await tester.runAsync(_fivePagePdf);
+      retry.complete(bytes!);
+      expect(await _settle(tester, retried), same(bytes));
+      preview.complete(bytes);
+    } finally {
+      await finishPendingPrint(tester, screen.platform);
+    }
+  });
+
+  testWidgets('הפקה ישנה אחרי החלפת מקור אינה מסירה או שומרת הפקה חדשה', (
+    tester,
+  ) async {
+    final oldA = Completer<Uint8List>();
+    final newA = Completer<Uint8List>();
+    final pendingB = Completer<Uint8List>();
+    var aCalls = 0;
+    Future<Uint8List> sourceA(PdfPageFormat _) =>
+        ++aCalls == 1 ? oldA.future : newA.future;
+    final screen = await startPendingPrint(tester, sourceA);
+    try {
+      final oldOutput = Future.value(
+        screen.platform.onLayout!(PdfPageFormat.a4),
+      );
+      await tester.pump();
+      screen.replaceSource((_) => pendingB.future);
+      await tester.pump();
+      final outputB = Future.value(screen.platform.onLayout!(PdfPageFormat.a4));
+      await tester.pump();
+      screen.replaceSource(sourceA);
+      await tester.pump();
+      final newOutput = Future.value(
+        screen.platform.onLayout!(PdfPageFormat.a4),
+      );
+      await tester.pump();
+      expect(aCalls, 2);
+      final bytes = await tester.runAsync(_fivePagePdf);
+      oldA.complete(bytes!);
+      expect(await _settle(tester, oldOutput), same(bytes));
+      final joined = Future.value(screen.platform.onLayout!(PdfPageFormat.a4));
+      await tester.pump();
+      expect(aCalls, 2, reason: 'השלמה ישנה אינה מסירה את הבקשה החדשה.');
+      final replacement = Uint8List.fromList(bytes);
+      newA.complete(replacement);
+      expect(await _settle(tester, newOutput), same(replacement));
+      expect(await _settle(tester, joined), same(replacement));
+      pendingB.complete(bytes);
+      expect(await _settle(tester, outputB), same(bytes));
+      expect(
+        await _settle(
+          tester,
+          Future.value(screen.platform.onLayout!(PdfPageFormat.a4)),
+        ),
+        same(replacement),
+      );
+      expect(aCalls, 2);
+    } finally {
+      await finishPendingPrint(tester, screen.platform);
+    }
+  });
+
+  testWidgets('סגירת המסך בזמן הפקה אינה משאירה עבודת תצוגה או שגיאה מאוחרת', (
+    tester,
+  ) async {
+    final pending = Completer<Uint8List>();
+    var calls = 0;
+    final screen = await startPendingPrint(tester, (_) {
+      calls++;
+      return pending.future;
+    });
+    try {
+      final output = Future.value(screen.platform.onLayout!(PdfPageFormat.a4));
+      await tester.pump();
+      expect(calls, 1);
+      await tester.pumpWidget(const SizedBox());
+      final bytes = await tester.runAsync(_fivePagePdf);
+      pending.complete(bytes!);
+      expect(await _settle(tester, output), same(bytes));
+      expect(tester.takeException(), isNull);
+    } finally {
+      await finishPendingPrint(tester, screen.platform);
+    }
+  });
+
   for (final fromFile in [false, true]) {
     testWidgets(
       'שינוי הגדרה בזמן הפקת הפלט אינו מחליף את טווח העמודים (${fromFile ? 'path' : 'bytes'})',
