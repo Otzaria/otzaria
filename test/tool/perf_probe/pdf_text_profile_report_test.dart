@@ -117,6 +117,7 @@ void main() {
         r['configuration']['cache']['maximumPages'] = 32,
     'missing normalization flags': (r) =>
         r['configuration'].remove('normalizeHebrewText'),
+    'missing summary': (r) => r.remove('summary'),
     'forged summary': (r) => r['summary']['pipeline']['rawLoadUs']['p50'] = 0,
   };
   for (final entry in mutations.entries) {

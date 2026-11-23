@@ -114,9 +114,11 @@ Future<Map<String, Object?>> runPdfTextProfile({
     check();
   }
   final selectedPages = numbers.toSet();
+  var measuring = false;
   final documentEvents = document.events.listen(
     (event) {
-      if (event is PdfDocumentPageStatusChangedEvent &&
+      if (measuring &&
+          event is PdfDocumentPageStatusChangedEvent &&
           (event.changes.keys.any(selectedPages.contains) ||
               event.changes.values.whereType<PdfPageStatusMoved>().any(
                 (change) => selectedPages.contains(change.oldPageNumber),
@@ -149,6 +151,10 @@ Future<Map<String, Object?>> runPdfTextProfile({
   }
 
   try {
+    // PDFium may replay page notifications from before this measurement.
+    await Future<void>.delayed(Duration.zero);
+    measuring = true;
+    check();
     for (var iteration = 0; iteration < warmup + repetitions; iteration++) {
       cache.clear();
       for (final page in pages) {
@@ -225,6 +231,8 @@ Future<Map<String, Object?>> runPdfTextProfile({
         }
       }
     }
+    // Deliver changes queued by the final observation before returning success.
+    await Future<void>.delayed(Duration.zero);
     check();
     return buildPdfTextProfileReport(
       configuration: {

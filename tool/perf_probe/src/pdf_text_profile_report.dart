@@ -14,6 +14,14 @@ const pdfTextProfileTimings = [
 
 /// מאמת דוח מלא; שלב חסר או parity שנכשל אינם מדידת הצלחה.
 void validatePdfTextProfileReport(Map<String, Object?> report) {
+  final expectedSummary = _validateAndSummarize(report);
+  if (jsonEncode(_map(report['summary'], 'summary')) !=
+      jsonEncode(expectedSummary)) {
+    throw const FormatException('סיכום הטקסט אינו נגזר מהמדידות');
+  }
+}
+
+Map<String, Object?> _validateAndSummarize(Map<String, Object?> report) {
   if (report['protocolVersion'] is! int ||
       report['protocolVersion'] != pdfTextProfileProtocolVersion ||
       report['status'] != 'passed' ||
@@ -152,16 +160,10 @@ void validatePdfTextProfileReport(Map<String, Object?> report) {
     }
     signatures[page] = signature;
   }
-  if (report.containsKey('summary') &&
-      jsonEncode(report['summary']) !=
-          jsonEncode(
-            _summarize(
-              configuration,
-              observations.map((row) => _map(row, 'observation')).toList(),
-            ),
-          )) {
-    throw const FormatException('סיכום הטקסט אינו נגזר מהמדידות');
-  }
+  return _summarize(
+    configuration,
+    observations.map((row) => _map(row, 'observation')).toList(),
+  );
 }
 
 /// מסכם חזרות שלמות; זמני עמודים שונים אינם חזרות של אותו workload.
@@ -178,8 +180,7 @@ Map<String, Object?> buildPdfTextProfileReport({
     'configuration': configuration,
     'observations': observations,
   };
-  validatePdfTextProfileReport(report);
-  report['summary'] = _summarize(configuration, observations);
+  report['summary'] = _validateAndSummarize(report);
   return report;
 }
 

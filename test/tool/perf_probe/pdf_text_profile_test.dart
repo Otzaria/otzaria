@@ -4,6 +4,9 @@ import 'dart:convert';
 // The probe deliberately uses the engine already pinned by pdfrx.
 // ignore: depend_on_referenced_packages
 import 'package:pdfrx_engine/pdfrx_engine.dart';
+// Use the same event replay as the pinned native PDFium implementation.
+// ignore: depend_on_referenced_packages
+import 'package:rxdart/rxdart.dart';
 import 'package:test/test.dart';
 
 import '../../../tool/perf_probe/src/pdf_text_profile.dart';
@@ -280,6 +283,51 @@ void main() {
     expect(document.eventsController.hasListener, isFalse);
   });
 
+  test(
+    'a page event replayed before measurement is not a new change',
+    () async {
+      final first = document.pages.first;
+      document.eventsController.add(
+        PdfDocumentPageStatusChangedEvent(
+          document,
+          changes: {1: PdfPageStatusChange.modified(page: first)},
+        ),
+      );
+      document.eventsController.add(PdfDocumentLoadCompleteEvent(document));
+      final report = await runPdfTextProfile(
+        document: document,
+        queries: _queries,
+        warmup: 0,
+        repetitions: 1,
+      );
+      validatePdfTextProfileReport(report);
+    },
+  );
+
+  test('the final observation cannot hide a queued page change', () async {
+    final first = document.pages.first;
+    await expectLater(
+      runPdfTextProfile(
+        document: document,
+        queries: _queries,
+        warmup: 0,
+        repetitions: 1,
+        onObservation: (row) {
+          if (row['phase'] == 'cacheRepeat' && row['pageNumber'] == 17) {
+            document.eventsController.add(
+              PdfDocumentPageStatusChangedEvent(
+                document,
+                changes: {1: PdfPageStatusChange.modified(page: first)},
+              ),
+            );
+          }
+        },
+      ),
+      throwsStateError,
+    );
+    expect(document.eventsController.hasListener, isFalse);
+  });
+
   test('query input is captured before asynchronous extraction', () async {
     final queries = <PdfTextProfileQuery>[..._queries];
     document.pages.first.loader = () async {
@@ -342,7 +390,7 @@ class _Document implements PdfDocument {
   @override
   set pages(List<PdfPage> value) =>
       throw UnsupportedError('Unexpected page setter');
-  final eventsController = StreamController<PdfDocumentEvent>.broadcast();
+  final eventsController = ReplaySubject<PdfDocumentEvent>(maxSize: 2);
   var disposals = 0;
   @override
   Stream<PdfDocumentEvent> get events => eventsController.stream;
