@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +50,7 @@ Future<Object?> _command(MethodCall call) async {
         (_) {
           record.terminal = true;
         },
-        onError: (Object _, StackTrace __) {
+        onError: (Object _, StackTrace _) {
           record.terminal = true;
         },
       ),
