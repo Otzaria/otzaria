@@ -421,6 +421,45 @@ void main() {
       );
     });
 
+    test('null runner workload retains the journal workload', () {
+      final value = report(
+        [],
+        changes: {'scenarioSet': null},
+        records: [
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'pdf-reader'},
+          opening(),
+          {'type': 'done'},
+        ],
+      );
+      expect(value['metadata']['scenarioSet'], 'pdf-reader');
+      expect(value['comparisonEligibility'], isEmpty);
+      final comparison = compareProbeReports(
+        report([opening()], changes: {'scenarioSet': 'all'}),
+        value,
+      );
+      expect(comparison['comparable'], isFalse);
+      expect(comparison['reasons'], contains('metadata:scenarioSet'));
+    });
+
+    test('null runner workload still detects conflicting journals', () {
+      final value = report(
+        [],
+        changes: {'scenarioSet': null},
+        records: [
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'pdf-reader'},
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'all'},
+          opening(),
+          {'type': 'done'},
+        ],
+      );
+      expect(
+        value['comparisonEligibility'],
+        contains('conflicting_metadata:scenarioSet'),
+      );
+      expect(value['metadata']['scenarioSet'], 'pdf-reader');
+      expect(compareProbeReports(value, value)['comparable'], isFalse);
+    });
+
     test(
       'top-level workloads block comparison even without nested settings',
       () {
