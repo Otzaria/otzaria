@@ -895,7 +895,7 @@ final List<ZmanDefinition> kZmanimRegistry = [
         c.cal.getSunset()?.add(const Duration(minutes: 13, seconds: 30)),
   ),
   ZmanDefinition(
-    id: 'tzeitItimLeVina',
+    id: 'tzeit18Minutes',
     title: 'צאת הכוכבים',
     subtitle: '18 דקות',
     category: 'צאת הכוכבים',
@@ -1160,7 +1160,7 @@ final List<ZmanDefinition> kZmanimRegistry = [
         c.cal.getSunset()?.add(const Duration(minutes: 13, seconds: 30)),
   ),
   ZmanDefinition(
-    id: 'fastEndItimLenient',
+    id: 'fastEnd18Minutes',
     title: 'יציאת הצום',
     subtitle: 'לקולא — 18 דקות',
     category: 'תעניות',
@@ -1180,7 +1180,7 @@ final List<ZmanDefinition> kZmanimRegistry = [
     compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 18)),
   ),
   ZmanDefinition(
-    id: 'fastEndItimStringent',
+    id: 'fastEnd22Minutes',
     title: 'יציאת הצום',
     subtitle: 'לחומרא — 22 דקות',
     category: 'תעניות',
