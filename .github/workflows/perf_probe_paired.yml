@@ -1,0 +1,153 @@
+name: Paired PDF measurements
+
+on:
+  pull_request:
+    paths:
+      - 'tool/perf_probe/run_pdf_pair.py'
+      - 'tool/perf_probe/test_pdf_pair.py'
+      - 'tool/perf_probe/pdf_layout_pair.json'
+      - '.github/workflows/perf_probe_paired.yml'
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Full immutable baseline commit SHA (same harness and lockfile)
+        required: true
+        type: string
+      candidate:
+        description: Full immutable candidate commit SHA
+        required: true
+        type: string
+      mode:
+        description: Build mode
+        type: choice
+        options: [profile, release]
+        default: profile
+      cache_state:
+        description: Application data state (OS caches are not flushed)
+        type: choice
+        options: [cold, warm]
+        default: cold
+      scenario:
+        description: PDF workload with ordinary Flutter scheduling
+        type: choice
+        options: [pdf-book-view, pdf-reader]
+        default: pdf-book-view
+      pages:
+        description: Generated mixed-size PDF page count
+        type: choice
+        options: ['10', '100', '600', '1000', '10000']
+        default: '1000'
+      launches:
+        description: Measured process launches per snapshot
+        type: number
+        default: 3
+      repetitions:
+        description: Measured action repetitions per launch (one warmup is excluded)
+        type: number
+        default: 5
+      order:
+        description: Execution order (recorded in the pair receipt)
+        type: choice
+        options: [baseline-first, candidate-first]
+        default: baseline-first
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  contracts:
+    name: Immutable source and comparison contracts
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: python3 -B -m unittest tool.perf_probe.test_pdf_pair -v
+
+  pair:
+    name: Same Windows host (${{ matrix.cache }}, ${{ inputs.mode || 'profile' }})
+    needs: [gate, contracts]
+    if: needs.gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        cache: ${{ fromJSON(github.event_name == 'pull_request' && '["cold","warm"]' || format('["{0}"]', inputs.cache_state || 'cold')) }}
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install the existing verified release engine
+        if: inputs.mode == 'release'
+        uses: ./.github/actions/patched-flutter-engine
+        with:
+          arch: x64
+      - name: Measure both immutable snapshots in this job
+        shell: pwsh
+        env:
+          PAIR_BASELINE: ${{ inputs.baseline }}
+          PAIR_CANDIDATE: ${{ inputs.candidate }}
+          PAIR_MODE: ${{ inputs.mode || 'profile' }}
+          PAIR_CACHE: ${{ matrix.cache }}
+          PAIR_SCENARIO: ${{ inputs.scenario || 'pdf-book-view' }}
+          PAIR_PAGES: ${{ inputs.pages || '1000' }}
+          PAIR_LAUNCHES: ${{ inputs.launches || 3 }}
+          PAIR_REPETITIONS: ${{ inputs.repetitions || 5 }}
+          PAIR_ORDER: ${{ inputs.order || 'baseline-first' }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          git config --global core.longpaths true
+          $arguments = @('tool/perf_probe/run_pdf_pair.py', '--output', (Join-Path $env:RUNNER_TEMP 'pdf-pair'),
+            '--mode', $env:PAIR_MODE, '--cache-state', $env:PAIR_CACHE, '--scenario', $env:PAIR_SCENARIO,
+            '--pages', $env:PAIR_PAGES, '--launches', $env:PAIR_LAUNCHES,
+            '--repetitions', $env:PAIR_REPETITIONS, '--order', $env:PAIR_ORDER)
+          if ($env:PAIR_BASELINE -or $env:PAIR_CANDIDATE) {
+            $commits = @($env:PAIR_BASELINE, $env:PAIR_CANDIDATE)
+            $repository = $env:GITHUB_REPOSITORY
+            $arguments += @('--baseline', $env:PAIR_BASELINE, '--candidate', $env:PAIR_CANDIDATE)
+          } else {
+            $experiment = Get-Content tool/perf_probe/pdf_layout_pair.json -Raw | ConvertFrom-Json
+            $commits = @($experiment.baseline, $experiment.candidate)
+            $repository = $experiment.repository
+          }
+          if ($repository -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Invalid source repository.' }
+          foreach ($commit in $commits) {
+            if ($commit -cnotmatch '^[a-f0-9]{40}$') { throw 'Both sources must be full immutable commit SHAs.' }
+            git fetch --no-tags "https://github.com/$repository.git" $commit
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch the requested immutable source.' }
+          }
+          if ($env:PAIR_MODE -eq 'release') {
+            if ($env:PATCHED_FLUTTER_DLL_SHA256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Missing verified release engine hash.' }
+            $arguments += @('--expected-engine-sha256', $env:PATCHED_FLUTTER_DLL_SHA256)
+          }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve raw measurements and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-pair-${{ matrix.cache }}-${{ inputs.mode || 'profile' }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/pdf-pair/pair.json
+            ${{ runner.temp }}/pdf-pair/pdf-case.json
+            ${{ runner.temp }}/pdf-pair/logs/*.log
+            ${{ runner.temp }}/pdf-pair/results/**/*.json
+            ${{ runner.temp }}/pdf-pair/results/**/*.jsonl
+            ${{ runner.temp }}/pdf-pair/results/**/*.csv
+            ${{ runner.temp }}/pdf-pair/results/**/*.md
+            ${{ runner.temp }}/pdf-pair/results/**/*.log
