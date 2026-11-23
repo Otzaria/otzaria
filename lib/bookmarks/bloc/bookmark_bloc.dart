@@ -136,17 +136,38 @@ class BookmarkBloc extends Cubit<BookmarkState> {
     List<String>? commentatorsToShow,
     BookmarkTargetKind targetKind = BookmarkTargetKind.book,
     String? label,
-    String? pdfCommentatorsHeading,
   }) {
-    final save = _addBookmark(
+    return _startBookmarkSave(
+      _addBookmark(
+        ref: ref,
+        book: book,
+        index: index,
+        commentatorsToShow: commentatorsToShow,
+        targetKind: targetKind,
+        label: label,
+      ),
+    );
+  }
+
+  /// שומר סימנייה לכותרת שנבחרה בכרטיסיית מפרשי PDF.
+  bool addPdfCommentatorsBookmark({
+    required String ref,
+    required PdfBook book,
+    required int index,
+    required List<String> commentatorsToShow,
+    required String? pdfCommentatorsHeading,
+  }) => _startBookmarkSave(
+    _addBookmark(
       ref: ref,
       book: book,
       index: index,
       commentatorsToShow: commentatorsToShow,
-      targetKind: targetKind,
-      label: label,
+      targetKind: BookmarkTargetKind.commentators,
       pdfCommentatorsHeading: pdfCommentatorsHeading,
-    );
+    ),
+  );
+
+  bool _startBookmarkSave(Future<bool>? save) {
     if (save == null) return false;
     unawaited(save);
     return true;

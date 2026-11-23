@@ -14,7 +14,6 @@ import 'package:otzaria/pdf_book/utils/pdf_commentary_visibility.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
-import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -933,12 +932,11 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         ? '${sourceTab.book.title} $heading'
         : '${sourceTab.book.title} עמוד $page';
 
-    final added = bookmarkBloc.addBookmark(
+    final added = bookmarkBloc.addPdfCommentatorsBookmark(
       ref: 'מפרשים | $ref',
       book: sourceTab.book,
       index: page,
       commentatorsToShow: sourceTab.activeCommentators.toList(),
-      targetKind: BookmarkTargetKind.commentators,
       pdfCommentatorsHeading: heading.isEmpty ? null : heading,
     );
     UiSnack.show(
