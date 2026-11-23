@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -139,6 +138,41 @@ void main() {
         ]);
         expect(backend.registrations, 1);
         expect(backend.reloads, 1);
+        final originals = backend.opened.take(count).toSet();
+        final reopened = documents.where((doc) => !originals.contains(doc));
+        expect(reopened, isNotEmpty);
+        final reference = await _renderHebrew(reopened.first);
+        final observations = <Map<String, Object>>[];
+        for (final document in documents) {
+          final text = (await document.pages[0].loadStructuredText()).fullText;
+          final raster = await _renderHebrew(document);
+          observations.add({
+            'text': text,
+            'inkPixels': raster.inkPixels,
+            'reopened': !originals.contains(document),
+            'matchesReopenedRaster':
+                raster.pixels.length == reference.pixels.length &&
+                Iterable.generate(raster.pixels.length).every(
+                  (index) => raster.pixels[index] == reference.pixels[index],
+                ),
+          });
+        }
+        // ignore: avoid_print
+        print(
+          'PDF_SHARED_FONT_NATIVE ${jsonEncode({'opens': backend.opened.length, 'registrations': backend.registrations, 'reloads': backend.reloads, 'documents': observations})}',
+        );
+        expect(
+          observations.map((row) => row['text']),
+          everyElement(contains('שלום')),
+        );
+        expect(
+          observations.map((row) => row['inkPixels']),
+          everyElement(greaterThan(100)),
+        );
+        expect(
+          observations.map((row) => row['matchesReopenedRaster']),
+          everyElement(isTrue),
+        );
         expect(backend.opened.length, count * 2);
         expect(backend.opened.take(count).every((doc) => doc.disposed), isTrue);
         expect(
@@ -146,10 +180,6 @@ void main() {
           isTrue,
         );
         expect(documents.toSet(), hasLength(count));
-        for (final document in documents) {
-          final text = (await document.pages[0].loadStructuredText()).fullText;
-          expect(text, contains('שלום'));
-        }
       } finally {
         for (final document in backend.opened) {
           if (!document.disposed) await document.dispose();
@@ -158,6 +188,31 @@ void main() {
       }
     });
   });
+}
+
+Future<({Uint8List pixels, int inkPixels})> _renderHebrew(
+  PdfDocument document,
+) async {
+  final image = await document.pages[0].render(
+    x: 300,
+    y: 95,
+    width: 140,
+    height: 80,
+    backgroundColor: 0xffffffff,
+  );
+  if (image == null) throw StateError('PDFium did not render the Hebrew text');
+  try {
+    final pixels = Uint8List.fromList(image.pixels);
+    var inkPixels = 0;
+    for (var i = 0; i < pixels.length; i += 4) {
+      final darkness =
+          (765 - pixels[i] - pixels[i + 1] - pixels[i + 2]) * pixels[i + 3];
+      if (darkness > 3 * 15 * 255) inkPixels++;
+    }
+    return (pixels: pixels, inkPixels: inkPixels);
+  } finally {
+    image.dispose();
+  }
 }
 
 class _ConcurrentFontBackend implements PdfrxEntryFunctions {

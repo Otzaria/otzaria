@@ -6,9 +6,7 @@ typedef _FontQueryKey = (String, int, bool, PdfFontCharset, int);
 
 /// מאחד טעינות גופן ממתינות, ושומר את הצורך בפתיחה מחדש לכל מסמך שממתין.
 class PdfFontLoadCoordinator {
-  PdfFontLoadCoordinator({
-    required Future<PdfFontLoadResult> Function(Iterable<PdfFontQuery>) load,
-  }) : _load = load;
+  PdfFontLoadCoordinator({required this._load});
 
   final Future<PdfFontLoadResult> Function(Iterable<PdfFontQuery>) _load;
   final _pending = <_FontQueryKey, Completer<bool>>{};
