@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import copy
+import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -101,7 +103,7 @@ class SourceTests(unittest.TestCase):
         return argparse.Namespace(source=self.repo, output=output, experiment=None,
             baseline=self.baseline, candidate=self.candidate, mode="profile", cache_state="cold",
             scenario="pdf-book-view", pages=1000, launches=3, repetitions=5,
-            order="baseline-first", expected_engine_sha256="")
+            order="baseline-first", expected_engine_sha256="", display_mode="desktop")
 
     def test_prepare_failure_preserves_receipt_and_removes_only_owned_worktree(self):
         original = self.git("worktree", "list", "--porcelain")
@@ -117,6 +119,112 @@ class SourceTests(unittest.TestCase):
         self.assertIn("injected prepare failure", receipt["error"])
         self.assertEqual(self.git("worktree", "list", "--porcelain"), original)
         pair.verify_checkout(self.repo, self.candidate)
+
+
+class PlatformArgumentsTests(unittest.TestCase):
+    def arguments(self):
+        return argparse.Namespace(mode="profile", cache_state="warm", scenario="pdf-book-view",
+            launches=3, repetitions=5, expected_engine_sha256="", display_mode="desktop")
+
+    def test_posix_uses_the_same_settings_under_the_framework_runner(self):
+        for system in ("Linux", "Darwin"):
+            with self.subTest(system=system):
+                command = pair.native_arguments(Path("checkout"), self.arguments(), Path("result"),
+                                                Path("case.json"), "same host", system)
+                self.assertEqual(command[1:3], ["-B", str(Path("checkout") / "tool/perf_probe/run_perf_probe_posix.py")])
+                options = dict(zip(command[3::2], command[4::2]))
+                self.assertEqual(options, {"--mode": "profile", "--cache-state": "warm",
+                    "--scenario-set": "pdf-book-view", "--binding-mode": "framework",
+                    "--launches": "3", "--repetitions": "5", "--warmup": "1",
+                    "--pdf-case": "case.json", "--output": "result", "--hardware-id": "same host",
+                    "--display-mode": "desktop"})
+
+    def test_windows_release_keeps_its_verified_engine_requirement(self):
+        args = self.arguments()
+        args.mode, args.expected_engine_sha256 = "release", "e" * 64
+        command = pair.native_arguments(Path("checkout"), args, Path("result"),
+                                         Path("case.json"), "same host", "Windows", "pwsh")
+        self.assertEqual(command[0:3], ["pwsh", "-NoProfile", "-File"])
+        self.assertEqual(command[-2:], ["-ExpectedEngineSha256", "e" * 64])
+        self.assertIn("-BindingMode", command)
+
+
+@unittest.skipUnless(sys.platform in ("linux", "darwin"), "POSIX receipts require a native POSIX filesystem")
+class PosixEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve() / "results"
+        self.root.mkdir()
+        self.reports = {}
+        self.settings = {"mode": "profile", "cacheState": "warm", "launches": 2}
+        for role in ("baseline", "candidate"):
+            directory = self.root / role
+            directory.mkdir()
+            image = self.root.parent / "worktrees" / role / "bundle/lib/libflutter_linux_gtk.so"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"the exact bundled engine contract fixture")
+            identity = {"schemaVersion": 1, "platform": "linux", "buildMode": "profile",
+                        "binaryName": image.name, **pair.binary_identity(image)}
+            self.reports[role] = {"metadata": {"engineIdentity": identity}}
+            st = image.stat()
+            device = f"{os.major(st.st_dev):x}:{os.minor(st.st_dev):x}"
+            image = str(image)
+            pair.write_json(directory / "manifest.json", {"engineIdentity": identity,
+                "engineEvidence": {"verifiedAfterRuns": True, "canonicalPath": image}})
+            for name, index, preparation in (
+                ("prepare-data", -1, True), ("prepare-warm", -1, False),
+                ("launch-000", 0, False), ("launch-001", 1, False),
+            ):
+                launch = directory / name
+                launch.mkdir()
+                pair.write_json(launch / "launch.json", {"pid": 123, "engineVerifiedAfterCompletion": True,
+                    "completedBeforeTermination": True, "preparationOnly": preparation, "launchIndex": index})
+                pair.write_json(launch / "engine.json", {"pid": 123, "observedAfterCompletion": True,
+                    "identity": identity, "canonicalPath": image, "source": "/proc/123/maps",
+                    "rawObservation": f"1000-2000 r-xp 0 {device} {st.st_ino} {image}\n"})
+
+    def test_every_warm_preparation_and_measured_launch_requires_mapping_evidence(self):
+        pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+        missing = self.root / "baseline/prepare-warm/engine.json"
+        missing.unlink()
+        with self.assertRaises(FileNotFoundError):
+            pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+
+    def test_false_completion_wrong_pid_or_foreign_engine_cannot_be_comparable(self):
+        path = self.root / "candidate/launch-001/engine.json"
+        original = pair.read_json(path)
+        for key, value in (("pid", 124), ("pid", True), ("observedAfterCompletion", False),
+                           ("canonicalPath", "/foreign/engine"), ("identity", {}), ("rawObservation", "")):
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                pair.write_json(path, {**original, key: value})
+                pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+
+    def test_engine_evidence_requires_the_expected_completed_launch(self):
+        path = self.root / "candidate/launch-001/launch.json"
+        original = pair.read_json(path)
+        for key, value in (("launchIndex", 0), ("preparationOnly", True), ("completedBeforeTermination", False)):
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                pair.write_json(path, {**original, key: value})
+                pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+
+    def test_mapped_inode_must_match_the_bundled_engine(self):
+        path = self.root / "candidate/launch-001/engine.json"
+        proof = pair.read_json(path)
+        fields = proof["rawObservation"].split(maxsplit=5)
+        fields[4] = str(int(fields[4]) + 1)
+        proof["rawObservation"] = " ".join(fields)
+        pair.write_json(path, proof)
+        with self.assertRaisesRegex(ValueError, "inode"):
+            pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+
+    def test_same_report_hash_does_not_replace_before_after_verification(self):
+        path = self.root / "candidate/manifest.json"
+        manifest = pair.read_json(path)
+        manifest["engineEvidence"]["verifiedAfterRuns"] = False
+        pair.write_json(path, manifest)
+        with self.assertRaisesRegex(ValueError, "before and after"):
+            pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
 
 
 class ReportTests(unittest.TestCase):

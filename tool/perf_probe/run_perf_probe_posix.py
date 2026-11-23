@@ -20,8 +20,10 @@ import uuid
 
 sys.dont_write_bytecode = True
 if __package__:
+    from .posix_engine import BundledFlutterEngine
     from .posix_resources import process_reader
 else:
+    from posix_engine import BundledFlutterEngine
     from posix_resources import process_reader
 
 
@@ -291,7 +293,7 @@ def validate_completion(directory, *, pid, index, preparation, mode, scenario):
 
 
 def invoke_launch(executable, directory, data, args, reader, *, index, preparation=False,
-                  pdf_case="", sampler_interval=0.5):
+                  pdf_case="", sampler_interval=0.5, engine=None):
     directory.mkdir()
     environment = dict(os.environ, PERF_OUTPUT_DIR=str(directory), PERF_DATA_DIR=str(data),
                        PERF_CACHE_STATE="cold" if preparation or index < 0 else args.cache_state,
@@ -321,6 +323,14 @@ def invoke_launch(executable, directory, data, args, reader, *, index, preparati
                         exit_code = child_exit(process)
                         if exit_code not in (None, 0):
                             raise RuntimeError(f"Application exited unsuccessfully ({exit_code})")
+                        if engine is not None:
+                            if exit_code is not None or reader.read(process.pid).start_ticks != observed.start_ticks:
+                                raise RuntimeError("The owned process exited before engine verification")
+                            # The phase journal is complete: this inspection is outside measured actions.
+                            evidence = engine.observe_loaded(process.pid, raw_path=directory / "engine-observation.json")
+                            evidence["observedAfterCompletion"] = True
+                            write_json(directory / "engine.json", evidence)
+                            launch["engineVerifiedAfterCompletion"] = True
                         success = True
                         return fixture
                     if exit_code is not None:
@@ -451,17 +461,23 @@ def run(args, *, repository=REPOSITORY):
             raise RuntimeError("HEAD changed during the build")
         executable = binary_path(repository, system, args.mode)
         manifest["binarySha256"] = sha256_file(executable)
+        engine = BundledFlutterEngine(executable, system, args.mode)
+        manifest["engineIdentity"] = engine.identity
+        manifest["engineEvidence"] = {"canonicalPath": str(engine.path), "verifiedAfterRuns": False}
+        write_json(output / "manifest.json", manifest)
         fixture = None
         for directory, data, index, preparation, measured in launch_plan(output, args):
             if measured:
                 launches.append(directory)
             actual_fixture = invoke_launch(executable, directory, data, args, reader, index=index,
-                                           preparation=preparation, pdf_case=pdf_case)
+                                           preparation=preparation, pdf_case=pdf_case, engine=engine)
             if fixture is not None and fixture != actual_fixture:
                 raise RuntimeError("Fixture identity changed across preparation/launches")
             fixture = actual_fixture
             if not read_json(directory / "samples.csv.status.json")["complete"]:
                 raise RuntimeError(f"Resource sampling was incomplete: {directory}")
+        engine.verify_unchanged()
+        manifest["engineEvidence"]["verifiedAfterRuns"] = True
         if sha256_file(executable) != manifest["binarySha256"]:
             raise RuntimeError("The measured executable changed during the run")
         if capture(["git", "rev-parse", "HEAD"], cwd=repository).strip() != commit:
