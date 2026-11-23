@@ -1245,11 +1245,12 @@ packages:
   otzaria_search_engine:
     dependency: "direct main"
     description:
-      name: otzaria_search_engine
-      sha256: "6a71c5bf3ce9ef84317c516f9994e31f20b495e8523f16bc0932828ea5d713bf"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.2.1"
+      path: "."
+      ref: dba6be0f73d52463baf39e2bf8656cb728e9ca3f
+      resolved-ref: dba6be0f73d52463baf39e2bf8656cb728e9ca3f
+      url: "https://github.com/ledaat/otzaria_search_engine"
+    source: git
+    version: "7.4.0"
   package_config:
     dependency: transitive
     description:

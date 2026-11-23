@@ -123,8 +123,12 @@ dependencies:
   googleapis_auth: ^2.3.7
   characters: ^1.4.1
   collection: ^1.19.1
-  # קו התאימות שומר על הדגשת PDF לפי שורות ועל חיפוש רג׳קס חוצה שורה.
-  otzaria_search_engine: 7.2.1
+  # TODO(semantic-plugin-api): לפיתוח מקומי בלבד — semanticNearest לפני שחרורו.
+  # לפני PR: גרסה משוחררת שכוללת אותו (בקו התאימות 7.2, או אחרי המעבר ל-7.3+).
+  otzaria_search_engine:
+    git:
+      url: https://github.com/ledaat/otzaria_search_engine
+      ref: dba6be0f73d52463baf39e2bf8656cb728e9ca3f
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
