@@ -1660,6 +1660,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
             _error = error;
             _ready = true;
           });
+          // בלי זה החלון נשאר מוסתר וה-splash לא נסגר, ומסך השגיאה לא נראה.
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => unawaited(presentMainWindow()),
+          );
         });
   }
 
