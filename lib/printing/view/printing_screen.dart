@@ -330,9 +330,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
   MobilePdfExportOperation? _mobileExport;
   MobilePdfExportService get _mobileExports =>
       widget.mobileExportService ?? MobilePdfExportService.instance;
-  bool get _usesAndroidFileExport =>
-      _destination == _PrintDestination.pdf &&
-      _mobileExports.platform == MobilePdfExportPlatform.android;
   Timer? _previewRefreshTimer;
 
   // נקודות הקצה של טווח ההדפסה — כל אחת עצמאית בסוגה (כותרת/כותרת משנה/שורה).
@@ -2921,13 +2918,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: _destinationActionPending
+            child: _isPrinting
                 ? ActionButton.recommended(
-                    text:
-                        _printProgress ??
-                        (_exportCancellation != null
-                            ? 'שומר קובץ...'
-                            : PdfMessages.printPreparing),
+                    text: _printProgress!,
                     iconWidget: SizedBox.square(
                       dimension: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
@@ -2935,11 +2928,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                     onPressed: null,
                   )
                 : ActionButton.recommended(
-                    text: isPrint
-                        ? 'הדפסה'
-                        : _usesAndroidFileExport
-                        ? PdfMessages.choosePdfFolder
-                        : 'שמירה',
+                    text: isPrint ? 'הדפסה' : 'שמירה',
                     icon: isPrint
                         ? FluentIcons.print_24_regular
                         : FluentIcons.save_24_regular,
@@ -2996,13 +2985,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
                       if (value != null) _setDestination(value);
                     },
                   ),
-                  if (_usesAndroidFileExport) ...[
-                    const SizedBox(height: AppTokens.spaceSM),
-                    Text(
-                      PdfMessages.pdfCopyToFolder,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
                 ],
               ),
             ),

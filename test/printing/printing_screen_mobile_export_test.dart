@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:archive/archive.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/core/windowing/dialog_owner.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -104,6 +106,7 @@ class _ForbiddenBytePicker extends FilePickerPlatform
     with MockPlatformInterfaceMixin {
   int byteSaves = 0;
   int directoryPicks = 0;
+  Future<Uri?> Function(String, Uint8List)? saveWord;
 
   @override
   Future<Uri?> saveFile({
@@ -117,6 +120,8 @@ class _ForbiddenBytePicker extends FilePickerPlatform
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
   }) async {
+    final save = saveWord;
+    if (save != null) return save(fileName, bytes);
     byteSaves++;
     throw StateError('A mobile PDF export must not fall back to Save(bytes).');
   }
@@ -332,12 +337,18 @@ void main() {
     return (replacement) => replace(() => path = replacement);
   }
 
+  bool settingsBlocked(WidgetTester tester) => tester
+      .widgetList<IgnorePointer>(
+        find.ancestor(
+          of: find.byType(PrintingPagesPerSheetDropdownRow),
+          matching: find.byType(IgnorePointer),
+        ),
+      )
+      .any((widget) => widget.ignoring);
+
   Future<MobilePdfExportRequest> start(WidgetTester tester) async {
     final expected = backend.requests.length + 1;
-    final android = find.text(PdfMessages.choosePdfFolder);
-    await tester.tap(
-      android.evaluate().isNotEmpty ? android : find.text('שמירה'),
-    );
+    await tester.tap(find.text('שמירה'));
     await _waitFor(tester, () => backend.requests.length == expected);
     return backend.requests.last;
   }
@@ -505,7 +516,7 @@ void main() {
     backend.complete(0, MobilePdfExportStatus.saved);
     await _waitFor(
       tester,
-      () => find.text(PdfMessages.choosePdfFolder).evaluate().isNotEmpty,
+      () => !settingsBlocked(tester),
     );
     expect(closed, isFalse);
     expect(find.text(PdfMessages.pdfFileSaved), findsOneWidget);
@@ -527,7 +538,7 @@ void main() {
       backend.complete(0, MobilePdfExportStatus.failed);
       await _waitFor(
         tester,
-        () => find.text(PdfMessages.choosePdfFolder).evaluate().isNotEmpty,
+        () => !settingsBlocked(tester),
       );
       expect(find.text(PdfMessages.mobilePdfSaveFailed), findsOneWidget);
       expect(find.textContaining('private provider diagnostics'), findsNothing);
@@ -546,23 +557,13 @@ void main() {
     tester,
   ) async {
     await open(tester);
-    await tester.tap(find.text(PdfMessages.choosePdfFolder));
-    await tester.tap(find.text(PdfMessages.choosePdfFolder));
+    await tester.tap(find.text('שמירה'));
+    await tester.tap(find.text('שמירה'));
     await tester.pump();
     await _waitFor(tester, () => backend.requests.isNotEmpty);
     expect(backend.requests, hasLength(1));
-    expect(find.text('שומר קובץ...'), findsOneWidget);
-    expect(
-      tester
-          .widgetList<IgnorePointer>(
-            find.ancestor(
-              of: find.byType(PrintingPagesPerSheetDropdownRow),
-              matching: find.byType(IgnorePointer),
-            ),
-          )
-          .any((widget) => widget.ignoring),
-      isTrue,
-    );
+    expect(find.text('שמירה'), findsOneWidget);
+    expect(settingsBlocked(tester), isTrue);
     backend.complete(0, MobilePdfExportStatus.saved);
     await _waitFor(tester, () => closed);
     await dispose(tester);
@@ -572,13 +573,49 @@ void main() {
     tester,
   ) async {
     await open(tester, platform: MobilePdfExportPlatform.ios);
-    expect(find.text(PdfMessages.choosePdfFolder), findsNothing);
-    expect(find.text(PdfMessages.pdfCopyToFolder), findsNothing);
+    expect(find.text('בחירת תיקייה'), findsNothing);
+    expect(find.textContaining('הקובץ יישמר כעותק חדש'), findsNothing);
     final request = await start(tester);
     expect(File(request.sourcePath).readAsBytesSync(), inputBytes);
     backend.complete(0, MobilePdfExportStatus.saved);
     await _waitFor(tester, () => closed);
     expect(saved, isTrue);
+    await dispose(tester);
+  });
+
+  testWidgets('Word retains the byte picker with mobile PDF enabled', (
+    tester,
+  ) async {
+    await Settings.setValue<int>('key-print-destination', 1);
+    final output = File('${directory.path}/mobile-output.docx');
+    final previousOwner = DialogOwner.hwnd();
+    DialogOwner.mainWindowHwnd = 101;
+    addTearDown(() => DialogOwner.mainWindowHwnd = previousOwner);
+    picker.saveWord = (fileName, bytes) async {
+      expect(fileName, 'mobile-output.docx');
+      await output.writeAsBytes(bytes);
+      return output.uri;
+    };
+    if (Platform.isMacOS) {
+      const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'save');
+        expect(call.arguments['fileName'], 'mobile-output.docx');
+        return output.path;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    }
+
+    await open(tester, text: true);
+    expect(find.text('שמור ל-Word'), findsOneWidget);
+    await tester.tap(find.text('שמירה'));
+    await _waitFor(tester, () => closed);
+    expect(saved, isTrue);
+    expect(backend.requests, isEmpty);
+    final document = ZipDecoder().decodeBytes(output.readAsBytesSync());
+    expect(document.findFile('word/document.xml'), isNotNull);
     await dispose(tester);
   });
 
@@ -593,8 +630,7 @@ void main() {
         (
           tester,
         ) async {
-          // Compare the existing Save controls with the Android folder flow
-          // using the same PDF, font, theme, viewport and text scaling.
+          List<Rect>? baseline;
           for (final (variant, platform) in [
             ('save', MobilePdfExportPlatform.unsupported),
             ('android', MobilePdfExportPlatform.android),
@@ -612,17 +648,22 @@ void main() {
             );
             await tester.pump();
             expect(tester.takeException(), isNull);
-            final android = platform == MobilePdfExportPlatform.android;
-            final label = android ? PdfMessages.choosePdfFolder : 'שמירה';
-            expect(find.text(label), findsOneWidget);
-            expect(
-              find.text(PdfMessages.pdfCopyToFolder),
-              android ? findsOneWidget : findsNothing,
-            );
-            expect(
-              Directionality.of(tester.element(find.text(label))),
-              TextDirection.rtl,
-            );
+            final save = find.text('שמירה');
+            expect(save, findsOneWidget);
+            expect(find.text('בחירת תיקייה'), findsNothing);
+            expect(find.textContaining('הקובץ יישמר כעותק חדש'), findsNothing);
+            expect(Directionality.of(tester.element(save)), TextDirection.rtl);
+            final controls = [
+              for (final finder in [
+                save,
+                find.text('ביטול'),
+                find.text('בחר יעד הדפסה'),
+                find.text('שמור ל-PDF'),
+              ])
+                tester.getRect(finder),
+            ];
+            baseline ??= controls;
+            expect(controls, baseline);
             final artifactRoot =
                 Platform.environment['OTZARIA_MOBILE_PDF_UI_ARTIFACT_DIR'];
             if (artifactRoot != null) {

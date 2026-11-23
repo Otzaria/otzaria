@@ -29,8 +29,6 @@ abstract class PdfMessages {
       'עיבוד עמודים מרובים בגיליון נכשל';
   static String pdfFileSavedAs(String fileName) =>
       'קובץ PDF נשמר בשם "$fileName"';
-  static const String choosePdfFolder = 'בחירת תיקייה';
-  static const String pdfCopyToFolder = 'הקובץ יישמר כעותק חדש בתיקייה שתיבחר.';
   static const String wordFileSaved = 'קובץ Word נשמר בהצלחה';
   static const String pdfFileSaved = 'קובץ PDF נשמר בהצלחה';
   static const String mobilePdfSaveFailed =

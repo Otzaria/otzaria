@@ -319,12 +319,12 @@ void main() {
       await open(tester, book: TextBook(title: 'stream-output'));
       await tester.tap(find.text('שמירה'));
       await tester.pump();
-      expect(find.text('שומר קובץ...'), findsOneWidget);
+      expect(find.text('שמירה'), findsOneWidget);
 
       pending.complete(_ProtectedBookRepository());
       await _waitFor(
         tester,
-        () => find.text('שומר קובץ...').evaluate().isEmpty,
+        () => find.text('הדפסה').evaluate().isNotEmpty,
       );
       expect(find.text('הדפסה'), findsWidgets);
       expect(printer.requests, 0);
@@ -560,7 +560,7 @@ void main() {
       // Both taps deliberately happen before a frame, then render the busy UI.
       await tester.pump();
       await _waitFor(tester, () => picker.selections == 1);
-      expect(find.text('שומר קובץ...'), findsOneWidget);
+      expect(find.text('שמירה'), findsOneWidget);
       final settings = find.byType(PrintingPagesPerSheetDropdownRow);
       final blockers = find.ancestor(
         of: settings,
@@ -571,7 +571,12 @@ void main() {
         isTrue,
       );
       folder.complete(null);
-      await _waitFor(tester, () => find.text('שמירה').evaluate().isNotEmpty);
+      await _waitFor(
+        tester,
+        () => !blockers.evaluate().any(
+          (e) => (e.widget as IgnorePointer).ignoring,
+        ),
+      );
       expect(picker.selections, 1);
       expect(picker.byteSaves, 0);
       expect(output.listSync(), isEmpty);
