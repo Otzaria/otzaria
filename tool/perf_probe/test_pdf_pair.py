@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import argparse
 import copy
+import contextlib
+import hashlib
+import io
+import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -102,7 +107,7 @@ class SourceTests(unittest.TestCase):
     def arguments(self, output):
         return argparse.Namespace(source=self.repo, output=output, experiment=None,
             baseline=self.baseline, candidate=self.candidate, mode="profile", cache_state="cold",
-            scenario="pdf-book-view", pages=1000, launches=3, repetitions=5,
+            scenario="pdf-book-view", pages=1000, pdf_case=None, launches=3, repetitions=5,
             order="baseline-first", expected_engine_sha256="", display_mode="desktop")
 
     def test_prepare_failure_preserves_receipt_and_removes_only_owned_worktree(self):
@@ -119,6 +124,103 @@ class SourceTests(unittest.TestCase):
         self.assertIn("injected prepare failure", receipt["error"])
         self.assertEqual(self.git("worktree", "list", "--porcelain"), original)
         pair.verify_checkout(self.repo, self.candidate)
+
+    def external_pair(self, system, mutation=None, private_input=False):
+        pdf = self.root / "private Hebrew corpus.pdf"
+        pdf.write_bytes(b"owned external-input contract bytes")
+        digest = hashlib.sha256(pdf.read_bytes()).hexdigest()
+        request = self.root / "requested-case.json"
+        canonical = {"schemaVersion": 1, "source": {
+            "kind": "external", "path": str(pdf), "sha256": digest, "pageCount": 17},
+            "navigation": {"initialPage": 2, "forwardPage": 15, "backwardPage": 3, "zoomFactor": 2.5}}
+        pair.write_json(request, canonical)
+        if private_input:
+            pdf.chmod(0o600)
+            request.chmod(0o600)
+        input_owners = [(path.stat().st_uid, path.stat().st_gid) for path in (pdf, request)]
+        args = self.arguments(self.root / f"result-{system}-{mutation}")
+        args.pdf_case, args.pages = request, None
+        native_cases, preparations = [], []
+
+        def logged(command, checkout, log):
+            if command[1] == "tool/perf_probe/prepare_pdf_case.dart":
+                preparations.append(command)
+                self.assertEqual(Path(command[2]), request)
+                pair.write_json(Path(command[3]), canonical)
+            elif "-PdfCase" in command or "--pdf-case" in command:
+                option = "-PdfCase" if system == "Windows" else "--pdf-case"
+                output_option = "-OutputDirectory" if system == "Windows" else "--output"
+                case_path = Path(command[command.index(option) + 1])
+                native_cases.append(case_path)
+                case = pair.read_json(case_path)
+                self.assertNotEqual(Path(case["source"]["path"]), pdf)
+                self.assertEqual(Path(case["source"]["path"]).read_bytes(), pdf.read_bytes())
+                directory = Path(command[command.index(output_option) + 1])
+                directory.mkdir(parents=True)
+                pair.write_json(directory / "pdf-case.json", case)
+                comparison = copy.deepcopy(case)
+                comparison["source"].pop("path")
+                comparison["navigation"].update(zoomPage=3, zoomAnchor="pageCenter")
+                pair.write_json(directory / "report.json", {"metadata": {"settings": {
+                    "pdfReaderCase": comparison, "pdfPageCount": 17}}})
+                if mutation == "source":
+                    pdf.write_bytes(b"changed while a native runner was active")
+                elif mutation == "private_manifest":
+                    case_path.write_text("{}", encoding="utf-8")
+                elif mutation == "runner_manifest":
+                    case["navigation"]["forwardPage"] = 16
+                    pair.write_json(directory / "pdf-case.json", case)
+            return 0.01
+
+        worktrees = self.git("worktree", "list", "--porcelain")
+        with patch.object(pair.platform, "system", return_value=system), \
+                patch.object(pair.shutil, "which", side_effect=lambda name: name), \
+                patch.object(pair, "sdk_identity", return_value={"frameworkRevision": "a" * 40}), \
+                patch.object(pair, "run_logged", side_effect=logged), \
+                patch.object(pair, "verify_posix_engines"), \
+                patch.object(pair, "validate_reports", return_value={"comparable": True}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            if mutation:
+                with self.assertRaises(ValueError):
+                    pair.run_pair(args)
+            else:
+                pair.run_pair(args)
+        receipt = pair.read_json(args.output / "pair.json")
+        self.assertEqual(len(preparations), 1)
+        self.assertEqual(self.git("worktree", "list", "--porcelain"), worktrees)
+        self.assertEqual(receipt["status"], "failed" if mutation else "passed")
+        if mutation:
+            self.assertEqual(len(native_cases), 1)
+        else:
+            self.assertEqual(len(native_cases), 2)
+            self.assertEqual(native_cases[0], native_cases[1])
+            self.assertEqual(receipt["pdfCase"]["sourceSha256"], digest)
+            self.assertEqual(receipt["settings"]["pages"], 17)
+            self.assertEqual(pair.read_json(request), canonical)
+        self.assertEqual([(path.stat().st_uid, path.stat().st_gid) for path in (pdf, request)], input_owners)
+        return args.output, pdf, request
+
+    def test_both_windows_and_posix_runners_receive_the_same_private_case(self):
+        for system in ("Windows", "Linux", "Darwin"):
+            with self.subTest(platform=system):
+                self.external_pair(system)
+
+    def test_edits_during_a_native_run_fail_the_pair_and_keep_worktree_cleanup(self):
+        for mutation in ("source", "private_manifest", "runner_manifest"):
+            with self.subTest(mutation=mutation):
+                self.external_pair("Windows", mutation)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX permissions do not describe Windows ACLs")
+    def test_private_inputs_stay_private_with_a_permissive_umask(self):
+        previous = os.umask(0o022)
+        try:
+            output, pdf, request = self.external_pair("Linux", private_input=True)
+        finally:
+            os.umask(previous)
+        self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
+        self.assertEqual((output / "corpus-source.pdf").read_bytes(), pdf.read_bytes())
+        for original in (pdf, request):
+            self.assertEqual(stat.S_IMODE(original.stat().st_mode), 0o600)
 
 
 class PlatformArgumentsTests(unittest.TestCase):
@@ -147,6 +249,19 @@ class PlatformArgumentsTests(unittest.TestCase):
         self.assertEqual(command[0:3], ["pwsh", "-NoProfile", "-File"])
         self.assertEqual(command[-2:], ["-ExpectedEngineSha256", "e" * 64])
         self.assertIn("-BindingMode", command)
+
+    def test_cli_accepts_an_external_case_or_generated_pages_but_not_both(self):
+        for options in (("--pdf-case", "a case.json"), ("--pages", "100"), ()):
+            with self.subTest(options=options), patch.object(sys, "argv", ["pair", "--output", "result", *options]), \
+                    patch.object(pair, "run_pair") as run:
+                self.assertEqual(pair.main(), 0)
+                args = run.call_args.args[0]
+                self.assertEqual(args.pdf_case, Path("a case.json") if "--pdf-case" in options else None)
+                self.assertEqual(args.pages, 100 if "--pages" in options else None)
+        with patch.object(sys, "argv", ["pair", "--output", "result", "--pages", "100", "--pdf-case", "case.json"]), \
+                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            pair.main()
+        self.assertEqual(error.exception.code, 2)
 
 
 @unittest.skipUnless(sys.platform in ("linux", "darwin"), "POSIX receipts require a native POSIX filesystem")
@@ -270,7 +385,10 @@ class ReportTests(unittest.TestCase):
                         "warmup": True, "iteration": 0} for launch in range(3)]
 
     def validate(self, reports=None):
-        return pair.validate_reports(reports or self.reports, self.commits, self.settings, self.hardware, self.sdk)
+        return pair.validate_reports(
+            reports or self.reports, self.commits, self.settings, self.hardware, self.sdk,
+            expected_corpus={"kind": "generated", "pageCount": 1000, "mixedPageSizes": True},
+        )
 
     def test_complete_comparison_is_accepted_without_a_speed_threshold(self):
         self.reports["candidate"]["comparison"]["scenarios"][0]["metrics"] = {
