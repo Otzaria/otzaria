@@ -174,6 +174,7 @@ void main() {
           destination.path,
           protected: protected,
         );
+        expect(await _windowsDacl(destination.path), expected);
         expect(
           await publishFileAtomically(
             target: target(overwrite: true),
@@ -201,6 +202,7 @@ void main() {
     () async {
       await destination.writeAsString('keep until publication');
       final before = await _windowsDacl(destination.path, protected: false);
+      expect(await _windowsDacl(destination.path), before);
       String? expected;
       expect(
         await publishFileAtomically(
@@ -210,6 +212,7 @@ void main() {
             await File(path).writeAsString('replacement');
             expected = await _windowsDacl(destination.path, protected: true);
             expect(expected, isNot(before));
+            expect(await _windowsDacl(destination.path), expected);
           },
         ),
         isTrue,
@@ -585,7 +588,10 @@ Future<String> _windowsDacl(String path, {bool? protected}) async {
       r'''
 $ErrorActionPreference = 'Stop'
 $path = $env:OTZARIA_TEST_FILE
-if ($env:OTZARIA_TEST_PROTECTED -ne '') {
+# An empty environment value may be absent in Windows PowerShell. Only an
+# explicit true/false request is allowed to change the ACL during this probe.
+if ($env:OTZARIA_TEST_PROTECTED -eq 'true' -or
+    $env:OTZARIA_TEST_PROTECTED -eq 'false') {
   $protected = $env:OTZARIA_TEST_PROTECTED -eq 'true'
   $acl = [System.IO.File]::GetAccessControl($path)
   $acl.SetAccessRuleProtection($protected, $false)
