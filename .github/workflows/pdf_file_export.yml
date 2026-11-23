@@ -19,9 +19,11 @@ on:
       - 'test/printing/print_pdf_*_test.dart'
       - 'test/printing/pdf_sheet_*_test.dart'
       - 'test/printing/printing_screen_file_export_test.dart'
+      - 'test/printing/printing_screen_mobile_export_test.dart'
       - 'test/utils/file/atomic_file_publication_test.dart'
       - 'test/utils/file/desktop_save_target_test.dart'
       - 'test/utils/file/save_target_name_test.dart'
+      - 'test/utils/file/mobile_pdf_export_*_test.dart'
       - 'test/helpers/printing_raster_idle.dart'
       - 'fonts/Tinos-Regular.ttf'
       - 'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf'
@@ -65,6 +67,7 @@ jobs:
       DART_SUPPRESS_ANALYTICS: 'true'
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
       CARGO_BUILD_JOBS: '2'
+      OTZARIA_MOBILE_PDF_UI_ARTIFACT_DIR: mobile-pdf-ui
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: subosito/flutter-action@v2
@@ -99,9 +102,13 @@ jobs:
           test/printing/pdf_sheet_composer_test.dart
           test/printing/pdf_sheet_file_output_test.dart
           test/printing/printing_screen_file_export_test.dart
+          test/printing/printing_screen_mobile_export_test.dart
           test/utils/file/atomic_file_publication_test.dart
           test/utils/file/desktop_save_target_test.dart
           test/utils/file/save_target_name_test.dart
+          test/utils/file/mobile_pdf_export_core_test.dart
+          test/utils/file/mobile_pdf_export_models_test.dart
+          test/utils/file/mobile_pdf_export_service_test.dart
       - name: Preserve test results and toolchain identity
         if: always()
         uses: actions/upload-artifact@v7.0.2
@@ -113,3 +120,4 @@ jobs:
             pdf-file-export-flutter.json
             pdf-file-export-source.txt
             pdf-file-export-tests.jsonl
+            mobile-pdf-ui/*.png

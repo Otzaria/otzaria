@@ -17,6 +17,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -52,6 +53,7 @@ import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/file/desktop_save_target.dart';
 import 'package:otzaria/utils/file/atomic_file_publication.dart';
+import 'package:otzaria/utils/file/mobile_pdf_export_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -169,6 +171,7 @@ class PrintingScreen extends StatefulWidget {
 
   /// קובץ קיים נפתח ישירות; בתים מלאים נקראים רק כשיעד הפלט דורש אותם.
   final String? pdfFilePath;
+  final MobilePdfExportService? mobileExportService;
   final String bookId;
   final TextBook? book;
   final List<Link> links;
@@ -212,6 +215,7 @@ class PrintingScreen extends StatefulWidget {
     required this.data,
     this.createPdfOverride,
     this.pdfFilePath,
+    this.mobileExportService,
     required this.bookId,
     this.book,
     this.links = const [],
@@ -323,6 +327,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
   bool get _isPrinting => _printProgress != null;
   bool _destinationActionPending = false;
   PdfExportCancellationToken? _exportCancellation;
+  MobilePdfExportOperation? _mobileExport;
+  MobilePdfExportService get _mobileExports =>
+      widget.mobileExportService ?? MobilePdfExportService.instance;
   Timer? _previewRefreshTimer;
 
   // נקודות הקצה של טווח ההדפסה — כל אחת עצמאית בסוגה (כותרת/כותרת משנה/שורה).
@@ -542,7 +549,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _cachedBaseKey = null;
       _pendingBasePdfs.clear();
       _basePdfFiles.invalidate();
-      _exportCancellation?.cancel();
+      _cancelFileExport();
       _anchorEntries = null;
       _totalPdfPages = 0;
       if (_isPdfSource) {
@@ -709,6 +716,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
     _preview.dispose();
     _releasePreviewBase();
+    _cancelFileExport();
     _exportCancellation?.dispose();
     _trackFileCleanup(_basePdfFiles.dispose());
     _cachedBasePdf = null;
@@ -2061,37 +2069,42 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   Future<bool> _saveToFile(_ExportFormat selectedFormat) async {
     final cancellation = _exportCancellation!;
+    if (!mounted || cancellation.isCancelled) return false;
     if (!await verifySaferModePassword(context)) return false;
     if (!mounted || cancellation.isCancelled) return false;
     try {
       final selectedExtension = selectedFormat.extension;
       final fileName = '${_sanitizeFileName(widget.bookId)}.$selectedExtension';
-      if (selectedFormat == _ExportFormat.pdf &&
-          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      if (selectedFormat == _ExportFormat.pdf) {
         await _divineNamesReady;
         if (!mounted || cancellation.isCancelled) return false;
         final plan = _captureFileExport();
-        final target = await chooseDesktopSaveTarget(
-          context: context,
-          dialogTitle: 'ייצוא קובץ',
-          fileName: fileName,
-          extension: selectedExtension,
-          isCancelled: () => _fileExportCancelled(plan, cancellation),
-        );
-        if (target == null || _fileExportCancelled(plan, cancellation)) {
-          return false;
+        final mobile = _mobileExports;
+        if (mobile.isSupported) {
+          return await _saveMobilePdf(mobile, plan, cancellation, fileName);
         }
-        final saved = await publishFileAtomically(
-          target: target,
-          isCancelled: () => _fileExportCancelled(plan, cancellation),
-          producer: (path) => _writeOutputPdfToFile(plan, cancellation, path),
-        );
-        if (saved && mounted) UiSnack.showSuccess(PdfMessages.pdfFileSaved);
-        return saved;
+        if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+          final target = await chooseDesktopSaveTarget(
+            context: context,
+            dialogTitle: 'ייצוא קובץ',
+            fileName: fileName,
+            extension: selectedExtension,
+            isCancelled: () => _fileExportCancelled(plan, cancellation),
+          );
+          if (target == null || _fileExportCancelled(plan, cancellation)) {
+            return false;
+          }
+          final saved = await publishFileAtomically(
+            target: target,
+            isCancelled: () => _fileExportCancelled(plan, cancellation),
+            producer: (path) => _writeOutputPdfToFile(plan, cancellation, path),
+          );
+          if (saved && mounted) UiSnack.showSuccess(PdfMessages.pdfFileSaved);
+          return saved;
+        }
       }
 
-      // Printing.onLayout, Word and mobile file-provider APIs still require
-      // complete bytes. Keep those public contracts on their existing path.
+      // The remaining output contracts still require complete bytes.
       final Uint8List bytes;
       final String successMessage;
       if (selectedFormat == _ExportFormat.word) {
@@ -2135,6 +2148,82 @@ class _PrintingScreenState extends State<PrintingScreen> {
       if (!mounted || cancellation.isCancelled) return false;
       UiSnack.showError(PdfMessages.fileExportFailed(e));
       return false;
+    }
+  }
+
+  void _cancelFileExport() {
+    _exportCancellation?.cancel();
+    final operation = _mobileExport;
+    if (operation != null) unawaited(_cancelMobileExport(operation));
+  }
+
+  Future<void> _cancelMobileExport(MobilePdfExportOperation operation) async {
+    try {
+      await operation.cancel();
+    } catch (error, stack) {
+      debugPrint('Mobile PDF cancellation request failed: $error\n$stack');
+    }
+  }
+
+  Future<bool> _saveMobilePdf(
+    MobilePdfExportService service,
+    _PdfFileExport plan,
+    PdfExportCancellationToken cancellation,
+    String fileName,
+  ) async {
+    final window = AppWindowKeys.of(context);
+    MobilePdfExportOperation? operation;
+    try {
+      operation = service.start(
+        fileName: fileName,
+        producer: (path) => _writeOutputPdfToFile(plan, cancellation, path),
+        onCancelRequested: cancellation.cancel,
+      );
+      _mobileExport = operation;
+      final pending = operation.result;
+      // Only the original result releases staging; cancel merely requests it.
+      // The idle barrier observes completion; the await below reports errors.
+      _trackFileCleanup(
+        pending.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+      );
+      final result = await pending;
+      if (result.cleanupError != null) {
+        debugPrint('Mobile PDF export cleanup: ${result.cleanupError}');
+      }
+      if (result.residualDocument != null) {
+        UiSnack.showWarning(
+          PdfMessages.mobilePdfExportResidual(result.residualDisplayName),
+          window: window,
+        );
+        return false;
+      }
+      if (result.status == MobilePdfExportStatus.saved) {
+        final name = result.displayName;
+        UiSnack.showSuccess(
+          name != null && name != fileName
+              ? PdfMessages.pdfFileSavedAs(name)
+              : PdfMessages.pdfFileSaved,
+          window: window,
+        );
+        return !_fileExportCancelled(plan, cancellation);
+      }
+      if (result.status == MobilePdfExportStatus.failed) {
+        debugPrint(
+          'Mobile PDF export failed: ${result.errorCode}: ${result.errorMessage}',
+        );
+        if (mounted && !cancellation.isCancelled) {
+          UiSnack.showError(PdfMessages.mobilePdfSaveFailed, window: window);
+        }
+      }
+      return false;
+    } catch (error, stack) {
+      debugPrint('Mobile PDF export failed: $error\n$stack');
+      if (mounted && !cancellation.isCancelled) {
+        UiSnack.showError(PdfMessages.mobilePdfSaveFailed, window: window);
+      }
+      return false;
+    } finally {
+      if (identical(_mobileExport, operation)) _mobileExport = null;
     }
   }
 
@@ -2421,7 +2510,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
         _previewRefreshTimer?.cancel();
         _preview.stop();
         _releasePreviewBase();
-        _exportCancellation?.cancel();
+        _cancelFileExport();
       },
       child: dialog,
     );
@@ -2829,13 +2918,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: _destinationActionPending
+            child: _isPrinting
                 ? ActionButton.recommended(
-                    text:
-                        _printProgress ??
-                        (_exportCancellation != null
-                            ? 'שומר קובץ...'
-                            : PdfMessages.printPreparing),
+                    text: _printProgress!,
                     iconWidget: SizedBox.square(
                       dimension: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
