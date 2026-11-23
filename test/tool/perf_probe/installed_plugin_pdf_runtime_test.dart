@@ -15,7 +15,8 @@ Map<String, Object?> _completePdfReport(String platform) => {
 };
 
 void main() {
-  const bundle = '/tmp/app with spaces/bundle/lib';
+  const bundleDirectory = '/tmp/app with spaces/bundle';
+  const bundle = '$bundleDirectory/lib';
   final expected = {
     for (final name in installedPdfRuntimeModules['linux']!)
       name: '$bundle/$name',
@@ -38,6 +39,7 @@ void main() {
         expect(
           installedPdfModuleErrors(
             platform: 'linux',
+            bundleDirectory: bundleDirectory,
             mappedPaths: paths,
             expectedPaths: expected,
           ),
@@ -52,6 +54,7 @@ void main() {
         expect(
           installedPdfModuleErrors(
             platform: 'linux',
+            bundleDirectory: bundleDirectory,
             mappedPaths: paths,
             expectedPaths: expected,
           ),
@@ -66,6 +69,7 @@ void main() {
           expect(
             installedPdfModuleErrors(
               platform: 'linux',
+              bundleDirectory: bundleDirectory,
               mappedPaths: paths,
               expectedPaths: expected,
             ),
@@ -74,6 +78,21 @@ void main() {
         }
       });
     }
+    test('rejects a module reached through a bundle link to pub cache', () {
+      final resolved = {
+        ...expected,
+        'libpdfium.so': '/tmp/pub-cache/libpdfium.so',
+      };
+      expect(
+        installedPdfModuleErrors(
+          platform: 'linux',
+          bundleDirectory: bundleDirectory,
+          mappedPaths: resolved.values.toSet(),
+          expectedPaths: resolved,
+        ),
+        hasLength(1),
+      );
+    });
     test('a deleted mapping cannot prove which binary is executing', () {
       final paths = expected.values.toSet()
         ..remove(expected['libpdfium.so'])
@@ -81,6 +100,7 @@ void main() {
       expect(
         installedPdfModuleErrors(
           platform: 'linux',
+          bundleDirectory: bundleDirectory,
           mappedPaths: paths,
           expectedPaths: expected,
         ),
@@ -104,6 +124,7 @@ void main() {
         expect(
           installedPdfModuleErrors(
             platform: 'windows',
+            bundleDirectory: directory,
             mappedPaths: paths,
             expectedPaths: expected,
           ),
@@ -116,6 +137,7 @@ void main() {
         expect(
           installedPdfModuleErrors(
             platform: 'windows',
+            bundleDirectory: directory,
             mappedPaths: expected.values.toSet()..remove(expected[name]),
             expectedPaths: expected,
           ),
@@ -132,6 +154,7 @@ void main() {
             expect(
               installedPdfModuleErrors(
                 platform: 'windows',
+                bundleDirectory: directory,
                 mappedPaths: paths,
                 expectedPaths: expected,
               ),
@@ -148,6 +171,7 @@ void main() {
       expect(
         installedPdfModuleErrors(
           platform: 'windows',
+          bundleDirectory: directory,
           mappedPaths: relative.values.toSet(),
           expectedPaths: relative,
         ),

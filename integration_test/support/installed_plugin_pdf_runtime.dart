@@ -537,7 +537,9 @@ class _PdfRuntime {
   }
 
   Future<void> loadedModules() async {
-    final directory = p.dirname(Platform.resolvedExecutable);
+    final directory = await Directory(
+      p.dirname(Platform.resolvedExecutable),
+    ).resolveSymbolicLinks();
     final names = installedPdfRuntimeModules[Platform.operatingSystem]!;
     final Set<String> observed;
     if (Platform.isWindows) {
@@ -596,6 +598,7 @@ class _PdfRuntime {
     expect(
       installedPdfModuleErrors(
         platform: Platform.operatingSystem,
+        bundleDirectory: directory,
         mappedPaths: mapped,
         expectedPaths: expected,
       ),
