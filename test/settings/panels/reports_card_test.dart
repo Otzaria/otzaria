@@ -56,10 +56,10 @@ void main() {
     await pumpCard(tester);
     expect(find.text('הדיווחים שלך'), findsOneWidget);
     expect(find.text('דווח על תקלה בתוכנה'), findsOneWidget);
-    expect(find.text('הדיווחים ששלחתי'), findsOneWidget);
+    expect(find.text('הדיווחים שלי'), findsOneWidget);
   });
 
-  testWidgets('"הדיווחים ששלחתי" opens the dialog on its default tab', (
+  testWidgets('"הדיווחים שלי" opens the dialog on its default tab', (
     tester,
   ) async {
     await pumpCard(tester);
