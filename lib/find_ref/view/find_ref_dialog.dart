@@ -155,6 +155,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   /// הסימון משתנה בכל חץ והקלדה — רק השורות מאזינות לו, לא הדיאלוג כולו.
   final ValueNotifier<int> _selectedIndex = ValueNotifier<int>(0);
+
+  /// אינדקסי התוצאות שסומנו לפתיחה בבת אחת (Ctrl/Shift+לחיצה).
+  final ValueNotifier<Set<int>> _checked = ValueNotifier<Set<int>>(const {});
+  int? _checkAnchor;
   bool _queryIsEmpty = true;
 
   /// השאילתה המנורמלת שבשדה. תוצאות של שאילתה אחרת מוצגות אך אינן נפתחות.
@@ -283,6 +287,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       _onQueryTextChanged,
     );
     _selectedIndex.dispose();
+    _checked.dispose();
     _typedQuery.dispose();
     final restorer = _focusRestorer;
     if (restorer != null) _focus.unregisterActiveRestorer(restorer);
@@ -328,6 +333,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// שולח איתור חדש מהמסך ומאפס את הסימון לתוצאה הראשונה.
   void _dispatchSearch(String text, {bool? includePersonalBooks}) {
     _selectedIndex.value = 0;
+    _clearChecked();
     _pendingEnter = false;
     context.read<FindRefBloc>().add(
       SearchRefRequested(
@@ -573,6 +579,119 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
+  void _clearChecked() {
+    _checkAnchor = null;
+    if (_checked.value.isNotEmpty) _checked.value = const {};
+  }
+
+  /// Shift מוסיף טווח מהעוגן; Ctrl/Cmd או סימון קיים מחליפים את מצב השורה.
+  bool _handleCheckTap(int index, int nativeCount) {
+    if (index >= nativeCount) return false;
+    final keyboard = HardwareKeyboard.instance;
+    final shift = keyboard.isShiftPressed;
+    final additive = keyboard.isControlPressed || keyboard.isMetaPressed;
+    if (!shift && !additive && _checked.value.isEmpty) return false;
+    final next = {..._checked.value};
+    // תחילת סימון: השורה הנוכחית (המודגשת) נכללת, כמו בסייר הקבצים.
+    final current = _selectedIndex.value;
+    if (next.isEmpty && current < nativeCount) {
+      next.add(current);
+      _checkAnchor ??= current;
+    }
+    if (shift) {
+      final from = (_checkAnchor ?? _selectedIndex.value).clamp(
+        0,
+        nativeCount - 1,
+      );
+      final lo = from < index ? from : index;
+      final hi = from < index ? index : from;
+      next.addAll([for (var i = lo; i <= hi; i++) i]);
+      _checkAnchor ??= from;
+    } else {
+      if (!next.remove(index)) next.add(index);
+      _checkAnchor = index;
+    }
+    _checked.value = next;
+    _selectedIndex.value = index;
+    return true;
+  }
+
+  /// פותח את התוצאות המסומנות לפי סדר הרשימה, וסוגר את הדיאלוג בסוף.
+  Future<void> _openChecked() async {
+    final refs = _shownRefs;
+    final indexes = _checked.value.where((i) => i < refs.length).toList()
+      ..sort();
+    if (indexes.isEmpty) return;
+    // מנקים מיד, כדי שלחיצה כפולה לא תפתח פעמיים.
+    _clearChecked();
+    for (final i in indexes) {
+      if (!mounted) return;
+      await _openRef(refs[i], closeDialog: false);
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Widget _buildCheckedBar() {
+    return ValueListenableBuilder<Set<int>>(
+      valueListenable: _checked,
+      builder: (context, checked, _) {
+        if (checked.isEmpty) return const SizedBox.shrink();
+        final cs = Theme.of(context).colorScheme;
+        final count = checked.length;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTokens.spaceSMD,
+            0,
+            AppTokens.spaceSMD,
+            AppTokens.spaceSM,
+          ),
+          child: Material(
+            color: AppSurfaces.selectedRow(cs),
+            elevation: AppTokens.elevation2,
+            borderRadius: AppTokens.borderRadiusAll,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTokens.spaceSMD,
+                vertical: AppTokens.spaceSM,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        count == 1
+                            ? context.settingsText('ספר אחד נבחר')
+                            : context.settingsText(
+                                '{count} ספרים נבחרו',
+                                args: {'count': count},
+                              ),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: cs.onSecondaryContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                  ActionButton.inline(
+                    text: context.settingsText('ביטול בחירה'),
+                    tooltip: context.settingsText('ביטול הבחירה (Esc)'),
+                    onPressed: _clearChecked,
+                  ),
+                  const SizedBox(width: AppTokens.spaceSM),
+                  ActionButton.recommended(
+                    text: context.settingsText('פתח נבחרים'),
+                    icon: FluentIcons.open_24_regular,
+                    onPressed: _openChecked,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   /// פותח את התוצאה.
   ///
   /// [initialCommentators] סמנטיקה:
@@ -582,6 +701,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   Future<void> _openRef(
     DbReferenceResult ref, {
     List<String>? initialCommentators,
+    bool closeDialog = true,
   }) async {
     _rememberCurrentQuery();
     // אינדקס 0 נקרא "בלי מיקום" ומשוחזר מההיסטוריה; רק תוצאת ספר-בלבד היא כזו.
@@ -631,7 +751,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
             final navigationBloc = context.read<NavigationBloc>();
             final historyBloc = context.read<HistoryBloc>();
             final layoutWidth = readingLayoutWidthResolverOf(context);
-            Navigator.of(context).pop();
+            if (closeDialog) Navigator.of(context).pop();
             // כמו ב-BookOpenCoordinator.openBook: שמירת מיקום הקריאה של הטאב
             // הנוכחי להיסטוריה לפני שהטאב הדחוי תופס את המוקד.
             if (tabsBloc.state.hasOpenTabs) {
@@ -700,7 +820,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    if (closeDialog) Navigator.of(context).pop();
     openBook(
       context,
       book,
@@ -1023,6 +1143,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
           return KeyEventResult.ignored;
         }
+        if (event.logicalKey == LogicalKeyboardKey.escape &&
+            _checked.value.isNotEmpty) {
+          _clearChecked();
+          return KeyEventResult.handled;
+        }
 
         if (resultCount == 0) return KeyEventResult.ignored;
         final key = event.logicalKey;
@@ -1084,6 +1209,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
           (state is FindRefLoading ||
               state is FindRefSuccess ||
               state is FindRefInitial);
+      return;
+    }
+    if (_checked.value.isNotEmpty) {
+      unawaited(_openChecked());
       return;
     }
     final success = state as FindRefSuccess;
@@ -1173,6 +1302,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (!identical(state, _supersededVisibilityState)) {
           _supersededVisibilityState = null;
         }
+        if (state is FindRefSuccess && !identical(state.refs, _shownRefs)) {
+          _clearChecked();
+        }
         if (state is FindRefSuccess) {
           _shownRefs = state.refs;
           _shownExternalRefs = state.externalRefs;
@@ -1248,7 +1380,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     double horizontalPadding, {
     FindRefSuccess? source,
   }) {
-    final rowInputs = Listenable.merge([_selectedIndex, _typedQuery]);
+    final rowInputs = Listenable.merge([_selectedIndex, _typedQuery, _checked]);
     return NotificationListener<ScrollMetricsNotification>(
       // תופס את החיבור הראשון של ה-ListView וכל שינוי maxScrollExtent; העדכון
       // נדחה לסוף ה-frame כדי לא לשנות ValueNotifier בזמן build.
@@ -1279,7 +1411,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 refs[index],
                 index,
                 isSelected: index == _selectedIndex.value,
+                isChecked: _checked.value.contains(index),
                 interactive: interactive,
+                nativeCount: refs.length,
               );
             }
             final extra = source?.externalRefs ?? _shownExternalRefs;
@@ -1300,6 +1434,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
     int index, {
     required bool isSelected,
     required bool interactive,
+    bool isChecked = false,
+    int nativeCount = 0,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final eligible = !ref.isPdf && ref.bookId > 0 && ref.source.isOfficial;
@@ -1307,6 +1443,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final cached = _commentatorsByRef[_commentatorsKey(ref)];
     final showButton = eligible && cached != null && cached.isNotEmpty;
     final menuButtonKey = _getCommentatorsButtonKey(index);
+    final highlighted = isSelected || isChecked;
     final openTab = _openTabShowing(ref);
 
     // Material (ולא Container צבוע) כדי שהצבע והריפל של ה-ListTile ייראו —
@@ -1314,20 +1451,20 @@ class _FindRefDialogState extends State<FindRefDialog> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: isSelected
+        color: highlighted
             ? AppSurfaces.selectedRow(colorScheme)
             : AppSurfaces.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,
           side: BorderSide(
-            color: isSelected
+            color: highlighted
                 ? colorScheme.primary
                 : colorScheme.outlineVariant,
           ),
         ),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
-          selected: isSelected,
+          selected: highlighted,
           // selected צובע את כפתור המפרשים ב-primary; שומרים על צבעו הרגיל.
           selectedColor: colorScheme.onSurfaceVariant,
           hoverColor: showButton || openTab != null ? Colors.transparent : null,
@@ -1338,17 +1475,23 @@ class _FindRefDialogState extends State<FindRefDialog> {
             height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isSelected
+              color: highlighted
                   ? colorScheme.primaryContainer
                   : colorScheme.surfaceContainerHigh,
               borderRadius: AppTokens.borderRadiusAll,
             ),
-            child: _buildResultIcon(
-              ref,
-              isSelected
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurfaceVariant,
-            ),
+            child: isChecked
+                ? Icon(
+                    FluentIcons.checkmark_24_regular,
+                    size: 20,
+                    color: colorScheme.onPrimaryContainer,
+                  )
+                : _buildResultIcon(
+                    ref,
+                    highlighted
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onSurfaceVariant,
+                  ),
           ),
           // reference ארוך (למשל AltToc עם שם הספר כתחילית) היה מותח שורה
           // אחת על פני כל אזור התוצאות.
@@ -1357,7 +1500,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
             maxLines: 2,
             style: TextStyle(
               fontSize: 15,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontWeight: highlighted ? FontWeight.w600 : FontWeight.normal,
               color: colorScheme.onSurface,
             ),
           ),
@@ -1407,7 +1550,12 @@ class _FindRefDialogState extends State<FindRefDialog> {
                       ),
                   ],
                 ),
-          onTap: interactive ? () => _openRef(ref) : null,
+          onTap: interactive
+              ? () {
+                  if (_handleCheckTap(index, nativeCount)) return;
+                  _openRef(ref);
+                }
+              : null,
         ),
       ),
     );
@@ -1790,6 +1938,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 ),
               ),
               Expanded(child: _buildResultsArea(horizontalPadding)),
+              _buildCheckedBar(),
               if (!isTiny) ...[const Divider(height: 1), _buildFooter(isShort)],
             ],
           ),
