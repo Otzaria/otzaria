@@ -1,4 +1,4 @@
-"""Run two immutable PDF source snapshots in one Windows host session."""
+"""Run two immutable PDF source snapshots in one desktop host session."""
 
 from __future__ import annotations
 
@@ -14,6 +14,11 @@ import subprocess
 import sys
 import time
 import uuid
+
+if __package__:
+    from .posix_engine import binary_identity, darwin_engine_images, linux_engine_images
+else:
+    from posix_engine import binary_identity, darwin_engine_images, linux_engine_images
 
 
 HARNESS_PATHS = (
@@ -203,20 +208,100 @@ def validate_reports(reports: dict, commits: dict, settings: dict, hardware_id: 
     return comparison
 
 
+def native_arguments(checkout, args, output, case, hardware_id, system, pwsh=None):
+    if system == "Windows":
+        arguments = [
+            pwsh, "-NoProfile", "-File", str(checkout / "tool/perf_probe/run_perf_probe.ps1"),
+            "-Mode", args.mode, "-CacheState", args.cache_state,
+            "-ScenarioSet", args.scenario, "-BindingMode", "framework",
+            "-Launches", str(args.launches), "-Repetitions", str(args.repetitions), "-Warmup", "1",
+            "-PdfCase", str(case), "-OutputDirectory", str(output), "-HardwareId", hardware_id,
+        ]
+        if args.expected_engine_sha256:
+            arguments.extend(["-ExpectedEngineSha256", args.expected_engine_sha256])
+        return arguments
+    if system not in ("Linux", "Darwin"):
+        raise ValueError("Native paired measurements require Windows, Linux or macOS.")
+    return [
+        sys.executable, "-B", str(checkout / "tool/perf_probe/run_perf_probe_posix.py"),
+        "--mode", args.mode, "--cache-state", args.cache_state,
+        "--scenario-set", args.scenario, "--binding-mode", "framework",
+        "--launches", str(args.launches), "--repetitions", str(args.repetitions), "--warmup", "1",
+        "--pdf-case", str(case), "--output", str(output), "--hardware-id", hardware_id,
+        "--display-mode", args.display_mode,
+    ]
+
+
+def verify_posix_engines(output, reports, settings, system):
+    platform_name = "macos" if system == "Darwin" else "linux"
+    for role, report in reports.items():
+        directory = output / role
+        manifest = read_json(directory / "manifest.json")
+        identity = manifest.get("engineIdentity", {})
+        name = "FlutterMacOS" if platform_name == "macos" else "libflutter_linux_gtk.so"
+        if (not identity or identity != report.get("metadata", {}).get("engineIdentity")
+                or type(identity.get("schemaVersion")) is not int or identity["schemaVersion"] != 1
+                or identity.get("platform") != platform_name or identity.get("binaryName") != name
+                or identity.get("buildMode") != settings["mode"]
+                or type(identity.get("bytes")) is not int or identity["bytes"] <= 0
+                or not isinstance(identity.get("bundleSha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", identity["bundleSha256"])):
+            raise ValueError(f"{role} lacks a valid bundled POSIX engine identity.")
+        engine = manifest.get("engineEvidence", {})
+        if (engine.get("verifiedAfterRuns") is not True or not isinstance(engine.get("canonicalPath"), str)
+                or not Path(engine["canonicalPath"]).is_absolute()):
+            raise ValueError(f"{role} did not verify the engine before and after its runs.")
+        image = Path(engine["canonicalPath"])
+        expected_root = (output.parent / "worktrees" / role).resolve()
+        if image.resolve(strict=True) != image or not image.is_relative_to(expected_root):
+            raise ValueError(f"{role} engine came from outside the measured checkout.")
+        actual = binary_identity(image)
+        if any(actual[key] != identity[key] for key in actual):
+            raise ValueError(f"{role} bundled engine changed after measurement.")
+        names = [f"launch-{index:03d}" for index in range(settings["launches"])]
+        names += (["prepare-data", "prepare-warm"] if settings["cacheState"] == "warm"
+                  else [f"prepare-data-{index}" for index in range(settings["launches"])])
+        for name in names:
+            launch = read_json(directory / name / "launch.json")
+            proof = read_json(directory / name / "engine.json")
+            if (type(launch.get("pid")) is not int or launch["pid"] <= 0
+                    or launch.get("engineVerifiedAfterCompletion") is not True
+                    or proof.get("observedAfterCompletion") is not True
+                    or type(proof.get("pid")) is not int or proof["pid"] != launch["pid"]
+                    or proof.get("identity") != identity
+                    or proof.get("canonicalPath") != engine["canonicalPath"]
+                    or not isinstance(proof.get("rawObservation"), str) or not proof["rawObservation"]):
+                raise ValueError(f"{role}/{name} lacks the owned process's mapped engine evidence.")
+            expected_source = (f"/proc/{proof['pid']}/maps" if platform_name == "linux"
+                               else "lsof -a -p <owned PID> -d txt -Fpcfn0")
+            if proof.get("source") != expected_source:
+                raise ValueError(f"{role}/{name} has a different mapping observation source.")
+            mappings = (linux_engine_images(proof["rawObservation"], image.name) if platform_name == "linux"
+                        else darwin_engine_images(proof["rawObservation"], proof["pid"], image.name))
+            if {Path(mapping["path"]).resolve(strict=True) for mapping in mappings} != {image}:
+                raise ValueError(f"{role}/{name} did not map the claimed bundled engine.")
+
+
 def run_pair(args: argparse.Namespace) -> None:
     source, output = args.source.resolve(), args.output.resolve()
     if output == source or output.is_relative_to(source):
         raise ValueError("Results and temporary worktrees must be outside the source checkout.")
     experiment = read_json(args.experiment) if not args.baseline and not args.candidate else None
     commits = {role: full_sha(getattr(args, role) or experiment[role]) for role in ("baseline", "candidate")}
-    if args.mode == "release" and not re.fullmatch(r"[0-9a-f]{64}", args.expected_engine_sha256):
+    system = platform.system()
+    if system not in ("Windows", "Linux", "Darwin"):
+        raise ValueError("Native paired measurements require Windows, Linux or macOS.")
+    if system == "Windows" and args.mode == "release" and not re.fullmatch(r"[0-9a-f]{64}", args.expected_engine_sha256):
         raise ValueError("Release pairs require the verified patched Windows engine SHA-256.")
+    if system != "Windows" and args.expected_engine_sha256:
+        raise ValueError("The patched Windows engine hash cannot validate a POSIX engine.")
+    if system != "Linux" and args.display_mode != "desktop":
+        raise ValueError("Xvfb display identity is Linux-only.")
     identities = verify_sources(source, commits, experiment.get("changedPaths") if experiment else None)
-    if platform.system() != "Windows":
-        raise ValueError("Native paired measurements require Windows; contract tests are portable.")
-    flutter, dart, pwsh = (shutil.which(name) for name in ("flutter", "dart", "pwsh"))
-    if not all((flutter, dart, pwsh)):
-        raise ValueError("Flutter, Dart and PowerShell must be available on PATH.")
+    flutter, dart = (shutil.which(name) for name in ("flutter", "dart"))
+    pwsh = shutil.which("pwsh") if system == "Windows" else None
+    if not flutter or not dart or (system == "Windows" and not pwsh):
+        raise ValueError("Flutter and Dart (also PowerShell on Windows) must be available on PATH.")
     output.mkdir(parents=True, exist_ok=False)
     logs = output / "logs"
     logs.mkdir()
@@ -227,7 +312,8 @@ def run_pair(args: argparse.Namespace) -> None:
         "kind": "generated", "pageCount": args.pages, "mixedPageSizes": True,
     }})
     settings = {"mode": args.mode, "cacheState": args.cache_state, "scenario": args.scenario,
-                "pages": args.pages, "launches": args.launches, "repetitions": args.repetitions}
+                "pages": args.pages, "launches": args.launches, "repetitions": args.repetitions,
+                "platform": system, "displayMode": args.display_mode}
     order = ["baseline", "candidate"] if args.order == "baseline-first" else ["candidate", "baseline"]
     hardware_id = f"paired-{platform.node()}-{uuid.uuid4().hex}"
     receipt = {
@@ -265,16 +351,8 @@ def run_pair(args: argparse.Namespace) -> None:
                 stages[stage] = run_logged([flutter, *arguments], checkout, logs / f"{role}-{stage}.log")
                 verify_checkout(checkout, commits[role])
                 write_json(output / "pair.json", receipt)
-            arguments = [
-                pwsh, "-NoProfile", "-File", str(checkout / "tool/perf_probe/run_perf_probe.ps1"),
-                "-Mode", args.mode, "-CacheState", args.cache_state,
-                "-ScenarioSet", args.scenario, "-BindingMode", "framework",
-                "-Launches", str(args.launches), "-Repetitions", str(args.repetitions), "-Warmup", "1",
-                "-PdfCase", str(case), "-OutputDirectory", str(output / "results" / role),
-                "-HardwareId", hardware_id,
-            ]
-            if args.expected_engine_sha256:
-                arguments.extend(["-ExpectedEngineSha256", args.expected_engine_sha256])
+            arguments = native_arguments(checkout, args, output / "results" / role, case,
+                                         hardware_id, system, pwsh)
             stages["nativeBuildAndRuns"] = run_logged(arguments, checkout, logs / f"{role}-native.log")
             verify_checkout(checkout, commits[role])
             if sdk_identity(flutter, checkout) != receipt["sdk"]:
@@ -284,6 +362,8 @@ def run_pair(args: argparse.Namespace) -> None:
         run_logged([dart, "tool/perf_probe/analyze.dart", str(output / "results/candidate"),
                     "--baseline", str(output / "results/baseline")], candidate, logs / "comparison.log")
         reports = {role: read_json(output / "results" / role / "report.json") for role in commits}
+        if system != "Windows":
+            verify_posix_engines(output / "results", reports, settings, system)
         receipt["comparison"] = validate_reports(reports, commits, settings, hardware_id, receipt["sdk"])
         for role in commits:
             verify_checkout(output / "worktrees" / role, commits[role])
@@ -324,6 +404,7 @@ def main() -> int:
     parser.add_argument("--repetitions", type=int, choices=range(1, 101), default=5)
     parser.add_argument("--order", choices=("baseline-first", "candidate-first"), default="baseline-first")
     parser.add_argument("--expected-engine-sha256", default="")
+    parser.add_argument("--display-mode", choices=("desktop", "xvfb"), default="desktop")
     args = parser.parse_args()
     if bool(args.baseline) != bool(args.candidate):
         parser.error("Provide both --baseline and --candidate, or neither for the fixed experiment.")

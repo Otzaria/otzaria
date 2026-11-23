@@ -681,6 +681,11 @@ class OrchestrationTest(PosixFixture):
         executable = self.app()
         commands = []
         actual_capture = runner.capture
+        engine = mock.Mock()
+        engine.identity = {"bundleSha256": "a" * 64, "bytes": 123}
+        engine.path = self.root / "bundled-engine-contract"
+        engine.observe_loaded.side_effect = lambda pid, **kwargs: {"pid": pid, "identity": engine.identity}
+        self.engine = engine
 
         def capture(command, **kwargs):
             if command[0] == "flutter":
@@ -705,6 +710,7 @@ class OrchestrationTest(PosixFixture):
         with (mock.patch.object(runner, "capture", side_effect=capture),
               mock.patch.object(runner, "run_logged", side_effect=logged),
               mock.patch.object(runner, "binary_path", return_value=executable),
+              mock.patch.object(runner, "BundledFlutterEngine", return_value=engine),
               mock.patch.dict(os.environ, {"DISPLAY": ":test-contract"}),
               contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO())):
             code = runner.run(args, repository=self.repository)
@@ -728,6 +734,15 @@ class OrchestrationTest(PosixFixture):
         self.assertEqual({entry["launchIndex"] for entry in records}, {0, 1})
         self.assertTrue((output / "prepare-data/completion.json").exists())
         self.assertTrue((output / "prepare-warm/completion.json").exists())
+        self.assertEqual(manifest["engineIdentity"], self.engine.identity)
+        self.assertTrue(manifest["engineEvidence"]["verifiedAfterRuns"])
+        self.assertEqual(self.engine.observe_loaded.call_count, 4)
+        self.engine.verify_unchanged.assert_called_once_with()
+        for directory in ("prepare-data", "prepare-warm", "launch-000", "launch-001"):
+            launch = runner.read_json(output / directory / "launch.json")
+            evidence = runner.read_json(output / directory / "engine.json")
+            self.assertTrue(launch["engineVerifiedAfterCompletion"])
+            self.assertEqual(launch["pid"], evidence["pid"])
 
     def test_build_failure_still_records_after_build_provenance_and_never_launches(self):
         code, manifest, commands = self.measured_run(build_fails=True)

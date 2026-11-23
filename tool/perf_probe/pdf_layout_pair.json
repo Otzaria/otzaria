@@ -2,8 +2,10 @@
   "schemaVersion": 1,
   "repository": "yom-chadash/otzaria",
   "kind": "controlled source experiment; not a historical release baseline",
-  "candidate": "4006e950e5d816c6b32a4446dd29b5becafdd641",
-  "baseline": "e4ac99433506242d56ba7a16ebb9a5027bc4bf82",
+  "candidate": "264c41a6ab0eafe33addf8e05fb0bfbbe7764694",
+  "baseline": "03d00ac4e87bd9cdcb9adffcef7c54a409e81180",
+  "sourceBasis": "4006e950e5d816c6b32a4446dd29b5becafdd641",
+  "sharedHarnessAddition": "Bundled POSIX Flutter engine hash before/after measurement and owned-process mapping evidence",
   "controlBasis": "candidate with exactly the six-file delta of Otzaria/otzaria#5800 reverted",
   "revertedCommit": "9a1c6c691db4b13d487cc0532f58ae9f6c7505de",
   "changedPaths": [
