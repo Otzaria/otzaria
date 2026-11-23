@@ -428,7 +428,7 @@ List<int> personalizeFindRefOrder(
     var additions = 0;
     for (final i in candidates) {
       if (additions >= findRefPersonalMaxAdditions) break;
-      if (included.contains(i)) continue;
+      if (i < cutoff || included.contains(i)) continue;
       // רק שורה שמחלקת ההתאמה שלה אינה גרועה משל האחרונה שבחיתוך.
       if (compareFindRefMatchClass(sorted[i], boundary, query) > 0) continue;
       included.add(i);

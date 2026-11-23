@@ -69,10 +69,8 @@ FindRefRepository _repo(
   return repo;
 }
 
-FindRefPreferenceBook _pref(_Book book) => (
-  key: FindRefPreferences.officialBaseKey(book.id),
-  title: book.title,
-);
+FindRefPreferenceBook _pref(_Book book) =>
+    (key: FindRefPreferences.officialBaseKey(book.id), title: book.title);
 
 FindRefPreferences _opened(
   _Book book,
@@ -155,11 +153,7 @@ const _Book _ritvaBerakhot = (id: 10, title: 'ריטב"א על ברכות', path
 const _Book _ritvaEruvin = (id: 11, title: 'ריטב"א על עירובין', path: null);
 const _Book _eruvin = (id: 20, title: 'עירובין', path: 'תלמוד בבלי, סדר מועד');
 const _Book _rashbaEruvin = (id: 21, title: 'רשב"א על עירובין', path: null);
-const _Book _berakhot = (
-  id: 30,
-  title: 'ברכות',
-  path: 'תלמוד בבלי, סדר זרעים',
-);
+const _Book _berakhot = (id: 30, title: 'ברכות', path: 'תלמוד בבלי, סדר זרעים');
 const _talmudBases = {
   10: [_berakhot],
   11: [_eruvin],
@@ -494,16 +488,8 @@ void main() {
   });
 
   group('רגרסיות ה-QA: ספרים מרובי-שורות ומעל התקרה', () {
-    const _Book mishnah = (
-      id: 1,
-      title: 'משנה ברכות',
-      path: 'משנה, סדר זרעים',
-    );
-    const _Book bavli = (
-      id: 2,
-      title: 'ברכות',
-      path: 'תלמוד בבלי, סדר זרעים',
-    );
+    const _Book mishnah = (id: 1, title: 'משנה ברכות', path: 'משנה, סדר זרעים');
+    const _Book bavli = (id: 2, title: 'ברכות', path: 'תלמוד בבלי, סדר זרעים');
     const _Book rashi = (id: 3, title: 'רש"י על ברכות', path: null);
     const _Book meiri = (id: 9, title: 'מאירי על ברכות', path: null);
     final library = <_Book>[
@@ -651,20 +637,12 @@ void main() {
       ];
       expect(bRows.length, greaterThan(findRefPersonalRowsPerBook));
       // שתי שורות בלבד עלו לראש; השאר אחרי כל שורות הספר הראשון, כמו היום.
-      expect(_rows(personal), [
-        ...bRows.take(2),
-        ...aRows,
-        ...bRows.skip(2),
-      ]);
+      expect(_rows(personal), [...bRows.take(2), ...aRows, ...bRows.skip(2)]);
     });
   });
 
   group('התאמת טקסט גוברת תמיד', () {
-    const _Book shabbat = (
-      id: 1,
-      title: 'שבת',
-      path: 'תלמוד בבלי, סדר מועד',
-    );
+    const _Book shabbat = (id: 1, title: 'שבת', path: 'תלמוד בבלי, סדר מועד');
     const _Book shabbatHaaretz = (id: 2, title: 'שבת הארץ', path: null);
 
     test('שם מלא קודם לספר מועדף שרק מתחיל בשאילתה', () async {
@@ -1106,6 +1084,25 @@ void main() {
 
       // שורה 3 שווה במחלקתה לזנב, אבל גרועה מהשורה האחרונה שבחיתוך.
       expect(result, [0, 1, 2]);
+    });
+
+    test('התאמה אישית אינה מחזירה שורה שנדחקה ממכסת הזנב', () {
+      final sorted = [
+        _key(0, order: 0),
+        _key(1, order: 1),
+        _key(2, order: 2),
+        _key(3, order: 3, startsWith: false),
+      ];
+      final result = _personalize(
+        sorted,
+        [0, 3],
+        query,
+        cutoff: 2,
+        books: ['a', 'displaced', 'liked', 'tail'],
+        affinities: [0, 9, 8, 0],
+      );
+
+      expect(result, [2, 0, 3]);
     });
 
     test('בלי חיתוך אין תוספות', () {
