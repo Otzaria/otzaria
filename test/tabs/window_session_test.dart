@@ -8,6 +8,7 @@ import 'package:otzaria/core/user_state/user_state_slot.dart';
 import 'package:otzaria/core/windowing/multiview/in_process_tab_drop.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 
@@ -283,6 +284,51 @@ void main() {
       expect(await TabsRepository.adoptOrphanWindowSessions(), 1);
       expect(await TabsRepository.adoptOrphanWindowSessions(), 0);
       expect(TabsRepository().loadTabs(), hasLength(1));
+    });
+  });
+
+  group('אבחון כשלים בשחזור סשנים', () {
+    setUp(() {
+      final previous = WindowEventLog.instance;
+      WindowEventLog.instance = WindowEventLog();
+      addTearDown(() => WindowEventLog.instance = previous);
+    });
+
+    test('אימוץ: כשל SQLite מדווח לפי סוג בלבד', () async {
+      await sessions.save(
+        2,
+        tabsJson: '[${_encoded('/documents/a.pdf')}]',
+        currentIndex: 0,
+      );
+      (await database.database).execute('''
+        CREATE TRIGGER reject_session BEFORE INSERT ON window_sessions
+        BEGIN SELECT RAISE(ABORT, 'blocked'); END
+      ''');
+
+      expect(await TabsRepository.adoptOrphanWindowSessions(), 0);
+      final event = WindowEventLog.instance.collect().single;
+      expect(event['event'], 'adoptOrphansFailed');
+      expect(event['error'], 'SqliteException');
+      expect(await sessions.load(2), isNotNull);
+    });
+
+    test('דחיסה: כשל בפענוח כרטיסיות מדווח לפי סוג בלבד', () async {
+      const tabsJson =
+          '["/documents/a.pdf", "search needle", "quoted text"] invalid';
+      const overflow = TabsRepository.maxWindowSlot + 1;
+      for (var slot = 1; slot <= overflow; slot++) {
+        await sessions.save(
+          slot,
+          tabsJson: slot == overflow ? tabsJson : '[]',
+          currentIndex: 0,
+        );
+      }
+
+      expect(await TabsRepository.compactWindowSessions(), isEmpty);
+      final event = WindowEventLog.instance.collect().single;
+      expect(event['event'], 'compactFailed');
+      expect(event['error'], 'FormatException');
+      expect((await sessions.load(overflow))?.tabsJson, tabsJson);
     });
   });
 }

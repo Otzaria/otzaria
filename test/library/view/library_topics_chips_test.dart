@@ -10,7 +10,9 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
@@ -143,6 +145,45 @@ List<String> _chipItems(WidgetTester tester) => tester
     )
     .items;
 
+List<LibraryMatchFilter> _matchChipItems(WidgetTester tester) => tester
+    .widget<FilterChipsSelector<LibraryMatchFilter>>(
+      find.byType(FilterChipsSelector<LibraryMatchFilter>),
+    )
+    .items;
+
+/// תוצאות 'טור' כמו בדיווח #4232: שם, מחבר, תיקיית הספר וכרטיס תיקייה.
+LibraryState _turResults({
+  Set<LibraryMatchFilter> filters = const {},
+  List<String>? topics,
+}) {
+  final library = Library(categories: []);
+  final tur = TextBook(title: 'טור', topics: 'הלכה, ראשונים');
+  final einYitzchak = TextBook(title: 'עין יצחק', topics: 'שות, אחרונים');
+  final prisha = TextBook(title: 'פרישה', topics: 'הלכה, אחרונים');
+  final folder = Category(
+    title: 'טורי זהב',
+    description: '',
+    shortDescription: '',
+    order: 0,
+    subCategories: [],
+    books: [],
+    parent: library,
+  );
+  return LibraryState(
+    library: library,
+    currentCategory: library,
+    searchResults: [tur, einYitzchak, prisha],
+    searchCategoryResults: [folder],
+    searchMatchKinds: Map.identity()
+      ..[tur] = BookMatchKind.title.bit | BookMatchKind.author.bit
+      ..[einYitzchak] = BookMatchKind.author.bit
+      ..[prisha] = BookMatchKind.folder.bit,
+    selectedMatchFilters: filters,
+    selectedTopics: topics,
+    searchQuery: 'טור',
+  );
+}
+
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -257,6 +298,57 @@ void main() {
     await tester.pump();
     expect(_chipItems(tester), ['חסידות', 'קבלה']);
     expect(_CountingBook.topicsReads, lessThan(results.length));
+    tester.takeException();
+  });
+
+  testWidgets("צ'יפי סוג ההתאמה מציגים רק סוגים שיש בתוצאות (#4232)", (
+    tester,
+  ) async {
+    await _pump(tester, _turResults());
+    expect(_matchChipItems(tester), [
+      LibraryMatchFilter.title,
+      LibraryMatchFilter.author,
+      LibraryMatchFilter.folder,
+      LibraryMatchFilter.folders,
+    ]);
+    expect(find.text('מחבר (2)'), findsOneWidget);
+    // שורת הנושאים נשארת מתחת.
+    expect(find.byType(FilterChipsSelector<String>), findsOneWidget);
+    tester.takeException();
+  });
+
+  testWidgets('בחירת מחבר מסתירה ספרים אחרים ואת כרטיסי התיקיות', (
+    tester,
+  ) async {
+    await _pump(tester, _turResults(filters: {LibraryMatchFilter.author}));
+    expect(find.text('טור'), findsWidgets);
+    expect(find.text('עין יצחק'), findsOneWidget);
+    expect(find.text('פרישה'), findsNothing);
+    expect(find.text('טורי זהב'), findsNothing);
+    tester.takeException();
+  });
+
+  testWidgets('בחירת תיקיות מציגה רק את כרטיסי התיקיות', (tester) async {
+    await _pump(tester, _turResults(filters: {LibraryMatchFilter.folders}));
+    expect(find.text('עין יצחק'), findsNothing);
+    expect(find.text('פרישה'), findsNothing);
+    expect(find.text('טורי זהב'), findsOneWidget);
+    tester.takeException();
+  });
+
+  testWidgets("הספירות לפי הנושא שנבחר, וצ'יפ שנבחר נשאר גם בלי תוצאות", (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _turResults(
+        filters: {LibraryMatchFilter.folders},
+        topics: ['ראשונים'],
+      ),
+    );
+    expect(find.text('מחבר (1)'), findsOneWidget);
+    expect(find.text('תיקיות (0)'), findsOneWidget);
+    expect(_matchChipItems(tester), contains(LibraryMatchFilter.folders));
     tester.takeException();
   });
 }

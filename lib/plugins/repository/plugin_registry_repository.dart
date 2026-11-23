@@ -96,6 +96,16 @@ class PluginRegistryRepository {
     );
   }
 
+  /// שומר התקנה חדשה רק למזהה פנוי, באותה טרנזקציה של ההרשאות.
+  Future<void> createPluginWithPermissions(
+    InstalledPlugin plugin,
+    Map<String, bool> permissions,
+  ) => _db.insertOrUpdatePluginWithPermissions(
+    plugin,
+    permissions,
+    requireNewInstallation: true,
+  );
+
   /// שדרוג אוטומטי מתחייב רק אם ההתקנה והחלטות המשתמש עדיין תואמות להכנה.
   Future<void> upgradePluginWithPermissions(
     InstalledPlugin plugin,

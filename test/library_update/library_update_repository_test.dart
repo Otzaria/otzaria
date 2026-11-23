@@ -57,6 +57,7 @@ void main() {
 
   test('ה-planner של האפליקציה מצהיר על הסכמה שהיא קוראת', () {
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: StreamingPatchDownloader(),
     );
@@ -97,6 +98,7 @@ void main() {
         decompress: (bytes) async => bytes,
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: refresh,
@@ -136,6 +138,7 @@ void main() {
         plan,
         onDbReplaced: () {
           expect(DbReadWorker.corruptDatabaseDetected.value, isFalse);
+          expect(File('$dbPath.applying').existsSync(), isFalse);
           DbReadWorker.corruptDatabaseDetected.value = true;
         },
       );
@@ -204,6 +207,7 @@ void main() {
         decompress: (bytes) async => bytes,
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -269,6 +273,7 @@ void main() {
       }
 
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: PatchDownloader(
           httpClient: MockClient.streaming(
@@ -515,6 +520,7 @@ void main() {
         decompress: (b) async => b,
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -641,6 +647,74 @@ void main() {
     },
   );
 
+  test('המסד נפתח מחדש לפני סיום ניקוי הגיבוי', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    final recovery = _GatedBackupCleanupRecovery();
+    final gate = LibraryAccessGate(
+      renameProbe: false,
+      selfAccess: LibraryAccessRoutine(
+        suspend: () async {},
+        resume: (dbReplaced) async {
+          expect(dbReplaced, isTrue);
+          expect(_readMarker(dbPath), 'new');
+        },
+      ),
+    );
+    final repository = _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      recovery: recovery,
+      accessGate: gate,
+    );
+    var replacementReported = false;
+    final update = repository.applyFullDownload(
+      _localFullDownloadPlan(),
+      onDbReplaced: () {
+        replacementReported = true;
+        throw StateError('replacement listener failed');
+      },
+    );
+    try {
+      await recovery.cleanupStarted.future;
+      await _waitUntil(() => !gate.isSuspending);
+      expect(replacementReported, isTrue);
+      expect(File('$dbPath.applying').existsSync(), isFalse);
+      expect(File('$dbPath.backup').existsSync(), isTrue);
+      expect(DatabaseLibraryProvider.operationQueue.busyCount.value, 1);
+    } finally {
+      recovery.releaseCleanup.complete();
+      await update;
+    }
+    expect(File('$dbPath.backup').existsSync(), isFalse);
+  });
+
+  test('כשל בניקוי הגיבוי אחרי commit משאיר את המסד החדש', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    final recovery = _GatedBackupCleanupRecovery();
+    final repository = _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      recovery: recovery,
+    );
+    var replacementReported = false;
+    final update = repository.applyFullDownload(
+      _localFullDownloadPlan(),
+      onDbReplaced: () => replacementReported = true,
+    );
+    final result = expectLater(update, throwsStateError);
+
+    await recovery.cleanupStarted.future;
+    recovery.releaseCleanup.completeError(StateError('cleanup failed'));
+    await result;
+
+    expect(replacementReported, isTrue);
+    expect(_readMarker(dbPath), 'new');
+    expect(File('$dbPath.applying').existsSync(), isFalse);
+    expect(File('$dbPath.backup').existsSync(), isTrue);
+  });
+
   test('rollback אחרי החלפה משמר את סימון הפגימה של המסד הישן', () async {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
@@ -712,6 +786,7 @@ void main() {
         decompress: (b) async => b,
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -762,9 +837,11 @@ void main() {
 
     LibraryUpdateRepository repo(
       Future<DiskSpaceInfo> Function(String dirPath) diskSpaceProvider,
-      String dbPath,
-    ) {
+      String dbPath, {
+      int? frameSize,
+    }) {
       return LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => frameSize,
         discovery: _unusedDiscovery(),
         downloader: PatchDownloader(
           // כל הגעה לרשת מסומנת בחריגה ייחודית — הבדיקות מבחינות בינה לבין
@@ -829,7 +906,7 @@ void main() {
       ).writeAsStringSync('https://x/manifest|2000|||part-0|$hash');
       final repository = repo(
         (_) async =>
-            const DiskSpaceInfo(volumeId: 'same', freeBytes: 6979321856 + 3000),
+            const DiskSpaceInfo(volumeId: 'same', freeBytes: 8 * oneGb),
         dbPath,
       );
       final downloadPlan = LibraryUpdatePlan.fullDownload(
@@ -896,6 +973,90 @@ void main() {
       },
     );
 
+    test('גודל מחולץ מכותרת הארכיון משמש בבדיקת המקום', () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      final repository = repo(
+        (_) async => const DiskSpaceInfo(
+          volumeId: 'same',
+          freeBytes: 6 * oneGb,
+        ),
+        dbPath,
+        frameSize: 4418928640,
+      );
+
+      // 1GiB הורדה + כ-4.4GB חילוץ + מרווח ביטחון נכנסים ב-6GiB.
+      await expectLater(
+        repository.applyFullDownload(plan()),
+        throwsA(isNot(isA<LibraryUpdateDiskSpaceException>())),
+      );
+    });
+
+    test('שיא חיבור חלקי v38 אינו נספר לתוך שיא החילוץ', () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      const partSizes = [1992294400, 254447448];
+      final asset = ReleaseAsset.fromSplit(
+        const ReleaseAsset(
+          name: 'seforim-schema7.db.zst.manifest.json',
+          downloadUrl: 'https://x/manifest',
+          size: 589,
+        ),
+        SplitAsset(
+          archive: 'seforim-schema7.db.zst',
+          manifestName: 'seforim-schema7.db.zst.manifest.json',
+          size: 2246741848,
+          sha256: 'a' * 64,
+          parts: [
+            for (final (index, size) in partSizes.indexed)
+              SplitAssetPart(
+                name: 'part-$index',
+                size: size,
+                sha256: 'b' * 64,
+                downloadUrl: 'https://x/part-$index',
+              ),
+          ],
+        ),
+      );
+      final splitPlan = LibraryUpdatePlan.fullDownload(
+        localVersion: 1,
+        targetVersion: 2,
+        asset: asset,
+        releaseTag: 'v2',
+      );
+      LibraryUpdateRepository withFreeBytes(int freeBytes) => repo(
+        (_) async => DiskSpaceInfo(volumeId: 'same', freeBytes: freeBytes),
+        dbPath,
+        frameSize: 4418928640,
+      );
+
+      await expectLater(
+        withFreeBytes(7000000000).applyFullDownload(splitPlan),
+        throwsA(isNot(isA<LibraryUpdateDiskSpaceException>())),
+      );
+      await expectLater(
+        withFreeBytes(6900000000).applyFullDownload(splitPlan),
+        throwsA(isA<LibraryUpdateDiskSpaceException>()),
+      );
+    });
+
+    test('גודל frame גדול מהשטח הפנוי נחסם לפני הורדה', () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      final repository = repo(
+        (_) async => const DiskSpaceInfo(
+          volumeId: 'same',
+          freeBytes: 6 * oneGb,
+        ),
+        dbPath,
+        frameSize: 8 * oneGb,
+      );
+      await expectLater(
+        repository.applyFullDownload(plan()),
+        throwsA(isA<LibraryUpdateDiskSpaceException>()),
+      );
+    });
+
     test('מקום פנוי מספיק — הבדיקה עוברת וההורדה מתחילה', () async {
       final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
       _writeDb(dbPath, version: 1, marker: 'old');
@@ -946,6 +1107,7 @@ void main() {
         required int dbFree,
       }) =>
           LibraryUpdateRepository(
+            fullDbSizeProbe: (_) async => null,
             discovery: _unusedDiscovery(),
             downloader: PatchDownloader(decompress: (b) async => b),
             isAndroid: true,
@@ -957,17 +1119,18 @@ void main() {
                 : DiskSpaceInfo(volumeId: '/dev/fuse', freeBytes: dbFree),
           ).ensureDiskSpaceForFullDownload(
             archivePath: archivePath,
-            archiveNeeded: 2 * oneGb,
+            archiveSpace: (peak: 2 * oneGb, retained: 2 * oneGb),
             dbDir: dbDir,
+            extractedDbSize: 4418928640,
           );
 
       test('אחסון משותף ו-/data נבדקים מול סכום הארכיון והחילוץ', () async {
-        // 8GB מספיקים לארכיון לבד ולחילוץ לבד, אבל לא לשניהם יחד.
+        // 6GiB מספיקים לכל אחד בנפרד, אבל לא לסכומם.
         await expectLater(
           check(
             dbDir: '/storage/emulated/0/ספרים',
-            dataFree: 8 * oneGb,
-            dbFree: 8 * oneGb,
+            dataFree: 6 * oneGb,
+            dbFree: 6 * oneGb,
           ),
           throwsA(
             isA<LibraryUpdateDiskSpaceException>().having(
@@ -1015,6 +1178,7 @@ void main() {
       PatchDownloader? downloader,
     }) {
       return LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader:
             downloader ??
@@ -1296,6 +1460,7 @@ void main() {
       // אך מחזיר patch מקומי בלי רשת.
       final downloader = _LocalPatchDownloader(p.join(tmp.path, 'patch.db'));
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: downloader,
         refreshService: _NoopRefreshService(),
@@ -1327,6 +1492,7 @@ void main() {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: _LocalPatchDownloader(
         p.join(tmp.path, 'patch.db'),
@@ -1363,6 +1529,7 @@ void main() {
       _writeDb(dbPath, version: 1, marker: 'old');
 
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
         refreshService: _NoopRefreshService(),
@@ -1404,6 +1571,7 @@ void main() {
         final before = File(dbPath).readAsBytesSync();
         final modified = File(dbPath).lastModifiedSync();
         final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
           discovery: _unusedDiscovery(),
           downloader: _LocalPatchDownloader(
             patchPath,
@@ -1478,6 +1646,7 @@ void main() {
       final dbPath = p.join(tmp.path, 'missing.db');
       final stopped = StateError('permissions passed');
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
         dbPathProvider: () => dbPath,
@@ -1502,6 +1671,7 @@ void main() {
       expect(result.exitCode, 0);
       try {
         final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
           discovery: _unusedDiscovery(),
           downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
           dbPathProvider: () => dbPath,
@@ -1555,6 +1725,7 @@ void main() {
       const OSError('I/O failure', 5),
     );
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: _LocalPatchDownloader(
         patchPath,
@@ -1587,6 +1758,7 @@ void main() {
         if (beforeDownload) await _setReadOnly(dbPath, true);
         var downloaded = false;
         final repository = LibraryUpdateRepository(
+          fullDbSizeProbe: (_) async => null,
           discovery: _unusedDiscovery(),
           downloader: _LocalPatchDownloader(
             patchPath,
@@ -1651,6 +1823,7 @@ void main() {
         ..select('SELECT value FROM marker');
 
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
         refreshService: _NoopRefreshService(),
@@ -1689,6 +1862,7 @@ void main() {
       final modesAtApply = <String>[];
 
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         // הניסיון הראשון ממתין 5 שניות לנעילה; הקורא משתחרר בזמן הניסיון השני.
         downloader: _LocalPatchDownloader(
@@ -1751,6 +1925,7 @@ void main() {
       )..createSync(recursive: true);
       final refresh = _NoopRefreshService();
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: refresh,
@@ -1795,6 +1970,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -1845,6 +2021,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -1890,6 +2067,7 @@ void main() {
     _writeDb(dbPath, version: 1, marker: 'old');
     final planner = _RecordingPlanner();
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       planner: planner,
       downloader: _PatchMapDownloader(const {}),
@@ -1909,6 +2087,7 @@ void main() {
     _writeDb(dbPath, version: 1, marker: 'old');
     final planner = _RecordingPlanner();
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       planner: planner,
       versionReader: _IsolateRecordingReader(Isolate.current.debugName),
@@ -1927,6 +2106,7 @@ void main() {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 2, marker: 'current');
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: LibraryUpdateDiscovery(
         supportedDbSchemaVersion: schema,
         client: GithubLibraryReleaseClient(
@@ -1983,6 +2163,7 @@ void main() {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
     final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: LibraryUpdateDiscovery(
         supportedDbSchemaVersion: DatabaseConstants.readableDbSchemaVersion,
         client: GithubLibraryReleaseClient(
@@ -2044,6 +2225,7 @@ void main() {
       );
       final refresh = _NoopRefreshService();
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({
           'patch-1-2.db': firstPatch,
@@ -2105,6 +2287,7 @@ void main() {
       Future<PatchApplier> Function() applierProvider, {
       Future<void> Function()? sqliteTempDirectoryInitializer,
     }) => LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
       discovery: _unusedDiscovery(),
       downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
       refreshService: _NoopRefreshService(),
@@ -2197,6 +2380,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -2280,6 +2464,7 @@ void main() {
       AppPaths.debugOverrideDataRootPath(tmp.path);
       final refresh = _NoopRefreshService();
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: refresh,
@@ -2352,6 +2537,7 @@ void main() {
         sourceName: 'newer',
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({
           'patch-1-2.db': firstPatch,
@@ -2435,6 +2621,7 @@ void main() {
         patchFormatVersion: 99,
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({
           'patch-1-2.db': firstPatch,
@@ -2496,6 +2683,7 @@ void main() {
         sourceName: 'new',
       );
       final repository = LibraryUpdateRepository(
+        fullDbSizeProbe: (_) async => null,
         discovery: _unusedDiscovery(),
         downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
         refreshService: _NoopRefreshService(),
@@ -2529,6 +2717,10 @@ void main() {
         ).existsSync(),
         isFalse,
       );
+      final totalHint = File(
+        p.join(tmp.path, 'library_update_cache', 'verify_total_bytes.txt'),
+      ).readAsStringSync();
+      expect(int.parse(totalHint), greaterThan(0));
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
@@ -2737,9 +2929,11 @@ LibraryUpdateRepository _localFullDownloadRepository({
   LibraryDbRecoveryService recovery = const LibraryDbRecoveryService(),
   LibraryRuntimeRefreshService refreshService =
       const LibraryRuntimeRefreshService(),
+  LibraryAccessGate? accessGate,
   FullDbExtractor? fullDbExtractor,
   int maxFullDbBytes = kDefaultMaxExtractedBytes,
 }) => LibraryUpdateRepository(
+  fullDbSizeProbe: (_) async => null,
   discovery: _unusedDiscovery(),
   downloader: PatchDownloader(
     httpClient: MockClient.streaming(
@@ -2752,6 +2946,7 @@ LibraryUpdateRepository _localFullDownloadRepository({
     decompress: (bytes) async => bytes,
   ),
   recovery: recovery,
+  accessGate: accessGate,
   refreshService: refreshService,
   dbPathProvider: () => dbPath,
   dataRootProvider: () async => tmp.path,
@@ -2805,9 +3000,22 @@ class _GatedAfterBeginRecovery extends LibraryDbRecoveryService {
   }
 }
 
+class _GatedBackupCleanupRecovery extends LibraryDbRecoveryService {
+  final cleanupStarted = Completer<void>();
+  final releaseCleanup = Completer<void>();
+
+  @override
+  Future<void> finishSuccessAsync(String dbPath) {
+    File(markerPathFor(dbPath)).deleteSync();
+    cleanupStarted.complete();
+    return releaseCleanup.future.then((_) => super.finishSuccessAsync(dbPath));
+  }
+}
+
 class _FailingFinishRecovery extends LibraryDbRecoveryService {
   @override
-  void finishSuccess(String dbPath) => throw StateError('commit failed');
+  Future<void> finishSuccessAsync(String dbPath) =>
+      throw StateError('commit failed');
 }
 
 class _ThrowingRefreshService extends LibraryRuntimeRefreshService {

@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -414,6 +417,45 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    for (final (name, line) in [('בחירה', 12), ('ביטול בחירה ממתינה', null)]) {
+      test('ניווט בטאב פתוח מעביר $name', () async {
+        final bloc = _newBloc(_FakeTabsRepository());
+        final recorder = _RecordingTextBookBloc(loaded: true);
+        final existingTab = TextBookTab(
+          book: TextBook(title: 'ספר א', categoryId: 1),
+          index: 0,
+          blocOverride: recorder,
+        );
+
+        bloc.add(AddTab(existingTab));
+        bloc.add(AddTab(_createTextTab('ספר ב', index: 0, categoryId: 2)));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+        bloc.add(
+          OpenOrFocusTab(
+            TextBookTab(
+              book: TextBook(title: 'ספר א', categoryId: 1),
+              index: 12,
+              linkSelectedLine: line,
+            ),
+            navigateToPositionIfReused: true,
+          ),
+        );
+        await bloc.stream.firstWhere(
+          (s) => s.tabs.length == 2 && s.currentTabIndex == 0,
+        );
+
+        expect(
+          recorder.received.whereType<SelectLineWhenVisible>().map(
+            (e) => e.line,
+          ),
+          [line],
+        );
+
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      });
+    }
+
     test('טאב טקסט שטרם נטען מקבל את החיפוש רק כשהוא מגיע ל-Loaded', () async {
       // טאב ששוחזר ולא נצפה עדיין נשאר ב-TextBookInitial, ושם UpdateSearchText
       // נזרק בשקט — כל התצורה הייתה נעלמת.
@@ -602,6 +644,41 @@ void main() {
         await _closeBlocAndAllowDeferredDispose(bloc);
       },
     );
+
+    // #5748: כמה סעיפים בשורה אחת — הטאב הקיים מגיע לסמן שבתוך השורה.
+    test('טאב קיים מנווט למקום בתוך שורת היעד', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final existingTab = TextBookTab(
+        book: TextBook(title: 'ספר א', categoryId: 1),
+        index: 0,
+        blocOverride: _RecordingTextBookBloc(
+          loaded: true,
+          content: const ['', '[סעיף א] אלף בית [סעיף ו] גימל'],
+        ),
+      );
+
+      bloc.add(AddTab(existingTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(
+        OpenOrFocusTab(
+          TextBookTab(
+            book: TextBook(title: 'ספר א', categoryId: 1),
+            index: 1,
+            markerReference: 'ספר א סימן שח סעיף ו',
+          ),
+          navigateToPositionIfReused: true,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, hasLength(1));
+      final anchor = existingTab.lines.captureAnchor()!;
+      expect(anchor.line, 1);
+      expect(anchor.intraLineFraction, greaterThan(0.4));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
 
     // #2587: סעיף בשו"ע אינו בתוכן העניינים, ולכן כותרת הטאב זהה לכותרת היעד.
     group('טאב פתוח באותה כותרת עם יעד בשורה אחרת', () {
@@ -1330,6 +1407,117 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    test('רענון כותרת משאיר פתיחת טאב שעדיין פותרת יעד', () {
+      final repo = _FakeTabsRepository();
+      final manager = LibraryProviderManager.instance;
+      addTearDown(manager.resetForTesting);
+      final resolving = ResolvingTab(
+        fallbackTab: _createTextTab('שות באר מרדכי', categoryId: 7),
+        resolve: () async => _createTextTab('יעד מקורי', categoryId: 8),
+      );
+      addTearDown(resolving.dispose);
+      final provider = _CatalogProvider();
+      final key = BookCompositeKey.create(
+        title: 'שו״ת באר מרדכי',
+        categoryId: 7,
+      );
+      manager.seedMappingsForTesting(
+        mapping: {key: provider},
+        providers: [provider],
+        bookIds: {key: 7458},
+      );
+
+      expect(repo.refreshCatalogTitles([resolving]).single, same(resolving));
+    });
+
+    test('רענון כותרת שומר גם טאב שנוסף בזמן הכתיבה', () async {
+      final repo = _BlockedFirstSaveRepository();
+      final bloc = _newBloc(repo);
+      final manager = LibraryProviderManager.instance;
+      addTearDown(manager.resetForTesting);
+      try {
+        final restored = _createTextTab('שות באר מרדכי', categoryId: 7);
+        bloc.add(AddTab(restored));
+        await repo.firstSaveStarted.future;
+
+        final provider = _CatalogProvider();
+        manager.seedMappingsForTesting(
+          mapping: {
+            BookCompositeKey.create(title: 'שו״ת באר מרדכי', categoryId: 7):
+                provider,
+          },
+          providers: [provider],
+          bookIds: {
+            BookCompositeKey.create(title: 'שו״ת באר מרדכי', categoryId: 7):
+                7458,
+          },
+        );
+        final refreshed = bloc.stream.firstWhere(
+          (s) => !identical(s.tabs.single, restored),
+        );
+        bloc.add(const RefreshCatalogTitles());
+        await refreshed;
+        final added = bloc.stream.firstWhere((s) => s.tabs.length == 2);
+        bloc.add(AddTab(_createTextTab('נוסף במקביל', categoryId: 8)));
+        await added;
+        repo.releaseFirstSave.complete();
+        await pumpEventQueue();
+
+        expect(repo._tabsJson.map((tab) => tab['book']['title']), [
+          'שו״ת באר מרדכי',
+          'נוסף במקביל',
+        ]);
+      } finally {
+        if (!repo.releaseFirstSave.isCompleted) {
+          repo.releaseFirstSave.complete();
+        }
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      }
+    });
+
+    test(
+      'RefreshCatalogTitles מעדכן טאב ששוחזר לפני בניית הקטלוג (#2766)',
+      () async {
+        final repo = _FakeTabsRepository();
+        final bloc = _newBloc(repo);
+        final restored = TextBookTab(
+          book: TextBook(title: 'שות באר מרדכי', categoryId: 7),
+          index: 3,
+        );
+        bloc.add(AddTab(restored));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+        final provider = _CatalogProvider();
+        LibraryProviderManager.instance.seedMappingsForTesting(
+          mapping: {
+            BookCompositeKey.create(title: 'שו״ת באר מרדכי', categoryId: 7):
+                provider,
+          },
+          providers: [provider],
+          bookIds: {
+            BookCompositeKey.create(title: 'שו״ת באר מרדכי', categoryId: 7):
+                7458,
+          },
+        );
+        addTearDown(LibraryProviderManager.instance.resetForTesting);
+
+        bloc.add(const RefreshCatalogTitles());
+        final state = await bloc.stream.firstWhere(
+          (s) => !identical(s.tabs.single, restored),
+        );
+        final refreshed = state.tabs.single as TextBookTab;
+
+        expect(refreshed.book.title, 'שו״ת באר מרדכי');
+        expect(refreshed.title, 'שו״ת באר מרדכי');
+        expect(refreshed.index, 3);
+        bloc.add(const SaveTabs());
+        await pumpEventQueue();
+        expect(repo._tabsJson.single['book']['title'], 'שו״ת באר מרדכי');
+
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      },
+    );
+
     test(
       'remapBookPathsAwaitable ממתין לסיום המיפוי (זיכרון + שמירה)',
       () async {
@@ -1700,6 +1888,22 @@ void main() {
       expect(await restoreAll(bloc, 3), ['א', 'ב', 'ג', 'ד']);
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
+
+    test(
+      'CloseOtherTabs משאיר כרטיסיות מוצמדות, כמו CloseAllTabs (#4950)',
+      () async {
+        final (bloc, tabs) = await openFour();
+        tabs[0].isPinned = true;
+
+        bloc.add(CloseOtherTabs(tabs[2]));
+        await bloc.stream.firstWhere((s) => s.tabs.length < 4);
+
+        expect(bloc.state.tabs.map((t) => t.title), ['א', 'ג']);
+        expect(bloc.state.currentTab, same(tabs[2]));
+        expect(await restoreAll(bloc, 2), ['א', 'ב', 'ג', 'ד']);
+        await _closeBlocAndAllowDeferredDispose(bloc);
+      },
+    );
 
     test('AdoptTab ושחזור סדרתי מחזירים את הסדר המקורי', () async {
       final (bloc, _) = await openFour();
@@ -3130,24 +3334,28 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   /// [loaded] — ה-bloc מתחיל ב-TextBookLoaded. נדרש לכל מסלול שמותנה בטעינה:
   /// ב-TextBookInitial המטפלים ב-TextBookBloc יוצאים מיד.
-  _RecordingTextBookBloc({bool loaded = false})
-    : super(
-        loaded
-            ? _loadedState()
-            : TextBookInitial.named(
-                TextBook(title: 'ספר א'),
-                0,
-                false,
-                const [],
-              ),
-      ) {
+  _RecordingTextBookBloc({
+    bool loaded = false,
+    List<String> content = const ['שורה'],
+  }) : super(
+         loaded
+             ? _loadedState(content)
+             : TextBookInitial.named(
+                 TextBook(title: 'ספר א'),
+                 0,
+                 false,
+                 const [],
+               ),
+       ) {
     on<TextBookEvent>((event, emit) {});
   }
 
-  static TextBookLoaded _loadedState() => TextBookLoaded(
+  static TextBookLoaded _loadedState([
+    List<String> content = const ['שורה'],
+  ]) => TextBookLoaded(
     book: TextBook(title: 'ספר א'),
     showLeftPane: false,
-    content: const ['שורה'],
+    content: content,
     fontSize: 20,
     showSplitView: false,
     activeCommentators: const [],
@@ -3224,6 +3432,11 @@ Future<void> _closeBlocAndAllowDeferredDispose(TabsBloc bloc) async {
   await _afterDeferredDispose();
 }
 
+class _CatalogProvider implements LibraryProvider {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class _FakeTabsRepository extends TabsRepository {
   List<Map<String, dynamic>> _tabsJson = const [];
   int _currentTabIndex = 0;
@@ -3249,6 +3462,20 @@ class _FakeTabsRepository extends TabsRepository {
     int currentTabIndex,
   ) async {
     _currentTabIndex = currentTabIndex;
+  }
+}
+
+class _BlockedFirstSaveRepository extends _FakeTabsRepository {
+  final firstSaveStarted = Completer<void>();
+  final releaseFirstSave = Completer<void>();
+
+  @override
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
+    if (!firstSaveStarted.isCompleted) {
+      firstSaveStarted.complete();
+      await releaseFirstSave.future;
+    }
+    await super.saveTabs(tabs, currentTabIndex);
   }
 }
 

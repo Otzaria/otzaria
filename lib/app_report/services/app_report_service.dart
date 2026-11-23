@@ -5,7 +5,9 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/reports/report_queue_flush.dart';
 import 'package:otzaria/reports/repository/report_draft_store.dart';
+import 'package:otzaria/reports/repository/sent_report_history.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/app_report/models/app_report_draft.dart';
@@ -80,12 +82,15 @@ class AppReportService {
     DateTime Function()? clock,
   }) : _client = client ?? _shared,
        _reports = reportStore ?? PendingReportStore.instance,
-       _sentCounter =
-           sentCounter ??
-           SentReportsCounter(
-             boxName: queueBoxName,
-             database: reportStore?.database,
-           ),
+       _sentHistory = SentReportHistory(
+         store: reportStore,
+         counter: sentCounter,
+         boxName: queueBoxName,
+         kind: sentKind,
+         idField: 'reportId',
+         limit: maxSentReportsToKeep,
+         fromJson: AppReport.fromJson,
+       ),
        _clock = clock ?? DateTime.now;
 
   static final Uri endpoint = Uri.parse('https://otzaria.org/api/app-reports');
@@ -105,12 +110,9 @@ class AppReportService {
 
   /// צילומי מסך ו-minidump הם מגה-בתים רבים; בחיבור איטי 10 שניות לא מספיקות.
   static const Duration timeoutWithImages = Duration(minutes: 2);
-  static const Duration _flushInterval = Duration(minutes: 5);
   static const int _maxQueuedFlushPerRun = 20;
 
-  static Timer? _flushTimer;
-  static bool _isFlushing = false;
-  static Completer<void>? _flushInFlight;
+  static final _flush = ReportQueueFlush();
   static final Map<String, Future<void>> _reportOperationTails = {};
 
   static final http.Client _shared = _createClient();
@@ -123,15 +125,11 @@ class AppReportService {
 
   final http.Client _client;
   final PendingReportStore _reports;
-  final SentReportsCounter _sentCounter;
+  final SentReportHistory<AppReport> _sentHistory;
   final DateTime Function() _clock;
 
   /// עוצר את השליחה האוטומטית וממתין לשליחה שבאמצע (שחזור מגיבוי).
-  static Future<void> suspendAutomaticFlush() async {
-    _flushTimer?.cancel();
-    _flushTimer = null;
-    await _flushInFlight?.future;
-  }
+  static Future<void> suspendAutomaticFlush() => _flush.suspend();
 
   bool get _queueWhenOfflineEnabled =>
       Settings.getValue<bool>(
@@ -147,7 +145,7 @@ class AppReportService {
       _withReportLock(report.reportId, () => _send(report));
 
   Future<AppReportDeliveryResult> _send(AppReport report) async {
-    final alreadySent = await _sentReport(report.reportId);
+    final alreadySent = await _sentHistory.find(report.reportId);
     if (alreadySent != null) {
       await _deletePendingReport(report.reportId);
       return AppReportDeliveryResult(
@@ -191,7 +189,7 @@ class AppReportService {
       case _AttemptKind.success:
         final sent = _sentRecord(current, attempt);
         await _saveSentReport(sent);
-        unawaited(flushPendingReports());
+        _flush.runInBackground(flushPendingReports);
         return AppReportDeliveryResult(
           status: AppReportDeliveryStatus.sent,
           report: sent,
@@ -258,15 +256,10 @@ class AppReportService {
   }
 
   /// היסטוריית הנשלחים, מהחדש לישן.
-  Future<List<AppReport>> getSentReports() async =>
-      (await _reports.listByKind(sentKind)).reversed.map(_decode).toList();
+  Future<List<AppReport>> getSentReports() => _sentHistory.list();
 
   /// כל הדיווחים שנשלחו אי-פעם — לא רק אלה שנשארו בהיסטוריה.
-  Future<int> getSentReportsTotal() async {
-    final total = await _sentCounter.read();
-    final kept = await _reports.countByKind(sentKind);
-    return total > kept ? total : kept;
-  }
+  Future<int> getSentReportsTotal() => _sentHistory.total();
 
   ReportDraftSession? _draftSession;
   AppReportDraft? _lastDraft;
@@ -353,12 +346,17 @@ class AppReportService {
       _withReportLock(reportId, () => _deletePendingReport(reportId));
 
   Future<void> _deletePendingReport(String reportId) async =>
-      _reports.deleteIds(await _rowIdsOf(pendingKind, reportId));
+      _reports.deleteIds(
+        await _reports.idsWhere(
+          pendingKind,
+          'reportId',
+          reportId,
+          additionalKind: currentPendingKind,
+        ),
+      );
 
-  Future<void> deleteSentReport(String reportId) => _withReportLock(
-    reportId,
-    () async => _reports.deleteIds(await _rowIdsOf(sentKind, reportId)),
-  );
+  Future<void> deleteSentReport(String reportId) =>
+      _withReportLock(reportId, () => _sentHistory.delete(reportId));
 
   Future<void> clearPendingReports() async {
     await _reports.deleteAllOfKind(
@@ -367,10 +365,7 @@ class AppReportService {
     );
   }
 
-  Future<void> clearSentReports() async {
-    await _reports.deleteAllOfKind(sentKind);
-    await _sentCounter.reset();
-  }
+  Future<void> clearSentReports() => _sentHistory.clear();
 
   /// מעדכן דיווח בתור לפי [AppReport.reportId]. תוכן ששונה מקבל מזהה חדש,
   /// כי ייתכן שהגרסה הקודמת כבר נקלטה והשרת היה דוחה אותה ב-409.
@@ -409,11 +404,9 @@ class AppReportService {
   /// שולח מנה מהתור בסבב מתמשך; עוצר בכשל זמני ושומר דחיות לעריכה.
   /// מחזיר את מספר הדיווחים שנשלחו, בלי להיתקע על הדחויים הראשונים.
   Future<int> flushPendingReports() async {
-    if (_isOfflineMode || _isFlushing) return 0;
+    if (_isOfflineMode) return 0;
 
-    _isFlushing = true;
-    final inFlight = _flushInFlight = Completer<void>();
-    try {
+    return _flush.run(() async {
       final cursor = await _reports.readFlushCursor(pendingKind);
       var rowIds = await _reports.listRowIds(
         pendingKind,
@@ -454,7 +447,7 @@ class AppReportService {
           // An edit may have replaced its identity while this lock was pending.
           // Leave that new report for a later page under its own identity lock.
           if (queued.reportId != reportId) return false;
-          if (await _sentReport(queued.reportId) != null) {
+          if (await _sentHistory.find(queued.reportId) != null) {
             await _reports.deleteIds([currentRow.id]);
             return false;
           }
@@ -497,20 +490,12 @@ class AppReportService {
         await _reports.writeFlushCursor(pendingKind, rowId);
       }
       return sentCount;
-    } finally {
-      _isFlushing = false;
-      _flushInFlight = null;
-      inFlight.complete();
-    }
+    });
   }
 
   /// מפעיל שליחה מיידית ואחת לחמש דקות. קריאה חוזרת אינה יוצרת טיימר נוסף.
   Future<void> startAutomaticFlush() async {
-    if (_flushTimer != null) return;
-    unawaited(flushPendingReports());
-    _flushTimer = Timer.periodic(_flushInterval, (_) {
-      unawaited(flushPendingReports());
-    });
+    _flush.start(flushPendingReports);
   }
 
   /// סקריפט שליחה של הדיווחים השמורים למחשב מחובר.
@@ -540,15 +525,6 @@ class AppReportService {
     return payload;
   }
 
-  Future<List<int>> _rowIdsOf(String kind, String reportId) async {
-    return _reports.idsWhere(
-      kind,
-      'reportId',
-      reportId,
-      additionalKind: kind == pendingKind ? currentPendingKind : null,
-    );
-  }
-
   static String pendingKindFor(int schema) =>
       schema == 1 ? pendingKind : currentPendingKind;
 
@@ -565,7 +541,7 @@ class AppReportService {
     );
     if (existing != null) return _decode(existing);
     final compatible = await _compatibleQueue(report);
-    if ((await _rowIdsOf(sentKind, report.reportId)).isNotEmpty) {
+    if (await _sentHistory.contains(report.reportId)) {
       return compatible;
     }
     await _reports.add(
@@ -573,15 +549,6 @@ class AppReportService {
       compatible.toJson(),
     );
     return compatible;
-  }
-
-  Future<AppReport?> _sentReport(String reportId) async {
-    final row = await _reports.findByPayloadId(
-      sentKind,
-      reportId,
-      idField: 'reportId',
-    );
-    return row == null ? null : _decode(row);
   }
 
   static Future<T> _withReportLock<T>(
@@ -614,16 +581,8 @@ class AppReportService {
     );
   }
 
-  Future<void> _saveSentReport(AppReport report) async {
-    final previousCount = await _reports.countByKind(sentKind);
-    final existing = await _rowIdsOf(sentKind, report.reportId);
-    await _reports.deleteIds(existing);
-    await _reports.add(sentKind, report.toJson());
-    await _reports.trimKind(sentKind, maxSentReportsToKeep);
-    if (existing.isEmpty) {
-      await _sentCounter.increment(floor: previousCount);
-    }
-  }
+  Future<void> _saveSentReport(AppReport report) =>
+      _sentHistory.save(report.reportId, report.toJson());
 
   /// תאימות לדיווחי schema 1 ישנים בלבד. schema 2 נשמר בשלמותו גם בדחייה.
   Future<(AppReport, _Attempt)> _trySendDroppingRejectedMinidump(

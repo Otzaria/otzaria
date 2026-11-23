@@ -190,6 +190,16 @@ void main() {
       expect(built.structures.map((s) => s.heTitle), ['סימנים', 'נושאים']);
     });
 
+    test('פרשות מקבלות את מפתח המבנה הרשמי Parasha', () {
+      final built = UserHeadingsBuilder.build(
+        [heading('פרשת ויצא', line: 2, structure: 'פרשות')],
+        ['א', 'ב'],
+      );
+
+      expect(built.structures.single.key, 'Parasha');
+      expect(built.structures.single.heTitle, 'פרשות');
+    });
+
     test('כותרות לפי מספר שורה בלבד אינן קוראות את תוכן שורות הספר', () {
       final lines = _CountingLines(List.generate(1000, (i) => 'שורה $i'));
       final built = UserHeadingsBuilder.build([

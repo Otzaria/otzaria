@@ -182,6 +182,7 @@ Map<String, Object?> buildPluginSpec(Directory root) {
     'lib/plugins/services/plugin_manifest_validator.dart',
     'lib/plugins/services/plugin_settings_access_policy.dart',
     'lib/settings/engine/settings_repository.dart',
+    'lib/find_ref/find_ref_preference_store.dart',
   ]) {
     env.addFile(p.join(root.path, p.joinAll(p.posix.split(relative))));
   }

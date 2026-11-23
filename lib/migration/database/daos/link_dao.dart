@@ -1,5 +1,6 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/data/data_providers/link_visibility_sql.dart';
+
 import '../../models/link.dart';
 import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
@@ -145,13 +146,31 @@ class LinkDao {
         .replaceFirst(sourceLineJoin, 'CROSS JOIN line sl');
   }
 
+  /// מפרש שמצהיר על [bookId] כספר הבסיס שלו (`book_base_text`) מסומן
+  /// ב-`declaredBase: true`.
   Future<List<Map<String, dynamic>>> selectCommentatorsByBook(
     int bookId,
   ) async {
-    final query = await _visibilityAwareQuery('selectCommentatorsByBook');
+    final capabilities = await _capabilities;
+    final query = await _visibilityAwareQuery(
+      'selectCommentatorsByBook',
+      capabilities: capabilities,
+    );
     if (query == null) return const [];
     final db = await database;
-    return db.select(query, [bookId]).toMapList();
+    final rows = db.select(query, [bookId]).toMapList();
+    if (rows.isEmpty || !capabilities.hasBookBaseTexts) return rows;
+    final declared = db
+        .select('SELECT bookId FROM book_base_text WHERE baseBookId = ?', [
+          bookId,
+        ])
+        .map((row) => row['bookId'])
+        .whereType<int>()
+        .toSet();
+    for (final row in rows) {
+      if (declared.contains(row['targetBookId'])) row['declaredBase'] = true;
+    }
+    return rows;
   }
 
   /// מחזיר את כל המפרשים על טווח שורות המקור [`startLineIndex`, `endLineIndex`)
@@ -174,14 +193,7 @@ class LinkDao {
     );
     if (query == null) return const [];
     final db = await database;
-    return db.select(
-      query,
-      [
-        bookId,
-        startLineIndex,
-        endLineIndex,
-      ],
-    ).toMapList();
+    return db.select(query, [bookId, startLineIndex, endLineIndex]).toMapList();
   }
 
   /// מחזיר את הקישורים למפרשים על טווח שורות המקור [`startLineIndex`,
@@ -207,16 +219,13 @@ class LinkDao {
     );
     if (query == null) return const [];
     final db = await database;
-    return db.select(
-      query,
-      [
-        exactSourceLineIndex,
-        bookId,
-        startLineIndex,
-        endLineIndex,
-        excludeBookId,
-      ],
-    ).toMapList();
+    return db.select(query, [
+      exactSourceLineIndex,
+      bookId,
+      startLineIndex,
+      endLineIndex,
+      excludeBookId,
+    ]).toMapList();
   }
 
   /// מחזיר את מפרשי ברירת המחדל של הספר [bookId], ממוינים לפי `position`.
@@ -237,6 +246,18 @@ class LinkDao {
     if (!(await _capabilities).hasDefaultTargums) return const [];
     final db = await database;
     return db.select(_queries['selectDefaultTargums']!, [bookId]).toMapList();
+  }
+
+  /// מפרשי ברירת מחדל שהמסד הזה מציע לספר [targetTitle] במסד אחר.
+  /// כל שורה: `targetSource`, `commentatorTitle`, `kind` ו-`position`.
+  Future<List<Map<String, dynamic>>> selectExternalDefaultCommentators(
+    String targetTitle,
+  ) async {
+    if (!(await _capabilities).hasExternalDefaultCommentators) return const [];
+    final db = await database;
+    return db.select(_queries['selectExternalDefaultCommentators']!, [
+      targetTitle,
+    ]).toMapList();
   }
 
   Future<int> insertLink(Link link, int connectionTypeId) async {

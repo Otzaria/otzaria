@@ -1,11 +1,16 @@
 // טסטים ל-entryFromZmanDefinition (בניית כרטיס בודד מהגדרת זמן) ולתקינות
 // רישום הזמנים המרכזי kZmanimRegistry.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_times_panel.dart';
+import 'package:timezone/data/latest_all.dart' as tz_data;
 
 DateTime? _noCompute(ZmanComputeContext _) => null;
 
@@ -24,6 +29,55 @@ ZmanDefinition _def(
 );
 
 void main() {
+  testWidgets('כרטיסי זמנים עם ובלי שם שיטה שווים בגובה בטקסט מוגדל', (
+    tester,
+  ) async {
+    tz_data.initializeTimeZones();
+    final state = CalendarState.initial().copyWith(
+      selectedGregorianDate: DateTime(2026, 8, 3),
+      enabledZmanim: const {'alos72Degrees', 'chatzos'},
+      dailyTimes: const {'alos72Degrees': '05:01', 'chatzos': '12:35'},
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppThemeData.light(
+          AppThemeData.createColorScheme(
+            AppSeedColors.defaultLight,
+            Brightness.light,
+          ),
+          compactMenuMode: false,
+        ),
+        home: Scaffold(
+          body: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: SizedBox(
+                width: 420,
+                child: CalendarTimesPanel(
+                  state: state,
+                  onOpenCalendarCalculationPage: (_) async {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Rect cardRect(String title) {
+      final card = tester
+          .element(find.text(title))
+          .findAncestorWidgetOfExactType<Material>()!;
+      return tester.getRect(find.byWidget(card));
+    }
+
+    final withMethod = cardRect('עלות השחר');
+    final withoutMethod = cardRect('חצות היום');
+    expect(withMethod.top, withoutMethod.top);
+    expect(withMethod.bottom, closeTo(withoutMethod.bottom, 0.01));
+  });
+
   group('entryFromZmanDefinition — כרטיס בודד', () {
     test('מחזיר null כשהזמן חסר', () {
       expect(entryFromZmanDefinition(_def('sunset'), const {}), isNull);
@@ -137,7 +191,7 @@ void main() {
           'minchaKetanaGRA',
           'plagGRA',
           'tzeitTikochinsky',
-          'tzeitItimLeVina',
+          'tzeit18Minutes',
           'rt72Shavos',
           'candleLighting',
         ]),

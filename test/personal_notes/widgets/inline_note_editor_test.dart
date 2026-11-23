@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -51,6 +52,114 @@ void main() {
     expect(saved.single.contentPlain, 'שורה ראשונה\nשורה שנייה');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('טיוטה ארוכה נשמרת בהשהיה ארוכה, וקצרה מיד (#5131)', (
+    tester,
+  ) async {
+    Future<String?> draft(int line) async =>
+        (await PersonalNoteDraftService().loadDraft(
+          bookId: 'ספר טיוטות',
+          lineNumber: line,
+        ))?.contentPlain;
+    Future<quill.QuillController> open(int line) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InlineNoteEditor(
+              key: ValueKey(line),
+              bookId: 'ספר טיוטות',
+              draftLineNumber: line,
+              linkableNotes: const [],
+              onSave: (_) {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return tester
+          .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+          .controller;
+    }
+
+    (await open(1)).document.insert(0, 'קצרה');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(await draft(1), 'קצרה');
+
+    final long = 'א' * (largeDraftLength + 1);
+    (await open(2)).document.insert(0, long);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(await draft(2), isNull);
+    await tester.pump(const Duration(seconds: 2));
+    expect(await draft(2), long);
+
+    // הקלדה רציפה מאפסת את ה-debounce; התקרה שומרת בכל זאת.
+    final typing = await open(3);
+    typing.document.insert(0, long);
+    for (var second = 1; second <= 5; second++) {
+      await tester.pump(const Duration(seconds: 1));
+      if (second < 5) typing.document.insert(0, 'ב');
+    }
+    expect(await draft(3), startsWith('בבבב'));
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  for (final unmount in [false, true]) {
+    testWidgets('טיוטה שנמחקה אינה חוזרת, גם אם העורך נסגר בזמן המחיקה. '
+        'סגירת עורך: $unmount', (
+      tester,
+    ) async {
+      await Settings.init(cacheProvider: _SlowRemoveCacheProvider());
+      final cancelRequest = ValueNotifier<int>(0);
+      addTearDown(cancelRequest.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InlineNoteEditor(
+              bookId: 'ספר מחיקה',
+              draftLineNumber: 1,
+              linkableNotes: const [],
+              cancelRequest: cancelRequest,
+              onSave: (_) {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      tester
+          .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+          .controller
+          .document
+          .insert(0, 'א' * (largeDraftLength + 1));
+      await tester.pump();
+
+      cancelRequest.value++;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(
+        PersonalNoteDraftService().draftVersion(
+          bookId: 'ספר מחיקה',
+          lineNumber: 1,
+        ),
+        isNull,
+        reason: 'עדיין לפני ה-debounce',
+      );
+      await tester.tap(find.text('סגור בלי לשמור'));
+      await tester.pump();
+      if (unmount) await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 3));
+
+      final drafts = PersonalNoteDraftService();
+      expect(drafts.draftVersion(bookId: 'ספר מחיקה', lineNumber: 1), isNull);
+      expect(
+        await drafts.loadDraft(bookId: 'ספר מחיקה', lineNumber: 1),
+        isNull,
+      );
+    });
+  }
 
   testWidgets('InlineNoteEditor תופס פוקוס מיד בעלייה', (tester) async {
     // רגרסיה: בצורת הדף, פתיחת הערה חדשה לא תפסה פוקוס במצב הראשוני
@@ -223,4 +332,13 @@ void main() {
       expect(find.text('שמור טיוטה'), findsOneWidget);
     });
   });
+}
+
+/// מחיקה איטית, כדי שטיימר ייפול באמצע ניקוי הטיוטה.
+class _SlowRemoveCacheProvider extends MemoryCacheProvider {
+  @override
+  Future<void> remove(String key) async {
+    await super.remove(key);
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
 }

@@ -12,6 +12,7 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
@@ -36,6 +37,31 @@ void main() {
     await PerBookSettings.settle();
     AppPaths.debugOverrideDataRootPath(null);
     await dataRoot.delete(recursive: true);
+  });
+
+  test('בחירת כרטיסיית PDF נשמרת בנפרד וניקוי מאוחר אינו דורס אותה', () async {
+    await PdfBookPerBookSettings(activeCommentators: ['רש"י']).save(book);
+    await PdfBookPerBookSettings(
+      commentatorsTabSelection: ['רמב"ן'],
+    ).save(book);
+    await PdfBookPerBookSettings(commentatorsTabSelection: []).save(book);
+    await PdfBookPerBookSettings.clearCommentatorsTabSelection(book, ['רמב"ן']);
+
+    final selected = await PdfBookPerBookSettings.load(book);
+    expect(selected?.activeCommentators, ['רש"י']);
+    expect(selected?.commentatorsTabSelection, isEmpty);
+    final source = PdfBookTab(book: book, pageNumber: 1);
+    addTearDown(source.dispose);
+    final fresh = PdfCommentatorsTab.of(source);
+    addTearDown(fresh.dispose);
+    final clone = fresh.clone() as PdfCommentatorsTab;
+    addTearDown(clone.dispose);
+    final restored = PdfCommentatorsTab.fromJson(fresh.toJson());
+    addTearDown(restored.dispose);
+
+    expect(fresh.applyBookSelection, isTrue);
+    expect(clone.applyBookSelection, isFalse);
+    expect(restored.applyBookSelection, isFalse);
   });
 
   for (final initial in [

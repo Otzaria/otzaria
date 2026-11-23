@@ -242,13 +242,14 @@ class ExternalCatalogRepository {
 
   /// מחזיר את גרסת מסד הקטלוגים המקומי, אם קיימת.
   Future<int?> getCurrentDatabaseVersion() async {
-    if (!await databaseExists()) {
-      return null;
-    }
+    // פתיחה בדיסק עמוס בעלייה חוסמת את ה-UI לשניות (#5509).
+    return _runMappingQuery(_readDatabaseVersion, null);
+  }
 
+  static int? _readDatabaseVersion(String dbPath) {
     sqlite3.Database? db;
     try {
-      db = sqlite3.sqlite3.open(databasePath, mode: sqlite3.OpenMode.readOnly);
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
 
       final result = db.select(
         'SELECT value FROM db_meta WHERE key = ? LIMIT 1',

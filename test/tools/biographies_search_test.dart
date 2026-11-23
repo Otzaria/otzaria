@@ -2,8 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 
-Biography _bio(String name, {List<String> appelations = const []}) =>
-    Biography(id: name, name: name, knownAs: appelations);
+Biography _bio(
+  String name, {
+  List<String> appelations = const [],
+  List<String> works = const [],
+}) => Biography(
+  id: name,
+  name: name,
+  knownAs: appelations,
+  works: [for (final title in works) BiographyWork(title: title)],
+);
 
 void main() {
   group('BiographiesRepository.filter', () {
@@ -70,12 +78,114 @@ void main() {
       expect(BiographiesRepository.filter(hebrew, 'הרמב"ם'), hebrew);
     });
 
+    test('מוצא תואר עם או בלי ה״א הידיעה (issue #5550)', () {
+      final entries = [
+        _bio('רבי שבתי הכהן', appelations: ['הש"ך']),
+        _bio('רבי שבתי סופר'),
+        _bio('שבתי כהן מוורשה'),
+      ];
+
+      // הכתיב המקורי מקבל קדימות.
+      expect(
+        BiographiesRepository.filter(entries, 'שבתי כהן').map((b) => b.name),
+        ['שבתי כהן מוורשה', 'רבי שבתי הכהן'],
+      );
+      // כשה״א הידיעה מופיעה בשאילתה, אין הרחבה לכתיב בלעדיה.
+      expect(
+        BiographiesRepository.filter(entries, 'שבתי הכהן').map((b) => b.name),
+        ['רבי שבתי הכהן'],
+      );
+    });
+
+    test('תואר מקביל נתמך גם בכינוי ובין מילים המחוברות במקף', () {
+      final entries = [
+        _bio('שם אחר', appelations: ['ברוך־הכהן']),
+        _bio('הכהן ברוך'),
+        _bio('ברוך הכהן־גדול'),
+        _bio('ברוך הכהןד'),
+        _bio('ברוך יהודה הכהן'),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'ברוך כהן').map((b) => b.name),
+        ['ברוך הכהן־גדול', 'שם אחר'],
+      );
+    });
+
+    test('ההתאמה המורחבת דורשת מילים נפרדות בסדר השאילתה', () {
+      final entries = [
+        _bio('רבי שבתי הכהן'),
+        _bio('משה אבן עזרא'),
+        _bio('רבינו משה בן מימון'),
+        _bio('רבי יהודה לל'),
+        _bio('רבי יחיאל הלל'),
+        _bio("רבי לוי יצחק מברדיצ'ב"),
+      ];
+
+      for (final query in ['כהן כהן', 'בן משה', 'יהודה הלל', 'רבי הלוי']) {
+        expect(BiographiesRepository.filter(entries, query), isEmpty);
+      }
+    });
+
     test('בדירוג שווה ממוין לפי שם', () {
       final entries = [_bio('אב יוסף'), _bio('אב דוד')];
       expect(BiographiesRepository.filter(entries, 'אב').map((b) => b.name), [
         'אב דוד',
         'אב יוסף',
       ]);
+    });
+  });
+
+  group('חיפוש ביוגרפיות לפי שם חיבור (issue #4274)', () {
+    test('שם ספר מוצא את מחברו', () {
+      final entries = [
+        _bio('רבי אליהו מווילנא'),
+        _bio('רבינו בחיי אבן פקודה', works: ['חובות הלבבות']),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'חובות הלבבות').single.name,
+        'רבינו בחיי אבן פקודה',
+      );
+    });
+
+    test('התאמה בשם או בכינוי קודמת להתאמה בשם חיבור', () {
+      final entries = [
+        _bio('רבינו בחיי אבן פקודה', works: ['חובות']),
+        _bio('פלוני', appelations: ['בעל החובות']),
+        _bio('רבי חובות הגדול'),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'חובות').map((b) => b.name),
+        ['רבי חובות הגדול', 'פלוני', 'רבינו בחיי אבן פקודה'],
+      );
+    });
+
+    test('בין החיבורים: מדויק < מתחיל ב- < מילה שלמה < מכיל', () {
+      final entries = [
+        _bio('ד', works: ['ספר הלבבותיו']),
+        _bio('ג', works: ['חובות הלבבות']),
+        _bio('ב', works: ['הלבבות והנפש']),
+        _bio('א', works: ['שיר', 'הלבבות']),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'הלבבות').map((b) => b.name),
+        ['א', 'ב', 'ג', 'ד'],
+      );
+    });
+
+    test('גרשיים עבריים בשם החיבור תואמים מירכאות רגילות', () {
+      final entries = [
+        _bio('רבי יעקב בן אשר', works: ['ארבעה טורים', 'פירוש בעל הטורים']),
+        _bio('רבי חיים בן עטר', works: ['אוה״ח']),
+      ];
+
+      expect(
+        BiographiesRepository.filter(entries, 'אוה"ח').single.name,
+        'רבי חיים בן עטר',
+      );
     });
   });
 

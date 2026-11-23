@@ -764,7 +764,7 @@ void main() {
       expect(marker.scale, kFootnoteMarkerScale);
       expect(marker.italic, isTrue);
       expect(marker.clickable, isTrue);
-      expect(marker.useLinkColor, isFalse);
+      expect(marker.useLinkColor, isTrue);
       expect(marker.active, isFalse);
     });
 

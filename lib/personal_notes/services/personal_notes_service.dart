@@ -128,6 +128,9 @@ class PersonalNotesService {
         contentFormat: contentFormat,
       );
     }
+    if (bookId == PersonalNote.generalBookId) {
+      throw ArgumentError.value(lineNumber, 'lineNumber', 'general note');
+    }
     final lines = splitBookContentIntoLines(bookContent);
     // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
     // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.
@@ -497,8 +500,9 @@ class PersonalNotesService {
       occurrenceIndex: occurrenceIndex,
     );
     if (computed == null) return null;
+    final normalized = normalizeAnchorText(selectedText);
     return (
-      text: normalizeAnchorText(selectedText),
+      text: normalized.isEmpty ? selectedText.trim() : normalized,
       prefix: computed.prefix,
       suffix: computed.suffix,
       start: computed.start,
@@ -605,10 +609,24 @@ class PersonalNotesService {
   bool _hasAnchor(PersonalNote note) =>
       note.anchorText != null && note.anchorText!.isNotEmpty;
 
-  bool _noteMatchesLine(PersonalNote note, String lineContent) {
+  bool _noteMatchesLine(
+    PersonalNote note,
+    String lineContent, {
+    bool positionChanged = false,
+  }) {
     if (_hasAnchor(note)) {
-      final anchor = normalizeAnchorText(note.anchorText!);
-      return anchor.isNotEmpty && lineContainsAnchorText(lineContent, anchor);
+      final text = note.anchorText!;
+      final anchor = normalizeAnchorText(text);
+      if (anchor.isNotEmpty) return lineContainsAnchorText(lineContent, anchor);
+      return locateAnchor(
+            rawLine: lineContent,
+            anchorText: text,
+            prefix: note.anchorPrefix,
+            suffix: note.anchorSuffix,
+            hintStart: positionChanged ? null : note.anchorStart,
+            requirePunctuationContext: true,
+          ) !=
+          null;
     }
     return _displayTitleExistsInLine(note.displayTitle, lineContent);
   }
@@ -632,15 +650,23 @@ class PersonalNotesService {
   ) {
     final referenceTitle = note.displayTitle;
     if (_hasAnchor(note)) {
+      final punctuationOnly = isPunctuationOnlyAnchor(note.anchorText!);
+      _LineMatch? match;
       for (int offset = -5; offset <= 5; offset++) {
         if (offset == 0) continue;
         final candidateLine = centerLine + offset;
         if (candidateLine < 1 || candidateLine > lines.length) continue;
-        if (_noteMatchesLine(note, lines[candidateLine - 1])) {
-          return _LineMatch(line: candidateLine);
+        if (_noteMatchesLine(
+          note,
+          lines[candidateLine - 1],
+          positionChanged: true,
+        )) {
+          if (match != null) return null;
+          match = _LineMatch(line: candidateLine);
+          if (!punctuationOnly) return match;
         }
       }
-      return null;
+      return match;
     }
     if (referenceTitle == null || referenceTitle.isEmpty) {
       return null;

@@ -41,8 +41,19 @@ const _kiryatSeferShabbat = (
   acronyms: ['קרית ספר על רמבם, הלכות שבת'],
 );
 
+const _tefillinMezuzahSeferTorah = (
+  id: 303,
+  title: 'משנה תורה, הלכות תפילין ומזוזה וספר תורה',
+  acronyms: [
+    'רמב"ם תפילין ומזוזה וספר תורה',
+    'רמבם תפילין ומזוזה וספר תורה',
+    'תפילין ומזוזה וספר תורה',
+  ],
+);
+
 const _categoryPaths = {
   296: 'הלכה, משנה תורה, ספר מדע',
+  303: 'הלכה, משנה תורה, ספר אהבה',
   308: 'הלכה, משנה תורה, ספר זמנים',
   375: 'הלכה, משנה תורה, ספר שופטים',
   5042: 'הלכה, משנה תורה, מפרשים, קרית ספר, ספר זמנים',
@@ -146,6 +157,20 @@ void main() {
         expect(titles, [_hilchotShabbat.title, _kiryatSeferShabbat.title]);
       },
     );
+
+    test('"ספר" לבדו אינו שם תיקייה: "רמבם ספר תורה" (#5505)', () async {
+      seedLibrary(const [
+        _yesodeiHatorah,
+        _tefillinMezuzahSeferTorah,
+        _hilchotShabbat,
+      ], categoryPaths: _categoryPaths);
+
+      final titles = (await buildFindRefRepo().findRefs(
+        'רמבם ספר תורה',
+      )).map((r) => r.title).toList();
+
+      expect(titles.first, _tefillinMezuzahSeferTorah.title);
+    });
 
     test('קטגוריה ו-TOC יחד: אותו דירוג בכל סדר ספרייה', () async {
       const kiryatSeferEruvin = (

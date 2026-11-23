@@ -49,6 +49,12 @@ abstract class LibraryMessages {
   static String searchModeSetAsDefault(String mode) =>
       'חיפוש חדש ייפתח מעכשיו במצב $mode';
 
+  static String searchModeAndOptionsSetAsDefault(String mode) =>
+      'חיפוש חדש ייפתח מעכשיו במצב $mode, עם האפשרויות, המרווח וסדר המילים הנוכחיים';
+
+  static String searchModeAndSpacingSetAsDefault(String mode) =>
+      'חיפוש חדש ייפתח מעכשיו במצב $mode, עם המרווח וסדר המילים הנוכחיים';
+
   static const String searchIndexMissing =
       'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.';
 
@@ -61,6 +67,16 @@ abstract class LibraryMessages {
     return 'פתיחת אינדקס החיפוש$location נכשלה — האינדוקס הושהה. '
         'ודא שהתיקייה נגישה וניתנת לכתיבה, או החזר את נתיב האינדקס לברירת '
         'המחדל בהגדרות הספרייה. אם זה לא עוזר, הפעל מחדש את התוכנה';
+  }
+
+  /// בנייד אין העברת אינדקס: באנדרואיד הוא תמיד באחסון הפנימי.
+  static String indexDiskSpaceLow(int freeBytes, {required bool canMove}) {
+    final free = 'נשארו רק ${freeBytes ~/ (1024 * 1024)} MB פנויים';
+    return canMove
+        ? 'בכונן של אינדקס החיפוש $free. האינדוקס עלול להיכשל או להאט מאוד '
+              'את המחשב. כדאי לפנות מקום בכונן או להעביר את הספרייה והאינדקס '
+              'לכונן אחר בהגדרות הספרייה'
+        : 'במכשיר $free. האינדוקס עלול להיכשל. כדאי לפנות מקום במכשיר';
   }
 
   static const String searchResultIndexOutOfDate =
@@ -98,7 +114,7 @@ abstract class LibraryMessages {
 
   static String tabsMovedToWorkspace(int count, String workspaceName) =>
       count == 1
-      ? 'הכרטיסיה הועברה לשולחן העבודה "$workspaceName"'
+      ? 'הכרטיסייה הועברה לשולחן העבודה "$workspaceName"'
       : '$count כרטיסיות הועברו לשולחן העבודה "$workspaceName"';
 
   /// השולחן נמחק בחלון אחר בין בניית התפריט לבחירה.

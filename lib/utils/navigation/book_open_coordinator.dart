@@ -31,9 +31,10 @@ class BookOpenCoordinator {
     this.layoutWidth,
   });
 
+  /// מיקום חסר משאיר את הטאב הפתוח במקומו, או פותח עם מיקום ברירת המחדל.
   void openBook(
     Book book,
-    int index,
+    int? index,
     String searchQuery, {
     bool ignoreHistory = false,
     bool explicitIndex = false,
@@ -41,6 +42,7 @@ class BookOpenCoordinator {
     String? pinpointHighlight,
     bool markSection = false,
     String? markText,
+    bool selectLine = false,
     bool insertAdjacent = false,
     List<String>? initialCommentators,
     bool navigateToPositionIfReused = false,
@@ -48,10 +50,11 @@ class BookOpenCoordinator {
     ExternalBookMatches? externalMatches,
     bool navigate = true,
     bool captureHistory = true,
+    String? markerReference,
   }) {
     final tab = buildTab(
       book,
-      index,
+      index ?? (book is PdfBook ? 1 : 0),
       searchQuery,
       ignoreHistory: ignoreHistory,
       explicitIndex: explicitIndex,
@@ -59,13 +62,16 @@ class BookOpenCoordinator {
       pinpointHighlight: pinpointHighlight,
       markSection: markSection,
       markText: markText,
+      selectLine: selectLine,
       initialCommentators: initialCommentators,
       externalMatches: externalMatches,
+      markerReference: markerReference,
     );
     openTab(
       tab,
       insertAdjacent: insertAdjacent,
-      navigateToPositionIfReused: navigateToPositionIfReused,
+      navigateToPositionIfReused: index != null && navigateToPositionIfReused,
+      matchBookOnly: index == null,
       inSidePane: inSidePane,
       navigate: navigate,
       captureHistory: captureHistory,
@@ -82,6 +88,7 @@ class BookOpenCoordinator {
     OpenedTab tab, {
     bool insertAdjacent = false,
     bool navigateToPositionIfReused = false,
+    bool matchBookOnly = false,
     bool inSidePane = false,
     bool navigate = true,
     bool captureHistory = true,
@@ -103,6 +110,7 @@ class BookOpenCoordinator {
               tab,
               insertAdjacent: insertAdjacent,
               navigateToPositionIfReused: navigateToPositionIfReused,
+              matchBookOnly: matchBookOnly,
             ),
     );
     if (navigate) showReadingScreen();
@@ -126,9 +134,11 @@ class BookOpenCoordinator {
     String? pinpointHighlight,
     bool markSection = false,
     String? markText,
+    bool selectLine = false,
     List<String>? initialCommentators,
     String? dedupeKey,
     ExternalBookMatches? externalMatches,
+    String? markerReference,
   }) {
     // deep link עם הדגשה ממוקדת מציין במפורש סעיף יעד; חייבים לכבד אותו במדויק
     // (גם כש‑index=0) ולא ליפול חזרה להיסטוריית קריאה — אחרת ההדגשה תופיע במקום
@@ -177,8 +187,10 @@ class BookOpenCoordinator {
     //   null   → ברירת מחדל: נופלים להיסטוריה (commentatorsToShow).
     //   []     → bypass מפורש: פתיחה בלי מפרשים, גם אם בעבר נשמרו ב-history.
     //   [...]  → רשימה מפורשת מהקורא (למשל FindRef → "פתח עם רש"י").
+    final historyCommentators = lastOpened?.commentatorsToShow;
     final resolvedCommentators =
-        initialCommentators ?? lastOpened?.commentatorsToShow;
+        initialCommentators ??
+        (historyCommentators?.isNotEmpty == true ? historyCommentators : null);
 
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane(
       screenWidth: layoutWidth?.call(),
@@ -223,6 +235,8 @@ class BookOpenCoordinator {
           : null,
       dedupeKey: dedupeKey,
       externalMatches: externalMatches,
+      linkSelectedLine: selectLine ? initialIndex : null,
+      markerReference: useHistoryPosition ? null : markerReference,
     )..historySlot = latestEntry?.historySlot;
     // ספר שנקרא רק בשולחנות אחרים מקבל slot חדש, כדי שלא ידרוס את רשומתם.
     if (latestEntry == null && bookEntries.isNotEmpty) {

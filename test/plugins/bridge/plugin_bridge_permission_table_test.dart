@@ -91,6 +91,19 @@ void main() {
       );
     });
 
+    test('שאילתת מצב דיווח תיקון משתמשת באותה הרשאה כמו השליחה', () {
+      expect(table['feedback.getBookCorrectionStatus'], 'feedback.send_email');
+      expect(
+        apiCallToPermissionHint['feedback.getBookCorrectionStatus'],
+        'feedback.send_email',
+      );
+      expect(
+        PluginExtendedValidator
+            .methodMinVersions['feedback.getBookCorrectionStatus'],
+        '0.9.99',
+      );
+    });
+
     test('לכל method מוכר יש רישום מפורש בטבלה', () {
       final missing =
           PluginExtendedValidator.knownApiMethods

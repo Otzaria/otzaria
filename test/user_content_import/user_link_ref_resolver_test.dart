@@ -24,18 +24,22 @@ void main() {
   late SeforimRepository userRepository;
   late SeforimRepository officialRepository;
 
-  Future<void> addBook(MyDatabase db, String title) async {
+  Future<void> addBook(
+    MyDatabase db,
+    String title, {
+    bool isBaseBook = false,
+  }) async {
     final raw = await db.database;
     raw.execute('PRAGMA foreign_keys = OFF');
     raw.execute("INSERT OR IGNORE INTO source (id, name) VALUES (1, 'test')");
     raw.execute(
-      'INSERT INTO book (categoryId, sourceId, title, totalLines) '
-      'VALUES (1, 1, ?, 10)',
-      [title],
+      'INSERT INTO book (categoryId, sourceId, title, totalLines, isBaseBook) '
+      'VALUES (1, 1, ?, 10, ?)',
+      [title, isBaseBook ? 1 : 0],
     );
   }
 
-  Future<({bool isUserBook, int? categoryId, int totalLines})?> locate(
+  Future<LocatedUserLinkBook?> locate(
     String title,
   ) => locateUserLinkBookInRepositories(
     title,
@@ -79,7 +83,7 @@ void main() {
       userDb,
       locateBook: locate,
     );
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
     expect(
       await UserContentRepository(userDb).forwardUserLinks(
@@ -108,8 +112,138 @@ void main() {
       locateBook: locate,
     );
     expect(result.errors.single, contains('ספר הבסיס'));
-    expect(result.errors.single, contains('גם בספרייה האישית וגם ברשמית'));
+    expect(result.errors.single, contains('ביותר ממקור אחד'));
     expect(result.linksApplied, 0);
+  });
+
+  // #5222: ספר במסד מצורף בשם של ספר רשמי — native אינו יכול לדעת לאיזה מהם
+  // התכוון הקובץ, ולכן אסור לו להיקשר בשקט לרשמי.
+  for (final baseCollides in [true, false]) {
+    test(
+      'native דוחה כותרת שקיימת גם במסד מצורף (בסיס: $baseCollides)',
+      () async {
+        await addBook(userDb, 'אישי');
+        await addBook(officialDb, 'רשמי');
+        final attachedDb = MyDatabase.withPath(
+          p.join(directory.path, 'attached.db'),
+        );
+        await addBook(attachedDb, 'רשמי');
+        attachedDb.close();
+        final attached = AttachedLinkBooks.open([
+          (
+            slug: 'attached',
+            path: attachedDb.path,
+            immutable: false,
+            visible: true,
+          ),
+        ]);
+        addTearDown(attached.close);
+
+        final result = await UserContentImporter.importContents(
+          [
+            ImportedFile(
+              name: '${baseCollides ? 'רשמי' : 'אישי'}_links.json',
+              content:
+                  '[{"line_index_1": 1, "line_index_2": 2, '
+                  '"path_2": "${baseCollides ? 'אישי' : 'רשמי'}.txt"}]',
+            ),
+          ],
+          userDb,
+          locateBook: locate,
+          attachedBooks: attached,
+        );
+        expect(result.errors.single, contains('ביותר ממקור אחד'));
+        expect(result.linksApplied, 0);
+      },
+    );
+  }
+
+  test('עדיפות בין מצורפים נשמרת, וכפילות עם הרשמי חוסמת ייבוא נוסף', () async {
+    await addBook(userDb, 'יעד');
+    final paths = <String, String>{};
+    for (final slug in ['preferred', 'other']) {
+      final database = MyDatabase.withPath(p.join(directory.path, '$slug.db'));
+      await addBook(database, 'משותף');
+      paths[slug] = database.path;
+      database.close();
+    }
+    final attached = AttachedLinkBooks.open([
+      for (final entry in paths.entries)
+        (slug: entry.key, path: entry.value, immutable: false, visible: true),
+    ]);
+    addTearDown(attached.close);
+    Future<UserImportResult> import() => UserContentImporter.importContents(
+      const [
+        ImportedFile(
+          name: 'משותף_links.json',
+          content:
+              '[{"line_index_1": 1, "line_index_2": 2, "path_2": "יעד.txt"}]',
+        ),
+      ],
+      userDb,
+      locateBook: locate,
+      attachedBooks: attached,
+    );
+    expect((await import()).linksApplied, 1);
+
+    await addBook(officialDb, 'משותף');
+    expect((await import()).errors.single, contains('ביותר ממקור אחד'));
+    final repo = UserContentRepository(userDb);
+    expect(
+      await repo.forwardUserLinks(
+        'משותף',
+        sourceIsUserBook: false,
+        sourceDb: 'preferred',
+      ),
+      hasLength(1),
+    );
+    expect(
+      await repo.forwardUserLinks(
+        'משותף',
+        sourceIsUserBook: false,
+        sourceDb: 'other',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('כשל בקריאת מסד גלוי משאיר קישור מקובץ תיקייה קודם', () async {
+    await addBook(officialDb, 'מקור');
+    await addBook(userDb, 'יעד');
+    Future<UserImportResult> importAt(
+      int line, {
+      AttachedLinkBooks? attachedBooks,
+    }) => UserContentImporter.importContents(
+      [
+        ImportedFile(
+          name: 'מקור_links.json',
+          content:
+              '[{"line_index_1": $line, "line_index_2": 2, "path_2": "יעד.txt"}]',
+        ),
+      ],
+      userDb,
+      locateBook: locate,
+      attachedBooks: attachedBooks,
+      source: 'linked/path/מקור_links.json',
+    );
+    expect((await importAt(1)).linksApplied, 1);
+
+    final attached = AttachedLinkBooks.open([
+      (
+        slug: 'detached',
+        path: p.join(directory.path, 'missing.db'),
+        immutable: false,
+        visible: true,
+      ),
+    ]);
+    addTearDown(attached.close);
+    final result = await importAt(4, attachedBooks: attached);
+    expect(result.errors.single, contains('לא ניתן לבדוק את המסדים המצורפים'));
+    final links = await UserContentRepository(userDb).forwardUserLinks(
+      'מקור',
+      sourceIsUserBook: false,
+    );
+    expect(links.single.sourceLineIndex, 0);
   });
 
   test('ספרייה אישית עצמאית ללא מסד רשמי עדיין נקלטת', () async {
@@ -169,6 +303,99 @@ void main() {
     expect(links.single.sourceLineIndex, 2);
     expect(links.single.targetLineIndex, 1);
   });
+
+  test('native מאחד צמד קישורים של ספר בסיס רשמי ששמו כולל על', () async {
+    const base = 'ילקוט שמעוני על התורה';
+    const commentary = 'ביאור אישי';
+    await addBook(officialDb, base, isBaseBook: true);
+    await addBook(userDb, commentary);
+
+    final result = await UserContentImporter.importContents(
+      const [
+        ImportedFile(
+          name: '${base}_links.json',
+          content:
+              '[{"line_index_1": 3, "line_index_2": 5, "start": 2, '
+              '"path_2": "$commentary.txt", "Conection Type": "commentary"}]',
+        ),
+        ImportedFile(
+          name: '${commentary}_links.json',
+          content:
+              '[{"line_index_1": 5, "line_index_2": 3, '
+              '"path_2": "$base.txt", "Conection Type": "commentary"}]',
+        ),
+      ],
+      userDb,
+      locateBook: locate,
+    );
+
+    expect(result.errors, isEmpty);
+    expect(result.linksApplied, 1);
+    final repo = UserContentRepository(userDb);
+    final links = await repo.forwardUserLinks(base, sourceIsUserBook: false);
+    expect(links.single.targetTitle, commentary);
+    expect(links.single.anchorStart, 2);
+    expect(
+      await repo.forwardUserLinks(commentary, sourceIsUserBook: true),
+      isEmpty,
+    );
+  });
+
+  for (final isAttached in [false, true]) {
+    test('native משאיר כיוון אל פירוש ללא על (מצורף: $isAttached)', () async {
+      const source = 'ביאור אישי';
+      const target = 'יכין מגילה';
+      await addBook(userDb, source);
+      await addBook(officialDb, target);
+      final raw = await officialDb.database;
+      raw.execute('ALTER TABLE book ADD COLUMN dependenceType TEXT');
+      raw.execute('UPDATE book SET dependenceType = ?', ['commentary']);
+      final attached = isAttached
+          ? AttachedLinkBooks.open([
+              (
+                slug: 'attached',
+                path: officialDb.path,
+                immutable: false,
+                visible: true,
+              ),
+            ])
+          : AttachedLinkBooks.none;
+      if (isAttached) addTearDown(attached.close);
+
+      final result = await UserContentImporter.importContents(
+        const [
+          ImportedFile(
+            name: '${source}_links.json',
+            content:
+                '[{"line_index_1": 5, "line_index_2": 3, '
+                '"path_2": "$target.txt", "Conection Type": "commentary"}]',
+          ),
+        ],
+        userDb,
+        locateBook: (title) => locateUserLinkBookInRepositories(
+          title,
+          userRepository: userRepository,
+          officialRepository: isAttached ? null : officialRepository,
+        ),
+        attachedBooks: attached,
+      );
+
+      expect(result.errors, isEmpty);
+      expect(result.linksApplied, 1);
+      final repo = UserContentRepository(userDb);
+      final links = await repo.forwardUserLinks(source, sourceIsUserBook: true);
+      expect(links.single.targetTitle, target);
+      expect(links.single.targetDb, isAttached ? 'attached' : null);
+      expect(
+        await repo.forwardUserLinks(
+          target,
+          sourceIsUserBook: false,
+          sourceDb: isAttached ? 'attached' : null,
+        ),
+        isEmpty,
+      );
+    });
+  }
 
   test('Settings מאותחל ללא seforim.db: ייבוא אישי עצמאי עובד', () async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -255,5 +482,215 @@ void main() {
       ),
       isEmpty,
     );
+  });
+
+  group('כותרת עם גרשיים ושם קובץ בלעדיהם (issue #4512)', () {
+    const riaf = 'רי"ף שבת';
+    const commentary = 'ביאור אישי';
+    const nativeRow =
+        '[{"line_index_1": 3, "line_index_2": 5, '
+        '"path_2": "$commentary.txt", "Conection Type": "commentary"}]';
+
+    Future<UserImportResult> importNative(
+      String name,
+      String content, {
+      AttachedLinkBooks? attached,
+    }) => UserContentImporter.importContents(
+      [ImportedFile(name: name, content: content)],
+      userDb,
+      locateBook: locate,
+      attachedBooks: attached,
+    );
+
+    for (final fileTitle in ['ריף שבת', 'רי״ף שבת']) {
+      test('בסיס רשמי משם הקובץ "$fileTitle"', () async {
+        await addBook(officialDb, riaf, isBaseBook: true);
+        await addBook(userDb, commentary);
+
+        final result = await importNative('${fileTitle}_links.json', nativeRow);
+
+        expect(result.errors, isEmpty);
+        expect(result.linksApplied, 1);
+        final links = await UserContentRepository(
+          userDb,
+        ).forwardUserLinks(riaf, sourceIsUserBook: false);
+        expect(links.single.targetTitle, commentary);
+        expect(links.single.sourceLineIndex, 2);
+      });
+    }
+
+    test('יעד ב-path_2 עם ״ מול " במסד', () async {
+      await addBook(userDb, commentary);
+      await addBook(officialDb, 'רש"י על שבת');
+
+      final result = await importNative(
+        '${commentary}_links.json',
+        '[{"line_index_1": 1, "line_index_2": 2, '
+            '"path_2": "רש״י על שבת.txt"}]',
+      );
+
+      expect(result.errors, isEmpty);
+      final links = await UserContentRepository(
+        userDb,
+      ).forwardUserLinks(commentary, sourceIsUserBook: true);
+      expect(links.single.targetTitle, 'רש"י על שבת');
+      expect(links.single.targetIsUserBook, isFalse);
+    });
+
+    test('הכותרת עצמה במסד מצורף גוברת על כתיב קרוב ברשמי', () async {
+      await addBook(officialDb, riaf, isBaseBook: true);
+      await addBook(userDb, commentary);
+      final attachedDb = MyDatabase.withPath(
+        p.join(directory.path, 'attached.db'),
+      );
+      addTearDown(attachedDb.close);
+      await addBook(attachedDb, 'ריף שבת', isBaseBook: true);
+      final attached = AttachedLinkBooks.open([
+        (
+          slug: 'attached',
+          path: attachedDb.path,
+          immutable: false,
+          visible: true,
+        ),
+      ]);
+      addTearDown(attached.close);
+
+      final result = await importNative(
+        'ריף שבת_links.json',
+        nativeRow,
+        attached: attached,
+      );
+
+      expect(result.errors, isEmpty);
+      final links = await UserContentRepository(userDb).forwardUserLinks(
+        'ריף שבת',
+        sourceIsUserBook: false,
+        sourceDb: 'attached',
+      );
+      expect(links.single.targetTitle, commentary);
+    });
+
+    test('כתיבים קרובים ברשמי ובמצורף אינם מצמידים לספר שרירותי', () async {
+      await addBook(officialDb, riaf, isBaseBook: true);
+      await addBook(userDb, commentary);
+      final attachedDb = MyDatabase.withPath(
+        p.join(directory.path, 'other.db'),
+      );
+      addTearDown(attachedDb.close);
+      await addBook(attachedDb, 'רי״ף שבת', isBaseBook: true);
+      final attached = AttachedLinkBooks.open([
+        (
+          slug: 'attached',
+          path: attachedDb.path,
+          immutable: false,
+          visible: true,
+        ),
+      ]);
+      addTearDown(attached.close);
+
+      final result = await importNative(
+        'ריף שבת_links.json',
+        nativeRow,
+        attached: attached,
+      );
+
+      expect(result.errors.single, contains('יותר מספר אחד'));
+      expect(result.linksApplied, 0);
+    });
+
+    test('הסרת סוגריים או רווחים אינה תחליף לגרשיים', () async {
+      await addBook(officialDb, riaf, isBaseBook: true);
+      await addBook(userDb, commentary);
+
+      for (final title in ['ריף <שבת>', 'ריף  שבת']) {
+        final result = await importNative('${title}_links.json', nativeRow);
+        expect(result.errors.single, contains('לא נמצא בספרייה'));
+        expect(result.linksApplied, 0);
+      }
+    });
+
+    test('שני כתיבים שמתנרמלים לאותה כותרת: לא נמצא, בלי חריגה', () async {
+      await addBook(userDb, riaf);
+      await addBook(officialDb, 'רי״ף שבת');
+      await addBook(officialDb, "רי'ף שבת");
+      await addBook(userDb, commentary);
+
+      expect(await locate('ריף שבת'), isNull);
+      final result = await importNative('ריף שבת_links.json', nativeRow);
+      expect(result.errors.single, contains('לא נמצא בספרייה'));
+      expect(result.linksApplied, 0);
+    });
+  });
+
+  group('גבולות שורות בספר מתיקייה אישית (issue #5220)', () {
+    // ספר מתיקייה אישית נרשם עם totalLines 0 — תוכנו בקובץ ולא בשורות `line`.
+    Future<void> addFileBook(
+      String title,
+      String fileName,
+      String content,
+    ) async {
+      final file = File(p.join(directory.path, fileName));
+      await file.writeAsString(content);
+      final raw = await userDb.database;
+      raw.execute('PRAGMA foreign_keys = OFF');
+      raw.execute("INSERT OR IGNORE INTO source (id, name) VALUES (1, 'test')");
+      raw.execute(
+        'INSERT INTO book (categoryId, sourceId, title, totalLines, '
+        'isContentExternal, filePath, fileType) VALUES (1, 1, ?, 0, 1, ?, ?)',
+        [title, file.path, p.extension(fileName).substring(1)],
+      );
+    }
+
+    Future<UserImportResult> importRow(String row) =>
+        UserContentImporter.importContents(
+          [ImportedFile(name: 'בסיס_links.json', content: '[$row]')],
+          userDb,
+          locateBook: locate,
+        );
+
+    setUp(() async {
+      await addBook(officialDb, 'בסיס', isBaseBook: true);
+      await addFileBook('אישי', 'אישי.txt', 'שורה ראשונה\nשורה שנייה');
+    });
+
+    test('קישור לשורה מעבר לסוף הספר נדחה ואינו נשמר', () async {
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 40, "path_2": "אישי.txt"}',
+      );
+      expect(result.errors.single, contains('"אישי" (2 שורות)'));
+      expect(result.linksApplied, 0);
+      expect(
+        await UserContentRepository(
+          userDb,
+        ).forwardUserLinks('בסיס', sourceIsUserBook: false),
+        isEmpty,
+      );
+    });
+
+    test('קישור לשורה האחרונה נקלט', () async {
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 2, "path_2": "אישי.txt"}',
+      );
+      expect(result.errors, isEmpty);
+      expect(result.linksApplied, 1);
+    });
+
+    test('קישור לשורה הראשונה בקובץ ריק נדחה', () async {
+      await addFileBook('ריק', 'ריק.txt', '');
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 1, "path_2": "ריק.txt"}',
+      );
+      expect(result.errors.single, contains('"ריק" (0 שורות)'));
+      expect(result.linksApplied, 0);
+    });
+
+    test('ספר PDF אישי אינו נבדק לפי שורות', () async {
+      await addFileBook('סרוק', 'סרוק.pdf', '%PDF-1.4');
+      final result = await importRow(
+        '{"line_index_1": 1, "line_index_2": 40, "path_2": "סרוק.pdf"}',
+      );
+      expect(result.errors, isEmpty);
+      expect(result.linksApplied, 1);
+    });
   });
 }

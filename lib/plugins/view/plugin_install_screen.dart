@@ -27,6 +27,7 @@ class PluginInstallScreen extends StatefulWidget {
   /// שאינן במפה — אלה שהמשתמש טרם החליט לגביהן.
   final Map<String, bool> previousGrantedPermissions;
   final PluginInstallReportContext? reportContext;
+  final bool requireNewInstallation;
 
   /// כאשר מסופק, נקרא במקום שליחת ConfirmPluginInstall לבלוק (למשל בתוסף פיתוח).
   final void Function(Map<String, bool> grantedPermissions)? onConfirm;
@@ -44,6 +45,7 @@ class PluginInstallScreen extends StatefulWidget {
     this.previousVersion,
     this.previousGrantedPermissions = const {},
     this.reportContext,
+    this.requireNewInstallation = false,
     this.onConfirm,
     this.onCancel,
     this.isOfflineMode = false,
@@ -117,6 +119,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
           Map.unmodifiable(_permissionToggles),
           reportContext: widget.reportContext,
           previousVersion: widget.previousVersion,
+          requireNewInstallation: widget.requireNewInstallation,
         ),
       );
     }

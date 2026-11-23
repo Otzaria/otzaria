@@ -399,6 +399,7 @@ if (response.success) {
 | `feedback.sendEmail` | 0.9.89 |
 | `feedback.report` | 0.9.97 |
 | `feedback.submitBookCorrection` | 0.9.98.1 |
+| `feedback.getBookCorrectionStatus` | 0.9.99 |
 | `feedback.hasReporterEmail` | 0.9.97 |
 | `history.list` | 0.9.89 |
 | `history.listSearches` | 0.9.89 |
@@ -1128,6 +1129,19 @@ const { data } = await Otzaria.call('library.getBookContent', {
 - `textReaderDisplay: true` (קורא משובץ בלבד) — פרופיל התצוגה של הכרטיסייה,
   כולל החלפת שאר השמות; ראו [DEFAULT_TEXT_READER.md](DEFAULT_TEXT_READER.md).
 
+**טעינת ספרים רבים:** הקריאה הראשונה לספר טוענת אותו כולו, והקריאות הבאות
+לאותו ספר מגיעות מהמטמון. בתור יש שני מקומות משותפים, ותוסף שאין לו
+טעינה פעילה יכול להתחיל מיד כל עוד רצות פחות מארבע טעינות בסך הכול. טעינה
+שנמשכת 30 שניות מפנה מקום בתור וממשיכה להיספר בתקרה. התוסף שלה ממתין
+לסיומה לפני שיתחיל טעינה נוספת.
+
+- `error.timeout` — הטעינה לא התחילה בזמן. אפשר לנסות שוב.
+- `error.unavailable` — הדף נסגר או נטען מחדש בזמן שהבקשה המתינה בתור.
+
+טענו ספרים שלמים ברצף, או לכל היותר שניים-שלושה במקביל. `Promise.all` על
+מאות ספרים לא מאיץ את הטעינה, ובקשות שממתינות יותר מדי מקבלות `error.timeout`.
+חלקים של אותו ספר אפשר לבקש במקביל.
+
 ### `library.getBookToc`
 **הרשאה:** `library.content.read`
 
@@ -1370,6 +1384,23 @@ const { data } = await Otzaria.call('library.getCommentators', {
   `rawDivineNames: true` מחזיר אותו כפי שנשמר (⚠️ [האזהרה](#rawdivinenames--טקסט-כפי-שנשמר)).
   ערך שאינו בוליאני נדחה ב-`error.invalid_params` גם בלי `includeAnchors`.
   `targetHeRef` ו-`targetTitle` הם מפתחות ונשארים תמיד כפי שנשמרו.
+- `direction` (מ-0.9.99) — `'outgoing'` (ברירת המחדל: התשובה הרגילה, בלי שינוי),
+  `'incoming'` או `'both'`. `'incoming'` מחזיר את הקישורים שספרים אחרים שומרים
+  **אל** שורות החלון — למשל מסורת הש"ס שנשמרה רק בצד השני — כפי שנשמרו: בסוג
+  החיבור המקורי ובלי סינוני התצוגה של הממשק. כל רשומה נכנסת היא הקישור
+  השמור: `sourceTitle`/`sourceLine`/`sourceLineEnd`/`sourceHeRef` — הספר
+  והשורה ששומרים אותו, `sourceSource` ו-`sourceCategoryId` — זהות הספר (כמו
+  `targetSource`/`targetCategoryId` ביוצאים, כך שספרים שווי-שם ממסדים שונים
+  נבדלים), `targetLine` — השורה בחלון. קישור לטווח מופיע בכל שורת יעד מכוסה בחלון.
+  `connectionTypes`, `targetTitles`
+  ו-`targetTitlePrefixes` חלים בנכנסים על הספר האחר (`sourceTitle`);
+  `includeAnchors` אינו חל עליהם. הקישורים הנכנסים נקראים מהמסד של הספר עצמו
+  (הרשמי או המסד המצורף); קישורי-משתמש וקישורים בין מסדים אינם נכללים בהם.
+  `'both'` — היוצאים ואחריהם הנכנסים, ובכל רשומה `direction`. קישור הפניה
+  שהממשק מציג גם בצד השני עשוי להופיע בה פעמיים: פעם כיוצא (כפי שהוא מוצג
+  בספר) ופעם כנכנס (כפי שנשמר). המגבלות (חלון, 2,000 רשומות, `truncated`) חלות
+  על התשובה כולה. ערך אחר: `error.invalid_params`. גרסה קודמת מתעלמת מהפרמטר
+  ומחזירה יוצאים — רשומה בלי `direction` היא יוצאת.
 
 ```javascript
 const { data } = await Otzaria.call('library.getLinks', {
@@ -1396,6 +1427,22 @@ const { data } = await Otzaria.call('library.getLinks', {
 //     anchor: { start: 4, end: 9, label: "א" }  // רק עם includeAnchors
 //   }]
 // }
+```
+
+```javascript
+// direction: 'incoming' — מסורת הש"ס שמצביעה אל הדף
+const { data } = await Otzaria.call('library.getLinks', {
+  bookId: 'שבת', startLine: 120, endLine: 140,
+  direction: 'incoming', connectionTypes: ['MESORAT_HASHAS']
+});
+// { truncated: false,
+//   links: [{
+//     direction: "incoming",
+//     sourceTitle: "עירובין", sourceLine: 210, sourceLineEnd: null,
+//     sourceHeRef: "עירובין יג, ב", sourceSource: "o", sourceCategoryId: 31,
+//     targetLine: 131,           // השורה בחלון
+//     connectionType: "MESORAT_HASHAS", isCommentary: false
+//   }] }
 ```
 
 ### `library.getLineNotes`
@@ -1814,16 +1861,17 @@ for await (const chunk of chunks) {
 | פרמטר | ברירת מחדל | משמעות |
 |-------|-----------|--------|
 | `query` | — (חובה) | מחרוזת החיפוש |
+| `regex` | `false` | `true` = `query` הוא רג'קס עטוף `/…/` (עד 300 תווים), והוא עובר למנוע כמו שהוא, כמו בחיפוש `/…/` של האפליקציה. בלעדיו השאילתה מנוקה כטקסט רגיל. רק עם `mode: 'exact'`; רג'קס לא תקין, וכל שילוב עם `negativeQuery`, `options`, `wordOptions`, `alternativeWords`, `customSpacing`, `distance`, `proximityScope`, `wordMatchMode`, `wordMatchCount`, `anyOrder` או המקבילים השליליים, מחזירים `error.invalid_params` |
 | `negativeQuery` | `''` | מילים ש**לא** יופיעו בתוצאה |
 | `mode` | `'exact'` | `'exact'` מדויק, `'advanced'` מתקדם (אפשרויות/חלופות/מרווחים), `'fuzzy'` מקורב (מרחק עריכה) |
 | `limit` / `offset` | `50` / `0` | דפדוף. `limit` נחתך ל-500, ו-`offset + limit` הממשיים אינם יכולים לעלות על 10,000 |
-| `order` | `'relevance'` | `'relevance'` \| `'catalogue'` (סדר הספרייה) \| `'generation'` (סדר הדורות) |
+| `order` | `'relevance'` (ברג'קס `'catalogue'`) | `'relevance'` \| `'catalogue'` (סדר הספרייה) \| `'generation'` (סדר הדורות). ברג'קס חוצה רווחים נתמך רק `'catalogue'` |
 | `distance` | `0` | מספר המילים המותר בין מילות החיפוש; במצב `'fuzzy'` הטווח הוא 0–2 |
 | `proximityScope` | `'wordDistance'` | `'wordDistance'` מרווח מילים \| `'sameParagraph'` באותה פסקה \| `'sameSection'` תחת אותה כותרת |
 | `wordMatchMode` | `'all'` | `'all'` \| `'anyWord'` \| `'mostWords'` \| `'atLeast'` |
 | `wordMatchCount` | `2` | מספר המילים הנדרש; ניתן לשלוח רק עם `mode: 'advanced'` ו-`wordMatchMode: 'atLeast'` |
 | `anyOrder` (מגרסה 0.9.98.1) | `false` | `true` = אותו מרווח כמו בחיפוש לפי הסדר (`distance`), אבל המילים יכולות להופיע בכל סדר; חל גם על `negativeQuery` ואינו משפיע על שאילתה של מילה אחת. נדחה במצב `'fuzzy'`, עם `proximityScope` שאינו `'wordDistance'`, עם `wordMatchMode` שאינו `'all'` ועם `customSpacing` |
-| `grouping` | `'none'` | `'none'` \| `'sameSection'` (איחוד לפי סעיף) \| `'identicalText'` (איחוד טקסט זהה) |
+| `grouping` | `'none'` | `'none'` \| `'sameSection'` (איחוד לפי סעיף) \| `'identicalText'` (איחוד טקסט זהה). ברג'קס נתמך רק `'none'` |
 | `options` | `{}` | אפשרויות מילה שחלות על **כל** מילות השאילתה |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
 | `alternativeWords` | `{}` | מילים חלופיות לפי אינדקס מילה: `{ "0": ["אהבת", "יאהב"] }` |
@@ -1831,6 +1879,9 @@ for await (const chunk of chunks) {
 | `negativeDistance`, `negativeProximityScope`, `negativeOptions`, `negativeWordOptions`, `negativeAlternativeWords`, `negativeCustomSpacing` | כמו החיוביים | אותם פרמטרים עבור `negativeQuery` |
 | `includeBookCounts` | `false` | להחזיר גם ספירת תוצאות לפי ספר |
 | `rawDivineNames` (מגרסה 0.9.98.1) | `false` | `true` = `text` של התוצאות עם שם הוי"ה כפי שנשמר. ⚠️ ראו [האזהרה](#rawdivinenames--טקסט-כפי-שנשמר) |
+
+ברג'קס חוצה רווחים המנוע שומר עד 100,000 שורות תואמות. שאילתה שחורגת
+ממגבלות העבודה של המנוע מסומנת ב-`truncated`.
 
 **היקף החיפוש** (ניתן לשלב; ריק = כל הספרייה):
 
@@ -1848,9 +1899,11 @@ for await (const chunk of chunks) {
 
 **פלט — `AsyncIterable` של chunks**
 
-הקריאה אינה מחזירה `Promise` ואינה ממתינה לכל התוצאות. משתמשים ב־`for await`;
-הפסקת הלולאה (`break` או `return`) מבטלת את החיפוש בצד אוצריא. ה־chunk הראשון
-נושא את הספירות, והבאים נושאים עד 50 תוצאות כל אחד.
+משתמשים ב־`for await` כדי לקבל תוצאות בהדרגה. הפסקת הלולאה
+(`break` או `return`) מבטלת את החיפוש בצד אוצריא. כל chunk
+נושא עד 50 תוצאות. ברג'קס חוצה רווחים התוצאות עשויות להגיע לפני הספירה.
+במנות האלה `total` הוא `null`, והמנה של הספירה מגיעה בסיום הסריקה.
+ברוב החיפושים הספירות מגיעות במנה הראשונה.
 
 > **צרכן איטי קוטע את הזרם.** ה-SDK מחזיק תור של 256 chunks; אם הלולאה אינה
 > מדביקה את הקצב, הזרם נכשל עם `Stream consumer is too slow` והחיפוש מבוטל.
@@ -1872,7 +1925,7 @@ for await (const chunk of chunks) {
     merged: [{ id, type, bookId, source, book, categoryPath, reference, index }]
                             // רק כשיש איחוד; לכל אח זהות וקטגוריה מלאות
   }],
-  total: 812,             // סך ההתאמות; זמין מה-chunk הראשון
+  total: 812,             // סך ההתאמות, או null עד שהספירה זמינה
   groupCount: null,       // מספר הקבוצות כש-grouping פעיל, אחרת null
   truncated: false,       // true = שאילתה רחבה מדי, התוצאות והספירה חלקיות
   limit: 100, offset: 0,
@@ -4500,7 +4553,7 @@ const { data } = await Otzaria.call('feedback.report', {
 - `reportType` (אופציונלי) - `bug` / `crash` / `content` / `other`; ערך לא מוכר מתורגם ל-`other`, וברירת המחדל היא `other`
 - `reporterEmail` (אופציונלי) - כתובת המשתמש לחזרה. **הכתובת השמורה בהגדרות דיווח השגיאות גוברת תמיד**: הפרמטר משמש רק כשאין כתובת שמורה (ואם שניהם ריקים — לא נשלחת כתובת כלל). בדקו מראש עם `feedback.hasReporterEmail` אם בכלל צריך לבקש כתובת מהמשתמש
 
-**דיאלוג אישור:** לפני השליחה מוצג למשתמש דיאלוג עם שם התוסף, יעד הדיווח ותצוגה מקדימה של הטקסט. אין דרך לעקוף אותו.
+**דיאלוג אישור:** לפני השליחה מוצג למשתמש דיאלוג עם שם התוסף, יעד הדיווח, תצוגה מקדימה של הטקסט וכתובת החזרה השמורה. המשתמש יכול לערוך את הכתובת בדיאלוג, והכתובת שנקבעה בו היא זו שנשלחת. אין דרך לעקוף אותו.
 
 **החזרה:** `'sent'` — הדיווח נשלח לשרת; `'queued'` — הדיווח נשמר בתור מקומי ויישלח אוטומטית כשיהיה חיבור; `'cancelled'` — המשתמש ביטל בדיאלוג.
 
@@ -4542,7 +4595,25 @@ const result = await Otzaria.call('feedback.submitBookCorrection', {
   - `status` — מה קרה למשלוח: `sent` נמסר לשרת עכשיו; `queued` נשמר בתור המקומי של אוצריא וישלח בהמשך, והבעלות עליו עוברת לאוצריא.
   - `reportKind` — `'text_correction'` או `'free_text'`: סוג הדיווח שנבנה ונשלח או נשמר בתור. זו קביעה מקומית של אוצריא ואינה אישור שהשרת קיבל אותו.
   - `correctionSupported` — עבור `sent` בלבד: true כשנשלח `text_correction` והשרת לא דיווח שאינו תומך בו; false עבור `free_text` או כשהשרת דחה את סוג התיקון. ב־`queued` הערך null, כי עדיין אין תשובת שרת.
+- **אישור כתובת השולח:** בקריאה הראשונה בכל מופע של התוסף אוצריא מציגה למשתמש חלון עם שם התוסף וכתובת החזרה השמורה, וניתן לערוך בו את הכתובת. האישור תקף כל עוד התוסף פתוח וכתובת החזרה נשארת אותה כתובת, כך שתיקון שמפוצל לחלקים אינו מקפיץ חלון לכל חלק. ביטול מחזיר `error.report_email_required` ושום דיווח אינו נשלח.
 - `error.report_id_conflict` מציין התנגשות בתור המקומי או HTTP 409: יש ליצור `reportId` חדש לפני ניסיון נוסף. כשל זמני משתמש באותו מזהה ובאותו תוכן.
+
+### `feedback.getBookCorrectionStatus`
+**הרשאה:** `feedback.send_email` (כמו `feedback.submitBookCorrection`). קריאה בלבד.
+
+דיווח שהוחזר עבורו `status: 'queued'` נשלח בהמשך על ידי התור של אוצריא, בלי שהתוסף מקבל על כך הודעה. כדי לעדכן את המצב שמציג התוסף:
+
+```js
+const response = await Otzaria.call('feedback.getBookCorrectionStatus', { reportId });
+if (response.success && response.data) {
+  const { status } = response.data;
+}
+```
+
+- פרמטר: `reportId` — אותו מזהה שהועבר ל־`feedback.submitBookCorrection` (אותם תווים ואותה מגבלת אורך). תוסף יכול לשאול רק על דיווחים שהוא עצמו שלח, ושום תוכן אינו נחשף.
+- `response.data`: `{status: 'queued'|'sent'|'rejected'|'unknown', reportId, nativeReportId}`. `queued` — עדיין בתור המקומי; `sent` — רשום כנשלח, גם אם ניסיון חוזר עדיין בתור; `rejected` — נדחה סופית על ידי השרת.
+- `unknown` אינו סופי: הדיווח לא נמצא (נמחק, נחתך מהיסטוריית הנשלחים — נשמרים 100 אחרונים — שוחזר מגיבוי, הוחלף מזהה אחרי התנגשות, או שנתפס ברגע ההעברה מהתור להיסטוריה). יש להשאיר את המצב הקודם ולנסות שוב מאוחר יותר.
+- שגיאה `error.invalid_params` על `reportId` לא תקין.
 
 ### `feedback.hasReporterEmail`
 **הרשאה:** אינה נדרשת — מוחזר ביט קיום בלבד, בלי הכתובת עצמה.
@@ -4715,7 +4786,8 @@ const { data } = await Otzaria.call('tools.dictionary', { term: 'רמב״ם' });
 **הרשאה:** `tools.read` · **מגרסה:** 0.9.98
 
 קריאה במאגר הביוגרפיות המצורף לתוכנה ("תולדות גדולי ישראל") - אותם ערכים
-שבמסך "ביוגרפיות", באותו סדר התאמה. החיפוש הוא על השם ועל הכינויים.
+שבמסך "ביוגרפיות", באותו סדר התאמה. החיפוש הוא על השם ועל הכינויים, ואחריהם
+על שמות החיבורים (`works`, מגרסה 0.9.99): ערך שנמצא רק לפי חיבור מופיע אחרי כל ההתאמות בשם.
 
 | פרמטר | תיאור |
 |--------|-------|
@@ -6270,6 +6342,7 @@ async function scheduleReminder(title, body, dateTime) {
 | `resultsProvider` | לא | שם ספק תוצאות חיצוני (אותיות קטנות, עד 64 תווים). כשהשורה מסומנת, טאב החיפוש מציג מדור תוצאות מהתוסף דרך `search.external.requested` (ראו `reader.registerExternalSearchProvider`). סותר את `openPluginOnSubmit`. |
 | `resultsTitle` | לא | כותרת מדור התוצאות בטאב החיפוש (עד 120 תווים); דורש `resultsProvider`. ברירת המחדל: `title`. |
 | `resultsAction` | לא | מגרסה 0.9.98.3: כיתוב כפתור (עד 120 תווים) בטאב החיפוש. הכפתור מוצג כשהחיפוש הסתיים, גם בלי תוצאות, ולחיצה פותחת את דף התוסף עם `search.requested` על אותו חיפוש. דורש `openPluginOnSubmit`. |
+| `resultsActionIcon` | לא | מגרסה 0.9.99: שם אייקון לכפתור `resultsAction` (עד 128 תווים), באותו פורמט של שאר אייקוני התוספים ([ICONS.md](ICONS.md): שם בלי תחילית, או `otzaria:` / `fluent:`). בלעדיו, או עם שם שאינו מוכר, הכפתור מציג את אייקון "פתח" (ובהתקנה מתקבלת אזהרה על שם לא מוכר). דורש `resultsAction`, וגם `minAppVersion: "0.9.99"`: מארח ישן יותר דוחה את המניפסט על מפתח לא מוכר, ולא מתעלם ממנו. |
 | `visibleInModes` | לא | מערך לא-ריק מתוך `"exact"`, `"advanced"`, `"fuzzy"`; ברירת המחדל היא כל המצבים. |
 | `disabledSearchOptions` | לא | אובייקט `מצב → מזהי אפשרויות מילה` להשבתה כשה-checkbox מסומן. |
 
@@ -7090,7 +7163,7 @@ await Otzaria.call('reader.addContextMenuItem', {
   הטקסט המסומן ולפעול עליו בדף שלו.
 - `type` יכול להיות `item`,‏ `submenu`,‏ `color-row` או `separator`
 - תת־תפריט מקבל `children`; שורת צבעים מקבלת `colors` עם `id`,‏ `color`,‏ `label`,‏ `selected` ו־`icon` אופציונלי. כאשר `icon` קיים הוא מוצג במקום גוש הצבע ומתאים לפעולות קומפקטיות כמו מחק
-- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. מ-`0.9.97` נתמך גם `reader-highlight` (ראו למטה), ומ־`0.9.98.1` נתמכים גם `reader-book` (ללא סימון) וארבעת הקשרי המפרשים וה־PDF (ראו למטה). ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני הקשרי הבחירה (כהתנהגות הרישום המקורית).
+- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. מ-`0.9.97` נתמך גם `reader-highlight` (ראו למטה), מ־`0.9.98.1` נתמכים גם `reader-book` (ללא סימון) וארבעת הקשרי המפרשים וה־PDF, ומ־`0.9.99` גם `library-book` (ספר בעץ הספרייה; ראו למטה). ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני הקשרי הבחירה (כהתנהגות הרישום המקורית).
 - מ־`0.9.99`, `bookTypes` ו־`bookSources` (אופציונליים, על פריט עליון בלבד) מגבילים את הפריט לספרים מסוימים, בדיוק כמו בפקדי הסרגל (ראו `reader.addToolbarItem`): הם נבדקים מול `type` ו־`source` שב־payload של הלחיצה, כלומר הספר שעליו לחצו. במפרש זה ספר המפרש ולא `mainBook`. קיצור מקלדת שמפעיל את הפריט (`contextMenuItemId`) כפוף לאותו מסנן. אוצריא ישנה מתעלמת מהשדות, ולכן הצהרה במניפסט מחייבת `minAppVersion: 0.9.99`.
 - ילד שלא מגדיר `contexts` יורש את המערך של אביו. ילד שמגדיר `contexts` במפורש מוצג רק בהקשרים שלו, ללא איחוד אוטומטי עם הקשר האב; ההקשרים המפורשים חייבים להיות תת־קבוצה של הקשרי האב.
 - אפשר להגדיר `onClickEvent` או `onColorClickEvent` כאירוע מותאם אישית
@@ -7205,6 +7278,40 @@ try {
 } catch (error) {
   if (!String(error?.code ?? error).includes('unsupported_context')) throw error;
   await Otzaria.call('reader.addContextMenuItem', { ...item, contexts: legacy });
+}
+```
+
+**ספר בעץ הספרייה — `library-book` (מ־`0.9.99`):**
+פריט עם `contexts: ['library-book']` מופיע בסוף תפריט ההקשר של ספר בספרייה:
+לחיצה ימנית (או לחיצה ארוכה במגע) על שורה בעץ, על כרטיס ברשת או על תוצאת
+איתור. הוא נוסף אחרי הפריטים המובנים ("הוסף לבחירה", ובמסכת בבלי גם בחירת
+פורמט הפתיחה) ואינו מחליף אותם. ההקשר אינו נכלל בברירת המחדל, ואינו מוצג
+בספרים מספקים חיצוניים (`type: 'external'`). ההרשאה היא `reader.context_menu`,
+כמו בשאר ההקשרים, ו־`bookTypes`/`bookSources` מסננים לפי הספר שנלחץ.
+עבור רישום במניפסט יש להגדיר `minAppVersion: "0.9.99"`. בגרסאות קודמות
+רישום פריט שמכיל את ההקשר נדחה ב־`error.unsupported_context`.
+
+אין ספר פתוח ואין מיקום: ב־`selection` יש את זהות הספר (`id`, `bookId`,
+`bookUid`, `type`, `source`, ו־`external` כשיש), את `bookTitle` ואת
+`categoryPath` בצורה של [`library.getTree`](#librarygettree) (`/הלכה/משנה
+תורה`). `text` ו־`selectedText` ריקים, ו־`currentRef`/`currentIndex` הם `null`.
+
+```json
+{
+  "minAppVersion": "0.9.99",
+  "permissions": ["app.startup_contributions", "reader.context_menu"],
+  "contributes": {
+    "startup": {
+      "contextMenuItems": [
+        {
+          "id": "add-to-plan",
+          "title": "הוסף לתוכנית הלימוד",
+          "contexts": ["library-book"],
+          "openPlugin": true
+        }
+      ]
+    }
+  }
 }
 ```
 

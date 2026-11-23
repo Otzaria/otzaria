@@ -21,6 +21,21 @@ class _MemorySessions extends WindowSessionStore {
   final Map<int, WindowSession> rows = {};
   final List<int> boundsWrites = [];
   final List<WindowSession> loaded = [];
+  List<WindowSession> closed = const [];
+
+  @override
+  Future<List<WindowSession>> loadClosed() async => closed;
+
+  @override
+  Future<void> saveClosed(
+    List<WindowSession> sessions, {
+    int? removeSlot,
+    WindowSession? activate,
+  }) async {
+    rows.remove(removeSlot);
+    if (activate != null) rows[activate.slot] = activate;
+    closed = sessions;
+  }
 
   @override
   Future<void> save(
@@ -146,7 +161,6 @@ void main() {
         entry: entry,
         opener: opener,
         confirm: (_, _) async => true,
-        discardSession: sessions.delete,
       );
       final closing = close.run();
       await tester.pump();

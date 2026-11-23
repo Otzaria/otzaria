@@ -358,8 +358,10 @@ int resolvePageShapeNavigationBaseIndex({
   return selectedIndex ?? 0;
 }
 
-/// סמן הבחירה מצויר בריפוד הימני של הרשימה, מחוץ לטקסט.
-const _readerListPadding = EdgeInsets.all(4);
+/// סמן הבחירה מצויר ב-[_markerGutter] הפנימיים של הריפוד הימני, מחוץ לטקסט;
+/// שאר הריפוד מרחיק את הטקסט מאזור הלחיצה של המסילה.
+const _markerGutter = 4.0;
+const _readerListPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 4);
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -564,6 +566,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Map<String, int> _anchorStyleCache = const {};
   late final AppWindowKeys _previewWindow;
   Timer? _previewHoverTimer;
+  final _personalNotesLineIndex = PersonalNotesLineIndex();
   List<PersonalNote> _commentaryNotes = const [];
   int _commentaryNotesLoadGeneration = 0;
 
@@ -689,6 +692,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (anchorLinks.isEmpty) return rawLine;
     return injectLinkAnchorMarkers(
       rawLine: rawLine,
+      sourceRawLine: note == null ? widget.content[lineIndex] : null,
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex,
@@ -1437,7 +1441,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           categoryId: widget.reportBook?.categoryId,
         );
     if (!mounted || generation != _commentaryNotesLoadGeneration) return;
-    setState(() => _commentaryNotes = notes);
+    final snapshot = List<PersonalNote>.unmodifiable(notes);
+    setState(() => _commentaryNotes = snapshot);
   }
 
   void _handleNotesChanged(String bookId) {
@@ -1565,7 +1570,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               : settingsState.commentatorsFontBold)
           ? FontWeight.bold
           : null,
-      lineHeight: settingsState.lineHeight,
+      lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     );
   }
 
@@ -2991,7 +2996,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     (previous.bookId != current.bookId ||
                         previous.locatedNotes != current.locatedNotes),
                 builder: (context, notesState) {
-                  final noteMap = indexPersonalNotesByLine(
+                  final noteMap = _personalNotesLineIndex.forSnapshot(
                     widget.isMainText
                         ? (notesState.bookId == personalNotesBookKey(state.book)
                               ? notesState.locatedNotes
@@ -3167,7 +3172,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     bool continuous,
   ) {
     final currentAnchor = _lines?.captureAnchor();
-    final anchor = currentAnchor ?? _initialAnchor;
+    final tab = widget.tab;
+    final anchor =
+        currentAnchor ??
+        (widget.isMainText && tab is TextBookTab && tab.markerReference != null
+            ? tab.openingReadingAnchor(state)
+            : _initialAnchor);
     TargetRectResolver? initialResolver;
     if (segments != null &&
         anchor != null &&
@@ -3240,7 +3250,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             family,
             weight ?? FontWeight.normal,
           ),
-          lineHeight: settings.lineHeight,
+          lineHeight: settings.lineHeightForBook(state.lineHeight),
           textWidth: (width) => width > 8 ? width - 8 : width,
           crossAxisPadding: _readerListPadding.horizontal,
           builder: buildList,
@@ -3293,10 +3303,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         segment != null &&
         !segment.isHeader &&
         segment.sourceLineIndices.length > 1;
-    if (isMultiLine && !segment.isLoaded) {
+    // גם שורה בודדת: בגובה אפס, קפיצה לאזור שלא נטען בונה אלפי שורות בפריים.
+    if (segment != null && !segment.isLoaded) {
       return UnloadedParagraphPlaceholder(
         lineCount: segment.sourceLineIndices.length,
         fontSize: widget.fontSize,
+        lineHeight: state.lineHeight,
       );
     }
     final itemLines = segment?.sourceLineIndices ?? [primaryLineIndex];
@@ -3535,14 +3547,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 ? ReaderLineGutter(
                     color: markerColor,
                     selectedLines: selectedLines,
-                    gutter: _readerListPadding.right,
+                    gutter: _markerGutter,
                     child: gutterChild,
                   )
                 : CustomPaint(
                     foregroundPainter: isSelected
                         ? SelectionGutterPainter(
                             markerColor,
-                            gutter: _readerListPadding.right,
+                            gutter: _markerGutter,
                           )
                         : null,
                     child: gutterChild,
@@ -3614,7 +3626,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             fontSize: widget.fontSize,
             fontFamily: widget.fontFamily ?? settingsState.fontFamily,
             fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-            lineHeight: settingsState.lineHeight,
+            lineHeight: settingsState.lineHeightForBook(state.lineHeight),
           ),
         ),
       );
@@ -3636,7 +3648,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             : settingsState.commentatorsFontBold)
         ? FontWeight.bold
         : null,
-    lineHeight: settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     sectionHeadings: _sectionHeadingsByLine,
     isRelated: widget.isMainText
         ? null

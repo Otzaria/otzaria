@@ -82,6 +82,11 @@ String buildAnnotatedLineHtml({
         suffix: note.anchorSuffix,
         hintStart: note.anchorStart,
         hintSourceLine: sourceLine,
+        // בשורת המקור, סימן זהה בלי ההקשר השמור יכול להיות מופע אחר.
+        requirePunctuationContext:
+            (sourceLine == null || sourceLine == rawLine) &&
+            ((note.anchorPrefix?.isNotEmpty ?? false) ||
+                (note.anchorSuffix?.isNotEmpty ?? false)),
       );
       if (range != null) {
         final expanded = replaceHolyNames
@@ -90,6 +95,8 @@ String buildAnnotatedLineHtml({
         addNoteSpan(expanded.start, expanded.end, note.id);
         continue;
       }
+      // פיסוק שלא נמצא (למשל כשהפיסוק מוסתר) אינו מסמן את כל השורה.
+      if (isPunctuationOnlyAnchor(note.anchorText!)) continue;
       // לא נמצא הביטוי — נופלים לסימון כל השורה.
     }
     // הערת-שורה-שלמה (או נפילה מאיתור כושל): סימון כל השורה.

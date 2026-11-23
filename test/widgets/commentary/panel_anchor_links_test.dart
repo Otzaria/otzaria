@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show stripHtmlIfNeeded;
@@ -743,6 +745,159 @@ void main() {
       );
       expect(smartText.onAnchorHover, isNull);
       expect(smartText.text, isNot(contains('book-note')));
+    });
+  });
+
+  group('commentary-of-commentary markers in the pane (issue #4287)', () {
+    // משנה ברורה כמפרש: שורה 3 בספר, ובה ציון שער הציון (א) אחרי האות השנייה.
+    Link mishnaBerura({int? linkedStart, int? linkedEnd}) => Link(
+      heRef: 'משנה ברורה א, א',
+      index1: 1,
+      path2: 'משנה ברורה',
+      index2: 3,
+      connectionType: LinkTypes.commentary,
+      targetCategoryId: 7,
+      linkedAnchorStart: linkedStart,
+      linkedAnchorEnd: linkedEnd,
+    );
+    Link shaarHatziyun() => Link(
+      heRef: 'שער הציון א, א',
+      index1: 3,
+      path2: 'שער הציון',
+      index2: 1,
+      connectionType: LinkTypes.commentary,
+      targetCategoryId: 7,
+      anchorStart: 2,
+      anchorLabel: 'א',
+    );
+
+    Future<SmartTextWidget> pumpPane(
+      WidgetTester tester,
+      TextDisplayProfile profile, {
+      String content = 'אבגדהוזחטי',
+      Link? displayed,
+      List<Link>? links,
+      Future<CommentaryNotesByLine>? personalNotes,
+    }) async {
+      Link.clearContentCache();
+      CommentaryService.seedEraCache({'שער הציון': CommentaryEra.other});
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: const {},
+        providers: [
+          _TestLibraryProvider(contentByPath: {'משנה ברורה': content}),
+        ],
+      );
+      TargetLineLinksService.instance = TargetLineLinksService(
+        loader: (_, _, _) async => links ?? [shaarHatziyun()],
+      );
+      final settings = StubSettingsBloc(SettingsState.initial());
+      addTearDown(settings.close);
+      await tester.pumpWidget(
+        BlocProvider<SettingsBloc>.value(
+          value: settings,
+          child: MaterialApp(
+            home: CommentaryContent(
+              link: displayed ?? mishnaBerura(),
+              personalNotes: personalNotes,
+              fontSize: 18,
+              openBookCallback: (_) {},
+              displayProfile: profile,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester.widget<SmartTextWidget>(
+        find.byType(SmartTextWidget).first,
+      );
+    }
+
+    testWidgets('shown as in the book when markers in commentaries are shown', (
+      tester,
+    ) async {
+      final text = await pumpPane(tester, TextDisplayProfile.defaults);
+
+      expect(text.text, contains('class="link-anchor link-anchor-'));
+      expect(text.text, contains('href="otzaria://anchor?ref=2_0"'));
+      text.onAnchorHover!('otzaria://anchor?ref=2_0', const Offset(100, 100));
+      await tester.pump(const Duration(milliseconds: 280));
+      expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+    });
+
+    testWidgets('הציון שומר על יעד הציטוט, סימון השם והערה אישית', (
+      tester,
+    ) async {
+      const raw = 'אב<b>גד</b> הו אלהים זח';
+      DivineNamesRepository.instance.debugLoader =
+          (title, {categoryId, required source}) async =>
+              (DivineNameSpansBuilder()..add(2, 8, 13, DivineNameKind.elohim))
+                  .build();
+      final now = DateTime(2026);
+      final note = PersonalNote(
+        id: 'note',
+        bookId: 'משנה ברורה',
+        lineNumber: 3,
+        anchorText: 'זח',
+        anchorStart: raw.indexOf('זח'),
+        anchorEnd: raw.length,
+        lastKnownLineNumber: null,
+        status: PersonalNoteStatus.located,
+        content: 'הערה',
+        contentPlain: 'הערה',
+        contentFormat: PersonalNoteContentFormat.plain,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final text = await pumpPane(
+        tester,
+        TextDisplayProfile.defaults,
+        content: raw,
+        displayed: mishnaBerura(linkedStart: 5, linkedEnd: 7),
+        links: [
+          Link(
+            heRef: 'בראשית א, א',
+            index1: 3,
+            path2: 'בראשית',
+            index2: 1,
+            connectionType: LinkTypes.linker,
+            anchorStart: 0,
+            anchorEnd: raw.indexOf(' הו'),
+            anchorOffsetsAreRaw: true,
+          ),
+          shaarHatziyun(),
+        ],
+        personalNotes: Future.value({
+          3: [note],
+        }),
+      );
+
+      final fragment = html_parser.parseFragment(text.text);
+      final ranges = fragment.querySelectorAll('a.link-anchor-range');
+      expect(ranges.map((range) => range.text), ['אב', 'גד']);
+      expect(
+        ranges.map((range) => range.attributes['href']).toSet(),
+        {'otzaria://anchor?ref=2_0&range=1'},
+      );
+      expect(
+        fragment.querySelector('a.link-anchor')?.attributes['href'],
+        'otzaria://anchor?ref=2_1',
+      );
+      expect(fragment.querySelector('span.link-anchor-range')?.text, 'הו');
+      expect(fragment.querySelector('.divine-name')?.text, 'אלהים');
+      expect(fragment.querySelector('a[href^="otzaria://note?"]')?.text, 'זח');
+    });
+
+    testWidgets('hidden when markers in commentaries are hidden', (
+      tester,
+    ) async {
+      final text = await pumpPane(
+        tester,
+        TextDisplayProfile.defaults.copyWith(
+          anchorMarkers: MarkVisibility.hide,
+        ),
+      );
+
+      expect(text.text, isNot(contains('link-anchor')));
     });
   });
 }

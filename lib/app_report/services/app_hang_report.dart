@@ -5,8 +5,8 @@ import 'package:otzaria/app_report/services/crash_report_flow.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/app_report/view/crash_prompt_dialog.dart';
 
-/// דיווח על תקיעה שהשתחררה בהפעלה הנוכחית. גלאי הנייטיב של Windows מודיע
-/// דרך `otzaria/process_control`; מקור ANR מעביר ישירות ל-[CrashReportFlow].
+/// דיווח על תקיעה שהשתחררה בהפעלה הנוכחית. הגלאי מודיע דרך `otzaria/process_control`
+/// ב-Windows ודרך `otzaria/hang_monitor` באנדרואיד; ANR עובר ישירות ל-[CrashReportFlow].
 abstract class AppHangReport {
   static Future<void> onRecovered(
     Object? arguments, {

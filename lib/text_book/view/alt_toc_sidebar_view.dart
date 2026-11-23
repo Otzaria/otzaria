@@ -9,6 +9,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart'
+    show BookContentRange;
 import 'package:otzaria/migration/models/alt_toc_entry.dart';
 import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/models/books.dart';
@@ -24,7 +26,10 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/dibburim_structure.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
+import 'package:otzaria/text_book/utils/inline_section_marks_loader.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show HolyNameStyle, replaceHolyNames;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
     show bracketMarkerFractionInLine;
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
@@ -168,7 +173,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   // Active entry and scroll state are scoped to a structure: a line may belong
   // to several alternative structures at once.
   final Map<int, int> _activeEntryIds = {};
-  final Map<int, int> _selectedEntryLineIndices = {};
+  final Map<int, ({int entryId, int lineIndex})> _selectedEntries = {};
   int _navigationRequest = 0;
   final Map<int, int> _lastScrolledEntryIds = {};
 
@@ -496,9 +501,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   /// מבנים שכותרותיהם מוזרקות לגוף הטקסט ([buildSectionHeadings]).
-  bool _hasInjectedHeadings(int structureId) => _structures.any(
-    (s) => s.id == structureId && (s.key == 'Topic' || s.key == 'Parasha'),
-  );
+  bool _hasInjectedHeadings(int structureId) =>
+      canLoadInlineSectionMarks(widget.book) &&
+      _structures.any(
+        (s) => s.id == structureId && injectsSectionHeadings(s.key),
+      );
 
   Future<int?> _entryIdForLine(int lineIndex, int structureId) async {
     if (structureId != kDibburimStructureId) {
@@ -562,7 +569,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     final changed = matches
         .where((match) => _activeEntryIds[match.structureId] != match.entryId)
         .where(
-          (match) => !_sharesLineWithActive(
+          (match) => !_keepsClickedEntry(
             match.structureId,
             match.entryId,
             lineIndex,
@@ -633,12 +640,18 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
-  /// אחים שנפתחים באותה שורה (דפים בפסקה אחת) ממופים במסד לאחרון שבהם,
-  /// ולכן האח שנבחר בלחיצה נשאר מסומן כל עוד השורה לא התחלפה.
-  bool _sharesLineWithActive(int structureId, int entryId, int lineIndex) {
-    if (_selectedEntryLineIndices[structureId] != lineIndex) return false;
+  bool _isGemaraDapim(int structureId) =>
+      _structures.any((s) => s.id == structureId && s.key == 'GemaraDapim');
+
+  /// בדפי הגמרא שומרים את העוגן שנלחץ באותה פסקה. במבנים אחרים
+  /// רק כותרות אחיות באותה שורה חולקות עוגן.
+  bool _keepsClickedEntry(int structureId, int entryId, int lineIndex) {
+    final selected = _selectedEntries[structureId];
+    if (selected?.lineIndex != lineIndex) return false;
     final activeId = _activeEntryIds[structureId];
     if (activeId == null || structureId == kDibburimStructureId) return false;
+    if (_isGemaraDapim(structureId)) return selected!.entryId == activeId;
+
     final tree = _trees[structureId];
     final active = tree?.entryById(activeId);
     final resolved = tree?.entryById(entryId);
@@ -650,7 +663,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   void _selectEntry(int structureId, int entryId, int lineIndex) {
-    _selectedEntryLineIndices[structureId] = lineIndex;
+    _selectedEntries[structureId] = (entryId: entryId, lineIndex: lineIndex);
     final previous = _activeEntryIds[structureId];
     if (previous == entryId) return;
     _selectionTicks[previous]?.value++;
@@ -732,35 +745,69 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   /// גלילת הספר הפתוח לשורה [lineIndex], ולסמן `[markerTitle…]` כשהוא בתוכה.
-  Future<void> _scrollToLine(int lineIndex, {String? markerTitle}) async {
+  Future<void> _scrollToLine(
+    int lineIndex, {
+    String? markerTitle,
+    bool gemaraDapim = false,
+    bool alignSectionHeading = false,
+  }) async {
     final request = ++_navigationRequest;
     final bloc = context.read<TextBookBloc>();
     final state = bloc.state;
     if (state is! TextBookLoaded) {
       return;
     }
-    var line = lineIndex >= 0 && lineIndex < state.content.length
-        ? state.content[lineIndex]
-        : null;
-    if (markerTitle != null && !state.isContentLineLoaded(lineIndex)) {
-      final epoch = widget.lines.navigationEpoch.value;
-      final range = await bloc.repository.getBookContentRange(
+    final first = alignSectionHeading
+        ? (lineIndex >= 2 ? lineIndex - 2 : 0)
+        : lineIndex;
+    final last = alignSectionHeading ? lineIndex - 1 : lineIndex;
+    BookContentRange? range;
+    if ((alignSectionHeading || markerTitle != null) &&
+        first <= last &&
+        (!state.isContentLineLoaded(first) ||
+            !state.isContentLineLoaded(last))) {
+      final lines = widget.lines;
+      final epoch = lines.navigationEpoch.value;
+      range = await bloc.repository.getBookContentRange(
         state.book,
-        startLine: lineIndex,
-        endLine: lineIndex,
+        startLine: first,
+        endLine: last,
       );
       if (!mounted ||
           request != _navigationRequest ||
-          epoch != widget.lines.navigationEpoch.value) {
+          !identical(lines, widget.lines) ||
+          epoch != lines.navigationEpoch.value) {
         return;
       }
-      line = range?.lines.firstOrNull;
+    }
+    String? at(int index) {
+      final loaded = range;
+      if (loaded != null &&
+          index >= loaded.startLine &&
+          index <= loaded.endLine) {
+        return loaded.lines.elementAtOrNull(index - loaded.startLine);
+      }
+      return index >= 0 && index < state.content.length
+          ? state.content[index]
+          : null;
+    }
+
+    final line = at(lineIndex);
+    if (alignSectionHeading) {
+      lineIndex -= sectionHeadingLinesAbove([
+        at(lineIndex - 1),
+        at(lineIndex - 2),
+      ]);
     }
     final navigation = widget.lines.scrollToLine(
       lineIndex,
       intraLineFraction: line == null || markerTitle == null
           ? 0
-          : bracketMarkerFractionInLine(line, markerTitle),
+          : bracketMarkerFractionInLine(
+              line,
+              markerTitle,
+              gemaraDapim: gemaraDapim,
+            ),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
@@ -775,12 +822,17 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     );
   }
 
-  Future<void> _openLink(Link link, {String? markerTitle}) async {
+  Future<void> _openLink(
+    Link link, {
+    String? markerTitle,
+    bool gemaraDapim = false,
+  }) async {
     if (link.path2 == widget.book.title) {
       // Ensure index is at least 0 to prevent RangeError
       await _scrollToLine(
         (link.index2 - 1).clamp(0, double.maxFinite).toInt(),
         markerTitle: markerTitle,
+        gemaraDapim: gemaraDapim,
       );
     } else {
       context.read<TabsBloc>().add(
@@ -872,17 +924,16 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             link.path2 == widget.book.title &&
             state is TextBookLoaded) {
           // כותרת הנושא מוצגת מעל כותרות הסימן שלפני שורת היעד — אליה מנווטים.
-          final line = link.index2 - 1;
-          final content = state.content;
-          String? at(int i) => i >= 0 && i < content.length ? content[i] : null;
-          await _scrollToLine(
-            line - sectionHeadingLinesAbove([at(line - 1), at(line - 2)]),
-          );
+          await _scrollToLine(link.index2 - 1, alignSectionHeading: true);
         } else {
           if (link.path2 == widget.book.title) {
             _selectEntry(structureId, linkEntry.id, link.index2 - 1);
           }
-          await _openLink(link, markerTitle: linkEntry.text);
+          await _openLink(
+            link,
+            markerTitle: linkEntry.text,
+            gemaraDapim: _isGemaraDapim(structureId),
+          );
         }
       } else {
         UiSnack.show(TextBookMessages.headingLinkNotFound);
@@ -913,9 +964,22 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
+  HolyNameStyle? _holyNameStyle;
+
+  String _displayTitle(String text) {
+    final style = _holyNameStyle;
+    return style == null ? text : replaceHolyNames(text, style: style);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    _holyNameStyle = context.select((TextBookBloc bloc) {
+      final state = bloc.state;
+      return state is TextBookLoaded
+          ? state.bodyDisplayProfile.holyName.style
+          : null;
+    });
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -1026,7 +1090,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             NavTreeHeader(
-                              title: widget.book.title,
+                              title: _displayTitle(widget.book.title),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1072,7 +1136,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         itemBuilder: (context, index) {
           if (index == 0) {
             return NavTreeHeader(
-              title: widget.book.title,
+              title: _displayTitle(widget.book.title),
               trailing: const NavPanelSearchToggle(),
             );
           }
@@ -1085,7 +1149,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             isGroupStart: index == 1,
             isGroupEnd: index == matches.length,
             child: NavTreeTile.heading(
-              title: entry.text ?? '',
+              title: _displayTitle(entry.text ?? ''),
               level: 0,
               isSelected: isSelected,
               onTap: () {
@@ -1100,7 +1164,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   String _structureTitle(AltTocStructure structure) =>
-      structure.heTitle ?? structure.title ?? structure.key;
+      _displayTitle(structure.heTitle ?? structure.title ?? structure.key);
 
   Widget _buildStructureChips() {
     return Padding(
@@ -1229,7 +1293,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         () => ValueNotifier(0),
       ),
       builder: (context, _, _) => NavTreeTile.heading(
-        title: entry.text ?? '',
+        title: _displayTitle(entry.text ?? ''),
         level: level,
         isSelected: entry.id == _activeEntryIds[structureId],
         isExpanded: isExpanded,

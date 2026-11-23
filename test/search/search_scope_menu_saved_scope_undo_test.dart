@@ -1,5 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,7 +73,7 @@ Future<void> main() async {
       final row = find
           .ancestor(
             of: find.descendant(
-              of: find.byType(ListView),
+              of: find.byType(SuperListView),
               matching: find.text(deletedName),
             ),
             matching: find.byType(InkWell),

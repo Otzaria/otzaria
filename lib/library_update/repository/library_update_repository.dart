@@ -2,6 +2,7 @@ import 'package:otzaria/core/download_network_policy.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -16,8 +17,9 @@ import 'package:otzaria/utils/file/download_space.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import 'package:otzaria/empty_library/services/archive_size_probe.dart';
 import 'package:otzaria/empty_library/services/library_space_estimate.dart'
-    show isSameVolume;
+    show estimatedDatabaseExtractedSize, isSameVolume, withSafetyMargin;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
     hide StreamingPatchDownloader;
 
@@ -213,6 +215,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   final Future<DiskSpaceInfo> Function(String dirPath) diskSpaceProvider;
   final Future<PatchApplier> Function() applierProvider;
   final Future<void> Function() sqliteTempDirectoryInitializer;
+  final Future<int?> Function(ReleaseAsset) fullDbSizeProbe;
   final bool isAndroid;
 
   LibraryUpdateRepository({
@@ -233,8 +236,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     Future<DiskSpaceInfo> Function(String dirPath)? diskSpaceProvider,
     Future<PatchApplier> Function()? applierProvider,
     Future<void> Function()? sqliteTempDirectoryInitializer,
+    Future<int?> Function(ReleaseAsset)? fullDbSizeProbe,
     bool? isAndroid,
   }) : isAndroid = isAndroid ?? Platform.isAndroid,
+       fullDbSizeProbe = fullDbSizeProbe ?? _probeReleaseDbSize,
        dbPathProvider = dbPathProvider ?? DatabaseConstants.getDatabasePath,
        dataRootProvider = dataRootProvider ?? AppPaths.getDataRootPath,
        nowTimestamp = nowTimestamp ?? (() => DateTime.now().toIso8601String()),
@@ -261,6 +266,14 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     } finally {
       await SqliteDataProvider.instance.reopenAfterExternalWrite();
     }
+  }
+
+  static Future<int?> _probeReleaseDbSize(ReleaseAsset asset) {
+    final split = asset.split;
+    final url = split != null && split.parts.isNotEmpty
+        ? split.parts.first.downloadUrl
+        : asset.downloadUrl;
+    return probeZstdFrameContentSize(url);
   }
 
   /// גודל הקובץ, או null כשהוא חסר/ריק — ה-planner מתעלם מגודל לא ידוע.
@@ -359,7 +372,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     // סך-הבתים של ה-hash מהריצה הקודמת — total מדויק למד ההתקדמות (גודל
     // הקובץ הוא הערכת-יתר של ~25%). בריצה הראשונה נופלים לגודל הקובץ.
     final hintFile = File(p.join(cacheDir.path, 'verify_total_bytes.txt'));
-    var verifyTotalHint = _readIntQuietly(hintFile);
+    var verifyTotalHint = await _readIntQuietly(hintFile);
     var lastVerifyDone = 0;
 
     // רמז בתים לכל טבלה — נדרש כשהמניפסט מאפשר אימות חלקי, שאז ה-total הוא
@@ -367,7 +380,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     final tableBytesFile = File(
       p.join(cacheDir.path, 'verify_table_bytes.json'),
     );
-    var verifyTableBytes = _readTableBytesQuietly(tableBytesFile);
+    var verifyTableBytes = await _readTableBytesQuietly(tableBytesFile);
 
     // הטבלאות שאף צעד לא אימת — מועמדות לבדיקת סטייה אחרי סיום השרשרת.
     Set<String>? deferredIntersection;
@@ -505,12 +518,12 @@ class LibraryUpdateRepository implements LibraryUpdateService {
               ...stepResult.verifyTableBytes,
             };
             verifyTableBytes = mergedTableBytes;
-            _writeTableBytesQuietly(tableBytesFile, mergedTableBytes);
+            await _writeTableBytesQuietly(tableBytesFile, mergedTableBytes);
           }
           // באימות מלא הדיווח האחרון הוא ה-total המדויק לריצה הבאה.
           if (lastVerifyDone > 0 && deferred.isEmpty) {
             verifyTotalHint = lastVerifyDone;
-            _writeIntQuietly(hintFile, lastVerifyDone);
+            await _writeIntQuietly(hintFile, lastVerifyDone);
           }
         } finally {
           await _deleteQuietlyAsync(
@@ -694,11 +707,11 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     required String dbDir,
     required bool reusableExtracted,
   }) async {
-    if (!cacheDir.existsSync()) cacheDir.createSync(recursive: true);
+    await cacheDir.create(recursive: true);
     int cacheNeeded = 0;
     if (!reusableExtracted) {
       final partial = File(p.join(cacheDir.path, patchFile.file));
-      final resumed = _resumablePatchBytes(partial, patchFile);
+      final resumed = await _resumablePatchBytes(partial, patchFile);
       cacheNeeded =
           (patchFile.size - resumed).clamp(0, patchFile.size) +
           patchFile.uncompressedSize;
@@ -741,13 +754,16 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  int _resumablePatchBytes(File partial, PatchFileEntry patchFile) {
+  Future<int> _resumablePatchBytes(
+    File partial,
+    PatchFileEntry patchFile,
+  ) async {
     try {
-      if (!partial.existsSync()) return 0;
-      final length = partial.lengthSync();
+      if (!await partial.exists()) return 0;
+      final length = await partial.length();
       final sidecar = File(PatchDownloader.resumeSidecarPath(partial.path));
-      if (!sidecar.existsSync()) return 0;
-      final lines = sidecar.readAsStringSync().split('\n');
+      if (!await sidecar.exists()) return 0;
+      final lines = (await sidecar.readAsString()).split('\n');
       if (lines.first != patchFile.sha256) return 0;
       if (length == patchFile.size) return length;
       if (length <= 0 || length > patchFile.size || lines.length < 2) return 0;
@@ -823,9 +839,15 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     // מחולץ ליד ה-DB (אותו filesystem) כדי שה-rename יהיה אטומי.
     final newDbPath = '$dbPath.new';
     final resumeToken = _fullDbResumeToken(asset);
+    final frameSize = await fullDbSizeProbe(asset);
+    _throwIfCancelled(isCancelled);
+    final extractedDbSize = withSafetyMargin(
+      estimatedDatabaseExtractedSize(asset.size, firstFrameSize: frameSize),
+    );
     await ensureDiskSpaceForFullDownload(
       archivePath: archivePath,
-      archiveNeeded: await additionalDownloadBytes(
+      extractedDbSize: extractedDbSize,
+      archiveSpace: await additionalDownloadSpace(
         destPath: archivePath,
         identity: resumeToken,
         size: asset.size,
@@ -949,7 +971,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     for (final step in plan.deltaSteps) {
       final patchFile = step.manifest.patchFiles.first;
       final partial = File(p.join(cacheDir, patchFile.file));
-      if (_resumablePatchBytes(partial, patchFile) > 0) return true;
+      if (await _resumablePatchBytes(partial, patchFile) > 0) return true;
     }
     return false;
   }
@@ -962,17 +984,14 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     _deleteQuietly('$dbPath-shm');
   }
 
-  /// אומדן גודל ה-DB המחולץ — ה-release מדווח רק את הגודל הדחוס, לכן קבוע
-  /// עם מרווח ביטחון. יש להגדילו אם ה-DB יגדל מעבר לכך.
-  static const int _extractedDbSizeEstimate = 6979321856; // 6.5GB
-
   /// זורק [LibraryUpdateDiskSpaceException] אם אין מקום להורדה ולחילוץ.
   /// מקום פנוי לא-ידוע (freeBytes==-1) אינו חוסם — עדיף לנסות מלחסום בטעות.
   @visibleForTesting
   Future<void> ensureDiskSpaceForFullDownload({
     required String archivePath,
-    required int archiveNeeded,
+    required DownloadSpace archiveSpace,
     required String dbDir,
+    required int extractedDbSize,
   }) async {
     final archiveInfo = await diskSpaceProvider(p.dirname(archivePath));
     final extractInfo = await diskSpaceProvider(dbDir);
@@ -986,7 +1005,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       isAndroid: isAndroid,
     );
     if (sameVolume) {
-      final needed = archiveNeeded + _extractedDbSizeEstimate;
+      final needed = math.max(
+        archiveSpace.peak,
+        archiveSpace.retained + extractedDbSize,
+      );
       if (archiveInfo.freeBytes >= 0 && archiveInfo.freeBytes < needed) {
         throw LibraryUpdateDiskSpaceException(
           'אין מספיק מקום פנוי בכונן: נדרש ~${gb(needed)}GB להורדה ולחילוץ '
@@ -995,17 +1017,17 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       }
       return;
     }
-    if (archiveInfo.freeBytes >= 0 && archiveInfo.freeBytes < archiveNeeded) {
+    if (archiveInfo.freeBytes >= 0 &&
+        archiveInfo.freeBytes < archiveSpace.peak) {
       throw LibraryUpdateDiskSpaceException(
-        'אין מספיק מקום פנוי להורדת הספרייה: נדרש ~${gb(archiveNeeded)}GB, '
+        'אין מספיק מקום פנוי להורדת הספרייה: נדרש ~${gb(archiveSpace.peak)}GB, '
         'פנוי ${gb(archiveInfo.freeBytes)}GB',
       );
     }
-    if (extractInfo.freeBytes >= 0 &&
-        extractInfo.freeBytes < _extractedDbSizeEstimate) {
+    if (extractInfo.freeBytes >= 0 && extractInfo.freeBytes < extractedDbSize) {
       throw LibraryUpdateDiskSpaceException(
         'אין מספיק מקום פנוי לחילוץ הספרייה: '
-        'נדרש ~${gb(_extractedDbSizeEstimate)}GB, '
+        'נדרש ~${gb(extractedDbSize)}GB, '
         'פנוי ${gb(extractInfo.freeBytes)}GB',
       );
     }
@@ -1083,8 +1105,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       // ייתכן שהפעולה המתינה זמן רב מאחורי כתיבה אחרת. ביטול שהגיע בזמן
       // ההמתנה חייב לעצור לפני סגירת ה-runtime ולפני יצירת גיבוי כבד.
       _throwIfCancelled(isCancelled);
+      Future<void>? backupCleanup;
       // rename על מסד פתוח נכשל ב-Windows.
-      await accessGate.runExclusive(
+      final replacement = accessGate.runExclusive<void>(
         dbPath: dbPath,
         body: (scope) async {
           var recoveryStarted = false;
@@ -1101,22 +1124,11 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             _throwIfCancelled(isCancelled);
             _deleteDbWithSidecarsQuietly(dbPath);
             File(newDbPath).renameSync(dbPath);
-            scope.markDbReplaced();
             _deleteQuietly('$newDbPath-wal');
             _deleteQuietly('$newDbPath-shm');
-            recovery.finishSuccess(dbPath);
-            DbReadWorker.corruptDatabaseDetected.value = false;
-            // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
-            // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
-            try {
-              onDbReplaced?.call();
-            } catch (error, stackTrace) {
-              // callback הוא התראה בלבד; אסור שכשל במאזין יגלגל לאחור DB תקין
-              // אחרי שגיבוי ההתאוששות כבר נוקה.
-              debugPrint(
-                'Full DB replacement callback failed: $error\n$stackTrace',
-              );
-            }
+            final cleanup = recovery.finishSuccessAsync(dbPath);
+            cleanup.ignore();
+            backupCleanup = cleanup;
           } catch (error) {
             // לפני beginApply אין לפעולה הזו artifacts משלה; rollback בשלב הזה
             // עלול לגעת בטעות בגיבוי ישן שאינו שייך לריצה הנוכחית.
@@ -1126,8 +1138,23 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             }
             rethrow;
           }
+
+          scope.markDbReplaced();
+          DbReadWorker.corruptDatabaseDetected.value = false;
+          // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
+          // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
+          try {
+            onDbReplaced?.call();
+          } catch (error, stackTrace) {
+            // ההודעה למאזין היא best-effort אחרי השלמת ההחלפה.
+            debugPrint(
+              'Full DB replacement callback failed: $error\n$stackTrace',
+            );
+          }
         },
       );
+      // פותחים את המסד לפני ההמתנה לניקוי, שעדיין מוגן בתור ובנעילות.
+      await replacement.whenComplete(() => backupCleanup);
     });
   }
 
@@ -1421,27 +1448,27 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   static double? _fraction(int done, int total) =>
       total > 0 ? (done / total).clamp(0.0, 1.0) : null;
 
-  static int? _readIntQuietly(File file) {
+  static Future<int?> _readIntQuietly(File file) async {
     try {
-      if (!file.existsSync()) return null;
-      final value = int.tryParse(file.readAsStringSync().trim());
+      if (!await file.exists()) return null;
+      final value = int.tryParse((await file.readAsString()).trim());
       return (value != null && value > 0) ? value : null;
     } catch (_) {
       return null;
     }
   }
 
-  static void _writeIntQuietly(File file, int value) {
+  static Future<void> _writeIntQuietly(File file, int value) async {
     try {
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync('$value');
+      await file.parent.create(recursive: true);
+      await file.writeAsString('$value');
     } catch (_) {}
   }
 
-  static Map<String, int>? _readTableBytesQuietly(File file) {
+  static Future<Map<String, int>?> _readTableBytesQuietly(File file) async {
     try {
-      if (!file.existsSync()) return null;
-      final decoded = jsonDecode(file.readAsStringSync());
+      if (!await file.exists()) return null;
+      final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map) return null;
       final result = <String, int>{};
       decoded.forEach((key, value) {
@@ -1453,10 +1480,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  static void _writeTableBytesQuietly(File file, Map<String, int> value) {
+  static Future<void> _writeTableBytesQuietly(
+    File file,
+    Map<String, int> value,
+  ) async {
     try {
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(jsonEncode(value));
+      await file.parent.create(recursive: true);
+      await file.writeAsString(jsonEncode(value));
     } catch (_) {}
   }
 }

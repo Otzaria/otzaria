@@ -309,6 +309,44 @@ class PendingReportStore {
     return rows.first.values.first as int;
   }
 
+  /// סופר את הדיווחים ומאתר רשומות להחלפה מאותה תמונת מצב, בלי להעביר תוכן.
+  Future<({int keptCount, List<int> matchingIds})> readHistorySummary(
+    String kind, {
+    ({String field, String value})? matchId,
+    String? rejectionField,
+  }) async {
+    final counted = rejectionField == null
+        ? 'COUNT(*)'
+        : 'COUNT(*) FILTER (WHERE json_extract(payload_json, ?) IS NULL)';
+    final matching = matchId == null
+        ? 'NULL'
+        : '''json_group_array(id) FILTER (
+          WHERE json_type(payload_json, ?) = 'text'
+            AND json_extract(payload_json, ?) = ?
+        )''';
+    final db = await _database.database;
+    final row = db.select(
+      'SELECT $counted AS kept_count, $matching AS matching_ids '
+      'FROM pending_reports WHERE kind = ?',
+      [
+        if (rejectionField != null) '\$.$rejectionField',
+        if (matchId != null) ...[
+          '\$.${matchId.field}',
+          '\$.${matchId.field}',
+          matchId.value,
+        ],
+        kind,
+      ],
+    ).single;
+    final ids = row['matching_ids'] as String?;
+    return (
+      keptCount: row['kept_count'] as int,
+      matchingIds: ids == null
+          ? const <int>[]
+          : (jsonDecode(ids) as List).cast<int>(),
+    );
+  }
+
   Future<void> deleteIds(Iterable<int> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;

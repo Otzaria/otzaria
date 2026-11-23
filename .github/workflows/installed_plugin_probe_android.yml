@@ -48,11 +48,9 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate bounded host control and real SDK fixture
         run: |
@@ -87,11 +85,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-linux-android
@@ -101,6 +97,9 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      # The action downloads these without retrying; a truncated download fails the job.
+      - name: Preinstall emulator and system image
+        run: bash .github/scripts/sdkmanager-install.sh emulator 'system-images;android-34;google_apis;x86_64'
       - name: Run real app hosts, Home/resume, protected states and store restoration
         uses: reactivecircus/android-emulator-runner@v2
         with:

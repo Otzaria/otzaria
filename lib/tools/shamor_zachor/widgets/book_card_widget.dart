@@ -426,69 +426,66 @@ class _CycleRing extends StatelessWidget {
             ? constraints.maxWidth - 4
             : _size;
         final showLabel = !completed || constraints.maxWidth >= _labelMinWidth;
-        return Tooltip(
-          message: label,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: size,
-                height: size,
-                child: completed
-                    ? DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: cs.primaryContainer,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          FluentIcons.checkmark_24_regular,
-                          size: 20,
-                          color: cs.onPrimaryContainer,
-                        ),
-                      )
-                    : Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CircularProgressIndicator(
-                            value: progress,
-                            strokeWidth: 4,
-                            backgroundColor: cs.onSurface.withValues(
-                              alpha: 0.08,
-                            ),
-                          ),
-                          Center(
-                            child: Text(
-                              '${(progress * 100).round()}%',
-                              style: TextStyle(
-                                fontSize: AppTokens.fontSM - 2,
-                                fontWeight: FontWeight.w600,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                          ),
-                        ],
+        // השם גלוי מתחת לטבעת — טולטיפ רק כשהוא מוסתר בכרטיס צר.
+        final ring = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: size,
+              height: size,
+              child: completed
+                  ? DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: cs.primaryContainer,
+                        shape: BoxShape.circle,
                       ),
-              ),
-              if (showLabel) ...[
-                const SizedBox(height: AppTokens.spaceXS),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: AppTokens.fontSM,
-                      color: completed ? cs.onSurfaceVariant : cs.onSurface,
-                      fontWeight: completed
-                          ? FontWeight.normal
-                          : FontWeight.w600,
+                      child: Icon(
+                        FluentIcons.checkmark_24_regular,
+                        size: 20,
+                        color: cs.onPrimaryContainer,
+                      ),
+                    )
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CircularProgressIndicator(
+                          value: progress,
+                          strokeWidth: 4,
+                          backgroundColor: cs.onSurface.withValues(
+                            alpha: 0.08,
+                          ),
+                        ),
+                        Center(
+                          child: Text(
+                            '${(progress * 100).round()}%',
+                            style: TextStyle(
+                              fontSize: AppTokens.fontSM - 2,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+            ),
+            if (showLabel) ...[
+              const SizedBox(height: AppTokens.spaceXS),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: AppTokens.fontSM,
+                    color: completed ? cs.onSurfaceVariant : cs.onSurface,
+                    fontWeight: completed ? FontWeight.normal : FontWeight.w600,
                   ),
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         );
+        return showLabel ? ring : Tooltip(message: label, child: ring);
       },
     );
   }

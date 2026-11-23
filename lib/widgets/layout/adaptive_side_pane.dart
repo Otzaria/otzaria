@@ -137,10 +137,14 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   /// (גלילה, ענפים פתוחים ושדה חיפוש פתוח נשמרים).
   Widget get _paneContent => KeyedSubtree(
     key: _paneContentKey,
-    child: Focus(
-      focusNode: _paneFocusNode,
-      includeSemantics: false,
-      child: widget.paneContent,
+    // חלונית סגורה נשארת בעץ; בלי זה כל עדכון נגישות עובר על כל צאצאיה (#5498).
+    child: ExcludeSemantics(
+      excluding: !widget.isOpen,
+      child: Focus(
+        focusNode: _paneFocusNode,
+        includeSemantics: false,
+        child: widget.paneContent,
+      ),
     ),
   );
 

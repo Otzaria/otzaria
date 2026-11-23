@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter/services.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -15,7 +17,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 
 /// עץ ניווט תוצאות החיפוש בעיצוב מסך הספרייה ([library_browser.dart]),
-/// בנוי מ-[NavTreeTile]. העץ משוטח לרשימת שורות ומרונדר ב-ListView.builder
+/// בנוי מ-[NavTreeTile]. העץ משוטח לרשימת שורות ומרונדר ב-SuperListView.builder
 /// (בנייה עצלה) — כמו במסך הספרייה, למניעת קיפאון בגלילה ובסינון.
 ///
 /// נשלט (controlled): כל הנתונים והפעולות מוזרקים; הרכיב חסר-state.
@@ -133,11 +135,11 @@ class SearchNavigationTree extends StatelessWidget {
     if (filterQuery.length >= 2) {
       return _buildFilteredBookList(context);
     }
-    // שיטוח לשורות + ListView.builder, כמו במסך הספרייה: בניית כל העץ מראש
-    // מקפיאה את הגלילה ואת הרינדור-מחדש בכל שינוי סינון.
+    // שיטוח לשורות + SuperListView.builder: בנייה מוקדמת של כל העץ מקפיאה את
+    // הגלילה, ו-ListView בונה בקפיצה בפס הגלילה כל שורה שבדרך (#4766).
     final rows = _flattenRows();
     return NavTreeFocusGroup(
-      child: ListView.builder(
+      child: SuperListView.builder(
         padding: kNavTreeListPadding,
         itemCount: rows.length,
         itemBuilder: (context, index) =>
@@ -596,7 +598,7 @@ class SearchNavigationTree extends StatelessWidget {
     // ספר ללא תוצאות מוסתר כאן בדיוק כמו בעץ: בחירתו הייתה מרוקנת את
     // התוצאות ומשאירה סינון שלא מיוצג בעץ אחרי ניקוי שדה האיתור.
     final matches = <_FilteredBook>[];
-    for (final entry in _catalogue.filterEntries) {
+    for (final entry in _catalogue.filterCandidates(facetCounts)) {
       if (!entry.haystack.contains(query) &&
           (!hasMultipleWords ||
               words.any((word) => !entry.haystack.contains(word)))) {
@@ -620,7 +622,7 @@ class SearchNavigationTree extends StatelessWidget {
     }
 
     return NavTreeFocusGroup(
-      child: ListView.builder(
+      child: SuperListView.builder(
         padding: kNavTreeListPadding,
         itemCount: matches.length,
         itemBuilder: (context, index) {
@@ -641,13 +643,41 @@ class _SearchTreeCatalogue {
   _CategoryProjection of(Category category) =>
       _categories[category] ??= _CategoryProjection(category);
 
-  late final List<_FilterEntry> filterEntries = _collectFilterEntries();
+  late final List<_FilterEntry> _filterEntries = _collectFilterEntries();
+  late final _filterEntriesByFacet = _indexFilterEntries();
+
+  Map<String, List<_FilterEntry>> _indexFilterEntries() {
+    final index = <String, List<_FilterEntry>>{};
+    for (final entry in _filterEntries) {
+      (index[entry.facet] ??= []).add(entry);
+    }
+    return index;
+  }
+
+  Iterable<_FilterEntry> filterCandidates(Map<String, int> counts) {
+    if (counts.isEmpty) return const [];
+    // כשמרבית הקטלוג מועמד, מעבר על הסדר הקיים זול מאיסוף ומיון.
+    final limit = _filterEntries.length ~/ 8;
+    if (counts.length > limit) return _filterEntries;
+
+    final candidates = <_FilterEntry>[];
+    for (final count in counts.entries) {
+      if (count.value == 0) continue;
+      final books = _filterEntriesByFacet[count.key];
+      if (books == null) continue;
+      if (candidates.length + books.length > limit) return _filterEntries;
+      candidates.addAll(books);
+    }
+    return candidates..sort((a, b) => a.index.compareTo(b.index));
+  }
 
   List<_FilterEntry> _collectFilterEntries() {
     final entries = <_FilterEntry>[];
     void collect(Category category) {
       final projection = of(category);
-      entries.addAll(projection.orderedBooks.map(_FilterEntry.new));
+      for (final book in projection.orderedBooks) {
+        entries.add(_FilterEntry(book, entries.length));
+      }
       for (final sub in projection.orderedSubCategories) {
         collect(sub);
       }
@@ -699,8 +729,9 @@ class _CategoryProjection {
 /// ספר ברשימת הסינון; הכותרת המנורמלת וה-facet מחושבים בפעם הראשונה שנדרשים.
 class _FilterEntry {
   final Book book;
+  final int index;
 
-  _FilterEntry(this.book);
+  _FilterEntry(this.book, this.index);
 
   late final String haystack = normalizeBookTitle(book.title).toLowerCase();
 
@@ -750,7 +781,7 @@ class SearchTreeExtraBook {
 
 enum _FlatRowKind { rootHeader, category, book, extraCategory, extraBook }
 
-/// שורה משוטחת אחת ברשימת הניווט (לבנייה עצלה ב-ListView.builder).
+/// שורה משוטחת אחת ברשימת הניווט (לבנייה עצלה ב-SuperListView.builder).
 /// [isGroupStart]/[isGroupEnd] מסמנים גבולות קבוצה עליונה — לעיצוב הכרטיס
 /// המקובץ (פינות מעוגלות בקצוות ומפריד בין שורות), כמו במסך הספרייה.
 class _FlatRow {

@@ -1,5 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,7 +57,7 @@ Future<void> main() async {
       await tester.tap(find.text('פתח'));
       await tester.pumpAndSettle();
 
-      final panel = find.byType(ListView);
+      final panel = find.byType(SuperListView);
       await tester.tap(find.byType(TextField));
       await tester.pumpAndSettle();
       expect(panel, findsOneWidget);

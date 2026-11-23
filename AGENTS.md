@@ -74,7 +74,7 @@ Follow the user's task scope. Do not create Markdown files for plans, progress l
 
 Several contributors work on `dev` in parallel and their pull requests are merged continuously. A change that ignores them duplicates work or conflicts as soon as theirs is merged.
 
-- **Before starting** - list open PRs (`gh pr list -R Otzaria/otzaria --state open --json number,author,title,files`) and look for the same issue or the files you plan to change. If an open PR already fixes the issue, do not fix it again. If one touches the same code, build on its approach or coordinate in that PR.
+- **Before starting** - list open PRs (`gh pr list -R Otzaria/otzaria --state open --limit 1000 --json number,author,title,files`) and look for the same issue or the files you plan to change. If an open PR already fixes the issue, do not fix it again. If one touches the same code, build on its approach or coordinate in that PR.
 - **Before opening a PR** - check each overlapping open PR for conflicts with yours: `git fetch upstream pull/<N>/head:pr-<N>` and `git merge-tree --write-tree pr-<N> HEAD`.
 - **In the PR description** - name every overlapping open PR and whether it merges cleanly with yours.
 
@@ -204,8 +204,8 @@ Three parts, all mandatory:
 2. **Reveal gate with a timeout** — never an unguarded `await` on the completer.
    **Exception:** a step that makes a synchronous native call (e.g. building the Sentry options over FFI in
    `_initializeSentry`) awaits the reveal with **no** timeout. Running it before reveal is the
-   #1192 block itself, and it would hit exactly the machines whose reveal is slow. Our
-   sentry_flutter fork loads `sentry.dll` and runs `sentry_init` on helper isolates (#3422).
+   #1192 block itself, and it would hit exactly the machines whose reveal is slow. On Windows,
+   sentry_flutter loads `sentry.dll` and runs `sentry_init` on a worker isolate (#3422).
 3. **Non-fatal failure** — a startup step must never abort the boot. It logs through
    `_logNonFatalInitializationError` and returns.
 

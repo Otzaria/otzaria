@@ -2,6 +2,7 @@
 // האירועים חייבים להופיע לפי שעה, לא לפי סדר א-ב של הכותרת.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -10,6 +11,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -115,14 +117,27 @@ void main() {
 
   tearDown(() => cubit.close());
 
-  Future<void> pumpEventsPanel(WidgetTester tester) async {
+  Future<void> pumpEventsPanel(
+    WidgetTester tester, {
+    double width = 600,
+    double scale = 1,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: child!,
+          ),
+        ),
         home: BlocProvider.value(
           value: cubit,
           child: Scaffold(
             body: SizedBox(
-              width: 600,
+              width: width,
               height: 900,
               child: BlocBuilder<CalendarCubit, CalendarState>(
                 builder: (context, state) => CalendarEventsPanel(
@@ -139,6 +154,30 @@ void main() {
   }
 
   group('CalendarEventsPanel — תצוגת יום נבחר', () {
+    testWidgets('תאריך האירוע מוצג במלואו בריחוף רק כשהתווית נחתכת', (
+      tester,
+    ) async {
+      cubit.selectDate(JewishDate.fromDateTime(_date), _date);
+      await cubit.addEvent(
+        title: 'אירוע',
+        baseGregorianDate: _date,
+        recurrenceType: RecurrenceType.none,
+      );
+
+      final date = formatEventDate(_date);
+      await pumpEventsPanel(tester);
+      expect(find.text(date), findsOneWidget);
+      expect(find.byTooltip(date), findsNothing);
+
+      await pumpEventsPanel(tester, width: 320, scale: 2);
+      final narrowDate = find.text(date.replaceFirst(' • ', '\n'));
+      expect(
+        tester.renderObject<RenderParagraph>(narrowDate).didExceedMaxLines,
+        isTrue,
+      );
+      expect(find.byTooltip(date), findsOneWidget);
+    });
+
     testWidgets('אירועים מוצגים לפי שעה ולא לפי א-ב', (tester) async {
       cubit.selectDate(JewishDate.fromDateTime(_date), _date);
       await cubit.addEvent(
@@ -215,7 +254,7 @@ void main() {
         recurrenceType: RecurrenceType.none,
         eventTime: const TimeOfDay(hour: 8, minute: 0),
       );
-      cubit.toggleShowAllEvents(true);
+      cubit.setEventsView(CalendarEventsView.all);
 
       await pumpEventsPanel(tester);
 
@@ -281,7 +320,7 @@ void main() {
         recurrenceType: RecurrenceType.annualGregorian,
       );
       await pumpEventsPanel(tester);
-      await tester.tap(find.text('הצג הכל'));
+      await tester.tap(find.text('הכל'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('ערוך אירוע').first);
@@ -546,6 +585,7 @@ void main() {
       VoidCallback? onTap,
       ThemeData? theme,
       TextDirection direction = TextDirection.ltr,
+      DateTime? date,
     }) => MaterialApp(
       theme: theme,
       builder: (context, child) => MediaQuery(
@@ -565,8 +605,8 @@ void main() {
                 child: buildDayCell(
                   context,
                   cubit.state,
-                  _date,
-                  JewishDate.fromDateTime(_date),
+                  date ?? _date,
+                  JewishDate.fromDateTime(date ?? _date),
                   false,
                   onTap ?? () {},
                   () {},
@@ -589,6 +629,121 @@ void main() {
         );
       }
     }
+
+    testWidgets('אירוע משתמש לא נדחק מהתא ביום עמוס במועדים (issue #4820)', (
+      tester,
+    ) async {
+      // א' טבת: ראש חודש בחנוכה, שני מועדים בתא.
+      final busyDay = JewishDate.initDate(
+        jewishYear: 5787,
+        jewishMonth: JewishDate.TEVES,
+        jewishDayOfMonth: 1,
+      ).getGregorianCalendar();
+      final covered = <int>{};
+      for (final userEvents in [1, 2]) {
+        await cubit.addEvent(
+          title: 'שיעור $userEvents',
+          baseGregorianDate: busyDay,
+          recurrenceType: RecurrenceType.none,
+          eventTime: TimeOfDay(hour: 17 + userEvents, minute: 0),
+        );
+        for (var height = 40.0; height <= 200; height += 5) {
+          await tester.pumpWidget(
+            cellApp(
+              width: 150,
+              height: height,
+              date: busyDay,
+              direction: TextDirection.rtl,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final slots = tester
+              .widget<DayExtras>(find.byType(DayExtras))
+              .maxVisibleItems;
+          if (slots < 1) continue;
+          covered.add(slots);
+          final scenario = 'events=$userEvents height=$height slots=$slots';
+          final inCell = find.descendant(
+            of: find.byType(DayExtras),
+            matching: find.byWidgetPredicate((w) => w is Text),
+          );
+          final texts = [
+            for (final e in inCell.evaluate())
+              (e.widget as Text).data ??
+                  (e.widget as Text).textSpan!.toPlainText(),
+          ];
+          final shownEvents = texts.where((t) => t.contains('שיעור')).length;
+          final shownHolidays = texts
+              .where((t) => !t.contains('שיעור') && !t.startsWith('+'))
+              .length;
+          expect(
+            texts.any((t) => t.contains('שיעור 1')),
+            isTrue,
+            reason: scenario,
+          );
+          if (slots >= 2) {
+            expect(shownHolidays, greaterThan(0), reason: scenario);
+          }
+          final hidden = 2 + userEvents - shownEvents - shownHolidays;
+          expect(
+            find.text('+$hidden'),
+            hidden > 0 ? findsOneWidget : findsNothing,
+            reason: scenario,
+          );
+          if (hidden == 0) {
+            expect(
+              texts.indexWhere((t) => t.contains('שיעור')),
+              2,
+              reason: scenario,
+            );
+          }
+        }
+      }
+      expect(covered, containsAll([1, 2, 3, 4]));
+    });
+
+    testWidgets('בתא צר השורה שמעל +N מציגה את אירוע המשתמש', (tester) async {
+      final busyDay = JewishDate.initDate(
+        jewishYear: 5787,
+        jewishMonth: JewishDate.TEVES,
+        jewishDayOfMonth: 1,
+      ).getGregorianCalendar();
+      await cubit.addEvent(
+        title: 'שיעור',
+        baseGregorianDate: busyDay,
+        recurrenceType: RecurrenceType.none,
+      );
+
+      for (var height = 50.0; height <= 88; height += 2) {
+        await tester.pumpWidget(
+          cellApp(
+            width: 56,
+            height: height,
+            date: busyDay,
+            textScale: 1.3,
+            direction: TextDirection.rtl,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final slots = tester
+            .widget<DayExtras>(find.byType(DayExtras))
+            .maxVisibleItems;
+        if (slots != 2) continue;
+
+        expect(
+          find.textContaining('שיעור', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.text('+2'), findsOneWidget);
+        await tester.tap(find.text('+2'));
+        await tester.pumpAndSettle();
+        expect(find.text('כל הפריטים ביום'), findsOneWidget);
+        expect(find.text('ר"ח'), findsOneWidget);
+        expect(find.textContaining('דחנוכה'), findsOneWidget);
+        return;
+      }
+      fail('לא נמצא גובה שמתאים לשתי שורות בתא');
+    });
 
     testWidgets('+N סופר את הפריטים שאינם מוצגים גם כשהוא מחליף שורה', (
       tester,
@@ -640,7 +795,12 @@ void main() {
                           widget is Text &&
                           ((widget.textSpan?.toPlainText().contains('אירוע ') ??
                                   false) ||
-                              info.contains(widget.data)),
+                              // שורת מידע מוצגת כשם ושעה בנפרד; סופרים את השם
+                              info.any(
+                                (line) =>
+                                    widget.data ==
+                                    line.substring(0, line.lastIndexOf(' ')),
+                              )),
                     )
                     .evaluate()
                     .length;
@@ -680,6 +840,11 @@ void main() {
             for (final info in [
               const <String>[],
               const ['זריחה 06:12', 'שקיעה 19:45'],
+              // שעון 12 שעות (כפי ש-zmanTimeForDisplay מחזיר): השעה רחבה יותר
+              const [
+                'זריחה \u20666:12.\u200e\u00a0AM\u2069',
+                'שקיעה \u20667:45:\u200e\u00a0PM\u2069',
+              ],
             ]) {
               await tester.pumpWidget(
                 cellApp(

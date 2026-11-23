@@ -85,12 +85,18 @@ jobs:
           cc -O2 -Wall -Wextra -arch x86_64 -arch arm64 -mmacosx-version-min=12.0 \
             tool/updater/atomic_tree_swap.c -o /tmp/otzaria-atomic-swap
           lipo /tmp/otzaria-atomic-swap -verify_arch x86_64 arm64
+      # curl in the action does not retry a connection reset mid-download (exit 56).
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        id: flutter
+        continue-on-error: true
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
+      - name: Setup Flutter (retry)
+        if: steps.flutter.outcome == 'failure'
+        uses: ./.github/actions/setup-flutter
+        with:
+          flutter-version: 3.47.7
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
       - name: Test native SHA-256 (macOS)
@@ -119,11 +125,9 @@ jobs:
       # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
       # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -219,11 +223,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -460,14 +462,11 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
-          # ⚠️ חייב להתאים לשאר ה-jobs. `pubspec.lock` דורש Flutter >=3.47.0,
-          # ולכן עם 3.44.0 ה-job הזה נכשל ב-`pub get` ומעולם לא רץ ירוק.
-          flutter-version: 3.47.7
+          # ⚠️ חייב להתאים לשאר ה-jobs: `pubspec.lock` דורש Flutter >=3.47.0.
           # ה-cache של Windows נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          cache: true
+          flutter-version: 3.47.7
 
       - name: Install dependencies
         shell: pwsh
@@ -594,11 +593,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         shell: pwsh
@@ -632,11 +629,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         shell: pwsh
@@ -702,12 +697,10 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
-          flutter-version: 3.47.7
           # ה-cache של הקונטיינר נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          cache: true
+          flutter-version: 3.47.7
 
       - name: Install Linux build dependencies
         run: |

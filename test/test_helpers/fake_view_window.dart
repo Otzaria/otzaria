@@ -27,6 +27,7 @@ class StubWindowController extends RegularWindowController {
   int fullscreenReads = 0;
   final List<String> titles = [];
   BoxConstraints? constraints;
+  Size logicalContentSize = Size.zero;
 
   void notify() => notifyListeners();
 
@@ -44,7 +45,7 @@ class StubWindowController extends RegularWindowController {
   }
 
   @override
-  Size get contentSize => Size.zero;
+  Size get contentSize => logicalContentSize;
   @override
   String get title => titles.isEmpty ? '' : titles.last;
   @override
@@ -107,6 +108,7 @@ class StubWindowHandle extends ViewWindowHandle {
 /// נייטיב בזיכרון: מלבן לכל HWND, ורישום של הקריאות.
 class FakeViewWindowNative implements ViewWindowNative {
   final Map<int, Rect> rects = {};
+  int windowRectReads = 0;
   Rect area = const Rect.fromLTWH(0, 0, 3840, 2160);
   final List<int> hooked = [];
   final List<int> focused = [];
@@ -134,7 +136,11 @@ class FakeViewWindowNative implements ViewWindowNative {
   }
 
   @override
-  Rect? windowRect(int hwnd) => rects[hwnd];
+  Rect? windowRect(int hwnd) {
+    windowRectReads++;
+    return rects[hwnd];
+  }
+
   @override
   void setWindowRect(int hwnd, Rect rect) => rects[hwnd] = rect;
   @override

@@ -372,16 +372,27 @@ struct PresetsPage: View {
             model: model,
             header: PageHeader(title: s(.presetTitle), desc: s(.presetDesc), hint: s(.presetHint))
         ) {
-            RadioCards(cards: ids.map { id -> CardContent in
-                let preset = model.presets.first { $0.id == id }
-                return CardContent(
-                    title: model.presetTitle(id), desc: model.presetDescription(id),
-                    side: preset.map { s(.cardSize, humanSize(model.size(of: $0.members), english: s.english)) } ?? "",
-                    icon: id == customPresetId ? "preset_custom" : model.presetIcon(id),
-                    selected: model.presetId == id
-                )
-            }) { index in
-                model.presetId = ids[index]
+            VStack(spacing: Metrics.cardGap) {
+                RadioCards(cards: ids.map { id -> CardContent in
+                    let preset = model.presets.first { $0.id == id }
+                    return CardContent(
+                        title: model.presetTitle(id), desc: model.presetDescription(id),
+                        side: preset.map { s(.cardSize, humanSize(model.size(of: $0.members), english: s.english)) } ?? "",
+                        icon: id == customPresetId ? "preset_custom" : model.presetIcon(id),
+                        selected: model.presetId == id
+                    )
+                }) { index in
+                    model.presetId = ids[index]
+                }
+                if model.zmanenuAvailable, let offer = model.zmanenuOffer {
+                    OptionCard(content: CardContent(
+                        title: s(.zmanenuTitle),
+                        desc: model.mode == .thisComputer ? s(.zmanenuDescThis) : s(.zmanenuDescOther),
+                        side: offer.downloadSize > 0
+                            ? s(.cardSize, humanSize(offer.downloadSize, english: s.english)) : "",
+                        icon: "component", mark: .check, selected: model.zmanenuChecked
+                    )) { model.zmanenuChecked.toggle() }
+                }
             }
         } footer: {
             NavFooter(model: model)
@@ -514,6 +525,12 @@ struct ReadyPage: View {
         rows.append(SummaryRow(
             icon: isCustom ? "preset_custom" : model.presetIcon(model.presetId), label: s(.rowWhat), value: what
         ))
+        if let zmanenu = model.selectedZmanenu {
+            rows.append(SummaryRow(
+                icon: "component", label: s(.rowZmanenu),
+                value: zmanenu.downloadSize > 0 ? humanSize(zmanenu.downloadSize, english: s.english) : ""
+            ))
+        }
         let target = model.target
         var forText = model.mode == .thisComputer ? s(.modeThis) : model.targetTitle(target)
         if !target.packageFormat.isEmpty { forText += " · " + model.formatName(target.packageFormat) }
@@ -762,6 +779,11 @@ struct FinishPage: View {
             }
             ForEach(result.outputNotes, id: \.self) { note in
                 paragraph(note)
+            }
+            if result.zmanenuDirectory != nil {
+                paragraph(s(.guideZmanenuThis))
+            } else if names.contains(where: { $0.hasPrefix(Zmanenu.archiveName) }) {
+                paragraph(s(.guideZmanenuOther))
             }
         }
     }

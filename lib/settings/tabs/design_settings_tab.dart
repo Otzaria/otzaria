@@ -97,11 +97,19 @@ class DesignSettingsTab extends StatelessWidget {
     ),
     SettingsSearchEntry(
       id: 'design.pdf.book_view',
-      title: 'תצוגת ספר בPDF',
+      title: 'תצוגת ספר ב-PDF',
       subtitle: 'פתיחת ספרי PDF בתצוגת ספר או רגילה',
       tab: SettingsTab.design,
       cardId: 'design.pdf',
-      keywords: ['pdf', 'תצוגה', 'תצוגת ספר', 'רגילה', 'מופעל', 'לא מופעל'],
+      keywords: [
+        'pdf',
+        'תצוגה',
+        'תצוגת ספר',
+        'תצוגת ספר בPDF',
+        'רגילה',
+        'מופעל',
+        'לא מופעל',
+      ],
     ),
     SettingsSearchEntry(
       id: 'design.pdf.talmud_bavli_format',
@@ -373,7 +381,7 @@ class DesignSettingsTab extends StatelessWidget {
                   children: [
                     SettingsSwitchTile(
                       icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
-                      title: context.settingsText('תצוגת ספר בPDF'),
+                      title: context.settingsText('תצוגת ספר ב-PDF'),
                       subtitle: context.settingsText(
                         state.enablePerBookSettings
                             ? state.pdfBookViewByDefault

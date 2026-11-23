@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 
@@ -255,6 +256,72 @@ void main() {
       final paraIdx = result.indexOf('טקסט');
       final noteIdx = result.indexOf('הערת שוליים');
       expect(noteIdx, greaterThan(paraIdx));
+    });
+
+    // issue #2682: הדגשה בתוך הערה נמחקה, ומעבר פסקה בהערה הוצג כרווח.
+    test('הערת שוליים שומרת הדגשה ומעברי פסקה ושורה', () {
+      final documentXml =
+          '<?xml version="1.0" encoding="UTF-8"?>'
+          '<w:document $_xmlNs><w:body><w:p><w:r><w:t>טקסט</w:t></w:r>'
+          '<w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body>'
+          '</w:document>';
+      final footnotesXml =
+          '<?xml version="1.0" encoding="UTF-8"?>'
+          '<w:footnotes $_xmlNs><w:footnote w:id="1">'
+          '<w:p><w:r><w:footnoteRef/></w:r>'
+          '<w:r><w:t xml:space="preserve"> פסקה </w:t></w:r>'
+          '<w:r><w:rPr><w:bCs/></w:rPr><w:t>מודגשת</w:t></w:r>'
+          '<w:r><w:rPr><w:b w:val="0"/></w:rPr><w:t xml:space="preserve"> '
+          'וסוף &amp; &lt;x&gt;</w:t><w:br/><w:t>שורה</w:t></w:r></w:p>'
+          '<w:p><w:r><w:t>פסקה שנייה</w:t><w:br/></w:r></w:p>'
+          '</w:footnote></w:footnotes>';
+
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(documentXml),
+          footnotesXmlBytes: _utf8Xml(footnotesXml),
+        ),
+        'בדיקה',
+      );
+
+      expect(
+        result,
+        contains(
+          '<i class="footnote">פסקה <b>מודגשת</b> וסוף &amp; &lt;x&gt;'
+          '<br>שורה<br>פסקה שנייה</i>',
+        ),
+      );
+    });
+
+    test('מעברי שורה מודגשים בקצות הערה אינם יוצרים שורות ריקות', () {
+      final documentXml =
+          '<w:document $_xmlNs><w:body><w:p><w:r><w:t>טקסט</w:t></w:r>'
+          '<w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body>'
+          '</w:document>';
+      final footnotesXml =
+          '<w:footnotes $_xmlNs><w:footnote w:id="1">'
+          '<w:p><w:r><w:rPr><w:b/></w:rPr><w:br/>'
+          '<w:t xml:space="preserve"> ראשונה </w:t><w:br/>'
+          '<w:t>שנייה</w:t><w:br/></w:r></w:p>'
+          '</w:footnote></w:footnotes>';
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(documentXml),
+          footnotesXmlBytes: _utf8Xml(footnotesXml),
+        ),
+        'בדיקה',
+      );
+      expect(
+        result,
+        contains('<i class="footnote"><b>ראשונה</b><br><b>שנייה</b></i>'),
+      );
+      final line = result
+          .split('\n')
+          .singleWhere(
+            (line) => line.contains('class="footnote"'),
+          );
+      expect(queryMatchesInlineNoteOnly(line, 'ראשונה שנייה'), isTrue);
+      expect(queryMatchesInlineNoteOnly(line, 'ראשונהשנייה'), isFalse);
     });
   });
 

@@ -2,9 +2,10 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:otzaria/attached_libraries/models/attached_update_manifest.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_artifact_builder.dart';
+import 'package:otzaria/utils/debug_print.dart';
 
 /// תקרת החלון של zstd (2^31): prefix גדול מזה אינו ניתן להצגה לפענוח.
 const int kMaxDeltaBaseBytes = 2 * 1024 * 1024 * 1024;
@@ -90,6 +91,10 @@ class AttachedUpdateArtifactPlanner {
       return full;
     }
   }
+
+  /// SHA-256 של הקובץ המותקן, מאותו מטמון של בחירת הדלתא.
+  Future<String> installedSha256(String path) async =>
+      _installedDigest(path, await FileStat.stat(path));
 
   Future<String> _installedDigest(String path, FileStat stat) async {
     final cached = _hashCache[path];

@@ -86,7 +86,6 @@ abstract class ReportMessages {
 
   static const String selectTextToReport =
       'יש לסמן טקסט או לבחור קטע לפני דיווח על טעות.';
-  static const String cannotOpenMailApp = 'לא ניתן לפתוח את תוכנת הדואר';
   static const String cannotOpenEditPage = 'לא ניתן לפתוח את עמוד העריכה.';
   static const String cannotIdentifyReportedBook =
       'לא ניתן לזהות את הספר לדיווח.';
@@ -135,6 +134,8 @@ abstract class ReportMessages {
   static const String removedFromQueue = 'הדיווח הוסר מהתור.';
   static const String deletedFromHistory = 'הדיווח נמחק מההיסטוריה.';
   static const String historyCleared = 'היסטוריית הדיווחים נוקתה.';
+  static const String historyExportSaved = 'היסטוריית הדיווחים נשמרה';
+  static const String historyExportFailed = 'שגיאה בייצוא היסטוריית הדיווחים';
   static const String pendingCleared = 'הדיווחים השמורים נמחקו.';
   static const String noPendingToSend = 'לא נמצאו דיווחים שמורים לשליחה.';
   static const String noPendingToExport = 'אין דיווחים שמורים לייצוא.';

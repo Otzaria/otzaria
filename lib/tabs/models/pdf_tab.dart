@@ -14,6 +14,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
+import 'package:otzaria/pdf_book/models/pdf_page_highlight_anchor.dart';
 
 /// כרטיסיית קורא PDF עם מצב המשתמש ובקר התצוגה שלה.
 class PdfBookTab extends OpenedTab {
@@ -96,6 +97,7 @@ class PdfBookTab extends OpenedTab {
   SearchMatchPolicy matchPolicy;
 
   int? pdfSearchCurrentMatchIndex;
+  PdfPageHighlightAnchor? pdfSearchPageHighlight;
 
   int? _centerSearchMatchPage;
 
@@ -218,6 +220,7 @@ class PdfBookTab extends OpenedTab {
     ReadingTabSearchState configuration, {
     int? centerMatchPage,
   }) {
+    pdfSearchPageHighlight = null;
     _centerSearchMatchPage = centerMatchPage;
     searchText = configuration.searchText;
     searchOrigin = configuration.searchOrigin;

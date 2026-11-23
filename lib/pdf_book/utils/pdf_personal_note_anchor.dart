@@ -2,14 +2,73 @@ import 'package:flutter/widgets.dart';
 import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
 import 'package:pdfrx/pdfrx.dart';
 
-/// עמודים שנראים בפועל, כולל קצה העמוד הבא בגלילה רציפה.
-List<int> visiblePdfNotePageNumbers({
-  required List<Rect> pageLayouts,
-  required Rect visibleRect,
-}) => [
-  for (var index = 0; index < pageLayouts.length; index++)
-    if (pageLayouts[index].overlaps(visibleRect)) index + 1,
-];
+/// מאתר את עמודי ה-PDF הנראים לפי הפריסה הפעילה של הצפיין.
+class PdfNotePageLookup {
+  PdfPageLayout? _layout;
+  bool _orderedVertically = false;
+
+  List<int> visiblePages(
+    PdfPageLayout layout,
+    Rect visibleRect, {
+    ({int startPage, int endPageExclusive})? spread,
+  }) {
+    final pages = layout.pageLayouts;
+    if (spread != null) {
+      // בתצוגת ספר המסכה מסתירה כפולות אחרות גם כשמלבניהן נראים.
+      return [
+        for (
+          var page = spread.startPage < 1 ? 1 : spread.startPage;
+          page < spread.endPageExclusive && page <= pages.length;
+          page++
+        )
+          if (pages[page - 1].overlaps(visibleRect)) page,
+      ];
+    }
+
+    // הצפיין מחליף את מופע הפריסה כשהגאומטריה משתנה.
+    if (!identical(layout, _layout)) {
+      _layout = layout;
+      _orderedVertically = _hasOrderedVerticalBounds(pages);
+    }
+    final searchVertically = _orderedVertically && visibleRect.isFinite;
+    var first = 0;
+    if (searchVertically) {
+      var end = pages.length;
+      while (first < end) {
+        final middle = first + (end - first) ~/ 2;
+        if (pages[middle].bottom <= visibleRect.top) {
+          first = middle + 1;
+        } else {
+          end = middle;
+        }
+      }
+    }
+
+    final visible = <int>[];
+    for (var index = first; index < pages.length; index++) {
+      final page = pages[index];
+      if (searchVertically && page.top >= visibleRect.bottom) break;
+      if (page.overlaps(visibleRect)) visible.add(index + 1);
+    }
+    return visible;
+  }
+
+  bool _hasOrderedVerticalBounds(List<Rect> pages) {
+    var previousTop = double.negativeInfinity;
+    var previousBottom = double.negativeInfinity;
+    for (final page in pages) {
+      if (!page.top.isFinite ||
+          !page.bottom.isFinite ||
+          page.top < previousTop ||
+          page.bottom < previousBottom) {
+        return false;
+      }
+      previousTop = page.top;
+      previousBottom = page.bottom;
+    }
+    return true;
+  }
+}
 
 /// ממיר תוצאת hit-test של pdfrx לנקודה שאינה תלויה בזום, בפריסה או בסיבוב.
 /// ממדי העמוד ב-pdfrx מסובבים, ואילו נקודת ה-hit-test היא בקואורדינטות המקור.

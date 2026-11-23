@@ -16,17 +16,19 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/utils/edit_personal_note_location.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_filter.dart';
+import 'package:otzaria/personal_notes/utils/personal_note_source_link.dart';
 import 'package:otzaria/personal_notes/utils/open_personal_notes_target.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_view_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/notes_search_header.dart';
 import 'package:otzaria/personal_notes/widgets/note_tile.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
@@ -43,6 +45,7 @@ import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
+import 'package:otzaria/utils/navigation/open_book.dart';
 
 class PersonalNotesSidebar extends StatefulWidget {
   final String bookId;
@@ -979,8 +982,9 @@ Future<void> openNoteLink(
   BuildContext context,
   String url,
   String currentBookId,
-  void Function(int lineNumber, {PersonalNote? note}) onNavigateToLine,
-) async {
+  void Function(int lineNumber, {PersonalNote? note}) onNavigateToLine, {
+  PersonalNote? sourceNote,
+}) async {
   final uri = Uri.tryParse(url);
   if (uri == null) return;
   if (uri.scheme == 'http' || uri.scheme == 'https') {
@@ -998,20 +1002,29 @@ Future<void> openNoteLink(
 
   switch (uri.scheme == 'otzaria' ? uri.host : '') {
     case 'book':
-      final bookId = uri.queryParameters['bookId'] ?? '';
+      final explicitBookId = uri.queryParameters['bookId'];
+      final bookId = (explicitBookId?.isNotEmpty ?? false)
+          ? explicitBookId!
+          : sourceNote?.bookId ?? currentBookId;
       final line = int.tryParse(uri.queryParameters['line'] ?? '');
-      if (line == null) return;
-      if (bookId.isEmpty || bookId == currentBookId) {
+      if (line == null || line <= 0) return;
+      if (bookId == PersonalNote.generalBookId) {
+        UiSnack.show(NotesMessages.noteHasNoLocation);
+      } else if (bookId == currentBookId) {
         onNavigateToLine(line);
-        return;
+      } else if (sourceNote != null && bookId == sourceNote.bookId) {
+        _openLinkedNoteBookLine(context, sourceNote, line);
+      } else {
+        UiSnack.show(NotesMessages.linkToAnotherBook(bookId));
       }
-      UiSnack.show(NotesMessages.linkToAnotherBook(bookId));
       return;
     case 'note':
-      final noteId = uri.queryParameters['id'];
+      final noteId = personalNoteLinkTarget(url);
       if (noteId == null) return;
       final state = context.read<PersonalNotesBloc>().state;
-      final allNotes = [...state.locatedNotes, ...state.missingNotes];
+      final allNotes = state.bookId == currentBookId
+          ? [...state.locatedNotes, ...state.missingNotes]
+          : const <PersonalNote>[];
       PersonalNote? note;
       for (final candidate in allNotes) {
         if (candidate.id == noteId) {
@@ -1019,18 +1032,20 @@ Future<void> openNoteLink(
           break;
         }
       }
-      if (note == null) return;
-      if (note.lineNumber != null) {
+      if (note != null && note.hasLocation && !note.isGeneralNote) {
         onNavigateToLine(note.lineNumber!, note: note);
         return;
       }
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AppDialog.singleAction(
-          title: 'הערה מקושרת',
-          icon: FluentIcons.link_24_regular,
-          confirmText: 'סגור',
-          customContent: PersonalNoteContentView(note: note!),
+      // הערה מספר אחר, כללית או שנמחקה — נטענת מהמסד.
+      await openLinkedPersonalNote(
+        context,
+        noteId,
+        onLinkTap: (source, url) => openNoteLink(
+          context,
+          url,
+          currentBookId,
+          onNavigateToLine,
+          sourceNote: source,
         ),
       );
       return;
@@ -1046,4 +1061,33 @@ Future<void> openNoteLink(
       if (!handled) UiSnack.showError(NotesMessages.unsupportedLink(url));
       return;
   }
+}
+
+void _openLinkedNoteBookLine(
+  BuildContext context,
+  PersonalNote note,
+  int line,
+) {
+  final library = context.read<LibraryBloc>().state.library;
+  if (library == null) {
+    UiSnack.show(NotesMessages.libraryNotLoadedYet);
+    return;
+  }
+  final book = personalNoteSourceBook(library, note);
+  if (book == null) {
+    UiSnack.show(
+      NotesMessages.bookNotFound(parsePersonalNotesBookKey(note.bookId).title),
+    );
+    return;
+  }
+  openBook(
+    context,
+    book,
+    book is PdfBook ? line : line - 1,
+    '',
+    ignoreHistory: true,
+    explicitIndex: true,
+    requiresStableLayout: book is TextBook,
+    navigateToPositionIfReused: true,
+  );
 }

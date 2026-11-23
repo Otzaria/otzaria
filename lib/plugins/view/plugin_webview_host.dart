@@ -23,7 +23,9 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
+import 'package:otzaria/plugins/view/plugin_actions.dart';
 import 'package:otzaria/plugins/view/plugin_confirmation_dialog.dart';
+import 'package:otzaria/reports/view/report_sender_email_field.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -300,6 +302,31 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
               content: content,
             );
           },
+      showReportSenderDialog:
+          ({
+            required String title,
+            required String content,
+            required String initialEmail,
+            required bool emailRequired,
+          }) async {
+            final ctx = adapter.rpcWindowContext ?? dialogContext;
+            if (ctx == null || !ctx.mounted) return null;
+            final field = GlobalKey<ReportSenderEmailFieldState>();
+            var email = initialEmail;
+            final confirmed = await _confirmationDialog.show(
+              context: ctx,
+              title: title,
+              content: content,
+              footer: ReportSenderEmailField(
+                key: field,
+                initialValue: initialEmail,
+                isRequired: emailRequired,
+                onChanged: (value) => email = value,
+              ),
+              onConfirm: () => field.currentState?.validate() ?? false,
+            );
+            return confirmed ? email.trim() : null;
+          },
       showWarningDialog:
           ({
             required String title,
@@ -338,6 +365,16 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
             storeOnly: true,
           ),
         );
+      },
+      requestLocalPluginInstall: () async {
+        final ctx = adapter.rpcWindowContext ?? dialogContext;
+        final key = (pluginId: plugin.pluginId, instanceId: instanceId);
+        if (ctx == null ||
+            !ctx.mounted ||
+            !PluginRuntimeDispatcher.instance.isInstanceShown(key)) {
+          return false;
+        }
+        return pickAndInstallPluginArchive(ctx, requestedByPlugin: true);
       },
       pickFolder: ({String? title}) async {
         final ctx = await _verifiedDialogContext();

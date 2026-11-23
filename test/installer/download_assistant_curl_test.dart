@@ -44,10 +44,17 @@ void main() {
     test('כל פריט מנסה curl קודם, וכל תוצאה אחרת יורדת בעמוד של Inno', () {
       final run = _routine(script, 'function RunDownloads()');
       expect(run, contains('CurlResetRun();'));
-      final curlCall = run.indexOf('case CurlDownloadItem(I) of');
+      final curlCall = run.indexOf('Outcome := CurlDownloadItem(I);');
       expect(curlCall, isNonNegative);
       expect(curlCall, lessThan(run.indexOf('DownloadPage.Download;')));
-      final cases = run.substring(curlCall, run.indexOf('Attempt := 1;'));
+      // קובץ בלי sha256 אינו עובר ב-curl, שממשיך חלקים לפי ה-sha256.
+      expect(
+        run.indexOf("if QueueSha[I] <> '' then"),
+        allOf(isNonNegative, lessThan(curlCall)),
+      );
+      final caseStart = run.indexOf('case Outcome of');
+      expect(caseStart, greaterThan(curlCall));
+      final cases = run.substring(caseStart, run.indexOf('Attempt := 1;'));
       expect(cases, contains('CurlDone:'));
       expect(cases, contains('CurlFailed:'));
       expect(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
@@ -17,6 +18,11 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // שמירה בתור דורשת כתובת לחזרה; כאן היא כבר שמורה.
+    await Settings.setValue<String>(
+      SettingsRepository.keyErrorReportSenderEmail,
+      'reader@example.com',
+    );
   });
 
   group('מיפוי הבחירה לשורה הגולמית', () {

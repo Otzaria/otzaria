@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:otzaria/work_status/work_status_cubit.dart';
+import 'package:otzaria/navigation/view/tab_background_painter.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -57,6 +58,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
+import 'package:otzaria/workspaces/workspace.dart';
 import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/fake_view_window.dart';
@@ -170,13 +172,159 @@ void main() {
         expect(find.text('סגור הכל'), findsOneWidget);
         expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
       },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      variant: const TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
     );
   }
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
+
+  group('active workspace name in title-bar tooltip (issue #5501)', () {
+    final study = Workspace(id: 'a', name: 'עיון', tabs: const []);
+    final lesson = Workspace(id: 'b', name: 'שיעור', tabs: const []);
+
+    Future<void> pump(
+      WidgetTester tester, {
+      WorkspaceBloc? workspaceBloc,
+    }) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
+    }
+
+    testWidgets('the tooltip names the active workspace and follows a switch', (
+      tester,
+    ) async {
+      final workspaceBloc = _TestWorkspaceBloc(
+        WorkspaceState(workspaces: [study, lesson], activeWorkspaceId: 'a'),
+      );
+      addTearDown(workspaceBloc.close);
+      await pump(tester, workspaceBloc: workspaceBloc);
+
+      expect(
+        find.byTooltip(RegExp('החלף שולחן עבודה.*נוכחי: עיון')),
+        findsOneWidget,
+      );
+
+      workspaceBloc.push(
+        WorkspaceState(workspaces: [study, lesson], activeWorkspaceId: 'b'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip(RegExp('נוכחי: שיעור')), findsOneWidget);
+      expect(find.byTooltip(RegExp('נוכחי: עיון')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets(
+      'without an active workspace or a WorkspaceBloc the tooltip is unchanged',
+      (
+        tester,
+      ) async {
+        final workspaceBloc = _TestWorkspaceBloc(
+          WorkspaceState(workspaces: [study]),
+        );
+        addTearDown(workspaceBloc.close);
+        await pump(tester, workspaceBloc: workspaceBloc);
+        expect(
+          find.byTooltip(RegExp('^החלף שולחן עבודה \\(.*\\)\$')),
+          findsOneWidget,
+        );
+
+        await pump(tester);
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byTooltip(RegExp('^החלף שולחן עבודה \\(.*\\)\$')),
+          findsOneWidget,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
+  });
+
+  testWidgets(
+    'שחרור במקום פותח תפריט של כרטיסייה לא פעילה; תזוזה מסדרת כרטיסיות',
+    (tester) async {
+      final tabs = [
+        _makeTextTab('ספר א'),
+        _makeTextTab('ספר ב'),
+        _makeTextTab('ספר ג'),
+      ];
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: tabs, currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final workspaceBloc = _TestWorkspaceBloc();
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await workspaceBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
+
+      final secondTab = find.text('ספר ב');
+      final first = await tester.startGesture(tester.getCenter(secondTab));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      expect(secondTab, findsOneWidget);
+      await first.up();
+      await tester.pumpAndSettle();
+      expect(find.text('סגור הכל'), findsOneWidget);
+      expect(tabsBloc.state.currentTabIndex, 1);
+      expect(tabsBloc.addedEvents.whereType<MoveTab>(), isEmpty);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final target = tester.getCenter(find.text('ספר ג'));
+      final second = await tester.startGesture(
+        tester.getCenter(find.text('ספר א')),
+      );
+      await tester.pump(kLongPressTimeout);
+      await second.moveTo(target);
+      await tester.pump();
+      await second.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('סגור הכל'), findsNothing);
+      expect(tabsBloc.addedEvents.whereType<MoveTab>(), hasLength(1));
+    },
+    variant: TargetPlatformVariant.mobile(),
+  );
 
   testWidgets(
     'adding a tab without plugins keeps correct width on its first frame',
@@ -381,45 +529,48 @@ void main() {
     expect(tabsWithTwinTitle([second, first, search, tool]), isEmpty);
   });
 
-  testWidgets('בכרטיסיות רבות וצרות המיקום של התאומות נשאר גלוי (issue #5146)', (
-    tester,
-  ) async {
-    final tabs = [
-      for (var i = 1; i <= 8; i++)
-        _makeTextTab('שולחן ערוך אורח חיים', currentTitle: 'סימן $i'),
-    ];
-    final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
-    final navigationBloc = _TestNavigationBloc(
-      const NavigationState(currentScreen: Screen.reading),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-
-    addTearDown(() async {
-      for (final tab in tabs) {
-        tab.dispose();
-      }
-      await tabsBloc.close();
-      await navigationBloc.close();
-      await settingsBloc.close();
-    });
-
-    await _setSurfaceSize(tester, const Size(1200, 800));
-    await _pumpTitleBar(
+  testWidgets(
+    'בכרטיסיות רבות וצרות המיקום של התאומות נשאר גלוי (issue #5146)',
+    (
       tester,
-      tabsBloc: tabsBloc,
-      navigationBloc: navigationBloc,
-      settingsBloc: settingsBloc,
-    );
+    ) async {
+      final tabs = [
+        for (var i = 1; i <= 8; i++)
+          _makeTextTab('שולחן ערוך אורח חיים', currentTitle: 'סימן $i'),
+      ];
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    // הכותרת המלאה אינה נכנסת, ולכן המיקום מרונדר בנפרד משם הספר הנחתך.
-    for (var i = 1; i <= 8; i++) {
-      final locationAlone =
-          find.text(', סימן $i').evaluate().length +
-          find.text('סימן $i').evaluate().length;
-      expect(locationAlone, 1, reason: 'המיקום של כרטיסיה $i נחתך');
-    }
-    expect(tester.takeException(), isNull);
-  });
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      // הכותרת המלאה אינה נכנסת, ולכן המיקום מרונדר בנפרד משם הספר הנחתך.
+      for (var i = 1; i <= 8; i++) {
+        final locationAlone =
+            find.text(', סימן $i').evaluate().length +
+            find.text('סימן $i').evaluate().length;
+        expect(locationAlone, 1, reason: 'המיקום של כרטיסיה $i נחתך');
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('כרטיסיה שכותרתה נכנסת במלואה אינה מקבלת tooltip', (
     tester,
@@ -829,9 +980,7 @@ void main() {
       await pumpTabs(tester, [_makeTextTab('ספר א'), _makeTextTab('ספר ב')]);
 
       final painted = find.byWidgetPredicate(
-        (w) =>
-            w is CustomPaint &&
-            w.painter.runtimeType.toString() == '_TabBackgroundPainter',
+        (w) => w is CustomPaint && w.painter is TabBackgroundPainter,
       );
       final size = tester.getSize(painted);
       expect(
@@ -2072,7 +2221,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.byType(LongPressDraggable<OpenedTab>),
+          find.bySubtype<LongPressDraggable<OpenedTab>>(),
           findsNothing,
         );
       },
@@ -2107,7 +2256,7 @@ void main() {
         );
 
         expect(
-          find.byType(LongPressDraggable<OpenedTab>),
+          find.bySubtype<LongPressDraggable<OpenedTab>>(),
           findsOneWidget,
         );
       },
@@ -2562,9 +2711,7 @@ void main() {
               matching: find.byType(CustomPaint),
             ),
           )
-          .where(
-            (w) => w.painter.runtimeType.toString() == '_TabBackgroundPainter',
-          )
+          .where((w) => w.painter is TabBackgroundPainter)
           .length;
       expect(paintedTabs, 3);
     });
@@ -2609,9 +2756,7 @@ void main() {
       // הצייר של הכרטיסיה הפעילה — היחיד מסוגו כשאין בחירה מרובה וריחוף.
       final painted = tester
           .widgetList<CustomPaint>(find.byType(CustomPaint))
-          .where(
-            (w) => w.painter.runtimeType.toString() == '_TabBackgroundPainter',
-          )
+          .where((w) => w.painter is TabBackgroundPainter)
           .toList();
       expect(painted, hasLength(1), reason: 'רק הכרטיסיה הפעילה נצבעת');
 
@@ -2881,10 +3026,10 @@ void main() {
           .tooltip!;
 
       final shortcut = ShortcutHelper.formatShortcutForDisplay('ctrl+w');
-      expect(closeTooltipOf('ספר א'), 'סגור כרטיסיה ($shortcut)');
+      expect(closeTooltipOf('ספר א'), 'סגור כרטיסייה ($shortcut)');
       expect(
         closeTooltipOf('ספר ב'),
-        'סגור כרטיסיה',
+        'סגור כרטיסייה',
         reason: 'הקיצור סוגר רק את הטאב הפעיל',
       );
     });
@@ -4004,7 +4149,10 @@ class _TestPluginSystemBloc extends Cubit<PluginSystemState>
 
 class _TestWorkspaceBloc extends Cubit<WorkspaceState>
     implements WorkspaceBloc {
-  _TestWorkspaceBloc() : super(WorkspaceState.initial());
+  _TestWorkspaceBloc([WorkspaceState? initial])
+    : super(initial ?? WorkspaceState.initial());
+
+  void push(WorkspaceState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

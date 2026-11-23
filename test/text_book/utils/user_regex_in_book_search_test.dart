@@ -53,11 +53,35 @@ Future<void> main() async {
       expect(found.truncated, isFalse);
     });
 
+    test('כתובת מתעדכנת אחרי שורת כותרת ברצף של הופעות', () async {
+      const query = '/משה/';
+      final found = (await searchUserRegexInContent(
+        content: [
+          '<h2>פֶּרֶק א</h2>',
+          'משה משה',
+          'משה',
+          '<h2>פֶּרֶק ב</h2>',
+          'משה משה',
+        ],
+        query: query,
+        matcher: UserRegexQuery.matcher(query)!,
+      ))!;
+      expect(found.results.map((result) => result.index), [1, 1, 2, 4, 4]);
+      expect(found.results.map((result) => result.address.trim()), [
+        'פרק א',
+        'פרק א',
+        'פרק א',
+        'פרק ב',
+        'פרק ב',
+      ]);
+    });
+
     test('רצף מילים שנמשך לשורה הבאה', () async {
       final results = (await search('/משה רבנו/'))!.results;
       expect(results, hasLength(1));
       expect(results.single.index, 2);
       expect(results.single.continuesToNextLine, isTrue);
+      expect(results.single.address.trim(), 'פרק א');
     });
 
     test('התאמה ריקה אינה נספרת או מסתירה התאמה חוצת שורות', () async {

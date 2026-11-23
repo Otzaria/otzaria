@@ -3208,11 +3208,24 @@ void main() {
           DatabaseConstants.talmudBavliFolderName,
           'שקלים.pdf',
         );
-        await File(preferredPdfPath).create(recursive: true);
+        await File(preferredPdfPath).parent.create(recursive: true);
         await Settings.setValue<String>(
           SettingsRepository.keyLibraryFolderName,
           'books',
         );
+        final fromFallback = await provider.buildLibraryCatalog(
+          {},
+          libraryPath,
+        );
+        expect(
+          fromFallback
+              .getAllBooks()
+              .whereType<PdfBook>()
+              .singleWhere((book) => book.title == 'שקלים')
+              .filePath,
+          path.join(talmudDir.path, 'שקלים.pdf'),
+        );
+        await File(preferredPdfPath).create();
         final updatedLibrary = await provider.buildLibraryCatalog(
           {},
           libraryPath,

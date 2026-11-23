@@ -9,6 +9,7 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/bundled_plugin_seed_service.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -460,6 +461,13 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         forceOverwrite: event.forceOverwrite,
       );
 
+      if (event.requireNewInstallation && prepareInfo.previousVersion != null) {
+        await _installerService.cancelInstall(prepareInfo.tempDirPath);
+        UiSnack.showError(PluginMessages.pluginPickerRequiresNewInstallation);
+        add(LoadPlugins());
+        return;
+      }
+
       if (localPath != null) {
         _pendingLocalInstalls[prepareInfo.tempDirPath] = (
           path: localPath,
@@ -474,6 +482,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           previousVersion: prepareInfo.previousVersion,
           previousGrantedPermissions: prepareInfo.previousGrantedPermissions,
           isUserInitiated: event.isUserInitiated,
+          requireNewInstallation: event.requireNewInstallation,
         ),
       );
     } on PluginOverwriteException catch (e) {
@@ -644,11 +653,19 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   ) async {
     var local = _pendingLocalInstalls.remove(event.tempDirPath);
     try {
-      await _installerService.finalizeInstall(
-        event.tempDirPath,
-        event.manifest,
-        grantedPermissions: event.grantedPermissions,
-      );
+      if (event.requireNewInstallation) {
+        await _installerService.finalizeNewInstall(
+          event.tempDirPath,
+          event.manifest,
+          grantedPermissions: event.grantedPermissions,
+        );
+      } else {
+        await _installerService.finalizeInstall(
+          event.tempDirPath,
+          event.manifest,
+          grantedPermissions: event.grantedPermissions,
+        );
+      }
 
       if (!event.manifest.permissions.contains('navigation.write') ||
           event.grantedPermissions['navigation.write'] != true) {
@@ -686,6 +703,10 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         );
         return;
       }
+      add(LoadPlugins());
+    } on PluginInstallIdentityInUse {
+      await _installerService.cancelInstall(event.tempDirPath);
+      UiSnack.showError(PluginMessages.pluginPickerRequiresNewInstallation);
       add(LoadPlugins());
     } catch (e) {
       await _installerService.cancelInstall(event.tempDirPath);

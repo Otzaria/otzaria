@@ -826,22 +826,60 @@ String _restoreGreedy(String selectedText, List<String> visibleLines) {
   String selectedText,
   List<String> visibleLines,
 ) {
+  final selectionLength = selectedText.length;
+  late final prefix = _selectionPrefixLengths(selectedText, visibleLines);
   for (var lineIndex = 0; lineIndex < visibleLines.length; lineIndex++) {
     final line = visibleLines[lineIndex];
-    if (line.isEmpty) {
-      continue;
-    }
-    for (var offset = 0; offset < line.length; offset++) {
-      // סינון בתו הראשון חוסך substring לכל עמודה (ריבועי באורך השורה).
-      if (line.codeUnitAt(offset) == selectedText.codeUnitAt(0) &&
-          selectedText.startsWith(line.substring(offset))) {
-        return (lineIndex, offset);
+    if (line.isEmpty) continue;
+
+    final firstOffset = line.length > selectionLength
+        ? line.length - selectionLength
+        : 0;
+    if (line.length - firstOffset <= 64) {
+      for (var offset = firstOffset; offset < line.length; offset++) {
+        if (line.codeUnitAt(offset) == selectedText.codeUnitAt(0) &&
+            selectedText.startsWith(line.substring(offset))) {
+          return (lineIndex, offset);
+        }
       }
+    } else {
+      // בסוף הסריקה, הקידומת הארוכה ביותר שהתאימה היא סיומת השורה.
+      var matched = 0;
+      for (var offset = firstOffset; offset < line.length; offset++) {
+        final unit = line.codeUnitAt(offset);
+        while (matched > 0 && selectedText.codeUnitAt(matched) != unit) {
+          matched = prefix[matched - 1];
+        }
+        if (selectedText.codeUnitAt(matched) == unit) matched++;
+      }
+      if (matched > 0) return (lineIndex, line.length - matched);
     }
+
     final inside = line.indexOf(selectedText);
-    if (inside >= 0) {
-      return (lineIndex, inside);
-    }
+    if (inside >= 0) return (lineIndex, inside);
   }
   return null;
+}
+
+List<int> _selectionPrefixLengths(
+  String selectedText,
+  List<String> visibleLines,
+) {
+  var longestLine = 0;
+  for (final line in visibleLines) {
+    if (line.length > longestLine) longestLine = line.length;
+  }
+  final limit = longestLine < selectedText.length
+      ? longestLine
+      : selectedText.length;
+  final prefix = List<int>.filled(limit, 0);
+  for (var i = 1, matched = 0; i < limit; i++) {
+    final unit = selectedText.codeUnitAt(i);
+    while (matched > 0 && selectedText.codeUnitAt(matched) != unit) {
+      matched = prefix[matched - 1];
+    }
+    if (selectedText.codeUnitAt(matched) == unit) matched++;
+    prefix[i] = matched;
+  }
+  return prefix;
 }

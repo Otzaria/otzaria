@@ -17,10 +17,11 @@ BookOpenCoordinator bookOpenCoordinatorOf(BuildContext context) =>
       layoutWidth: readingLayoutWidthResolverOf(context),
     );
 
+/// מיקום חסר שומר על מקום הקריאה אם הספר כבר פתוח.
 void openBook(
   BuildContext context,
   Book book,
-  int index,
+  int? index,
   String searchQuery, {
   bool ignoreHistory = false,
   bool explicitIndex = false,
@@ -31,6 +32,7 @@ void openBook(
   bool insertAdjacent = false,
   bool navigateToPositionIfReused = false,
   List<String>? initialCommentators,
+  String? markerReference,
 }) {
   bookOpenCoordinatorOf(context).openBook(
     book,
@@ -45,6 +47,7 @@ void openBook(
     insertAdjacent: insertAdjacent,
     initialCommentators: initialCommentators,
     navigateToPositionIfReused: navigateToPositionIfReused,
+    markerReference: markerReference,
   );
 }
 
@@ -53,6 +56,11 @@ void openPreparedTab(
   BuildContext context,
   OpenedTab tab, {
   bool insertAdjacent = false,
+  bool navigateToPositionIfReused = false,
 }) {
-  bookOpenCoordinatorOf(context).openTab(tab, insertAdjacent: insertAdjacent);
+  bookOpenCoordinatorOf(context).openTab(
+    tab,
+    insertAdjacent: insertAdjacent,
+    navigateToPositionIfReused: navigateToPositionIfReused,
+  );
 }

@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -428,6 +429,56 @@ void main() {
             tile.title,
         ], expected);
       }
+    });
+
+    testWidgets('סינון דליל ניגש רק למועמדים ושומר את סדר הקטלוג', (
+      tester,
+    ) async {
+      const path = '/תנ"ך';
+      final library = makeLibraryFrom([
+        makeCategory(
+          'תנ"ך',
+          books: [
+            makeBook(1, 'ספר ראשון', path)..order = 1,
+            makeBook(2, 'ספר שני', path)..order = 2,
+            for (var id = 3; id <= 2000; id++) makeBook(id, 'ספר $id', path),
+          ],
+        ),
+        makeCategory('משנה', books: [makeBook(1, 'ספר משנה', path)]),
+      ]);
+      final counts = _CountingFacetCounts({
+        '$path/id:2': -1,
+        '$path/id:3': 0,
+        '$path/id:1': 3,
+        '/': 3,
+      });
+      List<String> shownTitles() => [
+        for (final tile in tester.widgetList<NavTreeTile>(
+          find.byType(NavTreeTile),
+        ))
+          tile.title,
+      ];
+
+      await pumpTree(
+        tester,
+        library: library,
+        facetCounts: counts,
+        filterQuery: 'ספר',
+      );
+      expect(shownTitles(), ['ספר ראשון', 'ספר שני', 'ספר משנה']);
+      expect(counts.lookups, lessThan(32));
+
+      counts['$path/id:1'] = 0;
+      counts['$path/id:3'] = 3;
+      counts.lookups = 0;
+      await pumpTree(
+        tester,
+        library: library,
+        facetCounts: counts,
+        filterQuery: 'ספר',
+      );
+      expect(shownTitles(), ['ספר שני', 'ספר 3']);
+      expect(counts.lookups, lessThan(32));
     });
 
     testWidgets(
@@ -1316,5 +1367,17 @@ class _OrderCountingBook extends TextBook {
   int get order {
     orderReads++;
     return super.order;
+  }
+}
+
+class _CountingFacetCounts extends MapView<String, int> {
+  _CountingFacetCounts(super.map);
+
+  int lookups = 0;
+
+  @override
+  int? operator [](Object? key) {
+    lookups++;
+    return super[key];
   }
 }

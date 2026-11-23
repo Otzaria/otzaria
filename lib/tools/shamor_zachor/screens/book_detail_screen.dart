@@ -1,5 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, RenderSliverList;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -18,6 +21,7 @@ import '../widgets/hebrew_utils.dart';
 import '../widgets/completion_animation_overlay.dart';
 import '../widgets/mark_range_dialog.dart';
 import '../widgets/error_boundary.dart';
+
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -26,6 +30,7 @@ import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/lists/tree_section_header.dart';
+import 'package:otzaria/utils/file/document_format.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -83,6 +88,15 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   bool get wantKeepAlive => true;
 
   final Map<String, bool> _expandedSections = {};
+
+  /// הפריט שסומן אחרון (absoluteIndex); בפתיחה נגללים אליו פעם אחת.
+  int? _restoreIndex;
+  bool _revealPending = true;
+  final GlobalKey _restoreKey = GlobalKey();
+
+  /// בתוך הרשימה, כדי להגיע לגלילה שלה בלי בקר משלה: הרשימה יורשת את
+  /// PrimaryScrollController של המסך הראשי, שעליו פועלים מקשי הגלילה.
+  final GlobalKey _sliverKey = GlobalKey();
   StreamSubscription<CompletionEvent>? _completionSubscription;
 
   /// העמודות המוגדרות לספר זה (נטענות מה-Provider, ברירת מחדל אם אין הגדרה)
@@ -267,6 +281,14 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       );
     }
 
+    if (_revealPending && widget.bookId != null) {
+      final last = progressProvider.lastTouchedIndexById(widget.bookId!);
+      // פריט שכבר אינו בספר (תוכן העניינים השתנה) — פותחים בראש.
+      if (last != null && last >= 0 && last < learnableItems.length) {
+        _restoreIndex = last;
+      }
+    }
+
     final hasNested =
         bookDetails.sections != null &&
         bookDetails.sections!.isNotEmpty &&
@@ -401,6 +423,77 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         ),
       ),
     );
+  }
+
+  /// נגלל פעם אחת אל השורה השמורה, גם אם עוד לא נבנתה.
+  void _revealRestoreRow(int row) {
+    if (!_revealPending) return;
+    _revealPending = false;
+    if (row >= 0) _jumpTowardsRow(row);
+  }
+
+  void _jumpTowardsRow(
+    int row, {
+    double? lower,
+    double? upper,
+    int attempt = 0,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _restoreKey.currentContext;
+      if (target != null) {
+        final box = target.findRenderObject()!;
+        final viewport = RenderAbstractViewport.of(box);
+        final position = Scrollable.of(target).position;
+        final atTop = viewport.getOffsetToReveal(box, 0).offset;
+        final atBottom = viewport.getOffsetToReveal(box, 1).offset;
+        if (attempt > 0 ||
+            position.pixels < atBottom ||
+            position.pixels > atTop) {
+          position.jumpTo(
+            atTop.clamp(position.minScrollExtent, position.maxScrollExtent),
+          );
+        }
+        return;
+      }
+      final listContext = _sliverKey.currentContext;
+      final sliver = listContext?.findRenderObject() as RenderSliverList?;
+      final first = sliver?.firstChild;
+      final last = sliver?.lastChild;
+      if (attempt == 16 ||
+          listContext == null ||
+          sliver == null ||
+          first == null ||
+          last == null) {
+        return;
+      }
+      final position = Scrollable.of(listContext).position;
+      final firstIndex = sliver.indexOf(first);
+      final lastIndex = sliver.indexOf(last);
+      final firstOffset = sliver.childScrollOffset(first)!;
+      final lastOffset = sliver.childScrollOffset(last)!;
+      final minOffset = row > lastIndex ? position.pixels : lower;
+      final maxOffset = row < firstIndex ? position.pixels : upper;
+      // שורות בגבהים שונים עלולות לשבש את האומדן, ולכן מצמצמים את הטווח אחרי כל קפיצה.
+      final estimate = minOffset != null && maxOffset != null
+          ? (minOffset + maxOffset) / 2
+          : firstOffset +
+                (row - firstIndex) *
+                    (lastOffset - firstOffset + last.size.height) /
+                    (lastIndex - firstIndex + 1);
+      final next = estimate.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if (next == position.pixels) return;
+      position.jumpTo(next);
+      _jumpTowardsRow(
+        row,
+        lower: minOffset,
+        upper: maxOffset,
+        attempt: attempt + 1,
+      );
+    });
   }
 
   /// שורת סיום בתחתית הטבלה: מתי הושלם הלימוד.
@@ -735,8 +828,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   ) {
     final theme = Theme.of(context);
     final learnableItems = bookDetails.learnableItems;
+    _revealRestoreRow(_restoreIndex ?? -1);
 
     return SliverList(
+      key: _sliverKey,
       delegate: SliverChildBuilderDelegate(
         (ctx, index) {
           final item = learnableItems[index];
@@ -753,8 +848,14 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             item.amudKey,
             bookDetails.isDafType,
           );
+          // שורה בלי פרק מצביעה על מיקום רק ב-PDF, שבו היא עמוד.
+          final opensAt =
+              widget.onOpenLine != null &&
+              (item.sectionId != null ||
+                  bookDetails.contentType == DocumentFormat.pdf.extension);
 
           return Column(
+            key: absoluteIndex == _restoreIndex ? _restoreKey : null,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (showHeader && partName.isNotEmpty)
@@ -789,12 +890,18 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   children: [
                     Expanded(
                       flex: _titleFlex,
-                      child: Text(
-                        rowLabel,
+                      child: _SectionTitleLink(
+                        label: rowLabel,
+                        tooltip: ToolsMessages.openTrackedSection(
+                          item.displayLabel ?? 'עמוד $rowLabel',
+                        ),
                         style: TextStyle(
                           fontSize: AppTokens.fontLG,
                           color: theme.colorScheme.onSurface,
                         ),
+                        onOpen: opensAt
+                            ? () => widget.onOpenLine!(item.pageNumber)
+                            : null,
                       ),
                     ),
                     Expanded(
@@ -882,7 +989,16 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       }
     }
 
+    if (_revealPending) {
+      final restoreIndex = _restoreIndex;
+      final restoreSection = restoreIndex == null
+          ? null
+          : bookDetails.learnableItems[restoreIndex].sectionId;
+      _revealRestoreRow(rows.indexWhere((row) => row.$1.id == restoreSection));
+    }
+
     return SliverList(
+      key: _sliverKey,
       delegate: SliverChildBuilderDelegate(
         (ctx, index) => _buildSectionExpansionTile(
           context,
@@ -917,6 +1033,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
       // מציגים leaf בפורמט של שורה רגילה (כמו ב-flat), עם RTL
       return Container(
+        key: learnable.absoluteIndex == _restoreIndex ? _restoreKey : null,
         color: _rowColor(theme, bookDetails, learnable.absoluteIndex),
         padding: EdgeInsets.fromLTRB(_gridHPad, 2, _rightInset, 2),
         child: Row(

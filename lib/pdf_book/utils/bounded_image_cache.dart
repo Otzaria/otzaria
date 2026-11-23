@@ -3,10 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:pdfrx/pdfrx.dart';
 
-/// מטמון תמונות המוגבל בסך הבתים; התמונה שנעשה בה שימוש לפני הכל נזרקת ראשונה.
-///
-/// המטמון מחזיק עותק ([ui.Image.clone]) משלו, ולכן הקורא משחרר את התמונות
-/// שלו בלי תלות במטמון, ותמונה שנזרקה לא נעלמת ממסך שמציג אותה.
+/// מטמון היסטוריה מוגבל בבתים, המחזיק עותק משלו לכל תמונה.
+/// הקורא ממשיך להחזיק ולשחרר את העותק המוצג גם לאחר פינוי מהמטמון.
 class BoundedImageCache<K> {
   BoundedImageCache({required this.maxBytes, this.budget});
 
@@ -44,7 +42,7 @@ class BoundedImageCache<K> {
     while (_bytes + size > maxBytes && _images.isNotEmpty) {
       _remove(_images.keys.first);
     }
-    final reservation = budget?.tryReserve(size * 2);
+    final reservation = budget?.tryReserve(size * 2, keepNeeded: true);
     if (budget != null && reservation == null) return;
     try {
       _images[key] = image.clone();

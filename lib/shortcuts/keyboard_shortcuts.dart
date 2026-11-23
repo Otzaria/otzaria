@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -47,11 +48,15 @@ class KeyboardShortcuts extends StatefulWidget {
   /// פתיחת/סגירת דיאלוג חיפוש חדש דרך MainWindowScreen (מעקב `_isSearchOpen`).
   final VoidCallback? onNewSearchRequested;
 
+  /// בוחר את לשונית ההגדרות שתוצג במעבר למסך ההגדרות.
+  final SettingsScreenController? settingsController;
+
   const KeyboardShortcuts({
     super.key,
     required this.child,
     required this.onFindRefRequested,
     this.onNewSearchRequested,
+    this.settingsController,
   });
 
   @override
@@ -132,15 +137,31 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
 
   /// חץ בלי מקש צירוף, ומקש ששוחרר מאזור הקריאה, נבלעים בהעברת הפוקוס ובאזורי
   /// הבחירה לפני ה-late handler, ולכן קיצור שהוקצה להם מופעל כאן.
-  KeyEventResult _handleArrowShortcut(FocusNode _, KeyEvent event) {
+  KeyEventResult _handleScopedKeyEvent(FocusNode _, KeyEvent event) {
     if (event is KeyRepeatEvent && event.physicalKey == _arrowShortcutKey) {
       return KeyEventResult.handled;
     }
     if (event is! KeyRepeatEvent) _arrowShortcutKey = null;
     final keyboard = HardwareKeyboard.instance;
-    if (event is! KeyDownEvent ||
-        !_isActiveWindow ||
-        ShortcutHelper.isEditingText ||
+    if (event is! KeyDownEvent || !_isActiveWindow) {
+      return KeyEventResult.ignored;
+    }
+    // בקורא טקסט במסך מלא, Escape מגיע לכאן לפני ה-DismissIntent של WidgetsApp.
+    if (const SingleActivator(LogicalKeyboardKey.escape).accepts(
+          event,
+          keyboard,
+        ) &&
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS &&
+        _isReadingScreen &&
+        context.read<WindowFullscreenCubit?>()?.state == true &&
+        context.read<TabsBloc>().state.activePane is TextBookTab) {
+      return _handleKeyEvent(
+        event,
+        context.read<SettingsBloc>().state.shortcuts,
+      );
+    }
+    if (ShortcutHelper.isEditingText ||
         !(_focusArrows.any((arrow) => arrow.accepts(event, keyboard)) ||
             (ShortcutValidator.isReleasedReaderKey(event) &&
                 !hasFocusedSelectableRegionSelection()))) {
@@ -258,6 +279,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     );
     final appReportShortcut = shortcutOf(ShortcutValidator.openAppReportKey);
     final settingsShortcut = shortcutOf('key-shortcut-open-settings');
+    final shortcutsListShortcut = shortcutOf(
+      ShortcutValidator.openShortcutsListKey,
+    );
     final moreShortcut = shortcutOf('key-shortcut-open-more');
     final bookmarksShortcut = shortcutOf('key-shortcut-open-bookmarks');
     final historyShortcut = shortcutOf('key-shortcut-open-history');
@@ -538,9 +562,17 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       return KeyEventResult.handled;
     }
 
-    // הגדרות
-    if (ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
+    // הגדרות; רשימת קיצורי המקשים — הגדרות בלשונית הקיצורים
+    final opensShortcutsList = ShortcutHelper.matchesShortcut(
+      event,
+      shortcutsListShortcut,
+    );
+    if (opensShortcutsList ||
+        ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
       if (!closeOverlayRoutes()) return KeyEventResult.handled;
+      if (opensShortcutsList) {
+        widget.settingsController?.openTab(SettingsTab.shortcuts);
+      }
       context.read<NavigationBloc>().add(
         const NavigateToScreen(Screen.settings),
       );
@@ -640,6 +672,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     final dynamicResult = _handleDynamicShortcut(event);
     if (dynamicResult != null) return dynamicResult;
 
+    // Ctrl+Tab, Ctrl+1..9, F11 ו-Esc מוצגים בהגדרות בכרטיס "קיצורים קבועים"
+    // (shortcuts_settings_tab.dart) — שינוי כאן מחייב עדכון גם שם.
     // Ctrl+Tab / Ctrl+Shift+Tab - מעבר בין טאבים.
     // לא משתמשים ב-matchesShortcut כדי לא להפוך ל-Cmd ב-Mac: Cmd+Tab
     // שמור למערכת ההפעלה, ולכן ב-Mac נשארים עם Ctrl פיזי (זמין שם).
@@ -707,7 +741,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     return FocusScope(
       node: _shortcutFocusScopeNode,
       autofocus: true,
-      onKeyEvent: _handleArrowShortcut,
+      onKeyEvent: _handleScopedKeyEvent,
       child: widget.child,
     );
   }

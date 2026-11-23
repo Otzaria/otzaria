@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -970,7 +971,11 @@ void main() {
         bloc.add(DownloadLibraryRequested());
         await selected.timeout(const Duration(seconds: 5));
 
-        expect(checkedSizes.single, whole.length * 2 + 15);
+        // חיבור חלקי המסד מסתיים לפני הורדת הנכסים הנלווים.
+        expect(
+          checkedSizes.single,
+          math.max(whole.length * 2, whole.length + 15),
+        );
         expect(extractedDb, whole);
         expect(requested, contains('https://example.com/v31/part1'));
         // רק קובצי הנעילה הקבועים נשארים, כדי לשמור על אותו inode

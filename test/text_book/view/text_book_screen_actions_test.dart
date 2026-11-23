@@ -65,7 +65,10 @@ import 'package:otzaria/tabs/view/pane_drag_handle.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
@@ -1029,65 +1032,85 @@ void main() {
       },
     );
 
-    testWidgets('הלחצן למהדורה המובנית כתוב "פתח בתצוגת PDF"', (
-      tester,
-    ) async {
-      final book = TextBook(title: 'ספר בדיקה');
-      final pdfBook = PdfBook(title: 'ספר בדיקה', path: 'ספר בדיקה.pdf');
-      DataRepository.instance.library = Future.value(
-        Library(
-          categories: [
-            Category(
-              title: 'קטגוריה',
-              description: '',
-              shortDescription: '',
-              order: 1,
-              subCategories: [],
-              books: [book, pdfBook],
-              parent: null,
-            ),
-          ],
-        ),
-      );
-
-      final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
-        await bloc.close();
-        await tabsBloc.close();
-        await settingsBloc.close();
-        tab.dispose();
-      });
-
-      await _setSurfaceSize(tester, const Size(1600, 900));
-      await _pumpTextBookScreen(
+    for (final mappedPage in [null, 5]) {
+      testWidgets('מעבר ל-PDF שכבר פתוח כשעמוד המיפוי הוא $mappedPage', (
         tester,
-        tab: tab,
-        textBookBloc: bloc,
-        tabsBloc: tabsBloc,
-        settingsBloc: settingsBloc,
-        focusRepository: focusRepository,
-        shamorZachorDataProvider: shamorZachorDataProvider,
-        shamorZachorProgressProvider: shamorZachorProgressProvider,
-        bookmarkBloc: bookmarkBloc,
-        personalNotesBloc: personalNotesBloc,
-        tourCubit: tourCubit,
-        isInCombinedView: false,
-      );
-      // איתור המהדורות המקבילות נדחה ל-listener של טעינת התוכן.
-      bloc.emitStateForTest(_loadedState(book));
-      await tester.pumpAndSettle();
+      ) async {
+        final book = _PdfMappingBook();
+        final pdfBook = PdfBook(title: book.title, path: '${book.title}.pdf');
+        DataRepository.instance.library = Future.value(
+          Library(
+            categories: [
+              Category(
+                title: 'קטגוריה',
+                description: '',
+                shortDescription: '',
+                order: 1,
+                subCategories: [],
+                books: [book, pdfBook],
+                parent: null,
+              ),
+            ],
+          ),
+        );
+        pdfAnchorsReaderForTesting = (_) async => mappedPage == null
+            ? const []
+            : [(page: mappedPage, ref: 'פרק א'), (page: 20, ref: 'פרק ב')];
+        addTearDown(() => pdfAnchorsReaderForTesting = null);
+        await tester.runAsync(() async {
+          expect(await textToPdfPage(book, 0, pdfBook: pdfBook), mappedPage);
+        });
 
-      expect(find.byTooltip('פתח בתצוגת PDF'), findsOneWidget);
-      expect(find.byTooltip('פתח מהדורה מקבילה'), findsNothing);
-    });
+        final bloc = _TestTextBookBloc(_loadedState(book));
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final pdfTab = PdfBookTab(book: pdfBook, pageNumber: 11);
+        final session = WindowTabsSession(slot: () => null);
+        final tabsBloc = TabsBloc(
+          repository: TabsRepository(window: session),
+          session: session,
+          disposeDelay: Duration.zero,
+        );
+        tabsBloc
+          ..add(AddTab(pdfTab))
+          ..add(AddTab(tab));
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await tabsBloc.close();
+          await bloc.close();
+          await settingsBloc.close();
+        });
+
+        await _setSurfaceSize(tester, const Size(1600, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: false,
+        );
+        bloc.emitStateForTest(_loadedState(book));
+        await tester.pumpAndSettle();
+
+        expect(tabsBloc.state.currentTab, same(tab));
+        expect(find.byTooltip('פתח מהדורה מקבילה'), findsNothing);
+        await tester.tap(find.byTooltip('פתח בתצוגת PDF'));
+        await tester.pumpAndSettle();
+
+        expect(tabsBloc.state.tabs, [pdfTab, tab]);
+        expect(tabsBloc.state.currentTab, same(pdfTab));
+        expect(pdfTab.pageNumber, mappedPage ?? 11);
+      });
+    }
 
     testWidgets('לספר עם נוסחאות התפריט פותח את רשימת הנוסחאות', (
       tester,
@@ -2146,7 +2169,7 @@ void main() {
   });
 
   group('מסך מלא ב-F11 (issue #3619)', () {
-    testWidgets('F11 מתוך הספר מחליף מצב פעם אחת בלבד, כניסה ויציאה', (
+    testWidgets('F11 מחליף מצב פעם אחת ו-Escape מכבד קיצור מותאם', (
       tester,
     ) async {
       final book = TextBook(title: 'ספר בדיקה');
@@ -2161,6 +2184,7 @@ void main() {
         persist: (_) async {},
       );
       final geometry = _RecordingGeometry();
+      var findRefRequests = 0;
       final keys = AppWindowKeys(id: const AppWindowId('fullscreen-3619'));
       AppWindowKeys.register(keys);
       AppWindowKeys.activateWindow(keys.id);
@@ -2194,7 +2218,55 @@ void main() {
         geometry: geometry,
         fullscreenCubit: fullscreen,
         withGlobalShortcuts: true,
+        onFindRefRequested: () => findRefRequests++,
       );
+
+      fullscreen.syncFromWindow(true);
+      settingsBloc.emitStateForTest(
+        settingsBloc.state.copyWith(
+          shortcuts: const {'key-shortcut-open-find-ref': 'escape'},
+        ),
+      );
+      await tester.pump();
+      final escapeListener = find
+          .descendant(
+            of: find.byType(TextBookViewerBloc),
+            matching: find.byType(KeyboardListener),
+          )
+          .first;
+      expect(
+        tester.widget<KeyboardListener>(escapeListener).focusNode.hasFocus,
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(fullscreen.state, isTrue);
+      expect(findRefRequests, 1);
+      expect(geometry.calls, isEmpty);
+
+      final reader = tester.element(find.byType(TextBookViewerBloc));
+      unawaited(
+        showDialog<void>(
+          context: reader,
+          builder: (_) => const SizedBox.shrink(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(Navigator.of(reader).canPop(), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(Navigator.of(reader).canPop(), isFalse);
+      expect(findRefRequests, 1);
+      expect(fullscreen.state, isTrue);
+      expect(geometry.calls, isEmpty);
+
+      settingsBloc.emitStateForTest(SettingsState.initial());
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(findRefRequests, 1);
+      expect(fullscreen.state, isFalse);
+      expect(geometry.calls, ['fullScreen:false', 'titleBar']);
+      geometry.calls.clear();
 
       // התרחיש מחייב פוקוס בתוך ה-KeyboardListener של הספר.
       final bookListener = find.descendant(
@@ -2706,6 +2778,7 @@ Future<void> _pumpTextBookScreen(
   AppWindowGeometry? geometry,
   WindowFullscreenCubit? fullscreenCubit,
   bool withGlobalShortcuts = false,
+  VoidCallback? onFindRefRequested,
   bool withPaneDragHandle = false,
   ThemeData? theme,
   TextScaler? textScaler,
@@ -2727,7 +2800,10 @@ Future<void> _pumpTextBookScreen(
     viewer = PaneDragHandleScope(pane: tab, enabled: true, child: viewer);
   }
   final screen = withGlobalShortcuts
-      ? KeyboardShortcuts(onFindRefRequested: () {}, child: viewer)
+      ? KeyboardShortcuts(
+          onFindRefRequested: onFindRefRequested ?? () {},
+          child: viewer,
+        )
       : viewer;
   await tester.pumpWidget(
     MultiProvider(
@@ -2938,6 +3014,16 @@ class _NoTocBook extends TextBook {
 
   @override
   Future<List<TocEntry>> get tableOfContents async => const [];
+}
+
+class _PdfMappingBook extends TextBook {
+  _PdfMappingBook() : super(title: 'ספר בדיקה');
+
+  @override
+  Future<List<TocEntry>> get tableOfContents async => [
+    TocEntry(text: 'פרק א', index: 0, level: 1),
+    TocEntry(text: 'פרק ב', index: 10, level: 1),
+  ];
 }
 
 class _TestHistoryBloc extends Cubit<HistoryState> implements HistoryBloc {

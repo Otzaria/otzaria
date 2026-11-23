@@ -20,11 +20,13 @@ import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/plugins/services/startup_crash_counter.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
+import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/android_anr_source.dart';
+import 'package:otzaria/app_report/services/android_hang_monitor.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
@@ -66,8 +68,10 @@ import 'package:otzaria/core/data_root_writability_warning.dart';
 import 'package:otzaria/core/personal_data_missing_warning.dart';
 import 'package:otzaria/core/cli_command.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/sqlite_memory_release.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/diagnostics/native_incident_context.dart';
 import 'package:otzaria/core/info/app_info_cli.dart';
 import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/info/app_install_timeline.dart';
@@ -154,6 +158,7 @@ void _markMainWindowRevealed() {
     _mainWindowRevealedCompleter.complete();
   }
   StartupTimeline.instance.finishAtReveal();
+  NativeIncidentContext.enable();
 }
 
 /// macOS בלי ריבוי תצוגות (ה-runner לא הפך את המנוע): חלון יחיד, והסיבה נרשמת ללוג.
@@ -977,6 +982,7 @@ Future<void> _initializeRestartableRuntime() async {
   unawaited(_runDeferredPortableShortcut());
   unawaited(_runDeferredCrashCheck());
   unawaited(_runDeferredAnrCheck());
+  unawaited(_runDeferredAndroidHangMonitor());
   unawaited(_runDeferredAttachedLibraries());
   unawaited(_runDeferredLibraryChangesNotes());
   unawaited(_runDeferredCapabilitiesWrite());
@@ -1163,6 +1169,19 @@ Future<void> _runDeferredCrashCheck() async {
   }
 }
 
+Future<void> _runDeferredAndroidHangMonitor() async {
+  if (kIsWeb || !Platform.isAndroid) return;
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () {},
+    );
+    await AndroidHangMonitor().start();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Hang monitor', error, stackTrace);
+  }
+}
+
 /// ANR של הפעלה קודמת באנדרואיד, מ-ApplicationExitInfo של המערכת.
 Future<void> _runDeferredAnrCheck() async {
   if (kIsWeb || !Platform.isAndroid) return;
@@ -1321,8 +1340,34 @@ Future<void> _runDeferredAttachedLibraryUpdates() async {
   } on TimeoutException {
     // Continue anyway, or the check never runs.
   }
+  final updates = AttachedLibraryUpdateService.instance;
   try {
-    await AttachedLibraryUpdateService.instance.runScheduledCheck();
+    // חבילה במיקום האיסוף מותקנת גם במצב לא מקוון — אין בה פנייה לרשת.
+    final dropped = await updates.importDroppedPackages();
+    for (final MapEntry(key: entry, value: result) in dropped.entries) {
+      if (result == OfficialPackageResult.installed) {
+        UiSnack.show(
+          SettingsMessages.officialLibraryInstalled(entry.displayName),
+        );
+      } else if (result != OfficialPackageResult.alreadyInstalled) {
+        UiSnack.showError(
+          SettingsMessages.droppedOfficialPackageRejected(
+            entry.offlinePackageName!,
+            AttachedLibrariesBloc.packageMessage(result),
+          ),
+        );
+      }
+    }
+    await updates.adoptManualCopies();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError(
+      'Official library packages',
+      error,
+      stackTrace,
+    );
+  }
+  try {
+    await updates.runScheduledCheck();
   } catch (error, stackTrace) {
     _logNonFatalInitializationError(
       'Attached library updates',

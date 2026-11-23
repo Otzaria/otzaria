@@ -51,7 +51,7 @@ class RaisedMarker {
   /// סימון לחיץ (עוגן) — hit-test על הציור המורם מופנה לעוגן שבשורה.
   final bool clickable;
 
-  /// מצויר בצבע הקישור (אות מפרש) במקום בצבע הטקסט.
+  /// מצויר בצבע קישורי הספר.
   final bool useLinkColor;
 
   /// אינדקס הווריאנט הטיפוגרפי של אות מפרש (link-anchor-N), אם יש.
@@ -235,8 +235,9 @@ class RaisedMarkers {
         scale = kFootnoteMarkerScale;
         italic = true;
         clickable = true;
+        useLinkColor = true;
       } else if (match[8] != null) {
-        // סמן-אות של הערה בספר אחר — מטריקות raised-sup, עם הפניית ריחוף.
+        // סמן-אות מועמד; קיום הערה תואמת מתברר רק בריחוף.
         rawContent = match[8]!;
         scale = kHtmlSmallerFontScale;
         clickable = true;

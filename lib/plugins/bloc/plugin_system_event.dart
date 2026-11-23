@@ -20,6 +20,7 @@ class InstallPluginRequested extends PluginSystemEvent {
   final String archivePath;
   final bool forceOverwrite;
   final bool isUserInitiated;
+  final bool requireNewInstallation;
 
   /// הבקשה הגיעה בקישור install-local, והתוצאה נרשמת ב-plugin_install_results.jsonl.
   final bool recordsResult;
@@ -29,7 +30,14 @@ class InstallPluginRequested extends PluginSystemEvent {
     this.forceOverwrite = false,
     this.isUserInitiated = false,
     this.recordsResult = false,
-  });
+  }) : requireNewInstallation = false;
+
+  /// פותח אישור התקנה לחבילה חדשה שנבחרה בבקשה מממשק החנות.
+  const InstallPluginRequested.fromPluginPicker(this.archivePath)
+    : forceOverwrite = true,
+      isUserInitiated = false,
+      recordsResult = false,
+      requireNewInstallation = true;
 
   @override
   List<Object?> get props => [
@@ -37,6 +45,7 @@ class InstallPluginRequested extends PluginSystemEvent {
     forceOverwrite,
     isUserInitiated,
     recordsResult,
+    requireNewInstallation,
   ];
 }
 
@@ -86,6 +95,7 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
 class ConfirmPluginInstall extends PluginSystemEvent {
   final String tempDirPath;
   final PluginManifest manifest;
+  final bool requireNewInstallation;
 
   /// מיפוי הרשאה → האם הוענקה. הרשאות עם ערך false יישמרו כחסומות.
   final Map<String, bool> grantedPermissions;
@@ -101,6 +111,7 @@ class ConfirmPluginInstall extends PluginSystemEvent {
     this.grantedPermissions, {
     this.reportContext,
     this.previousVersion,
+    this.requireNewInstallation = false,
   });
 
   bool get isUpdate => previousVersion != null;
@@ -113,6 +124,7 @@ class ConfirmPluginInstall extends PluginSystemEvent {
     reportContext?.token,
     reportContext?.callbackUrl,
     previousVersion,
+    requireNewInstallation,
   ];
 }
 

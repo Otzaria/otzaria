@@ -297,6 +297,7 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
               ),
             ],
             categoryId: key.$2,
+            allowLegacyOfficialTitle: false,
           );
           resolvedBooks[key] = resolved?.book;
         }
@@ -657,6 +658,11 @@ class DbReadWorker {
     () => Isolate.run(read),
     requestArguments: requestArguments,
   );
+
+  /// קריאת מטא־דאטה שכבר חולקת Future אחד בין קוראים, גם כשה־fallback עמוס.
+  /// החלפת המסד ממתינה לסגירת החיבור שלה.
+  static Future<T> runMetadataOnFreshIsolate<T>(T Function() read) =>
+      _trackTemporaryRead(() => Isolate.run(read));
 
   /// מסלול ההתאוששות משתמש באותה מכסת חיבורים זמניים.
   static Future<T> runFallbackOnFreshIsolate<T>(
@@ -1397,6 +1403,7 @@ void _workerMain(_Bootstrap bootstrap) {
         ),
       ],
       categoryId: categoryId,
+      allowLegacyOfficialTitle: false,
     );
     if (resolvedBooks.length >= _maxResolvedBooks) resolvedBooks.clear();
     return resolvedBooks[key] = resolved?.book;

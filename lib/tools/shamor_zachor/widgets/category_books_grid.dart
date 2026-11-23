@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -250,7 +252,7 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     switch (widget.selectedFilter) {
       case 'in_progress':
         return const OtzariaEmptyState(
-          icon: FluentIcons.hourglass_24_regular,
+          icon: OtzariaIcons.book_progress_24_regular,
           title: 'אין ספרים בתהליך',
           message:
               'ניתן להוסיף ספרים למעקב באמצעות לחצן ההוספה (+) שליד הסינון, '
@@ -347,12 +349,13 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
         padding: shrinkWrap ? EdgeInsets.zero : const EdgeInsets.all(16),
         physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
         shrinkWrap: shrinkWrap,
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 350,
-          childAspectRatio: 1.5,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          mainAxisExtent: 192,
+          // scale(1) תומך בהגדלה לא-לינארית, והטבעות והריפוד לא מצטמצמים.
+          mainAxisExtent:
+              264 * math.max(1.0, MediaQuery.textScalerOf(context).scale(1)),
         ),
         itemCount: books.length,
         itemBuilder: (context, index) {

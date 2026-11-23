@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 /// הטון של [MetaChip] (DD-13).
 enum MetaChipTone {
@@ -31,7 +33,8 @@ class MetaChip extends StatelessWidget {
   final MetaChipTone tone;
   final MetaChipSize size;
 
-  /// טקסט הריחוף. בלעדיו אין tooltip.
+  /// טקסט הריחוף. בלעדיו אין tooltip. טקסט שחוזר על [label] מוצג רק כשהתווית
+  /// נחתכת.
   final String? tooltip;
 
   /// מספר השורות של התווית, למשל תאריך עברי ולועזי בשתי שורות.
@@ -84,6 +87,10 @@ class MetaChip extends StatelessWidget {
     final colors = colorsOf(context, tone);
     final small = size == MetaChipSize.small;
     final textTheme = Theme.of(context).textTheme;
+    final labelStyle = (small ? textTheme.labelSmall : textTheme.labelMedium)
+        ?.copyWith(color: colors.foreground);
+    // טולטיפ שחוזר על התווית מיותר; היא מוצגת בריחוף רק כשהיא נחתכת.
+    final repeatsLabel = tooltipRepeatsLabel(tooltip, label);
     final chip = DecoratedBox(
       decoration: BoxDecoration(
         color: colors.background,
@@ -111,19 +118,25 @@ class MetaChip extends StatelessWidget {
               const SizedBox(width: AppTokens.spaceXS),
             ],
             Flexible(
-              child: Text(
-                label,
-                maxLines: maxLines,
-                overflow: TextOverflow.ellipsis,
-                style: (small ? textTheme.labelSmall : textTheme.labelMedium)
-                    ?.copyWith(color: colors.foreground),
-              ),
+              child: repeatsLabel && tooltip != null
+                  ? OverflowTooltipText(
+                      text: label,
+                      maxLines: maxLines,
+                      tooltipMessage: tooltip,
+                      style: labelStyle,
+                    )
+                  : Text(
+                      label,
+                      maxLines: maxLines,
+                      overflow: TextOverflow.ellipsis,
+                      style: labelStyle,
+                    ),
             ),
           ],
         ),
       ),
     );
-    if (tooltip == null) return chip;
+    if (repeatsLabel) return chip;
     return Tooltip(message: tooltip, child: chip);
   }
 }

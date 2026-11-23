@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 
 /// גוון הגלולה: [primary] כברירת מחדל, [error] לכשל.
 enum StatusChipTone { primary, error }
@@ -54,37 +55,39 @@ class StatusChip extends StatelessWidget {
         cs.onErrorContainer,
       ),
     };
-    final chip = Tooltip(
-      message: tooltip,
-      child: TextButton.icon(
-        onPressed: onPressed,
-        // הצבע והמסגרת על הכפתור עצמו: במגע שטח הלחיצה 48 (ערכת הנושא)
-        // סביב אותו צ'יפ בגובה 32.
-        style: TextButton.styleFrom(
-          backgroundColor: container,
-          disabledBackgroundColor: container,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: accent, width: 1.2),
-          ),
-          foregroundColor: onContainer,
-          textStyle: theme.textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-          disabledForegroundColor: busy ? onContainer : null,
-          disabledIconColor: busy ? onContainer : null,
-          minimumSize: const Size(0, 32),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    final Widget button = TextButton.icon(
+      onPressed: onPressed,
+      // הצבע והמסגרת על הכפתור עצמו: במגע שטח הלחיצה 48 (ערכת הנושא)
+      // סביב אותו צ'יפ בגובה 32.
+      style: TextButton.styleFrom(
+        backgroundColor: container,
+        disabledBackgroundColor: container,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppTokens.borderRadiusAll,
+          side: BorderSide(color: accent, width: 1.2),
         ),
-        icon: icon,
-        label: Text(label),
+        foregroundColor: onContainer,
+        textStyle: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        disabledForegroundColor: busy ? onContainer : null,
+        disabledIconColor: busy ? onContainer : null,
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       ),
+      icon: icon,
+      label: Text(label),
     );
+    // טולטיפ שחוזר על התווית הגלויה מיותר.
+    final repeatsLabel = tooltipRepeatsLabel(tooltip, label);
+    final chip = repeatsLabel
+        ? button
+        : Tooltip(message: tooltip, child: button);
     if (!busy) return chip;
     return Semantics(
       container: true,
       label: label,
-      hint: tooltip,
+      hint: repeatsLabel ? null : tooltip,
       excludeSemantics: true,
       child: chip,
     );

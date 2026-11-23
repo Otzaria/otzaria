@@ -29,9 +29,7 @@ typedef _BookFile = ({
 });
 
 typedef _BookFileScan = ({
-  String personalRoot,
-  List<String> personalFiles,
-  List<String> bundledFiles,
+  List<_BookFile> files,
   Map<String, String> paths,
   Map<int, String> categoryPaths,
 });
@@ -119,7 +117,7 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final aliases = <String, String>{};
     final categoryDisplays =
         <_BookFileCategory, ({String name, String path})>{};
-    for (final file in _catalogFiles(scan)) {
+    for (final file in scan.files) {
       final category = file.category;
       if (!kDebugMode && category.parts.contains('ספרים מספריות חיצוניות')) {
         continue;
@@ -208,21 +206,18 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
     String personalPath,
     List<String> bundledPaths,
   ) => Isolate.run(() async {
-    final personalFiles = <String>[];
-    final bundledFiles = <String>[];
+    final files = <_BookFile>[];
     final paths = <String, String>{};
     final categoryPaths = <int, String>{};
 
-    void addPath(
+    void addFile(
       String path,
       DocumentFormat format,
       _BookFileCategory category,
     ) {
-      final key = _generateKey(
-        getTitleFromPath(path),
-        category.id,
-        format.extension,
-      );
+      final title = getTitleFromPath(path);
+      files.add((path: path, title: title, format: format, category: category));
+      final key = _generateKey(title, category.id, format.extension);
       paths[key] = path;
       categoryPaths[category.id] = category.path;
     }
@@ -244,43 +239,30 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
           );
       await for (final entity in entries) {
         if (entity is! File) continue;
-        final format = documentFormatFromExtension(entity.path);
+        final path = entity.path;
+        final format = documentFormatFromExtension(path);
         if (format == null || !format.isProductionSupported) continue;
         if (format.needsContentSniffing &&
-            !await isSupportedBookFileByContent(entity.path)) {
+            !await isSupportedBookFileByContent(path)) {
           continue;
         }
-        personalFiles.add(entity.path);
-        final parent = _parentPath(entity.path);
+        final parent = _parentPath(path);
         final category = categories.putIfAbsent(
           parent,
           () => _personalCategory(personalPath, parent),
         );
-        addPath(entity.path, format, category);
+        addFile(path, format, category);
       }
     }
 
     final talmudCategory = _talmudCategory();
-    for (final path in bundledPaths) {
-      final dir = Directory(path);
-      if (!await dir.exists()) continue;
-      await for (final entity in dir.list()) {
-        if (entity is! File ||
-            documentFormatFromExtension(entity.path) != DocumentFormat.pdf) {
-          continue;
-        }
-        bundledFiles.add(entity.path);
-        addPath(entity.path, DocumentFormat.pdf, talmudCategory);
-      }
-      break;
-    }
-    return (
-      personalRoot: personalPath,
-      personalFiles: personalFiles,
-      bundledFiles: bundledFiles,
-      paths: paths,
-      categoryPaths: categoryPaths,
+    final bundled = await DatabaseConstants.findBundledTalmudBavliPdfs(
+      bundledPaths,
     );
+    for (final pdf in bundled.files) {
+      addFile(pdf, DocumentFormat.pdf, talmudCategory);
+    }
+    return (files: files, paths: paths, categoryPaths: categoryPaths);
   });
 
   static String _parentPath(String path) =>
@@ -300,32 +282,6 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
   static _BookFileCategory _talmudCategory() {
     const path = DatabaseConstants.talmudBavliFolderName;
     return (parts: const [path], path: path, id: path.hashCode);
-  }
-
-  static Iterable<_BookFile> _catalogFiles(_BookFileScan scan) sync* {
-    final categories = <String, _BookFileCategory>{};
-    for (final path in scan.personalFiles) {
-      final parent = _parentPath(path);
-      final category = categories.putIfAbsent(
-        parent,
-        () => _personalCategory(scan.personalRoot, parent),
-      );
-      yield (
-        path: path,
-        title: getTitleFromPath(path),
-        format: documentFormatFromExtension(path)!,
-        category: category,
-      );
-    }
-    final talmudCategory = _talmudCategory();
-    for (final path in scan.bundledFiles) {
-      yield (
-        path: path,
-        title: getTitleFromPath(path),
-        format: DocumentFormat.pdf,
-        category: talmudCategory,
-      );
-    }
   }
 
   Book _createBookFromFile(

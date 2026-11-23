@@ -77,6 +77,94 @@ void main() {
       },
     );
 
+    for (final scenario in ['empty', 'installing', 'unreadable version']) {
+      test('uses the fallback when the primary is $scenario', () async {
+        final candidates = DatabaseConstants.getTalmudBavliDirectoryPaths(
+          tempDir.path,
+          'Otzaria',
+        );
+        final primary = await Directory(
+          candidates.first,
+        ).create(recursive: true);
+        final fallback = await Directory(
+          candidates.last,
+        ).create(recursive: true);
+        final pdf = await File(
+          path.join(fallback.path, 'ברכות.pdf'),
+        ).writeAsString('%PDF');
+        if (scenario != 'empty') {
+          await File(
+            path.join(primary.path, 'ברכות.pdf'),
+          ).writeAsString('%PDF');
+          final marker = File(
+            DatabaseConstants.talmudBavliVersionFilePath(primary.path),
+          );
+          if (scenario == 'installing') {
+            await marker.writeAsString(
+              DatabaseConstants.talmudBavliInstallingMarker,
+            );
+          } else {
+            await marker.writeAsBytes([0xff]);
+          }
+        }
+
+        final provider = FileSystemLibraryProvider.instance;
+        final books = await provider.loadBooks({});
+        final book = books[DatabaseConstants.talmudBavliFolderName]!.single;
+        expect(book, isA<PdfBook>());
+        expect((book as PdfBook).path, pdf.path);
+        final paths = await provider.keyToPath;
+        expect(
+          paths[BookCompositeKey.create(
+            title: 'ברכות',
+            categoryId: DatabaseConstants.talmudBavliFolderName.hashCode,
+            fileType: 'pdf',
+          ).toStorageKey()],
+          pdf.path,
+        );
+      });
+    }
+
+    test('ספרים אישיים קודמים לקובצי בבלי בקטגוריה משותפת', () async {
+      const category = DatabaseConstants.talmudBavliFolderName;
+      final personalDir = await Directory(
+        path.join(tempDir.path, 'אוצריא', 'אישי', '$category.מהדורה'),
+      ).create(recursive: true);
+      final bundledDir = await Directory(
+        path.join(tempDir.path, category),
+      ).create(recursive: true);
+      final textBook = await File(
+        path.join(personalDir.path, 'ברכות.א.TXT'),
+      ).writeAsString('טקסט');
+      final pdfBook = await File(
+        path.join(bundledDir.path, 'ברכות.א.PDF'),
+      ).writeAsBytes(const [37, 80, 68, 70]);
+
+      final provider = FileSystemLibraryProvider.instance;
+      final physicalPathsFuture = provider.physicalKeyToPath;
+      final booksByCategory = await provider.loadBooks({
+        'ברכות.א': {'author': 'מחבר'},
+      });
+      final books = booksByCategory[category]!;
+      final paths = await provider.keyToPath;
+
+      expect(books.map((book) => book.title), ['ברכות.א', 'ברכות.א']);
+      expect(books.map((book) => book.author), ['מחבר', 'מחבר']);
+      expect(books.map((book) => book.fileType), ['txt', 'pdf']);
+      expect(books.map((book) => book.categoryPath), [
+        'ספרים אישיים, $category',
+        category,
+      ]);
+      expect((await physicalPathsFuture).values, [textBook.path, pdfBook.path]);
+      expect(
+        [
+          for (final book in books)
+            paths[BookCompositeKey.fromBook(book)!.toStorageKey()],
+        ],
+        [textBook.path, pdfBook.path],
+      );
+    });
+
     test('טעינה מקבילה מספקת נתיבים לקטלוג ולמפתחות ישנים', () async {
       final personalDir = Directory(
         path.join(tempDir.path, 'אוצריא', 'אישי', 'הלכה.מהדורה'),

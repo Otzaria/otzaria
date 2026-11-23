@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -20,6 +21,8 @@ import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart'
     show initialReadingAlignment;
+import 'package:otzaria/text_book/utils/section_search_utils.dart'
+    show bracketMarkerFractionForReference;
 
 /// כרטיסיית קורא טקסט; ה-BLoC שלה נוצר רק בגישה הראשונה אליו.
 class TextBookTab extends OpenedTab {
@@ -63,6 +66,23 @@ class TextBookTab extends OpenedTab {
   /// הסעיף המודגש, שנשאר קבוע גם כשהמיקום הנוכחי משתנה; null משתמש ב-[index].
   final int? pinpointHighlightSectionIndex;
 
+  /// הפניה שסמן הכותרת שבסופה (`[סעיף ו]`) נמצא בתוך שורת היעד; הפתיחה גוללת אליו.
+  final String? markerReference;
+
+  /// שורה שקישור ביקש לבחור בפתיחה הזאת. הערך אינו נשמר בשולחן העבודה.
+  int? get linkSelectedLine => _linkSelectedLine;
+  int? _linkSelectedLine;
+
+  /// מחליף בחירה ממתינה, גם לפני שנוצר הקורא של הכרטיסייה.
+  void updateLinkSelection(int? line) {
+    final currentBloc = _bloc;
+    if (currentBloc == null) {
+      _linkSelectedLine = line;
+    } else {
+      currentBloc.add(SelectLineWhenVisible(line));
+    }
+  }
+
   /// נבנה בגישה הראשונה בלבד: פענוח ושמירת שולחן עבודה אינם צריכים BLoC חי.
   TextBookBloc get bloc => _bloc ??= _createBloc();
   TextBookBloc? _bloc;
@@ -77,6 +97,21 @@ class TextBookTab extends OpenedTab {
   ReadingAnchor get readingAnchor =>
       lines.captureAnchor() ??
       ReadingAnchor(line: index, alignment: initialReadingAlignment(index));
+
+  /// עוגן הפתיחה של תוצאת איתור עם סמן בשורה.
+  ReadingAnchor openingReadingAnchor(TextBookLoaded state) {
+    final current = lines.captureAnchor();
+    if (current != null) return current;
+    final line = index;
+    final marker = markerReference;
+    return ReadingAnchor(
+      line: line,
+      alignment: initialReadingAlignment(line),
+      intraLineFraction: marker != null && line < state.content.length
+          ? bracketMarkerFractionForReference(state.content[line], marker)
+          : 0,
+    );
+  }
 
   /// הכותרת הנוכחית של המיקום בספר (למשל "בראשית פרק ד")
   final currentTitle = ValueNotifier<String>("");
@@ -136,8 +171,10 @@ class TextBookTab extends OpenedTab {
   // StreamSubscription לניהול ה-listener
   StreamSubscription<TextBookState>? _stateSubscription;
 
+  /// [book] שנשמר בכותרת ישנה מקבל את הכותרת שבקטלוג, כדי שהטאב, ההערות
+  /// והשמירה יחלקו אותה כותרת.
   TextBookTab({
-    required this.book,
+    required TextBook book,
     required int index,
     ReadingAnchor? initialReadingAnchor,
     this.searchText = '',
@@ -160,14 +197,14 @@ class TextBookTab extends OpenedTab {
     super.dedupeKey,
     this.pinpointHighlight,
     this.pinpointHighlightSectionIndex,
+    this._linkSelectedLine,
+    this.markerReference,
     @visibleForTesting TextBookBloc? blocOverride,
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
-  }) : _index = initialReadingAnchor?.line ?? index,
-       super(
-         book.versionDisplayTitle == null
-             ? book.title
-             : '${book.title} (${book.versionDisplayTitle})',
-       ) {
+  }) : book = book.withCatalogTitle(),
+       _index = initialReadingAnchor?.line ?? index,
+       super('') {
+    title = _tabTitle(this.book);
     lines = LineScrollController(initialAnchor: initialReadingAnchor);
     // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
     final bool effectiveSplitedView =
@@ -176,17 +213,18 @@ class TextBookTab extends OpenedTab {
     // כשאין בחירה מפורשת, גם פתיחה מהיסטוריה ומקישורים מכבדת את העדפת הספר.
     final bool effectiveShowPageShapeView =
         showPageShapeView ??
-        PageShapeSettingsManager.getViewModePreference(book.title) ??
+        PageShapeSettingsManager.getViewModePreference(this.book.title) ??
         false;
 
     _lastSplitView = effectiveSplitedView;
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
     _initialState = TextBookInitial.named(
-      book,
+      this.book,
       _index,
       openLeftPane,
       commentators ?? [],
+      hasExplicitCommentators: commentators != null,
       searchText: searchText,
       searchOrigin: searchOrigin,
       searchTemplate: searchTemplate,
@@ -215,12 +253,17 @@ class TextBookTab extends OpenedTab {
     if (blocOverride != null) _bloc = _attachBloc(blocOverride);
   }
 
+  static String _tabTitle(TextBook book) => book.versionDisplayTitle == null
+      ? book.title
+      : '${book.title} (${book.versionDisplayTitle})';
+
   TextBookBloc _createBloc() {
     final created = _attachBloc(
       TextBookBloc(
         repository: TextBookRepository(fileSystem: FileSystemData.instance),
         initialState: _initialState,
         readingPosition: lines.position,
+        linkSelectedLine: linkSelectedLine,
       ),
     );
     if (_isDisposed) created.close();
@@ -298,6 +341,16 @@ class TextBookTab extends OpenedTab {
         ? rawResultLines.whereType<int>().toSet()
         : null;
 
+    final rawCommentators = json['commentators'];
+    // שמירות ישנות כללו מערך ריק גם כשהטאב טרם טען בחירה.
+    final commentators =
+        rawCommentators is List &&
+            rawCommentators.every((value) => value is String) &&
+            (rawCommentators.isNotEmpty ||
+                json['hasExplicitCommentators'] == true)
+        ? List<String>.from(rawCommentators)
+        : null;
+
     final tab = TextBookTab(
       index: json['initalIndex'],
       initialReadingAnchor: ReadingAnchor.tryFromJson(json['readingAnchor']),
@@ -316,7 +369,7 @@ class TextBookTab extends OpenedTab {
           json['pinpointHighlightSectionIndex'] is int
           ? json['pinpointHighlightSectionIndex'] as int
           : null,
-      commentators: List<String>.from(json['commentators']),
+      commentators: commentators,
       splitedView: splitedView,
       showPageShapeView: json['showPageShapeView'] ?? false,
       openLeftPane: shouldOpenLeftPane,
@@ -424,7 +477,10 @@ class TextReadingSnapshot {
     if (state is TextBookLoaded) {
       _splitView = state.showSplitView;
       _pageShapeView = state.showPageShapeView;
-      _commentators = state.activeCommentators;
+      _commentators =
+          state.activeCommentators.isNotEmpty || state.hasExplicitCommentators
+          ? state.activeCommentators
+          : null;
       _highlightText = state.highlightText;
       _permanentHighlightLine = state.permanentHighlightLine;
       _searchResultLines = state.searchResultLines;
@@ -505,6 +561,7 @@ class TextReadingSnapshot {
     'initalIndex': _index,
     if (_readingAnchor != null) 'readingAnchor': _readingAnchor.toJson(),
     'commentators': _commentators ?? <String>[],
+    if (_commentators?.isEmpty ?? false) 'hasExplicitCommentators': true,
     'splitedView': _persistedSplitView,
     'showPageShapeView': _persistedPageShapeView,
     'showLeftPane': _showLeftPane,

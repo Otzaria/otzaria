@@ -25,6 +25,98 @@ Future<void> main() async {
       expect(request.offset, 0);
     });
 
+    test('regex: true שולח למנוע את /…/ כמו שהוא (issue #5516)', () {
+      final ordinary = PluginSearchRequest.fromArgs({'query': '/מש.ה/'});
+      expect(ordinary.regex, isFalse);
+      expect(ordinary.sanitizedQuery, isNot('/מש.ה/'));
+      final regex = PluginSearchRequest.fromArgs({
+        'query': '/מש.ה/',
+        'regex': true,
+      });
+      expect(regex.regex, isTrue);
+      expect(regex.sanitizedQuery, '/מש.ה/');
+      expect(regex.order, engine.ResultsOrder.catalogue);
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test('regex מכבד את אפשרויות המיון והאיחוד של המנוע', () {
+      final term = PluginSearchRequest.fromArgs({
+        'query': '/מש.ה/',
+        'regex': true,
+        'order': 'generation',
+        'grouping': 'none',
+      });
+      expect(term.order, engine.ResultsOrder.generation);
+      expect(term.grouping, isNull);
+
+      final crossSpace = PluginSearchRequest.fromArgs({
+        'query': r'/שמע \S+ ישראל/',
+        'regex': true,
+      });
+      expect(crossSpace.order, engine.ResultsOrder.catalogue);
+
+      for (final args in [
+        {'query': '/מש.ה/', 'grouping': 'identicalText'},
+        {'query': r'/שמע \S+ ישראל/', 'order': 'generation'},
+      ]) {
+        expect(
+          () => PluginSearchRequest.fromArgs({...args, 'regex': true}),
+          throwsA(
+            isA<Exception>().having(
+              (error) => error.toString(),
+              'message',
+              contains('error.invalid_params'),
+            ),
+          ),
+        );
+      }
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test(
+      "regex: true דוחה רג'קס לא תקין ופרמטרים שאינם מתאימים לו (issue #5516)",
+      () {
+        for (final query in ['מש.ה', '/[א-ת/', '/']) {
+          expect(
+            () => PluginSearchRequest.fromArgs({'query': query, 'regex': true}),
+            throwsA(
+              isA<Exception>().having(
+                (e) => e.toString(),
+                'message',
+                contains('error.invalid_params'),
+              ),
+            ),
+          );
+        }
+        for (final args in [
+          {'query': '/מש.ה/', 'regex': true, 'mode': 'fuzzy'},
+          {
+            'query': '/מש.ה/',
+            'regex': true,
+            'negativeQuery': 'שבת',
+            'mode': 'advanced',
+          },
+          {'query': '/מש.ה/', 'regex': true, 'distance': 2},
+          {
+            'query': '/מש.ה/',
+            'regex': true,
+            'options': {'חלק ממילה': true},
+          },
+        ]) {
+          expect(
+            () => PluginSearchRequest.fromArgs(args),
+            throwsA(isA<Exception>()),
+          );
+        }
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test('regex חייב להיות בוליאני (issue #5516)', () {
+      expect(
+        () => PluginSearchRequest.fromArgs({'query': 'א', 'regex': 'true'}),
+        throwsA(isA<Exception>()),
+      );
+    });
+
     test('שאילתה ריקה נדחית', () {
       expect(
         () => PluginSearchRequest.fromArgs({'query': '   '}),

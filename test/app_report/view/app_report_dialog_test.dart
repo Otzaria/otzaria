@@ -199,6 +199,21 @@ void main() {
     expect(find.text('saved@x.com'), findsOneWidget);
   });
 
+  testSnack('הטופס מבהיר שאין לדווח כאן על תוספים (issue #5728)', (
+    tester,
+  ) async {
+    await pumpDialog(tester);
+
+    final banner = find.textContaining('תוספים');
+    expect(banner, findsOneWidget);
+    expect(find.textContaining('הכלים המובנים'), findsOneWidget);
+    // ההבהרה פותחת את הטופס, לפני שדה הסוג.
+    expect(
+      tester.getTopLeft(banner).dy,
+      lessThan(tester.getTopLeft(find.text('סוג הדיווח')).dy),
+    );
+  });
+
   testSnack('השדות ממולאים במשטח הכרטיס, כמו בעריכת דיווח שמור (#3448)', (
     tester,
   ) async {

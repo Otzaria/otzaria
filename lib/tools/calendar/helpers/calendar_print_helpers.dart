@@ -67,6 +67,7 @@ Future<Uint8List> createCalendarPdf(
     'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
   );
   final fallbackBytes = await _loadFont('fonts/Tinos-Regular.ttf');
+  await preloadShaperLibrary();
   return withShaperFontPair(
     createPrimary: () => ShaperFont.register(primaryBytes),
     createFallback: () => ShaperFont.register(fallbackBytes),
@@ -504,10 +505,11 @@ pw.Widget _buildGregorianCalendarGrid(
     final jewishEvents = _jewishEventsForDate(date, state.inIsrael);
     cells.add(
       _buildDayCellPdf(
-        '$day',
-        formatHebrewDay(jd.getJewishDayOfMonth()),
-        events,
-        font,
+        hebrewLabel: formatHebrewDay(jd.getJewishDayOfMonth()),
+        gregorianLabel: '$day',
+        hebrewIsPrimary: false,
+        events: events,
+        font: font,
         jewishEvents: jewishEvents,
         zmanim: _cellZmanim(state, date, zmanim),
       ),
@@ -545,10 +547,11 @@ pw.Widget _buildHebrewCalendarGrid(
     final jewishEvents = _jewishEventsForDate(date, state.inIsrael);
     cells.add(
       _buildDayCellPdf(
-        formatHebrewDay(day),
-        '${date.day}',
-        events,
-        font,
+        hebrewLabel: formatHebrewDay(day),
+        gregorianLabel: '${date.day}',
+        hebrewIsPrimary: true,
+        events: events,
+        font: font,
         jewishEvents: jewishEvents,
         zmanim: _cellZmanim(state, date, zmanim),
       ),
@@ -606,19 +609,30 @@ pw.Widget _buildGridFromCells(
   );
 }
 
-pw.Widget _buildDayCellPdf(
-  String primaryLabel,
-  String secondaryLabel,
-  List<CustomEvent> events,
-  _CalendarText font, {
+/// התאריך העברי תמיד בימין התא והלועזי בשמאלו (העמוד RTL); ההגדרה קובעת
+/// רק איזה מהם גדול ([hebrewIsPrimary]).
+pw.Widget _buildDayCellPdf({
+  required String hebrewLabel,
+  required String gregorianLabel,
+  required bool hebrewIsPrimary,
+  required List<CustomEvent> events,
+  required _CalendarText font,
   List<String> jewishEvents = const [],
   List<(String, String)> zmanim = const [],
 }) {
   const padding = 4.0;
+  pw.Widget label(String text, bool primary, ShapedTextAlign align) => primary
+      ? font(text, 11, align: align)
+      : font(text, 8, color: PdfColors.grey600, align: align);
   pw.Widget header() => pw.Row(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
-      pw.Expanded(child: font(secondaryLabel, 8, color: PdfColors.grey600)),
-      pw.Expanded(child: font(primaryLabel, 11, align: ShapedTextAlign.end)),
+      pw.Expanded(
+        child: label(hebrewLabel, hebrewIsPrimary, ShapedTextAlign.start),
+      ),
+      pw.Expanded(
+        child: label(gregorianLabel, !hebrewIsPrimary, ShapedTextAlign.end),
+      ),
     ],
   );
   List<pw.Widget> fixedLines() => [

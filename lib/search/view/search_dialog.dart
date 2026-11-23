@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -528,6 +530,7 @@ class _SearchDialogState extends State<SearchDialog> {
               child: FilterChip(
                 label: Text(context.settingsText(key)),
                 visualDensity: VisualDensity.compact,
+                showCheckmark: false,
                 selected: _searchTab.globalSearchOptions[key] ?? false,
                 onSelected:
                     disabledOptionIds.contains(
@@ -560,6 +563,7 @@ class _SearchDialogState extends State<SearchDialog> {
         key: const ValueKey('search-word-order-chip'),
         label: Text(context.settingsText('שמור על סדר המילים המקורי')),
         visualDensity: VisualDensity.compact,
+        showCheckmark: false,
         selected: !state.anyOrder,
         onSelected: (keepOrder) => _searchTab.searchBloc.add(
           _usesStagedSubmit
@@ -572,17 +576,50 @@ class _SearchDialogState extends State<SearchDialog> {
 
   /// קביעת מצב החיפוש הנוכחי כמצב שבו ייפתח כל חיפוש חדש. הפריט בתפריט
   /// נלחץ בטעות, ולכן השמירה עוברת דרך אישור. [mode] הוא null במצב החכם.
+  /// במצב הרגיל והמתקדם האישור שומר כברירת מחדל גם את האפשרויות שבחלונית,
+  /// אלא אם המשתמש ביטל את הסימון (issue #5185).
   Future<void> _confirmSetModeAsDefault(SearchMode? mode) async {
     final modeLabel = context.settingsText(
       mode?.shortLabel ?? kSemanticSearchModeLabel,
     );
+    final message = context.settingsText(
+      'כל חיפוש חדש ייפתח מעכשיו במצב "{mode}". ניתן לשנות זאת שוב בכל עת.',
+      args: {'mode': modeLabel},
+    );
+    var withOptions = mode == SearchMode.exact || mode == SearchMode.advanced;
+    // פר-מילה ("זהה לכל המילים" כבוי) המפה הגלובלית אינה המוצג בחלונית,
+    // ולכן נשמרים רק המרווח וסדר המילים.
+    final perWord =
+        mode == SearchMode.advanced && !_searchTab.useGlobalSearchOptions.value;
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('קביעת מצב ברירת המחדל'),
-      content: context.settingsText(
-        'כל חיפוש חדש ייפתח מעכשיו במצב "{mode}". ניתן לשנות זאת שוב בכל עת.',
-        args: {'mode': modeLabel},
-      ),
+      content: withOptions ? null : message,
+      customContent: withOptions
+          ? StatefulBuilder(
+              builder: (context, setDialogState) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(message),
+                  CheckboxListTile(
+                    value: withOptions,
+                    onChanged: (value) =>
+                        setDialogState(() => withOptions = value ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      context.settingsText(
+                        perWord
+                            ? 'כולל המרווח וסדר המילים הנוכחיים'
+                            : 'כולל האפשרויות הנוכחיות',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : null,
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('קבע כברירת מחדל'),
     );
@@ -592,7 +629,25 @@ class _SearchDialogState extends State<SearchDialog> {
     } else {
       SearchDefaults.saveModeDefault(mode);
     }
-    UiSnack.show(LibraryMessages.searchModeSetAsDefault(modeLabel));
+    if (withOptions) {
+      final state = _searchTab.searchBloc.state;
+      final options = Map.of(_searchTab.globalSearchOptions);
+      if (mode == SearchMode.exact) {
+        SearchDefaults.saveExactDefaults(options);
+      } else if (!perWord) {
+        SearchDefaults.saveDefaults(options);
+        SearchDefaults.saveMatchPolicyDefault(state.configuration.matchPolicy);
+      }
+      SearchDefaults.saveDistanceDefault(state.distance);
+      SearchDefaults.saveAnyOrderDefault(state.anyOrder);
+    }
+    UiSnack.show(
+      !withOptions
+          ? LibraryMessages.searchModeSetAsDefault(modeLabel)
+          : perWord
+          ? LibraryMessages.searchModeAndSpacingSetAsDefault(modeLabel)
+          : LibraryMessages.searchModeAndOptionsSetAsDefault(modeLabel),
+    );
   }
 
   /// תפריט ברירות המחדל של המצב הנוכחי — פעולה נדירה, ולכן בתפריט
@@ -697,7 +752,7 @@ class _SearchDialogState extends State<SearchDialog> {
           child: Text(context.settingsText('קבע מצב זה כברירת מחדל')),
         ),
         if (hasWordOptions)
-          SubmenuButton(
+          _BottomAlignedSubmenuButton(
             menuChildren: [
               for (final key in keys)
                 CheckboxMenuButton(
@@ -822,6 +877,19 @@ class _SearchDialogState extends State<SearchDialog> {
               _searchTab.spacingValues
                 ..clear()
                 ..addAll(bookmark.spacingValues!);
+            }
+            // רשומות ההיסטוריה של החיפוש הן מילוליות. חיפוש חכם עשוי שלא
+            // לתמוך בהיקף השמור, למשל כשהוא מוגבל לספר אישי.
+            if (widget.bookTitle == null &&
+                widget.onSearch == null &&
+                !widget.returnResultOnSubmit &&
+                !_isSemanticActive) {
+              final scope = bookmark.searchScopeFacets;
+              setState(
+                () => _scopeSelection = scope == null || scope.isEmpty
+                    ? {'/'}
+                    : scope.toSet(),
+              );
             }
 
             _historyMenuController.close();
@@ -1794,6 +1862,7 @@ class _SearchDialogState extends State<SearchDialog> {
             key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
             label: Text(item.title),
             visualDensity: VisualDensity.compact,
+            showCheckmark: false,
             selected: _pluginSelectionValue(pluginId, item),
             onSelected: (value) =>
                 _updatePluginSearchSelection(pluginId, item, value),
@@ -2014,6 +2083,161 @@ class _IndexMissingGate extends StatelessWidget {
                 ? missingBuilder(state)
                 : child,
           ),
+    );
+  }
+}
+
+/// [SubmenuButton] שתת־התפריט שלו לא מכסה את השורה שפתחה אותו.
+///
+/// תפריט ברירות המחדל נפתח מכפתור בתחתית הדיאלוג, ולכן השורה שפותחת את תת־
+/// התפריט קרובה לתחתית החלון. ב-`_MenuLayout._positionChild` (menu_anchor.dart)
+/// Flutter מיישר את ראש תת־התפריט לראש השורה. כשאין מקום מתחת הוא מעביר את
+/// כולו אל מעל השורה, באלכסון ממנה. וכשאין מקום לא משמאל ולא מימין הוא דוחף
+/// אותו לקצה החלון, על השורה עצמה.
+///
+/// לכן מודדים מראש עותק נסתר של תת־התפריט, כבר כשהתפריט הראשי נפתח, וקובעים
+/// את המיקום דרך [SubmenuButton.alignmentOffset] (API ציבורי), עוד לפני
+/// שתת־התפריט מוצג:
+/// - יש מקום בצד: תחתית תת־התפריט בגובה תחתית השורה, והוא גדל כלפי מעלה.
+/// - אין מקום בצד: תת־התפריט צמוד מעל השורה, מיושר לקצה ההתחלה שלה. כך העכבר
+///   עולה מהשורה ישר אל תוכו, בלי לעבור על שורה אחרת שהייתה סוגרת אותו.
+///   אם גם מעל השורה אין מספיק מקום, הלוח מוגבל לגובה שיש ונגלל.
+///
+/// ההתנהגות במקלדת וב-Esc נשארת של [SubmenuButton] עצמו.
+class _BottomAlignedSubmenuButton extends StatefulWidget {
+  const _BottomAlignedSubmenuButton({
+    required this.menuChildren,
+    required this.child,
+    this.leadingIcon,
+  });
+
+  final List<Widget> menuChildren;
+  final Widget child;
+  final Widget? leadingIcon;
+
+  @override
+  State<_BottomAlignedSubmenuButton> createState() =>
+      _BottomAlignedSubmenuButtonState();
+}
+
+class _BottomAlignedSubmenuButtonState
+    extends State<_BottomAlignedSubmenuButton> {
+  final _measureKey = GlobalKey();
+  Offset _offset = Offset.zero;
+
+  /// תקרת הגובה של הלוח כשהוא מעל השורה ואין לו מספיק מקום. null = בלי.
+  double? _maxHeight;
+
+  @override
+  void initState() {
+    super.initState();
+    // התפריט הראשי נבנה עכשיו. אחרי הפריים הראשון שלו השורה והעותק הנסתר
+    // כבר פרוסים, ואפשר לחשב.
+    _scheduleAlign();
+  }
+
+  void _scheduleAlign([int attempt = 0]) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!_align() && attempt < 2) _scheduleAlign(attempt + 1);
+    });
+  }
+
+  static Rect _globalRect(RenderBox box) =>
+      box.localToGlobal(Offset.zero) & box.size;
+
+  /// מחזיר false כשהשורה או העותק הנסתר עוד לא פרוסים.
+  bool _align() {
+    final row = context.findRenderObject();
+    final measured = _measureKey.currentContext?.findRenderObject();
+    final overlay = Overlay.maybeOf(context)?.context.findRenderObject();
+    if (row is! RenderBox ||
+        !row.hasSize ||
+        measured is! RenderBox ||
+        !measured.hasSize ||
+        overlay is! RenderBox) {
+      return false;
+    }
+
+    // כמו ש-SubmenuButton ו-_MenuPanel מחשבים (בלי menuStyle משלו).
+    final style = MenuTheme.of(context).style;
+    final pad =
+        (style?.padding?.resolve(const {}) ??
+                const EdgeInsetsDirectional.symmetric(vertical: 8))
+            .resolve(Directionality.of(context));
+    final minWidth = style?.minimumSize?.resolve(const {})?.width ?? 0;
+    final width = max(measured.size.width + pad.horizontal, minWidth);
+    final height = measured.size.height + pad.vertical;
+
+    final rowRect = _globalRect(row);
+    final screen = _globalRect(overlay);
+    final fitsBeside =
+        width <= max(rowRect.left - screen.left, screen.right - rowRect.right);
+
+    // די בשורה שלמה אחת כדי לגלול גם כשהמקלדת מצמצמת את החלון.
+    final above = rowRect.top - screen.top;
+    final maxHeight =
+        !fitsBeside && height > above && above >= rowRect.height + pad.vertical
+        ? above
+        : null;
+
+    // ראש הלוח = ראש השורה - pad.top + dy (את pad.top מוריד SubmenuButton).
+    final next = fitsBeside
+        // תחתית הלוח = תחתית השורה + pad.bottom.
+        ? Offset(0, rowRect.height - measured.size.height)
+        // תחתית הלוח = ראש השורה. dx = -רוחב השורה מיישר את הלוח לקצה
+        // ההתחלה של השורה, בשני הכיוונים.
+        : Offset(-rowRect.width, pad.top - (maxHeight ?? height));
+    if ((next - _offset).distance > 0.5 || maxHeight != _maxHeight) {
+      setState(() {
+        _offset = next;
+        _maxHeight = maxHeight;
+      });
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SubmenuButton(
+          leadingIcon: widget.leadingIcon,
+          alignmentOffset: _offset,
+          // רק maximumSize: שאר המאפיינים, כולל הריפוד, ממשיכים להגיע
+          // מה-MenuTheme.
+          menuStyle: _maxHeight == null
+              ? null
+              : MenuStyle(
+                  maximumSize: WidgetStatePropertyAll(
+                    Size(double.infinity, _maxHeight!),
+                  ),
+                ),
+          // רשת ביטחון, למשל אם החלון שינה גודל מאז שהתפריט נפתח.
+          onOpen: _scheduleAlign,
+          menuChildren: widget.menuChildren,
+          child: widget.child,
+        ),
+        // עותק נסתר למדידה: נפרס אבל לא מצויר, לא נלחץ ולא מקבל פוקוס.
+        // ממוקם (PositionedDirectional) ולכן לא משפיע על גודל השורה ועל רוחב התפריט.
+        PositionedDirectional(
+          top: 0,
+          start: 0,
+          child: Offstage(
+            child: ExcludeFocus(
+              child: IntrinsicWidth(
+                key: _measureKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: widget.menuChildren,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

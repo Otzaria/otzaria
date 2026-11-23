@@ -173,6 +173,19 @@ void main() {
       expect(link!, startsWith('otzaria://open/book/1?index=5&m='));
     });
 
+    test('קישור ארוך ממשיך לכלול את הטקסט שנבחר במלואו', () {
+      final selection = List.filled(15, 'בראשית').join(' ');
+      final link = buildTextMarkLink(1234, 42, selection)!;
+      expect(link.length, greaterThan(255));
+      expect(Uri.parse(link).queryParameters['m'], selection);
+      final entry = buildDirectLinkSubmenuEntries(
+        bookId: 1234,
+        index: 42,
+        selectedText: selection,
+      ).singleWhere((entry) => entry.kind == DirectLinkKind.textMark);
+      expect(entry.link, link);
+    });
+
     // Property 4: טקסט ריק מחזיר null — Validates: Requirements 5.5
     test('Property 4: טקסט ריק מחזיר null', () {
       for (final emptyText in ['', ' ', '   ', '\t', '\n', '\r\n']) {

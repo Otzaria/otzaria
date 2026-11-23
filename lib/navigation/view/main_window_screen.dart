@@ -16,6 +16,7 @@ import 'package:otzaria/app_scope/process_duties.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/startup_timeline.dart';
+import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
@@ -406,6 +407,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _revealStarted = false;
   bool _hasScheduledSplashReveal = false;
   Timer? _splashFailsafeTimer;
+  StreamSubscription<Object?>? _splashReadinessSubscription;
   bool _isShowingStartupManualReindexDialog = false;
   // בקשות רענון שממתינות להחלטת אינדוקס (עדכון ספרייה, otzaria://library/
   // reindex). המזהה נישא ב-RefreshLibrary ומדווח ב-completedRefreshRequestIds
@@ -424,9 +426,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _tourOverlayInsertScheduled = false;
   bool _tourOpenedOverflowMenu = false;
   late Screen _lastScreen;
-  Screen _screenBeforeSettings = Screen.library;
-  // עוקב אחר מצב ההגדרות הקודם לצורך dispatch ספציפי
-  SettingsState? _prevSettingsState;
+  late SettingsState _prevSettingsState;
   late IndexUpdateMode _indexUpdateMode;
   // עוקב אחר מצב הלוח הקודם לצורך dispatch ספציפי
   CalendarState? _prevCalendarState;
@@ -689,7 +689,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     StartupTimeline.instance.markOnce('mainScreenInit');
     _role = AppWindowScope.roleOf(context);
     _duties = ProcessDuties.of(context);
-    _indexUpdateMode = context.read<SettingsBloc>().state.indexUpdateMode;
+    _prevSettingsState = context.read<SettingsBloc>().state;
+    _indexUpdateMode = _prevSettingsState.indexUpdateMode;
     // מאזין לזרם סטטי בלבד: המאגר הסמנטי לא נוצר עד שמשתמשים בו.
     _semanticWorkStatusSub = SemanticSearchRepository.sharedAvailabilityChanges
         .listen((availability) {
@@ -886,31 +887,50 @@ class MainWindowScreenState extends State<MainWindowScreen>
         pendingPane.bloc.state is! TextBookLoaded &&
         pendingPane.bloc.state is! TextBookError;
 
-    if (!shouldWaitForBook) {
+    if (shouldWaitForBook) {
+      StartupTimeline.instance.mark('waitingForActiveBook');
+      _revealWhen(
+        pendingPane.bloc.stream,
+        (state) => state is TextBookLoaded || state is TextBookError,
+        'activeBookLoaded',
+      );
+      return;
+    }
+
+    final libraryBloc = context.read<LibraryBloc>();
+    if (_role.isPrimaryView &&
+        WindowPersistence.splashMode &&
+        navigationState.currentScreen == Screen.library &&
+        !navigationState.isLibraryEmpty &&
+        libraryBloc.state.isLoading) {
+      StartupTimeline.instance.mark('waitingForLibrary');
+      _revealWhen(
+        libraryBloc.stream,
+        (state) => !state.isLoading,
+        'libraryLoaded',
+      );
+    } else {
       StartupTimeline.instance.mark(
         'reveal:immediate:${pendingPane?.runtimeType ?? currentTab.runtimeType}',
       );
       _revealMainWindowOnce();
-      return;
     }
+  }
 
-    StartupTimeline.instance.mark('waitingForActiveBook');
-    final bloc = pendingPane.bloc;
-    late final StreamSubscription<TextBookState> sub;
-    var done = false;
+  /// חושף כשמצב ב-[states] עונה על [isReady], כשהזרם נסגר או בשגיאה.
+  void _revealWhen<S>(
+    Stream<S> states,
+    bool Function(S state) isReady,
+    String readyMark,
+  ) {
     void finish() {
-      if (done) return;
-      done = true;
-      sub.cancel();
-      StartupTimeline.instance.mark('activeBookLoaded');
+      StartupTimeline.instance.mark(readyMark);
       _revealMainWindowOnce();
     }
 
-    sub = bloc.stream.listen(
+    _splashReadinessSubscription = states.listen(
       (state) {
-        if (state is TextBookLoaded || state is TextBookError) {
-          finish();
-        }
+        if (isReady(state)) finish();
       },
       onDone: finish,
       onError: (_) => finish(),
@@ -924,6 +944,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _revealStarted = true;
     _splashFailsafeTimer?.cancel();
     _splashFailsafeTimer = null;
+    _splashReadinessSubscription?.cancel();
+    _splashReadinessSubscription = null;
 
     if (!mounted) {
       _initialContentReady = true;
@@ -1553,6 +1575,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             tempDirPath: state.tempDirPath,
             previousVersion: state.previousVersion,
             previousGrantedPermissions: state.previousGrantedPermissions,
+            requireNewInstallation: state.requireNewInstallation,
             reportContext: state.reportContext,
             isOfflineMode: isOfflineMode,
           ),
@@ -1957,6 +1980,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       appWindowListener?.onWindowResizeOccurred = null;
     }
     _splashFailsafeTimer?.cancel();
+    _splashReadinessSubscription?.cancel();
     _pluginInstallDialogQueue.clear();
     _externalActivationService
       ?..detachWindow(_handleExternalActivationUriString)
@@ -2355,9 +2379,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
       if (state.currentScreen != Screen.reading) {
         context.read<FocusRepository>().cancelPendingTabContentFocus();
         PluginRuntimeDispatcher.instance.cancelPendingKeyboardFocus();
-      }
-      if (state.currentScreen == Screen.settings) {
-        _screenBeforeSettings = _lastScreen;
       }
       _lastScreen = state.currentScreen;
     }
@@ -3123,8 +3144,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
         listeners: [
           BlocListener<NavigationBloc, NavigationState>(
             listenWhen: (previous, current) =>
-                previous.currentScreen != current.currentScreen,
+                previous.currentScreen != current.currentScreen ||
+                (!previous.isLibraryEmpty && current.isLibraryEmpty),
             listener: (context, state) {
+              if (_lastScreen == Screen.library &&
+                  _splashReadinessSubscription != null &&
+                  (state.currentScreen != Screen.library ||
+                      state.isLibraryEmpty)) {
+                _splashReadinessSubscription?.cancel();
+                _splashReadinessSubscription = null;
+                _hasScheduledSplashReveal = false;
+                _scheduleSplashReveal();
+              }
+              if (state.currentScreen == _lastScreen) return;
               PluginRuntimeDispatcher.instance.dispatchEvent(
                 'navigation.changed',
                 {'screen': state.currentScreen.name},
@@ -3223,6 +3255,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       DropOrphanedIndexEntries(library),
                     );
                     if (state.error == null) {
+                      context.read<TabsBloc>().add(
+                        const RefreshCatalogTitles(),
+                      );
                       unawaited(
                         PersonalNotesUserBookKeys()
                             .assignPending(library)
@@ -3436,7 +3471,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   previous.settingsLanguageCode != current.settingsLanguageCode;
             },
             listener: (context, current) {
-              final previous = _prevSettingsState ?? SettingsState.initial();
+              final previous = _prevSettingsState;
               _prevSettingsState = current;
 
               // --- settings.changed: one event per changed key (allowlist only) ---
@@ -3821,9 +3856,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
               child: MySettingsScreen(
                 key: _settingsScreenKey,
                 controller: _settingsScreenController,
-                onDesktopBack: () => this.context.read<NavigationBloc>().add(
-                  NavigateToScreen(_screenBeforeSettings),
-                ),
               ),
             );
 
@@ -3866,6 +3898,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               child: KeyboardShortcuts(
                 onFindRefRequested: () => _handleFindRefOpen(context),
                 onNewSearchRequested: () => _handleSearchTabOpen(context),
+                settingsController: _settingsScreenController,
                 child: MyUpdatWidget(
                   child: PopScope(
                     canPop: !Platform.isAndroid,

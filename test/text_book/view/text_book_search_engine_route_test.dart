@@ -102,6 +102,7 @@ Future<void> main() async {
       InBookSearchOrigin origin,
       SearchMode mode,
       InBookSearchTemplate? template,
+      Object? querySource,
     ) => MaterialApp(
       home: MultiBlocProvider(
         providers: [
@@ -115,6 +116,7 @@ Future<void> main() async {
             focusNode: focusNode,
             closeLeftPaneCallback: () {},
             initialQuery: query,
+            initialQuerySource: querySource,
             initialSearchMode: mode,
             initialSearchOrigin: origin,
             initialSearchTemplate: template,
@@ -136,6 +138,7 @@ Future<void> main() async {
         searchOrigin,
         searchMode,
         searchTemplate,
+        null,
       ),
     );
     await tester.pump();
@@ -286,7 +289,12 @@ Future<void> main() async {
     await harness.type(' זַרְעֲךָ ');
     await harness.settle();
     final callsBeforeEcho = simpleQueries.length;
-    await harness.rebuildFromBloc(' זרעך ', 3, SearchMatchPolicy.standard);
+    await harness.rebuildFromBloc(
+      ' זרעך ',
+      3,
+      SearchMatchPolicy.standard,
+      echo: true,
+    );
     await harness.settle();
     expect(
       tester.widget<TextField>(find.byType(TextField).first).controller!.text,
@@ -615,6 +623,7 @@ Future<void> main() async {
       3,
       SearchMatchPolicy.standard,
       searchTemplate: template(),
+      echo: true,
     );
     await harness.settle();
     expect(repository.requests, hasLength(requests));
@@ -760,6 +769,7 @@ Future<void> main() async {
         SearchMatchPolicy.standard,
         searchOrigin: InBookSearchOrigin.inBook,
         searchMode: SearchMode.exact,
+        echo: true,
       );
       await harness.settle();
       expect(repository.requests, hasLength(requestsBeforeEcho));
@@ -1240,13 +1250,14 @@ class _Harness {
     InBookSearchOrigin,
     SearchMode,
     InBookSearchTemplate?,
+    Object?,
   )
   _build;
   InBookSearchOrigin _origin;
   SearchMode _mode;
   InBookSearchTemplate? _template;
 
-  /// בונה מחדש עם מה שה-bloc האמיתי היה מחזיר לחלונית אחרי ההקלדה.
+  /// בונה מחדש בעקבות שאילתה חיצונית או הד של בקשה ששלחה החלונית.
   Future<void> rebuildFromBloc(
     String query,
     int distance,
@@ -1254,6 +1265,7 @@ class _Harness {
     InBookSearchOrigin? searchOrigin,
     SearchMode? searchMode,
     Object? searchTemplate = preserveInBookSearchTemplate,
+    bool echo = false,
   }) async {
     _origin = searchOrigin ?? _origin;
     _mode = searchMode ?? _mode;
@@ -1265,8 +1277,16 @@ class _Harness {
     if (!identical(returnedTemplate, preserveInBookSearchTemplate)) {
       _template = returnedTemplate as InBookSearchTemplate?;
     }
+    final source = echo ? bloc.searchTextUpdates.last.textSource : Object();
+    final state = bloc.state;
+    if (state is TextBookLoaded) {
+      bloc.emitLoaded(
+        state.copyWith(searchText: query, searchTextSource: source),
+      );
+      await tester.pump();
+    }
     await tester.pumpWidget(
-      _build(query, distance, policy, _origin, _mode, _template),
+      _build(query, distance, policy, _origin, _mode, _template, source),
     );
     await tester.pump();
   }

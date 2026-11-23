@@ -798,4 +798,146 @@ void main() {
       'אוצריא להתקנה ל-macOS',
     );
   });
+
+  group('מחברי זמננו', () {
+    test('קובצי הייחוס תואמים למימוש הייחוס', () {
+      buildZmanenuFixtureFiles().forEach((name, content) {
+        expect(
+          File(
+            '$kFixtureDir/$name',
+          ).readAsStringSync().replaceAll('\r\n', '\n'),
+          encodeFixture(content!),
+          reason:
+              'run: dart run tool/download_assistant/fixtures/generate_fixtures.dart',
+        );
+      });
+      expect(
+        File(
+          '$kFixtureDir/expected-zmanenu.json',
+        ).readAsStringSync().replaceAll('\r\n', '\n'),
+        encodeFixture(buildExpectedZmanenu(buildFixtureManifest())),
+        reason:
+            'run: dart run tool/download_assistant/fixtures/generate_fixtures.dart',
+      );
+    });
+
+    test('השמות ותיקיית האיסוף הם אלה שהאפליקציה מחפשת', () {
+      final catalog = File(
+        'lib/attached_libraries/models/official_attached_library.dart',
+      ).readAsStringSync();
+      expect(catalog, contains("offlineName: 'zmanenu'"));
+      expect(catalog, contains("'\$offlineName-offline.tar.zst'"));
+      expect(kZmanenuArchiveName, 'zmanenu-offline.tar.zst');
+      expect(
+        File(
+          'lib/attached_libraries/repository/update/attached_library_update_service.dart',
+        ).readAsStringSync(),
+        contains("getAttachedLibrariesCopyPath(), 'להתקנה')"),
+      );
+      expect(
+        File('lib/core/app_paths.dart').readAsStringSync(),
+        contains("p.join(await getDataRootPath(), 'מסדים אישיים')"),
+      );
+      expect(kZmanenuDropFolder, 'מסדים אישיים/להתקנה');
+    });
+
+    Map<String, Object?> release(List<Map<String, Object?>> assets) => {
+      'tag_name': 'v3',
+      'assets': assets,
+    };
+    final sha = 'a' * 64;
+
+    test('קובץ שלם עם digest גובר על חלקים, ואינו צריך את המניפסט', () {
+      final r = release([
+        {'name': kZmanenuArchiveName, 'size': 10, 'digest': 'sha256:$sha'},
+        {'name': kZmanenuPartsManifestName, 'size': 5},
+      ]);
+      expect(zmanenuPartsManifestUrl(r), isNull);
+      final offer = zmanenuOffer(r)!;
+      expect(offer.split, isFalse);
+      expect(offer.outputFiles, [kZmanenuArchiveName]);
+      expect(offer.downloads.single.sha256, sha);
+    });
+
+    test('בלי API ובלי מניפסט חלקים: הקובץ השלם האחרון, בלי sha וגודל', () {
+      final offer = zmanenuOffer(null)!;
+      expect(offer.split, isFalse);
+      expect(offer.downloads.single, (
+        name: kZmanenuArchiveName,
+        size: 0,
+        sha256: '',
+        url: zmanenuAssetUrl('', kZmanenuArchiveName),
+      ));
+    });
+
+    test('קובץ שלם בלי digest מוצע בלי sha, וחלקים גוברים עליו', () {
+      final r = release([
+        {'name': kZmanenuArchiveName, 'size': 10},
+      ]);
+      expect(zmanenuPartsManifestUrl(r), isNull);
+      final offer = zmanenuOffer(r)!;
+      expect(offer.downloads.single.sha256, '');
+      expect(offer.downloadSize, 10);
+
+      final manifest = buildZmanenuPartsManifest();
+      final withParts = release([
+        {'name': kZmanenuArchiveName, 'size': 10},
+        for (final p in (manifest['parts'] as List).cast<Map>())
+          {'name': p['name'], 'size': p['size']},
+        {'name': kZmanenuPartsManifestName, 'size': 1},
+      ]);
+      expect(zmanenuPartsManifestUrl(withParts), isNotNull);
+      expect(zmanenuOffer(withParts, partsManifest: manifest)!.split, isTrue);
+    });
+
+    test('מניפסט החלקים אחרון בסדר הכתיבה', () {
+      final manifest = buildZmanenuPartsManifest();
+      final offer = zmanenuOffer(null, partsManifest: manifest)!;
+      expect(offer.outputFiles.last, kZmanenuPartsManifestName);
+      expect(offer.downloads.every((d) => d.url.contains('/latest/')), isTrue);
+    });
+
+    test('חלק שחסר ב-release, או בגודל אחר, מבטל את ההצעה', () {
+      final manifest = buildZmanenuPartsManifest();
+      final parts = (manifest['parts'] as List).cast<Map<String, Object?>>();
+      final complete = [
+        for (final p in parts) {'name': p['name'], 'size': p['size']},
+        {'name': kZmanenuPartsManifestName, 'size': 1},
+      ];
+      expect(
+        zmanenuOffer(release(complete), partsManifest: manifest),
+        isNotNull,
+      );
+      expect(
+        zmanenuOffer(release(complete.sublist(1)), partsManifest: manifest),
+        isNull,
+      );
+      final resized = [
+        for (final a in complete)
+          a['name'] == parts.first['name'] ? {...a, 'size': 1} : a,
+      ];
+      expect(zmanenuOffer(release(resized), partsManifest: manifest), isNull);
+    });
+
+    test('מניפסט חלקים פגום או של ארכיון אחר אינו מוצע', () {
+      final good = buildZmanenuPartsManifest();
+      expect(
+        zmanenuOffer(null, partsManifest: {...good, 'archive': 'x'}),
+        isNull,
+      );
+      expect(zmanenuOffer(null, partsManifest: {...good, 'size': 1}), isNull);
+      expect(zmanenuOffer(null, partsManifest: {...good, 'parts': []}), isNull);
+    });
+
+    test('תג שאינו בטוח לנתיב — אין הצעה', () {
+      final r = {
+        'tag_name': '../x',
+        'assets': [
+          {'name': kZmanenuArchiveName, 'size': 10, 'digest': 'sha256:$sha'},
+        ],
+      };
+      expect(zmanenuOffer(r), isNull);
+      expect(zmanenuPartsManifestUrl(r), isNull);
+    });
+  });
 }

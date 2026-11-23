@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -14,6 +15,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/diagnostics/app_context_snapshot.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/info/os_version.dart';
+import 'package:otzaria/data/repository/book_title_search_diagnostics.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -96,6 +98,51 @@ void main() {
         'prefixes': true,
       }),
     );
+  });
+
+  test('אבחון: מצב חיפוש שמות הספרים נכלל', () async {
+    final previous = BookTitleSearchDiagnostics.instance;
+    final searches = BookTitleSearchDiagnostics.instance =
+        BookTitleSearchDiagnostics(stallThreshold: null);
+    addTearDown(() => BookTitleSearchDiagnostics.instance = previous);
+    final search = searches.start(
+      words: 2,
+      wholeLibrary: true,
+      repositoryState: () => {'acronymsLoaded': true},
+    )..enter(BookTitleSearchStage.generations);
+    addTearDown(search.finish);
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    final collected = diagnostics['bookTitleSearch'] as Map;
+    expect(
+      (collected['active'] as List).single,
+      containsPair('stage', 'generations'),
+    );
+    expect(collected['repository'], {'acronymsLoaded': true});
+
+    final previousRun = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+      includeCurrentContext: false,
+    ).collectDiagnostics();
+    expect(previousRun, isNot(contains('bookTitleSearch')));
+  });
+
+  test('אבחון: יומן החלונות נכלל', () async {
+    final previous = WindowEventLog.instance;
+    WindowEventLog.instance = WindowEventLog()..add('openFailed', {'slot': 2});
+    addTearDown(() => WindowEventLog.instance = previous);
+
+    final diagnostics = await AppReportCollector(
+      redactor: redactor,
+      clock: () => now,
+    ).collectDiagnostics();
+    final windows = diagnostics['windows'] as Map;
+    expect(windows['open'], isEmpty);
+    expect((windows['events'] as List).single, containsPair('slot', 2));
   });
 
   test('אבחון: תוצאת חימום WebView2 נכללת במצב', () async {
@@ -402,6 +449,7 @@ void main() {
       expect(diagnostics.containsKey('context'), isFalse);
       expect(diagnostics.containsKey('inputFocus'), isFalse);
       expect(diagnostics.containsKey('searches'), isFalse);
+      expect(diagnostics.containsKey('windows'), isFalse);
       expect(diagnostics.containsKey('previousRun'), isFalse);
     });
 

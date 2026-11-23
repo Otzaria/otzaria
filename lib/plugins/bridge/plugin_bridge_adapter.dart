@@ -15,7 +15,7 @@ import 'package:otzaria/book_protection/repository/book_protection_repository.da
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
-import 'package:otzaria/widgets/dialogs/input_dialog.dart';
+import 'package:otzaria/utils/file/desktop_save_target.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' show BlocProvider;
@@ -31,7 +31,7 @@ import 'package:otzaria/theme/app_surface_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:kosher_dart/kosher_dart.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -58,6 +58,8 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/search/search_engine_gateway.dart'
+    show isSearchCancelledError, LexicalSearchRequestIds, SearchCountProgress;
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
@@ -151,6 +153,7 @@ import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_book_correction_service.dart';
+import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
 import 'package:otzaria/plugins/services/plugin_biography_compatibility.dart';
@@ -186,7 +189,7 @@ import 'package:otzaria/plugins/services/plugin_text_occurrence_service.dart';
 import 'package:otzaria/plugins/services/text_source_map_service.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
-import 'package:otzaria/utils/calendar_days.dart';
+import 'package:otzaria/plugins/bridge/plugin_jewish_date_payload_builder.dart';
 
 /// גופן הממשק שאוצריא מוסרת לתוספים: sans מובנה שנשאר חד ב-11-12px.
 /// גופן הקריאה (`fontFamily`) אינו תחליף לו — הוא מצויר ל-25px,
@@ -363,11 +366,27 @@ class PluginBridgeDependencies {
     required String subtitle,
   })
   showWarningDialog;
+
+  /// אישור דיווח שיוצא בשם המשתמש: כמו [showConfirmDialog], ובתוספת שדה
+  /// "דואר אלקטרוני לחזרה אליך" שממולא ב-[initialEmail] וניתן לעריכה, כמו
+  /// בדיווח על תקלה. מחזיר את הכתובת שבשדה (ריקה: בלי כתובת), או null
+  /// אם בוטל. [emailRequired]: אי אפשר לאשר בלי כתובת תקינה.
+  /// null: [showConfirmDialog] עם הכתובת כטקסט בלבד (בבדיקות ובמארחים בלי ממשק).
+  final Future<String?> Function({
+    required String title,
+    required String content,
+    required String initialEmail,
+    required bool emailRequired,
+  })?
+  showReportSenderDialog;
   final void Function(
     String downloadUrl, {
     PluginInstallReportContext? reportContext,
   })?
   requestPluginInstall;
+
+  /// מבקשת לפתוח את בורר החבילות של אוצריא. התשובה מציינת אם הבקשה התקבלה.
+  final Future<bool> Function()? requestLocalPluginInstall;
 
   /// פותח דיאלוג בחירת תיקייה ומחזיר את הנתיב שנבחר, או `null` אם המשתמש
   /// ביטל. אופציונלי — אם לא סופק, האדפטר משתמש ב-[FilePicker.getDirectoryPath].
@@ -385,7 +404,7 @@ class PluginBridgeDependencies {
 
   /// פותח דיאלוג „שמור בשם” ומחזיר את הנתיב שנבחר, או `null` אם המשתמש ביטל.
   /// **אינו כותב** את הקובץ — הכתיבה נעשית באדפטר. אופציונלי; אם לא
-  /// סופק, האדפטר משתמש ב-[FilePicker.saveFile]. קיים כדי לאפשר הזרקה בבדיקות.
+  /// סופק, האדפטר בוחר תיקייה ושם בלי כתיבה. קיים כדי לאפשר הזרקה בבדיקות.
   final Future<String?> Function({
     required String suggestedName,
     List<String>? allowedExtensions,
@@ -544,7 +563,9 @@ class PluginBridgeDependencies {
     required this.themePayloadBuilder,
     required this.showConfirmDialog,
     required this.showWarningDialog,
+    this.showReportSenderDialog,
     this.requestPluginInstall,
+    this.requestLocalPluginInstall,
     this.pickFolder,
     this.pickFile,
     this.pickSaveLocation,
@@ -620,6 +641,7 @@ class PluginBridgeAdapter {
   final PluginBridgeWindowDependencies Function()? windowDependenciesResolver;
   late final _defaultWindowDependencies = _dependencies.window;
   final _windowScopeKey = Object();
+  final _bookContentPageScopeKey = Object();
   PluginBridgeWindowDependencies get _windowDependencies =>
       Zone.current[_windowScopeKey] as PluginBridgeWindowDependencies? ??
       _defaultWindowDependencies;
@@ -647,10 +669,23 @@ class PluginBridgeAdapter {
       return action();
     }
     final resolve = windowDependenciesResolver;
-    if (resolve == null || Zone.current[_windowScopeKey] != null) {
-      return action();
-    }
-    return runZoned(action, zoneValues: {_windowScopeKey: resolve()});
+    final window = resolve != null && Zone.current[_windowScopeKey] == null
+        ? resolve()
+        : null;
+    final bookContentPage =
+        domain == 'library' &&
+            rpcAction == 'getBookContent' &&
+            Zone.current[_bookContentPageScopeKey] == null
+        ? _bookContentPage
+        : null;
+    if (window == null && bookContentPage == null) return action();
+    return runZoned(
+      action,
+      zoneValues: {
+        _windowScopeKey: ?window,
+        _bookContentPageScopeKey: ?bookContentPage,
+      },
+    );
   }
 
   final CalendarAlertsClient _alerts;
@@ -677,10 +712,12 @@ class PluginBridgeAdapter {
     PluginHighlightRegistry? highlightRegistry,
     PluginReportService? reportService,
     PluginBookCorrectionService? bookCorrectionService,
+    DirectErrorReportService? directReportService,
     PluginSearchFieldSessionService? searchFieldSessions,
   }) : _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
        _pluginReportService = reportService,
        _pluginBookCorrectionService = bookCorrectionService,
+       _directBookReportService = directReportService,
        // שירות שהוזרק (בדיקות) מקבל בעלים פרטי; אחרת הבעלים של החלון.
        _alerts =
            alertsClient ??
@@ -745,8 +782,82 @@ class PluginBridgeAdapter {
     final direct = _directBookReportService ??= DirectErrorReportService();
     return _pluginBookCorrectionService = PluginBookCorrectionService(
       senderEmail: () => direct.senderEmail,
+      confirmSender: _confirmBookCorrectionSender,
       deliver: direct.submitReport,
     );
+  }
+
+  String? _confirmedBookCorrectionEmail;
+  Future<String?>? _bookCorrectionSenderPrompt;
+
+  Future<String?> _confirmBookCorrectionSender() {
+    final pending = _bookCorrectionSenderPrompt;
+    if (pending != null) return pending;
+    final saved = _savedReportSenderEmail();
+    if (saved == _confirmedBookCorrectionEmail) return Future.value(saved);
+
+    return _bookCorrectionSenderPrompt = () async {
+      try {
+        final email = await _confirmReportSender(
+          title: 'שליחת הצעות תיקון לספרים',
+          content:
+              'התוסף "${plugin.name}" מבקש לשלוח בשמך הצעות תיקון לספרי '
+              'הספרייה לצוות אוצריא. האישור תקף עד סגירת התוסף.',
+          initialEmail: saved,
+          emailRequired: true,
+        );
+        if (email != null && email != saved) {
+          await _saveReportSenderEmail(email);
+        }
+        _confirmedBookCorrectionEmail = email;
+        return email;
+      } finally {
+        _bookCorrectionSenderPrompt = null;
+      }
+    }();
+  }
+
+  String _savedReportSenderEmail() =>
+      Settings.getValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+      )?.trim() ??
+      '';
+
+  Future<void> _saveReportSenderEmail(String email) =>
+      Settings.setValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+        email,
+      );
+
+  /// מציג את הכתובת שתצורף ומאפשר לערוך אותה לפני האישור. מחזיר כתובת תקינה
+  /// (או ריקה כשאינה חובה), או null אם המשתמש ביטל.
+  Future<String?> _confirmReportSender({
+    required String title,
+    required String content,
+    required String initialEmail,
+    required bool emailRequired,
+  }) async {
+    final dialog = _dependencies.showReportSenderDialog;
+    final email = dialog == null
+        ? (await _dependencies.showConfirmDialog(
+                title: title,
+                content: initialEmail.isEmpty
+                    ? content
+                    : '$content\n\nכתובת לחזרה: $initialEmail',
+              )
+              ? initialEmail
+              : null)
+        : (await dialog(
+            title: title,
+            content: content,
+            initialEmail: initialEmail,
+            emailRequired: emailRequired,
+          ))?.trim();
+    if (email == null) return null;
+    final valid = email.isEmpty
+        ? !emailRequired
+        : DirectErrorReportService.isValidSenderEmail(email);
+    return valid ? email : null;
   }
 
   // שירות יצירת קיצורי דרך (shortcut.create) — מופע יחיד לכל adapter.
@@ -777,8 +888,12 @@ class PluginBridgeAdapter {
 
   // LRU קצר לכל מופע; bookUid מפריד ספרים זהים ממסדים מצורפים שונים.
   final Map<String, String> _bookContentCache = {};
-  final Map<String, ({Future<String> result, Timer expiry})> _pendingBookLoads =
-      {};
+  final Map<
+    ({String book, bool gated}),
+    ({Future<String> result, Timer expiry})
+  >
+  _pendingBookLoads = {};
+  Object _bookContentPage = Object();
   final List<({String raw, Object key, Future<String> content})>
   _filteredContents = [];
   static const int _bookContentCacheMaxEntries = 4;
@@ -868,7 +983,15 @@ class PluginBridgeAdapter {
     }
     _activeNetworkFetchStreams.clear();
     _pendingNetworkFetchCancellations.clear();
+    releaseBookContentPage();
+  }
+
+  /// מפסיק את ההמתנה לטעינות ספר שהדף היוצא ביקש.
+  void releaseBookContentPage() {
+    final page = _bookContentPage;
+    _bookContentPage = Object();
     _clearPendingBookLoads();
+    PluginBookContentGate.cancelWaiters(page);
   }
 
   void dispose({bool removeRegistrations = true}) {
@@ -934,11 +1057,38 @@ class PluginBridgeAdapter {
     _pendingBookLoads.clear();
   }
 
-  /// משתף טעינות מקבילות לפי UID ושומר טעינות שהסתיימו ב-LRU קצר.
+  void _requireBookContentPage(Object page) {
+    if (_disposed || !identical(page, _bookContentPage)) {
+      throw Exception('error.unavailable: plugin page closed');
+    }
+  }
+
+  Future<String> _readQueuedBookText(
+    Object page,
+    Duration timeout,
+    Future<String> Function() read,
+  ) => PluginBookContentGate.runLoad(
+    () {
+      _requireBookContentPage(page);
+      return read();
+    },
+    pluginId: plugin.pluginId,
+    owner: page,
+    timeout: timeout,
+  );
+
+  /// משתף טעינות לפי UID. הדפסה וקריאה מתוסף חולקות רק תוכן שכבר נטען.
   Future<String> _loadBookRawText(
     Book book, {
     Duration shareFor = kPluginDefaultRpcTimeout,
+    Object? page,
   }) async {
+    if (page != null) {
+      _requireBookContentPage(page);
+      if (shareFor <= Duration.zero) {
+        throw const PluginBookContentQueueTimeout();
+      }
+    }
     final revision = _bookContentRevision;
     if (_seenBookContentRevision != revision) {
       _bookContentCache.clear();
@@ -951,19 +1101,37 @@ class PluginBridgeAdapter {
       _bookContentCache[key] = cached;
       return cached;
     }
-    final pending = _pendingBookLoads[key];
-    if (pending != null) return pending.result;
-    if (shareFor <= Duration.zero) return _readBookRawText(book);
-
-    final load = _readBookRawText(book);
+    final pendingKey = (book: key, gated: page != null);
+    final pending = _pendingBookLoads[pendingKey];
+    if (pending != null) {
+      final clock = Stopwatch()..start();
+      try {
+        return await pending.result;
+      } on PluginBookContentQueueTimeout {
+        // התור פג לפי התקציב של המתקשר הראשון; למתקשר הזה יש תקציב משלו.
+        if (identical(_pendingBookLoads[pendingKey]?.result, pending.result)) {
+          _pendingBookLoads.remove(pendingKey)!.expiry.cancel();
+        }
+        return _loadBookRawText(
+          book,
+          shareFor: shareFor - clock.elapsed,
+          page: page,
+        );
+      }
+    }
+    final load = page == null
+        ? _readBookRawText(book)
+        : _readQueuedBookText(page, shareFor, () => _readBookRawText(book));
     // ניסיון חוזר אחרי timeout יכול לטעון גם כשהקריאה הקודמת עדיין תקועה.
     final expiry = Timer(shareFor, () {
-      _pendingBookLoads.remove(key);
+      if (identical(_pendingBookLoads[pendingKey]?.result, load)) {
+        _pendingBookLoads.remove(pendingKey);
+      }
     });
-    _pendingBookLoads[key] = (result: load, expiry: expiry);
+    _pendingBookLoads[pendingKey] = (result: load, expiry: expiry);
     try {
       final text = await load;
-      if (identical(_pendingBookLoads[key]?.result, load) &&
+      if (identical(_pendingBookLoads[pendingKey]?.result, load) &&
           revision == _bookContentRevision) {
         _bookContentCache[key] = text;
         if (_bookContentCache.length > _bookContentCacheMaxEntries) {
@@ -973,8 +1141,8 @@ class PluginBridgeAdapter {
       return text;
     } finally {
       expiry.cancel();
-      if (identical(_pendingBookLoads[key]?.result, load)) {
-        _pendingBookLoads.remove(key);
+      if (identical(_pendingBookLoads[pendingKey]?.result, load)) {
+        _pendingBookLoads.remove(pendingKey);
       }
     }
   }
@@ -1108,6 +1276,12 @@ class PluginBridgeAdapter {
       case 'fonts':
         return await _handleFonts(action, args);
       case 'library':
+        if (action == 'getBookContent') {
+          return await PluginBookContentGate.trackCall(
+            plugin.pluginId,
+            () => _handleLibrary(action, args),
+          );
+        }
         return await _handleLibrary(action, args);
       case 'search':
         return await _handleSearch(action, args, eventSink: eventSink);
@@ -1638,19 +1812,24 @@ class PluginBridgeAdapter {
             )
             .toList();
       case 'getBookContent':
+        final page = Zone.current[_bookContentPageScopeKey]!;
+        _requireBookContentPage(page);
         final book = _findPluginBook(library, args);
         final bookId = (args['bookId'] ?? args['title']) as String?;
         if (book == null && bookId == null) {
           throw Exception('error.not_found: book not found');
         }
         await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
+        _requireBookContentPage(page);
         final rawNames = _rawDivineNamesArg(args);
+        final remaining = kPluginDefaultRpcTimeout - bookContentClock!.elapsed;
         final rawText = book == null
-            ? await DataRepository.instance.getBookText(bookId!)
-            : await _loadBookRawText(
-                book,
-                shareFor: kPluginDefaultRpcTimeout - bookContentClock!.elapsed,
-              );
+            ? await _readQueuedBookText(
+                page,
+                remaining,
+                () => DataRepository.instance.getBookText(bookId!),
+              )
+            : await _loadBookRawText(book, shareFor: remaining, page: page);
         final contentBook = book ?? TextBook(title: bookId!);
         TextDisplayProfile? displayProfile;
         TextBookLoaded? readerState;
@@ -2026,21 +2205,34 @@ class PluginBridgeAdapter {
     );
     final includeAnchors = args['includeAnchors'] as bool? ?? false;
     final rawAnchorNames = _rawDivineNamesArg(args);
+    // 'outgoing' (ברירת המחדל) — התשובה של היום בלי שינוי; 'incoming' — קישורים
+    // שספרים אחרים שומרים אל החלון; 'both' — שתיהן, עם direction בכל רשומה.
+    final direction = args['direction'] ?? 'outgoing';
+    if (direction is! String ||
+        !const {'outgoing', 'incoming', 'both'}.contains(direction)) {
+      throw Exception(
+        "error.invalid_params: direction must be 'outgoing', 'incoming' or "
+        "'both'",
+      );
+    }
 
     final book = _findLinksTextBook(library, args);
     if (book == null) throw Exception('error.not_found: book not found');
 
-    final links = await _linksRepository.getBookLinksInRange(
-      book,
-      startIndex: startLine,
-      endIndex: endLine,
-      // צמצום ב-SQL רק כשאין תחיליות — SQL מכיר רק כותרות מלאות, וצמצום
-      // לפי targetTitles לבדו היה מפיל את התאמות התחילית.
-      targetBookTitles: targetTitlePrefixes == null ? targetTitles : null,
-    );
+    final links = direction == 'incoming'
+        ? const <Link>[]
+        : await _linksRepository.getBookLinksInRange(
+            book,
+            startIndex: startLine,
+            endIndex: endLine,
+            // צמצום ב-SQL רק כשאין תחיליות — SQL מכיר רק כותרות מלאות, וצמצום
+            // לפי targetTitles לבדו היה מפיל את התאמות התחילית.
+            targetBookTitles: targetTitlePrefixes == null ? targetTitles : null,
+          );
 
     // העוגנים נמדדים על השורה המלאה; התוסף מקבל את הטקסט השמור, בלי גופי ההערות.
-    final notes = includeAnchors
+    final readAnchors = includeAnchors && direction != 'incoming';
+    final notes = readAnchors
         ? await BookNotesRepository.instance.notesFor(
             book.title,
             categoryId: book.categoryId,
@@ -2049,7 +2241,7 @@ class PluginBridgeAdapter {
             versionTitle: book.versionTitle,
           )
         : BookNotes.empty;
-    final anchorNames = includeAnchors
+    final anchorNames = readAnchors
         ? await PluginDivineNamesFilter.resolve(
             book: book,
             readerState: _openReaderStateFor(book),
@@ -2066,6 +2258,7 @@ class PluginBridgeAdapter {
       // index1/index2 הם 1-based במודל; ה-wire של getLinks 0-based — זו
       // נקודת ההמרה. getRawLinks נשאר 1-based, כמוסכמת links.json.
       toRecord: (link, targetTitle) => {
+        if (direction != 'outgoing') 'direction': 'outgoing',
         'sourceLine': link.index1 - 1,
         'targetTitle': targetTitle,
         'targetLine': link.index2 - 1,
@@ -2084,7 +2277,52 @@ class PluginBridgeAdapter {
           ),
       },
     );
-    return {'links': filtered.records, 'truncated': filtered.truncated};
+    if (direction == 'outgoing') {
+      return {'links': filtered.records, 'truncated': filtered.truncated};
+    }
+
+    // הקישור כפי שנשמר: source הוא הספר האחר, target — שורה בחלון. סינוני
+    // הכותרת חלים על הספר האחר, כמו ביוצאים; includeAnchors אינו חל עליהם.
+    final remaining = _pluginLinksMaxRecords - filtered.records.length;
+    final incoming = filtered.truncated
+        ? null
+        : _filterLinkRecords(
+            await _linksRepository.getIncomingLinksInRange(
+              book,
+              startIndex: startLine,
+              endIndex: endLine,
+              connectionTypes: connectionTypes,
+              targetBookTitles: targetTitles,
+              targetTitlePrefixes: targetTitlePrefixes,
+              // הרשומה הנוספת מסמנת truncated.
+              limit: remaining + 1,
+            ),
+            targetTitles: targetTitles,
+            targetTitlePrefixes: targetTitlePrefixes,
+            connectionTypes: connectionTypes,
+            maxRecords: remaining,
+            pathIsTitle: true,
+            toRecord: (link, sourceTitle) => {
+              'direction': 'incoming',
+              'sourceTitle': sourceTitle,
+              'sourceLine': link.index2 - 1,
+              'sourceLineEnd': link.index2End == null
+                  ? null
+                  : link.index2End! - 1,
+              'sourceHeRef': link.heRef,
+              'sourceSource': link.targetSource.wireKey,
+              'sourceCategoryId': link.targetCategoryId,
+              'targetLine': link.index1 - 1,
+              'connectionType': link.connectionType,
+              'isCommentary': LinkTypes.isDependentTextLink(
+                link.connectionType,
+              ),
+            },
+          );
+    return {
+      'links': [...filtered.records, ...?incoming?.records],
+      'truncated': filtered.truncated || (incoming?.truncated ?? false),
+    };
   }
 
   /// `library.getLineNotes` — הערות השוליים של טווח שורות, מטבלת `line_note`.
@@ -2215,6 +2453,7 @@ class PluginBridgeAdapter {
     required List<String>? targetTitlePrefixes,
     required List<String>? connectionTypes,
     required int maxRecords,
+    bool pathIsTitle = false,
     required Map<String, dynamic> Function(Link link, String targetTitle)
     toRecord,
   }) {
@@ -2223,7 +2462,9 @@ class PluginBridgeAdapter {
     final records = <Map<String, dynamic>>[];
     var truncated = false;
     for (final link in links) {
-      final targetTitle = getTitleFromPath(link.path2);
+      final targetTitle = pathIsTitle
+          ? link.path2
+          : getTitleFromPath(link.path2);
       if (!_titleAllowed(targetTitle, titlesFilter, targetTitlePrefixes)) {
         continue;
       }
@@ -2829,6 +3070,9 @@ class PluginBridgeAdapter {
       publicArgs,
       findBook: (identity) => _findPluginBook(library, identity),
     );
+    final regexRequestId = request.regex
+        ? LexicalSearchRequestIds.next()
+        : null;
     final stream = _dependencies.searchRepository.searchTextsStreamWithCounts(
       SearchEngineRequest(
         query: request.sanitizedQuery,
@@ -2852,6 +3096,7 @@ class PluginBridgeAdapter {
         wordMatchMode: request.wordMatchMode,
         wordMatchCount: request.wordMatchCount,
         anyOrder: request.anyOrder,
+        cancelRequestId: regexRequestId,
       ),
       chunkSize: 50,
     );
@@ -2861,9 +3106,20 @@ class PluginBridgeAdapter {
     final iterator = StreamIterator<SearchStreamUpdate>(stream);
     var cancelled = false;
     var expired = false;
+    Future<void>? engineCancellation;
     Future<void> cancel() async {
       cancelled = true;
+      if (regexRequestId != null) {
+        engineCancellation ??= _dependencies.searchRepository
+            .cancelLexicalSearch(regexRequestId)
+            .catchError((Object error) {
+              debugPrint(
+                '[PluginBridge] Failed to cancel regex search: $error',
+              );
+            });
+      }
       await iterator.cancel();
+      await engineCancellation;
     }
 
     if (_pendingSearchCancellations.remove(streamId)) {
@@ -2879,10 +3135,16 @@ class PluginBridgeAdapter {
     int? totalCount;
     int? groupCount;
     var truncated = false;
+    var completed = false;
     final restrictedByPath = <String, bool>{};
     try {
       while (await iterator.moveNext().timeout(_searchIdleTimeout)) {
         final update = iterator.current;
+        final engineUpdate = update is SearchSnapshotUpdate
+            ? update.update
+            : update;
+        // בזרם רג׳קס תוצאות יכולות להקדים את הספירה הסופית.
+        if (request.regex && engineUpdate is SearchCountProgress) continue;
         if (update.totalCount != null) {
           totalCount = update.totalCount;
           groupCount = update.groupCount;
@@ -2943,15 +3205,31 @@ class PluginBridgeAdapter {
         });
       }
       if (expired) throw TimeoutException('Search stream timed out');
+      completed = !cancelled;
       return {
-        'completed': !cancelled,
+        'completed': completed,
         'cancelled': cancelled,
         'chunks': sequence,
       };
+    } catch (error) {
+      if (request.regex && isSearchCancelledError(error)) {
+        if (expired) throw TimeoutException('Search stream timed out');
+        return {'completed': false, 'cancelled': true, 'chunks': sequence};
+      }
+      if (request.regex && error.toString().contains('invalid user regex:')) {
+        throw Exception(
+          'error.invalid_params: query must be a valid /…/ regex',
+        );
+      }
+      rethrow;
     } finally {
       deadline.cancel();
       _activeSearchStreams.remove(streamId);
-      await iterator.cancel();
+      if (request.regex && !completed) {
+        await cancel();
+      } else {
+        await iterator.cancel();
+      }
     }
   }
 
@@ -5270,11 +5548,12 @@ class PluginBridgeAdapter {
     if (context == null || !context.mounted) {
       throw Exception('error.unavailable: No window to show the print screen');
     }
+    final data = _loadBookRawText(book);
     final printed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => PrintingScreen(
-        data: _loadBookRawText(book),
+        data: data,
         bookId: book.title,
         book: book,
         startLine: startLine,
@@ -5990,47 +6269,27 @@ class PluginBridgeAdapter {
   }) async {
     final context = rpcWindowContext;
     if (context == null || !context.mounted) return null;
-    final windowsOptions = modalWindowsOptions(context);
     if (!await verifySaferModePassword(context)) {
       return null;
     }
     if (!context.mounted) return null;
-    final folder = await withFilePickerOwner(
-      context,
-      (picker) => picker.getDirectoryPath(
-        dialogTitle: pluginSaveFolderDialogTitle(title),
-        windowsOptions: windowsOptions,
-        linuxOptions: kModalLinuxOptions,
-      ),
+    final target = await chooseDesktopSaveTarget(
+      context: context,
+      fileName: suggestedName,
+      extension: allowedExtensions?.firstOrNull,
+      dialogTitle: title,
+      confirmOverwrite: (fileName) {
+        _checkFileAccess();
+        return _dependencies.showWarningDialog(
+          title: 'הקובץ כבר קיים',
+          content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
+          subtitle: 'התוכן הקיים יוחלף.',
+        );
+      },
     );
-    if (folder == null) return null;
-
-    final dialogContext = context;
-    if (!dialogContext.mounted) return null;
-    final typed = await showInputDialog(
-      context: dialogContext,
-      title: title ?? 'שמירת קובץ',
-      labelText: 'שם הקובץ',
-      initialValue: suggestedName,
-      confirmText: 'שמור',
-    );
-    if (typed == null || !dialogContext.mounted) return null;
-
-    final fileName = pluginSaveFileName(typed, allowedExtensions?.firstOrNull);
-    final target = pluginSaveTargetPath(folder: folder, fileName: fileName);
     if (target == null) return null;
-
-    final exists = await File(target).exists();
     _checkFileAccess();
-    if (exists) {
-      final replace = await _dependencies.showWarningDialog(
-        title: 'הקובץ כבר קיים',
-        content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
-        subtitle: 'התוכן הקיים יוחלף.',
-      );
-      if (!replace || !dialogContext.mounted) return null;
-    }
-    return target;
+    return target.path;
   }
 
   /// מעתיק את ההעלאה ליעד: staging באותה תיקייה, ואז rename.
@@ -6968,6 +7227,8 @@ class PluginBridgeAdapter {
     switch (action) {
       case 'submitBookCorrection':
         return _submitBookCorrection(args);
+      case 'getBookCorrectionStatus':
+        return _getBookCorrectionStatus(args);
       case 'sendEmail':
         final to = args['to'] as String?;
         final subject = args['subject'] as String?;
@@ -7023,29 +7284,30 @@ class PluginBridgeAdapter {
         // המייל השמור בהגדרות גובר — כתובת מהתוסף משמשת רק כשאין שמור,
         // כדי שתוסף לא יוכל לעקוף את הכתובת שהמשתמש קבע.
         final rawEmail = args['reporterEmail'];
-        var email =
-            Settings.getValue<String>(
-              SettingsRepository.keyErrorReportSenderEmail,
-            )?.trim() ??
-            '';
-        if (email.isEmpty && rawEmail is String) {
-          email = rawEmail.trim();
-        }
+        final pluginEmail = rawEmail is String ? rawEmail.trim() : '';
+        final savedEmail = _savedReportSenderEmail();
 
         final preview = cappedDetails.length > 300
             ? '${cappedDetails.substring(0, 300)}…'
             : cappedDetails;
-        // הדיאלוג הוא גבול האבטחה, ולכן חייב לחשוף גם את הכתובת שתישלח —
-        // היא עשויה להגיע מהגדרות המשתמש בלי שהתוסף ביקש אותה.
-        final emailLine = email.isEmpty ? '' : '\n\nכתובת לחזרה: $email';
-        final confirmed = await _dependencies.showConfirmDialog(
+        // הדיאלוג הוא גבול האבטחה, ולכן חייב לחשוף גם את הכתובת שתישלח:
+        // היא בשדה הכתובת, ממולאת מהשמורה (או מזו של התוסף כשאין שמורה),
+        // והמשתמש יכול לשנות או למחוק אותה.
+        final email = await _confirmReportSender(
           title: 'שליחת דיווח למפתח התוסף',
           content:
               'התוסף "${plugin.name}" מבקש לשלוח דיווח לאתר אוצריא, '
-              'שיעביר אותו למפתח התוסף.\n\nתוכן הדיווח:\n$preview$emailLine',
+              'שיעביר אותו למפתח התוסף.\n\nתוכן הדיווח:\n$preview',
+          initialEmail: savedEmail.isNotEmpty ? savedEmail : pluginEmail,
+          emailRequired: false,
         );
-        if (!confirmed) {
+        if (email == null) {
           return 'cancelled';
+        }
+        // כמו בדיווח על תקלה, כתובת שהמשתמש הקליד נשמרת לפעם הבאה. כתובת
+        // שהתוסף מילא מראש לא נשמרת: תוסף לא יקבע את זהות המשתמש בדיווחים.
+        if (email.isNotEmpty && email != savedEmail && email != pluginEmail) {
+          await _saveReportSenderEmail(email);
         }
 
         final record = await _reportService.buildRecord(
@@ -7073,6 +7335,27 @@ class PluginBridgeAdapter {
           'error.unknown_method: Unknown action in feedback: $action',
         );
     }
+  }
+
+  /// מצב דיווח תיקון שהתוסף עצמו שלח. המזהה המקומי נבנה כאן מהמזהה של התוסף,
+  /// ולכן תוסף יכול לשאול רק על דיווחים שלו, ושום תוכן אינו נחשף.
+  Future<Map<String, dynamic>> _getBookCorrectionStatus(
+    Map<String, dynamic> args,
+  ) async {
+    final id = args['reportId'];
+    if (id is! String || !PluginBookCorrectionService.isValidReportId(id)) {
+      throw Exception('error.invalid_params: מזהה הדיווח אינו תקין.');
+    }
+    final nativeId = PluginBookCorrectionService.nativeReportId(
+      plugin.pluginId,
+      id,
+    );
+    final direct = _directBookReportService ??= DirectErrorReportService();
+    return {
+      'status': await direct.lookupReportStatus(nativeId),
+      'reportId': id,
+      'nativeReportId': nativeId,
+    };
   }
 
   Future<Map<String, dynamic>> _submitBookCorrection(
@@ -7690,121 +7973,8 @@ class PluginBridgeAdapter {
   // flutter_local_notifications דוחה מזהה שאינו נכנס ב-32 ביט.
   static int _newNotificationId() => math.Random().nextInt(0x7FFFFFFF);
 
-  Map<String, dynamic> _buildJewishDatePayload(DateTime date, bool inIsrael) {
-    final jewishCalendar = JewishCalendar.fromDateTime(date)
-      ..inIsrael = inIsrael;
-    final formatter = HebrewDateFormatter()..hebrewFormat = true;
-
-    return {
-      'year': jewishCalendar.getJewishYear(),
-      'month': jewishCalendar.getJewishMonth(),
-      'day': jewishCalendar.getJewishDayOfMonth(),
-      'gregorian': date.toIso8601String(),
-      'monthName': formatter.formatMonth(jewishCalendar),
-      'isLeapYear': jewishCalendar.isJewishLeapYear(),
-      'isShabbat': jewishCalendar.getDayOfWeek() == 7,
-      'parasha': _upcomingParasha(date, inIsrael, formatter),
-      'dafYomi': _buildDafYomiPayload(jewishCalendar),
-      'holidays': _buildHolidayPayloads(jewishCalendar, formatter),
-    };
-  }
-
-  /// דף היומי (בבלי) לתאריך העברי הנתון. `null` עבור תאריכים שקדמו לתחילת
-  /// המחזור הראשון (י"ח באלול תרפ"ג / 11.9.1923), שלגביהם הספרייה זורקת.
-  Map<String, dynamic>? _buildDafYomiPayload(JewishCalendar jewishCalendar) {
-    try {
-      final daf = jewishCalendar.getDafYomiBavli();
-      return {'masechet': daf.getMasechta(), 'daf': daf.getDaf()};
-    } on ArgumentError {
-      return null;
-    }
-  }
-
-  String _upcomingParasha(
-    DateTime date,
-    bool inIsrael,
-    HebrewDateFormatter formatter,
-  ) {
-    final dayOfWeek = date.weekday;
-    // Dart weekday: Mon=1 … Sat=6, Sun=7. Shabbat = Saturday = 6.
-    final daysUntilShabbat = dayOfWeek == 6 ? 0 : (6 - dayOfWeek) % 7;
-    final shabbatDate = addCalendarDays(date, daysUntilShabbat);
-    final shabbatCalendar = JewishCalendar.fromDateTime(shabbatDate)
-      ..inIsrael = inIsrael;
-    return formatter.formatParsha(shabbatCalendar);
-  }
-
-  List<Map<String, String>> _buildHolidayPayloads(
-    JewishCalendar jewishCalendar,
-    HebrewDateFormatter formatter,
-  ) {
-    final holidays = <Map<String, String>>[];
-    final seenLabels = <String>{};
-
-    void addHoliday(String label, String kind) {
-      final normalizedLabel = label.trim();
-      if (normalizedLabel.isEmpty || !seenLabels.add(normalizedLabel)) {
-        return;
-      }
-      holidays.add({'text': normalizedLabel, 'kind': kind});
-    }
-
-    final yomTovLabel = formatter.formatYomTov(jewishCalendar);
-    if (yomTovLabel.isNotEmpty) {
-      final month = jewishCalendar.getJewishMonth();
-      final day = jewishCalendar.getJewishDayOfMonth();
-      final idx = jewishCalendar.getYomTovIndex();
-
-      // לימים טובים של פסח יש שמות ספציפיים שהספרייה לא מבדילה ביניהם
-      if (idx == JewishCalendar.PESACH) {
-        if (month == 1 && day == 21) {
-          addHoliday('שביעי של פסח', 'yomTov');
-        } else if (month == 1 && day == 22) {
-          addHoliday('אחרון של פסח', 'yomTov');
-        } else if (month == 1 && day == 16) {
-          addHoliday('פסח שני', 'yomTov');
-        } else {
-          addHoliday(
-            yomTovLabel,
-            _holidayKindForLabel(yomTovLabel, jewishCalendar),
-          );
-        }
-      } else {
-        for (final label in yomTovLabel.split(',')) {
-          addHoliday(label, _holidayKindForLabel(label, jewishCalendar));
-        }
-      }
-    }
-
-    if (jewishCalendar.isErevRoshChodesh()) {
-      addHoliday(formatter.formatErevRoshChodesh(jewishCalendar), 'special');
-    }
-
-    if (jewishCalendar.isRoshChodesh()) {
-      addHoliday(formatter.formatRoshChodesh(jewishCalendar), 'roshChodesh');
-    }
-
-    return holidays;
-  }
-
-  String _holidayKindForLabel(String label, JewishCalendar jewishCalendar) {
-    final normalizedLabel = label.trim();
-    if (normalizedLabel.contains('ראש חודש') ||
-        normalizedLabel.contains('ר"ח')) {
-      return 'roshChodesh';
-    }
-
-    if (jewishCalendar.isTaanis() &&
-        jewishCalendar.getYomTovIndex() != JewishCalendar.YOM_KIPPUR) {
-      return 'taanit';
-    }
-
-    if (jewishCalendar.isYomTovAssurBemelacha()) {
-      return 'yomTov';
-    }
-
-    return 'special';
-  }
+  Map<String, dynamic> _buildJewishDatePayload(DateTime date, bool inIsrael) =>
+      PluginJewishDatePayloadBuilder.build(date, inIsrael: inIsrael);
 
   Future<List<String>> _getGrantedPermissions() async {
     return _pluginRepo.getGrantedPermissionNames(plugin.pluginId);
@@ -8256,6 +8426,23 @@ class PluginBridgeAdapter {
   ) async {
     switch (action) {
       case 'requestInstall':
+        if (args.containsKey('local')) {
+          if (!identical(args['local'], true) || args.length != 1) {
+            throw Exception('error.invalid_params: expected only local: true');
+          }
+          if (plugin.pluginId != PluginStoreLinkParser.storePluginId ||
+              plugin.isDevelopment) {
+            throw Exception('error.forbidden: store file picker unavailable');
+          }
+          final pickArchive = _dependencies.requestLocalPluginInstall;
+          if (pickArchive == null) {
+            throw Exception('error.unavailable: install not wired');
+          }
+          return pickArchive();
+        }
+        if (args['folderToken'] != null || args['path'] != null) {
+          throw Exception('error.invalid_params: file paths are unsupported');
+        }
         final url = args['url'] as String?;
         if (url == null) throw Exception('error.invalid_params: url required');
         final cb = _dependencies.requestPluginInstall;

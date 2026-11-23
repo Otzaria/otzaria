@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -499,7 +501,7 @@ Future<void> main() async {
       await tester.pump(const Duration(milliseconds: 50));
       expect(
         find.descendant(
-          of: find.byType(ListView),
+          of: find.byType(SuperListView),
           matching: find.text('ראש 0'),
         ),
         findsWidgets,
@@ -647,7 +649,7 @@ Future<void> main() async {
       // כל ה-finders מוגבלים לרשימת התפריט: הטקסט שהוקלד יושב גם ב-TextField,
       // ובלי ההגבלה כל ההשוואות כאן היו מתקיימות גם כשהתפריט ריק.
       Finder inMenu(String text) => find.descendant(
-        of: find.byType(ListView),
+        of: find.byType(SuperListView),
         matching: find.text(text),
       );
 

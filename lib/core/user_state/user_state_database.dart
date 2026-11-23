@@ -52,7 +52,7 @@ class UserStateDatabase {
     return _connection();
   }
 
-  /// הפתיחה עצלה וסינכרונית — כמו `PersonalNotesDatabase`.
+  /// הפתיחה עצלה וסינכרונית.
   Future<Database> _connection() async {
     final open = _database;
     if (open != null) return open;

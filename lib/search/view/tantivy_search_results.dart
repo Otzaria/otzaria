@@ -4,6 +4,8 @@ import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperSliverList;
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -968,7 +970,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
 
     return SliverPadding(
       padding: const EdgeInsets.all(16),
-      sliver: SliverList.builder(
+      // SliverList בונה בקפיצה בפס הגלילה כל כרטיס שבדרך (#4766).
+      sliver: SuperSliverList.builder(
         itemCount:
             state.results.length +
             ((showInlineLoadingIndicator || showLoadMoreButton) ? 1 : 0),
@@ -1442,140 +1445,132 @@ class EngineResultCard extends StatelessWidget {
     );
     return Padding(
       padding: AppTokens.cardPadding,
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // מספר התוצאה
-          SearchResultRankBadge(rank: rank),
-          const SizedBox(width: AppTokens.spaceMD),
-          // תוכן התוצאה
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (result.isPdf)
-                      Padding(
-                        // תוכן התוצאות תמיד RTL: end הוא הצד שבין האייקון לכותרת.
-                        padding: const EdgeInsetsDirectional.only(end: 8),
-                        child: Icon(
-                          OtzariaIcons.book_pdf_24_regular,
-                          size: AppTokens.iconSM,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                        ),
-                      ),
-                    Expanded(
-                      child: Text(
-                        result.title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                        ),
-                        textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    // תגית מקור מול ספק חיצוני; בלי מדור
-                    // חיצוני היא רק גוזלת רוחב משם הספר.
-                    ValueListenableBuilder<ExternalSearchStatus?>(
-                      valueListenable: externalSearchStatus,
-                      builder: (context, status, _) => status == null
-                          ? const SizedBox(width: 4)
-                          : const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(width: 8),
-                                SearchResultSourceTag(
-                                  label: 'אוצריא',
-                                ),
-                                SizedBox(width: 4),
-                              ],
-                            ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        FluentIcons.copy_24_regular,
-                        size: AppTokens.iconSM,
-                      ),
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant,
-                      tooltip: 'העתק טקסט',
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
-                      ),
-                      onPressed: onCopy,
-                    ),
-                  ],
-                ),
-                if (wrappedTitleText.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      wrappedTitleText,
-                      style: secondaryLineStyle,
-                      textAlign: TextAlign.right,
-                      softWrap: true,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                // הטקסט שנמצא
-                if (isResultTextUnavailable(result))
-                  Text(
-                    unavailableResultText,
-                    style: secondaryLineStyle,
-                  )
-                else
-                  RichText(
-                    textScaler: MediaQuery.textScalerOf(
+          Row(
+            children: [
+              // מספר התוצאה בראש שורת הכותרת, ולא בעמודה משלו: הכותרת
+              // המשנית והקטע מתחתיו נפרשים לכל רוחב הכרטיס.
+              SearchResultRankBadge(rank: rank),
+              const SizedBox(width: AppTokens.spaceSM),
+              if (result.isPdf)
+                Padding(
+                  // תוכן התוצאות תמיד RTL: end הוא הצד שבין האייקון לכותרת.
+                  padding: const EdgeInsetsDirectional.only(end: 8),
+                  child: Icon(
+                    OtzariaIcons.book_pdf_24_regular,
+                    size: AppTokens.iconSM,
+                    color: Theme.of(
                       context,
-                    ),
-                    textAlign: TextAlign.justify,
-                    text: TextSpan(
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface,
-                        height: 1.5,
+                    ).colorScheme.primary,
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  result.title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary,
+                  ),
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // תגית מקור מול ספק חיצוני; בלי מדור
+              // חיצוני היא רק גוזלת רוחב משם הספר.
+              ValueListenableBuilder<ExternalSearchStatus?>(
+                valueListenable: externalSearchStatus,
+                builder: (context, status, _) => status == null
+                    ? const SizedBox(width: 4)
+                    : const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(width: 8),
+                          SearchResultSourceTag(
+                            label: 'אוצריא',
+                          ),
+                          SizedBox(width: 4),
+                        ],
                       ),
-                      children: snippetSpans,
-                    ),
-                  ),
-                if (result.continuesToNextLine &&
-                    !isResultTextUnavailable(result))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      crossLineResultNote,
-                      style: secondaryLineStyle,
-                    ),
-                  ),
-                // תוצאות שאוחדו לכרטיס זה (במצב איחוד תוצאות)
-                if (result.mergedCount > 1)
-                  MergedSiblingsSection(
-                    mergedCount: result.mergedCount,
-                    siblings: result.merged,
-                    groupingMode: groupingMode,
-                    onOpenSibling: onOpenSibling,
-                    onOpenSiblingInBackground: onOpenSiblingInBackground,
-                    onPreviewSibling: onPreviewSibling,
-                  ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  FluentIcons.copy_24_regular,
+                  size: AppTokens.iconSM,
+                ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant,
+                tooltip: 'העתק טקסט',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
+                ),
+                onPressed: onCopy,
+              ),
+            ],
           ),
+          if (wrappedTitleText.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                wrappedTitleText,
+                style: secondaryLineStyle,
+                textAlign: TextAlign.right,
+                softWrap: true,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          const SizedBox(height: 8),
+          // הטקסט שנמצא
+          if (isResultTextUnavailable(result))
+            Text(
+              unavailableResultText,
+              style: secondaryLineStyle,
+            )
+          else
+            RichText(
+              textScaler: MediaQuery.textScalerOf(
+                context,
+              ),
+              textAlign: TextAlign.justify,
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface,
+                  height: 1.5,
+                ),
+                children: snippetSpans,
+              ),
+            ),
+          if (result.continuesToNextLine && !isResultTextUnavailable(result))
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                crossLineResultNote,
+                style: secondaryLineStyle,
+              ),
+            ),
+          // תוצאות שאוחדו לכרטיס זה (במצב איחוד תוצאות)
+          if (result.mergedCount > 1)
+            MergedSiblingsSection(
+              mergedCount: result.mergedCount,
+              siblings: result.merged,
+              groupingMode: groupingMode,
+              onOpenSibling: onOpenSibling,
+              onOpenSiblingInBackground: onOpenSiblingInBackground,
+              onPreviewSibling: onPreviewSibling,
+            ),
         ],
       ),
     );

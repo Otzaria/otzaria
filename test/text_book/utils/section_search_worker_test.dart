@@ -255,6 +255,43 @@ void main() {
       expect(harness.cleanedRawLines, content.sublist(1, 3));
     });
 
+    test('כתובת משותפת לתוצאות עד להשתנות הכותרות', () async {
+      final harness = _RuntimeHarness();
+      addTearDown(harness.dispose);
+      const content = [
+        '<h2>פֶּרֶק א</h2>',
+        '<h3><b>סִימָן א</b></h3>',
+        'אור טוב',
+        'אור',
+        'טוב',
+        '<h3><b>סִימָן א</b></h3>',
+        'אור טוב',
+        '<h2>פֶּרֶק א</h2>',
+        'אור טוב',
+        '<h2>פרק ב</h2>',
+        'אור טוב',
+      ];
+      final response = await harness.search(
+        requestId: 1,
+        contentId: 1,
+        content: content,
+        query: 'אור טוב',
+        range: (start: 2, end: null),
+      );
+      final results = (response['results'] as List).cast<Map>();
+      expect(results.map((result) => result['index']), [2, 3, 6, 8, 10]);
+      expect(results[1]['continuesToNextLine'], isTrue);
+      expect(
+        results.map(
+          (result) => (result['address'] as String)
+              .split(',')
+              .map((heading) => heading.trim())
+              .join(', '),
+        ),
+        ['פרק א, סימן א', 'פרק א, סימן א', 'פרק א, סימן א', 'פרק א', 'פרק ב'],
+      );
+    });
+
     test('טווח ריק אינו מנקה ושינוי גבול הסיום נשאר תחום לספר', () async {
       final harness = _RuntimeHarness();
       addTearDown(harness.dispose);

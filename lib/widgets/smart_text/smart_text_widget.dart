@@ -18,6 +18,7 @@ import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_text.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
+import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -613,12 +614,15 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     }
     final strutStyle = exactLineHeightStrut(resolved.prepareTextStyle(), text);
 
-    return Builder(
+    final richText = Builder(
       builder: (context) => withSelectionFillRichText(
         built.builder(context),
         strutStyle: strutStyle,
       ),
     );
+    return text.visitChildren((span) => span is! WidgetSpan)
+        ? richText
+        : ParagraphSelectionContainer(child: richText);
   }
 
   @override

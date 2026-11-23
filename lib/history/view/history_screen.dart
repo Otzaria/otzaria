@@ -4,6 +4,7 @@ import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -61,39 +62,6 @@ String? _searchSettingsLabel(Map<String, dynamic>? config) {
     SearchConfiguration.fromMap(config),
   );
   return label.isEmpty ? null : label;
-}
-
-/// כותרת עשירה לפריט חיפוש: מבנה השאילתה בגופן רגיל, ואפשרויות המילה
-/// מובחנות (גופן קטן, גוון הנושא). null כשאין אפשרויות — אז הכותרת הרגילה
-/// (ref) מספיקה ואין צורך לפצל מחדש את השאילתה במנוע.
-InlineSpan? _searchTitleSpan(BuildContext context, Bookmark item) {
-  final options = item.searchOptions;
-  if (!item.isSearch ||
-      options == null ||
-      !options.values.any((map) => map.values.any((enabled) => enabled))) {
-    return null;
-  }
-  final segments = buildSearchTitleSegments(
-    query: item.book.title,
-    effectiveOptions: options,
-    alternativeWords: item.alternativeWords ?? const {},
-    spacingValues: item.spacingValues ?? const {},
-    negativeText: item.negativeSearchText ?? '',
-  );
-  final optionStyle = TextStyle(
-    fontSize: 13,
-    fontWeight: FontWeight.normal,
-    color: Theme.of(context).colorScheme.primary,
-  );
-  return TextSpan(
-    children: [
-      for (final segment in segments)
-        TextSpan(
-          text: segment.text,
-          style: segment.isOption ? optionStyle : null,
-        ),
-    ],
-  );
 }
 
 class HistoryDialog extends StatelessWidget {
@@ -428,7 +396,7 @@ class _HistoryViewState extends State<HistoryView> {
                     ? item.ref as String
                     : item.book.title as String,
                 titleSpanBuilder: (item) =>
-                    _searchTitleSpan(context, item as Bookmark),
+                    searchTitleSpan(context, item as Bookmark),
                 subtitleBuilder: (item) {
                   if (item.isSearch as bool) {
                     return _searchDisplay(item as Bookmark).subtitle;

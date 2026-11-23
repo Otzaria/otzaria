@@ -16,6 +16,7 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 Library _library() {
   final tora = Category(
@@ -488,6 +489,19 @@ void main() {
 
     expect(built, lessThan(50), reason: 'קפיצת פס הגלילה בנתה את כל הספרים');
     expect(find.text('ספר 2999'), findsOneWidget);
+  });
+
+  testWidgets('בחירת ספרים וקטגוריות להסתרה: אייקון ספר עם עין', (
+    tester,
+  ) async {
+    await pump(tester);
+    expect(find.byIcon(OtzariaIcons.book_eye_24_regular), findsOneWidget);
+
+    await tester.tap(find.text('פתח רשימה'));
+    await tester.pumpAndSettle();
+    // השורה בפאנל והכותרת של הדיאלוג.
+    expect(find.byIcon(OtzariaIcons.book_eye_24_regular), findsNWidgets(2));
+    expect(find.byIcon(OtzariaIcons.book_delete_24_regular), findsNothing);
   });
 }
 

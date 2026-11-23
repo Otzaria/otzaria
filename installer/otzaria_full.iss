@@ -364,11 +364,26 @@ begin
     Result := GetDataDir('') + '\books';
 end;
 
-// נתוני החיפוש החכם שמסייע ההורדה הכין: ההורה של תיקיית הספרייה הוא
-// SemanticPaths.root באפליקציה, ושם היא מחפשת את semantic-import.
+// תיקייה נפרדת מתיקיית החילוץ, שמתאפסת לפני הפריסה.
+function GetBundledArchiveDir(Param: String): String;
+begin
+  Result := ExtractFileDir(GetSelectedBooksPath('')) + '\.otzaria-bundled-archives';
+end;
+
+// SemanticPaths.root באפליקציה הוא ההורה של תיקיית הספרים.
 function GetSemanticImportDir(Param: String): String;
 begin
   Result := ExtractFileDir(GetSelectedBooksPath('')) + '\semantic-import';
+end;
+
+// מיקום האיסוף של מסדים רשמיים באפליקציה (defaultDropDirectory), תחת שורש הנתונים.
+function GetOfficialDropDir(Param: String): String;
+begin
+  if PortableMode then
+    Result := ExpandConstant('{app}') + '\otzaria_data'
+  else
+    Result := ExpandConstant('{userappdata}\otzaria');
+  Result := Result + '\מסדים אישיים\להתקנה';
 end;
 
 // חותך רכיב מספרי מתחילת S ומקדם אותה הלאה. תו שאינו ספרה או '.'
@@ -777,6 +792,11 @@ begin
   // "כן" (Enter) נשאר חילוץ: דילוג רק בבחירה מפורשת ב"לא" (Esc אינו עונה).
   PortableSkipLibrary := not InstAskYesNo(CustomMessage('PortableLibraryTitle'),
     Msg1('PortableLibraryFound', UiDialogPath(ExistingPath)), mbConfirmation, MB_YESNO);
+end;
+
+function ShouldInstallBundledLibrary(): Boolean;
+begin
+  Result := not (PortableMode and PortableSkipLibrary);
 end;
 
 function InitializeSetup(): Boolean;
@@ -1246,9 +1266,8 @@ var
   ArchivePath, DatabasePath, ZstdPath, Params, ErrOutput, Hint: String;
   ResultCode: Integer;
 begin
-  ArchivePath := ExpandConstant('{tmp}\' + ArchiveName);
-  // ארכיון חסר = כשל (נמחק מ-{tmp} ע"י ניקוי דיסק וכד') — דילוג שקט השאיר
-  // התקנה "מוצלחת" בלי ספרייה (issue #862).
+  ArchivePath := GetBundledArchiveDir('') + '\' + ArchiveName;
+  // ארכיון חסר מכשיל את ההתקנה לפני החלפת הספרייה.
   if not FileExists(ArchivePath) then
   begin
     Log('Bundled database archive not found: ' + ArchivePath);
@@ -1282,7 +1301,7 @@ var
   ArchivePath, TarPath, ParentDir, TargetDir, ZstdPath, SevenZipPath, Params, ErrOutput, Hint: String;
   ResultCode: Integer;
 begin
-  ArchivePath := ExpandConstant('{tmp}\' + ArchiveName);
+  ArchivePath := GetBundledArchiveDir('') + '\' + ArchiveName;
   if not FileExists(ArchivePath) then
   begin
     Log('Bundled archive not found: ' + ArchivePath);
@@ -1545,15 +1564,15 @@ begin
 end;
 
 // שאלה בתחילת ההסרה: האם למחוק גם את הנתונים והספרים?
-// בהסרה שקטה (כולל עדכון שמריץ unins000.exe /SILENT) MsgBox מחזיר אוטומטית
-// את ברירת המחדל; MB_DEFBUTTON2 דואג שברירת המחדל היא "לא" כך שנתוני
-// המשתמש נשמרים אם הוא לא בחר במפורש למחוק.
+// MsgBox מוצג גם תחת /SUPPRESSMSGBOXES — הסרה שקטה מדלגת ושומרת את הנתונים.
 function InitializeUninstall(): Boolean;
 var
   CustomPath, Msg: String;
 begin
   Result := True;
   DeleteUserDataOnUninstall := False;
+  if UninstallSilent then
+    exit;
 
   CustomPath := GetCustomLibraryPath();
 
@@ -1773,7 +1792,7 @@ begin
 
   // המשתמש בחר לדלג על חילוץ הספרייה: רק ה-marker נכתב, ומסך הפתיחה של
   // אוצריא יציע להצביע על הספרייה הקיימת.
-  if PortableMode and PortableSkipLibrary then
+  if not ShouldInstallBundledLibrary() then
   begin
     SaveStringToFile(ExpandConstant('{app}\portable.marker'), '', False);
     InstallPortableShortcut();
@@ -1873,19 +1892,20 @@ Source: "..\build\windows\{#AppArch}\runner\Release\*"; \
 Source: "bundled_plugins\*"; Excludes: "{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bundled_plugins\{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist; Check: OtzariaSiteReachable
 
-; Compressed library assets + extraction tools staged in the setup temp dir —
-; {tmp} is always writable by the installer process (unlike {app} under Program Files)
-; and is auto-deleted when setup exits, even on abort
-Source: "library_db\seforim.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "library_db\lexical.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; הארכיונים מועתקים לכונן הספרייה כדי למנוע מילוי של כונן המערכת.
+Source: "library_db\seforim.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "library_db\lexical.db.zst"; DestDir: "{code:GetBundledArchiveDir}"; Flags: deleteafterinstall nocompression; Check: ShouldInstallBundledLibrary
+Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallBundledLibrary
+Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallBundledLibrary
 ; התיקייה שמסייע ההורדה מכין לצד המתקין (semantic-import), ליד תיקיית הספרייה.
 ; האפליקציה מעבירה ממנה את הקבצים כשהחיפוש החכם מופעל, אחרי ההסכמה.
 Source: "{src}\semantic-import\*"; DestDir: "{code:GetSemanticImportDir}"; \
   Flags: external recursesubdirs createallsubdirs skipifsourcedoesntexist ignoreversion uninsneveruninstall
+; חבילת מחברי זמננו שמסייע ההורדה מניח לצד המתקין, אל מיקום האיסוף של האפליקציה.
+Source: "{src}\zmanenu-offline.tar.zst*"; DestDir: "{code:GetOfficialDropDir}"; \
+  Flags: external skipifsourcedoesntexist ignoreversion uninsneveruninstall
 
 ; MicrosoftEdgeWebview2Setup.exe — bootstrapper קטן (~2MB) שמוריד ומתקין WebView2
 ; נדרש על ידי flutter_inappwebview_windows; ב-Win10/11 עם Edge עדכני — כבר קיים

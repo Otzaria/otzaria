@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -5,6 +7,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart';
+import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// פותר כתובת (ref) טקסטואלית — כמו "ב ע\"א" בגמרא או "רטו א" בשו"ע — לאינדקס
@@ -104,30 +107,47 @@ Future<Book?> _bookByTitle(
       : books.getBookByTitle(title);
 }
 
-/// מאתר ספר לפי כותרת בשני המסדים — לקבצים בפורמט ה-native שאינם מציינים
-/// אישי/רשמי. כותרת שקיימת בשניהם אינה מספיקה לזיהוי חד-משמעי.
+typedef LocatedUserLinkBook = ({
+  String title,
+  bool isUserBook,
+  int? categoryId,
+  int? totalLines,
+  bool isDependentOnly,
+});
+
+/// מאתר ספר לקישורי native. כותרת שקיימת במסד האישי וברשמי היא דו-משמעית.
 typedef UserLinkBookLocator =
-    Future<({bool isUserBook, int? categoryId, int totalLines})?> Function(
+    Future<LocatedUserLinkBook?> Function(
       String title,
     );
 
 /// המימוש האמיתי של [UserLinkBookLocator].
-Future<({bool isUserBook, int? categoryId, int totalLines})?>
-locateUserLinkBook(String title) => _locateIn(_repositoryFor, title);
+Future<LocatedUserLinkBook?> locateUserLinkBook(String title) =>
+    _locateIn(_repositoryFor, title);
 
 class AmbiguousUserLinkBookException implements Exception {
   final String title;
 
-  const AmbiguousUserLinkBookException(this.title);
+  const AmbiguousUserLinkBookException(this.title, {this.normalized = false});
+
+  final bool normalized;
+
+  String get details =>
+      normalized ? 'מתאים ליותר מספר אחד' : 'קיים גם בספרייה האישית וגם ברשמית';
 }
 
 class UnavailableUserLinkCatalogException implements Exception {
-  const UnavailableUserLinkCatalogException();
+  const UnavailableUserLinkCatalogException({this.attached = false});
+
+  final bool attached;
+
+  String get message => attached
+      ? 'לא ניתן לבדוק את המסדים המצורפים'
+      : 'לא ניתן לבדוק את הספרייה הרשמית';
 }
 
 @visibleForTesting
-Future<({bool isUserBook, int? categoryId, int totalLines})?>
-locateUserLinkBookInRepositories(
+Future<LocatedUserLinkBook?> locateUserLinkBookInRepositories(
   String title, {
   required SeforimRepository? userRepository,
   required SeforimRepository? officialRepository,
@@ -136,17 +156,41 @@ locateUserLinkBookInRepositories(
   title,
 );
 
-Future<({bool isUserBook, int? categoryId, int totalLines})?> _locateIn(
-  Future<SeforimRepository?> Function(bool isUserBook) repositoryFor,
-  String title,
+final _titleQuotes = RegExp('["\'״׳]');
+String _looseTitleKey(String title) => title.replaceAll(_titleQuotes, '');
+
+typedef _LooseTitles =
+    Map<SeforimRepository, Future<Map<String, List<String>>?>>;
+
+Future<Map<String, List<String>>?> _looseTitlesOf(
+  SeforimRepository repo,
 ) async {
+  final byKey = <String, List<String>>{};
+  try {
+    for (final row in await repo.database.bookDao.selectAllLocalBooksSlim()) {
+      final title = row['title'] as String;
+      (byKey[_looseTitleKey(title)] ??= []).add(title);
+    }
+  } on Exception catch (e) {
+    debugPrint('⚠️ [UserLinkBookLocator] $e');
+    return null;
+  }
+  return byKey;
+}
+
+Future<LocatedUserLinkBook?> _locateIn(
+  Future<SeforimRepository?> Function(bool isUserBook) repositoryFor,
+  String title, [
+  _LooseTitles? looseTitles,
+]) async {
   final userRepository = await repositoryFor(true);
   final userBook = userRepository == null
       ? null
       : await _bookByTitle(userRepository, title, null);
+  final SeforimRepository? officialRepository;
   Book? officialBook;
   try {
-    final officialRepository = await repositoryFor(false);
+    officialRepository = await repositoryFor(false);
     officialBook = officialRepository == null
         ? null
         : await _bookByTitle(officialRepository, title, null);
@@ -156,14 +200,66 @@ Future<({bool isUserBook, int? categoryId, int totalLines})?> _locateIn(
   if (userBook != null && officialBook != null) {
     throw AmbiguousUserLinkBookException(title);
   }
-  final book = userBook ?? officialBook;
-  if (book == null) return null;
+  var isUserBook = userBook != null;
+  var book = userBook ?? officialBook;
+  if (book == null) {
+    // שם קובץ ב-Windows אינו יכול להכיל ", ולכן `ריף שבת` מכוון ל-`רי"ף שבת`.
+    final key = _looseTitleKey(title);
+    if (key.isEmpty) return null;
+    final cache = looseTitles ?? {};
+    final loose = <(bool, SeforimRepository, String)>[];
+    for (final (isUser, repo) in [
+      (true, userRepository),
+      (false, officialRepository),
+    ]) {
+      if (repo == null) continue;
+      final titles = await cache.putIfAbsent(repo, () => _looseTitlesOf(repo));
+      // מסד שלא נסרק עלול להכיל כותרת נוספת; אין לבחור כתיב קרוב על סמך היתר.
+      if (titles == null) return null;
+      for (final match in titles[key] ?? const <String>[]) {
+        loose.add((isUser, repo, match));
+      }
+    }
+    if (loose.length != 1) return null;
+    final (isUser, repo, match) = loose.single;
+    isUserBook = isUser;
+    book = await _bookByTitle(repo, match, null);
+    if (book == null) return null;
+  }
   return (
-    isUserBook: userBook != null,
+    title: book.title,
+    isUserBook: isUserBook,
     categoryId: book.categoryId,
-    totalLines: book.totalLines,
+    totalLines: isUserBook && book.isFileBacked && book.totalLines <= 0
+        ? await _fileBookLines(book)
+        : book.totalLines > 0
+        ? book.totalLines
+        : null,
+    isDependentOnly: _isDependentOnly(book),
   );
 }
+
+/// ספר מתיקייה אישית נרשם עם totalLines 0 (תוכנו בקובץ ולא בשורות `line`),
+/// ולכן נספרות שורותיו מהטקסט שהקורא מציג — אחרת גבולות הקישור אינם נבדקים.
+/// מספר שורות לא ידוע מיוצג ב-null, ובקובץ טקסט ריק המספר הוא 0.
+Future<int?> _fileBookLines(Book book) async {
+  try {
+    final text = await readFileBackedBookText(
+      File(book.filePath!),
+      book.fileType,
+      book.title,
+    );
+    if (text == null || text.isEmpty) return text?.length;
+    return '\n'.allMatches(text).length + 1;
+  } on Exception catch (e) {
+    debugPrint('⚠️ [UserLinkBookLocator] ${book.title}: $e');
+    return null;
+  }
+}
+
+// ספר תלוי יכול להיות מסומן גם כספר בסיס בפני עצמו.
+bool _isDependentOnly(Book book) =>
+    !book.isBaseBook && book.dependenceType?.trim().isNotEmpty == true;
 
 /// שלושת הפותרים מול [userDb] *הנתון* ולא ההולדר הגלובלי (סריקת תיקייה).
 /// [officialError] נזרק בכל פנייה לספרייה הרשמית, כמו כשל באתחולה.
@@ -178,8 +274,8 @@ userLinkResolversFor(
   Exception? officialError,
 }) {
   final userRepo = SeforimRepository(userDb);
-  final locatedBooks =
-      <String, Future<({bool isUserBook, int? categoryId, int totalLines})?>>{};
+  final locatedBooks = <String, Future<LocatedUserLinkBook?>>{};
+  final _LooseTitles looseTitles = {};
   Future<SeforimRepository?> repositoryFor(bool isUserBook) async {
     if (isUserBook) return userRepo;
     if (officialError != null) throw officialError;
@@ -208,7 +304,7 @@ userLinkResolversFor(
             _bookExists(await repositoryFor(isUserBook), title, categoryId),
     locateBook: (title) => locatedBooks.putIfAbsent(
       title,
-      () => _locateIn(repositoryFor, title),
+      () => _locateIn(repositoryFor, title, looseTitles),
     ),
   );
 }
@@ -238,6 +334,11 @@ typedef AttachedLinkLibrary = ({
   bool visible,
 });
 
+typedef _AttachedLookup = (
+  ({String slug, int totalLines, bool isDependentOnly})?,
+  bool unavailable,
+);
+
 /// ספרי המסדים המצורפים לפתירת צד של קישור או גרסה, לפי סדר העדיפות.
 /// כל מסד נפתח מוקשח ולקריאה בלבד ([MyDatabase.untrusted]).
 class AttachedLinkBooks {
@@ -260,29 +361,70 @@ class AttachedLinkBooks {
 
   final List<({String slug, bool visible, SeforimRepository repository})>
   _libraries;
-  final _located =
-      <(String, String?), Future<({String slug, int totalLines})?>>{};
+  final _located = <(String, String?), Future<_AttachedLookup>>{};
+
+  final _LooseTitles _looseTitles = {};
 
   bool get isEmpty => _libraries.isEmpty;
 
+  /// האם מסד מצורף גלוי מכיל מתחרה למועמד שנמצא לאחר הסרת גרשיים.
+  Future<bool> hasLooseTitle(String title) async {
+    final key = _looseTitleKey(title);
+    for (final library in _libraries) {
+      if (!library.visible) continue;
+      final repo = library.repository;
+      final titles = await _looseTitles.putIfAbsent(
+        repo,
+        () => _looseTitlesOf(repo),
+      );
+      if (titles == null) {
+        throw const UnavailableUserLinkCatalogException(attached: true);
+      }
+      if (titles.containsKey(key)) return true;
+    }
+    return false;
+  }
+
   /// הספר [title] במסד [slug], או — בלי slug — במסד הגלוי הראשון שמכיל אותו.
-  Future<({String slug, int totalLines})?> locate(
+  /// [requireKnownAbsence] מבדיל בין כותרת חסרה לבין מסד שלא ניתן לקרוא.
+  Future<({String slug, int totalLines, bool isDependentOnly})?> locate(
     String title, {
     String? slug,
-  }) => _located.putIfAbsent((title, slug), () async {
+    bool requireKnownAbsence = false,
+  }) async {
+    final (book, unavailable) = await _located.putIfAbsent(
+      (title, slug),
+      () => _lookup(title, slug),
+    );
+    if (book == null && unavailable && requireKnownAbsence) {
+      throw const UnavailableUserLinkCatalogException(attached: true);
+    }
+    return book;
+  }
+
+  Future<_AttachedLookup> _lookup(String title, String? slug) async {
+    var unavailable = false;
     for (final library in _libraries) {
       if (slug != null ? library.slug != slug : !library.visible) continue;
       try {
         final book = await _bookByTitle(library.repository, title, null);
         if (book != null) {
-          return (slug: library.slug, totalLines: book.totalLines);
+          return (
+            (
+              slug: library.slug,
+              totalLines: book.totalLines,
+              isDependentOnly: _isDependentOnly(book),
+            ),
+            false,
+          );
         }
       } on Exception catch (e) {
+        unavailable = true;
         debugPrint('[AttachedLinkBooks] ${library.slug} unreadable: $e');
       }
     }
-    return null;
-  });
+    return (null, unavailable);
+  }
 
   /// השורה (0-based) של [ref] בספר [title] שבמסד [slug].
   Future<int?> resolveRef(String slug, String title, String ref) async {

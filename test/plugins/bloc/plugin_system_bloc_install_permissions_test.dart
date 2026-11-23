@@ -56,12 +56,32 @@ class _StubInstaller extends PluginInstallerService {
   _StubInstaller(this.prepared) : super(repository: _FakeRepo());
 
   final PreparedInstall prepared;
+  final preparations = <({String path, bool forceOverwrite})>[];
+  final cancellations = <String>[];
+  final newInstalls = <String>[];
+
+  @override
+  Future<void> cancelInstall(String tempDirPath) async {
+    cancellations.add(tempDirPath);
+  }
+
+  @override
+  Future<void> finalizeNewInstall(
+    String tempDirPath,
+    PluginManifest manifest, {
+    required Map<String, bool> grantedPermissions,
+  }) async {
+    newInstalls.add(tempDirPath);
+  }
 
   @override
   Future<PreparedInstall> prepareInstall(
     String archivePath, {
     bool forceOverwrite = false,
-  }) async => prepared;
+  }) async {
+    preparations.add((path: archivePath, forceOverwrite: forceOverwrite));
+    return prepared;
+  }
 }
 
 PluginManifest _manifest() => PluginManifest.fromJson({
@@ -179,6 +199,74 @@ void main() {
       expect(requiresPermissions.isUserInitiated, isFalse);
     },
   );
+
+  test('אישור התקנה דרך החנות רושם רק התקנה חדשה מהחבילה שחולצה', () async {
+    const archive = '/tmp/plugin.otzplugin';
+    final installer = _StubInstaller(
+      PreparedInstall(_manifest(), '/tmp/staged', false),
+    );
+    final bloc = PluginSystemBloc(
+      repository: _FakeRepo(),
+      installerService: installer,
+    );
+    addTearDown(bloc.close);
+
+    final pending = bloc.stream.first;
+    bloc.add(const InstallPluginRequested.fromPluginPicker(archive));
+
+    final state = await pending as PluginSystemInstallRequiresPermissions;
+    expect(state.tempDirPath, '/tmp/staged');
+    expect(state.previousVersion, isNull);
+    expect(state.requireNewInstallation, isTrue);
+    expect(state.isUserInitiated, isFalse);
+
+    final finished = bloc.stream.firstWhere(
+      (state) => state is PluginSystemLoaded,
+    );
+    bloc.add(
+      ConfirmPluginInstall(
+        state.tempDirPath,
+        state.manifest,
+        const {'notes.read': false},
+        requireNewInstallation: state.requireNewInstallation,
+      ),
+    );
+    await finished;
+    expect(installer.preparations, [(path: archive, forceOverwrite: true)]);
+    expect(installer.newInstalls, ['/tmp/staged']);
+  });
+
+  test('בקשה מהחנות לעדכון תוסף מותקן מבטלת את החבילה שחולצה', () async {
+    final manifest = _manifest();
+    final installer = _StubInstaller(
+      PreparedInstall(
+        manifest,
+        '/tmp/staged',
+        true,
+        previousVersion: manifest.version,
+      ),
+    );
+    final bloc = PluginSystemBloc(
+      repository: _FakeRepo(),
+      installerService: installer,
+    );
+    addTearDown(bloc.close);
+
+    final states = <PluginSystemState>[];
+    final subscription = bloc.stream.listen(states.add);
+    addTearDown(subscription.cancel);
+    final finished = bloc.stream.firstWhere(
+      (state) => state is PluginSystemLoaded,
+    );
+    bloc.add(
+      const InstallPluginRequested.fromPluginPicker('/tmp/plugin.otzplugin'),
+    );
+    await finished;
+
+    expect(states.whereType<PluginSystemInstallRequiresPermissions>(), isEmpty);
+    expect(installer.cancellations, ['/tmp/staged']);
+    expect(installer.newInstalls, isEmpty);
+  });
 
   test('שומר התקנה יזומה במסלול התקנת קובץ', () async {
     final bloc = PluginSystemBloc(

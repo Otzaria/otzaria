@@ -50,6 +50,10 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
 
+class _RetryLinkSelection extends TextBookSelectionEvent {
+  const _RetryLinkSelection();
+}
+
 class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // השאילתה עצמה רצה ב-Isolate, אבל כל טעינה גוררת פענוח התוצאה, מיזוג
   // הקישורים ובנייה מחדש של חלונית המפרשים על ה-thread שמצייר. הסף — ולא
@@ -127,6 +131,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   SearchQuerySemantics _highlightSemantics = SearchQuerySemantics.regular;
   VoidCallback? _releaseHighlightPattern;
   int _searchResultRequestId = 0;
+  int _linkSelectionRequestId = 0;
   DateTime? _lastVisibleIndicesDispatchAt;
   bool _listeningToReadingPosition = false;
   int? _loadedLinksStart;
@@ -166,11 +171,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   bool _supportsContentRangeLoading = false;
   bool _awaitingInitialPageShapeVisibleSync = false;
 
-  /// סימון אם המשתמש שינה ידנית את בחירת המפרשים. בשונה מ-`activeCommentators.isEmpty`,
-  /// הדגל הזה מבחין בין "עוד לא נבחר כלום" (false) לבין "המשתמש ריקן את הבחירה
-  /// במכוון" (true) — וכך מונע אוטו-בחירה חוזרת של 'הערות' אחרי שהמשתמש כיבה אותן.
-  bool _userTouchedCommentators = false;
-
   /// true אחרי שסרקנו את כל ה-content (ApplyFullBookContent) — מאפשר לדלג
   /// על סריקות עתידיות גם אם 'הערות' לא נוסף ל-availableCommentators.
   bool _inlineNotesFullScanDone = false;
@@ -188,23 +188,23 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   @visibleForTesting
   static bool logCommentatorsFailuresInDebug = false;
 
-  /// מאפס את הדגלים הספציפיים-לספר. נקרא מ-_onLoadContent כשבלוק עובר
-  /// לטעון ספר חדש (כיום בייצור bloc נוצר חדש לכל תא, אבל הקריאה כאן
-  /// מגינה מפני דליפת state בין ספרים אם זה ישתנה בעתיד).
+  /// מאפס את סימון סריקת ההערות כשנטען ספר חדש.
   @visibleForTesting
   void resetInlineNotesStateForNewBook() {
-    _userTouchedCommentators = false;
     _inlineNotesFullScanDone = false;
   }
-
-  @visibleForTesting
-  bool get userTouchedCommentatorsForTesting => _userTouchedCommentators;
 
   @visibleForTesting
   bool get inlineNotesFullScanDoneForTesting => _inlineNotesFullScanDone;
 
   // pinpoint highlight ממתין להחלה כשה-bloc יגיע ל-Loaded
   ({String text, int? sectionIndex})? _pendingPinpoint;
+
+  // היעד ממתין למדידה של הקורא כדי שלא ייבחר באמצע גלילה.
+  int? _pendingLinkSelection;
+
+  @visibleForTesting
+  int? get pendingLinkSelectionForTesting => _pendingLinkSelection;
 
   /// גודל גופן שהגיע (דרך `UpdateFontSize`) לפני שהטעינה הסתיימה. בעליית
   /// התוכנה ההגדרות נטענות מהר יותר מתוכן הספר, כך שעדכון הגופן עלול להגיע
@@ -225,7 +225,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     Future<BookNotes> Function(TextBook book)? bookNotesLoader,
     required TextBookInitial initialState,
     this.readingPosition,
-  }) : _quickPreviewLoader =
+    int? linkSelectedLine,
+  }) : _pendingLinkSelection = linkSelectedLine,
+       _quickPreviewLoader =
            quickPreviewLoader ??
            SqliteDataProvider.instance.getBookQuickPreview,
        _protectionLoader =
@@ -236,6 +238,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
     on<UpdateDivineNames>(_onUpdateDivineNames);
     on<UpdateFontSize>(_onUpdateFontSize);
+    on<UpdateBookReadingMetrics>((event, emit) {
+      final current = state;
+      if (current is! TextBookLoaded) return;
+      emit(
+        current.copyWith(
+          commentatorsFontSize: event.commentatorsFontSize,
+          lineHeight: event.lineHeight,
+          clearCommentatorsFontSize:
+              event.inherit && event.commentatorsFontSize != null,
+          clearLineHeight: event.inherit && event.lineHeight != null,
+        ),
+      );
+    });
     on<ToggleLeftPane>(_onToggleLeftPane);
     on<ToggleSplitView>(_onToggleSplitView);
     on<TogglePageShapeView>(_onTogglePageShapeView);
@@ -245,7 +260,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ClearDisplayOverrides>(_onClearDisplayOverrides);
     on<ToggleContinuousReadingMode>(_onToggleContinuousReadingMode);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
-    on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
+    on<TextBookSelectionEvent>(_onSelectionEvent);
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
@@ -764,6 +779,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) async {
     TextBook book;
     String searchText;
+    Object? searchTextSource;
     String highlightText = '';
     int? permanentHighlightLine;
     Map<String, Map<String, bool>> searchOptions = {};
@@ -778,6 +794,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     ({int line, int requestId})? searchResultNavigation;
     bool showLeftPane;
     List<String> commentators;
+    bool hasExplicitCommentators;
     late final List<int> visibleIndices;
 
     bool initialShowPageShapeView = false;
@@ -794,6 +811,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       book = currentState.book;
       searchText = currentState.searchText;
+      searchTextSource = currentState.searchTextSource;
       highlightText = currentState.highlightText;
       permanentHighlightLine = currentState.permanentHighlightLine;
       searchOptions = currentState.searchOptions;
@@ -807,6 +825,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       searchResultLines = currentState.searchResultLines;
       showLeftPane = currentState.showLeftPane;
       commentators = currentState.activeCommentators;
+      hasExplicitCommentators = currentState.hasExplicitCommentators;
       visibleIndices = currentState.visibleIndices;
       initialShowPageShapeView = currentState.showPageShapeView;
       existingAvailableCommentators = currentState.availableCommentators;
@@ -817,12 +836,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       pinpointHighlightIndex = currentState.pinpointHighlightIndex;
       pinpointHighlightText = currentState.pinpointHighlightText;
     } else if (state is TextBookInitial) {
-      // איפוס דגלי ה-inline-notes כשמתחילים טעינה של ספר חדש דרך ה-BLoC.
-      // הדגלים האלה תלויים בספר ספציפי ולא צריכים לדלוף בין ספרים, גם
-      // אם בעתיד מישהו ישתמש שוב באותו instance של BLoC לספר אחר.
       resetInlineNotesStateForNewBook();
 
       final initial = state as TextBookInitial;
+      hasExplicitCommentators = initial.hasExplicitCommentators;
       book = initial.book;
       searchText = initial.searchText;
       highlightText = initial.highlightText;
@@ -1071,6 +1088,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
               screenWidth: event.screenWidth,
             );
       _hiddenCommentatorTitlesCache = await currentHiddenBookTitles();
+      final protection = await protectionFuture;
+      final bookNotes = await bookNotesFuture;
+      final latest = state;
+      if (event.preserveState && latest is TextBookLoaded) {
+        commentators = latest.activeCommentators;
+        hasExplicitCommentators = latest.hasExplicitCommentators;
+      }
       commentators = _withoutHiddenCommentators(commentators);
       existingAvailableCommentators = _withoutHiddenCommentators(
         existingAvailableCommentators,
@@ -1078,8 +1102,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       existingCommentatorGroups = _withoutHiddenGroups(
         existingCommentatorGroups,
       );
-      final protection = await protectionFuture;
-      final bookNotes = await bookNotesFuture;
       TextBookLoaded loadedState = TextBookLoaded(
         book: book,
         protection: protection,
@@ -1092,10 +1114,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         commentatorsLoaded: existingCommentatorsLoaded,
         tableOfContents: tableOfContents,
         fontSize: _pendingFontSize ?? event.fontSize,
+        commentatorsFontSize: perBookSettings?.commentatorsFontSize,
+        lineHeight: perBookSettings?.lineHeight,
         showLeftPane: initialShowLeftPane,
         showSplitView: event.showSplitView,
         showPageShapeView: initialShowPageShapeView,
         activeCommentators: commentators,
+        hasExplicitCommentators: hasExplicitCommentators,
         commentatorGroups: existingCommentatorGroups,
         isTanach: isTanach,
         displayPolicy: displayPolicy,
@@ -1114,6 +1139,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ((Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
                 initialShowLeftPane),
         searchText: searchText,
+        searchTextSource: searchTextSource,
         searchOptions: searchOptions,
         alternativeWords: alternativeWords,
         spacingValues: spacingValues,
@@ -1354,32 +1380,22 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         return;
       }
 
-      // בחירה אוטומטית (ברירת מחדל) ושחזור שמור גוברים על בחירה אוטומטית
-      // קודמת (כגון אוטו-בחירת 'הערות'), כל עוד המשתמש לא בחר ידנית בסשן זה.
-      if (!event.isUserAction) {
-        if (_userTouchedCommentators) {
-          _loadLinksAfterCommentatorsResolved(currentState.book);
-          return;
-        }
-        // שחזור בחירה שמורה הוא בחירת המשתמש האמיתית — נועלים אותה מפני
-        // אוטו-בחירה מאוחרת (כולל הוספת 'הערות' אוטומטית), גם כשהיא ריקה.
-        if (event.isRestore) _userTouchedCommentators = true;
-      } else {
-        _userTouchedCommentators = true;
-        // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
-        // בכל פתיחה. ספר אישי אינו נשמר פר-ספר.
-        if (!currentState.book.isUserBook) {
-          unawaited(
-            _saveActiveCommentatorsPerBook(
-              currentState.book,
-              _withoutHiddenCommentators(event.commentators),
-            ),
-          );
-        }
+      if (!event.isUserAction && currentState.hasExplicitCommentators) {
+        _loadLinksAfterCommentatorsResolved(currentState.book);
+        return;
+      }
+      if (event.isUserAction && !currentState.book.isUserBook) {
+        unawaited(
+          _saveActiveCommentatorsPerBook(
+            currentState.book,
+            _withoutHiddenCommentators(event.commentators),
+          ),
+        );
       }
 
       final updatedState = currentState.copyWith(
         activeCommentators: _withoutHiddenCommentators(event.commentators),
+        hasExplicitCommentators: event.isUserAction || event.isRestore,
         selectedIndex: currentState.selectedIndex,
       );
       emit(updatedState);
@@ -1452,12 +1468,59 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       view: currentState.activeView,
       channel: TextChannel.display,
     );
+    final overrides = currentState.displayOverrides;
+    final previous = overrides.patchFor(slot);
+    final bookLayers = [
+      currentState.bookDisplayLayer,
+      ...currentState.displayPolicy.layersFor(isTanach: currentState.isTanach),
+    ];
+    final inherited = TextDisplayResolver.resolve(
+      slot: slot,
+      layers: [overrides.without(slot), ...bookLayers],
+    );
+    final ofBook = TextDisplayResolver.resolve(slot: slot, layers: bookLayers);
+    final patch = event.patch;
+    final retained = patch
+        .pruneAgainst(inherited)
+        .merge(patch.pruneAgainst(ofBook));
+
+    // רק ביטול של שינוי קיים מסיר עקיפה; בחירה מפורשת נשמרת.
+    bool wasReverted<T>(T? before, T? after, T? keep) =>
+        before != null && after != null && before != after && keep == null;
+
+    final next = previous
+        .merge(patch)
+        .copyWith(
+          clearNikud: wasReverted(previous.nikud, patch.nikud, retained.nikud),
+          clearTeamim: wasReverted(
+            previous.teamim,
+            patch.teamim,
+            retained.teamim,
+          ),
+          clearPunctuation: wasReverted(
+            previous.punctuation,
+            patch.punctuation,
+            retained.punctuation,
+          ),
+          clearHolyName: wasReverted(
+            previous.holyName,
+            patch.holyName,
+            retained.holyName,
+          ),
+          clearAnchorMarkers: wasReverted(
+            previous.anchorMarkers,
+            patch.anchorMarkers,
+            retained.anchorMarkers,
+          ),
+          clearDivineNames: wasReverted(
+            previous.divineNames,
+            patch.divineNames,
+            retained.divineNames,
+          ),
+        );
     emit(
       currentState.copyWith(
-        displayOverrides: currentState.displayOverrides.merged(
-          slot,
-          event.patch,
-        ),
+        displayOverrides: overrides.withSlot(slot, next),
         selectedIndex: currentState.selectedIndex,
       ),
     );
@@ -1595,6 +1658,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
               index == null && currentState.selectedIndex != null,
           clearSearchResultNavigation:
               index == null && currentState.selectedIndex != null,
+          linkSelectionRequestId: index == null ? 0 : null,
           selectedIndices: newIndices,
           clearSelectedIndices: newIndices.isEmpty,
           visibleLinks: visibleLinks,
@@ -1842,6 +1906,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   void _onReadingPosition() {
     final currentState = state;
     if (currentState is! TextBookLoaded) return;
+    if (_pendingLinkSelection != null) add(const _RetryLinkSelection());
     final visibleIndicesNow = _currentVisibleLines();
     if (visibleIndicesNow.isEmpty ||
         !_hasMeaningfulVisibleIndicesChange(
@@ -1915,12 +1980,46 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         currentIndices.last != nextIndices.last;
   }
 
-  void _onUpdateSelectedIndex(
-    UpdateSelectedIndex event,
+  void _onSelectionEvent(
+    TextBookSelectionEvent event,
     Emitter<TextBookState> emit,
   ) {
-    if (state is! TextBookLoaded) return;
-    final currentState = state as TextBookLoaded;
+    // כל הבחירות מעובדות באותו תור, בלי ששידור חוזר יעקוף פעולה מאוחרת.
+    if (event is UpdateSelectedIndex) {
+      _pendingLinkSelection = null;
+      _updateSelectedIndex(event, emit);
+      return;
+    }
+    if (event is SelectLineWhenVisible) _pendingLinkSelection = event.line;
+
+    final line = _pendingLinkSelection;
+    final current = state;
+    if (line == null || current is! TextBookLoaded) return;
+    if (line < 0 || line >= current.content.length) {
+      _pendingLinkSelection = null;
+      return;
+    }
+    final position = readingPosition?.value;
+    if (position == null ||
+        position.isTarget ||
+        !position.visibleLines.contains(line)) {
+      return;
+    }
+    _pendingLinkSelection = null;
+    _updateSelectedIndex(
+      UpdateSelectedIndex(line),
+      emit,
+      linkSelectionRequestId: ++_linkSelectionRequestId,
+    );
+  }
+
+  void _updateSelectedIndex(
+    UpdateSelectedIndex event,
+    Emitter<TextBookState> emit, {
+    int linkSelectionRequestId = 0,
+  }) {
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
 
     final Set<int> newIndices;
     final int? newPrimary;
@@ -1953,6 +2052,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ? (line: event.index!, requestId: ++_searchResultRequestId)
             : null,
         clearSearchResultNavigation: event is! SelectSearchResult,
+        linkSelectionRequestId: linkSelectionRequestId,
         selectedIndex: newPrimary,
         clearSelectedIndex: newPrimary == null,
         selectedIndices: newIndices,
@@ -2070,6 +2170,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       emit(
         currentState.copyWith(
           searchText: event.text,
+          searchTextSource: event.textSource ?? Object(),
           searchOptions: event.searchOptions,
           alternativeWords: event.alternativeWords,
           spacingValues: event.spacingValues,
@@ -2380,7 +2481,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       state.commentatorGroups,
     );
     final shouldAutoSelect =
-        state.activeCommentators.isEmpty && !_userTouchedCommentators;
+        state.activeCommentators.isEmpty && !state.hasExplicitCommentators;
     return state.copyWith(
       availableCommentators: updatedAvailable,
       commentatorGroups: updatedGroups,
@@ -3423,6 +3524,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       );
 
       if (!restoreSelection) return;
+      if (loaded.hasExplicitCommentators) {
+        _loadLinksAfterCommentatorsResolved(book);
+        return;
+      }
 
       // בחירה שמורה פר-ספר גוברת על ברירת המחדל: אם המשתמש בחר בעבר (כולל
       // בחירה ריקה) — משחזרים אותה; אחרת בוחרים את מפרשי ברירת המחדל.

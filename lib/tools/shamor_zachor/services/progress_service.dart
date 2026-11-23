@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:logging/logging.dart';
 
@@ -20,6 +21,26 @@ class ProgressService {
       '${_keyPrefix}column_completion_dates';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
   static const String _bookColumnsKey = '${_keyPrefix}book_columns';
+  static String _lastTouchedKey(int bookId) =>
+      '${_keyPrefix}last_touched:$bookId';
+
+  /// הפריט שסומן אחרון בספר, לפתיחה במקומו.
+  int? loadLastTouchedIndex(int bookId) => Settings.isInitialized
+      ? Settings.getValue<int>(_lastTouchedKey(bookId))
+      : null;
+
+  /// שגיאה כאן אינה חוסמת את שמירת הסימון עצמו.
+  Future<void> saveLastTouchedIndex(int bookId, int? index) async {
+    try {
+      await Settings.setValue<int?>(_lastTouchedKey(bookId), index);
+    } catch (e, stackTrace) {
+      _logger.warning(
+        'Failed to save last touched item for $bookId',
+        e,
+        stackTrace,
+      );
+    }
+  }
 
   /// טוען את הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות).
   /// ספר שאינו מופיע יקבל את עמודות ברירת המחדל בשכבת ה-Provider.

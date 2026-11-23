@@ -143,6 +143,43 @@ void main() {
       expect((event.tab as TextBookTab).index, 42);
     });
 
+    test('?index=&select passes the line to the tab', () {
+      final action =
+          ExternalUriRouter.parseUri(
+                Uri.parse('otzaria://open/book/1?index=42&select'),
+              )
+              as OpenBookAction;
+      final tabsBloc = _CapturingTabsBloc();
+
+      dispatchOpenBookAction(
+        action: action,
+        book: TextBook(title: 'ספר בדיקה'),
+        coordinator: _makeCoordinator(tabsBloc),
+      );
+
+      final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
+      expect(event.navigateToPositionIfReused, isTrue);
+      expect((event.tab as TextBookTab).linkSelectedLine, 42);
+    });
+
+    test('?index= without select leaves the tab with no selection', () {
+      final action =
+          ExternalUriRouter.parseUri(
+                Uri.parse('otzaria://open/book/1?index=42'),
+              )
+              as OpenBookAction;
+      final tabsBloc = _CapturingTabsBloc();
+
+      dispatchOpenBookAction(
+        action: action,
+        book: TextBook(title: 'ספר בדיקה'),
+        coordinator: _makeCoordinator(tabsBloc),
+      );
+
+      final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
+      expect((event.tab as TextBookTab).linkSelectedLine, isNull);
+    });
+
     test('URI עם ?index=0 נפתח בשורה 0 ולא במיקום מההיסטוריה', () async {
       final book = TextBook(title: 'ספר בדיקה', id: 7);
       final tabsBloc = _CapturingTabsBloc();

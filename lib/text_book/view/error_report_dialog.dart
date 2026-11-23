@@ -34,6 +34,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
+import 'package:otzaria/reports/view/report_sender_email_field.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -46,6 +47,7 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 class ReportedErrorData {
   final String selectedText; // הטקסט שסומן ע"י המשתמש
   final String errorDetails; // פירוט הטעות (שדה טקסט נוסף)
+  final String? senderEmail;
 
   /// הצעת תיקון מובנית; null בדיווח חופשי.
   final TextCorrection? correction;
@@ -55,6 +57,7 @@ class ReportedErrorData {
   const ReportedErrorData({
     required this.selectedText,
     required this.errorDetails,
+    this.senderEmail,
     this.correction,
     this.selection,
     this.selectionContext,
@@ -80,7 +83,6 @@ class ReportSourceSnapshot {
 
 /// פעולה שנבחרה בדיאלוג האישור.
 enum ErrorReportAction {
-  sendEmail,
   sendDirect,
   saveForLater,
 }
@@ -227,7 +229,6 @@ class _ReportDetailRow extends StatelessWidget {
 
 /// Helper class for managing error report dialogs and actions
 class ErrorReportHelper {
-  static const String _fallbackMail = 'otzaria.200@gmail.com';
   static const String _otzariaDirectReportTarget = 'אוצריא';
   static const String _sefariaDirectReportTarget = 'ספריא';
 
@@ -398,112 +399,6 @@ class ErrorReportHelper {
     final normalizedSource = sourceFolder?.trim().toLowerCase() ?? '';
     return normalizedSource.contains('sefariatootzaria') ||
         normalizedSource.contains('sefaria');
-  }
-
-  /// נמעני המייל לפי מקור הספר, מופרדים בפסיק. סדר המפתחות חשוב, והמיפוי
-  /// חייב להישאר תואם ל-getEmailRecipients בשרת (Otzaria_Website).
-  ///
-  /// ההתאמה היא `contains` על המחרוזת המנורמלת לאותיות קטנות בלבד — בלי הסרת
-  /// מפרידים. לכן מפתח חייב להיות תת-מחרוזת של שם המקור ב-`seforim.db` כפי
-  /// שהוא (למשל `wikiJewishBooksToOtzaria`); מפתח עם קו תחתון לעולם לא יתאים.
-  static String emailRecipientsFor(String? sourceFolder) {
-    if (sourceFolder == null) return _fallbackMail;
-    const sourceToEmailMap = {
-      'sefariaToOtzaria': 'corrections@sefaria.org,jewishoffice@gmail.com',
-      'sefaria': 'corrections@sefaria.org,jewishoffice@gmail.com',
-      'wikiJewishBooks': '$_fallbackMail,WikiJewishBooks@gmail.com',
-      'wikiSource': '$_fallbackMail,novartza@gmail.com',
-      'Pninim': '$_fallbackMail,contact@pninim.org',
-      'Tashma': '$_fallbackMail,jewishoffice@gmail.com',
-      'Dicta': '$_fallbackMail,jewishoffice@gmail.com',
-      'Ben-Yehuda': '$_fallbackMail,editor@benyehuda.org',
-      // רישיון "ים החכמה" מחייב שדיווח על ספר משלהם יגיע גם אליהם.
-      'yam-HaHachma': '$_fallbackMail,y025837086@gmail.com',
-    };
-    final normalizedSource = sourceFolder.toLowerCase();
-    return sourceToEmailMap.entries
-            .firstWhereOrNull(
-              (entry) => normalizedSource.contains(entry.key.toLowerCase()),
-            )
-            ?.value ??
-        _fallbackMail;
-  }
-
-  /// קישור לסגמנט המדויק בספריא. [heRef] של שורה בספר מספריא הוא מראה המקום
-  /// של ספריא עצמה; נתיב תוכן העניינים ("סימן שיח") נופל אצלם לתחילת הספר.
-  static String? sefariaUrlFor(String? heRef) {
-    final ref = heRef?.replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
-    return ref.isEmpty
-        ? null
-        : 'https://www.sefaria.org/${Uri.encodeComponent(ref)}';
-  }
-
-  static const int _wordsAroundChange = 4;
-
-  /// כמה מילים סביב השינוי כפי שהן בספר, ושוב אחרי התיקון (השינוי בכוכביות),
-  /// לאיתור בחיפוש באתר המקור. תואם ל-buildCorrectionSnippets באתר.
-  static ({String wrong, String fixed, String? context})? correctionSnippets(
-    TextCorrection correction,
-  ) {
-    final proposed = correction.proposedText;
-    if (proposed == null) return null;
-    // <br> מפריד בין מילים בתצוגה; בלי רווח במקומו המילים היו מתחברות.
-    List<String> words(String line) => sanitizeReportText(
-      line.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' '),
-    ).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    final oldWords = words(correction.originalLine);
-    final newWords = words(
-      correction.hasSelection
-          ? correction.contextBefore + proposed + correction.contextAfter
-          : proposed,
-    );
-    var prefix = 0;
-    while (prefix < oldWords.length &&
-        prefix < newWords.length &&
-        oldWords[prefix] == newWords[prefix]) {
-      prefix++;
-    }
-    var suffix = 0;
-    while (suffix < oldWords.length - prefix &&
-        suffix < newWords.length - prefix &&
-        oldWords[oldWords.length - 1 - suffix] ==
-            newWords[newWords.length - 1 - suffix]) {
-      suffix++;
-    }
-    if (prefix == oldWords.length && prefix == newWords.length) return null;
-
-    final from = math.max(0, prefix - _wordsAroundChange);
-    final until = math.min(
-      oldWords.length,
-      oldWords.length - suffix + _wordsAroundChange,
-    );
-    final changed = newWords.sublist(prefix, newWords.length - suffix);
-    final deleted = oldWords.sublist(prefix, oldWords.length - suffix);
-    final newTail = newWords.length - suffix;
-    final wrong = oldWords.sublist(from, until).join(' ');
-    final original = oldWords.join(' ');
-    final searchable = ' $original ';
-    final needle = ' $wrong ';
-    final first = searchable.indexOf(needle);
-    final ambiguous = first >= 0 && searchable.indexOf(needle, first + 1) >= 0;
-    return (
-      wrong: wrong,
-      context: ambiguous
-          ? 'הקטע מופיע יותר מפעם אחת בשורה. מיקום הקטע: מילים ${from + 1}–$until מתוך ${oldWords.length}.\n\n'
-                'השורה המקורית המלאה:\n$original\n\n'
-                'השורה המתוקנת המלאה:\n${newWords.join(' ')}'
-          : null,
-      fixed: [
-        ...newWords.sublist(from, prefix),
-        changed.isNotEmpty
-            ? '*${changed.join(' ')}*'
-            : '*(נמחק: ${deleted.join(' ')})*',
-        ...newWords.sublist(
-          newTail,
-          math.min(newWords.length, newTail + _wordsAroundChange),
-        ),
-      ].join(' '),
-    );
   }
 
   static bool isDictaSourceFolder(String? sourceFolder) {
@@ -753,68 +648,6 @@ class ErrorReportHelper {
     return indices;
   }
 
-  /// Build email body for error report
-  static String buildEmailBody(
-    String bookTitle,
-    String currentRef,
-    Map<String, String> bookDetails,
-    String selectedText,
-    String errorDetails,
-    int lineNumber,
-    String contextText,
-    String libraryVersion,
-    String? senderEmail, {
-    String? directLink,
-  }) {
-    final linkLine = directLink == null ? '' : '\nקישור ישיר: $directLink';
-    final senderSection = (senderEmail == null || senderEmail.isEmpty)
-        ? ''
-        : '\nכתובת ליצירת קשר: $senderEmail\n';
-
-    final detailsSection = (() {
-      final base = errorDetails.isEmpty ? '' : '\n$errorDetails';
-      final extra =
-          '''
-      
-    מספר שורה: $lineNumber
-    הקשר (4 מילים לפני ואחרי):
-    $contextText''';
-      return '$base$extra';
-    })();
-
-    return '''
-שם הספר: $bookTitle
-מיקום: $currentRef$linkLine
-גרסת ספרייה: $libraryVersion
-שם הקובץ: ${bookDetails['שם הקובץ']}
-נתיב הקובץ: ${bookDetails['נתיב הקובץ']}
-תיקיית המקור: ${bookDetails['תיקיית המקור']}
-$senderSection
-
-הטקסט שבו נמצאה הטעות:
-$selectedText
-
-פירוט הטעות:
-$detailsSection
-''';
-  }
-
-  /// Encode query parameters for mailto URL
-  static String? encodeQueryParameters(Map<String, String> params) {
-    return params.entries
-        .map(
-          (MapEntry<String, String> e) =>
-              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}',
-        )
-        .join('&');
-  }
-
-  /// Show simple snackbar message
-  static void showSimpleSnack(BuildContext context, String message) {
-    if (!context.mounted) return;
-    UiSnack.show(reportText(context, message));
-  }
-
   static Future<String?> ensureSenderEmail(BuildContext context) async {
     final reportService = DirectErrorReportService();
     final currentEmail = reportService.senderEmail;
@@ -978,30 +811,9 @@ $detailsSection
     }
   }
 
-  /// פירוט הטעות למייל: הסבר המשתמש, ואחריו הצעת התיקון כטקסט שגוי ומתוקן.
-  /// [withFullProposal] מצרף גם את ההצעה המלאה, לנמען שמחיל אותה על הקובץ.
-  static String emailErrorDetails(
-    ReportedErrorData reportData, {
-    bool withFullProposal = false,
-  }) {
-    final correction = reportData.correction;
-    final details = reportData.errorDetails;
-    if (correction == null) return details;
-    final snippets = correctionSnippets(correction);
-    if (snippets == null) return correction.appendFallbackTo(details);
-    final block =
-        'הטקסט השגוי:\n${snippets.wrong}\n\nהטקסט המתוקן:\n${snippets.fixed}'
-        '${snippets.context == null ? '' : '\n\n${snippets.context}'}';
-    final withSnippets = details.isEmpty ? block : '$details\n\n$block';
-    return withFullProposal
-        ? correction.appendFallbackTo(withSnippets)
-        : withSnippets;
-  }
-
-  /// Handle regular report action (email or save)
-  static Future<bool> handleRegularReportAction(
+  /// שומר את הדיווח בתור לשליחה מאוחרת.
+  static Future<bool> queueReportForLater(
     BuildContext context,
-    ErrorReportAction action,
     ReportedErrorData reportData,
     String bookTitle,
     String currentRef,
@@ -1013,101 +825,46 @@ $detailsSection
     String? reportId,
     Future<bool> Function()? verifySource,
   }) async {
-    final emailBody = buildEmailBody(
-      bookTitle,
-      currentRef,
-      bookDetails,
-      reportData.selectedText,
-      // לכל מקור שאינו ספריא המייל מגיע גם לתיבת אוצריא, שמחילה את ההצעה המלאה.
-      emailErrorDetails(
-        reportData,
-        withFullProposal: !isSefariaSourceFolder(bookDetails['תיקיית המקור']),
-      ),
-      lineNumber,
-      contextText,
-      libraryVersion,
-      null,
-      directLink: isSefariaSourceFolder(bookDetails['תיקיית המקור'])
-          ? sefariaUrlFor(source?.heRef)
-          : null,
-    );
-
     if (verifySource != null && !await verifySource()) {
-      throw StateError('The source changed before delivery.');
+      throw StateError('The source changed before queueing.');
     }
-    if (action == ErrorReportAction.sendEmail) {
-      final emailUri = Uri(
-        scheme: 'mailto',
-        path: emailRecipientsFor(bookDetails['תיקיית המקור']),
-        query: encodeQueryParameters(<String, String>{
-          'subject': ReportMessages.reportSubject(bookTitle),
-          'body': emailBody,
-        }),
-      );
-
-      try {
-        final opened = await launchUrl(
-          emailUri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!opened) {
-          if (context.mounted) {
-            showSimpleSnack(context, ReportMessages.cannotOpenMailApp);
-          }
-        }
-        if (opened && context.mounted) {
-          showSimpleSnack(
-            context,
-            'תוכנת הדואר נפתחה. הטיוטה נשמרה בהגדרות עד שתשלחו את הדיווח או תשליכו אותה במפורש.',
-          );
-        }
-        // Opening a composer confirms neither delivery nor intentional queueing.
-        return false;
-      } catch (_) {
-        if (context.mounted) {
-          showSimpleSnack(context, 'לא ניתן לפתוח את תוכנת הדואר');
-        }
-      }
-    } else if (action == ErrorReportAction.saveForLater) {
-      if (!context.mounted) return false;
-      final senderEmail = await ensureSenderEmail(context);
-      if (senderEmail == null) {
-        return false;
-      }
-
+    if (!context.mounted) return false;
+    var senderEmail = reportData.senderEmail;
+    if (senderEmail == null) {
+      senderEmail = await ensureSenderEmail(context);
+      if (senderEmail == null) return false;
       if (verifySource != null && !await verifySource()) {
         throw StateError('The source changed before queueing.');
       }
-      final directReport = buildDirectReport(
-        senderEmail: senderEmail,
-        reportData: reportData,
-        bookTitle: bookTitle,
-        currentRef: currentRef,
-        bookDetails: bookDetails,
-        lineNumber: lineNumber,
-        contextText: contextText,
-        libraryVersion: libraryVersion,
-        source: source,
-      );
-
-      final reportService = DirectErrorReportService();
-      await reportService.queueReport(
-        reportId == null ? directReport : directReport.withId(reportId),
-        queueType: DirectErrorReportQueueType.manual,
-      );
-      final count = await reportService.getPendingReportsCount();
-      if (context.mounted) {
-        UiSnack.show(
-          reportText(
-            context,
-            'הדיווח נשמר להמשך. יש כרגע {count} דיווחים ממתינים בתור, וניתן לנהל את הדיווחים השמורים בהגדרות.',
-            args: {'count': count},
-          ),
-        );
-      }
-      return true;
     }
-    return false;
+    final directReport = buildDirectReport(
+      senderEmail: senderEmail,
+      reportData: reportData,
+      bookTitle: bookTitle,
+      currentRef: currentRef,
+      bookDetails: bookDetails,
+      lineNumber: lineNumber,
+      contextText: contextText,
+      libraryVersion: libraryVersion,
+      source: source,
+    );
+
+    final reportService = DirectErrorReportService();
+    await reportService.queueReport(
+      reportId == null ? directReport : directReport.withId(reportId),
+      queueType: DirectErrorReportQueueType.manual,
+    );
+    final count = await reportService.getPendingReportsCount();
+    if (context.mounted) {
+      UiSnack.show(
+        reportText(
+          context,
+          'הדיווח נשמר להמשך. יש כרגע {count} דיווחים ממתינים בתור, וניתן לנהל את הדיווחים השמורים בהגדרות.',
+          args: {'count': count},
+        ),
+      );
+    }
+    return true;
   }
 
   /// Show error report dialog for text book
@@ -1334,18 +1091,17 @@ $detailsSection
       if (data.selectionContext != null) data.selectionContext!,
       target['contextText'] as String,
     ].join('\n\n');
-    DirectErrorReport build(ReportedErrorData data, String email) =>
-        buildDirectReport(
-          senderEmail: email,
-          reportData: data,
-          bookTitle: target['bookTitle'] as String,
-          currentRef: target['currentRef'] as String,
-          bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
-          lineNumber: target['lineNumber'] as int,
-          contextText: reportContext(data),
-          libraryVersion: target['libraryVersion'] as String,
-          source: source,
-        ).withId(draft.reportId);
+    DirectErrorReport build(ReportedErrorData data) => buildDirectReport(
+      senderEmail: data.senderEmail!,
+      reportData: data,
+      bookTitle: target['bookTitle'] as String,
+      currentRef: target['currentRef'] as String,
+      bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
+      lineNumber: target['lineNumber'] as int,
+      contextText: reportContext(data),
+      libraryVersion: target['libraryVersion'] as String,
+      source: source,
+    ).withId(draft.reportId);
     if (!context.mounted) {
       await draft.close();
       return;
@@ -1381,30 +1137,24 @@ $detailsSection
                   !await draftSourceMatches(target)) {
                 return unavailableMessage;
               }
-              return build(data, _longestEmailPlaceholder).exceedsApiBodyLimit
-                  ? tooLargeMessage
-                  : null;
+              return build(data).exceedsApiBodyLimit ? tooLargeMessage : null;
             },
           ),
         ),
       );
       if (result == null || !context.mounted) return;
       final data = result.data;
-      // The form is already durably saved before it returns an action. A mail
-      // picker cancellation or transport error leaves that draft available.
+      // הטופס נשמר כטיוטה לפני השליחה כדי שיהיה אפשר לחזור אליו אם היא נכשלה.
       bool completed;
       if (result.action == ErrorReportAction.sendDirect) {
-        final email = await ensureSenderEmail(context);
-        if (email == null || !context.mounted) return;
         if (data.correction != null && !await draftSourceMatches(target)) {
           throw StateError('The source changed before delivery.');
         }
         if (!context.mounted) return;
-        completed = await handleDirectReport(context, build(data, email));
+        completed = await handleDirectReport(context, build(data));
       } else {
-        completed = await handleRegularReportAction(
+        completed = await queueReportForLater(
           context,
-          result.action,
           data,
           target['bookTitle'] as String,
           target['currentRef'] as String,
@@ -1435,9 +1185,6 @@ $detailsSection
     }
   }
 }
-
-/// הכתובת עוד לא ידועה לפני סגירת הדיאלוג: בודקים מול האורך המרבי (RFC 5321).
-final String _longestEmailPlaceholder = 'a' * 254;
 
 String widgetHash(String bookTitle, String currentRef, String selectedText) {
   final normalized = '$bookTitle|$currentRef|$selectedText';
@@ -1668,6 +1415,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
       Theme.of(context).brightness == Brightness.dark;
 
   final TextEditingController _detailsController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final _emailKey = GlobalKey<ReportSenderEmailFieldState>();
   final _quoteSelectionNotifier = SelectionListenerNotifier();
   final _quoteSelectionKey = GlobalKey();
   late _ReportMode _mode;
@@ -1725,6 +1474,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
         ? _ReportMode.freeText
         : _ReportMode.correction;
     _detailsController.text = form?['details'] as String? ?? '';
+    // לא נשמרת בטיוטה: טיוטה ישנה לא תדרוס כתובת שהשתנתה מאז בהגדרות.
+    _emailController.text = _savedSenderEmail;
     _editorText =
         form?['proposedText'] as String? ??
         widget.correctionTemplate?.target ??
@@ -1751,6 +1502,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   void dispose() {
     _quoteSelectionNotifier.dispose();
     _detailsController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -1759,6 +1511,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
     ReportedErrorData data,
   ) async {
     if (_validating || !_canSubmit) return;
+    if (!_ensureValidEmail()) return;
     setState(() => _validating = true);
     try {
       final error = await widget.validateBeforeSubmit?.call(data);
@@ -1766,6 +1519,14 @@ class _RegularReportTabState extends State<RegularReportTab> {
       if (error != null) {
         UiSnack.showError(error);
         return;
+      }
+      final email = data.senderEmail!;
+      if (email != _savedSenderEmail) {
+        await Settings.setValue(
+          SettingsRepository.keyErrorReportSenderEmail,
+          email,
+        );
+        if (!mounted) return;
       }
       widget.onActionSelected(action, data);
     } finally {
@@ -2111,6 +1872,13 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  ReportSenderEmailField(
+                    key: _emailKey,
+                    controller: _emailController,
+                    isRequired: true,
+                    enabled: !_validating,
+                  ),
                 ],
               ),
             ),
@@ -2129,6 +1897,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
         ? _selection!.selectedText(_selectionSource)
         : widget.selectedText,
     errorDetails: _detailsController.text.trim(),
+    senderEmail: _emailController.text.trim(),
     correction: _isCorrection ? _draft?.correction : null,
     selection: !_isCorrection ? _selection : null,
     selectionContext: !_isCorrection
@@ -2139,12 +1908,27 @@ class _RegularReportTabState extends State<RegularReportTab> {
   bool get _offline =>
       Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
 
+  String get _savedSenderEmail =>
+      Settings.getValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+      )?.trim() ??
+      '';
+
+  bool _ensureValidEmail() {
+    final field = _emailKey.currentState;
+    if (field == null) return false;
+    if (field.validate()) return true;
+    unawaited(Scrollable.ensureVisible(field.context));
+    return false;
+  }
+
   Future<void> _confirmAndSendDirect() async {
     final reportData = _reportData;
     if (_offline) {
       await _submitValidated(ErrorReportAction.saveForLater, reportData);
       return;
     }
+    if (!_ensureValidEmail()) return;
     final shouldSend = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('אישור שליחת דיווח'),
@@ -2181,10 +1965,10 @@ class _RegularReportTabState extends State<RegularReportTab> {
             ),
             style: Theme.of(context).textTheme.bodySmall,
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppTokens.spaceSM),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppTokens.spaceSM,
+          runSpacing: AppTokens.spaceSM,
           alignment: WrapAlignment.end,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
@@ -2206,17 +1990,6 @@ class _RegularReportTabState extends State<RegularReportTab> {
                 onPressed: _canSubmit
                     ? () => _submitValidated(
                         ErrorReportAction.saveForLater,
-                        _reportData,
-                      )
-                    : null,
-              ),
-            if (!_offline)
-              ActionButton.neutral(
-                text: context.settingsText('שלח בדוא"ל'),
-                icon: FluentIcons.mail_24_regular,
-                onPressed: _canSubmit
-                    ? () => _submitValidated(
-                        ErrorReportAction.sendEmail,
                         _reportData,
                       )
                     : null,

@@ -125,6 +125,9 @@ class ViewWindowHandle {
 
   FlutterView get view => _controller.rootView;
 
+  /// גודל אזור הציור של החלון, ביחידות הלוגיות של מערכת ההפעלה.
+  Size get logicalContentSize => _controller.contentSize;
+
   /// מודיע על שינוי גודל, הפעלה, כותרת ומגבלות; לא על הזזה בלבד.
   Listenable get changes => _controller;
 

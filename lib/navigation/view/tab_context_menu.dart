@@ -9,7 +9,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_quit.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
 import 'package:otzaria/core/windowing/drag_preview_colors.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
@@ -92,6 +94,7 @@ ReadingTabStrip buildTabsReadingTabStrip(
     stripColor: AppSurfaces.readerBackground(context),
     axis: axis,
     scrollable: scrollable,
+    selectedIndex: state.currentTabIndex,
     crossExtent: crossExtent,
     tabs: state.tabs,
     widths: widths,
@@ -187,15 +190,17 @@ Future<void> closeAllTabsWithHistory(BuildContext context) async {
   tabsBloc.add(CloseAllTabs());
 }
 
-/// סוגר את כל הכרטיסיות מלבד [keepTab].
+/// סוגר את כל הכרטיסיות מלבד [keepTab] והמוצמדות.
 Future<void> closeOtherTabsConfirmed(
   BuildContext context,
   OpenedTab keepTab,
 ) async {
   final tabsBloc = context.read<TabsBloc>();
-  final closing = tabsBloc.state.tabs.where((t) => t != keepTab);
+  final closing = tabsBloc.state.tabs
+      .where((t) => t != keepTab && !t.isPinned)
+      .toSet();
   if (!await confirmCloseTabs(context, closing)) return;
-  tabsBloc.add(CloseOtherTabs(keepTab));
+  tabsBloc.add(CloseOtherTabs(keepTab, confirmedTabs: closing));
 }
 
 /// סוגר את הכרטיסיות שאחרי [tab] ברצועה, מלבד המוצמדות.
@@ -240,8 +245,8 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
   final entries = <AppContextMenuEntry>[
     AppContextMenuEntry(
       label: tab.isPinned
-          ? context.settingsText('בטל הצמדת כרטיסיה')
-          : context.settingsText('הצמד כרטיסיה'),
+          ? context.settingsText('בטל הצמדת כרטיסייה')
+          : context.settingsText('הצמד כרטיסייה'),
       onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
     ),
     if (inSelection)
@@ -317,6 +322,17 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
       AppContextMenuEntry(
         label: context.settingsText('חלון חדש'),
         onTap: () => unawaited(WindowOpener.current.openEmptyWindow()),
+      ),
+    // סגירת החלונות אחד-אחד מוחקת את הכרטיסיות שלהם; כאן כולם נשמרים להפעלה הבאה.
+    if (transferTargets.isNotEmpty)
+      AppContextMenuEntry(
+        label: context.settingsText('יציאה מכל החלונות'),
+        onTap: () => unawaited(
+          AppQuit.quitAll(
+            AppQuitReason.user,
+            window: AppWindowScope.controllerOf(context),
+          ),
+        ),
       ),
     const AppContextMenuEntry.divider(),
   ];

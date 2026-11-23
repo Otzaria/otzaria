@@ -1,9 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// משווה את שדות הזהות שקובעים את מקור הספר. במסלול side-by-side ה-widget
@@ -68,6 +71,8 @@ class BookSourceBanner extends StatefulWidget {
 }
 
 class _BookSourceBannerState extends State<BookSourceBanner> {
+  bool _expanded = false;
+  static const _collapseThreshold = 300;
   List<List<BannerSegment>> _lines = const [];
 
   /// מקביל ל-[_lines]; null לקטע שאינו קישור.
@@ -82,7 +87,10 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
   @override
   void didUpdateWidget(covariant BookSourceBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text) _parse();
+    if (oldWidget.text != widget.text) {
+      _expanded = false;
+      _parse();
+    }
   }
 
   void _parse() {
@@ -142,6 +150,14 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         if (!isOfflineMode || _lines[i].every((s) => s.url == null)) i,
     ];
     if (lineIndices.isEmpty) return const SizedBox.shrink();
+    final longBanner =
+        lineIndices
+            .expand((i) => _lines[i])
+            .fold<int>(0, (n, s) => n + s.text.length) >
+        _collapseThreshold;
+    final visibleLines = longBanner && !_expanded
+        ? lineIndices.take(1)
+        : lineIndices;
     // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
     return SelectionContainer.disabled(
       child: Container(
@@ -152,24 +168,48 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
         ),
-        child: Text.rich(
-          TextSpan(
-            style: textStyle,
-            children: [
-              for (final (n, i) in lineIndices.indexed) ...[
-                if (n > 0) const TextSpan(text: '\n'),
-                for (var j = 0; j < _lines[i].length; j++)
-                  _lines[i][j].url == null
-                      ? TextSpan(text: _lines[i][j].text)
-                      : TextSpan(
-                          text: _lines[i][j].text,
-                          style: linkStyle,
-                          recognizer: _recognizers[i][j],
-                        ),
-              ],
-            ],
-          ),
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (longBanner)
+              Shortcuts(
+                // מקש הרווח משמש גם לגלילה בקורא שמכיל את הכפתור.
+                shortcuts: const {
+                  SingleActivator(
+                    LogicalKeyboardKey.space,
+                    includeRepeats: false,
+                  ): ActivateIntent(),
+                  SingleActivator(LogicalKeyboardKey.space): DoNothingIntent(),
+                },
+                child: ActionButton.ghost(
+                  text: _expanded ? 'הסתר פרטים' : 'הצג פרטים',
+                  iconWidget: ExpandingChevron(isExpanded: _expanded),
+                  iconAlignment: IconAlignment.end,
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                ),
+              ),
+            Text.rich(
+              TextSpan(
+                style: textStyle,
+                children: [
+                  for (final (n, i) in visibleLines.indexed) ...[
+                    if (n > 0) const TextSpan(text: '\n'),
+                    for (var j = 0; j < _lines[i].length; j++)
+                      _lines[i][j].url == null
+                          ? TextSpan(text: _lines[i][j].text)
+                          : TextSpan(
+                              text: _lines[i][j].text,
+                              style: linkStyle,
+                              recognizer: _recognizers[i][j],
+                            ),
+                  ],
+                ],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: longBanner && !_expanded ? 2 : null,
+              overflow: longBanner && !_expanded ? TextOverflow.ellipsis : null,
+            ),
+          ],
         ),
       ),
     );

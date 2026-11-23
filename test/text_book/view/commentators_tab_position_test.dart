@@ -24,6 +24,8 @@ class _LoadingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     });
   }
 
+  void replaceLoaded(TextBookLoaded loaded) => emit(loaded);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -106,5 +108,67 @@ void main() {
     await tester.pump();
 
     expect(tab.toJson()['initialIndex'], 0);
+  });
+
+  testWidgets('כותרת הכרטיסיה מציינת את המיקום הנוכחי ומתעדכנת בניווט '
+      '(issue #5794)', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final book = TextBook(title: 'כתובות');
+    final toc = [
+      TocEntry(text: 'דף ב', index: 0),
+      TocEntry(text: 'דף כ', index: 10),
+    ];
+    final sourceTab = TextBookTab(book: book, index: 10);
+    final tabBloc = _LoadingTextBookBloc(
+      TextBookInitial.named(book, 10, false, const []),
+      _loaded(book, toc, 10),
+    );
+    final tab = CommentatorsTab(
+      sourceTab: sourceTab,
+      startIndex: 10,
+      blocOverride: tabBloc,
+    );
+    final settings = SettingsBloc(repository: MockSettingsRepository());
+    final notes = StubPersonalNotesBloc();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await settings.close();
+      await notes.close();
+      await tabBloc.close();
+      sourceTab.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settings),
+            BlocProvider<PersonalNotesBloc>.value(value: notes),
+          ],
+          child: Scaffold(
+            body: CommentatorsTabScreen(tab: tab, openBookCallback: (_) {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('מפרשים על כתובות, דף כ'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('הפרק הקודם').first);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('מפרשים על כתובות, דף ב'), findsOneWidget);
+
+    tabBloc.replaceLoaded(_loaded(book, [TocEntry(text: 'דף ג', index: 0)], 0));
+    await tester.pump();
+
+    expect(find.text('מפרשים על כתובות, דף ג'), findsOneWidget);
   });
 }

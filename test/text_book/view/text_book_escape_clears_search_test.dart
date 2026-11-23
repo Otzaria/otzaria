@@ -29,6 +29,7 @@ import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
+import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:provider/provider.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
@@ -261,7 +262,28 @@ Future<void> main() async {
       bloc.recordedEvents.whereType<ApplyMarkHighlight>().single,
       const ApplyMarkHighlight(),
     );
+    // ניקוי ההדגשה ב-Esc מלמד שהמשתמש כבר יודע — טיפ ה-Esc נפתר (#4919).
+    expect(tourCubit.state.resolvedTips, contains(LiveTipId.linkHighlightHint));
   });
+
+  testWidgets(
+    'הדגשה מקישור מציגה טיפ "הידעת?" על Esc (issue #4919)',
+    (tester) async {
+      final bloc = await pumpScreen(tester, searchText: '');
+      expect(tourCubit.state.activeLiveTipId, isNull);
+
+      bloc.emitStateForTest(
+        (bloc.state as TextBookLoaded).copyWith(
+          highlightText: 'בראשית',
+          permanentHighlightLine: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(tourCubit.state.activeLiveTipId, LiveTipId.linkHighlightHint);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 }
 
 TextBookLoaded _loadedState(
@@ -303,6 +325,8 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   final List<TextBookEvent> recordedEvents = [];
+
+  void emitStateForTest(TextBookState state) => emit(state);
 
   void showSearch(UpdateSearchText event) {
     emit(

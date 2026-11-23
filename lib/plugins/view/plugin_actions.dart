@@ -1,9 +1,75 @@
-import 'package:flutter/widgets.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/services/safer_mode_guard.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
+import 'package:path/path.dart' as p;
+
+bool _pickingPluginArchive = false;
+
+/// פותח בורר מערכת להתקנת תוסף. מחזיר אם נפתחה בקשה, גם אם המשתמש ביטל.
+Future<bool> pickAndInstallPluginArchive(
+  BuildContext context, {
+  bool requestedByPlugin = false,
+}) async {
+  if (!context.mounted || _pickingPluginArchive) return false;
+  final settings = context.read<SettingsBloc>();
+  if (requestedByPlugin &&
+      (settings.state.protectedModeEnabled ||
+          View.maybeOf(context) == null ||
+          ModalRoute.of(context)?.isCurrent != true)) {
+    return false;
+  }
+
+  _pickingPluginArchive = true;
+  try {
+    if (!requestedByPlugin &&
+        (!await verifySaferModePassword(context) || !context.mounted)) {
+      return false;
+    }
+    final selection = await withFilePickerOwner(
+      context,
+      (picker) async {
+        final result = await picker.pickFile(
+          type: FileType.custom,
+          allowedExtensions: const ['otzplugin'],
+          windowsOptions: modalWindowsOptions(context),
+          linuxOptions: kModalLinuxOptions,
+        );
+        // תוצאת null מהבורר היא ביטול; null מהעטיפה מציין שאין חלון בעלים.
+        return (path: result?.path);
+      },
+    );
+    if (selection == null) return false;
+    final selectedPath = selection.path;
+    if (selectedPath != null &&
+        context.mounted &&
+        (!requestedByPlugin ||
+            (!settings.state.protectedModeEnabled &&
+                p.extension(selectedPath).toLowerCase() == '.otzplugin'))) {
+      context.read<PluginSystemBloc>().add(
+        requestedByPlugin
+            ? InstallPluginRequested.fromPluginPicker(selectedPath)
+            : InstallPluginRequested(selectedPath, isUserInitiated: true),
+      );
+    }
+    return true;
+  } catch (error, stackTrace) {
+    if (!requestedByPlugin) rethrow;
+    debugPrintStack(
+      label: 'Plugin archive picker failed: $error',
+      stackTrace: stackTrace,
+    );
+    return false;
+  } finally {
+    _pickingPluginArchive = false;
+  }
+}
 
 const String _networkLocalhostPermission = 'network.localhost';
 

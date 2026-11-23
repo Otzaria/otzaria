@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -109,6 +110,39 @@ class _SearchHistoryMenuState extends State<SearchHistoryMenu> {
 
 const double _kMaxListHeight = 360;
 
+/// כותרת עשירה לפריט חיפוש: מבנה השאילתה בגופן רגיל, ואפשרויות המילה
+/// מובחנות (גופן קטן, גוון הנושא). null כשאין אפשרויות — אז הכותרת הרגילה
+/// (ref) מספיקה ואין צורך לפצל מחדש את השאילתה במנוע.
+InlineSpan? searchTitleSpan(BuildContext context, Bookmark item) {
+  final options = item.searchOptions;
+  if (!item.isSearch ||
+      options == null ||
+      !options.values.any((map) => map.values.any((enabled) => enabled))) {
+    return null;
+  }
+  final segments = buildSearchTitleSegments(
+    query: item.book.title,
+    effectiveOptions: options,
+    alternativeWords: item.alternativeWords ?? const {},
+    spacingValues: item.spacingValues ?? const {},
+    negativeText: item.negativeSearchText ?? '',
+  );
+  final theme = Theme.of(context);
+  final optionStyle = theme.textTheme.bodySmall?.copyWith(
+    fontWeight: FontWeight.normal,
+    color: theme.colorScheme.primary,
+  );
+  return TextSpan(
+    children: [
+      for (final segment in segments)
+        TextSpan(
+          text: segment.text,
+          style: segment.isOption ? optionStyle : null,
+        ),
+    ],
+  );
+}
+
 class _SearchHistoryRow extends StatelessWidget {
   const _SearchHistoryRow({
     required this.entry,
@@ -128,6 +162,12 @@ class _SearchHistoryRow extends StatelessWidget {
         theme.extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
     final touch = theme.materialTapTargetSize == MaterialTapTargetSize.padded;
+    final formattedTitle = searchTitleSpan(context, entry);
+    // חוקי הפיצול יכולים להשתנות בין גרסאות. התפריט מציג את הנוסח שנשמר.
+    final title =
+        formattedTitle != null && formattedTitle.toPlainText() == entry.ref
+        ? formattedTitle
+        : TextSpan(text: entry.ref);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.space2XS),
       child: Material(
@@ -156,8 +196,8 @@ class _SearchHistoryRow extends StatelessWidget {
                   Expanded(
                     child: Tooltip(
                       message: entry.ref,
-                      child: Text(
-                        entry.ref,
+                      child: Text.rich(
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(

@@ -239,8 +239,9 @@ void main() {
         'page_shape_global_visibility_$hiddenColumn',
         true,
       );
-      tester.view.physicalSize = const Size(1700, 736);
-      await tester.pumpAndSettle();
+      // הצגה מחדש בפועל נטענת דרך הפאנל או פתיחה חדשה, לא דרך שינוי גודל.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pumpScreen(tester, sidePanesWidth: 700, width: 1700);
       expectColumnsFit(tester);
       final pane = find
           .ancestor(

@@ -119,6 +119,44 @@ void main() {
     );
   });
 
+  testWidgets('כותרת כרטיסיית מפרשי PDF מציינת את הכותרת הנוכחית '
+      '(issue #5794)', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'PDF בדיקה': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'PDF בדיקה';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה'), findsOneWidget);
+
+    sourceTab.currentTitle.value = 'פרק ב';
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה, פרק ב'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    sourceTab.pdfHeadings = null;
+    sourceTab.currentTitle.value = '';
+    sourceTab.pageNumber = 7;
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה, עמוד 7'), findsOneWidget);
+  });
+
   testWidgets('כרטסיית מפרשי PDF מסתנכרנת עם currentTitle של sourceTab', (
     tester,
   ) async {
@@ -489,6 +527,85 @@ void main() {
         expected,
       );
     }
+  });
+
+  testWidgets('קיצורי הזום והכותרות פועלים בכרטיסיית מפרשי PDF '
+      '(issue #5796)', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'פרק א': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'פרק א';
+    final settingsBloc = _FakeSettingsBloc();
+    addTearDown(settingsBloc.close);
+    await tester.pumpWidget(
+      _wrap(
+        PdfCommentatorsTabScreen(tab: PdfCommentatorsTab(sourceTab: sourceTab)),
+        settingsBloc: settingsBloc,
+      ),
+    );
+    await tester.pump();
+    int? lineStart() => tester
+        .widget<PdfCommentaryPanel>(find.byType(PdfCommentaryPanel))
+        .lineStartOverride;
+    expect(lineStart(), 1);
+
+    Future<void> press(
+      LogicalKeyboardKey modifier,
+      LogicalKeyboardKey key,
+    ) async {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+    }
+
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageDown);
+    expect(lineStart(), 10);
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageUp);
+    expect(lineStart(), 1);
+
+    final ctrl = ShortcutHelper.usesMacModifiers
+        ? LogicalKeyboardKey.metaLeft
+        : LogicalKeyboardKey.controlLeft;
+    await press(ctrl, LogicalKeyboardKey.equal);
+    await press(ctrl, LogicalKeyboardKey.minus);
+    expect(
+      settingsBloc.events.whereType<AdjustCommentatorsFontSize>().map(
+        (event) => event.delta,
+      ),
+      [2.0, -2.0],
+    );
+
+    // קיצור בלי modifier אינו פועל בזמן הקלדה בשדה החיפוש.
+    final previousShortcut = Settings.getValue<String>(
+      'key-shortcut-next-toc',
+    );
+    addTearDown(
+      () => Settings.setValue<String?>(
+        'key-shortcut-next-toc',
+        previousShortcut,
+      ),
+    );
+    await Settings.setValue<String>('key-shortcut-next-toc', 'n');
+    await press(ctrl, LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
+    expect(ShortcutHelper.isEditingText, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN, character: 'n');
+    await tester.pump();
+    expect(lineStart(), 1);
+
+    await Settings.setValue<String>('key-shortcut-next-toc', 'alt+pagedown');
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageDown);
+    expect(lineStart(), 1);
   });
 
   testWidgets('חלונית הניווט בעיצוב האחיד: NavSidePanel, כותרת ועץ כרטיסים', (

@@ -263,6 +263,47 @@ class TextBookRepository {
     return mergeExtraLinks(base, [...userLinks, ...externalLinks]);
   }
 
+  /// הקישורים שספרים אחרים שומרים אל השורות [startIndex]..[endIndex] (0-based)
+  /// של [book], כפי שנשמרו: סוג מקורי, בלי סינוני תצוגה. [Link.index1] היא
+  /// השורה ב-[book], ו-[Link.path2]/[Link.index2] — הספר והשורה ששומרים את
+  /// הקישור. רק מהמסד של הספר עצמו (רשמי או מצורף); אחרת — ריק.
+  /// [targetBookTitles]/[targetTitlePrefixes] מסננים את הספר האחר לפני [limit].
+  Future<List<Link>> getIncomingLinksInRange(
+    TextBook book, {
+    required int startIndex,
+    required int endIndex,
+    List<String>? connectionTypes,
+    List<String>? targetBookTitles,
+    List<String>? targetTitlePrefixes,
+    int? limit,
+  }) async {
+    if (book.source.isUser) return const [];
+    final categoryId = book.categoryId;
+    final fileType = book.fileType ?? 'txt';
+    if (categoryId == null) return const [];
+    final provider = book.source.isAttached
+        ? DatabaseLibraryProvider.instance
+        : LibraryProviderManager.instance.getProviderForBook(
+            book.title,
+            categoryId: categoryId,
+            fileType: fileType,
+          );
+    if (provider is! DatabaseLibraryProvider) return const [];
+    return provider.getLinksForBookRange(
+      book.title,
+      categoryId,
+      fileType,
+      startLineIndex: startIndex,
+      endLineIndex: endIndex,
+      targetBookTitles: targetBookTitles,
+      source: book.source.isAttached ? book.source : BookSource.official,
+      incoming: true,
+      incomingConnectionTypes: connectionTypes,
+      incomingTitlePrefixes: targetTitlePrefixes,
+      incomingLimit: limit,
+    );
+  }
+
   /// מוסיף ל-[base] את [extra] בלי כפילויות: קישור הדדי בין שני מסדים (A→B
   /// ו-B→A) או שורה כפולה ב-`external_link` מופיעים פעם אחת.
   @visibleForTesting
@@ -483,8 +524,10 @@ class TextBookRepository {
     // את הערך המרבי כמספר הקישורים לספר.
     final linkCountByTitle = <String, int>{};
     final authorByTitle = <String, String>{};
+    final declaredBaseTitles = <String>{};
     for (final row in commentatorsData) {
       final title = row['targetBookTitle'] as String;
+      if (row['declaredBase'] == true) declaredBaseTitles.add(title);
       final count = (row['linkCount'] as int?) ?? 0;
       if (count > (linkCountByTitle[title] ?? 0)) {
         linkCountByTitle[title] = count;
@@ -497,10 +540,12 @@ class TextBookRepository {
 
     final all = {...linkCountByTitle.keys, ...userCommentators}.toList()
       ..sort((a, b) => a.compareTo(b));
+    // מפרש שהספר מוצהר כבסיס שלו אמיתי גם עם מעט קישורים (מלחמת השם על
+    // רי"ף ביצה); הסינון מכוון לקישורים שסווגו בטעות כמפרש.
     final rare = computeRareCommentators(
       bookTotalLines: dbBook.totalLines,
       linkCountByCommentator: linkCountByTitle,
-    ).difference(userCommentators);
+    ).difference(userCommentators).difference(declaredBaseTitles);
     return (
       commentators: [
         for (final title in all)

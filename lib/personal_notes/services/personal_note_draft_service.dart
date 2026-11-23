@@ -181,7 +181,11 @@ class PersonalNoteDraftService {
       );
       final legacyVersion = _versions[legacyKey];
       final legacyRaw = Settings.getValue<String>(legacyKey);
-      final legacyDraft = _readDraft(legacyKey);
+      // בטיוטת טקסט זה המפתח שנכתב עכשיו; בלי pdfAnchor אין מה להעביר, ולא
+      // מפענחים את כל הטיוטה הקודמת על ה-UI בכל שמירה.
+      final legacyDraft = legacyRaw?.contains('"pdfAnchor"') ?? false
+          ? _readDraft(legacyKey)
+          : null;
       if (legacyDraft?.pdfAnchor != null) {
         final pointKey = _key(
           bookId,

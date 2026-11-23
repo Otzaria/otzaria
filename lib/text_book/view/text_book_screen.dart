@@ -7,9 +7,7 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
-import 'dart:io';
 
-import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
@@ -77,6 +75,8 @@ import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show replaceHolyNames;
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart'
     show PageShapeColumnsControl;
@@ -86,7 +86,6 @@ import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
-import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
@@ -220,6 +219,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // גודל הגופן שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת שינוי גודל (issue #915).
   double? _lastFontSizeForReanchor;
+  int? _lastReportedLinkHighlightLine;
 
   /// מונה כמה פעמים רץ ה-reanchor בעקבות שינוי גודל גופן. לבדיקת הרגרסיה.
   @visibleForTesting
@@ -886,6 +886,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           buildWhen: shouldRebuildReader,
           listener: (context, state) {
             if (state is TextBookLoaded) {
+              // הדגשה מקישור נשארת עד Esc; הסיור מציג על כך טיפ פעם אחת.
+              final linkHighlightLine = state.permanentHighlightLine;
+              if (linkHighlightLine != _lastReportedLinkHighlightLine) {
+                _lastReportedLinkHighlightLine = linkHighlightLine;
+                if (linkHighlightLine != null) {
+                  context.read<TourCubit>().recordInteraction(
+                    TourInteraction(
+                      type: TourInteractionType.linkHighlightShown,
+                    ),
+                  );
+                }
+              }
               // איתור ה-PDF המלווה נדחה עד שהתוכן נטען, כדי שלא יחנוק את
               // שאילתת התוכן בעלייה (ראו _resolveCompanionPdf).
               _resolveCompanionPdf();
@@ -1175,10 +1187,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return const SizedBox.shrink();
     }
 
+    // הסתרת שם השם חלה גם על הכותרת, כמו על גוף הטקסט.
+    final holyNameStyle = state.bodyDisplayProfile.holyName.style;
+    String hideHolyNames(String text) => holyNameStyle == null
+        ? text
+        : replaceHolyNames(text, style: holyNameStyle);
+
     // שימוש בפונקציה העזר להוספת שם הספר
-    String displayText = addBookTitleToRef(
-      state.currentTitle!,
-      state.book.title,
+    String displayText = hideHolyNames(
+      addBookTitleToRef(state.currentTitle!, state.book.title),
     );
 
     // בכרטיסייה של נוסח חלופי הכותרת זהה לזו של הנוסח הראשי; שם המהדורה הוא מה
@@ -1207,7 +1224,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         // כשהכותרת בפורמט "שם הספר, מיקום" מציגים אותם כשני חלקים: השם מתקצר
         // (ellipsis) לפי המקום הפנוי, אך המיקום נשאר גלוי במלואו — נחוץ לחברותא
         // שבה אין מידע אחר על המיקום.
-        final namePrefix = '${state.book.title}, ';
+        final namePrefix = hideHolyNames('${state.book.title}, ');
         // מיקום שאינו משאיר לצדו מקום אף ל"..." של השם חייב להיחתך כמחרוזת
         // אחת — כשני חלקים ה-Row גולש מהסרגל ומצייר את פס האזהרה (#891).
         final hasSeparateLocation =
@@ -2218,6 +2235,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ignoreHistory: true,
       requiresStableLayout: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
@@ -2272,16 +2290,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (!context.mounted) return;
 
     if (index == null) {
-      UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+      UiSnack.show(TextBookMessages.pdfLocationNotFound);
     }
     openBook(
       context,
       _pdfBook!,
-      index ?? 1,
+      index,
       '',
       ignoreHistory: true,
       requiresStableLayout: true,
       insertAdjacent: true,
+      navigateToPositionIfReused: true,
     );
   }
 
@@ -2552,6 +2571,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       repository,
       widget.tab.lines,
       state.searchText,
+      state.searchTextSource,
       state.searchOptions,
       state.alternativeWords,
       state.spacingValues,
@@ -2571,6 +2591,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       lines: widget.tab.lines,
       // הוא מעביר את טקסט החיפוש מה-state הנוכחי אל תוך רכיב החיפוש
       initialQuery: state.searchText,
+      initialQuerySource: state.searchTextSource,
       initialSearchOptions: state.searchOptions,
       initialAlternativeWords: state.alternativeWords,
       initialSpacingValues: state.spacingValues,
@@ -2834,7 +2855,14 @@ bool _handleGlobalKeyEvent(
       } else if (link == null) {
         UiSnack.showError(TextBookMessages.selectTextForMarkLink);
       } else {
-        copyLinkToClipboard(link);
+        copyLinkToClipboard(
+          link,
+          sectionMarkAlternative: buildSectionMarkLink(
+            bookId,
+            index,
+            source: state.book.source,
+          ),
+        );
       }
       return true;
     }
@@ -2932,10 +2960,10 @@ bool _handleGlobalKeyEvent(
     }
   }
 
-  // ESC ללא Ctrl/Cmd; F11 מטופל בקיצורים הגלובליים, כדי שלא יוחלף פעמיים
+  // יציאה ממסך מלא מטופלת בקיצורים הגלובליים, אחרי הקיצורים המותאמים.
   if (event is KeyDownEvent && !isCtrlOrCmd) {
     switch (event.logicalKey) {
-      // ESC - ניקוי הדגשת החיפוש או ה-?mark, ואם אין הדגשה — יציאה ממסך מלא
+      // ESC ללא Ctrl/Cmd מנקה את הדגשת החיפוש או ה־?mark.
       case LogicalKeyboardKey.escape:
         if (state.searchText.isNotEmpty) {
           context.read<TextBookBloc>().add(
@@ -2945,13 +2973,10 @@ bool _handleGlobalKeyEvent(
         }
         if (state.permanentHighlightLine != null) {
           context.read<TextBookBloc>().add(const ApplyMarkHighlight());
+          context.read<TourCubit>().recordInteraction(
+            TourInteraction(type: TourInteractionType.linkHighlightCleared),
+          );
           return true;
-        }
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          if (context.read<WindowFullscreenCubit>().state) {
-            FullscreenHelper.toggleFullscreen(context, false);
-            return true;
-          }
         }
         break;
     }
@@ -3078,7 +3103,7 @@ Future<void> _dispatchContextMenuShortcut({
     fontSize: state.fontSize,
     fontFamily: settingsState.fontFamily,
     fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-    lineHeight: settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
   );
 
   final Map<String, dynamic> selection;
@@ -3217,16 +3242,17 @@ void _togglePdfView(
   if (!context.mounted) return;
 
   if (index == null) {
-    UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+    UiSnack.show(TextBookMessages.pdfLocationNotFound);
   }
   openBook(
     context,
     book,
-    index ?? 1,
+    index,
     '',
     ignoreHistory: true,
     requiresStableLayout: true,
     insertAdjacent: true,
+    navigateToPositionIfReused: true,
   );
 }
 

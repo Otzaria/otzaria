@@ -194,7 +194,7 @@
         {"scope":"_ClosingQuote.build","fp":"9dd646fd","n":2},
         {"scope":"_MemorialCard.build","fp":"61a39db6","n":1}
       ],
-      "lib/text_book/view/commentary_list_base.dart": [
+      "lib/text_book/view/commentary_list_items.dart": [
         {"scope":"_CommentaryGroupHeader.build","fp":"8181d0d8","n":1},
         {"scope":"_CommentaryLinkItemState.build","fp":"017a4b93","n":1}
       ],
@@ -207,9 +207,6 @@
       "lib/tools/calendar/widgets/calendar_day_cell.dart": [
         {"scope":"buildDayCell","fp":"0f736c3f","n":1},
         {"scope":"buildDayCell","fp":"72466283","n":1}
-      ],
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_OverflowAwareTooltipText.build","fp":"d2aa3949","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"17cb6f38","n":1},
@@ -323,9 +320,6 @@
         {"scope":"_FindRefDialogState._buildResultTile","fp":"aac1e49f","n":1},
         {"scope":"_FindRefDialogState._buildSuggestionsLabel","fp":"a7c1dfe6","n":1}
       ],
-      "lib/history/view/history_screen.dart": [
-        {"scope":"_searchTitleSpan","fp":"a8c1e179","n":1}
-      ],
       "lib/library/view/book_preview_panel.dart": [
         {"scope":"_BookPreviewPanelState.build","fp":"a9c1e30c","n":1},
         {"scope":"_BookPreviewPanelState.build","fp":"adc1e958","n":1}
@@ -383,9 +377,6 @@
       "lib/search/view/layout_fix_suggestion_banner.dart": [
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a7c1dfe6","n":1},
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a8c1e179","n":1}
-      ],
-      "lib/search/view/search_result_rank_badge.dart": [
-        {"scope":"SearchResultRankBadge.build","fp":"503c9e50","n":1}
       ],
       "lib/search/view/search_results_layout.dart": [
         {"scope":"_SearchResultsLayoutState._buildQueryDisplay","fp":"2d3a28a0","n":1}
@@ -498,11 +489,6 @@
       ],
       "lib/tools/calendar/widgets/calendar_main_panel.dart": [
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"a7c1dfe6","n":1}
-      ],
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_AlertControl.build","fp":"a6c1de53","n":1},
-        {"scope":"_CompositeLabelValue.build","fp":"a6c1de53","n":1},
-        {"scope":"_ZmanCard.build","fp":"a6c1de53","n":1}
       ],
       "lib/tools/gematria/widgets/gematria_result_card.dart": [
         {"scope":"GematriaResultCard.build","fp":"2d3a28a0","n":1},
@@ -660,9 +646,6 @@
       "lib/search/view/search_dialog.dart": [
         {"scope":"_SearchDialogState._buildFooter","fp":"1509e529","n":1}
       ],
-      "lib/search/view/search_result_rank_badge.dart": [
-        {"scope":"SearchResultRankBadge.build","fp":"a215a261","n":1}
-      ],
       "lib/search/view/search_result_source_tag.dart": [
         {"scope":"SearchResultSourceTag.build","fp":"9f20568c","n":1}
       ],
@@ -737,12 +720,8 @@
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"66ff54ff","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_CalendarTimesPanelState.build","fp":"de1701d4","n":1},
         {"scope":"_MoladCard.build","fp":"3bee9d82","n":1},
-        {"scope":"_MoladCard.build","fp":"7a5f6425","n":2},
-        {"scope":"_OverflowAwareTooltipText.build","fp":"05d6e3d9","n":1},
-        {"scope":"_ZmanCard._buildCompositeSegment","fp":"d1a84c0b","n":1},
-        {"scope":"_ZmanCard.build","fp":"3bee9d82","n":1}
+        {"scope":"_MoladCard.build","fp":"7a5f6425","n":2}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"920fa78d","n":1},
@@ -889,7 +868,9 @@
         {"scope":"_MergedSiblingsSectionState.build","fp":"d5f7a13f","n":1}
       ],
       "lib/text_book/view/commentary_list_base.dart": [
-        {"scope":"CommentaryListBaseState.build","fp":"373e4811","n":1},
+        {"scope":"CommentaryListBaseState.build","fp":"373e4811","n":1}
+      ],
+      "lib/text_book/view/commentary_list_items.dart": [
         {"scope":"_NotesCommentaryWidgetState.build","fp":"4a334ce9","n":1}
       ],
       "lib/tools/calendar/dialogs/calendar_event_dialog.dart": [
@@ -1033,9 +1014,6 @@
       ],
       "lib/personal_notes/widgets/personal_note_editor.dart": [
         {"scope":"_PersonalNoteEditorBodyState._insertLink","fp":"3e6ca19c","n":1}
-      ],
-      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
-        {"scope":"openNoteLink","fp":"3e6ca19c","n":1}
       ],
       "lib/plugins/bridge/plugin_bridge_adapter.dart": [
         {"scope":"PluginBridgeAdapter._defaultPrintBookRange","fp":"3e6ca19c","n":1},
@@ -1274,9 +1252,6 @@
       ],
       "lib/settings/search/settings_anchor.dart": [
         {"scope":"_SettingsAnchorState.build","fp":"ce1f078a","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
-        {"scope":"_CompletionAnimationState.build","fp":"ce1f078a","n":1}
       ],
       "lib/tools/view/tools_launcher_panel.dart": [
         {"scope":"_MovePulseState.build","fp":"ce1f078a","n":1}

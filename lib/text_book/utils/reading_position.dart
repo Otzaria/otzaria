@@ -14,6 +14,7 @@ class ReadingPosition {
     required this.topLine,
     this.intraLineFraction = 0,
     required this.visibleLines,
+    this.isTarget = false,
     int? windowFirstLine,
     int? windowLastLine,
   }) : windowFirstLine = windowFirstLine ?? topLine,
@@ -25,6 +26,7 @@ class ReadingPosition {
         topLine: line,
         intraLineFraction: intraLineFraction,
         visibleLines: [line],
+        isTarget: true,
       );
 
   /// השורה הראשונה שאינה שייר של הקטע הקודם מעל קו העוגן.
@@ -36,6 +38,9 @@ class ReadingPosition {
   /// השורות הגלויות אחרי סינון שיירים בשולי התצוגה, ממוינות.
   final List<int> visibleLines;
 
+  /// יעד ניווט שפורסם לפני שהקורא הגיע אליו.
+  final bool isTarget;
+
   /// טווח השורות של כל הפריטים שנוגעים בתצוגה, בלי סינון — לטעינת תוכן.
   final int windowFirstLine;
   final int windowLastLine;
@@ -44,6 +49,7 @@ class ReadingPosition {
   bool operator ==(Object other) =>
       other is ReadingPosition &&
       other.topLine == topLine &&
+      other.isTarget == isTarget &&
       other.intraLineFraction == intraLineFraction &&
       other.windowFirstLine == windowFirstLine &&
       other.windowLastLine == windowLastLine &&
@@ -52,6 +58,7 @@ class ReadingPosition {
   @override
   int get hashCode => Object.hash(
     topLine,
+    isTarget,
     intraLineFraction,
     windowFirstLine,
     windowLastLine,

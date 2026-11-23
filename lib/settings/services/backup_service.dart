@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:math' show min;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:logging/logging.dart';
-import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -14,8 +14,8 @@ import 'package:otzaria/attached_libraries/repository/attached_library_store.dar
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
-import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -44,6 +44,7 @@ import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_report_format.dart';
+import 'package:otzaria/settings/services/backup/backup_report_queue.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/models/tour_steps.dart';
@@ -327,6 +328,8 @@ class BackupService {
     SettingsRepository.keyDbEffectivePath,
     SettingsRepository.keyAndroidLibraryRoot,
     SettingsRepository.keyAttachedLibraryPendingUpdates,
+    SettingsRepository.keyOfficialAdoptionAttempts,
+    SettingsRepository.keyRejectedOfficialPackages,
     // חותמות זמן ומזהים תפעוליים: שחזור ערך ישן מבלבל את התזמון.
     'key-last-auto-backup',
     _kLastPartialAutoBackupKey,
@@ -443,6 +446,7 @@ class BackupService {
   /// האם המפתח אינו הגדרה כלל, לפי [_nonSettingKeyPrefixes].
   @visibleForTesting
   static bool isNonSettingKey(String key) =>
+      key == FindRefPreferenceStore.scoresKey ||
       _nonSettingKeyPrefixes.any(key.startsWith);
 
   /// האם המפתח מגובה. מסנן את [nonPortableSettingsKeys] ואת מה שאינו הגדרה.
@@ -450,35 +454,94 @@ class BackupService {
   static bool isPortableSettingKey(String key) =>
       !isNonSettingKey(key) && !nonPortableSettingsKeys.contains(key);
 
-  /// גיבוי גדול נמשך שניות בקידוד JSON ו-UTF-8, ולכן נכתב מחוץ ל-isolate הראשי.
+  /// גיבוי גדול נמשך שניות בקידוד JSON ו-UTF-8. העברת המפה ל-isolate אחר
+  /// מעתיקה אותה בבת אחת ב-isolate הקורא, לאט מהקידוד עצמו (#5059), ולכן
+  /// הקידוד נעשה כאן במקטעים, וה-UI מקבל תור ביניהם.
   @visibleForTesting
   static Future<int> writeBackupJson(
     String path,
     Map<String, dynamic> data,
-  ) => Isolate.run(() async {
-    final jsonString = json.encode(data);
-    // כתיבה סינכרונית מחזיקה TypedDataAcquire ומעכבת GC גם ב-isolates אחרים.
-    await File(path).writeAsString(jsonString);
-    return jsonString.length;
-  });
-
-  static Future<List<Map<String, dynamic>>> _backupBookmarks() async {
-    final repo = BookmarkRepository();
-    final bookmarks = await repo.loadBookmarks();
-    return bookmarks.map((b) => b.toJson()).toList();
+  ) async {
+    // רשימת הגיבויים מסתמכת על שם הקובץ. מפרסמים אותו רק לאחר סיום הכתיבה.
+    final target = File(path).absolute;
+    final staging = await target.parent.createTemp('.backup-');
+    try {
+      final staged = File(p.join(staging.path, 'manifest.tmp'));
+      final output = await staged.open(mode: FileMode.write);
+      final pending = StringBuffer();
+      final slice = Stopwatch()..start();
+      var length = 0;
+      try {
+        for (final chunk in _jsonChunks(data)) {
+          pending.write(chunk);
+          if (slice.elapsedMilliseconds < 8) continue;
+          length += pending.length;
+          await output.writeString(pending.toString());
+          pending.clear();
+          slice.reset();
+        }
+        length += pending.length;
+        await output.writeString(pending.toString());
+        await output.flush();
+      } finally {
+        await output.close();
+      }
+      await staged.rename(target.path);
+      return length;
+    } finally {
+      try {
+        await staging.delete(recursive: true);
+      } on FileSystemException catch (error) {
+        _logger.warning('Failed to clean up temporary backup: $error');
+      }
+    }
   }
 
-  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() async {
-    final groups = await BookmarkRepository().loadGroups();
-    return groups.map((g) => g.toJson()).toList();
+  /// הפלט של `json.encode(value)`, בחלקים קטנים: כל ערך במפה וברשימה בנפרד,
+  /// ומחרוזת ארוכה (base64 בגיבוי ידני) במקטעים שאינם חוצים תו כפול.
+  static Iterable<String> _jsonChunks(Object? value) sync* {
+    if (value is Map) {
+      var separator = '{';
+      for (final entry in value.entries) {
+        yield '$separator${json.encode(entry.key as String)}:';
+        yield* _jsonChunks(entry.value);
+        separator = ',';
+      }
+      yield separator == '{' ? '{}' : '}';
+    } else if (value is List) {
+      var separator = '[';
+      for (final item in value) {
+        yield separator;
+        yield* _jsonChunks(item);
+        separator = ',';
+      }
+      yield separator == '[' ? '[]' : ']';
+    } else if (value is String && value.length > 65536) {
+      yield '"';
+      for (var start = 0; start < value.length;) {
+        var end = min(start + 65536, value.length);
+        if (end < value.length &&
+            (value.codeUnitAt(end - 1) & 0xFC00) == 0xD800) {
+          end--;
+        }
+        final part = json.encode(value.substring(start, end));
+        yield part.substring(1, part.length - 1);
+        start = end;
+      }
+      yield '"';
+    } else {
+      yield json.encode(value);
+    }
   }
 
-  /// Backup history
-  static Future<List<Map<String, dynamic>>> _backupHistory() async {
-    final repo = HistoryRepository();
-    final history = await repo.loadHistory();
-    return history.map((h) => h.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupBookmarks() =>
+      BookmarkRepository().loadJson();
+
+  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() =>
+      BookmarkRepository().loadGroupsJson();
+
+  static Future<List<Map<String, dynamic>>> _backupHistory() =>
+      HistoryRepository().loadJson();
 
   /// Backup notes from SQLite database
   static Future<List<Map<String, dynamic>>> _backupNotes() async {
@@ -639,7 +702,9 @@ class BackupService {
       }
       return store != null
           ? await store.putFile(file)
-          : base64Encode(await file.readAsBytes());
+          : await Isolate.run(
+              () => base64Encode(File(snapshot).readAsBytesSync()),
+            );
     } catch (e) {
       _logger.warning('Skipping user_books.db backup: $e');
       skippedSections.add('userBooks');
@@ -832,21 +897,6 @@ class BackupService {
     additionalKind: additionalKind,
   )).map((r) => r.payload).toList();
 
-  /// המרת רשימת דיווחים מ-Hive/JSON לרשימת מפות עם מפתחות מחרוזת.
-  static List<Map<String, dynamic>> _reportList(Object? raw) {
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
-  }
-
-  static int _sentTotal(Object? raw) => raw is int ? raw : 0;
-
-  /// מזהה הדיווח: `id` בדיווחי הטעות, `reportId` בדיווחי התוספים והתוכנה.
-  static String? _reportId(Map<String, dynamic> report) =>
-      (report['id'] ?? report['reportId'])?.toString();
-
   /// Backup Shamor Zachor data - backs up all sz: keys found in Hive
   static Future<Map<String, dynamic>> _backupShamorZachor() async {
     if (!Hive.isBoxOpen(HiveCache.keyName)) {
@@ -896,8 +946,7 @@ class BackupService {
       throw Exception('קובץ הגיבוי לא נמצא');
     }
 
-    final content = await file.readAsString();
-    final backupData = json.decode(content) as Map<String, dynamic>;
+    final backupData = await _decodeBackupFile(backupPath);
 
     // Validate backup version
     final version = backupData['version'] as String?;
@@ -979,13 +1028,13 @@ class BackupService {
             includes['bookmarksAndHistory'] == true) &&
         backupData.containsKey('bookmarks')) {
       await _restoreBookmarks(
-        (backupData['bookmarks'] as List).cast<Map<String, dynamic>>(),
+        backupData['bookmarks'] as List<Object?>,
         counts: counts,
       );
       // Older backups have no groups; the current ones are then kept.
       if (backupData.containsKey('bookmarkGroups')) {
         await _restoreBookmarkGroups(
-          (backupData['bookmarkGroups'] as List).cast<Map<String, dynamic>>(),
+          backupData['bookmarkGroups'] as List<Object?>,
           counts: counts,
         );
       }
@@ -996,7 +1045,7 @@ class BackupService {
             includes['bookmarksAndHistory'] == true) &&
         backupData.containsKey('history')) {
       await _restoreHistory(
-        (backupData['history'] as List).cast<Map<String, dynamic>>(),
+        backupData['history'] as List<Object?>,
         counts: counts,
       );
     }
@@ -1117,28 +1166,44 @@ class BackupService {
       if (backedUp == null) continue;
 
       // מהחדש לישן לפני הגזירה, כדי שהמכסה תשמיט את הישנים ולא את החדשים.
-      final sent = _mergeReports(
-        await _storedReports(store, queue.sentKind),
-        _reportList(backedUp['sent']),
-      )..sort((a, b) => _reportTime(b).compareTo(_reportTime(a)));
+      final sent =
+          BackupReportQueue.merge(
+            await _storedReports(store, queue.sentKind),
+            BackupReportQueue.reportList(backedUp['sent']),
+          )..sort(
+            (a, b) => BackupReportQueue.reportTime(b).compareTo(
+              BackupReportQueue.reportTime(a),
+            ),
+          );
       if (sent.length > queue.maxSent) {
         sent.removeRange(queue.maxSent, sent.length);
       }
-      final sentIds = sent.map(_reportId).whereType<String>().toSet();
-      final pending = _mergeReports(
-        await _storedReports(
-          store,
-          queue.pendingKind,
-          additionalKind: queue.section == AppReportService.queueBoxName
-              ? AppReportService.currentPendingKind
-              : null,
-        ),
-        [
-          ..._reportList(backedUp['pending']),
-          if (queue.section == AppReportService.queueBoxName)
-            ..._reportList(backedUp[appReportsBackupPendingV2]),
-        ],
-      ).where((report) => !sentIds.contains(_reportId(report))).toList();
+      final sentIds = sent
+          .map(BackupReportQueue.reportId)
+          .whereType<String>()
+          .toSet();
+      final pending =
+          BackupReportQueue.merge(
+                await _storedReports(
+                  store,
+                  queue.pendingKind,
+                  additionalKind: queue.section == AppReportService.queueBoxName
+                      ? AppReportService.currentPendingKind
+                      : null,
+                ),
+                [
+                  ...BackupReportQueue.reportList(backedUp['pending']),
+                  if (queue.section == AppReportService.queueBoxName)
+                    ...BackupReportQueue.reportList(
+                      backedUp[appReportsBackupPendingV2],
+                    ),
+                ],
+              )
+              .where(
+                (report) =>
+                    !sentIds.contains(BackupReportQueue.reportId(report)),
+              )
+              .toList();
 
       await _replaceReports(
         store,
@@ -1150,7 +1215,7 @@ class BackupService {
       );
       await _replaceReports(store, queue.sentKind, sent);
       // המונה אינו ניתן למיזוג לפי מזהה; הגדול מבין השניים הוא הקירוב הטוב.
-      final backedUpTotal = _sentTotal(backedUp['sentTotal']);
+      final backedUpTotal = BackupReportQueue.sentTotal(backedUp['sentTotal']);
       await SentReportsCounter(boxName: queue.section).raiseTo(
         backedUpTotal > sent.length ? backedUpTotal : sent.length,
       );
@@ -1166,33 +1231,17 @@ class BackupService {
   }) async {
     await store.deleteAllOfKind(kind, additionalKind: additionalKind);
     final oldestFirst = [...reports]
-      ..sort((a, b) => _reportTime(a).compareTo(_reportTime(b)));
+      ..sort(
+        (a, b) => BackupReportQueue.reportTime(a).compareTo(
+          BackupReportQueue.reportTime(b),
+        ),
+      );
     for (final report in oldestFirst) {
       final destination = additionalKind != null && (report['schema'] ?? 1) != 1
           ? additionalKind
           : kind;
       await store.add(destination, report);
     }
-  }
-
-  static DateTime _reportTime(Map<String, dynamic> report) =>
-      DateTime.tryParse('${report['createdAt'] ?? ''}') ??
-      DateTime.fromMillisecondsSinceEpoch(0);
-
-  /// איחוד שתי רשימות דיווחים לפי מזהה — המקומי מנצח, כי הוא העדכני.
-  /// דיווח בלי מזהה נשמר כמות שהוא: אין דרך לזהות אותו ככפול.
-  static List<Map<String, dynamic>> _mergeReports(
-    List<Map<String, dynamic>> local,
-    List<Map<String, dynamic>> backedUp,
-  ) {
-    final merged = [...local];
-    final localIds = local.map(_reportId).whereType<String>().toSet();
-    for (final report in backedUp) {
-      final id = _reportId(report);
-      if (id != null && localIds.contains(id)) continue;
-      merged.add(report);
-    }
-    return merged;
   }
 
   /// האם סעיף ההגדרות נאסף מרשימת מפתחות חלקית. בלי חתימת מקור, רק מפתח
@@ -1260,17 +1309,16 @@ class BackupService {
 
   /// Restore bookmarks. [counts] לא ריק = ייבוא ממזג, והסימניות מתווספות.
   static Future<void> _restoreBookmarks(
-    List<Map<String, dynamic>> bookmarksData, {
+    List<Object?> bookmarksData, {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
-    final bookmarks = bookmarksData
-        .map((data) => Bookmark.fromJson(data))
-        .toList();
     if (counts == null) {
-      await repo.replaceBookmarks(bookmarks);
+      await repo.overwriteJson(bookmarksData);
       return;
     }
+    final bookmarks = repo.decodeJson(bookmarksData);
+    counts.skipped += bookmarksData.length - bookmarks.length;
     // `mutate` משמר סימנייה שנוספה בחלון אחר בין הקריאה לכתיבה.
     var added = 0;
     await repo.mutateBookmarks((current) {
@@ -1285,15 +1333,16 @@ class BackupService {
 
   /// Restore bookmark groups. [counts] לא ריק = ייבוא ממזג, והקבוצות מתווספות.
   static Future<void> _restoreBookmarkGroups(
-    List<Map<String, dynamic>> groupsData, {
+    List<Object?> groupsData, {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
-    final groups = groupsData.map(BookmarkGroup.fromJson).toList();
     if (counts == null) {
-      await repo.replaceGroups(groups);
+      await repo.replaceGroupsJson(groupsData);
       return;
     }
+    final groups = repo.decodeGroupsJson(groupsData);
+    counts.skipped += groupsData.length - groups.length;
     // `mutate`, as for bookmarks: a group added in another window meanwhile
     // must survive the import.
     var added = 0;
@@ -1307,15 +1356,16 @@ class BackupService {
 
   /// Restore history. [counts] לא ריק = ייבוא ממזג, והרשומות מתווספות.
   static Future<void> _restoreHistory(
-    List<Map<String, dynamic>> historyData, {
+    List<Object?> historyData, {
     BackupImportCounts? counts,
   }) async {
     final repo = HistoryRepository();
-    final history = historyData.map((data) => Bookmark.fromJson(data)).toList();
     if (counts == null) {
-      await repo.replaceHistory(history);
+      await repo.overwriteJson(historyData);
       return;
     }
+    final history = repo.decodeJson(historyData);
+    counts.skipped += historyData.length - history.length;
     // ⚠️ `mutate` — ראו ההערה ב-`_restoreBookmarks`.
     var added = 0;
     await repo.mutateHistory((current) {
@@ -1958,12 +2008,7 @@ class BackupService {
       Map<String, dynamic> backupData;
       try {
         // גיבוי של כמה MB חוסם את ה-UI עשרות ms בפתיחת לשונית "מערכת".
-        final path = latestFile.path;
-        backupData = await Isolate.run(
-          () =>
-              json.decode(File(path).readAsStringSync())
-                  as Map<String, dynamic>,
-        );
+        backupData = await _decodeBackupFile(latestFile.path);
       } catch (_) {
         return BackupStatus(
           lastBackupDate: backupDate,
@@ -2044,6 +2089,13 @@ class BackupService {
       return false;
     }
   }
+
+  // קובץ של עשרות MB מפוענח ב-isolate; התוצאה חוזרת ב-Isolate.exit בלי העתקה.
+  static Future<Map<String, dynamic>> _decodeBackupFile(String path) =>
+      Isolate.run(
+        () =>
+            json.decode(File(path).readAsStringSync()) as Map<String, dynamic>,
+      );
 
   /// Checks if shamor zachor data changed meaningfully since the backup:
   /// new books added, a book newly marked, or a review cycle crossed 50% for any book.

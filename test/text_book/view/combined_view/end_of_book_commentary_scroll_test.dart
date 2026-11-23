@@ -85,6 +85,7 @@ void main() {
     ReadingAnchor? initialAnchor,
     BookProtection protection = BookProtection.none,
     void Function(TextBookTab tab)? afterFirstFrame,
+    bool selectFromLink = false,
   }) async {
     final lines = content ?? _content;
     tester.view.physicalSize = surfaceSize;
@@ -188,12 +189,22 @@ void main() {
       );
     }
 
-    final target = find.byKey(ValueKey('html_${_title}_$paragraph'));
-    final rect = tester.getRect(target);
-    await tester.tapAt(
-      tapPoint?.call(rect) ?? rect.bottomCenter - const Offset(0, 10),
-      kind: PointerDeviceKind.mouse,
-    );
+    if (selectFromLink) {
+      bloc.emitForTest(
+        (bloc.state as TextBookLoaded).copyWith(
+          selectedIndex: paragraph,
+          selectedIndices: {paragraph},
+          linkSelectionRequestId: 1,
+        ),
+      );
+    } else {
+      final target = find.byKey(ValueKey('html_${_title}_$paragraph'));
+      final rect = tester.getRect(target);
+      await tester.tapAt(
+        tapPoint?.call(rect) ?? rect.bottomCenter - const Offset(0, 10),
+        kind: PointerDeviceKind.mouse,
+      );
+    }
     await tester.pump(const Duration(milliseconds: 301));
     await tester.pump();
     await tester.pump();
@@ -367,6 +378,16 @@ void main() {
   });
 
   group('בחירת פסקה בסוף הספר לא מקפיצה את הרשימה אחורה (issue #1798)', () {
+    testWidgets('בחירה מקישור חושפת כרטיס מפרשים מתחת לפסקה', (tester) async {
+      final result = await tapParagraph(
+        tester,
+        _lastIndex - 1,
+        selectFromLink: true,
+      );
+      expect(result.card.top, greaterThanOrEqualTo(0));
+      expect(result.card.bottom, lessThanOrEqualTo(880));
+    });
+
     testWidgets('כרטיס לפני שורת סיום גבוהה מקבל עדיפות בתוך המסך', (
       tester,
     ) async {
@@ -424,6 +445,92 @@ void main() {
         result.after[_lastIndex]!.itemTrailingEdge,
         moreOrLessEquals(1.0, epsilon: 1e-3),
       );
+    });
+
+    // issue #4822: פסקה של כמה שורות שנבחרה באמצע המסך עולה לראש המסך, אך
+    // השורה הראשונה שלה לא נחתכת כשהכרטיס נכנס כולו מתחתיה.
+    testWidgets('פסקה רגילה — תחילתה נשארת במסך (issue #4822)', (
+      tester,
+    ) async {
+      const paragraph = 7;
+      final result = await tapParagraph(
+        tester,
+        paragraph,
+        jumpIndex: 5,
+        content: [
+          for (var i = 0; i < 20; i++)
+            'פסקה$i ${List.filled(12, 'מילה$i').join(' ')}',
+        ],
+      );
+      final source = result.after[paragraph]!;
+      expect(source.itemLeadingEdge, greaterThanOrEqualTo(-1e-3));
+      expect(source.itemLeadingEdge, lessThan(0.15));
+      expect(result.card.bottom, lessThanOrEqualTo(880));
+    });
+
+    group('שינוי גובה התצוגה עם כרטיס מפרשים פתוח', () {
+      const paragraph = 7;
+      final content = [
+        for (var i = 0; i < 20; i++)
+          'פסקה$i ${List.filled(20, 'מילה$i').join(' ')}',
+      ];
+      final cardFinder = find.byKey(
+        const ValueKey('commentary_card_$paragraph'),
+      );
+
+      testWidgets('כרטיס מעוגן נשאר גלוי והמיקום נשמר כשיש מקום', (
+        tester,
+      ) async {
+        final result = await tapParagraph(
+          tester,
+          paragraph,
+          jumpIndex: 5,
+          content: content,
+          commentaryContent: Future.value('מפרש גבוה ${'מילה ' * 800}'),
+        );
+        expect(result.card.top, closeTo(220, 0.5));
+
+        tester.view.physicalSize = const Size(620, 800);
+        await tester.pump();
+        tester.view.physicalSize = const Size(620, 760);
+        await tester.pumpAndSettle();
+        final fitted = tester.getRect(cardFinder);
+        expect(fitted.top, lessThan(result.card.top));
+        expect(fitted.bottom, lessThanOrEqualTo(760.1));
+
+        tester.view.physicalSize = const Size(620, 1000);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(cardFinder).top, closeTo(fitted.top, 0.5));
+
+        tester.view.physicalSize = const Size(620, 900);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(cardFinder).top, closeTo(fitted.top, 0.5));
+      });
+
+      testWidgets('צמצום הגובה אחרי גלילה ידנית שומר על מיקום המשתמש', (
+        tester,
+      ) async {
+        final result = await tapParagraph(
+          tester,
+          paragraph,
+          jumpIndex: 5,
+          content: content,
+          commentaryContent: Future.value('מפרש גבוה ${'מילה ' * 800}'),
+        );
+        await tester.sendEventToBinding(
+          const PointerScrollEvent(
+            position: Offset(300, 50),
+            scrollDelta: Offset(0, -160),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final scrolledTop = tester.getRect(cardFinder).top;
+        expect(scrolledTop, greaterThan(result.card.top + 100));
+
+        tester.view.physicalSize = const Size(620, 760);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(cardFinder).top, closeTo(scrolledTop, 0.5));
+      });
     });
 
     testWidgets('פסקה גבוהה מהמסך — הכרטיס מוצג מיד', (tester) async {

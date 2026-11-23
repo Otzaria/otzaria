@@ -332,6 +332,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   // ריבוי-בחירה ב'ניווט' (Ctrl+לחיצה): אינדקסי שורות נוספים להצגת מפרשים מעבר
   // לבחירה הראשית. ריק = בחירה יחידה רגילה. מתאפס בכל ניווט רגיל.
   final Set<int> _extraIndexes = <int>{};
+  late final Set<int> _openingSelection = {...?widget.tab.openingSelection};
+
+  Set<int> get _multiSelection =>
+      _openingSelection.isEmpty ? _extraIndexes : _openingSelection;
 
   @visibleForTesting
   CommentatorsNavSelection get debugNavSelection => CommentatorsNavSelection(
@@ -351,7 +355,11 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       _selectedVerseIdx = next.selectedVerseIdx;
       _navExpandedChapter = next.navExpandedChapter;
       // ניווט רגיל מאפס את ריבוי-הבחירה (לחיצת chevron מעבירה clearMulti: false).
-      if (clearMulti) _extraIndexes.clear();
+      if (clearMulti) {
+        widget.tab.openingSelection = null;
+        _openingSelection.clear();
+        _extraIndexes.clear();
+      }
     });
     final state = widget.tab.bloc.state;
     if (state is TextBookLoaded) {
@@ -367,6 +375,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   /// האינדקסים האפקטיביים להצגת מפרשים: איחוד הבחירה הראשית עם ריבוי-הבחירה
   /// (Ctrl+לחיצה ב'ניווט'). כשאין ריבוי-בחירה — הבחירה הראשית בלבד.
   List<int>? _effectiveIndexes(List<TocEntry> chapters, int contentLength) {
+    if (_openingSelection.isNotEmpty) return _openingSelection.toList()..sort();
     final primary = _computeIndexes(
       chapters,
       _selectedChapter,
@@ -387,19 +396,25 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     final contentLength = state is TextBookLoaded ? state.content.length : 0;
     final idxs = _computeIndexes(chapters, chapter, verseIdx, contentLength);
     if (idxs == null || idxs.isEmpty) return;
+    final selection = _multiSelection;
+    final openingAnchor = _openingSelection.isEmpty
+        ? null
+        : widget.tab.initialSelectedLine;
     setState(() {
-      if (idxs.every(_extraIndexes.contains)) {
-        _extraIndexes.removeAll(idxs);
+      widget.tab.openingSelection = null;
+      if (idxs.every(selection.contains)) {
+        selection.removeAll(idxs.where((index) => index != openingAnchor));
       } else {
-        // שמירת הבחירה הראשית הנוכחית כחלק מהאיחוד לפני הוספת הקטע החדש.
-        final primary = _computeIndexes(
-          chapters,
-          _selectedChapter,
-          _selectedVerseIdx,
-          contentLength,
-        );
-        if (primary != null) _extraIndexes.addAll(primary);
-        _extraIndexes.addAll(idxs);
+        if (_openingSelection.isEmpty) {
+          final primary = _computeIndexes(
+            chapters,
+            _selectedChapter,
+            _selectedVerseIdx,
+            contentLength,
+          );
+          if (primary != null) selection.addAll(primary);
+        }
+        selection.addAll(idxs);
       }
     });
     _triggerLinkLoad(idxs);
@@ -411,12 +426,13 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     TocEntry chapter,
     List<TocEntry> chapters,
   ) {
-    if (_extraIndexes.isEmpty) return false;
+    final selection = _multiSelection;
+    if (selection.isEmpty) return false;
     final state = widget.tab.bloc.state;
     final contentLength = state is TextBookLoaded ? state.content.length : 0;
     final idxs = _computeIndexes(chapters, chapter, verseIdx, contentLength);
     if (idxs == null || idxs.isEmpty) return false;
-    return idxs.any(_extraIndexes.contains);
+    return idxs.any(selection.contains);
   }
 
   // גלילת רשימת הניווט לפרק הנבחר בעת פתיחת הפאנל/מעבר ללשונית הניווט.
@@ -482,6 +498,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     final savedCommentators = widget.tab.selectedCommentators;
     if (savedCommentators != null) {
       _selectedCommentatorsOverride = List<String>.from(savedCommentators);
+    }
+    if (widget.tab.applyBookSelection) {
+      widget.tab.applyBookSelection = false;
+      _applyBookSelection(savedCommentators);
     }
     // טעינת הספר והמפרשים ב-BLoC העצמאי
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -637,17 +657,18 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         state.selectedIndex ??
         (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
 
-    if (chapters.isEmpty) {
+    final pos = _findPos(chapters, lineIndex);
+    final chapter = pos.chapter;
+    if (chapter == null) {
+      if (chapters.isNotEmpty && _openingSelection.isEmpty) return;
       _initialChapterResolved = true;
-      _triggerLinkLoad([lineIndex]);
+      _triggerLinkLoad(
+        _openingSelection.isEmpty ? [lineIndex] : _openingSelection.toList(),
+      );
       return;
     }
 
-    final pos = _findPos(chapters, lineIndex);
-    if (pos.chapter == null) return;
-
     _initialChapterResolved = true;
-    final chapter = pos.chapter!;
     final verseIdx = resolveOpenedVerseIdx(
       posVerseIdx: pos.verseIdx,
       lineIndex: lineIndex,
@@ -657,8 +678,12 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           ? _selectableParagraphOffsets(chapters, chapter, state.content)
           : const [],
     );
-    if (verseIdx == _kAllChapter) {
-      _onChapterSelected(chapter, chapters);
+    if (_openingSelection.isNotEmpty) {
+      _applyNavSelection(
+        reduceSubItemTap(debugNavSelection, chapter, verseIdx),
+        clearMulti: false,
+      );
+      _triggerLinkLoad(_openingSelection.toList());
     } else {
       _selectInChapter(verseIdx, chapter, chapters);
     }
@@ -712,6 +737,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
             buildWhen: (prev, curr) {
               if (prev is TextBookLoaded && curr is TextBookLoaded) {
                 return prev.fontSize != curr.fontSize ||
+                    prev.commentatorsFontSize != curr.commentatorsFontSize ||
                     prev.tableOfContents != curr.tableOfContents ||
                     prev.links != curr.links ||
                     prev.availableCommentators != curr.availableCommentators ||
@@ -761,10 +787,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 autofocus: true,
                 onKeyEvent: (_, event) => handleCommentatorsTabShortcuts(
                   event,
+                  settings: context.read<SettingsBloc>(),
                   onPrint: () =>
                       _commentaryKey.currentState?.printDisplayedCommentaries(),
                   onSearch: _openSearchPane,
                   onToggleNavPane: _toggleNavPane,
+                  onPrevMajor: () => _navigateToPrevChapter(chapters),
+                  onPrevMinor: () => _navigateToPrevVerse(chapters),
+                  onNextMinor: () => _navigateToNextVerse(chapters),
+                  onNextMajor: () => _navigateToNextChapter(chapters),
                 ),
                 child: Scaffold(
                   body: Column(
@@ -834,7 +865,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       builder: (context, settingsState) => CommentaryListBase(
         key: _commentaryKey,
         openBookCallback: widget.openBookCallback,
-        fontSize: settingsState.commentatorsFontSize,
+        fontSize: settingsState.commentatorsFontSizeForBook(
+          state.commentatorsFontSize,
+        ),
         indexes: effectiveIndexes,
         showSearch: true,
         autofocus: true,
@@ -987,9 +1020,34 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     _navTabController.animateTo(_commentatorsTabIndex);
   }
 
+  /// טוען את הבחירה האחרונה של כרטיסיית מפרשים לספר, אלא אם הקורא כבר שינה.
+  Future<void> _applyBookSelection(List<String>? opening) async {
+    try {
+      final saved = (await TextBookPerBookSettings.load(
+        widget.tab.sourceTab.book,
+      ))?.commentatorsTabSelection;
+      if (!mounted ||
+          saved == null ||
+          !identical(widget.tab.selectedCommentators, opening)) {
+        return;
+      }
+      widget.tab.selectedCommentators = List<String>.from(saved);
+      setState(() => _selectedCommentatorsOverride = saved);
+    } catch (e) {
+      debugPrint('⚠️ Failed to load commentators tab selection: $e');
+    }
+  }
+
   void _updateSelectedCommentators(List<String> list) {
     widget.tab.selectedCommentators = List<String>.from(list);
     setState(() => _selectedCommentatorsOverride = list);
+    TextBookPerBookSettings.saveCommentatorsTabSelection(
+      widget.tab.sourceTab.book,
+      list,
+    ).catchError(
+      (Object e) =>
+          debugPrint('⚠️ Failed to save commentators tab selection: $e'),
+    );
   }
 
   Future<void> _addBookmark(
@@ -1025,6 +1083,20 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
   // ── AppBar ─────────────────────────────────────────────────────────────────
 
+  String _currentTitleRef(TextBookLoaded state, List<TocEntry> chapters) {
+    final chapter = _selectedChapter;
+    final String ref;
+    if (chapter != null && chapters.contains(chapter)) {
+      final child = _selectedVerseIdx >= 0
+          ? chapter.children.elementAtOrNull(_selectedVerseIdx)
+          : null;
+      ref = (child ?? chapter).fullText;
+    } else {
+      ref = refFromTocList(widget.tab.currentIndex, state.tableOfContents);
+    }
+    return addBookTitleToRef(refUpToDaf(ref), state.book.title);
+  }
+
   Widget _buildAppBar(
     BuildContext context,
     TextBookLoaded state,
@@ -1042,7 +1114,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       ),
     );
     return CommentatorsTabTopBar(
-      title: 'מפרשים על ${state.book.title}',
+      title: 'מפרשים על ${_currentTitleRef(state, chapters)}',
       prevMajorTooltip: 'הפרק הקודם',
       nextMajorTooltip: 'הפרק הבא',
       navPaneOpen: _navPaneOpen,
@@ -1161,7 +1233,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           onTypeChipsChanged: (types) => _typeSelection.value = types,
           heCategories: bookCategoriesSource(state.book),
           onCategoryDefaultsSaved: () =>
-              TextBookPerBookSettings.clearActiveCommentators(state.book),
+              TextBookPerBookSettings.clearCommentatorsTabSelection(
+                state.book,
+                selected,
+              ),
         );
       },
     );

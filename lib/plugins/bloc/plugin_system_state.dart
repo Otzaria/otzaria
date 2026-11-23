@@ -126,6 +126,9 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
   /// ההתקנה נדרשה מממשק התוכנה עצמו ולא מתוסף או מקישור חיצוני.
   final bool isUserInitiated;
 
+  /// מזהה החבילה צריך להיות פנוי גם בעת השמירה.
+  final bool requireNewInstallation;
+
   const PluginSystemInstallRequiresPermissions({
     required this.manifest,
     required this.tempDirPath,
@@ -133,6 +136,7 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
     this.previousGrantedPermissions = const {},
     this.reportContext,
     this.isUserInitiated = false,
+    this.requireNewInstallation = false,
   });
 
   @override
@@ -144,5 +148,6 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
     reportContext?.token,
     reportContext?.callbackUrl,
     isUserInitiated,
+    requireNewInstallation,
   ];
 }

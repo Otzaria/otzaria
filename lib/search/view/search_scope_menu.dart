@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -448,7 +450,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     if (segment.isEmpty || RegExp(r'^(id|uid|ext):').hasMatch(segment)) {
       return null;
     }
-    return segment;
+    return Category.displayNameForPathSegment(segment);
   }
 
   /// הסינונים הפעילים ל-chips. בחירת קטגוריות/ספרים ספציפיים
@@ -1224,7 +1226,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                 ? const Center(child: CircularProgressIndicator())
                 : items.isEmpty
                 ? _buildEmpty(context)
-                : ListView.builder(
+                : SuperListView.builder(
                     controller: _scrollController,
                     shrinkWrap: true,
                     padding: const EdgeInsets.symmetric(vertical: 4),

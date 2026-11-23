@@ -77,6 +77,8 @@ import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
@@ -137,6 +139,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   String? _bottomRightCommentator;
   bool _isLoadingConfig = true;
   int _loadConfigurationGeneration = 0;
+  int _appliedConfigurationGeneration = 0;
+  PageShapeConfiguration? _lastConfiguration;
 
   // סיכומי הקישורים משמשים לגילוי מפרשי-על וגם לשחזור האב של בחירה שמורה.
   final Map<String, List<LinkTargetSummary>> _superTargetsByTitle = {};
@@ -144,6 +148,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   bool _superDiscoveryDone = false;
   int _superDiscoveryGeneration = 0;
   StreamSubscription<void>? _hiddenSelectionSubscription;
+  StreamSubscription<String>? _configurationSubscription;
   bool _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
   bool _isLeftSidebarOpen = false;
   int _leftSidebarTabIndex = 0;
@@ -193,7 +198,6 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadConfiguration();
     _loadSizes();
   }
 
@@ -372,26 +376,41 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     );
   }
 
-  Future<void> _loadConfiguration() async {
+  void _onSharedConfigurationChanged() {
+    unawaited(_loadConfiguration(onlyIfChanged: true));
+  }
+
+  Future<void> _loadConfiguration({bool onlyIfChanged = false}) async {
+    final applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
+    if (_applyTextMaxWidth != applyTextMaxWidth) {
+      setState(() => _applyTextMaxWidth = applyTextMaxWidth);
+    }
+
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) {
       return;
     }
 
+    final workspaceId = _activeWorkspaceId;
+    final configuration = PageShapeSettingsManager.loadReaderConfiguration(
+      state.book.title,
+      heCategories: state.book.heCategories,
+      workspaceId: workspaceId,
+    );
+    final previous = _lastConfiguration;
+    if (onlyIfChanged &&
+        previous != null &&
+        previous.key == configuration.key &&
+        mapEquals(previous.commentators, configuration.commentators) &&
+        mapEquals(previous.visibility, configuration.visibility)) {
+      return;
+    }
+    _lastConfiguration = configuration;
+
     final generation = ++_loadConfigurationGeneration;
     final hiddenTitlesFuture = currentHiddenBookTitles();
-
-    final config = PageShapeSettingsManager.loadConfiguration(
-      state.book.title,
-      heCategories: state.book.heCategories,
-      workspaceId: _activeWorkspaceId,
-    );
-
-    _columnVisibility = PageShapeSettingsManager.getColumnVisibility(
-      state.book.title,
-      heCategories: state.book.heCategories,
-      workspaceId: _activeWorkspaceId,
-    );
+    final config = configuration.commentators;
+    final visibility = Map.of(configuration.visibility);
 
     final Map<String, String?> commentators;
     if (config != null) {
@@ -418,8 +437,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
           );
       final hiddenTitles = await hiddenTitlesFuture;
       final defaults = await defaultsFuture;
-      // טעינה חדשה יותר (למשל אחרי העשרת heCategories) כבר רצה — לא לדרוס.
-      if (generation != _loadConfigurationGeneration) return;
+      if (!mounted || generation != _loadConfigurationGeneration) return;
       commentators = _resolveCommentatorNames(
         defaults.commentators,
         state.availableCommentators,
@@ -427,25 +445,23 @@ class _PageShapeScreenState extends State<PageShapeScreen>
         hiddenTitles,
       );
       for (final entry in defaults.visibility.entries) {
-        if (!entry.value) _columnVisibility[entry.key] = false;
+        if (!entry.value) visibility[entry.key] = false;
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _leftCommentator = commentators['left'];
-        _rightCommentator = commentators['right'];
-        _bottomCommentator = commentators['bottom'];
-        _bottomRightCommentator = commentators['bottomRight'];
-        _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
-        _isLoadingConfig = false;
-      });
-      // לפני שהרשימה נטענה השאילתה יוצאת בלי המפרשים, וה-bloc טוען בעצמו
-      // כשהרשימה מגיעה.
-      if (state.commentatorsLoaded) {
-        _refreshLinksForCurrentConfiguration('page-shape configuration loaded');
-        unawaited(_discoverSuperCommentators());
-      }
+    if (workspaceId != _activeWorkspaceId) return;
+    setState(() {
+      _leftCommentator = commentators['left'];
+      _rightCommentator = commentators['right'];
+      _bottomCommentator = commentators['bottom'];
+      _bottomRightCommentator = commentators['bottomRight'];
+      _columnVisibility = visibility;
+      _appliedConfigurationGeneration = generation;
+      _isLoadingConfig = false;
+    });
+    if (state.commentatorsLoaded) {
+      _refreshLinksForCurrentConfiguration('page-shape configuration loaded');
+      unawaited(_discoverSuperCommentators());
     }
   }
 
@@ -847,15 +863,8 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     final hasActualBookConfig =
         PageShapeSettingsManager.loadConfiguration(state.book.title) != null;
 
-    final categoryToSave =
-        workspaceToSave == null &&
-            !hasActualBookConfig &&
-            state.book.heCategories != null &&
-            state.book.heCategories!.isNotEmpty
-        ? PageShapeSettingsManager.getActiveCategory(state.book.heCategories) ??
-              PageShapeSettingsManager.getParentCategory(
-                state.book.heCategories,
-              )
+    final categoryToSave = workspaceToSave == null && !hasActualBookConfig
+        ? PageShapeSettingsManager.getActiveCategory(state.book.heCategories)
         : null;
 
     await PageShapeSettingsManager.saveConfiguration(
@@ -1178,6 +1187,9 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   @override
   void initState() {
     super.initState();
+    _loadConfiguration();
+    _configurationSubscription = PageShapeSettingsManager.configurationChanges
+        .listen((_) => _onSharedConfigurationChanged());
     _hiddenSelectionSubscription = const HiddenLibraryStore().visibilityChanges
         .listen((_) => unawaited(_loadConfiguration()));
     widget.sidebarTabNotifier?.addListener(_handleSidebarTabRequest);
@@ -1215,6 +1227,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
 
   @override
   void dispose() {
+    unawaited(_configurationSubscription?.cancel());
     unawaited(_hiddenSelectionSubscription?.cancel() ?? Future.value());
     widget.sidebarTabNotifier?.removeListener(_handleSidebarTabRequest);
     widget.openSettingsNotifier?.removeListener(_handleOpenSettingsRequest);
@@ -1386,8 +1399,14 @@ class _PageShapeScreenState extends State<PageShapeScreen>
       currentBottom: _bottomCommentator,
       currentBottomRight: _bottomRightCommentator,
       currentWorkspaceId: _activeWorkspaceId,
+      configurationGeneration: _appliedConfigurationGeneration,
+      applyTextMaxWidth: _applyTextMaxWidth,
       superCommentatorParents: _superCommentatorParents,
-      onSettingsChanged: _loadConfiguration,
+      onSettingsChanged: () {
+        if (!mounted) return;
+        _onSharedConfigurationChanged();
+        setState(() {});
+      },
       onReset: _handleSettingsReset,
     ),
   );
@@ -1711,6 +1730,13 @@ class _PageShapeScreenState extends State<PageShapeScreen>
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
+        if (context.read<WorkspaceBloc?>() case final workspace?)
+          BlocListener<WorkspaceBloc, WorkspaceState>(
+            bloc: workspace,
+            listenWhen: (previous, current) =>
+                previous.activeWorkspaceId != current.activeWorkspaceId,
+            listener: (context, state) => unawaited(_loadConfiguration()),
+          ),
         BlocListener<TextBookBloc, TextBookState>(
           listenWhen: (previous, current) {
             if (previous is TextBookLoaded && current is TextBookLoaded) {
@@ -1721,6 +1747,7 @@ class _PageShapeScreenState extends State<PageShapeScreen>
                     current.availableCommentators,
                   ) ||
                   previous.commentatorsLoaded != current.commentatorsLoaded ||
+                  previous.book.title != current.book.title ||
                   previous.book.heCategories != current.book.heCategories;
             }
             return previous is! TextBookLoaded && current is TextBookLoaded;
@@ -1732,12 +1759,24 @@ class _PageShapeScreenState extends State<PageShapeScreen>
           },
         ),
         BlocListener<TextBookBloc, TextBookState>(
-          // שינוי גודל גופן משנה את גובה כל הפריטים; בלי עיגון-מחדש ההיסט
-          // בפיקסלים נוחת על מקום אחר (issue #915).
-          listenWhen: (previous, current) =>
-              previous is TextBookLoaded &&
-              current is TextBookLoaded &&
-              previous.fontSize != current.fontSize,
+          listenWhen: (previous, current) {
+            if (previous is! TextBookLoaded || current is! TextBookLoaded) {
+              return false;
+            }
+            final settings = context.read<SettingsBloc>().state;
+            return previous.fontSize != current.fontSize ||
+                settings.lineHeightForBook(previous.lineHeight) !=
+                    settings.lineHeightForBook(current.lineHeight);
+          },
+          listener: (context, state) => _reanchorMainText(),
+        ),
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (previous, current) {
+            final book = context.read<TextBookBloc>().state;
+            return book is TextBookLoaded &&
+                previous.lineHeightForBook(book.lineHeight) !=
+                    current.lineHeightForBook(book.lineHeight);
+          },
           listener: (context, state) => _reanchorMainText(),
         ),
         BlocListener<PersonalNotesBloc, PersonalNotesState>(

@@ -27,7 +27,7 @@ override CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter \
 override LDFLAGS += -Wl,--as-needed
 
 CORE := otz_common.c json.c manifest.c selection.c http.c release.c paths.c \
-  download.c assemble.c texts.c eta.c
+  download.c assemble.c texts.c eta.c zmanenu.c
 APP := $(CORE) widgets.c ui.c main.c
 HEADERS := $(wildcard *.h)
 

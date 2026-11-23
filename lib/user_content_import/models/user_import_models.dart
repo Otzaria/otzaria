@@ -14,7 +14,7 @@ class ImportedFile {
   final String name;
   final String content;
 
-  /// נבחר בייבוא הנוכחי, להבדיל מקובץ שמור שרק נבנה מחדש איתו.
+  /// נבחר לייבוא או הוחזר לשימוש, לעומת קובץ שמור שרק נבנה מחדש.
   final bool selected;
 
   const ImportedFile({
@@ -66,6 +66,11 @@ const Set<String> kNativeConnectionTypes = {
   LinkTypes.footnotes,
 };
 
+/// סוג קישור לקובצי `<ספר>_links.json` בלבד: ציטוט בגוף הטקסט שנפתח ישר בספר
+/// היעד. נשמר כ-[LinkTypes.linker] עם העוגן, ולא כמפרש כמו `linker` (issue #4308).
+const String kInlineLinkerImportType = 'INLINE_LINKER';
+const String kInlineLinkerHebrewLabel = 'ציטוט בטקסט';
+
 /// נגזר מ-[LinkTypes.hebrewLabels], כך שסוג חדש ב-DB נתמך בייבוא מיד.
 /// [LinkTypes.altToc] מוחרג: הוא תוצר תוכן-עניינים חלופי ולא נשמר ב-user_link.
 final Set<String> kImportableConnectionTypes = Set.unmodifiable(
@@ -99,11 +104,13 @@ const Map<String, String> kLegacyHebrewConnectionTypes = {
 };
 
 /// שמות מבנה שמקבלים את תצוגת המבנה הרשמי המקביל: סימנים/סעיפים מוצגים
-/// כסימני חלוקה בגוף הטקסט, ונושאים ככותרת מעל השורה.
+/// כסימני חלוקה בגוף הטקסט, נושאים ככותרת מעל השורה, ופרשות ככותרת "פרשת…"
+/// מעל השורה שבה הפרשה מתחילה (רמה ראשונה בלבד, כמו במבנה `Parasha` הרשמי).
 const Map<String, String> kHebrewAltTocStructureKeys = {
   'סימנים': 'Simanim',
   'סעיפים': 'Seifim',
   'נושאים': 'Topic',
+  'פרשות': 'Parasha',
 };
 
 /// שורת כותרת שפוענחה מקובץ כותרות.
@@ -446,7 +453,8 @@ class ParsedNativeLink {
   final int? targetLineNumberEnd;
   final String? targetRefEnd;
 
-  /// שם connection_type ב-DB (אחד מ-[kNativeConnectionTypes]).
+  /// שם connection_type ב-DB (אחד מ-[kNativeConnectionTypes]), או
+  /// [kInlineLinkerImportType].
   final String connectionType;
 
   const ParsedNativeLink({

@@ -99,6 +99,158 @@ console.log(JSON.stringify({ calls: calls, results: results }));
   return jsonDecode(result.stdout.toString().trim()) as Map<String, dynamic>;
 }
 
+/// כמו [runStub], עם מסלול DOM מלא (window ← document ← שדה ← document ←
+/// window), אירוע אמיתי (isTrusted) והמתנה אחרי סיום ההקשה. כל הרצה מתחילה
+/// בדף נקי, ו-[scenario] בוחר את מאזיני התוסף. `null` = אין node.
+Future<List<Map<String, dynamic>>?> runFieldPathStub(
+  List<PluginHostShortcut> shortcuts,
+  List<Map<String, Object>> runs,
+) async {
+  ProcessResult? probe;
+  try {
+    probe = await Process.run('node', ['--version']);
+  } on ProcessException {
+    probe = null;
+  }
+  if (probe == null || probe.exitCode != 0) return null;
+
+  final harness =
+      '''
+function runOne(run) {
+  var calls = [];
+  var log = [];
+  // לכל צומת EventTarget נפרד לכל שלב, כמו בדפדפן: מאזין שנוסף לצומת
+  // שעוד לא הגיע תורו באותה הקשה נקרא, ומאזין לצומת הנוכחי לא.
+  function node() {
+    var capture = new EventTarget();
+    var bubble = new EventTarget();
+    var pick = function (opt) {
+      return opt === true || (opt && opt.capture) ? capture : bubble;
+    };
+    return {
+      addEventListener: function (t, cb, opt) { pick(opt).addEventListener(t, cb); },
+      removeEventListener: function (t, cb, opt) { pick(opt).removeEventListener(t, cb); },
+      capture: capture,
+      bubble: bubble
+    };
+  }
+  var window = node();
+  window.dispatchEvent = function () {};
+  window.flutter_inappwebview = {
+    callHandler: function (name, arg) { calls.push(name + ':' + arg); }
+  };
+  var document = node();
+  var field = node();
+  field.tagName = run.target.tagName;
+  field.type = run.target.type;
+  field.isContentEditable = !!run.target.isContentEditable;
+  var CustomEvent = function () {};
+  (function () {
+$pluginSdkStubScript
+${buildSetHostShortcutsScript(shortcuts)}
+  })();
+
+  var pluginHandling = false;
+  function dispatch(e) {
+    var stopped = false;
+    var hostPrevented = false;
+    ['stopPropagation', 'stopImmediatePropagation'].forEach(function (name) {
+      var stop = e[name];
+      e[name] = function () {
+        stopped = true;
+        return stop.apply(e, arguments);
+      };
+    });
+    var preventDefault = e.preventDefault;
+    e.preventDefault = function () {
+      if (!pluginHandling) hostPrevented = true;
+      return preventDefault.apply(e, arguments);
+    };
+    e.composedPath = function () { return [field, document, window]; };
+    var path = [window.capture, document.capture, field.bubble,
+      document.bubble, window.bubble];
+    for (var i = 0; i < path.length && !stopped && !e.cancelBubble; i++) path[i].dispatchEvent(e);
+    // Chrome clears the native propagation flag after dispatch, before timers.
+    var cancelBubbleDescriptor = Object.getOwnPropertyDescriptor(
+      Event.prototype, 'cancelBubble');
+    Object.defineProperty(e, 'cancelBubble', {
+      configurable: true,
+      get: function () { return false; },
+      set: function (value) { cancelBubbleDescriptor.set.call(e, value); }
+    });
+    return hostPrevented;
+  }
+  function keydown(trusted) {
+    var e = new Event('keydown', { bubbles: true, cancelable: true });
+    Object.keys(run.key).forEach(function (k) { e[k] = run.key[k]; });
+    if (trusted) Object.defineProperty(e, 'isTrusted', { value: true });
+    return e;
+  }
+  function plugin(tag, action) {
+    return function (e) {
+      log.push(tag + (e.defaultPrevented ? ':sawPrevented' : ''));
+      pluginHandling = true;
+      if (action === 'stop') e.stopPropagation();
+      else if (action === 'stopImmediate') e.stopImmediatePropagation();
+      else if (action === 'cancelBubble') e.cancelBubble = true;
+      else if (action === 'cancelBubbleThenFalse') { e.cancelBubble = true; e.cancelBubble = false; }
+      else if (action === 'stopThenCancelBubbleFalse') { e.stopPropagation(); e.cancelBubble = false; }
+      else if (action === 'immediateStopThenCancelBubbleFalse') { e.stopImmediatePropagation(); e.cancelBubble = false; }
+      else if (action === 'prevent') e.preventDefault();
+      pluginHandling = false;
+    };
+  }
+
+  var s = run.scenario;
+  if (s === 'fieldPrevents') field.addEventListener('keydown', plugin('field', 'prevent'));
+  if (s === 'fieldStops') field.addEventListener('keydown', plugin('field', 'stop'));
+  if (s === 'fieldCancelBubble') field.addEventListener('keydown', plugin('field', 'cancelBubble'));
+  if (s === 'fieldCancelBubbleThenFalse') field.addEventListener('keydown', plugin('field', 'cancelBubbleThenFalse'));
+  if (s === 'fieldStopThenCancelBubbleFalse') field.addEventListener('keydown', plugin('field', 'stopThenCancelBubbleFalse'));
+  if (s === 'fieldImmediateStopThenCancelBubbleFalse') field.addEventListener('keydown', plugin('field', 'immediateStopThenCancelBubbleFalse'));
+  if (s === 'windowSeesKey') window.addEventListener('keydown', plugin('window'));
+  if (s === 'nestedListeners' || s === 'nestedListenersStop') {
+    // רצף 1 מ-#5575: מאזין בשדה מוסיף מאזין ל-document, וזה מוסיף מאזין
+    // ל-window באותה הקשה — אחרי שהמארח כבר סידר את המאזין שלו.
+    field.addEventListener('keydown', function () {
+      document.addEventListener('keydown', function () {
+        window.addEventListener('keydown', plugin('window',
+            s === 'nestedListeners' ? 'prevent' : 'stopImmediate'));
+      });
+    });
+  }
+  if (s === 'nestedDispatch') {
+    // רצף 2 מ-#5575: מאזין בשדה משגר keydown פנימי סינכרוני, ואז רושם
+    // מאזין ל-window עבור האירוע החיצוני.
+    field.addEventListener('keydown', function (outer) {
+      if (!outer.isTrusted) { log.push('inner'); return; }
+      dispatch(keydown(false));
+      window.addEventListener('keydown', function (e) {
+        if (e === outer) plugin('window', 'prevent')(e);
+      });
+    });
+  }
+  var event = keydown(s !== 'untrusted');
+  var hostPrevented = dispatch(event);
+  return new Promise(function (resolve) {
+    setTimeout(function () {
+      resolve({ calls: calls, log: log, hostPrevented: hostPrevented,
+        cancelBubble: event.cancelBubble });
+    }, 20);
+  });
+}
+Promise.all(${jsonEncode(runs)}.map(runOne)).then(function (results) {
+  console.log(JSON.stringify(results));
+});
+''';
+  final result = await Process.run('node', ['-e', harness]);
+  if (result.exitCode != 0) {
+    fail('node failed: ${result.stderr}');
+  }
+  return (jsonDecode(result.stdout.toString().trim()) as List)
+      .cast<Map<String, dynamic>>();
+}
+
 void main() {
   setUp(() => PluginHostShortcuts.isMacForTesting = false);
   tearDown(() => PluginHostShortcuts.isMacForTesting = null);
@@ -146,6 +298,30 @@ void main() {
       expect(results[5]['prevented'], isFalse, reason: 'ESC נשאר גם לדף');
     },
   );
+
+  test('קיצור רשימת המקשים מכבד את התו, הספרון וקדימות העורך', () async {
+    const id = 'key-shortcut-open-shortcuts-list';
+    final shortcuts = PluginHostShortcuts.build({id: 'ctrl+slash'});
+    final out = await runStub(shortcuts, [
+      {'code': 'KeyQ', 'key': '/', 'ctrlKey': true},
+      {'code': 'Slash', 'key': '.', 'ctrlKey': true},
+      {'code': 'NumpadDivide', 'key': '/', 'ctrlKey': true},
+      {
+        'code': 'Slash',
+        'key': '/',
+        'ctrlKey': true,
+        'target': {'tagName': 'TEXTAREA'},
+      },
+    ]);
+    if (out == null) {
+      markTestSkipped('node אינו מותקן');
+      return;
+    }
+    final results = (out['results'] as List).cast<Map<String, dynamic>>();
+    expect(results.map((r) => r['prevented']), [true, false, true, false]);
+    final calls = (out['calls'] as List).cast<Map<String, dynamic>>();
+    expect(calls.map((c) => c['arg']), [id, id]);
+  });
 
   test('קיצורי עריכה נשארים בשדה והקבועים מועברים (issue #1336)', () async {
     final shortcuts = PluginHostShortcuts.build({});
@@ -405,6 +581,107 @@ void main() {
           expected,
         );
       });
+    }
+  });
+
+  group('קיצורי לשוניות משדה בתוסף (issue #3942)', () {
+    const targets = <String, Map<String, Object>>{
+      'input': {'tagName': 'INPUT', 'type': 'text'},
+      'textarea': {'tagName': 'TEXTAREA'},
+      'contenteditable': {'tagName': 'DIV', 'isContentEditable': true},
+    };
+
+    for (final isMac in [false, true]) {
+      final modifier = isMac ? 'metaKey' : 'ctrlKey';
+      Map<String, Object> key(String code, {bool shift = false}) => {
+        'code': code,
+        'key': code == 'KeyW' ? "'" : 'א',
+        modifier: true,
+        'shiftKey': shift,
+      };
+      final closeTab = key('KeyW');
+
+      for (final MapEntry(key: name, value: target) in targets.entries) {
+        Future<List<Map<String, dynamic>>> run(
+          List<Map<String, Object>> runs,
+        ) async {
+          PluginHostShortcuts.isMacForTesting = isMac;
+          final out = await runFieldPathStub(PluginHostShortcuts.build({}), [
+            for (final r in runs) {'target': target, ...r},
+          ]);
+          expect(out, isNotNull, reason: 'node נדרש לבדיקת גשר המקלדת');
+          return out!;
+        }
+
+        test(
+          'רצפי DOM מ-#5575: מאזין התוסף קודם למארח: $name mac=$isMac',
+          () async {
+            final out = await run([
+              for (final scenario in [
+                'nestedListeners',
+                'nestedListenersStop',
+                'nestedDispatch',
+              ])
+                {'key': closeTab, 'scenario': scenario},
+            ]);
+            expect(out.map((r) => r['calls']), everyElement(isEmpty));
+            expect(out.map((r) => r['hostPrevented']), everyElement(isFalse));
+            expect(out.map((r) => r['log']), [
+              ['window'],
+              ['window'],
+              ['inner', 'window'],
+            ]);
+          },
+        );
+
+        test(
+          'קיצורי לשוניות עוברים מהשדה אחרי הדף: $name mac=$isMac',
+          () async {
+            final out = await run([
+              {'key': closeTab, 'scenario': 'none'},
+              {'key': key('KeyW', shift: true), 'scenario': 'none'},
+              {'key': key('KeyT', shift: true), 'scenario': 'none'},
+              {'key': closeTab, 'scenario': 'windowSeesKey'},
+              {'key': closeTab, 'scenario': 'fieldPrevents'},
+              {'key': closeTab, 'scenario': 'fieldStops'},
+              {'key': closeTab, 'scenario': 'fieldCancelBubble'},
+              {'key': closeTab, 'scenario': 'fieldCancelBubbleThenFalse'},
+              {'key': closeTab, 'scenario': 'fieldStopThenCancelBubbleFalse'},
+              {
+                'key': closeTab,
+                'scenario': 'fieldImmediateStopThenCancelBubbleFalse',
+              },
+              {'key': closeTab, 'scenario': 'untrusted'},
+              {
+                'key': {...closeTab, 'repeat': true},
+                'scenario': 'none',
+              },
+              // קיצור עריכה (Ctrl+K) נשאר בשדה.
+              {'key': key('KeyK'), 'scenario': 'none'},
+            ]);
+            expect(out.map((r) => r['calls']), [
+              ['otzaria_host_shortcut:key-shortcut-close-tab'],
+              ['otzaria_host_shortcut:key-shortcut-close-all-tabs'],
+              ['otzaria_host_shortcut:key-shortcut-restore-closed-tab'],
+              ['otzaria_host_shortcut:key-shortcut-close-tab'],
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+              isEmpty,
+            ]);
+            expect(out[6]['cancelBubble'], isFalse);
+            expect(out[7]['cancelBubble'], isFalse);
+            // הדף רואה את ההקשה כפי שהיא; המארח לא חוסם אותה בשדה.
+            expect(out[3]['log'], ['window']);
+            expect(out.map((r) => r['hostPrevented']), everyElement(isFalse));
+          },
+        );
+      }
     }
   });
 }

@@ -143,6 +143,35 @@ class AppSurfaces {
   /// רקע שורה בריחוף: שכבת ה-hover של M3 (8% onSurface).
   static Color hoverRow(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.08);
 
+  /// שכבת המצב של חצי ב־BarSplitButton — כמו IconButton של BarButton:
+  /// ריחוף 8%, לחיצה ופוקוס 10% מצבע הקדמה.
+  static WidgetStateProperty<Color?> barSplitOverlay(Color fg) =>
+      WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed)) return barSplitPressed(fg);
+        if (states.contains(WidgetState.hovered)) {
+          return fg.withValues(alpha: 0.08);
+        }
+        if (states.contains(WidgetState.focused)) return barSplitPressed(fg);
+        return null;
+      });
+
+  /// גל הלחיצה של חצי ב־BarSplitButton.
+  static Color barSplitPressed(Color fg) => fg.withValues(alpha: 0.1);
+
+  /// תג "לפי הגדרה אחרת" ("כמו הניקוד", DD-32) כשהוא בחור: מילוי ומסגרת.
+  static Color followChipFill(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.10);
+  static Color followChipBorder(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.45);
+
+  /// מתג דהוי כשהתג שלידו בחור (DD-32): מסלול דולק, מסגרת וידית כבויים.
+  static Color linkedSwitchTrack(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.45);
+  static Color linkedSwitchOutline(ColorScheme cs) =>
+      cs.outline.withValues(alpha: 0.6);
+  static Color linkedSwitchThumb(ColorScheme cs) =>
+      cs.outline.withValues(alpha: 0.7);
+
   /// כרטיסייה בבחירה מרובה, עם מסגרת [multiSelectedBorder].
   static Color multiSelected(ColorScheme cs) => cs.primaryContainer;
 

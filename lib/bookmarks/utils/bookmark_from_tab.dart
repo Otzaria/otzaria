@@ -17,11 +17,17 @@ Future<String> _lineRef(
   int index,
   Future<List<TocEntry>> Function() tableOfContents,
 ) async {
+  final heRef = await heRefFromDbLine(book, index);
+  final isLineNumber =
+      heRef != null &&
+      book.source.isOfficial &&
+      heRef == '${book.title} ${index + 1}';
   final ref =
-      await heRefFromDbLine(book, index) ??
+      (isLineNumber ? null : heRef) ??
       await refFromDbLine(book, index) ??
       await refFromIndex(index, tableOfContents());
-  return addBookTitleToRef(refUpToDaf(ref), book.title);
+  final location = addBookTitleToRef(refUpToDaf(ref), book.title);
+  return isLineNumber && location == book.title ? heRef : location;
 }
 
 /// בונה סימניה מטאב קריאה (טקסט/PDF/מפרשים) במיקומו הנוכחי.
@@ -38,6 +44,9 @@ Future<Bookmark?> bookmarkFromReadingTab(
     final blocState = tab.blocState;
     if (blocState is TextBookLoaded && blocState.visibleIndices.isNotEmpty) {
       final index = tab.currentIndex;
+      final selected = List.of(
+        tab.selectedCommentators ?? blocState.activeCommentators,
+      );
       final ref = await _lineRef(
         blocState.book,
         index,
@@ -47,13 +56,16 @@ Future<Bookmark?> bookmarkFromReadingTab(
         ref: 'מפרשים | $ref',
         book: blocState.book,
         index: index,
-        commentatorsToShow: blocState.activeCommentators,
+        commentatorsToShow: selected,
         workspaceName: workspaceName,
         targetKind: BookmarkTargetKind.commentators,
       );
     }
     if (!useStoredPositionFallback) return null;
     final source = tab.sourceTab;
+    final selected = List.of(
+      tab.selectedCommentators ?? source.commentators ?? const <String>[],
+    );
     final ref = await _lineRef(
       source.book,
       source.index,
@@ -63,8 +75,7 @@ Future<Bookmark?> bookmarkFromReadingTab(
       ref: 'מפרשים | $ref',
       book: source.book,
       index: source.index,
-      commentatorsToShow:
-          tab.selectedCommentators ?? source.commentators ?? const [],
+      commentatorsToShow: selected,
       workspaceName: workspaceName,
       targetKind: BookmarkTargetKind.commentators,
     );
@@ -149,6 +160,7 @@ Future<Bookmark?> bookmarkFromReadingTab(
       commentatorsToShow: sourceTab.activeCommentators.toList(),
       workspaceName: workspaceName,
       targetKind: BookmarkTargetKind.commentators,
+      pdfCommentatorsHeading: heading.isEmpty ? null : heading,
     );
   }
 
@@ -167,6 +179,7 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
         pageNumber: bookmark.index,
         openLeftPane: openLeftPane,
       )..activeCommentators = bookmark.commentatorsToShow.toSet();
+      sourceTab.currentTitle.value = bookmark.pdfCommentatorsHeading ?? '';
       return PdfCommentatorsTab(sourceTab: sourceTab);
     }
 
@@ -178,14 +191,18 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
               openLeftPane: openLeftPane,
             )
             as TextBookTab;
-    return CommentatorsTab(sourceTab: sourceTab);
+    return CommentatorsTab(sourceTab: sourceTab)
+      ..applyBookSelection = false
+      ..selectedCommentators = List.of(bookmark.commentatorsToShow);
   }
 
   final tab = OpenedTab.fromBook(
     bookmark.book,
     bookmark.index,
     initialReadingAnchor: bookmark.readingAnchor,
-    commentators: bookmark.commentatorsToShow,
+    commentators: bookmark.commentatorsToShow.isEmpty
+        ? null
+        : bookmark.commentatorsToShow,
     openLeftPane: openLeftPane,
   )..historySlot = bookmark.historySlot;
   restoreReadingTabNavigationHistory(tab, bookmark.navigationHistory);

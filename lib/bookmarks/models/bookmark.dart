@@ -86,6 +86,9 @@ class Bookmark {
   final Map<String, dynamic>? searchConfiguration;
   final BookmarkTargetKind targetKind;
 
+  /// כותרת בכרטיסיית מפרשי PDF, מדויקת יותר ממספר העמוד.
+  final String? pdfCommentatorsHeading;
+
   /// טקסט תיאור שהמשתמש רואה ויכול לערוך. בעת יצירה מאותחל למילים הראשונות
   /// של הקטע המסומן. null = להציג את מיקום ברירת המחדל (ref).
   final String? label;
@@ -149,6 +152,7 @@ class Bookmark {
     this.proximityScope,
     Map<String, dynamic>? searchConfiguration,
     this.targetKind = BookmarkTargetKind.book,
+    this.pdfCommentatorsHeading,
     this.label,
     this.createdAt,
     this.readingAnchor,
@@ -191,6 +195,7 @@ class Bookmark {
       proximityScope: proximityScope,
       searchConfiguration: searchConfiguration,
       targetKind: targetKind,
+      pdfCommentatorsHeading: pdfCommentatorsHeading,
       label: clearLabel ? null : (label ?? this.label),
       createdAt: createdAt,
       readingAnchor: readingAnchor,
@@ -277,6 +282,7 @@ class Bookmark {
               orElse: () => BookmarkTargetKind.book,
             )
           : BookmarkTargetKind.book,
+      pdfCommentatorsHeading: json['pdfCommentatorsHeading'] as String?,
       label: json['label'] as String?,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
@@ -336,6 +342,7 @@ class Bookmark {
       'searchConfiguration': searchConfiguration,
       'proximityScope': proximityScope?.name,
       'targetKind': targetKind.name,
+      'pdfCommentatorsHeading': ?pdfCommentatorsHeading,
       'label': label,
       'createdAt': createdAt?.toIso8601String(),
       'historySlot': ?historySlot,

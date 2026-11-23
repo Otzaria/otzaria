@@ -391,19 +391,19 @@ class _ItemActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final button = action.emphasized
+    // ActionButton מדלג על ריחוף שחוזר על התווית.
+    return action.emphasized
         ? ActionButton.neutral(
             text: action.label,
             icon: action.icon,
+            tooltip: action.tooltip,
             onPressed: action.onPressed,
           )
         : ActionButton.ghost(
             text: action.label,
             icon: action.icon,
+            tooltip: action.tooltip,
             onPressed: action.onPressed,
           );
-    final tooltip = action.tooltip;
-    if (tooltip == null) return button;
-    return Tooltip(message: tooltip, child: button);
   }
 }

@@ -7,6 +7,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/reports/report_queue_flush.dart';
+import 'package:otzaria/reports/repository/sent_report_history.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -29,12 +31,15 @@ class PluginReportService {
     SentReportsCounter? sentCounter,
   }) : _client = client ?? _shared,
        _reports = reportStore ?? PendingReportStore.instance,
-       _sentCounter =
-           sentCounter ??
-           SentReportsCounter(
-             boxName: queueBoxName,
-             database: reportStore?.database,
-           );
+       _sentHistory = SentReportHistory(
+         store: reportStore,
+         counter: sentCounter,
+         boxName: queueBoxName,
+         kind: sentKind,
+         idField: 'reportId',
+         limit: maxSentReportsToKeep,
+         fromJson: PluginReportRecord.fromJson,
+       );
 
   static final Uri endpoint = Uri.parse(
     'https://otzaria.org/api/plugin-reports',
@@ -45,7 +50,6 @@ class PluginReportService {
   static const String sentReportsKey = 'sent_reports';
   static const int maxSentReportsToKeep = 100;
   static const Duration _timeout = Duration(seconds: 10);
-  static const Duration _flushInterval = Duration(minutes: 5);
   static const int _maxQueuedFlushPerRun = 20;
 
   /// סוגי הדיווח המוכרים לשרת; ערך לא מוכר מתורגם ל-'other'.
@@ -54,17 +58,11 @@ class PluginReportService {
   /// אורך מרבי לשדה הפירוט; טקסט ארוך יותר נחתך לפני השליחה.
   static const int maxDetailsLength = 5000;
 
-  static Timer? _flushTimer;
-  static bool _isFlushing = false;
-  static Completer<void>? _flushInFlight;
+  static final _flush = ReportQueueFlush();
 
   /// עוצר את השליחה האוטומטית וממתין לשליחה שבאמצע, כדי שכתיבה חיצונית לתור
   /// (שחזור מגיבוי) לא תדרוס אותה. `startAutomaticFlush` מפעיל מחדש בעלייה.
-  static Future<void> suspendAutomaticFlush() async {
-    _flushTimer?.cancel();
-    _flushTimer = null;
-    await _flushInFlight?.future;
-  }
+  static Future<void> suspendAutomaticFlush() => _flush.suspend();
 
   /// סוגי התור במסד המשותף — זהים למפתחות שהמיגרציה מ-Hive יצרה.
   static const String pendingKind = '$queueBoxName/$pendingReportsKey';
@@ -72,7 +70,7 @@ class PluginReportService {
 
   final http.Client _client;
   final PendingReportStore _reports;
-  final SentReportsCounter _sentCounter;
+  final SentReportHistory<PluginReportRecord> _sentHistory;
 
   static final http.Client _shared = _createClient();
 
@@ -150,7 +148,7 @@ class PluginReportService {
     final attemptResult = await _trySend(record);
     if (attemptResult.isSuccess) {
       await _saveSentReport(record);
-      unawaited(flushPendingReports());
+      _flush.runInBackground(flushPendingReports);
       return PluginReportDeliveryStatus.sent;
     }
 
@@ -182,16 +180,10 @@ class PluginReportService {
   }
 
   /// היסטוריית הנשלחים מוצגת מהחדש לישן, ולכן הפוכה לסדר ההוספה.
-  Future<List<PluginReportRecord>> getSentReports() async {
-    return (await _reports.listByKind(sentKind)).reversed.map(_decode).toList();
-  }
+  Future<List<PluginReportRecord>> getSentReports() => _sentHistory.list();
 
   /// כל הדיווחים שנשלחו אי-פעם — לא רק אלה שנשארו בהיסטוריה.
-  Future<int> getSentReportsTotal() async {
-    final total = await _sentCounter.read();
-    final kept = await _reports.countByKind(sentKind);
-    return total > kept ? total : kept;
-  }
+  Future<int> getSentReportsTotal() => _sentHistory.total();
 
   Future<void> deletePendingReport(String reportId) async {
     await _reports.deleteIds(await _rowIdsOf(pendingKind, reportId));
@@ -232,14 +224,10 @@ class PluginReportService {
     await _reports.deleteAllOfKind(pendingKind);
   }
 
-  Future<void> deleteSentReport(String reportId) async {
-    await _reports.deleteIds(await _rowIdsOf(sentKind, reportId));
-  }
+  Future<void> deleteSentReport(String reportId) =>
+      _sentHistory.delete(reportId);
 
-  Future<void> clearSentReports() async {
-    await _reports.deleteAllOfKind(sentKind);
-    await _sentCounter.reset();
-  }
+  Future<void> clearSentReports() => _sentHistory.clear();
 
   static PluginReportRecord _decode(PendingReport row) =>
       PluginReportRecord.fromJson(row.payload);
@@ -250,13 +238,9 @@ class PluginReportService {
   /// מנסה לשלוח את הדיווחים השמורים; עוצר בכשל זמני ראשון, ומסיר מהתור
   /// דיווחים שנדחו סופית. מחזיר את מספר הדיווחים שנשלחו.
   Future<int> flushPendingReports() async {
-    if (_isOfflineMode || _isFlushing) {
-      return 0;
-    }
+    if (_isOfflineMode) return 0;
 
-    _isFlushing = true;
-    final inFlight = _flushInFlight = Completer<void>();
-    try {
+    return _flush.run(() async {
       final rowsToAttempt = await _reports.listByKind(
         pendingKind,
         limit: _maxQueuedFlushPerRun,
@@ -287,22 +271,11 @@ class PluginReportService {
       }
 
       return sentCount;
-    } finally {
-      _isFlushing = false;
-      _flushInFlight = null;
-      inFlight.complete();
-    }
+    });
   }
 
   Future<void> startAutomaticFlush() async {
-    if (_flushTimer != null) {
-      return;
-    }
-
-    unawaited(flushPendingReports());
-    _flushTimer = Timer.periodic(_flushInterval, (_) {
-      unawaited(flushPendingReports());
-    });
+    _flush.start(flushPendingReports);
   }
 
   /// בונה סקריפט שליחה של הדיווחים השמורים למחשב מחובר, לפי מערכת ההפעלה.
@@ -328,19 +301,8 @@ class PluginReportService {
     await _reports.add(pendingKind, record.toJson());
   }
 
-  Future<void> _saveSentReport(PluginReportRecord record) async {
-    final sentRows = await _reports.listByKind(sentKind);
-    final existing = sentRows
-        .where((row) => row.payload['reportId'] == record.reportId)
-        .map((row) => row.id)
-        .toList();
-    await _reports.deleteIds(existing);
-    await _reports.add(sentKind, record.toJson());
-    await _reports.trimKind(sentKind, maxSentReportsToKeep);
-    if (existing.isEmpty) {
-      await _sentCounter.increment(floor: sentRows.length);
-    }
-  }
+  Future<void> _saveSentReport(PluginReportRecord record) =>
+      _sentHistory.save(record.reportId, record.toJson());
 
   Future<_SendAttemptResult> _trySend(PluginReportRecord record) async {
     try {

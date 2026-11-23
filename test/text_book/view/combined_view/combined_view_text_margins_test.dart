@@ -19,7 +19,6 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
-import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/reading_area_width.dart';
@@ -173,8 +172,8 @@ void main() {
     final list = tester.getRect(find.byType(ScrollablePositionedList));
     final line = tester.getRect(find.byType(SmartTextWidget).first);
     return (
-      start: list.right - line.right - kSelectionGutterWidth,
-      end: line.left - list.left - listEndPadding - kSelectionGutterWidth,
+      start: list.right - line.right - kTextColumnMinMargin,
+      end: line.left - list.left - listEndPadding - kTextColumnMinMargin,
     );
   }
 

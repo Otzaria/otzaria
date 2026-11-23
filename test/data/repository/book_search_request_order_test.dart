@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/book_search_worker.dart';
+import 'package:otzaria/data/repository/book_title_search_diagnostics.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
@@ -81,6 +82,31 @@ void main() {
     category = _SearchCategory();
   });
   tearDown(() => repository.bookSearchWorkerForTesting.dispose());
+
+  test('חיפוש בשורש הספרייה הריק מתועד בלי טקסט השאילתה', () async {
+    const query = 'תוכן פרטי לחיפוש';
+    final logs = <String>[];
+    final previous = BookTitleSearchDiagnostics.instance;
+    final searches = BookTitleSearchDiagnostics.instance =
+        BookTitleSearchDiagnostics(
+          stallThreshold: null,
+          writeLog: ({required title, required error, details = const {}}) =>
+              logs.add('$title $error $details'),
+        );
+    addTearDown(() => BookTitleSearchDiagnostics.instance = previous);
+
+    final result = await repository.findBooksAndCategories(
+      query,
+      Library(categories: []),
+      includeLocalHebrewBooks: false,
+    );
+
+    expect(result.books, isEmpty);
+    expect(logs.single, startsWith('Library title search: empty catalog'));
+    expect(logs.single, isNot(contains(query)));
+    expect(searches.collect()['last'], containsPair('wholeLibrary', true));
+    expect(searches.collect().toString(), isNot(contains(query)));
+  });
 
   for (final reuseCatalog in [false, true]) {
     test(
@@ -277,7 +303,7 @@ void main() {
     'supersession while collecting categories keeps the latest token',
     () async {
       final key = Object();
-      late Future<({List<Book> books, List<Category> categories})> newer;
+      late Future<BooksAndCategoriesSearch> newer;
       category.onCategories = () {
         newer = repository.findBooksAndCategories(
           'בית',

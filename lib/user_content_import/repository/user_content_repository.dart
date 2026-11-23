@@ -48,6 +48,16 @@ class UserContentRepository {
     'user_attached_book_version': "source = '$manualImportSource'",
   };
 
+  /// האם יש משהו ש-[clearAllUserContent] ימחק. EXISTS בלבד — זול.
+  Future<bool> hasManualContent() async {
+    final db = await _db.database;
+    return _manualContentFilters.entries.any(
+      (e) => db
+          .select('SELECT 1 FROM ${e.key} WHERE ${e.value} LIMIT 1')
+          .isNotEmpty,
+    );
+  }
+
   static String _baselineTable(String table) => 'import_baseline_$table';
 
   /// שומר את הנתונים הידניים הקיימים כבסיס שכל בנייה מחדש משחזרת. כך ייבוא
@@ -187,15 +197,16 @@ class UserContentRepository {
 
     for (var position = 0; position < structures.length; position++) {
       final structure = structures[position];
-      // מבנה באותו שם ממקור אחר נדרס — יחד עם ערכיו, שאחרת היו מתייתמים.
+      final oldKey = structure.key == 'Parasha' ? 'פרשות' : structure.key;
+      // מבנה באותו שם ממקור אחר נדרס יחד עם כותרותיו, גם במפתח הישן.
       db.execute(
         'DELETE FROM user_alt_toc_entry WHERE structureId IN '
-        '(SELECT id FROM user_alt_toc_structure WHERE bookId = ? AND key = ?)',
-        [bookId, structure.key],
+        '(SELECT id FROM user_alt_toc_structure WHERE bookId = ? AND key IN (?, ?))',
+        [bookId, structure.key, oldKey],
       );
       db.execute(
-        'DELETE FROM user_alt_toc_structure WHERE bookId = ? AND key = ?',
-        [bookId, structure.key],
+        'DELETE FROM user_alt_toc_structure WHERE bookId = ? AND key IN (?, ?)',
+        [bookId, structure.key, oldKey],
       );
       db.execute(
         'INSERT INTO user_alt_toc_structure '
@@ -539,7 +550,8 @@ class UserContentRepository {
   /// כולל). כשידועה קטגוריית המקור מסננים גם לפיה; שורות בלי קטגוריה עוברות.
   ///
   /// קישור-טווח נכלל גם כששורת הפתיחה שלו לפני החלון והטווח נמשך לתוכו —
-  /// אחרת גלילה לאמצע טווח הייתה מאבדת את הקישור.
+  /// אחרת גלילה לאמצע טווח הייתה מאבדת את הקישור. [startLines] מצמצם לקישורים
+  /// שמתחילים בשורות אלה.
   Future<List<UserLinkRecord>> forwardUserLinks(
     String sourceTitle, {
     required bool sourceIsUserBook,
@@ -547,6 +559,7 @@ class UserContentRepository {
     int? sourceCategoryId,
     int? startLineIndex,
     int? endLineIndex,
+    Set<int>? startLines,
   }) async {
     final db = await _db.database;
     final categoryClause = sourceCategoryId != null
@@ -557,15 +570,20 @@ class UserContentRepository {
         ? 'AND sourceLineIndex <= ? '
               'AND COALESCE(sourceLineIndexEnd, sourceLineIndex) >= ?'
         : '';
+    final startsClause = startLines == null
+        ? ''
+        : 'AND sourceLineIndex IN (SELECT value FROM json_each(?))';
     final rows = db.select(
       'SELECT * FROM user_link WHERE sourceTitle = ? AND sourceIsUserBook = ? '
-      'AND sourceDb IS ? $categoryClause $rangeClause ORDER BY sourceLineIndex',
+      'AND sourceDb IS ? $categoryClause $rangeClause $startsClause '
+      'ORDER BY sourceLineIndex, id',
       [
         sourceTitle,
         sourceIsUserBook ? 1 : 0,
         sourceDb,
         ?sourceCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
+        if (startLines != null) '[${startLines.join(',')}]',
       ],
     );
     return rows.map(_fromRow).toList();
@@ -573,6 +591,7 @@ class UserContentRepository {
 
   /// קישורי-משתמש *נכנסים* אל ספר יעד (לפי כותרת) — לתצוגה הפוכה. למשל
   /// מפרש-משתמש על ספר רשמי מופיע כשפותחים את הספר הרשמי.
+  /// קישורי [LinkTypes.linker] חד-כיווניים.
   ///
   /// כמו ב-[forwardUserLinks], קישור-טווח נכלל גם כשהחלון מתחיל באמצעו.
   Future<List<UserLinkRecord>> inverseUserLinks(
@@ -582,6 +601,7 @@ class UserContentRepository {
     int? targetCategoryId,
     int? startLineIndex,
     int? endLineIndex,
+    Set<int>? startLines,
   }) async {
     final db = await _db.database;
     // כשידועה קטגוריית היעד, מסננים גם לפיה (כדי לא לערבב בין שני ספרי-יעד
@@ -594,17 +614,23 @@ class UserContentRepository {
         ? 'AND ul.targetLineIndex <= ? '
               'AND COALESCE(ul.targetLineIndexEnd, ul.targetLineIndex) >= ?'
         : '';
+    final startsClause = startLines == null
+        ? ''
+        : 'AND ul.targetLineIndex IN (SELECT value FROM json_each(?))';
     final rows = db.select(
       'SELECT ul.* FROM user_link ul '
       'WHERE ul.targetTitle = ? AND ul.targetIsUserBook = ? '
-      'AND ul.targetDb IS ? $categoryClause $rangeClause '
-      'ORDER BY ul.targetLineIndex',
+      'AND ul.targetDb IS ? AND UPPER(ul.connectionType) != ? '
+      '$categoryClause $rangeClause $startsClause '
+      'ORDER BY ul.targetLineIndex, ul.id',
       [
         targetTitle,
         targetIsUserBook ? 1 : 0,
         targetDb,
+        LinkTypes.linker,
         ?targetCategoryId,
         if (hasRange) ...[endLineIndex, startLineIndex],
+        if (startLines != null) '[${startLines.join(',')}]',
       ],
     );
     return rows.map(_fromRow).toList();

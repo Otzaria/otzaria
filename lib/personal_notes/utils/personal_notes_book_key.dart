@@ -5,7 +5,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/data/book_identity.dart';
 
 /// מפתח הספר של הערות אישיות. ספר רשמי ממופתח לפי הכותרת, כמו בהערות שכבר
@@ -83,6 +83,12 @@ const _userKeySuffix = '|user';
   }
   return (title: key, source: null);
 }
+
+/// שם קבוצת ההערות של המפתח [key] לתצוגה.
+String personalNotesBookDisplayTitle(String key) =>
+    key == PersonalNote.generalBookId
+    ? 'הערות כלליות'
+    : parsePersonalNotesBookKey(key).title;
 
 /// הספר בקטלוג שאליו שייך מפתח ההערות [key]. מפתח כותרת בלבד נפתר רק לספר
 /// רשמי, לעולם לא לספר אישי או מצורף בכותרת זהה.
@@ -201,9 +207,14 @@ Future<List<TocEntry>?> personalNotesBookToc(Library? library, String key) {
   return book?.tableOfContents ?? Future.value(null);
 }
 
-Iterable<Book> _candidates(Library library, String title, BookSource? source) =>
-    library.getIndexableBooks().where(
-      (b) =>
-          b.title == title &&
-          (source == null ? b.source.isOfficial : b.source == source),
-    );
+Iterable<Book> _candidates(
+  Library library,
+  String title,
+  BookSource? source,
+) => source == null && title == PersonalNote.generalBookId
+    ? const []
+    : library.getIndexableBooks().where(
+        (b) =>
+            b.title == title &&
+            (source == null ? b.source.isOfficial : b.source == source),
+      );

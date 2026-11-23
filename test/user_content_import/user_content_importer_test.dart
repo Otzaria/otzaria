@@ -434,14 +434,22 @@ void main() {
     group('פורמט native (<ספר>_links.json)', () {
       /// מאתר מזויף: "מגילה" רשמי (200 שורות), "הכי גרסינן מגילה" אישי
       /// (2000 שורות); כל כותרת אחרת לא נמצאת.
-      Future<({bool isUserBook, int? categoryId, int totalLines})?> fakeLocator(
+      Future<LocatedUserLinkBook?> fakeLocator(
         String title,
       ) async => switch (title) {
-        'מגילה' => (isUserBook: false, categoryId: 5, totalLines: 200),
+        'מגילה' => (
+          title: title,
+          isUserBook: false,
+          categoryId: 5,
+          totalLines: 200,
+          isDependentOnly: false,
+        ),
         'הכי גרסינן מגילה' => (
+          title: title,
           isUserBook: true,
           categoryId: 1,
           totalLines: 2000,
+          isDependentOnly: false,
         ),
         _ => null,
       };
@@ -503,6 +511,39 @@ void main() {
         expect(link.targetLineIndexEnd, 6);
         expect(link.targetRefEnd, contains('ג'));
       });
+
+      test(
+        'ציטוט בטקסט נשמר כ-LINKER עם העוגן, בלי היפוך למפרש (issue #4308)',
+        () async {
+          // מקור אישי ויעד רשמי: קישור מפרש היה מתהפך לבסיס→מפרש.
+          final f = writeCsv(
+            'הכי גרסינן מגילה_links.json',
+            '[{"line_index_1": 5, "line_index_2": 3, '
+                '"start": 4, "end": 9, "heRef_2": "מגילה ב.", '
+                '"path_2": "מגילה.txt", "Conection Type": "ציטוט בטקסט"}]',
+          );
+          final result = await UserContentImporter.importFiles(
+            [f],
+            db,
+            locateBook: fakeLocator,
+          );
+          expect(result.errors, isEmpty);
+          final link = (await repo.forwardUserLinks(
+            'הכי גרסינן מגילה',
+            sourceIsUserBook: true,
+          )).single;
+          expect(link.connectionType, LinkTypes.linker);
+          expect(link.sourceLineIndex, 4);
+          expect(link.targetTitle, 'מגילה');
+          expect(link.targetLineIndex, 2);
+          expect(link.anchorStart, 4);
+          expect(link.anchorEnd, 9);
+          expect(
+            await repo.forwardUserLinks('מגילה', sourceIsUserBook: false),
+            isEmpty,
+          );
+        },
+      );
 
       test('צמד דו-כיווני מתלכד לרשומה אחת עם ה-ref נשמר', () async {
         // הקובץ של הבסיס (מגילה) + הקובץ ההפוך שהכלי יוצר למפרש.
@@ -568,6 +609,51 @@ void main() {
         );
         expect(kept.single.connectionType, LinkTypes.law);
         expect(kept.single.targetTitle, 'מגילה');
+      });
+
+      test('קישור מפירוש אישי לפירוש רשמי לא מתהפך', () async {
+        final f = writeCsv(
+          'הכי גרסינן מגילה_links.json',
+          '[{"line_index_1": 5, "line_index_2": 3, '
+              '"path_2": "רש״י על מגילה.txt", '
+              '"Conection Type": "commentary"}]',
+        );
+        final result = await UserContentImporter.importFiles(
+          [f],
+          db,
+          locateBook: (title) async => switch (title) {
+            'הכי גרסינן מגילה' => (
+              title: title,
+              isUserBook: true,
+              categoryId: 1,
+              totalLines: 2000,
+              isDependentOnly: false,
+            ),
+            'רש״י על מגילה' => (
+              title: title,
+              isUserBook: false,
+              categoryId: 5,
+              totalLines: 200,
+              isDependentOnly: true,
+            ),
+            _ => null,
+          },
+        );
+        expect(result.errors, isEmpty);
+        expect(result.linksApplied, 1);
+        final kept = await repo.forwardUserLinks(
+          'הכי גרסינן מגילה',
+          sourceIsUserBook: true,
+        );
+        expect(kept.single.targetTitle, 'רש״י על מגילה');
+        expect(kept.single.connectionType, LinkTypes.commentary);
+        expect(
+          await repo.forwardUserLinks(
+            'רש״י על מגילה',
+            sourceIsUserBook: false,
+          ),
+          isEmpty,
+        );
       });
 
       test('כמה עוגנים באותו צמד-שורות נשמרים כרשומות נפרדות', () async {
@@ -891,7 +977,13 @@ void main() {
           [f],
           db,
           locateBook: (title) async => title == 'ביאורי יוסף'
-              ? (isUserBook: true, categoryId: 1, totalLines: 50)
+              ? (
+                  title: title,
+                  isUserBook: true,
+                  categoryId: 1,
+                  totalLines: 50,
+                  isDependentOnly: false,
+                )
               : null,
           attachedBooks: attached,
         );
@@ -916,7 +1008,13 @@ void main() {
           [f],
           db,
           locateBook: (title) async => title == 'ביאורי יוסף'
-              ? (isUserBook: true, categoryId: 1, totalLines: 50)
+              ? (
+                  title: title,
+                  isUserBook: true,
+                  categoryId: 1,
+                  totalLines: 50,
+                  isDependentOnly: false,
+                )
               : null,
           attachedBooks: attached,
         );

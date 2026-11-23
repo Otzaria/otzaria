@@ -1,0 +1,30 @@
+{
+  "tag_name": "v12",
+  "assets": [
+    {
+      "name": "manifest.json",
+      "size": 2,
+      "digest": "sha256:ffa5b716b5a57837f7929dfcca4b4dfdeb97210a7fd5a12d2f1978846d6f1743"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst.part-000",
+      "size": 1500,
+      "digest": "sha256:7df499afaacd567afd85d4128b9d38d8868f15b2010d0907145622d108ee031d"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst.part-001",
+      "size": 1500,
+      "digest": "sha256:1a18053baf46356ccd4438b4870a523a69b5c31c3e5dec105991c83bad0788f5"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst.part-002",
+      "size": 230,
+      "digest": "sha256:044e8475b9f1aa36200bd11567dfec45f7ba75792e073649af2e849e2709b8a5"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst.manifest.json",
+      "size": 900,
+      "digest": "sha256:d562ba9b04f4aff1819d51af43fd2fe593ebd42f83a87632b9087dc03bafeae6"
+    }
+  ]
+}

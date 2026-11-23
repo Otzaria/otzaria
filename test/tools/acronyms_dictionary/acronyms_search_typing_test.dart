@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -56,10 +58,12 @@ List<String> _searchFromScratch(
 
 /// כל התוויות ברשימת התוצאות לפי הסדר, גם אלה שמחוץ למסך.
 List<String> _shownAcronyms(WidgetTester tester) {
-  final lists = tester.widgetList<ListView>(find.byType(ListView)).toList();
+  final lists = tester
+      .widgetList<SuperListView>(find.byType(SuperListView))
+      .toList();
   if (lists.isEmpty) return [];
   final delegate = lists.single.childrenDelegate as SliverChildBuilderDelegate;
-  final context = tester.element(find.byType(ListView));
+  final context = tester.element(find.byType(SuperListView));
   return [
     for (var i = 0; i < delegate.childCount!; i++)
       (delegate.builder(context, i)! as AcronymResultCard).acronym,

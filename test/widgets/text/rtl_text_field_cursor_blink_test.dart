@@ -82,36 +82,38 @@ void main() {
     );
   });
 
-  testWidgets('אחרי 8 שניות של חוסר פעילות ההבהוב נעצר והסמן נעלם', (
-    tester,
-  ) async {
-    final (controller, _) = await pumpFocusedField(tester);
+  testWidgets(
+    'אחרי 8 שניות של חוסר פעילות ההבהוב נעצר והסמן נשאר גלוי (issue #4459)',
+    (tester) async {
+      final (controller, _) = await pumpFocusedField(tester);
 
-    // חולפים על פני כל תקופת ההבהוב (16 חצאי-מחזור = 8 שניות).
-    for (var i = 0; i < 16; i++) {
+      // חולפים על פני כל תקופת ההבהוב (16 חצאי-מחזור = 8 שניות).
+      for (var i = 0; i < 16; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      expect(
+        currentCursorColor(tester),
+        cursorColor,
+        reason: 'בתום תקופת ההבהוב הסמן נשאר גלוי כל עוד יש פוקוס',
+      );
+
+      // ההבהוב באמת נעצר — גם אחרי חצאי-מחזור נוספים הסמן לא מתחלף.
       await tester.pump(const Duration(milliseconds: 500));
-    }
-    expect(
-      currentCursorColor(tester),
-      Colors.transparent,
-      reason: 'בתום תקופת ההבהוב הסמן חייב להיעלם',
-    );
+      expect(currentCursorColor(tester), cursorColor);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(currentCursorColor(tester), cursorColor);
 
-    // ההבהוב באמת נעצר — גם אחרי חצאי-מחזור נוספים הסמן נשאר נסתר.
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(currentCursorColor(tester), Colors.transparent);
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(currentCursorColor(tester), Colors.transparent);
-
-    // פעולה חדשה מחזירה את הסמן מיידית.
-    controller.selection = const TextSelection.collapsed(offset: 2);
-    await tester.pump();
-    expect(
-      currentCursorColor(tester),
-      cursorColor,
-      reason: 'פעולה אחרי ההיעלמות חייבת להחזיר את הסמן',
-    );
-  });
+      // פעולה חדשה מחדשת את ההבהוב.
+      controller.selection = const TextSelection.collapsed(offset: 2);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        currentCursorColor(tester),
+        Colors.transparent,
+        reason: 'פעולה אחרי סוף ההבהוב חייבת להתחיל מחזור הבהוב חדש',
+      );
+    },
+  );
 
   testWidgets('הקלדה מאפסת את מחזור ההבהוב', (tester) async {
     final (controller, _) = await pumpFocusedField(tester);

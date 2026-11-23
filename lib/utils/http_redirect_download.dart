@@ -16,10 +16,15 @@ Future<http.StreamedResponse> sendGetFollowingRedirects(
   Map<String, String>? headers,
   int maxRedirects = 5,
   Duration stallTimeout = const Duration(seconds: 60),
+  Future<void>? abortTrigger,
 }) async {
   var current = url;
   for (var hop = 0; hop <= maxRedirects; hop++) {
-    final request = http.Request('GET', current)..followRedirects = false;
+    final request = http.AbortableRequest(
+      'GET',
+      current,
+      abortTrigger: abortTrigger,
+    )..followRedirects = false;
     if (headers != null) request.headers.addAll(headers);
 
     final sendFuture = client.send(request);

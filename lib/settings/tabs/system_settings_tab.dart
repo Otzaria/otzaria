@@ -1132,6 +1132,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           'נוספו: {items}.',
           args: {'items': items.join(', ')},
         ),
+      if (added.skipped > 0)
+        context.settingsText(
+          '{count} רשומות פגומות בקובץ לא יובאו.',
+          args: {'count': added.skipped},
+        ),
       if (skipped.isNotEmpty)
         context.settingsText(
           'סעיפים שלא ניתן היה לייבא: {items}.',
@@ -1304,10 +1309,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             title: context.settingsText('שחזר את כל החלונות בהפעלה'),
             subtitle: state.restoreAllWindows
                 ? context.settingsText(
-                    'כל החלונות שהיו פתוחים בסגירה ייפתחו שוב, במקומם',
+                    'אחרי "יציאה מכל החלונות", כל החלונות ייפתחו שוב במקומם',
                   )
                 : context.settingsText(
-                    'ייפתח חלון אחד, עם הכרטיסיות של כל החלונות',
+                    'אחרי "יציאה מכל החלונות", הכרטיסיות של כולם ייפתחו בחלון אחד',
                   ),
             value: state.restoreAllWindows,
             onChanged: (value) => context.read<SettingsBloc>().add(

@@ -245,6 +245,9 @@ class LinksListView extends StatefulWidget {
   /// פרופיל ערוץ ההעתקה; null = כמו התצוגה.
   final TextDisplayProfile? copyDisplayProfile;
 
+  /// false כשציוני המפרשים כבויים בגוף הספר: ההפניה בלי אות הסימון.
+  final bool showAnchorMarkers;
+
   final SelectionSyncController? selectionSyncController;
 
   /// מזהה התוכן המוצג; שינויו מאפס גלילה ובחירה אך משמר חיפוש וסינון.
@@ -264,6 +267,7 @@ class LinksListView extends StatefulWidget {
     required this.fontSize,
     required this.displayProfile,
     this.copyDisplayProfile,
+    this.showAnchorMarkers = true,
     this.selectionSyncController,
     this.contentScopeKey,
     this.emptyMessage = 'לא נמצאו קישורים לקטע הנבחר',
@@ -920,7 +924,7 @@ class _LinksListViewState extends State<LinksListView> {
         builder: (context, settingsState) {
           // קישור עם עוגן-מילה: אות הסימון שבגוף הטקסט מוצגת לפני ההפניה.
           var markerPrefix = '';
-          if (link.anchorStart != null) {
+          if (widget.showAnchorMarkers && link.anchorStart != null) {
             final markerText = anchorMarkerText(link);
             if (markerText != null) markerPrefix = '$markerText ';
           }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/settings/l10n/chrome_directionality.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -18,6 +19,7 @@ Color? getDayBackgroundColor(
   if (isSelected || isToday) return null;
   if (jc.getDayOfWeek() == 7 ||
       jc.isYomTov() ||
+      jc.isErevYomTov() ||
       jc.isTaanis() ||
       jc.isRoshChodesh()) {
     return AppSurfaces.calendarSpecialDay(Theme.of(context).colorScheme);
@@ -104,6 +106,17 @@ Widget buildDayCell(
                       : (compactCell ? 12.0 : 14.0);
                   final secondaryFontSize = compactCell ? 9.0 : 10.0;
                   final monthLabelFontSize = compactCell ? 7.0 : 8.0;
+                  final hebrewIsPrimary =
+                      state.calendarType != CalendarType.gregorian;
+                  final showGregorian =
+                      state.calendarType != CalendarType.hebrew;
+                  final primaryStyle = TextStyle(
+                    color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontSize: primaryFontSize,
+                  );
 
                   return Padding(
                     padding: EdgeInsets.fromLTRB(
@@ -115,63 +128,58 @@ Widget buildDayCell(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (state.calendarType == CalendarType.combined)
-                              Text(
-                                '${gregorianDate.day}',
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? cs.onPrimaryContainer.withValues(
-                                          alpha: 0.85,
-                                        )
-                                      : cs.onSurfaceVariant,
-                                  fontSize: secondaryFontSize,
-                                ),
-                              ),
-                            const Spacer(),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
+                        // התאריך העברי תמיד בימין התא והלועזי בשמאלו, בלי
+                        // קשר לכיוון הטקסט; ההגדרה קובעת רק איזה מהם ראשי.
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (showGregorian)
                                 Text(
-                                  (state.calendarType == CalendarType.hebrew ||
-                                          state.calendarType ==
-                                              CalendarType.combined)
-                                      ? formatHebrewDay(
-                                          jewishDate.getJewishDayOfMonth(),
+                                  '${gregorianDate.day}',
+                                  style: hebrewIsPrimary
+                                      ? TextStyle(
+                                          color: isSelected
+                                              ? cs.onPrimaryContainer
+                                                    .withValues(alpha: 0.85)
+                                              : cs.onSurfaceVariant,
+                                          fontSize: secondaryFontSize,
                                         )
-                                      : '${gregorianDate.day}',
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? cs.onPrimaryContainer
-                                        : cs.onSurface,
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    fontSize: primaryFontSize,
+                                      : primaryStyle,
+                                ),
+                              const Spacer(),
+                              if (hebrewIsPrimary)
+                                ContentDirectionality(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        formatHebrewDay(
+                                          jewishDate.getJewishDayOfMonth(),
+                                        ),
+                                        style: primaryStyle,
+                                      ),
+                                      if (jewishDate.isJewishLeapYear() &&
+                                          (jewishDate.getJewishMonth() == 12 ||
+                                              jewishDate.getJewishMonth() ==
+                                                  13) &&
+                                          jewishDate.getJewishDayOfMonth() == 1)
+                                        Text(
+                                          getHebrewMonthNameFor(jewishDate),
+                                          style: TextStyle(
+                                            fontSize: monthLabelFontSize,
+                                            color: isSelected
+                                                ? cs.onPrimaryContainer
+                                                : cs.onSurfaceVariant,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
-                                if ((state.calendarType ==
-                                            CalendarType.hebrew ||
-                                        state.calendarType ==
-                                            CalendarType.combined) &&
-                                    jewishDate.isJewishLeapYear() &&
-                                    (jewishDate.getJewishMonth() == 12 ||
-                                        jewishDate.getJewishMonth() == 13) &&
-                                    jewishDate.getJewishDayOfMonth() == 1)
-                                  Text(
-                                    getHebrewMonthNameFor(jewishDate),
-                                    style: TextStyle(
-                                      fontSize: monthLabelFontSize,
-                                      color: isSelected
-                                          ? cs.onPrimaryContainer
-                                          : cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         SizedBox(height: compactCell ? 2 : 6),
                         Expanded(
@@ -266,10 +274,11 @@ class DayExtras extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     final events = context.read<CalendarCubit>().eventsForDate(date);
     final strut = _lineStrut(context, compact);
+    final jewishEvents = _calcJewishEvents(jewishCalendar);
 
     // inDialog: שורה מלאה בחלונית "כל הפריטים", בלי קיצור ובלי צבעי בחירה.
     final items = <Widget Function(bool inDialog)>[
-      for (final e in _calcJewishEvents(jewishCalendar))
+      for (final e in jewishEvents)
         (inDialog) => Text(
           e,
           maxLines: inDialog ? null : 1,
@@ -313,53 +322,116 @@ class DayExtras extends StatelessWidget {
           ),
         ),
       for (final info in additionalInfoLines)
-        (inDialog) => Text(
-          info,
-          maxLines: inDialog ? null : 1,
-          overflow: inDialog ? null : TextOverflow.ellipsis,
-          strutStyle: inDialog ? null : strut,
-          style: TextStyle(
+        (inDialog) {
+          final style = TextStyle(
             fontSize: inDialog ? 14 : (compact ? 9 : 10),
             color: isSelected && !inDialog ? cs.onPrimaryContainer : cs.primary,
             fontWeight: FontWeight.w600,
-          ),
-        ),
+            fontFeatures: const [FontFeature.tabularFigures()],
+          );
+          final lastSpace = info.lastIndexOf(' ');
+          if (inDialog || lastSpace == -1) {
+            return Text(
+              info,
+              maxLines: inDialog ? null : 1,
+              overflow: inDialog ? null : TextOverflow.ellipsis,
+              strutStyle: inDialog ? null : strut,
+              style: style,
+            );
+          }
+          // "זריחה 06:08": השם בתחילת השורה והשעה בסופה, בספרות ברוחב קבוע
+          // — כך השעות של כל השורות בתא עומדות זו מתחת לזו.
+          // בתא צר מאוד (שעון 12 שעות, הגדלת טקסט) השעה נחתכת במקום לגלוש.
+          return LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    info.substring(0, lastSpace),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    strutStyle: strut,
+                    style: style,
+                  ),
+                ),
+                const SizedBox(width: AppTokens.spaceXS),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (constraints.maxWidth - AppTokens.spaceXS).clamp(
+                      0.0,
+                      double.infinity,
+                    ),
+                  ),
+                  child: Text(
+                    info.substring(lastSpace + 1),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    strutStyle: strut,
+                    style: style,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
     ];
 
-    final hiddenCount = items.length - maxVisibleItems;
-    final lines = [for (final item in items.take(maxVisibleItems)) item(false)];
-    if (hiddenCount > 0) {
-      final lastItem = lines.last;
-      final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
-      lines.last = LayoutBuilder(
-        builder: (context, constraints) {
-          final replacesLastItem = constraints.maxWidth < minRowWidth;
-          final moreLabel = _MoreItemsLabel(
-            hiddenCount: hiddenCount + (replacesLastItem ? 1 : 0),
-            compact: compact,
-            isSelected: isSelected,
-            strut: strut,
-            onTap: () => _showAllItems(context, items),
+    final showMore = items.length > maxVisibleItems;
+    Widget buildLines(bool moreTakesRow) {
+      final itemRows = maxVisibleItems - (moreTakesRow ? 1 : 0);
+      // משאירים שורה לאירוע משתמש מתוך השורות הפנויות לפריטים.
+      final shownJewish = (itemRows - (events.isEmpty ? 0 : 1)).clamp(
+        0,
+        jewishEvents.length,
+      );
+      final lines = [
+        for (final item in items.take(shownJewish)) item(false),
+        for (final item
+            in items
+                .skip(jewishEvents.length)
+                .take(
+                  itemRows - shownJewish,
+                ))
+          item(false),
+      ];
+      if (showMore) {
+        final moreLabel = _MoreItemsLabel(
+          hiddenCount: items.length - lines.length,
+          compact: compact,
+          isSelected: isSelected,
+          strut: strut,
+          onTap: () => _showAllItems(context, items),
+        );
+        if (moreTakesRow) {
+          lines.add(
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: moreLabel,
+            ),
           );
-          return replacesLastItem
-              ? FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerStart,
-                  child: moreLabel,
-                )
-              : Row(
-                  children: [
-                    Expanded(child: lastItem),
-                    moreLabel,
-                  ],
-                );
-        },
+        } else {
+          lines.last = Row(
+            children: [
+              Expanded(child: lines.last),
+              moreLabel,
+            ],
+          );
+        }
+      }
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: lines,
       );
     }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: lines,
+
+    if (!showMore) return buildLines(false);
+    final minRowWidth = MediaQuery.textScalerOf(context).scale(44);
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          buildLines(constraints.maxWidth < minRowWidth),
     );
   }
 
@@ -486,17 +558,53 @@ class HoverableDayCell extends StatefulWidget {
 }
 
 class _HoverableDayCellState extends State<HoverableDayCell> {
+  final _addButtonFocus = FocusNode();
   bool _isHovered = false;
   Widget? _addButton;
+  ColorScheme? _addButtonScheme;
+
+  @override
+  void initState() {
+    super.initState();
+    _addButtonFocus.addListener(_handleAddButtonFocus);
+  }
+
+  void _handleAddButtonFocus() => setState(() {});
+
+  @override
+  void dispose() {
+    _addButtonFocus.dispose();
+    super.dispose();
+  }
 
   // אותו מופע בין בנייה לבנייה: בבחירת יום ובריחוף כל התאים נבנים מחדש,
-  // ועדכון 42 הכפתורים היה רוב הזמן.
-  Widget _buildAddButton() {
-    return _addButton ??= _AddEventButton(onAdd: () => widget.onAdd());
+  // ועדכון 42 הכפתורים הנסתרים היה רוב הזמן.
+  Widget _buildAddButton(ColorScheme cs) {
+    if (_addButton != null && _addButtonScheme == cs) return _addButton!;
+    _addButtonScheme = cs;
+    return _addButton = TooltipTheme(
+      data: TooltipTheme.of(context).copyWith(verticalOffset: -40.0),
+      child: IconButton.filled(
+        tooltip: 'צור אירוע',
+        focusNode: _addButtonFocus,
+        icon: const Icon(FluentIcons.add_24_regular, size: AppTokens.iconSM),
+        onPressed: () => widget.onAdd(),
+        style: IconButton.styleFrom(
+          minimumSize: const Size(24, 24),
+          backgroundColor: cs.primaryContainer,
+          foregroundColor: cs.onPrimaryContainer,
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: AppTokens.roundedShape,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final showButton = _isHovered || _addButtonFocus.hasFocus;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -507,53 +615,18 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
             onPointerDown: (_) => setState(() => _isHovered = true),
             child: widget.builder(_isHovered),
           ),
-          // בשורת התאריכים, בין המספרים: מתחת לה באים החגים והאירועים, ושם
-          // כפתור גלוי תמיד היה מכסה אותם.
-          _buildAddButton(),
+          AnimatedOpacity(
+            opacity: showButton ? 1.0 : 0.0,
+            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: IgnorePointer(
+                ignoring: !showButton,
+                child: _buildAddButton(cs),
+              ),
+            ),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-/// כפתור "הוסף אירוע" בתא יום: תמיד גלוי כאייקון "+" שקט, ובריחוף עליו מקבל
-/// מילוי עגול (כמו כפתורי אייקון אחרים) ו־tooltip.
-class _AddEventButton extends StatefulWidget {
-  const _AddEventButton({required this.onAdd});
-
-  final VoidCallback onAdd;
-
-  @override
-  State<_AddEventButton> createState() => _AddEventButtonState();
-}
-
-class _AddEventButtonState extends State<_AddEventButton> {
-  bool _hovered = false;
-
-  // אותו מופע בין בניות: ריחוף משנה רק את המילוי שמסביב, לא את הכפתור.
-  late final Widget _button = AppIconButton(
-    size: AppIconButtonSize.small,
-    // בלי שטח מגע מורחב (48): הכפתור גלוי תמיד, ושטח כזה היה בולע לחיצות על
-    // שורת האירוע הראשונה שמתחתיו.
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    tooltip: 'הוסף אירוע',
-    icon: const Icon(FluentIcons.add_24_regular),
-    onPressed: widget.onAdd,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: _hovered ? cs.surfaceContainerHighest : Colors.transparent,
-        ),
-        child: _button,
       ),
     );
   }
@@ -586,7 +659,9 @@ class _MoreItemsLabel extends StatelessWidget {
           onTap: onTap,
           borderRadius: AppTokens.borderRadiusAll,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppTokens.space2XS),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.space2XS,
+            ),
             child: Text(
               '+$hiddenCount',
               strutStyle: strut,

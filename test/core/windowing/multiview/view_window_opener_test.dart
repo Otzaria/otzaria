@@ -14,6 +14,7 @@ import 'package:otzaria/core/windowing/multiview/view_focus_sync.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_close_flow.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_opener.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
+import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -27,6 +28,21 @@ import '../../../test_helpers/memory_cache_provider.dart';
 class _MemorySessions extends WindowSessionStore {
   final Map<int, WindowSession> rows = {};
   final List<int> boundsWrites = [];
+  List<WindowSession> closed = const [];
+
+  @override
+  Future<List<WindowSession>> loadClosed() async => closed;
+
+  @override
+  Future<void> saveClosed(
+    List<WindowSession> sessions, {
+    int? removeSlot,
+    WindowSession? activate,
+  }) async {
+    rows.remove(removeSlot);
+    if (activate != null) rows[activate.slot] = activate;
+    closed = sessions;
+  }
 
   @override
   Future<void> save(
@@ -113,12 +129,25 @@ class _FailingDeleteSessions extends _MemorySessions {
   Future<void> delete(int slot) async => throw StateError('locked');
 }
 
-class _ToggleDeleteSessions extends _MemorySessions {
-  bool failDelete = false;
+class _ToggleTransferSessions extends _MemorySessions {
+  bool failArchive = false;
+  bool failActivate = false;
+
   @override
-  Future<void> delete(int slot) async {
-    if (failDelete) throw StateError('locked');
-    await super.delete(slot);
+  Future<void> saveClosed(
+    List<WindowSession> sessions, {
+    int? removeSlot,
+    WindowSession? activate,
+  }) async {
+    if ((failArchive && removeSlot != null) ||
+        (failActivate && activate != null)) {
+      throw StateError('locked');
+    }
+    await super.saveClosed(
+      sessions,
+      removeSlot: removeSlot,
+      activate: activate,
+    );
   }
 }
 
@@ -127,7 +156,10 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  setUp(() => MultiViewMode.debugOverride = true);
+  setUp(() {
+    MultiViewMode.debugOverride = true;
+    WindowEventLog.instance = WindowEventLog();
+  });
 
   tearDown(() {
     MultiViewMode.debugOverride = false;
@@ -542,6 +574,49 @@ void main() {
     expect(sessions.rows[2], isNull);
   });
 
+  testWidgets('יומן החלונות: פתיחה, פריים ראשון וחשיפה; מצב החלון לדוח', (
+    tester,
+  ) async {
+    final opener = makeOpener(tester);
+    await pumpHost(tester);
+
+    expect(await settle(tester, opener.openWindow()), isTrue);
+
+    final events = WindowEventLog.instance.collect();
+    expect(events.map((e) => e['event']), ['open', 'firstFrame', 'revealed']);
+    expect(events.first['slot'], 2);
+
+    final window = windows.registry.windows.single;
+    final view = window.handle.view as TestFlutterView;
+    view.devicePixelRatio = 2;
+    view.physicalSize = const Size(1600, 1200);
+    windows.stubOf(window).logicalContentSize = const Size(800, 600);
+    final previousRectReads = windows.native.windowRectReads;
+    final open = (await windows.registry.describe()).single;
+    expect(open['slot'], 2);
+    expect(open['firstFrame'], isTrue);
+    expect(open['viewSizePx'], '1600.0x1200.0');
+    expect(open['viewDevicePixelRatio'], 2);
+    expect(open['windowContentSizeLogical'], '800.0x600.0');
+    expect(windows.native.windowRectReads, previousRectReads);
+  });
+
+  testWidgets('יומן החלונות: פריים ראשון שלא הגיע נרשם, גם אחרי ההריסה', (
+    tester,
+  ) async {
+    final opener = makeOpener(tester, timeout: const Duration(seconds: 1));
+    await tester.pumpWidget(const SizedBox());
+    final future = opener.openWindow();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    expect(await future, isFalse);
+
+    final events = WindowEventLog.instance.collect();
+    expect(events.map((e) => e['event']), ['open', 'openFailed', 'closed']);
+    expect(events[1]['error'], 'TimeoutException');
+    expect(events.last['firstFrame'], isFalse);
+  });
+
   testWidgets('שחזור כל החלונות: משבצת וגבולות שמורים; פתיחה במקביל לא גונבת', (
     tester,
   ) async {
@@ -896,7 +971,6 @@ void main() {
     final flow = ViewWindowCloseFlow(
       entry: entry,
       flush: () async {},
-      discardSession: sessions.delete,
       opener: opener,
     );
     expect(await settle(tester, flow.run()), isTrue);
@@ -930,7 +1004,6 @@ void main() {
         closingDuringFlush = entry.isClosing;
         throw StateError('flush');
       },
-      discardSession: sessions.delete,
       opener: opener,
     );
     final outcome = failing.run().then<Object?>(
@@ -959,7 +1032,6 @@ void main() {
     ViewWindowCloseFlow flowOf(ViewWindowEntry entry) => ViewWindowCloseFlow(
       entry: entry,
       flush: () async {},
-      discardSession: sessions.delete,
       opener: opener,
     );
 
@@ -1039,7 +1111,6 @@ void main() {
     final flow = ViewWindowCloseFlow(
       entry: entry,
       flush: () async {},
-      discardSession: sessions.delete,
       opener: opener,
     );
     expect(await settle(tester, flow.run()), isTrue);
@@ -1076,6 +1147,10 @@ void main() {
     await pumpHost(tester);
     expect(await settle(tester, opener.openWindow()), isFalse);
     expect(windows.registry.windows, isEmpty);
+    expect(
+      WindowEventLog.instance.collect().single,
+      containsPair('error', 'StateError'),
+    );
     // התור לא נתקע אחרי הכשל.
     expect(await settle(tester, opener.restoreLastClosedWindow()), isFalse);
   });
@@ -1096,19 +1171,22 @@ void main() {
     expect(sessions.rows[2]!.tabsJson, '["pending"]');
   });
 
-  testWidgets('מחיקת הסשן נכשלה: החלון נסגר בכל זאת', (tester) async {
-    final opener = makeOpener(tester);
+  testWidgets('העברת הסשן נכשלה: החלון נסגר והסשן נשמר', (tester) async {
+    final store = _ToggleTransferSessions()..failArchive = true;
+    final opener = makeOpener(tester, store: store);
     await pumpHost(tester);
     expect(await settle(tester, opener.openWindow()), isTrue);
     final entry = windows.registry.windows.single;
+    await store.save(entry.slot, tabsJson: '["session"]', currentIndex: 0);
     final flow = ViewWindowCloseFlow(
       entry: entry,
       flush: () async {},
-      discardSession: (_) async => throw StateError('locked'),
       opener: opener,
     );
     expect(await settle(tester, flow.run()), isTrue);
     expect(windows.stubOf(entry).destroyed, isTrue);
+    expect(store.rows[entry.slot]?.tabsJson, '["session"]');
+    expect(store.closed, isEmpty);
   });
 
   testWidgets('סגירת שני החלונות האחרונים במקביל מבקשת יציאה אחת', (
@@ -1128,7 +1206,6 @@ void main() {
         ViewWindowCloseFlow(
           entry: entry,
           flush: () async {},
-          discardSession: sessions.delete,
           opener: opener,
         ).run(),
     ];
@@ -1142,7 +1219,7 @@ void main() {
   });
 
   testWidgets('כשל מסד בשחזור שומר את החלון לניסיון חוזר', (tester) async {
-    final store = _ToggleDeleteSessions();
+    final store = _ToggleTransferSessions();
     final opener = makeOpener(tester, store: store);
     await pumpHost(tester);
     expect(await settle(tester, opener.openWindow()), isTrue);
@@ -1154,16 +1231,15 @@ void main() {
         ViewWindowCloseFlow(
           entry: entry,
           flush: () async {},
-          discardSession: sessions.delete,
           opener: opener,
         ).run(),
       ),
       isTrue,
     );
-    store.failDelete = true;
+    store.failActivate = true;
     expect(await settle(tester, opener.restoreLastClosedWindow()), isFalse);
     expect(opener.closedCountForTest, 1);
-    store.failDelete = false;
+    store.failActivate = false;
     expect(await settle(tester, opener.restoreLastClosedWindow()), isTrue);
     expect(opener.closedCountForTest, 0);
     expect(sessions.rows[2]!.tabsJson, '["draft"]');
@@ -1211,7 +1287,6 @@ void main() {
     ViewWindowCloseFlow flowOf(ViewWindowEntry entry) => ViewWindowCloseFlow(
       entry: entry,
       flush: () async {},
-      discardSession: sessions.delete,
       opener: opener,
     );
 
@@ -1234,7 +1309,7 @@ void main() {
     expect(mainRestores, 0);
   });
 
-  testWidgets('macOS: שחזור אינו מוחק שורה שמורה שחלון חדש כבר תפס', (
+  testWidgets('macOS: פתיחת חלון חדש אינה תופסת משבצת שמורה לשחזור', (
     tester,
   ) async {
     final opener = makeOpener(tester, keepsProcess: true);
@@ -1250,7 +1325,6 @@ void main() {
         ViewWindowCloseFlow(
           entry: a,
           flush: () async {},
-          discardSession: sessions.delete,
           opener: opener,
         ).run(),
       ),
@@ -1258,11 +1332,10 @@ void main() {
     );
     await tester.pump();
 
-    // חלון חדש תופס את המשבצת של השורה השמורה.
     mainVisible = true;
     expect(await settle(tester, opener.openWindow()), isTrue);
     final fresh = windows.registry.windows.single;
-    expect(fresh.slot, a.slot);
+    expect(fresh.slot, isNot(a.slot));
     await sessions.save(fresh.slot, tabsJson: '["fresh"]', currentIndex: 0);
 
     expect(await settle(tester, opener.restoreLastClosedWindow()), isTrue);

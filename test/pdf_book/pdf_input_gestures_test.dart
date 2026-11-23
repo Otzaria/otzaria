@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart' as mui;
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -60,10 +61,7 @@ void main() {
     directory.deleteSync(recursive: true);
   });
 
-  Future<void> pumpUntil(
-    WidgetTester tester,
-    bool Function() condition,
-  ) async {
+  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
     for (var i = 0; i < 100 && !condition(); i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
@@ -197,13 +195,9 @@ void main() {
     final first = controller.visibleRect.top;
     expect(first, greaterThan(initial));
     expect(first - initial, lessThan(controller.layout.pageLayouts[1].height));
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.hidden,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     await tester.pump(const Duration(hours: 8));
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.resumed,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     final resumed = controller.visibleRect.top;
     await wheel(tester);
@@ -211,6 +205,175 @@ void main() {
     await controller.goToPage(pageNumber: 5, duration: Duration.zero);
     await tester.pump();
     expect(controller.pageNumber, 5);
+    await finish(tester);
+  });
+
+  testWidgets('Ctrl+גלגלת מגדיל ומקטין ואינו גולל', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final zoom = controller.currentZoom;
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await wheel(tester, delta: -120);
+    final zoomedIn = controller.currentZoom;
+    expect(zoomedIn, greaterThan(zoom * 1.05));
+
+    await wheel(tester);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(controller.currentZoom, lessThan(zoomedIn));
+    await finish(tester);
+  });
+
+  testWidgets('Ctrl עם גלילת לוח מגע מדויק מגדיל', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final center = tester.getCenter(find.byType(PdfViewer));
+    final zoom = controller.currentZoom;
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.trackpad,
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await gesture.panZoomStart(center);
+    for (var step = 1; step <= 8; step++) {
+      await gesture.panZoomUpdate(center, pan: Offset(0, 10.0 * step));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.panZoomEnd();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    for (var frame = 0; frame < 30; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom, greaterThan(zoom * 1.05));
+    await finish(tester);
+  });
+
+  // מצב ה-bloc מתעדכן בזום הביניים; לחיצה רצופה חייבת להימדד מהיעד שבדרך.
+  testWidgets('לחיצות הגדלה רצופות מונפשות ונצברות', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    final zoom = controller.currentZoom;
+    bloc.add(UpdateZoom(zoom));
+    await tester.pump();
+
+    bloc.add(const ZoomIn());
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(controller.currentZoom, greaterThan(zoom));
+    expect(controller.currentZoom, lessThan(zoom * 1.1));
+
+    bloc.add(const ZoomIn());
+    await tester.pump(const Duration(milliseconds: 16));
+    bloc.add(const ZoomIn());
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom / zoom, closeTo(1.1 * 1.1 * 1.1, 0.001));
+    await finish(tester);
+  });
+
+  // זום שהגיע ממקור אחר אחרי האנימציה לא משאיר יעד ישן שמעוות את האיפוס.
+  testWidgets('איפוס הזום אחרי זום חיצוני חוזר ל-100%', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    bloc.add(UpdateZoom(controller.currentZoom));
+    await tester.pump();
+
+    bloc.add(const ZoomIn());
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await controller.setZoom(
+      controller.centerPosition,
+      2.0,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    bloc.add(const ResetZoom());
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom, closeTo(1.0, 0.001));
+    await finish(tester);
+  });
+
+  testWidgets('התאמה באמצע אנימציית זום אינה נדרסת', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    final zoom = controller.currentZoom;
+    bloc.add(UpdateZoom(zoom));
+    await tester.pump();
+
+    bloc.add(const ZoomIn());
+    await tester.pump(const Duration(milliseconds: 16));
+    bloc.add(
+      FitZoom(
+        zoom: zoom * 0.8,
+        center: controller.centerPosition,
+        animate: true,
+      ),
+    );
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom / zoom, closeTo(0.8, 0.001));
+    await finish(tester);
+  });
+
+  testWidgets('ניווט מונפש לעמוד גובר על זום מהסרגל', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final bloc = tester.element(find.byType(PdfViewer)).read<PdfBookBloc>();
+    bloc.add(UpdateZoom(controller.currentZoom));
+    await tester.pump();
+    bloc.add(const ZoomIn());
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    var navigationCompleted = false;
+    controller.goToPage(pageNumber: 7).then((_) => navigationCompleted = true);
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.pageNumber, 7);
+    expect(navigationCompleted, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('לחיצה כפולה מהירה על התאמה חוזרת ליעד ההתחלתי', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 850);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final shown = controller.layout.pageLayouts[controller.pageNumber! - 1];
+    final fits = pdfFitZooms(
+      shown: shown,
+      viewSize: controller.viewSize,
+      margin: controller.params.margin,
+    );
+    expect(fits.page, lessThan(fits.width * 0.98));
+    await controller.setZoom(
+      controller.centerPosition,
+      fits.width,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    final toPage = find.byTooltip(pdfFitButtonVisual(nextIsPage: true).tooltip);
+    final toWidth = find.byTooltip(
+      pdfFitButtonVisual(nextIsPage: false).tooltip,
+    );
+    expect(toPage, findsOneWidget);
+    await tester.tap(toPage);
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.tap(toWidth.evaluate().isNotEmpty ? toWidth : toPage);
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(controller.currentZoom, closeTo(fits.width, 0.001));
     await finish(tester);
   });
 
@@ -261,9 +424,7 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('צביטת מגע עם הזזה מגדילה את ה-PDF בלי מעבר טאב', (
-    tester,
-  ) async {
+  testWidgets('צביטת מגע עם הזזה מגדילה את ה-PDF בלי מעבר טאב', (tester) async {
     await pumpScreen(tester);
     final controller = tab.pdfViewerController;
     final viewer = find.byType(PdfViewer);
@@ -385,9 +546,7 @@ void main() {
   for (final interruptedScale in [1.0, 1.2]) {
     testWidgets(
       'מחוות trackpad חדשה אחרי resume אינה יורשת נעילת ציר ישנה: scale=$interruptedScale',
-      (
-        tester,
-      ) async {
+      (tester) async {
         await pumpScreen(tester);
         final controller = tab.pdfViewerController;
         await controller.setZoom(

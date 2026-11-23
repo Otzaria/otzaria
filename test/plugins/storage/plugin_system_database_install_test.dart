@@ -43,6 +43,13 @@ const _permissionTable = '''
   )
 ''';
 
+void _createPluginDataTables(Database db) {
+  db.execute(
+    'CREATE TABLE plugin_kv_store (plugin_id TEXT, namespace TEXT, key TEXT, value_json TEXT)',
+  );
+  db.execute('CREATE TABLE plugin_published_record (plugin_id TEXT)');
+}
+
 void main() {
   group('PluginSystemDatabase.applyPluginInstall', () {
     late Database db;
@@ -54,6 +61,51 @@ void main() {
     });
 
     tearDown(() => db.close());
+
+    test('התקנה לחנות יוצרת מזהה פנוי ואינה דורסת אותו לאחר מכן', () {
+      _createPluginDataTables(db);
+      final first = _plugin(version: '1.0.0', permissions: ['reader.open']);
+      final second = _plugin(version: '2.0.0', permissions: ['reader.open']);
+      PluginSystemDatabase.applyPluginInstall(
+        db,
+        first,
+        {'reader.open': false},
+        requireNewInstallation: true,
+      );
+      expect(
+        () => PluginSystemDatabase.applyPluginInstall(
+          db,
+          second,
+          {'reader.open': true},
+          requireNewInstallation: true,
+        ),
+        throwsA(isA<PluginInstallIdentityInUse>()),
+      );
+      expect(_version(db), '1.0.0');
+      expect(_grants(db), {'reader.open': false});
+    });
+
+    test('הענקת תיקייה שמורה ללא התקנה קודמת אינה עוברת לתוסף חדש', () {
+      _createPluginDataTables(db);
+      final plugin = _plugin(version: '1.0.0', permissions: []);
+      db.execute('INSERT INTO plugin_kv_store VALUES (?, ?, ?, ?)', [
+        plugin.pluginId,
+        '_internal',
+        'user_folder_grants',
+        '[]',
+      ]);
+      expect(
+        () => PluginSystemDatabase.applyPluginInstall(
+          db,
+          plugin,
+          const {},
+          requireNewInstallation: true,
+        ),
+        throwsA(isA<PluginInstallIdentityInUse>()),
+      );
+      expect(db.select('SELECT * FROM plugin_installation'), isEmpty);
+      expect(db.select('SELECT * FROM plugin_kv_store'), hasLength(1));
+    });
 
     test('שדרוג מותנה של רשומה ללא שינוי שומר הרשאות', () {
       final previous = _plugin(version: '1.0.0', permissions: ['reader.open']);

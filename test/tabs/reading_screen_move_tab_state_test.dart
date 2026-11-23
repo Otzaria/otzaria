@@ -289,6 +289,101 @@ void main() {
     expect(bloc.state.currentTabIndex, 1);
   });
 
+  // צביטה בלוח מגע מעל תוסף (#3972): ה-WebView לא מתחרה בזירה, ותזוזה
+  // אופקית קלה של מרכז הצביטה הספיקה כדי להעביר טאב.
+  for (final (name, scales, step, externalSelection, expectedIndex) in [
+    (
+      'צביטה עם סטייה אופקית מעל WebView אינה מעבירה טאב',
+      [1.06, 1.12, 1.18, 1.24, 1.3],
+      -30.0,
+      null,
+      1,
+    ),
+    (
+      'החלקה עם רעש scale מעל WebView עדיין מעבירה טאב',
+      [1.0005, 0.9991, 1.0009, 0.9993, 1.0001],
+      -30.0,
+      null,
+      2,
+    ),
+    (
+      'צביטה שמזוהה אחרי תחילת ההחלקה משאירה את הטאב הנוכחי',
+      [1.0, 1.0, 1.1, 1.2, 1.3],
+      -30.0,
+      null,
+      1,
+    ),
+    (
+      'צביטה פנימה מחזירה את התצוגה גם אחרי חציית אמצע העמוד',
+      [1.0, 1.0, 0.95, 0.9, 0.85],
+      -240.0,
+      null,
+      1,
+    ),
+    (
+      'בחירה חיצונית גוברת על חזרה לטאב בעקבות צביטה',
+      [1.0, 1.0, 1.1, 1.2, 1.3],
+      -240.0,
+      0,
+      0,
+    ),
+  ]) {
+    testWidgets(name, (tester) async {
+      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
+      addTearDown(() {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+      });
+      final bloc = await pumpReadingScreen(tester, tabs, currentTabIndex: 1);
+      final detector = tester.widget<RawGestureDetector>(
+        find.byWidgetPredicate(
+          (widget) => widget is RawGestureDetector && widget.child is PageView,
+        ),
+      );
+      final overlay = Overlay.of(tester.element(find.byType(PageView)));
+      final entry = OverlayEntry(
+        builder: (_) => Positioned.fill(
+          child: RawGestureDetector(
+            gestures: detector.gestures,
+            child: const ColoredBox(color: Colors.white),
+          ),
+        ),
+      );
+      overlay.insert(entry);
+      addTearDown(() {
+        entry.remove();
+        entry.dispose();
+      });
+      await tester.pump();
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      const center = Offset(400, 400);
+      await gesture.panZoomStart(center, timeStamp: Duration.zero);
+      final controller = tester
+          .widget<PageView>(find.byType(PageView))
+          .controller!;
+      for (var i = 0; i < scales.length; i++) {
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(step * (i + 1), 0),
+          scale: scales[i],
+          timeStamp: Duration(milliseconds: 10 * (i + 1)),
+        );
+        await tester.pump();
+        if (i == 2 && externalSelection != null) {
+          bloc.add(SetCurrentTab(externalSelection));
+          await tester.pump();
+        }
+      }
+      await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 60));
+      await tester.pumpAndSettle();
+      expect(bloc.state.currentTabIndex, expectedIndex);
+      expect(controller.page, expectedIndex);
+    });
+  }
+
   group('החלקת trackpad — גרירה הדרגתית והתיישבות', () {
     PageController pageControllerOf(WidgetTester tester) =>
         tester.widget<PageView>(find.byType(PageView)).controller!;
@@ -750,6 +845,56 @@ void main() {
               Offset(sign * 65, -180),
               Offset(sign * 80, -300),
             ]);
+            await tester.pumpAndSettle();
+            expectTab(tester, bloc, 2);
+          }
+        });
+
+        testWidgets('$name: גלילה אנכית במגע שמתחילה בסטייה אופקית (#3048)', (
+          tester,
+        ) async {
+          final bloc = await pumpMiddle(tester, textDirection: textDirection);
+          final detector = tester.widget<RawGestureDetector>(
+            find.byWidgetPredicate(
+              (w) => w is RawGestureDetector && w.child is PageView,
+            ),
+          );
+          // תוכן בלי מזהי גלילה, כמו PDF שה-pan שלו הפסיד להחלקה.
+          final entry = OverlayEntry(
+            builder: (_) => Positioned.fill(
+              child: RawGestureDetector(
+                gestures: detector.gestures,
+                child: const ColoredBox(color: Colors.white),
+              ),
+            ),
+          );
+          Overlay.of(tester.element(find.byType(PageView))).insert(entry);
+          addTearDown(() {
+            entry.remove();
+            entry.dispose();
+          });
+          await tester.pump();
+          final center = tester.getCenter(find.byType(PageView));
+          for (final sign in [forward, -forward]) {
+            final gesture = await tester.startGesture(
+              center,
+              kind: PointerDeviceKind.touch,
+            );
+            var ms = 0;
+            for (final delta in [
+              Offset(sign * 30, -2),
+              Offset(sign * 20, -78),
+              Offset(sign * 15, -100),
+              Offset(sign * 15, -120),
+            ]) {
+              ms += 10;
+              await gesture.moveBy(
+                delta,
+                timeStamp: Duration(milliseconds: ms),
+              );
+              await tester.pump(const Duration(milliseconds: 10));
+            }
+            await gesture.up(timeStamp: Duration(milliseconds: ms + 10));
             await tester.pumpAndSettle();
             expectTab(tester, bloc, 2);
           }

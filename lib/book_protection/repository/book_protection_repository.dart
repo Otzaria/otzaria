@@ -97,7 +97,13 @@ class BookProtectionRepository {
   Future<BookProtectionTables?> _tablesFor(BookSource source) async {
     if (source.isUser) return null;
     try {
-      final repository = await _repositoryFor(source);
+      final override = debugRepositoryFor;
+      if (source.isOfficial && override == null) {
+        return await SqliteDataProvider.instance.getBookProtectionTables();
+      }
+      final repository = override != null
+          ? await override(source)
+          : await AttachedLibraryRegistry.instance.repositoryForSource(source);
       return await repository?.getBookProtectionTables();
     } catch (error) {
       debugPrint('BookProtection tables failed for $source: $error');
@@ -110,20 +116,5 @@ class BookProtectionRepository {
     final banner = tables.banners[bookId];
     if (level == 0 && banner == null) return BookProtection.none;
     return BookProtection(level: level, bannerText: banner);
-  }
-
-  Future<SeforimRepository?> _repositoryFor(BookSource source) async {
-    final override = debugRepositoryFor;
-    if (override != null) return override(source);
-    switch (source) {
-      case OfficialBookSource():
-        final provider = SqliteDataProvider.instance;
-        if (!provider.isInitialized) await provider.initialize();
-        return provider.repository;
-      case UserBookSource():
-        return null;
-      case AttachedBookSource(:final slug):
-        return AttachedLibraryRegistry.instance.repositoryFor(slug);
-    }
   }
 }

@@ -237,6 +237,33 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
   }
 }
 
+final _anchoredMenusByOwner = <ModalRoute<dynamic>, Set<PopupRoute<dynamic>>>{};
+
+Future<T?> _pushAnchoredMenu<T>(
+  NavigatorState navigator,
+  ModalRoute<dynamic>? owner,
+  PopupRoute<T> menu,
+) async {
+  if (owner == null) return navigator.push(menu);
+  final menus = _anchoredMenusByOwner.putIfAbsent(owner, () => {});
+  menus.add(menu);
+  try {
+    return await navigator.push(menu);
+  } finally {
+    menus.remove(menu);
+    if (menus.isEmpty) _anchoredMenusByOwner.remove(owner);
+  }
+}
+
+/// מסיר רק את התפריטים שנפתחו מתוך [owner], גם כשהם מכוסים בנתיב אחר.
+void dismissAnchoredAppMenus(ModalRoute<dynamic> owner) {
+  final menus = _anchoredMenusByOwner[owner];
+  if (menus == null) return;
+  for (final menu in menus.toList()) {
+    if (menu.isActive) menu.navigator?.removeRoute(menu);
+  }
+}
+
 Future<T?> showAnchoredAppMenu<T>({
   required BuildContext context,
   required BuildContext anchorContext,
@@ -285,7 +312,9 @@ Future<T?> showAnchoredAppMenu<T>({
 
   final navigator = Navigator.of(context);
   final localizations = MaterialLocalizations.of(context);
-  return navigator.push(
+  return _pushAnchoredMenu(
+    navigator,
+    ModalRoute.of(anchorContext),
     _AnchoredMenuRoute<T>(
       anchorRect: targetRect,
       overlaySize: overlay.size,
@@ -708,7 +737,9 @@ Future<T?> showAnchoredAppSearchMenu<T>({
   final maxLeft = max(0.0, overlay.size.width - effectiveWidth);
   final menuLeft = (overflows ? fallbackLeft : alignedLeft).clamp(0.0, maxLeft);
 
-  return Navigator.of(context).push<T>(
+  return _pushAnchoredMenu(
+    Navigator.of(context),
+    ownerRoute,
     _AnchoredSearchMenuRoute<T>(
       anchorRect: Rect.fromLTWH(
         menuLeft,

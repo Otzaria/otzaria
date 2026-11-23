@@ -6,3 +6,9 @@ BorderRadiusDirectional start() => BorderRadiusDirectional.circular(8); // LINT
 const ShapeBorder pill = StadiumBorder(); // LINT
 Widget dot(Widget child) =>
     Material(shape: const CircleBorder(), child: child); // LINT
+Widget iconButton(VoidCallback f) => IconButton(
+  tooltip: 'x',
+  onPressed: f,
+  style: IconButton.styleFrom(shape: const CircleBorder()), // LINT
+  icon: const Icon(IconData(0xe000)),
+);

@@ -4,6 +4,7 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
 import 'package:otzaria/work_status/work_status_item.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 void main() {
   WorkStatusItem? item(
@@ -206,6 +207,7 @@ void main() {
 
       expect(result.actions, hasLength(2));
       expect(result.actions.map((a) => a.label), ['עדכון דלתא', 'הורדה מלאה']);
+      expect(result.actions[1].icon, OtzariaIcons.library_download_24_regular);
       expect(
         result.kind,
         WorkStatusKind.awaitingInput,

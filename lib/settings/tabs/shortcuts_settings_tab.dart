@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -26,6 +25,7 @@ import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -121,6 +121,15 @@ class ShortcutsSettingsTab extends StatefulWidget {
       keywords: ['הגדרות', 'ctrl+comma', 'מקלדת'],
     ),
     SettingsSearchEntry(
+      id: 'shortcuts.nav.shortcuts_list',
+      title: 'קיצור לרשימת קיצורי המקשים',
+      subtitle: 'פתיחת רשימת קיצורי המקשים בהגדרות',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.nav',
+      expandSection: ShortcutValidator.openShortcutsListKey,
+      keywords: ['קיצורים', 'רשימה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
       id: 'shortcuts.nav.tools',
       title: 'קיצור לכלים',
       subtitle: 'פתיחת מסך הכלים',
@@ -155,6 +164,15 @@ class ShortcutsSettingsTab extends StatefulWidget {
       cardId: 'shortcuts.nav',
       expandSection: 'key-shortcut-switch-workspace',
       keywords: ['שולחן עבודה', 'workspace', 'ctrl+k', 'מקלדת'],
+    ),
+    // ── קיצורים קבועים ──
+    SettingsSearchEntry(
+      id: 'shortcuts.fixed',
+      title: 'קיצורים קבועים',
+      subtitle: 'מעבר בין כרטיסיות ומסך מלא',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.fixed',
+      keywords: ['ctrl+tab', 'ctrl+1', 'ctrl+9', 'f11', 'כרטיסייה', 'מקלדת'],
     ),
     // ── תצוגת ספר ──
     SettingsSearchEntry(
@@ -634,12 +652,6 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid || Platform.isIOS) {
-      return Center(
-        child: Text(context.settingsText('קיצורי מקשים זמינים רק בדסקטופ')),
-      );
-    }
-
     return SettingsTabScrollView(
       child: ToolPanelWrapper(
         // עוטף ב-BlocBuilder כדי לרענן את רשימת הטיילים והכרטיס "הוסף קיצור"
@@ -858,6 +870,12 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
+              settingKey: ShortcutValidator.openShortcutsListKey,
+              label: context.settingsText('רשימת קיצורי המקשים'),
+              icon: FluentIcons.keyboard_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
               settingKey: 'key-shortcut-open-more',
               label: context.settingsText('כלים'),
               icon: FluentIcons.apps_24_regular,
@@ -889,6 +907,56 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
                 allShortcuts: _shortcutsList,
               ),
           ]),
+        ),
+
+        // ── קיצורים קבועים (לקריאה בלבד) ─────────────────────────────
+        // מטופלים ישירות ב-KeyboardShortcuts (keyboard_shortcuts.dart); Ctrl
+        // נשאר פיזי גם ב-Mac, ולכן התוויות קבועות ולא עוברות formatShortcut.
+        SettingsCard(
+          cardId: 'shortcuts.fixed',
+          title: context.settingsText('קיצורים קבועים'),
+          subtitle: context.settingsText(
+            'תלוי במסך, במיקוד ובהגדרות',
+          ),
+          children: [
+            for (final (icon, title, keys) in [
+              (
+                FluentIcons.arrow_next_24_regular,
+                context.settingsText('הכרטיסייה הבאה'),
+                'CTRL + TAB',
+              ),
+              (
+                FluentIcons.arrow_previous_24_regular,
+                context.settingsText('הכרטיסייה הקודמת'),
+                'CTRL + SHIFT + TAB',
+              ),
+              (
+                FluentIcons.number_symbol_24_regular,
+                context.settingsText('מעבר לכרטיסייה לפי מיקומה'),
+                'CTRL + 1–8',
+              ),
+              (
+                FluentIcons.tabs_24_regular,
+                context.settingsText('הכרטיסייה האחרונה'),
+                'CTRL + 9',
+              ),
+              (
+                FluentIcons.full_screen_maximize_24_regular,
+                context.settingsText('מסך מלא'),
+                'F11',
+              ),
+              (
+                FluentIcons.full_screen_minimize_24_regular,
+                context.settingsText('יציאה ממסך מלא'),
+                'ESC',
+              ),
+            ])
+              SettingsActionTile.text(
+                icon: icon,
+                title: title,
+                actions: [MetaChip(label: keys)],
+              ),
+          ],
         ),
 
         // ── תצוגת ספר ─────────────────────────────────────────────────

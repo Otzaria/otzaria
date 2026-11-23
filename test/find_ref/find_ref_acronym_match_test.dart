@@ -725,4 +725,132 @@ void main() {
       expect(hits[azharot.id]!.isExactAlias, isFalse);
     });
   });
+
+  group('"על" בין שם המפרש למסכת (issue #5599)', () {
+    // נתוני אמת מ-SeforimAcronymizer: לבבא קמא יש רק "רשבא על בק".
+    const rashbaBavaKama = (
+      id: 2470,
+      title: 'רשב"א על בבא קמא',
+      acronyms: ['רשב"א', 'רשבא בבא קמא', 'רשבא על בק'],
+    );
+    const rashbaBavaMetzia = (
+      id: 2471,
+      title: 'רשב"א על בבא מציעא',
+      acronyms: ['רשב"א', 'רשבא ב"מ', 'רשבא על ב"מ', 'רשבא בבא מציעא'],
+    );
+    const rashbaBavaBatra = (
+      id: 2472,
+      title: 'רשב"א על בבא בתרא',
+      acronyms: ['רשב"א', 'רשבא ב"ב', 'רשבא על בב'],
+    );
+    const books = [rashbaBavaKama, rashbaBavaMetzia, rashbaBavaBatra];
+
+    for (final (query, title) in [
+      ('רשב"א בק', 'רשב"א על בבא קמא'),
+      ('רשב"א ב"ק', 'רשב"א על בבא קמא'),
+      ('רשב"א בב', 'רשב"א על בבא בתרא'),
+      ('רשב"א במ', 'רשב"א על בבא מציעא'),
+    ]) {
+      test('"$query" מזהה את $title ככינוי מדויק', () async {
+        seedLibrary(books);
+        // בלי כינוי מדויק הספר נמצא כאן רק בהתאמה מקורבת, שבספרייה המלאה מפסידה.
+        final hit = ReferenceBooksCache.instance
+            .search(query)
+            .firstWhere((h) => h.title == title);
+        expect(hit.matchRank, 3);
+
+        final results = await buildFindRefRepo().findRefs(query);
+        expect(results.map((r) => r.title).firstOrNull, title);
+      });
+    }
+
+    test('"על" בשאילתה מאתר כינוי שנשמר בלעדיו', () {
+      seedLibrary(const [
+        (
+          id: 2480,
+          title: 'חידושי הריטב"א מסכת קידושין',
+          acronyms: ['ריטב"א קידושין'],
+        ),
+      ]);
+      final hit = ReferenceBooksCache.instance
+          .search('ריטב"א על קידושין')
+          .single;
+
+      expect(hit.matchRank, 3);
+    });
+
+    test('"על" בתחילת הכינוי היא חלק מהשם', () {
+      seedLibrary(const [
+        (id: 2481, title: 'פירוש על התורה', acronyms: ['על התורה']),
+      ]);
+      final hit = ReferenceBooksCache.instance.search('התורה').single;
+
+      expect(hit.matchRank, isNot(3));
+    });
+
+    for (final (query, direct, relaxed) in [
+      (
+        'מהרש"א על שבועות',
+        (
+          id: 2847,
+          title: 'מהרש"א - חידושי אגדות על שבועות',
+          acronyms: ['מהרשא על שבועות'],
+        ),
+        (
+          id: 2935,
+          title: 'מהרש"א - חדושי הלכות על בבא קמא',
+          acronyms: ['מהרשא שבועות'],
+        ),
+      ),
+      (
+        'רידב"ז על סנהדרין',
+        (
+          id: 1611,
+          title: 'חידושי רידב"ז על תלמוד ירושלמי סנהדרין',
+          acronyms: ['רידבז על סנהדרין'],
+        ),
+        (
+          id: 1595,
+          title: 'חידושי רידב"ז על תלמוד ירושלמי שבת',
+          acronyms: ['רידבז סנהדרין'],
+        ),
+      ),
+      (
+        'תוספות על ב"ק',
+        (
+          id: 1925,
+          title: 'תוספות על בבא קמא',
+          acronyms: ['תוספות בק', 'תוספות על בק'],
+        ),
+        (id: 2076, title: 'פסקי תוספות על בבא קמא', acronyms: ['תוספות בק']),
+      ),
+    ]) {
+      test('"$query" מעדיף את הכינוי המפורש על ההתאמה בלי "על"', () async {
+        seedLibrary([relaxed, direct]);
+        final hits = ReferenceBooksCache.instance.search(query, limit: 1);
+        expect(hits.single.bookId, direct.id);
+        final allHits = ReferenceBooksCache.instance.search(query);
+        expect(
+          allHits
+              .where((hit) => hit.matchesExactAlias)
+              .map((hit) => hit.bookId),
+          [direct.id],
+        );
+        final results = await buildFindRefRepo().findRefs(query);
+        expect(results.first.bookId, direct.id);
+      });
+    }
+
+    test('שאילתה שמסתיימת ב"על" יכולה להתאים כתחילית מילולית', () {
+      seedLibrary(const [
+        (
+          id: 831,
+          title: 'תוספות רבי עקיבא איגר על משנה יומא',
+          acronyms: ['רעקא על יומא'],
+        ),
+      ]);
+      final hits = ReferenceBooksCache.instance.search('רעק"א על');
+      expect(hits.single.matchRank, 4);
+    });
+  });
 }

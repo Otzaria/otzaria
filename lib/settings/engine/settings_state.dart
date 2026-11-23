@@ -222,6 +222,14 @@ class SettingsState extends Equatable {
   }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty,
        searchResultsFontSize = searchResultsFontSize ?? fontSize;
 
+  /// מרווח השורות בפועל, לפי מצב השמירה לכל ספר.
+  double lineHeightForBook(double? bookValue) =>
+      (enablePerBookSettings ? bookValue : null) ?? lineHeight;
+
+  /// גודל גופן המפרשים בפועל, לפי מצב השמירה לכל ספר.
+  double commentatorsFontSizeForBook(double? bookValue) =>
+      (enablePerBookSettings ? bookValue : null) ?? commentatorsFontSize;
+
   factory SettingsState.initial() {
     return SettingsState(
       isDarkMode: false,
@@ -229,7 +237,7 @@ class SettingsState extends Equatable {
       seedColor: AppSeedColors.defaultLight,
       darkSeedColor: AppSeedColors.defaultDark,
       textMaxWidth: 0, // 0 = רוחב מלא; חיובי = רוחב יעד בפיקסלים לוגיים
-      fontSize: 16,
+      fontSize: AppFonts.defaultReadingSize,
       fontFamily: AppFonts.defaultFont,
       commentatorsFontFamily: AppFonts.defaultCommentatorsFont,
       commentatorsFontSize: 22,

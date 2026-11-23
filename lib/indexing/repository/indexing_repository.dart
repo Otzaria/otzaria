@@ -11,6 +11,7 @@ import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/models/pdf_index_setting.dart';
+import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -32,6 +33,7 @@ import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
 import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
 import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
+import 'package:otzaria/indexing/utils/pdf_indexing_document.dart';
 import 'package:otzaria/indexing/utils/pending_reindex_store.dart';
 import 'package:otzaria/indexing/repository/index_change_detector.dart';
 import 'package:otzaria/indexing/models/index_check_scope.dart';
@@ -506,6 +508,24 @@ class IndexingRepository {
     onProgress: onProgress,
     onFinalizing: onFinalizing,
   );
+
+  /// המקום הפנוי בכונן שהמנוע כותב אליו בפועל; -1 כשלא ידוע.
+  Future<int> indexDriveFreeBytes() async {
+    final path = _writableIndexPath;
+    if (path == null) return -1;
+    final freeBytes = await _readIndexDriveFreeBytes(path);
+    return _writableIndexPath == path ? freeBytes : -1;
+  }
+
+  String? get _writableIndexPath =>
+      _tantivyDataProvider.isInitialized.value &&
+          !_tantivyDataProvider.isTempFallback
+      ? _tantivyDataProvider.activeIndexPath
+      : null;
+
+  // בדיקות הנתיב ו-GetDiskFreeSpaceEx סינכרוניות ועלולות להמתין לכונן.
+  static Future<int> _readIndexDriveFreeBytes(String path) =>
+      Isolate.run(() async => (await getDiskSpaceInfo(path)).freeBytes);
 
   /// בדיקה ([check]) ← לולאה אחת לספרים חדשים ([books], null לכל הספרייה)
   /// ושהשתנו, שמסמכיהם הישנים נמחקים רגע לפני כתיבתם ← commit ואיחוד אחד.
@@ -1775,15 +1795,22 @@ class IndexingRepository {
       outline: <PdfOutlineNode>[],
       droppedPages: 0,
     );
+    final generation = _cancellationGeneration;
+    bool isCancelled() =>
+        !_tantivyDataProvider.isIndexing.value ||
+        generation != _cancellationGeneration;
     final file = File(book.path);
-    if (!await file.exists()) return empty;
+    if (!await file.exists() || isCancelled()) return empty;
 
     // הקורא קודם — טאב שממתין לעמוד היעד לא יחכה בתור מאחורי האינדוקס.
     await PdfViewerActivity.instance.waitUntilIdle();
-    final document = await PdfFontFallback.openFile(
-      book.path,
-    ).timeout(const Duration(seconds: 60));
+    final document = await openIndexingPdf(
+      open: () => PdfFontFallback.openFile(book.path),
+      isCancelled: isCancelled,
+    );
+    if (document == null) return empty;
     try {
+      if (isCancelled()) return empty;
       final outline = await document.loadOutline().timeout(
         const Duration(seconds: 15),
         onTimeout: () => <PdfOutlineNode>[],
@@ -1792,16 +1819,13 @@ class IndexingRepository {
       final extracted = await extractPageTextsWithRetry(
         pageCount: document.pages.length,
         loadPageText: (i) async {
-          final text = await document.pages[i].loadText().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => null,
-          );
+          final text = await document.pages[i].loadText();
           return text?.fullText;
         },
         beforeEachPage: () async {
-          if (!_tantivyDataProvider.isIndexing.value) return false;
+          if (isCancelled()) return false;
           await PdfViewerActivity.instance.waitUntilIdle();
-          return true;
+          return !isCancelled();
         },
       );
       if (extracted == null) return empty;
@@ -1836,35 +1860,52 @@ class IndexingRepository {
     }
   }
 
-  /// טקסט העמודים לפי אינדקס, בסדר עולה. עמוד שחרג מה-timeout (null) מנוסה
-  /// שוב פעם אחת בסוף הספר, כשה-worker של pdfium כבר פנוי.
-  ///
-  /// סדרתי בכוונה: כל קריאות pdfium מסורלות דרך worker יחיד, ותקיעה של עמוד
-  /// אחד מפילה את הטיימרים של העמודים שממתינים אחריו בתור — הניסיון החוזר
-  /// מחזיר אותם. מחזיר null כשה-[beforeEachPage] ביטל את האינדוקס.
+  /// טקסט העמודים לפי אינדקס. אחרי timeout ממתינים שוב לאותה עבודה בסוף
+  /// הספר; null שהתקבל מהעבודה עצמה מאפשר ניסיון חילוץ חדש.
   @visibleForTesting
   static Future<({Map<int, String> texts, int droppedPages})?>
   extractPageTextsWithRetry({
     required int pageCount,
     required Future<String?> Function(int pageIndex) loadPageText,
     required Future<bool> Function() beforeEachPage,
+    Duration pageTimeout = const Duration(seconds: 5),
   }) async {
+    final pending = <int, Future<String?>>{};
+    Future<String?> load(int index) async {
+      final future = pending[index] ??= loadPageText(index);
+      var timedOut = false;
+      final text = await future.timeout(
+        pageTimeout,
+        onTimeout: () {
+          timedOut = true;
+          return null;
+        },
+      );
+      if (!timedOut) pending.remove(index);
+      return text;
+    }
+
     final texts = SplayTreeMap<int, String>();
-    final timedOut = <int>[];
+    final retryPages = <int>[];
     for (int i = 0; i < pageCount; i++) {
       if (!await beforeEachPage()) return null;
-      final text = await loadPageText(i);
+      final text = await load(i);
       if (text == null) {
-        timedOut.add(i);
+        retryPages.add(i);
       } else {
         texts[i] = text;
       }
     }
 
     var droppedPages = 0;
-    for (final i in timedOut) {
+    for (final i in retryPages) {
       if (!await beforeEachPage()) return null;
-      final text = await loadPageText(i);
+      final reusingPending = pending.containsKey(i);
+      var text = await load(i);
+      if (reusingPending && text == null && !pending.containsKey(i)) {
+        if (!await beforeEachPage()) return null;
+        text = await load(i);
+      }
       if (text == null) {
         droppedPages++;
       } else {
@@ -2302,6 +2343,22 @@ class IndexingRepository {
     if (cached != null && identical(cached.library, library)) {
       return cached.entries;
     }
+    // הבנייה מוותרת על השליטה במהלכה; קורא מקביל מצטרף אליה במקום לבנות שוב.
+    final pending = _pendingOrder;
+    if (pending != null && identical(pending.library, library)) {
+      return pending.entries;
+    }
+    final entries = _buildBookOrder(library);
+    final building = _pendingOrder = (library: library, entries: entries);
+    try {
+      return await entries;
+    } finally {
+      if (identical(_pendingOrder, building)) _pendingOrder = null;
+    }
+  }
+
+  static Future<List<BookOrderEntry>> _buildBookOrder(Library library) async {
+    final generation = _orderGeneration;
     await Future.wait([
       GenerationCache.instance.warmUp(),
       ReferenceBooksCache.instance.warmUp(),
@@ -2312,7 +2369,13 @@ class IndexingRepository {
     );
     final positions = <String, int>{};
     final entries = <String, BookOrderEntry>{};
+    final slice = Stopwatch()..start();
     for (var index = 0; index < orderedBooks.length; index++) {
+      // לולאה אחת על כל הספרייה תוקעת את ה-UI שניות (#5065).
+      if (slice.elapsedMilliseconds >= 8) {
+        await Future<void>.delayed(Duration.zero);
+        slice.reset();
+      }
       final book = orderedBooks[index];
       final identity = BookIdentity.keyOf(book);
       final position = positions.putIfAbsent(identity, () => index);
@@ -2324,20 +2387,26 @@ class IndexingRepository {
         generationOrder: chronologicalOrderForBook(book),
       );
     }
+    final result = entries.values.toList();
+    if (generation != _orderGeneration) return result;
     _bookOrderRanks = {
       for (final entry in entries.values) entry.filePath: entry.catalogueOrder,
     };
-    final result = entries.values.toList();
     _lastOrder = (library: library, entries: result);
     return result;
   }
 
   // אותו עץ נבנה פעם אחת לטעינה: הדחיפה בטעינה וריצות האינדוקס שאחריה חולקות אותו.
   static ({Library library, List<BookOrderEntry> entries})? _lastOrder;
+  static ({Library library, Future<List<BookOrderEntry>> entries})?
+  _pendingOrder;
+  static int _orderGeneration = 0;
 
   /// נקרא בכל טעינת ספרייה בכל חלון; הסדר נבנה מחדש כשיידרש.
   static void invalidateBookOrder() {
+    _orderGeneration++;
     _lastOrder = null;
+    _pendingOrder = null;
     _bookOrderRanks = null;
   }
 
@@ -2356,6 +2425,9 @@ class IndexingRepository {
 
   static Map<String, int>? _bookOrderRanks;
 
+  Future<void> _bookOrderWrites = Future<void>.value();
+  ({SearchEngine engine, List<BookOrderEntry> entries})? _sentBookOrder;
+
   /// מיקום כל ספר במיפוי הסדר — כפי שהמנוע ממיין בסדר הקטלוג.
   static Future<Map<String, int>> bookOrderRanks() async {
     final cached = _bookOrderRanks;
@@ -2370,10 +2442,25 @@ class IndexingRepository {
 
   /// מעדכן במנוע את מיפוי הסדר; מיון התוצאות משתנה בלי אינדוקס מחדש.
   Future<void> syncBookOrder(Library library) async {
+    final generation = _orderGeneration;
     try {
       final entries = await buildBookOrder(library);
-      final engine = await _tantivyDataProvider.engine;
-      await engine.setBookOrder(entries: entries);
+      // כתיבה שכבר הועברה למנוע אינה ניתנת לביטול. סדר חדש נשלח אחריה.
+      final write = _bookOrderWrites.then((_) async {
+        if (generation != _orderGeneration) return;
+        final engine = await _tantivyDataProvider.engine;
+        if (generation != _orderGeneration) return;
+        final sent = _sentBookOrder;
+        if (sent != null &&
+            identical(sent.engine, engine) &&
+            identical(sent.entries, entries)) {
+          return;
+        }
+        await engine.setBookOrder(entries: entries);
+        _sentBookOrder = (engine: engine, entries: entries);
+      });
+      _bookOrderWrites = write.then<void>((_) {}, onError: (Object _) {});
+      await write;
     } catch (e) {
       debugPrint('⚠️ עדכון סדר הספרים במנוע נכשל: $e');
     }

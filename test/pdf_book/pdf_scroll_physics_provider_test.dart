@@ -6,6 +6,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 class _RecordingDelegate implements PdfViewerScrollInteractionDelegate {
   int stops = 0;
+  final pans = <Offset>[];
 
   @override
   void init(PdfViewerController controller, TickerProvider vsync) {}
@@ -17,7 +18,8 @@ class _RecordingDelegate implements PdfViewerScrollInteractionDelegate {
   void stop() => stops++;
 
   @override
-  void pan(Offset delta, PdfViewerLayoutMetrics layoutMetrics) {}
+  void pan(Offset delta, PdfViewerLayoutMetrics layoutMetrics) =>
+      pans.add(delta);
 
   @override
   void zoom(
@@ -66,6 +68,27 @@ void main() {
       provider.stop();
       expect(inner.created.first.stops, 1);
       expect(inner.created.last.stops, 1);
+    });
+
+    // גלילת החיצים עוברת באותה החלקה כמו הגלגלת, ולא ב-goTo שמתאפס כל צעד.
+    test('pan מועבר ל-delegate, ולפני create אינו נופל', () {
+      final inner = _RecordingProvider();
+      final provider = StoppablePdfScrollPhysicsProvider(inner: inner);
+      expect(() => provider.pan(const Offset(0, -10)), returnsNormally);
+
+      provider.create();
+      provider.pan(const Offset(0, -100));
+      provider.pan(const Offset(0, -8));
+      expect(inner.created.single.pans, const [Offset(0, -100), Offset(0, -8)]);
+    });
+
+    test('zoomTo מחזיר false כל עוד אין צפיין פעיל', () {
+      final inner = _RecordingProvider();
+      final provider = StoppablePdfScrollPhysicsProvider(inner: inner);
+      expect(provider.zoomTo(2, Offset.zero), isFalse);
+      provider.create();
+      expect(provider.zoomTo(2, Offset.zero), isFalse);
+      expect(inner.created.single.stops, 0);
     });
 
     test('ברירת המחדל עוטפת את ה-delegate הפיזיקלי של pdfrx', () {

@@ -220,22 +220,55 @@ void main() {
     await pumpPageShape(tester, book, names);
     expect(shownCommentator(tester), names[2]);
 
-    // ספר בקטגוריה בלי הגדרה משלו: נשמר לקטגוריה, כמו הסתרת טור.
-    const heCategories = 'אוצריא, תלמוד, תלמוד בבלי, סדר מועד';
-    const categoryTitle = 'ספר בקטגוריה';
-    final categoryBook = TextBook(
-      title: categoryTitle,
-      heCategories: heCategories,
+    // ספר בקטגוריה בלי הגדרה שמורה (issue #5232): ההחלפה ב"חברותא על
+    // שבועות" נשמרת לספר, ולא לקטגוריית "תלמוד בבלי" שחלה גם על "שבועות".
+    const chavrutaCategories =
+        'אוצריא, תלמוד, תלמוד בבלי, ספרות עזר, ביאור חברותא';
+    const chavrutaTitle = 'חברותא על שבועות';
+    const shevuotCategories = 'אוצריא, תלמוד, תלמוד בבלי, סדר נזיקין';
+    const shevuotTitle = 'שבועות';
+    final chavrutaBook = TextBook(
+      title: chavrutaTitle,
+      heCategories: chavrutaCategories,
     );
-    await pumpPageShape(tester, categoryBook, names);
+    await pumpPageShape(tester, chavrutaBook, names);
     await switchTo(tester, names[1]);
-    expect(PageShapeSettingsManager.loadConfiguration(categoryTitle), isNull);
     expect(
-      PageShapeSettingsManager.getActiveCategory(heCategories),
-      'תלמוד בבלי',
+      PageShapeSettingsManager.loadConfiguration(chavrutaTitle)?['left'],
+      names[1],
     );
-    await pumpPageShape(tester, categoryBook, names);
+    expect(
+      PageShapeSettingsManager.loadConfiguration(
+        shevuotTitle,
+        heCategories: shevuotCategories,
+      ),
+      isNull,
+    );
+    await pumpPageShape(tester, chavrutaBook, names);
     expect(shownCommentator(tester), names[1]);
+
+    // ספר שהמפרשים שלו נטענו מהגדרת קטגוריה: ההחלפה נשמרת לאותה קטגוריה.
+    await PageShapeSettingsManager.saveConfiguration(shevuotTitle, {
+      'left': names[0],
+      'right': null,
+      'bottom': null,
+      'bottomRight': null,
+    }, saveToCategory: 'תלמוד בבלי');
+    final shevuotBook = TextBook(
+      title: shevuotTitle,
+      heCategories: shevuotCategories,
+    );
+    await pumpPageShape(tester, shevuotBook, names);
+    expect(shownCommentator(tester), names[0]);
+    await switchTo(tester, names[2]);
+    expect(PageShapeSettingsManager.loadConfiguration(shevuotTitle), isNull);
+    expect(
+      PageShapeSettingsManager.loadConfiguration(
+        shevuotTitle,
+        heCategories: shevuotCategories,
+      )?['left'],
+      names[2],
+    );
 
     const duplicateNames = ['מפרש כפול', 'מפרש חלופי'];
     const duplicateBook = 'ספר מפרשים כפולים';

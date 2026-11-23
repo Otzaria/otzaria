@@ -12,6 +12,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 import 'package:otzaria/models/books.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -38,8 +39,7 @@ class _Repository extends DataRepository {
   String? staleFailureQuery;
 
   @override
-  Future<({List<Book> books, List<Category> categories})>
-  findBooksAndCategories(
+  Future<BooksAndCategoriesSearch> findBooksAndCategories(
     String query,
     Category? category, {
     List<String>? topics,
@@ -57,7 +57,7 @@ class _Repository extends DataRepository {
       await staleFailureGate!.future;
       throw StateError('Delayed failure from a superseded search');
     }
-    final ({List<Book> books, List<Category> categories}) found;
+    final BooksAndCategoriesSearch found;
     try {
       found = await super.findBooksAndCategories(
         query,
@@ -151,6 +151,23 @@ void main() {
     await done;
     expect(bloc.state.searchResults, isNull);
   }
+
+  test('רענון אותה שאילתה שומר סינון תיקיות גם בתצוגה המקדימה', () async {
+    final filtered = bloc.stream.firstWhere(
+      (state) =>
+          state.selectedMatchFilters.contains(LibraryMatchFilter.folders),
+    );
+    bloc.add(const SelectMatchFilters({LibraryMatchFilter.folders}));
+    expect((await filtered).previewBook, isNull);
+
+    final done = bloc.stream.firstWhere(
+      (state) => state.searchResults != null && !state.isSearching,
+    );
+    bloc.add(const SearchBooks(showLocalHebrewBooks: false));
+    final refreshed = await done;
+    expect(refreshed.selectedMatchFilters, {LibraryMatchFilter.folders});
+    expect(refreshed.previewBook, isNull);
+  });
 
   test('failure from an older search does not replace newer results', () async {
     final failure = repo.staleFailureGate = Completer<void>();

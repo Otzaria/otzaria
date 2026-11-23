@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
@@ -27,6 +28,7 @@ class _FindRefRepository extends Fake implements FindRefRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async => [DbReferenceResult(title: ref, reference: ref, segment: 1)];
   @override
   void cancelPendingSearch() {}

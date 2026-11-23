@@ -1,6 +1,8 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,8 +101,10 @@ Future<void> main() async {
   }
 
   /// טקסט בתוך רשימת התפריט בלבד — ולא הטקסט שהוקלד בשדה ההיקף.
-  Finder textInList(String label) =>
-      find.descendant(of: find.byType(ListView), matching: find.text(label));
+  Finder textInList(String label) => find.descendant(
+    of: find.byType(SuperListView),
+    matching: find.text(label),
+  );
 
   /// שורת התפריט (InkWell) שמכילה את [label].
   Finder rowOf(String label) => find

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
@@ -67,7 +66,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
   /// חצי-מחזור הבהוב (תואם ל-_kCursorBlinkHalfPeriod של Flutter).
   static const Duration _blinkHalfPeriod = Duration(milliseconds: 500);
 
-  /// משך ההבהוב מאז הפעולה האחרונה; אחריו הסמן נעלם עד הפעולה הבאה.
+  /// משך ההבהוב מאז הפעולה האחרונה; אחריו הסמן נשאר גלוי עד לפעולה הבאה.
   static const Duration _blinkTimeout = Duration(seconds: 8);
 
   late TextEditingController _effectiveController;
@@ -75,7 +74,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
 
   // שדה רב-שורתי: ה-TextField מקבל עותק עם \r\n (rtl_hard_break_workaround),
   // ו-_effectiveController נשאר עם \n בלבד — זה מה שהאפליקציה רואה.
-  TextEditingController? _rawController;
+  _HardBreakController? _rawController;
   final _expandMapper = HardBreakValueMapper(expand: true);
   final _collapseMapper = HardBreakValueMapper(expand: false);
   int _rawSyncDepth = 0;
@@ -104,11 +103,15 @@ class _RtlTextFieldState extends State<RtlTextField> {
     _boundController.addListener(_restartCursorBlink);
     _effectiveFocusNode.addListener(_handleFocusChange);
 
-    // גם FocusNode שכבר בפוקוס: Flutter פותח מקלדת רק בשינוי פוקוס.
-    if (_effectiveFocusNode.hasPrimaryFocus ||
-        (widget.autofocus && widget.focusNode != null && Platform.isAndroid)) {
+    final focusNode = _effectiveFocusNode;
+    final alreadyFocused = focusNode.hasPrimaryFocus;
+    if (alreadyFocused || _usesAndroidAutofocus) {
+      // פתיחת מקלדת לשדה שכבר בפוקוס לא צריכה להחזיר פוקוס שאבד.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _editable?.requestKeyboard();
+        if (!mounted || !identical(_effectiveFocusNode, focusNode)) return;
+        if (!alreadyFocused || focusNode.hasPrimaryFocus) {
+          _editable?.requestKeyboard();
+        }
       });
     }
   }
@@ -186,10 +189,18 @@ class _RtlTextFieldState extends State<RtlTextField> {
   /// מסנכרן גם תזוזת סמן בלבד: יש קוראים שקוראים את controller.selection
   /// ישירות, ו-onChanged מופעל רק כשהטקסט השתנה.
   void _syncCleanFromRawLive() {
-    final clean = _collapseMapper.map(
-      _rawController!.value,
+    final mapped = _collapseMapper.map(
+      _rawController!.stored,
       matchingText: _effectiveController.text,
     );
+    // ערך שהוחזר מהיסטוריית הביטול נושא את הערך הנקי שלו, עם המטא-נתונים.
+    final restored = _rawController!.restoredClean;
+    final clean = restored != null && restored.text == mapped.text
+        ? restored.copyWith(
+            selection: mapped.selection,
+            composing: mapped.composing,
+          )
+        : mapped;
     _rawSyncDepth++;
     try {
       if (_effectiveController.value != clean) {
@@ -311,7 +322,9 @@ class _RtlTextFieldState extends State<RtlTextField> {
   void _onBlinkTick(Timer timer) {
     _blinkTicks++;
     if (_blinkHalfPeriod * _blinkTicks >= _blinkTimeout) {
-      _stopCursorBlink(); // תמה תקופת ההבהוב — הסמן נעלם
+      timer.cancel();
+      _blinkTimer = null;
+      _setCursorVisible(true); // ההבהוב מסתיים, אבל הסמן נשאר גלוי בפוקוס
       return;
     }
     _setCursorVisible(!_cursorVisible);
@@ -322,15 +335,21 @@ class _RtlTextFieldState extends State<RtlTextField> {
     setState(() => _cursorVisible = visible);
   }
 
+  bool get _usesAndroidAutofocus =>
+      widget.autofocus &&
+      widget.focusNode != null &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+
   PointerDeviceKind? _lastPointerKind;
+  final _verticalCaret = _DefaultVerticalCaretAction();
 
   @override
   Widget build(BuildContext context) {
     final bool isRtl = Directionality.of(context) == TextDirection.rtl;
 
     // באנדרואיד, לא משתמשים ב-autofocus ישירות אלא דרך requestFocus ב-initState
-    final shouldUseAutofocus =
-        widget.autofocus && (widget.focusNode == null || !Platform.isAndroid);
+    final shouldUseAutofocus = widget.autofocus && !_usesAndroidAutofocus;
 
     Widget textField = TextField(
       controller: _boundController,
@@ -382,10 +401,17 @@ class _RtlTextFieldState extends State<RtlTextField> {
           : widget.inputFormatters,
       obscureText: widget.obscureText,
       cursorWidth: 1.0, // דק יותר מברירת המחדל (2.0)
-      // שקוף בשלב ה"כבוי" של ההבהוב ולאחר שנעצר (ראו ניהול ההבהוב למעלה)
+      // שקוף רק בשלב ה"כבוי" של ההבהוב (ראו ניהול ההבהוב למעלה)
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
       // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.
       selectionWidthStyle: ui.BoxWidthStyle.tight,
+    );
+
+    // SelectionArea מעל השדה קורס בחץ למעלה/למטה (#5868); עוקפים אותו.
+    // TODO(flutter/flutter#196172): להסיר כשהתיקון ייכלל ב-Flutter.
+    textField = Actions(
+      actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _verticalCaret},
+      child: textField,
     );
 
     // עטיפה בתיקון חיצים אם RTL
@@ -942,11 +968,34 @@ class _HardBreakController extends TextEditingController {
     final raw = super.value;
     final clean = source.value;
     // גם מטא-נתונים של בקר הקורא צריכים להגיע להיסטוריית הביטול של השדה.
-    return raw == clean ? clean : raw;
+    return raw == clean ? clean : HardBreakValue(raw, clean);
   }
 
+  /// הערך כפי שהוצב, בלי העטיפה של הערך הנקי.
+  TextEditingValue get stored => super.value;
+
+  /// הערך הנקי שנושא הערך שמוצב כרגע, רק בזמן ההצבה (ביטול/ביצוע חוזר).
+  TextEditingValue? restoredClean;
+
   @override
-  set value(TextEditingValue value) => super.value = value;
+  set value(TextEditingValue value) {
+    restoredClean = value is HardBreakValue ? value.clean : null;
+    var raw = value is HardBreakValue ? value.plain : value;
+    // לחיצה בסוף שורה נוחתת בין \r ל-\n, ושם הסמן מצויר ומקליד בשורה הבאה.
+    final selection = raw.selection;
+    final base = snapOffsetOutOfCrlf(raw.text, selection.baseOffset);
+    final extent = snapOffsetOutOfCrlf(raw.text, selection.extentOffset);
+    if (base != selection.baseOffset || extent != selection.extentOffset) {
+      raw = raw.copyWith(
+        selection: selection.copyWith(baseOffset: base, extentOffset: extent),
+      );
+    }
+    try {
+      super.value = raw;
+    } finally {
+      restoredClean = null;
+    }
+  }
 
   @override
   TextSpan buildTextSpan({
@@ -954,17 +1003,65 @@ class _HardBreakController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    if (source.text != text) {
-      return super.buildTextSpan(
+    if (source.text == text) {
+      return source.buildTextSpan(
         context: context,
         style: style,
         withComposing: withComposing,
       );
     }
-    return source.buildTextSpan(
+    // הטקסט מורחב ל-\r\n, לכן מרחיבים גם את העלים של הקורא. בהרכבה (IME)
+    // ההיסטים אינם תואמים ונשארים עם הציור הרגיל.
+    final span = withComposing && value.isComposingRangeValid
+        ? null
+        : source.buildTextSpan(
+            context: context,
+            style: style,
+            withComposing: false,
+          );
+    final expanded = span?.children == null ? null : _expandSpan(span!);
+    if (expanded != null &&
+        expanded.toPlainText(includeSemanticsLabels: false) == text) {
+      return expanded;
+    }
+    return super.buildTextSpan(
       context: context,
       style: style,
       withComposing: withComposing,
     );
   }
+
+  static final RegExp _newline = RegExp(r'\r\n|\n');
+
+  /// null כשיש בעץ משהו שאינו טקסט, ואז אי אפשר להבטיח שההרחבה מדויקת.
+  static TextSpan? _expandSpan(TextSpan span) {
+    final children = <InlineSpan>[];
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      if (child is! TextSpan) return null;
+      final expanded = _expandSpan(child);
+      if (expanded == null) return null;
+      children.add(expanded);
+    }
+    return TextSpan(
+      text: span.text?.replaceAll(_newline, '\r\n'),
+      children: children.isEmpty ? null : children,
+      style: span.style,
+    );
+  }
+}
+
+/// מפעיל את פעולת ברירת המחדל של השדה בלי לעבור ב-override של SelectableRegion.
+class _DefaultVerticalCaretAction
+    extends Action<DirectionalCaretMovementIntent> {
+  @override
+  bool isEnabled(DirectionalCaretMovementIntent intent) =>
+      callingAction?.isEnabled(intent) ?? false;
+
+  @override
+  bool consumesKey(DirectionalCaretMovementIntent intent) =>
+      callingAction?.consumesKey(intent) ?? false;
+
+  @override
+  Object? invoke(DirectionalCaretMovementIntent intent) =>
+      callingAction?.invoke(intent);
 }

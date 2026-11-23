@@ -130,10 +130,7 @@ void main() {
         );
         final generation = await repo.getBookGenerationInfo(_Ids.rashiId);
         expect(generation?.generationName, minimal ? isNull : 'ראשונים');
-        expect(
-          (await repo.database.capabilities).hasAcronyms,
-          expectAcronyms,
-        );
+        expect((await repo.database.capabilities).hasAcronyms, expectAcronyms);
 
         expect(
           await repo.resolveRefKeyInBooks([_Ids.bereshitId], 'בראשית א א'),
@@ -369,6 +366,37 @@ void main() {
     });
   });
 
+  test('טבלת בסיס חלקית במסד מצורף אינה מסתירה מפרשים', () async {
+    final tempDir = await Directory.systemTemp.createTemp('otzaria_base_text');
+    addTearDown(() => tempDir.delete(recursive: true));
+    final dbPath = SeforimFixtureDb.create(tempDir, SeforimFixtureVariant.full);
+    final writer = sqlite3.sqlite3.open(dbPath);
+    addTearDown(writer.close);
+    final database = MyDatabase.untrusted(dbPath);
+    addTearDown(database.close);
+
+    writer.execute('CREATE TABLE book_base_text (baseBookId INTEGER)');
+    Future<Map<String, dynamic>> commentator() async =>
+        (await database.linkDao.selectCommentatorsByBook(_Ids.bereshitId))
+            .single;
+    final original = await commentator();
+    expect(original['targetBookId'], _Ids.rashiId);
+    expect(original['declaredBase'], isNull);
+
+    writer.execute('ALTER TABLE book_base_text ADD COLUMN bookId INTEGER');
+    writer.execute(
+      'INSERT INTO book_base_text VALUES (?, NULL), (?, ?), (?, ?)',
+      [
+        _Ids.bereshitId,
+        _Ids.bereshitId,
+        'invalid',
+        _Ids.bereshitId,
+        _Ids.rashiId,
+      ],
+    );
+    expect(await commentator(), {...original, 'declaredBase': true});
+  });
+
   group('בניית הקטלוג וטעינת קישורים דרך ה-provider', () {
     late Directory tempDir;
     late String libraryPath;
@@ -389,9 +417,8 @@ void main() {
           db.close();
         }
       }
-      await File(
-        fixture,
-      ).copy(path.join(libraryPath, DatabaseConstants.databaseFileName));
+      await File(fixture)
+          .copy(path.join(libraryPath, DatabaseConstants.databaseFileName));
 
       await Settings.init(cacheProvider: MemoryCacheProvider());
       AppPaths.debugOverrideDataRootPath(path.join(tempDir.path, 'data_root'));

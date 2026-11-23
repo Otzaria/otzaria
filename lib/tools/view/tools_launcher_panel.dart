@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -240,22 +239,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   }
 
   Future<void> _installPlugin() async {
-    final verified = await verifySaferModePassword(context);
-    if (!verified || !mounted) return;
-    final result = await withFilePickerOwner(
-      context,
-      (picker) => picker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: ['otzplugin'],
-        windowsOptions: modalWindowsOptions(context),
-        linuxOptions: kModalLinuxOptions,
-      ),
-    );
-    final path = result?.path;
-    if (path == null || !mounted) return;
-    context.read<PluginSystemBloc>().add(
-      InstallPluginRequested(path, isUserInitiated: true),
-    );
+    await pickAndInstallPluginArchive(context);
   }
 
   Future<void> _loadDevPlugin() async {
@@ -1070,8 +1054,9 @@ class _PluginsFooter extends StatelessWidget {
   }
 }
 
-/// סרגל צף לפעולות התוספים, בתחתית תחילת החלונית. ההתקנה היא כפתור ראשי
-/// עם תווית, כדי שלא יימוג מול רקע החלונית; כלי הפיתוח ליד כפתורי אייקון.
+/// סרגל צף לפעולות התוספים, בתחתית תחילת החלונית. ההתקנה היא כפתור אייקון
+/// מלא (+ עם tooltip), כדי שלא יימוג מול רקע החלונית; כלי הפיתוח לידו
+/// ככפתורי אייקון רגילים באותו גודל.
 class _PluginsToolbar extends StatelessWidget {
   final bool showDevTools;
   final VoidCallback onInstall;
@@ -1099,10 +1084,29 @@ class _PluginsToolbar extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ActionButton.recommended(
-              text: context.settingsText('התקן תוסף חדש'),
-              icon: FluentIcons.add_24_regular,
-              onPressed: onInstall,
+            Builder(
+              builder: (context) {
+                final side = AppIconButtonSize.medium.extent(
+                  compact: AppDensity.of(context).isCompact,
+                );
+                return IconButton.filled(
+                  icon: const Icon(FluentIcons.add_24_regular),
+                  tooltip: context.settingsText('התקן תוסף חדש'),
+                  onPressed: onInstall,
+                  iconSize: AppIconButtonSize.medium.iconSize,
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints.tightFor(
+                    width: side,
+                    height: side,
+                  ),
+                  style: IconButton.styleFrom(
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppTokens.borderRadiusAll,
+                    ),
+                    visualDensity: VisualDensity.standard,
+                  ),
+                );
+              },
             ),
             if (showDevTools) ...[
               const SizedBox(width: AppTokens.spaceXS),

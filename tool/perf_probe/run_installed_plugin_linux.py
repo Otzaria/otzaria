@@ -120,6 +120,18 @@ def require_linux_result(root):
         phases[name] = phase["status"]
     if any(phases.get(name) != "passed" for name in ("minimize", "hide")):
         raise RuntimeError("Linux minimize and hide must pass with native acknowledgements")
+    pdf = report.get("pdfRuntime")
+    if not isinstance(pdf, dict) or any(pdf.get(key) != value for key, value in (
+        ("status", "passed"), ("platform", "linux"), ("bundlePathsVerified", True),
+        ("ownedDocumentsRemaining", 0), ("ownedTabsRemaining", 0), ("indexingActiveAfter", False),
+    )):
+        raise RuntimeError("Actual-bundle PDF runtime and teardown evidence must pass")
+    steps = pdf.get("steps")
+    if not isinstance(steps, dict) or any(
+        not isinstance(steps.get(name), dict) or steps[name].get("status") != "passed"
+        for name in ("view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown")
+    ):
+        raise RuntimeError("All required PDF runtime steps must pass")
     return {"path": str(reports[0]), "runId": run_id, "status": "passed"}
 
 

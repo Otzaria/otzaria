@@ -33,7 +33,7 @@ import 'package:otzaria/search/models/search_configuration.dart'
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart'
     show kSearchResultAnchorAlignment;
 import 'package:otzaria/text_book/utils/section_search_utils.dart'
-    show matchFractionInLine;
+    show bracketMarkerFractionForReference, matchFractionInLine;
 import 'package:otzaria/utils/text/ref_helper.dart';
 
 /// כמה כרטיסיות שנסגרו נשמרות לשחזור. מוגבל כי כל רשומה מחזיקה מופע טאב חי.
@@ -247,6 +247,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
        super(TabsState.initial()) {
     on<LoadTabs>(_onLoadTabs, transformer: sequential());
     on<RemapBookPaths>(_onRemapBookPaths, transformer: sequential());
+    on<RefreshCatalogTitles>(
+      _onRefreshCatalogTitles,
+      transformer: sequential(),
+    );
     on<ReplaceAllTabs>(_onReplaceAllTabs, transformer: sequential());
     on<AddTab>((event, emit) async {
       try {
@@ -443,6 +447,26 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     }
   }
 
+  void _onRefreshCatalogTitles(
+    RefreshCatalogTitles event,
+    Emitter<TabsState> emit,
+  ) {
+    final refreshed = _repository.refreshCatalogTitles(state.tabs);
+    final replaced = [
+      for (var i = 0; i < refreshed.length; i++)
+        if (!identical(refreshed[i], state.tabs[i])) i,
+    ];
+    if (replaced.isEmpty) return;
+    final previous = state.tabs;
+    for (final i in replaced) {
+      _inheritViewTime(previous[i], refreshed[i]);
+    }
+    _emitAndSaveTabs(emit, refreshed);
+    for (final i in replaced) {
+      _disposeTabLater(previous[i]);
+    }
+  }
+
   Future<void> _onReplaceAllTabs(
     ReplaceAllTabs event,
     Emitter<TabsState> emit,
@@ -592,14 +616,16 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       );
       return;
     }
-    // הכותרת משמשת רק להשוואה מול חלונית של אותו ספר; בלעדיה נחסכת טעינת
-    // תוכן העניינים לפני הוספת הטאב, והקורא טוען אותו ממילא.
-    final hasSameBook = state.tabs
-        .expand(leafPanes)
-        .any((open) => _isSameBook(open, event.tab));
-    final targetTitle =
-        hasSameBook &&
-            (!event.matchHistorySlot || event.tab.historySlot == null)
+    final ignoreLocation =
+        event.matchBookOnly || event.navigateToPositionIfReused;
+    // צריך כותרת (ולפעמים TOC) רק כשמשווים מיקומים באותו ספר.
+    final needsTitle =
+        !ignoreLocation &&
+        (!event.matchHistorySlot || event.tab.historySlot == null) &&
+        state.tabs
+            .expand(leafPanes)
+            .any((open) => _isSameBook(open, event.tab));
+    final targetTitle = needsTitle
         ? await _resolveTabLocationTitle(
             event.tab,
             explicitTitle: event.targetTitle,
@@ -608,8 +634,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     final matchingIndex = await _findMatchingTopLevelTabIndex(
       event.tab,
       targetTitle,
-      // סימניה או deep link מנווטים בספר הפתוח גם כשהכותרת המבוקשת שונה.
-      ignoreLocation: event.navigateToPositionIfReused,
+      ignoreLocation: ignoreLocation,
       matchHistorySlot: event.matchHistorySlot,
     );
 
@@ -618,7 +643,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         state.tabs[matchingIndex],
         event.tab,
         targetTitle,
-        ignoreLocation: event.navigateToPositionIfReused,
+        ignoreLocation: ignoreLocation,
         matchHistorySlot: event.matchHistorySlot,
       );
       final matchingTab = matchingPane ?? state.tabs[matchingIndex];
@@ -945,13 +970,26 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetText = _resolveTextBookTab(existingTab, incomingTab);
       if (targetText == null) return;
       final targetIndex = incomingTab.index;
+      final marker = incomingTab.markerReference;
+      double? resolveMarker(int line) {
+        final state = targetText.blocState;
+        if (state is! TextBookLoaded ||
+            line >= state.content.length ||
+            !state.isContentLineLoaded(line)) {
+          return null;
+        }
+        return bracketMarkerFractionForReference(state.content[line], marker!);
+      }
+
       // יעד שנקבע לפני שהקורא מחובר נשמר ומבוצע בחיבור; tab.index מתעדכן מיד.
       final navigation = targetText.lines.scrollToLine(
         targetIndex,
         alignment: 0,
+        resolveFraction: marker == null ? null : resolveMarker,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      targetText.updateLinkSelection(incomingTab.linkSelectedLine);
       if (!PluginTextReaderRegistry.instance.usesPlugin(targetText)) {
         unawaited(navigation);
         return;
@@ -1600,26 +1638,30 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     CloseOtherTabs event,
     Emitter<TabsState> emit,
   ) async {
+    if (!state.tabs.contains(event.keepTab)) return;
+    bool keep(OpenedTab tab) =>
+        tab == event.keepTab ||
+        tab.isPinned ||
+        !(event.confirmedTabs?.contains(tab) ?? true);
     for (var i = state.tabs.length - 1; i >= 0; i--) {
       final tab = state.tabs[i];
-      if (tab != event.keepTab) {
+      if (!keep(tab)) {
         _rememberClosedTab(tab, i);
       }
     }
-    final tabsToDispose = state.tabs
-        .where((tab) => tab != event.keepTab)
-        .toList();
+    final tabsToDispose = state.tabs.where((tab) => !keep(tab)).toList();
 
-    final newTabs = [event.keepTab];
+    final newTabs = state.tabs.where(keep).toList();
+    final newIndex = newTabs.indexOf(event.keepTab);
 
     emit(
       state.copyWith(
         tabs: newTabs,
-        currentTabIndex: 0,
+        currentTabIndex: newIndex,
         selectedTabs: const <OpenedTab>[],
       ),
     );
-    _scheduleSave(newTabs, 0);
+    _scheduleSave(newTabs, newIndex);
 
     for (final tab in tabsToDispose) {
       _disposeTabLater(tab);

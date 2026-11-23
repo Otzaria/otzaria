@@ -41,6 +41,8 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
   final SaveCustomFoldersFn? _saveFoldersOverride;
   final SyncCustomFoldersFn? _syncFoldersOverride;
   final DeleteCustomFolderFromDbFn? _deleteFolderFromDbOverride;
+  final Object _userContentChangeSource = Object();
+  StreamSubscription<Object?>? _userImportChangesSubscription;
 
   CustomFoldersBloc({
     required this._addLibraryEvent,
@@ -65,6 +67,15 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     on<LoadUserImportFiles>(_onLoadUserImportFiles);
     on<SetUserImportFileEnabled>(_onSetUserImportFileEnabled);
     on<RemoveUserImportFile>(_onRemoveUserImportFile);
+  }
+
+  @override
+  Future<void> close() {
+    final closing = super.close();
+    final subscription = _userImportChangesSubscription;
+    _userImportChangesSubscription = null;
+    if (subscription == null) return closing;
+    return Future.wait<void>([closing, subscription.cancel()]);
   }
 
   void _onLoad(LoadCustomFolders event, Emitter<CustomFoldersState> emit) {
@@ -406,7 +417,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
-      final library = UserImportLibrary(userDb);
+      final library = UserImportLibrary(
+        userDb,
+        changeSource: _userContentChangeSource,
+      );
       // הקבצים נשמרים בספרייה ואז הנתונים נבנים מחדש מכל הפעילים, כדי
       // שהמשתמש יוכל לנהל אותם אחר כך (השהיה/ייצוא/מחיקה).
       final outcome = await library.addFiles(event.paths);
@@ -426,6 +440,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         state.copyWith(
           isSyncing: false,
           importFiles: importFiles,
+          hasUserContent: await library.hasContent(),
           message:
               _importSummary(imp) ??
               (imp.errors.isEmpty
@@ -444,10 +459,25 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     LoadUserImportFiles event,
     Emitter<CustomFoldersState> emit,
   ) async {
+    if (!isClosed) {
+      _userImportChangesSubscription ??= UserImportLibrary.changes.listen(
+        (source) {
+          if (!isClosed && !identical(source, _userContentChangeSource)) {
+            add(const LoadUserImportFiles());
+          }
+        },
+      );
+    }
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
-      emit(state.copyWith(importFiles: await UserImportLibrary(userDb).list()));
+      final library = UserImportLibrary(userDb);
+      emit(
+        state.copyWith(
+          importFiles: await library.list(),
+          hasUserContent: await library.hasContent(),
+        ),
+      );
     } catch (e) {
       emit(state.copyWith(error: 'טעינת רשימת קובצי הייבוא נכשלה: $e'));
     }
@@ -496,16 +526,22 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     try {
       final userDb =
           (await UserBooksDatabaseHolder.instance.repository).database;
-      final library = UserImportLibrary(userDb);
+      final library = UserImportLibrary(
+        userDb,
+        changeSource: _userContentChangeSource,
+      );
       final outcome = await action(library);
       _invalidateUserContentCaches();
       emit(
         state.copyWith(
           isSyncing: false,
           importFiles: await library.list(),
+          hasUserContent: await library.hasContent(),
           message: outcome.ok ? successMessage : null,
           error: outcome.ok
-              ? null
+              ? (outcome.skipped.isEmpty
+                    ? null
+                    : 'קבצים שלא נקלטו:\n${outcome.skipped.take(10).join('\n')}')
               : '$failurePrefix:\n${outcome.allErrors.take(10).join('\n')}',
         ),
       );
