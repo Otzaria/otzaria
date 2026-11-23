@@ -101,6 +101,15 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
       if (mounted) {
         _notifyTitleChange();
+        final library = context.read<LibraryBloc?>()?.state.library;
+        if (library != null && progressProvider.error == null) {
+          unawaited(
+            dataProvider.migrateLegacyPdfBooks(
+              library.getAllBooks().whereType<PdfBook>(),
+              progressProvider.rekeyBooks,
+            ),
+          );
+        }
       }
     });
   }
@@ -367,27 +376,39 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         _selectedCategoryObject;
   }
 
-  /// פותח את הספר הרשמי [bookId] בשורת המקור [line], ומסכת בבלי לפי
-  /// הגדרת פורמט הבבלי.
+  /// פותח את הספר הרשמי [bookId] בשורת המקור [line] (או ספר PDF שבמעקב
+  /// בעמוד [line]), ומסכת בבלי לפי הגדרת פורמט הבבלי.
   Future<void> _openBookAt(int bookId, int line) async {
     final library = context.read<LibraryBloc>().state.library;
     if (library == null) {
       UiSnack.showError(ToolsMessages.libraryStillLoading);
       return;
     }
-    final book = library.getAllBooks().whereType<TextBook>().firstWhereOrNull(
-      (b) => b.source.isOfficial && b.id == bookId,
-    );
+    // מפתח שלילי הוא ספר PDF שבמעקב, ו-[line] הוא מספר העמוד.
+    final Book? book = bookId < 0
+        ? await context.read<ShamorZachorDataProvider>().findTrackedPdf(
+            bookId,
+            library.getAllBooks().whereType<PdfBook>(),
+          )
+        : library.getAllBooks().whereType<TextBook>().firstWhereOrNull(
+            (b) => b.source.isOfficial && b.id == bookId,
+          );
+    if (!mounted) return;
     if (book == null) {
-      UiSnack.showError(LibraryMessages.bookNotFoundById(bookId));
+      UiSnack.showError(
+        bookId < 0
+            ? LibraryMessages.categoryOrBookNotFound([_selectedBookName ?? ''])
+            : LibraryMessages.bookNotFoundById(bookId),
+      );
       return;
     }
-    if (await openLibraryBookPerTalmudBavliFormat(
-      context,
-      book,
-      line,
-      navigateToPositionIfReused: true,
-    )) {
+    if (book is TextBook &&
+        await openLibraryBookPerTalmudBavliFormat(
+          context,
+          book,
+          line,
+          navigateToPositionIfReused: true,
+        )) {
       return;
     }
     if (!mounted) return;

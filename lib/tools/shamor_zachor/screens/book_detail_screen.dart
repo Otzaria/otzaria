@@ -30,6 +30,7 @@ import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/lists/tree_section_header.dart';
+import 'package:otzaria/utils/file/document_format.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -847,6 +848,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             item.amudKey,
             bookDetails.isDafType,
           );
+          // שורה בלי פרק מצביעה על מיקום רק ב-PDF, שבו היא עמוד.
+          final opensAt =
+              widget.onOpenLine != null &&
+              (item.sectionId != null ||
+                  bookDetails.contentType == DocumentFormat.pdf.extension);
 
           return Column(
             key: absoluteIndex == _restoreIndex ? _restoreKey : null,
@@ -884,12 +890,18 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   children: [
                     Expanded(
                       flex: _titleFlex,
-                      child: Text(
-                        rowLabel,
+                      child: _SectionTitleLink(
+                        label: rowLabel,
+                        tooltip: ToolsMessages.openTrackedSection(
+                          item.displayLabel ?? 'עמוד $rowLabel',
+                        ),
                         style: TextStyle(
                           fontSize: AppTokens.fontLG,
                           color: theme.colorScheme.onSurface,
                         ),
+                        onOpen: opensAt
+                            ? () => widget.onOpenLine!(item.pageNumber)
+                            : null,
                       ),
                     ),
                     Expanded(

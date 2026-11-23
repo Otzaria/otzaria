@@ -513,6 +513,37 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     );
   }
 
+  /// מעביר את ההתקדמות ואת כל הנתונים המקושרים מכל מפתח ב-[keys] אל המפתח
+  /// שמולו. הנתונים נטענים מחדש מהאחסון, כדי שספק שטרם נטען לא ימחק דבר.
+  Future<void> rekeyBooks(Map<int, int> keys) => _queueProgressUpdate(() async {
+    _progressById = await _progressService.loadProgressDataById();
+    _completionDatesById = await _progressService.loadCompletionDatesById();
+    _columnsByBookId = await _progressService.loadColumnsByBookId();
+    _columnDatesById = await _progressService.loadColumnCompletionDates();
+    for (final MapEntry(key: from, value: to) in keys.entries) {
+      void move<V>(Map<int, V> map) {
+        final value = map.remove(from);
+        if (value != null) map[to] = value;
+      }
+
+      move(_progressById);
+      move(_completionDatesById);
+      move(_columnsByBookId);
+      move(_columnDatesById);
+      final lastTouched = _progressService.loadLastTouchedIndex(from);
+      if (lastTouched != null) {
+        await _progressService.saveLastTouchedIndex(to, lastTouched);
+        await _progressService.saveLastTouchedIndex(from, null);
+      }
+    }
+    await _progressService.saveProgressDataById(_progressById);
+    await _progressService.saveCompletionDatesById(_completionDatesById);
+    await _progressService.saveColumnsByBookId(_columnsByBookId);
+    await _progressService.saveColumnCompletionDates(_columnDatesById);
+    _clearSummaryCache();
+    notifyListeners();
+  });
+
   /// Clear all progress for a specific book by ID
   Future<void> clearBookProgressById(int bookId) =>
       _queueProgressUpdate(() async {

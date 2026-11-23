@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/settings/services/backup/shamor_zachor_backup_merge.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
 /// אופן החלת קובץ גיבוי על הנתונים הקיימים.
@@ -98,38 +99,48 @@ class BackupImportMerge {
   /// שמור-וזכור: מחזירה את המפתחות שיש לכתוב בפועל.
   ///
   /// המקומי מנצח תמיד — ייבוא אינו מחזיר סימוני דפים שבוטלו כאן בכוונה.
-  /// `sz:progress_by_id` ממוזג פר-ספר (ולא פר-דף), `sz:tracked_books` הוא
-  /// איחוד, וכל מפתח אחר נכתב רק אם אינו קיים מקומית.
+  /// ההתקדמות והמפות המקושרות לספר ממוזגות פר-ספר, רשימות הספרים במעקב
+  /// מאוחדות, וכל מפתח אחר נכתב רק אם אינו קיים מקומית
+  /// ([ShamorZachorBackupMerge]).
   static ({Map<String, Object?> toWrite, int addedBooks}) mergeShamorZachor(
     Map<String, Object?> local,
     Map<String, dynamic> incoming,
   ) {
-    const progressKey = 'sz:progress_by_id';
     const trackedKey = 'sz:tracked_books';
+    const pdfKey = ShamorZachorBackupMerge.trackedPdfBooksKey;
 
     final toWrite = <String, Object?>{};
     var addedBooks = 0;
 
     for (final entry in incoming.entries) {
       if (entry.value == null) continue;
-      if (entry.key == progressKey || entry.key == trackedKey) continue;
-      if (local.containsKey(entry.key)) continue;
+      if (entry.key == trackedKey || entry.key == pdfKey) continue;
+      if (ShamorZachorBackupMerge.bookKeyedMaps.contains(entry.key)) {
+        final merged = ShamorZachorBackupMerge.mergeBookMap(
+          local[entry.key],
+          entry.value,
+        );
+        if (entry.key == ShamorZachorBackupMerge.progressKey) {
+          addedBooks = merged.added;
+        }
+        if (merged.merged != null &&
+            (local[entry.key] == null || merged.added > 0)) {
+          toWrite[entry.key] = json.encode(merged.merged);
+        }
+        continue;
+      }
+      if (local.containsKey(entry.key) ||
+          ShamorZachorBackupMerge.isLegacyPdfRecordKey(entry.key)) {
+        continue;
+      }
       toWrite[entry.key] = entry.value;
     }
 
-    final localProgress = _decodeJsonMap(local[progressKey]);
-    final incomingProgress = _decodeJsonMap(incoming[progressKey]);
-    if (incomingProgress != null) {
-      final merged = {...incomingProgress, ...?localProgress};
-      addedBooks = incomingProgress.keys
-          .where(
-            (id) => localProgress == null || !localProgress.containsKey(id),
-          )
-          .length;
-      if (localProgress == null || addedBooks > 0) {
-        toWrite[progressKey] = json.encode(merged);
-      }
-    }
+    final pdfBooks = ShamorZachorBackupMerge.mergeTrackedPdfBooks(
+      local[pdfKey],
+      incoming[pdfKey],
+    );
+    if (pdfBooks.added > 0) toWrite[pdfKey] = json.encode(pdfBooks.merged);
 
     final localTracked = _decodeJsonList(local[trackedKey]);
     final incomingTracked = _decodeJsonList(incoming[trackedKey]);
@@ -171,16 +182,6 @@ class BackupImportMerge {
     for (var i = 2; ; i++) {
       final candidate = '$name ($_importedSuffix $i)';
       if (!taken.contains(candidate)) return candidate;
-    }
-  }
-
-  static Map<String, dynamic>? _decodeJsonMap(Object? raw) {
-    if (raw is! String || raw.isEmpty) return null;
-    try {
-      final decoded = json.decode(raw);
-      return decoded is Map ? decoded.cast<String, dynamic>() : null;
-    } catch (_) {
-      return null;
     }
   }
 
