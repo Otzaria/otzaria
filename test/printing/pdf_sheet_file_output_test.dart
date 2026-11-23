@@ -375,7 +375,7 @@ void main() {
             expect(result, fullLength);
             expect(written, fullLength);
           }
-          print(
+          stdout.writeln(
             'PDF_SHEET_FILE_CANCEL ${jsonEncode({'attempt': attempt, 'observedBytesBeforeCancel': seen, 'writtenBytes': written, 'fullOutputBytes': fullLength, 'cancelledDuringWrite': observedCancellation})}',
           );
         } finally {
