@@ -1105,12 +1105,12 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       // ייתכן שהפעולה המתינה זמן רב מאחורי כתיבה אחרת. ביטול שהגיע בזמן
       // ההמתנה חייב לעצור לפני סגירת ה-runtime ולפני יצירת גיבוי כבד.
       _throwIfCancelled(isCancelled);
+      Future<void>? backupCleanup;
       // rename על מסד פתוח נכשל ב-Windows.
-      await accessGate.runExclusive(
+      final replacement = accessGate.runExclusive<void>(
         dbPath: dbPath,
         body: (scope) async {
           var recoveryStarted = false;
-          Future<void>? backupCleanup;
           try {
             _throwIfCancelled(isCancelled);
             recoveryStarted = true;
@@ -1124,22 +1124,11 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             _throwIfCancelled(isCancelled);
             _deleteDbWithSidecarsQuietly(dbPath);
             File(newDbPath).renameSync(dbPath);
-            scope.markDbReplaced();
             _deleteQuietly('$newDbPath-wal');
             _deleteQuietly('$newDbPath-shm');
-            backupCleanup = recovery.finishSuccessAsync(dbPath);
-            DbReadWorker.corruptDatabaseDetected.value = false;
-            // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
-            // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
-            try {
-              onDbReplaced?.call();
-            } catch (error, stackTrace) {
-              // callback הוא התראה בלבד; אסור שכשל במאזין יגלגל לאחור DB תקין
-              // אחרי שגיבוי ההתאוששות כבר נוקה.
-              debugPrint(
-                'Full DB replacement callback failed: $error\n$stackTrace',
-              );
-            }
+            final cleanup = recovery.finishSuccessAsync(dbPath);
+            cleanup.ignore();
+            backupCleanup = cleanup;
           } catch (error) {
             // לפני beginApply אין לפעולה הזו artifacts משלה; rollback בשלב הזה
             // עלול לגעת בטעות בגיבוי ישן שאינו שייך לריצה הנוכחית.
@@ -1149,10 +1138,23 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             }
             rethrow;
           }
-          // מחוץ ל-try: אחרי onDbReplaced כשל בניקוי הגיבוי אסור שיפעיל rollback.
-          await backupCleanup;
+
+          scope.markDbReplaced();
+          DbReadWorker.corruptDatabaseDetected.value = false;
+          // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
+          // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
+          try {
+            onDbReplaced?.call();
+          } catch (error, stackTrace) {
+            // ההודעה למאזין היא best-effort אחרי השלמת ההחלפה.
+            debugPrint(
+              'Full DB replacement callback failed: $error\n$stackTrace',
+            );
+          }
         },
       );
+      // פותחים את המסד לפני ההמתנה לניקוי, שעדיין מוגן בתור ובנעילות.
+      await replacement.whenComplete(() => backupCleanup);
     });
   }
 
@@ -1215,7 +1217,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           onApplyProgress: onApplyProgress,
         );
         DbReadWorker.clearBookCacheIfRunning();
-        await recovery.finishSuccessAsync(dbPath);
+        recovery.finishSuccess(dbPath);
         return booksTouched;
       } catch (error) {
         await recovery.rollback(dbPath);
