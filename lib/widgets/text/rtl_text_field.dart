@@ -333,6 +333,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
   }
 
   PointerDeviceKind? _lastPointerKind;
+  final _verticalCaret = _DefaultVerticalCaretAction();
 
   @override
   Widget build(BuildContext context) {
@@ -396,6 +397,13 @@ class _RtlTextFieldState extends State<RtlTextField> {
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
       // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.
       selectionWidthStyle: ui.BoxWidthStyle.tight,
+    );
+
+    // SelectionArea מעל השדה קורס בחץ למעלה/למטה (#5868); עוקפים אותו.
+    // TODO(flutter/flutter#196172): להסיר כשהתיקון ייכלל ב-Flutter.
+    textField = Actions(
+      actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _verticalCaret},
+      child: textField,
     );
 
     // עטיפה בתיקון חיצים אם RTL
@@ -1032,4 +1040,20 @@ class _HardBreakController extends TextEditingController {
       style: span.style,
     );
   }
+}
+
+/// מפעיל את פעולת ברירת המחדל של השדה בלי לעבור ב-override של SelectableRegion.
+class _DefaultVerticalCaretAction
+    extends Action<DirectionalCaretMovementIntent> {
+  @override
+  bool isEnabled(DirectionalCaretMovementIntent intent) =>
+      callingAction?.isEnabled(intent) ?? false;
+
+  @override
+  bool consumesKey(DirectionalCaretMovementIntent intent) =>
+      callingAction?.consumesKey(intent) ?? false;
+
+  @override
+  Object? invoke(DirectionalCaretMovementIntent intent) =>
+      callingAction?.invoke(intent);
 }
