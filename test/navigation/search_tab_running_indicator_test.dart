@@ -103,5 +103,49 @@ void main() {
       expect(searchIcon(), findsOneWidget);
       expect(tab.createdResultsBloc, isNull);
     });
+
+    testWidgets(
+      'כרטיסיית חיפוש חכם: הספינר מופיע כשהמסך יוצר את ה-BLoC, בלי בנייה מחדש',
+      (tester) async {
+        final bloc = _ControlledResultsBloc();
+        final tab = SemanticSearchTab(
+          options: const SemanticQueryOptions(query: 'צדקה'),
+          createResultsBloc: (_) => bloc,
+        );
+        addTearDown(tab.dispose);
+        final showScreen = ValueNotifier(false);
+        addTearDown(showScreen.dispose);
+        // הרצועה נבנית לפני מסך התוצאות, והמסך יוצר את ה-BLoC בבנייה.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => Column(
+                children: [
+                  buildTabTypeIcon(context, tab, size: 16)!,
+                  ValueListenableBuilder<bool>(
+                    valueListenable: showScreen,
+                    builder: (context, show, _) {
+                      if (show) tab.resultsBloc;
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(tab.createdResultsBloc, isNull);
+
+        showScreen.value = true;
+        await tester.pump();
+        expect(tab.createdResultsBloc, same(bloc));
+        bloc.emitState(
+          bloc.state.copyWith(status: SemanticResultsStatus.loading),
+        );
+        await tester.pump();
+        expect(spinner(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

@@ -94,7 +94,7 @@ Widget? buildTabTypeIcon(
 /// רואים מכרטיסיה אחרת אם החיפוש הסתיים (#5766).
 ///
 /// ⚠️ כרטיסיית חיפוש חכם יוצרת את ה-BLoC שלה רק בהצגה הראשונה, ולכן לא
-/// נוצר כאן. עד שהרצועה נבנית מחדש אחרי ההצגה (מעבר כרטיסיה) מוצג האייקון.
+/// נוצר כאן; מאזינים ליצירתו.
 class SearchTabLeading extends StatelessWidget {
   final SearchingTab tab;
   final double size;
@@ -122,12 +122,16 @@ class SearchTabLeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final tab = this.tab;
     if (tab is SemanticSearchTab) {
-      final bloc = tab.createdResultsBloc;
-      if (bloc == null) return _build(false);
-      return BlocSelector<SemanticResultsBloc, SemanticResultsState, bool>(
-        bloc: bloc,
-        selector: (state) => state.status == SemanticResultsStatus.loading,
-        builder: (context, running) => _build(running),
+      return ValueListenableBuilder<SemanticResultsBloc?>(
+        valueListenable: tab.createdResultsBlocListenable,
+        builder: (context, bloc, _) => bloc == null
+            ? _build(false)
+            : BlocSelector<SemanticResultsBloc, SemanticResultsState, bool>(
+                bloc: bloc,
+                selector: (state) =>
+                    state.status == SemanticResultsStatus.loading,
+                builder: (context, running) => _build(running),
+              ),
       );
     }
     return BlocSelector<SearchBloc, SearchState, bool>(
