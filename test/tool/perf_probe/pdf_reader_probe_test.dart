@@ -213,4 +213,50 @@ void main() {
     );
     expect(checkpoints.keys, ['controller_ready']);
   });
+
+  test(
+    'book opening keeps its final checkpoint behind application layers',
+    () async {
+      final controller = _Controller();
+      final layersRemoved = Completer<void>();
+      final checkpoints = <String, double>{};
+      final pending = measurePdfReaderOpening(
+        open: () {},
+        controllerReady: () => true,
+        controller: () => controller,
+        pageNumber: 1,
+        nextFrame: () async {},
+        checkpointsMs: checkpoints,
+        waitForFinalImage: (remaining) {
+          expect(remaining, greaterThan(Duration.zero));
+          return layersRemoved.future;
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(checkpoints.keys, ['controller_ready']);
+      layersRemoved.complete();
+      await pending;
+      expect(checkpoints.keys, ['controller_ready', 'final_image_ready']);
+    },
+  );
+
+  test('a stalled application layer endpoint remains bounded', () async {
+    final layersRemoved = Completer<void>();
+    final checkpoints = <String, double>{};
+    await expectLater(
+      measurePdfReaderOpening(
+        open: () {},
+        controllerReady: () => true,
+        controller: _Controller.new,
+        pageNumber: 1,
+        nextFrame: () async {},
+        checkpointsMs: checkpoints,
+        timeout: const Duration(milliseconds: 5),
+        waitForFinalImage: (_) => layersRemoved.future,
+      ),
+      throwsA(isA<TimeoutException>()),
+    );
+    expect(checkpoints.keys, ['controller_ready']);
+    layersRemoved.complete();
+  });
 }

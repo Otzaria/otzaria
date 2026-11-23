@@ -745,7 +745,11 @@ Map<String, dynamic> compareProbeReports(
 
 final _comparedMetrics = [
   for (final q in ['p50', 'p95', 'p99']) 'latencyMs.$q',
-  for (final checkpoint in ['controller_ready', 'final_image_ready'])
+  for (final checkpoint in [
+    'controller_ready',
+    'final_image_ready',
+    'first_visible_thumbnail_observed',
+  ])
     for (final q in ['p50', 'p95', 'p99']) 'checkpointsMs.$checkpoint.$q',
   for (final frame in ['buildMs', 'rasterMs', 'totalMs'])
     for (final q in ['p50', 'p95', 'p99']) 'frames.$frame.$q',

@@ -138,6 +138,7 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/pdf_book/utils/pdf_shortcut_bindings.dart';
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
+import 'package:otzaria/pdf_book/models/pdf_book_render_observation.dart';
 import 'package:otzaria/book_common/view/reading_history_tooltip.dart';
 import 'package:otzaria/pdf_book/view/widgets/pdf_navigation_back_scope.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
@@ -167,6 +168,17 @@ class PdfBookScreen extends StatefulWidget {
     this.isInCombinedView = false,
     this.pdfPaneCount = 1,
   });
+
+  /// תצפית נקודתית לכלי מדידה: אינה רושמת מאזין, מרנדרת או שומרת תמונות.
+  /// [context] יכול להיות המסך עצמו או ילד שלו.
+  static PdfBookRenderObservation? renderObservationOf(BuildContext context) {
+    if (!context.mounted) return null;
+    final state =
+        context is StatefulElement && context.state is _PdfBookScreenState
+        ? context.state as _PdfBookScreenState
+        : context.findAncestorStateOfType<_PdfBookScreenState>();
+    return state?._renderObservation();
+  }
 
   @override
   State<PdfBookScreen> createState() => _PdfBookScreenState();
@@ -315,6 +327,35 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // order, instead of being collapsed into a single animation toward the
   // latest target.
   final List<_PendingBookPageTurn> _pendingPageTurns = [];
+
+  PdfBookRenderObservation _renderObservation() {
+    final controller = widget.tab.pdfViewerController;
+    final ready = mounted && controller.isReady;
+    final layoutReady = ready && pdfReadyLayoutOrNull(controller) != null;
+    final bookView = mounted && _isBookViewModeActive();
+    return PdfBookRenderObservation(
+      visible: mounted && _isPdfVisible,
+      bookView: bookView,
+      layoutReady: layoutReady,
+      viewerState: ready
+          ? controller.visibleRenderState.value.name
+          : 'detached',
+      visiblePages: List.unmodifiable(
+        layoutReady && bookView
+            ? _currentSpreadPages(
+                controller,
+                controller.viewSize,
+              ).map((page) => page.pageNumber)
+            : const <int>[],
+      ),
+      hasTransitionOverlay:
+          _pageTurnSnapshot != null && _pageTurnTransition != null,
+      pageTurnActive: _isPageTurnInProgress || _isInteractivePageTurn,
+      animationRunning: _pageTurnController.isAnimating,
+      queuedTurns: _pendingPageTurns.length,
+    );
+  }
+
   // Tracks left/right arrow keys that have fired KeyRepeatEvent so we can
   // distinguish a held key (drain queue on release) from a short tap (let
   // its queued turn play out).

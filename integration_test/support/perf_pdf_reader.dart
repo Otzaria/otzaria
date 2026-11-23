@@ -2,30 +2,8 @@ import 'dart:async';
 
 import 'package:pdfrx/pdfrx.dart';
 
-/// אותו גבול polling של ה-probe הראשי; timeout הוא כשל ולא דגימה מוצלחת.
-Future<void> waitForPdfProbeCondition(
-  bool Function() ready,
-  String description, {
-  Duration timeout = const Duration(seconds: 45),
-  Future<void> Function()? advance,
-}) async {
-  final clock = Stopwatch()..start();
-  while (!ready()) {
-    final remaining = timeout - clock.elapsed;
-    if (remaining <= Duration.zero) {
-      throw TimeoutException('Waiting for $description', timeout);
-    }
-    await (advance?.call() ??
-            Future<void>.delayed(const Duration(milliseconds: 16)))
-        .timeout(
-          remaining,
-          onTimeout: () => throw TimeoutException(
-            'Waiting for $description',
-            timeout,
-          ),
-        );
-  }
-}
+import 'perf_probe_wait.dart';
+export 'perf_probe_wait.dart';
 
 /// פריים חדש אחרי הניווט מונע קבלת ready של viewport קודם.
 /// ready מכסה תמונה ב-layer tree, לא GPU presentation או overlays.
@@ -83,6 +61,7 @@ Future<void> measurePdfReaderOpening({
   required int pageNumber,
   required Future<void> Function() nextFrame,
   required Map<String, double> checkpointsMs,
+  Future<void> Function(Duration remaining)? waitForFinalImage,
   Duration timeout = const Duration(seconds: 90),
   Future<void> Function()? advance,
 }) async {
@@ -95,12 +74,17 @@ Future<void> measurePdfReaderOpening({
     advance: advance,
   );
   checkpointsMs['controller_ready'] = clock.elapsedMicroseconds / 1000;
-  await waitForPdfFinalImage(
-    controller(),
-    pageNumber: pageNumber,
-    nextFrame: nextFrame,
-    timeout: timeout - clock.elapsed,
-    advance: advance,
-  );
+  final remaining = timeout - clock.elapsed;
+  if (waitForFinalImage != null) {
+    await waitForFinalImage(remaining).timeout(remaining);
+  } else {
+    await waitForPdfFinalImage(
+      controller(),
+      pageNumber: pageNumber,
+      nextFrame: nextFrame,
+      timeout: remaining,
+      advance: advance,
+    );
+  }
   checkpointsMs['final_image_ready'] = clock.elapsedMicroseconds / 1000;
 }
