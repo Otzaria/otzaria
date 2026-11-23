@@ -18,7 +18,7 @@ class PdfFontLoadPolicy {
   final _RegisterFonts _registerPlatform;
   final Future<void> Function() _reload;
   final _awaitingRefresh = <PdfLoadedFont>[];
-  Future<void> _tail = Future<void>.value();
+  Future<void>? _tail;
   Future<PdfFontLoadResult>? _flush;
   var _queuedBatches = 0;
 
@@ -37,13 +37,20 @@ class PdfFontLoadPolicy {
 
   Future<PdfFontLoadResult> _enqueue(List<PdfFontQuery> fonts) {
     _queuedBatches++;
-    final result = _tail.then((_) async {
+    Future<PdfFontLoadResult> run() async {
       try {
         return await _load(fonts);
       } finally {
         _queuedBatches--;
+        // Future שכבר הסתיים מתזמן מאזין חדש ב־zone הישן שלו.
+        if (_queuedBatches == 0) _tail = null;
       }
-    });
+    }
+
+    final tail = _tail;
+    final result = tail == null
+        ? Future<PdfFontLoadResult>.microtask(run)
+        : tail.then((_) => run());
     _tail = result.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {},

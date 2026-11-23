@@ -160,7 +160,11 @@ void main() {
       final dialog = tester.widget<PrintingScreen>(find.byType(PrintingScreen));
       expect(dialog.pdfFilePath, activePath);
 
-      // גם הצפיין שמאחורי ההדפסה חייב לסיים פתיחה לפני סגירת ה־FakeAsync.
+      // מסך ההדפסה מנתק את הצפיין; סוגרים אותו לפני המתנה למסמך הקורא.
+      Navigator.of(tester.element(find.byType(PrintingScreen))).pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(PrintingScreen), findsNothing);
       final viewers = find.byType(PdfViewer, skipOffstage: false);
       await pumpUntil(tester, () => viewers.evaluate().isNotEmpty);
       final listenable = tester

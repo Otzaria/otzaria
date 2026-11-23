@@ -22,6 +22,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../test_helpers/pdf_document_dispose.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
 /// #4175: עמוד גבוה מהמסך — טווח המטמון מגיע לעמוד הבא, כדי שיוכן לפני שנראה.
@@ -108,59 +109,75 @@ void main() {
     PdfViewerParams params() =>
         tester.widget<PdfViewer>(find.byType(PdfViewer)).params;
 
-    await settle();
-    final controller = tab.pdfViewerController;
-    expect(controller.isReady, isTrue);
-    expect(
-      params().behaviorControlParams.partialImageLoadingDelay,
-      greaterThan(Duration.zero),
-    );
+    PdfDocument? document;
+    try {
+      await settle();
+      final controller = tab.pdfViewerController;
+      expect(controller.isReady, isTrue);
+      document = controller.document;
+      expect(controller.pageNumber, 2);
+      expect(
+        params().behaviorControlParams.partialImageLoadingDelay,
+        greaterThan(Duration.zero),
+      );
 
-    // לרוחב: העמוד גבוה מהמסך, והטווח מראש העמוד מגיע לראש העמוד הבא.
-    final layouts = controller.layout.pageLayouts;
-    final stride = layouts[2].top - layouts[1].top;
-    expect(stride, greaterThan(controller.visibleRect.height * 1.5));
-    final extent = params().verticalCacheExtent;
-    expect(extent, greaterThan(1));
-    expect(
-      controller.visibleRect.height * (1 + extent),
-      greaterThan(stride),
-    );
+      // טווח גדול מ־1 נדרש רק מעל שני גובהי מסך, ללא תלות ברוחב חלונית הפתיחה.
+      final layouts = controller.layout.pageLayouts;
+      final page = layouts[1];
+      final stride = layouts[2].top - page.top;
+      final tallPageVisibleHeight = stride / 3;
+      await controller.goTo(
+        controller.calcMatrixFor(
+          Offset(page.center.dx, page.top + tallPageVisibleHeight / 2),
+          zoom: controller.viewSize.height / tallPageVisibleHeight,
+        ),
+        duration: Duration.zero,
+      );
+      await settle();
+      expect(controller.pageNumber, 2);
+      expect(stride, greaterThan(controller.visibleRect.height * 2.5));
+      final extent = params().verticalCacheExtent;
+      expect(extent, greaterThan(1));
+      expect(
+        controller.visibleRect.height * (1 + extent),
+        greaterThan(stride),
+      );
 
-    // עמוד שלם: חוזרים לטווח הרגיל, ולא מחזיקים עמודים רחוקים.
-    final page = layouts[1];
-    final fitPage = math.min(
-      controller.viewSize.width / page.width,
-      controller.viewSize.height / page.height,
-    );
-    await controller.goTo(
-      controller.calcMatrixFor(page.center, zoom: fitPage * 0.95),
-      duration: Duration.zero,
-    );
-    await settle();
-    expect(params().verticalCacheExtent, 1);
+      // עמוד שלם: חוזרים לטווח הרגיל, ולא מחזיקים עמודים רחוקים.
+      final fitPage = math.min(
+        controller.viewSize.width / page.width,
+        controller.viewSize.height / page.height,
+      );
+      await controller.goTo(
+        controller.calcMatrixFor(page.center, zoom: fitPage * 0.95),
+        duration: Duration.zero,
+      );
+      await settle();
+      expect(params().verticalCacheExtent, 1);
 
-    // בסוף המסמך גם הרווח שלפני הדף נדרש כדי להגיע לדף הקודם.
-    final last = layouts.last;
-    final previous = layouts[layouts.length - 2];
-    final gap = last.top - previous.bottom;
-    final visibleHeight = (last.height + gap / 2) / 2;
-    await controller.goTo(
-      controller.calcMatrixFor(
-        Offset(last.center.dx, last.bottom - visibleHeight / 2),
-        zoom: controller.viewSize.height / visibleHeight,
-      ),
-      duration: Duration.zero,
-    );
-    await settle();
-    expect(controller.pageNumber, layouts.length);
-    final cache = controller.visibleRect.inflate(
-      controller.visibleRect.height * params().verticalCacheExtent,
-    );
-    expect(cache.overlaps(previous), isTrue);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await settle();
+      // בסוף המסמך גם הרווח שלפני הדף נדרש כדי להגיע לדף הקודם.
+      final last = layouts.last;
+      final previous = layouts[layouts.length - 2];
+      final gap = last.top - previous.bottom;
+      final visibleHeight = (last.height + gap / 2) / 2;
+      await controller.goTo(
+        controller.calcMatrixFor(
+          Offset(last.center.dx, last.bottom - visibleHeight / 2),
+          zoom: controller.viewSize.height / visibleHeight,
+        ),
+        duration: Duration.zero,
+      );
+      await settle();
+      expect(controller.pageNumber, layouts.length);
+      final cache = controller.visibleRect.inflate(
+        controller.visibleRect.height * params().verticalCacheExtent,
+      );
+      expect(cache.overlaps(previous), isTrue);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await settle();
+      if (document != null) await disposePdfDocument(tester, document);
+    }
   });
 }
 

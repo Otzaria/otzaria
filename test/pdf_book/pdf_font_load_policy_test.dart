@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_load_coordinator.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_load_policy.dart';
@@ -52,6 +53,79 @@ void main() {
         refreshPendingFonts: () async =>
             (await policy.loadMissingFonts(const [])).hasLoadedFonts,
       );
+
+  for (final initial in ['empty', 'loaded', 'failed refresh']) {
+    test('a finished $initial zone does not retain the font queue', () {
+      late PdfFontLoadPolicy policy;
+      var registrations = 0;
+      var reloads = 0;
+      var initialComplete = false;
+      Object? initialFailure;
+      final first = FakeAsync();
+      first.run((_) {
+        policy = PdfFontLoadPolicy(
+          registerHebrew: (queries) async {
+            registrations += queries.length;
+            return PdfFontLoadResult(
+              loaded: [
+                for (final query in queries)
+                  PdfLoadedFont(
+                    query: query,
+                    targetFace: query.face,
+                    length: 8,
+                  ),
+              ],
+              unresolved: const [],
+              failed: const [],
+              fontsReloaded: false,
+            );
+          },
+          registerPlatform: (_) async => fail('Only ANSI queries are used'),
+          reload: () async {
+            reloads++;
+            if (initial == 'failed refresh' && reloads == 1) {
+              throw StateError('refresh failed');
+            }
+          },
+        );
+        policy
+            .loadMissingFonts(initial == 'empty' ? const [] : [_query('First')])
+            .then<void>(
+              (_) => initialComplete = true,
+              onError: (Object error, StackTrace stackTrace) {
+                initialFailure = error;
+                initialComplete = true;
+              },
+            );
+      });
+      first.flushMicrotasks();
+      expect(initialComplete, isTrue);
+      if (initial == 'failed refresh') {
+        expect(initialFailure, isA<StateError>());
+      } else {
+        expect(initialFailure, isNull);
+      }
+
+      PdfFontLoadResult? result;
+      final second = FakeAsync();
+      second.run((_) {
+        policy
+            .loadMissingFonts([_query('Second')])
+            .then((value) => result = value);
+      });
+      // הסביבה הראשונה הסתיימה; ממשיכים רק את תור האירועים של הבקשה החדשה.
+      second.flushMicrotasks();
+      expect(result, isNotNull);
+      expect(
+        result!.loaded.map((font) => font.query.face),
+        initial == 'failed refresh' ? ['First', 'Second'] : ['Second'],
+      );
+      expect(result!.fontsReloaded, isTrue);
+      expect(registrations, initial == 'empty' ? 1 : 2);
+      expect(reloads, initial == 'empty' ? 1 : 2);
+      expect(first.microtaskCount, 0);
+    });
+  }
 
   test(
     'ANSI, default and Hebrew keep the original fixed-pitch query',
