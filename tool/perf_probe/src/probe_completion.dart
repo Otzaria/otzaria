@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'probe_binding.dart';
 
-/// Publish completion only after the caller has closed the recorder's journal.
+/// Publish completion after the caller has closed any journal it opened.
 Future<void> writePerfProbeCompletion({
   required Directory output,
   required int launchIndex,
@@ -17,12 +17,13 @@ Future<void> writePerfProbeCompletion({
   final pending = File('${output.path}/completion.pending');
   final completion = File('${output.path}/completion.json');
   final journal = File('${output.path}/phases.jsonl');
-  if (!await journal.exists() ||
-      await pending.exists() ||
-      await completion.exists()) {
-    throw StateError('Completion requires one fresh, closed probe journal.');
-  }
   final passed = successful && error == null && testFailures.isEmpty;
+  if (await pending.exists() || await completion.exists()) {
+    throw StateError('The output directory already contains a completion.');
+  }
+  if (passed && !await journal.exists()) {
+    throw StateError('Successful completion requires a closed probe journal.');
+  }
   if (passed && (fixtureId == null || fixtureId.isEmpty)) {
     throw StateError('A successful probe must identify its fixture.');
   }

@@ -113,11 +113,20 @@ void main() {
       expect(value['error'], 'native rendering failed');
     });
 
-    test('failure before fixture identity remains a failed diagnostic', () async {
-      await complete(successful: false, missingFixture: true);
+    test('fixture failure before the journal is reported', () async {
+      await journal.delete();
+      await complete(
+        successful: false,
+        error: 'invalid PDF fixture',
+        missingFixture: true,
+      );
       final value = await result();
       expect(value['status'], 'failed');
+      expect(value['error'], 'invalid PDF fixture');
       expect(value['fixtureId'], isNull);
+      final done = jsonDecode(await journal.readAsString()) as Map<String, dynamic>;
+      expect(done['type'], 'done');
+      expect(done['status'], 'failed');
     });
 
     test('success without a fixture cannot append a done record', () async {
@@ -142,7 +151,7 @@ void main() {
       expect(await File('${output.path}/completion.json').exists(), isFalse);
     });
 
-    test('the journal must already exist', () async {
+    test('success requires an existing journal', () async {
       await journal.delete();
       await expectLater(complete(), throwsStateError);
       expect(await File('${output.path}/completion.json').exists(), isFalse);
