@@ -13,6 +13,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/printing_raster_idle.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -58,7 +59,7 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
       );
-      await tester.pump();
+      await tester.pump(Duration.zero);
     }
   }
 
@@ -125,6 +126,7 @@ void main() {
         reason: 'ההתחלה נשארה "דף טו:" והטווח ריק',
       );
       await tester.pumpWidget(const SizedBox());
+      await drainPrintingRasterQueue(tester);
     },
   );
 }

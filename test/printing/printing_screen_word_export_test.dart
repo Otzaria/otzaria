@@ -19,6 +19,7 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/printing_raster_idle.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -95,14 +96,14 @@ Future<String> _exportWord(WidgetTester tester) async {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
-    await tester.pump();
+    await tester.pump(Duration.zero);
   }
   await tester.tap(find.text('שמירה'));
   for (var i = 0; i < 300 && picker.bytes == null; i++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
-    await tester.pump();
+    await tester.pump(Duration.zero);
   }
   expect(picker.bytes, isNotNull, reason: 'לא נוצר קובץ Word');
   final archive = ZipDecoder().decodeBytes(picker.bytes!);
@@ -110,6 +111,7 @@ Future<String> _exportWord(WidgetTester tester) async {
     archive.findFile('word/document.xml')!.content as List<int>,
   );
   await tester.pumpWidget(const SizedBox());
+  await drainPrintingRasterQueue(tester);
   return xml;
 }
 

@@ -37,6 +37,7 @@ import 'package:xml/xml.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/printing_raster_idle.dart';
 import '../test_helpers/capture_file_saves.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
@@ -174,7 +175,7 @@ Future<String> _exportWord(
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
-    await tester.pump();
+    await tester.pump(Duration.zero);
   }
   await verifyPdf?.call(tester);
   await tester.tap(find.text('שמירה'));
@@ -182,7 +183,7 @@ Future<String> _exportWord(
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
-    await tester.pump();
+    await tester.pump(Duration.zero);
   }
   expect(picker.bytes, isNotNull, reason: 'לא נוצר קובץ Word');
   final archive = ZipDecoder().decodeBytes(picker.bytes!);
@@ -190,6 +191,7 @@ Future<String> _exportWord(
     archive.findFile('word/document.xml')!.content as List<int>,
   );
   await tester.pumpWidget(const SizedBox());
+  await drainPrintingRasterQueue(tester);
   return xml;
 }
 

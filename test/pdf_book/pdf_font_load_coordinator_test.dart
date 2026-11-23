@@ -392,6 +392,81 @@ void main() {
     });
   });
 
+  group('font events from already delivered documents', () {
+    test(
+      'discovery waits for a live document registration and refresh',
+      () async {
+        final ready = Completer<PdfFontLoadResult>();
+        final coordinator = PdfFontLoadCoordinator(load: (_) => ready.future);
+        final opening = coordinator.beginOpening();
+        final font = query('Reported by an existing render');
+        final liveLoad = coordinator.loadMissingFonts([font]);
+        var delivered = false;
+        final completed = coordinator.completeOpening(opening, const []).then((
+          value,
+        ) {
+          delivered = true;
+          return value;
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(delivered, isFalse);
+        ready.complete(loadedResult([font]));
+        expect(await liveLoad, isTrue);
+        expect(await completed, isTrue);
+      },
+    );
+
+    test(
+      'a failed live load does not hide a successful live refresh',
+      () async {
+        final good = Completer<PdfFontLoadResult>();
+        final bad = Completer<PdfFontLoadResult>();
+        final coordinator = PdfFontLoadCoordinator(
+          load: (fonts) =>
+              fonts.first.face == 'Good' ? good.future : bad.future,
+        );
+        final opening = coordinator.beginOpening();
+        final goodFont = query('Good');
+        final liveGood = coordinator.loadMissingFonts([goodFont]);
+        final liveBad = expectLater(
+          coordinator.loadMissingFonts([query('Bad')]),
+          throwsStateError,
+        );
+        final completed = coordinator.completeOpening(opening, const []);
+        bad.completeError(StateError('unavailable font'));
+        good.complete(loadedResult([goodFont]));
+        await liveBad;
+        expect(await liveGood, isTrue);
+        expect(await completed, isTrue);
+      },
+    );
+
+    test('the pending-load snapshot excludes later render events', () async {
+      final firstReady = Completer<PdfFontLoadResult>();
+      final laterReady = Completer<PdfFontLoadResult>();
+      final coordinator = PdfFontLoadCoordinator(
+        load: (fonts) =>
+            fonts.first.face == 'First' ? firstReady.future : laterReady.future,
+      );
+      final opening = coordinator.beginOpening();
+      final firstFont = query('First');
+      final laterFont = query('Later');
+      final firstLoad = coordinator.loadMissingFonts([firstFont]);
+      final completed = coordinator.completeOpening(opening, const []);
+      await Future<void>.delayed(Duration.zero);
+      final laterLoad = coordinator.loadMissingFonts([laterFont]);
+      try {
+        firstReady.complete(loadedResult([firstFont]));
+        expect(await firstLoad, isTrue);
+        expect(await completed.timeout(const Duration(seconds: 1)), isTrue);
+        expect(laterReady.isCompleted, isFalse);
+      } finally {
+        laterReady.complete(loadedResult([laterFont]));
+        await laterLoad;
+      }
+    });
+  });
+
   group('locked PdfFontManager work counts', () {
     late PdfrxEntryFunctions previousBackend;
 

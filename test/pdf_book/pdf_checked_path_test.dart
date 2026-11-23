@@ -27,6 +27,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../helpers/pdf_viewer_mounted.dart';
+import '../helpers/printing_raster_idle.dart';
 import '../test_helpers/pdf_document_dispose.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 
@@ -131,6 +132,16 @@ void main() {
     );
   }
 
+  Future<void> pumpUntil(WidgetTester tester, bool Function() ready) async {
+    for (var i = 0; i < 100 && !ready(); i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(ready(), isTrue);
+  }
+
   testWidgets('הדפסה זמינה אחרי איתור הנתיב החדש של PDF שהועבר', (
     tester,
   ) async {
@@ -148,7 +159,23 @@ void main() {
 
       final dialog = tester.widget<PrintingScreen>(find.byType(PrintingScreen));
       expect(dialog.pdfFilePath, activePath);
+
+      // גם הצפיין שמאחורי ההדפסה חייב לסיים פתיחה לפני סגירת ה־FakeAsync.
+      final viewers = find.byType(PdfViewer, skipOffstage: false);
+      await pumpUntil(tester, () => viewers.evaluate().isNotEmpty);
+      final listenable = tester
+          .widget<PdfViewer>(viewers)
+          .documentRef
+          .resolveListenable();
+      await pumpUntil(
+        tester,
+        () => listenable.document != null || listenable.error != null,
+      );
+      expect(listenable.error, isNull);
+      final document = listenable.document!;
       await tester.pumpWidget(const SizedBox.shrink());
+      await drainPrintingRasterQueue(tester);
+      await disposePdfDocument(tester, document);
     });
   });
 
@@ -157,21 +184,11 @@ void main() {
     final validPdf = file.readAsBytesSync();
     file.writeAsStringSync('invalid PDF');
 
-    Future<void> pumpUntil(bool Function() ready) async {
-      for (var i = 0; i < 100 && !ready(); i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-        await tester.pump(const Duration(milliseconds: 20));
-      }
-      expect(ready(), isTrue);
-    }
-
     await withSlowOriginalPath((oldProbe) async {
       await pumpReader(tester);
       oldProbe.complete(false);
       final bloc = await pumpUntilPdfViewer(tester);
-      await pumpUntil(() => find.text('נסה שוב').evaluate().isNotEmpty);
+      await pumpUntil(tester, () => find.text('נסה שוב').evaluate().isNotEmpty);
 
       file.writeAsBytesSync(validPdf);
       final viewer = tester.widget<PdfViewer>(find.byType(PdfViewer));
@@ -180,7 +197,7 @@ void main() {
       await tester.tap(find.text('נסה שוב'));
       await tester.pump();
       expect(bloc.state, isA<PdfBookLoading>());
-      await pumpUntil(() => bloc.state is PdfBookLoaded);
+      await pumpUntil(tester, () => bloc.state is PdfBookLoaded);
 
       final document = bloc.tab.pdfViewerController.document;
       await tester.pumpWidget(const SizedBox.shrink());

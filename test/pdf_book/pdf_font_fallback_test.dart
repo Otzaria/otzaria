@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
@@ -96,7 +97,7 @@ void main() {
   });
 
   testWidgets(
-    'גופן עברי שאינו מוטמע: בלי גופן חלופי האותיות נעלמות, ואיתו הן נחלצות',
+    'גופן עברי שאינו מוטמע: גופן חלופי מחזיר חילוץ ורינדור של האותיות',
     (tester) async {
       await tester.runAsync(() async {
         await pdfrxFlutterInitialize();
@@ -106,14 +107,22 @@ void main() {
         );
 
         final plain = await PdfDocument.openFile(path);
+        await _printNativeFontEnvironment();
         final plainText = (await plain.pages[0].loadStructuredText()).fullText;
+        final plainRaster = await _renderHebrew(plain);
         await plain.dispose();
         expect(plainText, isNot(contains('שלום')));
 
         final fixed = await PdfFontFallback.openFile(path);
         final fixedText = (await fixed.pages[0].loadStructuredText()).fullText;
+        final fixedRaster = await _renderHebrew(fixed);
         await fixed.dispose();
+        // ignore: avoid_print
+        print(
+          'PDF_SINGLE_FONT_NATIVE ${jsonEncode({'plainText': plainText, 'plainRaster': plainRaster.diagnostics, 'fixedText': fixedText, 'fixedRaster': fixedRaster.diagnostics})}',
+        );
         expect(fixedText, contains('שלום'));
+        expect(fixedRaster.inkPixels, greaterThan(100));
       });
     },
   );
@@ -124,10 +133,11 @@ void main() {
     await tester.runAsync(() async {
       await pdfrxFlutterInitialize();
       const count = 10;
+      const face = 'OtzariaSharedHebrewFace';
       final paths = [
         for (var i = 0; i < count; i++) '${tempDir.path}/shared-$i.pdf',
       ];
-      final bytes = _nonEmbeddedHebrewPdf('OtzariaSharedHebrewFace');
+      final bytes = _nonEmbeddedHebrewPdf(face);
       for (final path in paths) {
         await File(path).writeAsBytes(bytes);
       }
@@ -140,6 +150,21 @@ void main() {
         ]);
         expect(backend.registrations, 1);
         expect(backend.reloads, 1);
+        expect(backend.registrationSources.single['kind'], 'data');
+        expect(backend.registrationSources.single['resolvedFace'], 'Tinos');
+        expect(
+          backend.opened
+              .take(count)
+              .expand((doc) => doc.missingQueries)
+              .any(
+                (query) =>
+                    query.face == face &&
+                    query.charset == PdfFontCharset.ansi &&
+                    query.isFixed,
+              ),
+          isTrue,
+          reason: 'The real query must exercise the fixed-pitch ANSI fallback',
+        );
         final originals = backend.opened.take(count).toSet();
         final reopened = documents.where((doc) => !originals.contains(doc));
         expect(reopened, isNotEmpty);
@@ -151,6 +176,7 @@ void main() {
           observations.add({
             'text': text,
             'inkPixels': raster.inkPixels,
+            'raster': raster.diagnostics,
             'reopened': !originals.contains(document),
             'matchesReopenedRaster':
                 raster.pixels.length == reference.pixels.length &&
@@ -161,7 +187,7 @@ void main() {
         }
         // ignore: avoid_print
         print(
-          'PDF_SHARED_FONT_NATIVE ${jsonEncode({'opens': backend.opened.length, 'registrations': backend.registrations, 'reloads': backend.reloads, 'documents': observations})}',
+          'PDF_SHARED_FONT_NATIVE ${jsonEncode({'opens': backend.opened.length, 'registrations': backend.registrations, 'registrationSources': backend.registrationSources, 'reloads': backend.reloads, 'documents': observations})}',
         );
         expect(
           observations.map((row) => row['text']),
@@ -238,10 +264,14 @@ void main() {
           final embedded = documents.last;
           final observations = <Map<String, Object>>[];
           for (final document in documents) {
+            final text =
+                (await document.pages[0].loadStructuredText()).fullText;
+            final raster = await _renderHebrew(document);
             observations.add({
               'memory': identical(document, embedded),
-              'text': (await document.pages[0].loadStructuredText()).fullText,
-              'inkPixels': (await _renderHebrew(document)).inkPixels,
+              'text': text,
+              'inkPixels': raster.inkPixels,
+              'raster': raster.diagnostics,
             });
           }
           // ignore: avoid_print
@@ -251,6 +281,7 @@ void main() {
               'opens': backend.opened.length,
               'customOpens': backend.customOpens,
               'registrations': backend.registrations,
+              'registrationSources': backend.registrationSources,
               'reloads': backend.reloads,
               'discovery': [
                 for (final doc in backend.opened.take(count + 1)) {'source': doc.sourceName, 'faces': doc.missingFaces},
@@ -381,9 +412,142 @@ void main() {
       });
     });
   }
+
+  testWidgets('רינדור של מסמך חי אינו מאבד גופן של פתיחות חדשות', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      await pdfrxFlutterInitialize();
+      final font = pw.Font.ttf(
+        await rootBundle.load(PdfFontFallback.bundledFallbackAsset),
+      );
+      final pdf = pw.Document()
+        ..addPage(
+          pw.Page(
+            build: (_) => pw.Text(
+              'שלום',
+              textDirection: pw.TextDirection.rtl,
+              style: pw.TextStyle(font: font, fontSize: 36),
+            ),
+          ),
+        );
+      final existing = _ObservedFontDocument(
+        await PrintPdfSource.data(await pdf.save()).open(),
+      );
+      const count = 10;
+      var exercisedLiveDrainage = false;
+      try {
+        // תזמון ה־worker משתנה; כל ניסיון משתמש בשם גופן חדש ובודק את כל התוצאות.
+        for (
+          var attempt = 0;
+          attempt < 8 && !exercisedLiveDrainage;
+          attempt++
+        ) {
+          final face = 'OtzariaLiveRenderHebrewFace$attempt';
+          final paths = [
+            for (var i = 0; i < count; i++)
+              '${tempDir.path}/live-render-$attempt-$i.pdf',
+          ];
+          for (final path in paths) {
+            await File(path).writeAsBytes(_nonEmbeddedHebrewPdf(face));
+          }
+          final original = PdfrxEntryFunctions.instance;
+          final backend = _ConcurrentFontBackend(original, count);
+          PdfrxEntryFunctions.instance = backend;
+          try {
+            final opening = Future.wait([
+              for (final path in paths) PdfFontFallback.openFile(path),
+            ]);
+            // ה־barrier עובר ב־worker אחרי טעינת הקבצים ולפני סיום גילוי העמודים.
+            await Future<void>.value();
+            await original.compute<int, int>((value) => value, 0);
+            final rendering = () async {
+              for (var frame = 0; frame < 4; frame++) {
+                expect(
+                  (await _renderHebrew(existing)).inkPixels,
+                  greaterThan(100),
+                );
+                await Future<void>.delayed(Duration.zero);
+              }
+            }();
+            await Future.wait<void>([opening.then((_) {}), rendering]);
+            final documents = await opening;
+            final observations = <Map<String, Object>>[];
+            for (final document in documents) {
+              final text =
+                  (await document.pages[0].loadStructuredText()).fullText;
+              final raster = await _renderHebrew(document);
+              observations.add({
+                'text': text,
+                'inkPixels': raster.inkPixels,
+                'raster': raster.diagnostics,
+              });
+            }
+            exercisedLiveDrainage = existing.missingFaces.contains(face);
+            // ignore: avoid_print
+            print(
+              'PDF_LIVE_RENDER_FONT_NATIVE ${jsonEncode({'attempt': attempt, 'exercisedLiveDrainage': exercisedLiveDrainage, 'liveDocumentFaces': existing.missingFaces, 'opens': backend.opened.length, 'registrations': backend.registrations, 'registrationSources': backend.registrationSources, 'reloads': backend.reloads, 'documents': observations})}',
+            );
+            expect(
+              observations.map((row) => row['text']),
+              everyElement(contains('שלום')),
+            );
+            expect(
+              observations.map((row) => row['inkPixels']),
+              everyElement(greaterThan(100)),
+            );
+            expect(backend.opened, hasLength(count * 2));
+            expect(backend.registrations, 1);
+            expect(backend.reloads, 1);
+          } finally {
+            for (final document in backend.opened) {
+              if (!document.disposed) await document.dispose();
+            }
+            PdfrxEntryFunctions.instance = original;
+          }
+        }
+        expect(
+          exercisedLiveDrainage,
+          isTrue,
+          reason:
+              'A live render must actually receive a missing-font query from a concurrent open',
+        );
+      } finally {
+        await existing.dispose();
+      }
+    });
+  });
 }
 
-Future<({Uint8List pixels, int inkPixels})> _renderHebrew(
+Future<void> _printNativeFontEnvironment() async {
+  final bundled = await rootBundle.load(PdfFontFallback.bundledFallbackAsset);
+  final fontBytes = bundled.buffer.asUint8List(
+    bundled.offsetInBytes,
+    bundled.lengthInBytes,
+  );
+  final libraries = <Map<String, Object>>[];
+  if (Platform.isLinux) {
+    final paths = (await File('/proc/self/maps').readAsLines())
+        .where((line) => line.contains('/libpdfium.so'))
+        .map((line) => line.substring(line.indexOf('/')))
+        .toSet();
+    for (final path in paths) {
+      final bytes = await File(path).readAsBytes();
+      libraries.add({
+        'path': path,
+        'bytes': bytes.length,
+        'sha256': sha256.convert(bytes).toString(),
+      });
+    }
+  }
+  // ignore: avoid_print
+  print(
+    'PDF_FONT_NATIVE_ENV ${jsonEncode({'libraries': libraries, 'fontBytes': fontBytes.length, 'fontSha256': sha256.convert(fontBytes).toString(), 'explicitModulePath': Pdfrx.pdfiumModulePath, 'processGate': Pdfrx.useProcessWidePdfiumGate})}',
+  );
+}
+
+Future<({Uint8List pixels, int inkPixels, Map<String, int> diagnostics})>
+_renderHebrew(
   PdfDocument document,
 ) async {
   final image = await document.pages[0].render(
@@ -393,12 +557,34 @@ Future<({Uint8List pixels, int inkPixels})> _renderHebrew(
   try {
     final pixels = Uint8List.fromList(image.pixels);
     var inkPixels = 0;
+    var minRgb = 255;
+    var maxAlpha = 0;
+    var nonWhitePixels = 0;
     for (var i = 0; i < pixels.length; i += 4) {
+      for (var channel = 0; channel < 3; channel++) {
+        if (pixels[i + channel] < minRgb) minRgb = pixels[i + channel];
+      }
+      if (pixels[i + 3] > maxAlpha) maxAlpha = pixels[i + 3];
+      if (pixels[i] != 255 || pixels[i + 1] != 255 || pixels[i + 2] != 255) {
+        nonWhitePixels++;
+      }
       final darkness =
           (765 - pixels[i] - pixels[i + 1] - pixels[i + 2]) * pixels[i + 3];
       if (darkness > 3 * 15 * 255) inkPixels++;
     }
-    return (pixels: pixels, inkPixels: inkPixels);
+    return (
+      pixels: pixels,
+      inkPixels: inkPixels,
+      diagnostics: {
+        'width': image.width,
+        'height': image.height,
+        'pixelBytes': pixels.length,
+        'minRgb': minRgb,
+        'maxAlpha': maxAlpha,
+        'nonWhitePixels': nonWhitePixels,
+        'inkPixels': inkPixels,
+      },
+    );
   } finally {
     image.dispose();
   }
@@ -416,6 +602,7 @@ class _ConcurrentFontBackend implements PdfrxEntryFunctions {
   int? customMemoryLimit;
   int registrations = 0;
   int reloads = 0;
+  final registrationSources = <Map<String, Object?>>[];
 
   @override
   PdfrxBackendType get backendType => base.backendType;
@@ -509,6 +696,13 @@ class _ConcurrentFontBackend implements PdfrxEntryFunctions {
     String? resolvedFace,
   }) async {
     registrations++;
+    registrationSources.add({
+      'kind': 'data',
+      'face': face,
+      'resolvedFace': resolvedFace,
+      'bytes': data.length,
+      'sha256': sha256.convert(data).toString(),
+    });
     // כל המסמכים המקוריים מספיקים לדווח על הגופן לפני הרישום הראשון.
     await Future<void>.delayed(Duration.zero);
     await base.addFontData(face: face, data: data, resolvedFace: resolvedFace);
@@ -521,6 +715,12 @@ class _ConcurrentFontBackend implements PdfrxEntryFunctions {
     String? resolvedFace,
   }) async {
     registrations++;
+    registrationSources.add({
+      'kind': 'file',
+      'face': face,
+      'resolvedFace': resolvedFace,
+      'path': filePath,
+    });
     await Future<void>.delayed(Duration.zero);
     await base.addFontFile(
       face: face,
@@ -544,12 +744,14 @@ class _ObservedFontDocument extends PdfDocument {
     _observations = base.events.listen((event) {
       if (event is PdfDocumentMissingFontsEvent) {
         missingFaces.addAll(event.missingFonts.map((query) => query.face));
+        missingQueries.addAll(event.missingFonts);
       }
     });
   }
 
   final PdfDocument base;
   final missingFaces = <String>[];
+  final missingQueries = <PdfFontQuery>[];
   late final StreamSubscription<PdfDocumentEvent> _observations;
   bool disposed = false;
   Future<void>? closing;

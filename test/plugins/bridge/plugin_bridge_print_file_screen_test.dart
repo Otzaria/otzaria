@@ -133,7 +133,7 @@ Future<bool> _pumpUntil(WidgetTester tester, bool Function() done) async {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 25)),
     );
-    await tester.pump();
+    await tester.pump(Duration.zero);
   }
   return done();
 }

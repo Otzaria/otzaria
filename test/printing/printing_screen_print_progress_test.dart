@@ -186,7 +186,7 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 25)),
       );
-      await tester.pump();
+      await tester.pump(Duration.zero);
     }
     expect(previewDone(), isTrue);
     return platform;

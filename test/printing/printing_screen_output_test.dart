@@ -99,7 +99,7 @@ Future<T> _settle<T>(WidgetTester tester, Future<T> future) async {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 25)),
     );
-    await tester.pump();
+    await tester.pump(Duration.zero);
   }
   expect(done, isTrue, reason: 'הפעולה לא הסתיימה');
   return result;
@@ -281,7 +281,7 @@ void main() {
           await tester.runAsync(
             () => Future<void>.delayed(const Duration(milliseconds: 25)),
           );
-          await tester.pump();
+          await tester.pump(Duration.zero);
         }
         expect(previewDone(), isTrue);
 
@@ -360,7 +360,7 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 25)),
       );
-      await tester.pump();
+      await tester.pump(Duration.zero);
     }
     expect(previewDone(), isTrue);
 
@@ -414,7 +414,7 @@ void main() {
             await tester.runAsync(
               () => Future<void>.delayed(const Duration(milliseconds: 25)),
             );
-            await tester.pump();
+            await tester.pump(Duration.zero);
           }
           expect(previewShows(pages), isTrue);
         }

@@ -15,6 +15,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/printing_raster_idle.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -113,7 +114,7 @@ void main() {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
       );
-      await tester.pump();
+      await tester.pump(Duration.zero);
     }
   }
 
@@ -126,6 +127,7 @@ void main() {
     expect(find.text('פרק א'), findsWidgets);
     expect(find.text('פרק ב'), findsWidgets);
     await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
   });
 
   testWidgets('רמה 2 — הטווח נחתך למגבלה ו"שמור ל-PDF" מוסתר', (
@@ -159,6 +161,7 @@ void main() {
     expect(find.text('שמור ל-PDF'), findsNothing);
     expect(find.text('שמור ל-Word'), findsNothing);
     await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
   });
 
   testWidgets('בלי endLine — ברירת המחדל הקיימת: הכותרת שסביב השורה', (
@@ -169,6 +172,7 @@ void main() {
     // פרק א בלבד (שורות 1–6)
     expect(find.text(_selectedLabel(6)), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
   });
   testWidgets(
     'SDK commentator picker changes selection and survives include toggle',
@@ -197,6 +201,7 @@ void main() {
       await tester.pump();
       expect(tester.widget<FilterChip>(chips.at(1)).selected, isTrue);
       await tester.pumpWidget(const SizedBox());
+      await drainPrintingRasterQueue(tester);
     },
   );
   testWidgets('SDK with no linked commentators has no selectable chips', (
@@ -208,5 +213,6 @@ void main() {
     await tester.pump();
     expect(find.byType(FilterChip), findsNothing);
     await tester.pumpWidget(const SizedBox());
+    await drainPrintingRasterQueue(tester);
   });
 }

@@ -6,11 +6,13 @@ typedef _FontQueryKey = (String, int, bool, PdfFontCharset, int);
 
 /// מאחד טעינות גופן ממתינות, ושומר את הצורך בפתיחה מחדש לכל מסמך שממתין.
 class PdfFontLoadCoordinator {
-  PdfFontLoadCoordinator({required this._load});
+  PdfFontLoadCoordinator({required this._load, this._refreshPendingFonts});
 
   final Future<PdfFontLoadResult> Function(Iterable<PdfFontQuery>) _load;
+  final Future<bool> Function()? _refreshPendingFonts;
   final _pending = <_FontQueryKey, Completer<bool>>{};
   final _openings = <PdfFontOpening>{};
+  Future<void>? _pendingRefresh;
   var _revision = 0;
 
   PdfFontOpening beginOpening() {
@@ -39,10 +41,32 @@ class PdfFontLoadCoordinator {
           await peer._fonts;
         }),
       );
+      // רינדור של מסמך שכבר נמסר יכול לדווח גופן ששייך לפתיחה הנוכחית.
+      await Future.wait([
+        for (final pending in _pending.values) pending.future,
+      ]).then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {},
+      );
+      // רישום יכול להצליח לפני כשל refresh, ואז הפתיחה הבאה לא תדווח חוסר.
+      await _refreshPending();
       return opening._revision != _revision;
     } finally {
       cancelOpening(opening);
     }
+  }
+
+  Future<void> _refreshPending() {
+    final refresh = _refreshPendingFonts;
+    if (refresh == null) return Future.value();
+    return _pendingRefresh ??= Future<bool>.sync(refresh)
+        .then<void>(
+          (changed) {
+            if (changed) _revision++;
+          },
+          onError: (Object error, StackTrace stackTrace) {},
+        )
+        .whenComplete(() => _pendingRefresh = null);
   }
 
   /// משחרר ממתינים גם בכשל פתיחה או בהמתנה להזנת סיסמה.

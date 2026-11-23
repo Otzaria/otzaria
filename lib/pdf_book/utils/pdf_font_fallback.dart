@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:otzaria/pdf_book/utils/pdf_font_load_coordinator.dart';
+import 'package:otzaria/pdf_book/utils/pdf_font_load_policy.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -14,14 +15,26 @@ class PdfFontFallback {
 
   static const String bundledFallbackAsset = 'fonts/Tinos-Regular.ttf';
 
-  static final PdfFontManager _manager = PdfFontManager.platform(
-    resolvers: [
-      const _SystemFamilyResolver(),
-      const _BundledFontResolver(),
-    ],
+  static const _resolvers = <PdfFontResolver>[
+    _SystemFamilyResolver(),
+    _BundledFontResolver(),
+  ];
+  // fallback גנרי לפי fixed-pitch עלול לבחור גופן ללא גליפים עבריים.
+  static final _hebrewManager = PdfFontManager(resolvers: _resolvers);
+  static final _platformManager = PdfFontManager.platform(
+    resolvers: _resolvers,
+  );
+  static final _fontPolicy = PdfFontLoadPolicy(
+    registerHebrew: (queries) =>
+        _hebrewManager.loadMissingFonts(queries, reloadFonts: false),
+    registerPlatform: (queries) =>
+        _platformManager.loadMissingFonts(queries, reloadFonts: false),
+    reload: () => PdfrxEntryFunctions.instance.reloadFonts(),
   );
   static final _fontLoads = PdfFontLoadCoordinator(
-    load: _manager.loadMissingFonts,
+    load: _fontPolicy.loadMissingFonts,
+    refreshPendingFonts: () async =>
+        (await _fontPolicy.loadMissingFonts(const [])).hasLoadedFonts,
   );
 
   /// פותח את [filePath]. גופן שחסר נקבע בזמן הטעינה, ולכן אחרי רישום
@@ -68,14 +81,17 @@ class PdfFontFallback {
         final document = await loader(
           passwordProvider == null ? null : requestPassword,
         );
-        final missing = await _reportedMissingFonts(document);
-        final fontsChanged = await _fontLoads.completeOpening(opening, missing);
+        await _observeMissingFonts(document);
+        final fontsChanged = await _fontLoads.completeOpening(
+          opening,
+          const [],
+        );
         if (!fontsChanged || !allowReopen) return document;
 
         // ה־worker חייב להשתחרר מהמסמך לפני פתיחתו מחדש. גם הפתיחה
         // החוזרת משתתפת בגילוי, כי היא עלולה לקבל אירוע של מסמך אחר.
         await document.dispose();
-        return open(allowReopen: false);
+        return await open(allowReopen: false);
       } finally {
         _fontLoads.cancelOpening(opening);
       }
@@ -103,19 +119,24 @@ class PdfFontFallback {
     );
   }
 
-  static Future<List<PdfFontQuery>> _reportedMissingFonts(
+  static Future<void> _observeMissingFonts(
     PdfDocument document,
   ) async {
-    final missing = <PdfFontQuery>[];
-    final subscription = document.events.listen((event) {
+    // גם רינדור מאוחר יכול לנקז גופן של פתיחת ספר אחר. ה־stream נסגר ב־dispose.
+    document.events.listen((event) {
       if (event is PdfDocumentMissingFontsEvent) {
-        missing.addAll(event.missingFonts);
+        unawaited(
+          _fontLoads
+              .loadMissingFonts(event.missingFonts)
+              .then<void>(
+                (_) {},
+                onError: (Object error, StackTrace stackTrace) {},
+              ),
+        );
       }
     });
     // האירוע נשמר ב-replay של המסמך ונמסר למאזין חדש באסינכרוניות.
     await Future<void>.delayed(Duration.zero);
-    await subscription.cancel();
-    return missing;
   }
 
   /// שם המשפחה ששמור בשם גופן של PDF: בלי קידומת subset ובלי סיומת סגנון.
