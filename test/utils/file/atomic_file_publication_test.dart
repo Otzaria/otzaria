@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
 import 'package:otzaria/utils/file/atomic_file_publication.dart';
 import 'package:path/path.dart' as p;
+import 'package:posix/posix.dart' as posix;
 import 'package:test/test.dart';
 
 void main() {
@@ -73,6 +76,184 @@ void main() {
     expect(await destination.readAsString(), 'replacement');
     await expectNoStaging();
   });
+
+  test(
+    'POSIX staging is private before producing a new file',
+    () async {
+      expect(
+        await publishFileAtomically(
+          target: target(),
+          producer: (path) async {
+            expect((await FileStat.stat(path)).mode & 0xFFF, 0x180);
+            await File(path).writeAsString('private document');
+          },
+        ),
+        isTrue,
+      );
+      expect((await destination.stat()).mode & 0xFFF, 0x180);
+      await expectNoStaging();
+    },
+    skip: !(Platform.isLinux || Platform.isMacOS),
+  );
+
+  for (final mode in ['600', '640', '644']) {
+    test(
+      'POSIX overwrite preserves target mode $mode after private production',
+      () async {
+        await destination.writeAsString('keep until publication');
+        posix.chmod(destination.path, mode);
+        final expected = int.parse(mode, radix: 8);
+        expect(
+          await publishFileAtomically(
+            target: target(overwrite: true),
+            producer: (path) async {
+              expect((await FileStat.stat(path)).mode & 0xFFF, 0x180);
+              expect((await destination.stat()).mode & 0xFFF, expected);
+              await File(path).writeAsString('replacement');
+            },
+          ),
+          isTrue,
+        );
+        expect(await destination.readAsString(), 'replacement');
+        expect((await destination.stat()).mode & 0xFFF, expected);
+        await expectNoStaging();
+      },
+      skip: !(Platform.isLinux || Platform.isMacOS),
+    );
+  }
+
+  test(
+    'POSIX permissions are read again at the publication boundary',
+    () async {
+      await destination.writeAsString('keep until publication');
+      posix.chmod(destination.path, '644');
+      expect(
+        await publishFileAtomically(
+          target: target(overwrite: true),
+          producer: (path) async {
+            await File(path).writeAsString('replacement');
+            posix.chmod(destination.path, '600');
+          },
+        ),
+        isTrue,
+      );
+      expect((await destination.stat()).mode & 0xFFF, 0x180);
+      await expectNoStaging();
+    },
+    skip: !(Platform.isLinux || Platform.isMacOS),
+  );
+
+  test(
+    'a POSIX permissions failure prevents the producer and preserves the target',
+    () async {
+      await destination.writeAsString('keep');
+      var produced = false;
+      await expectLater(
+        IOOverrides.runWithIOOverrides(
+          () => publishFileAtomically(
+            target: target(overwrite: true),
+            producer: (_) async => produced = true,
+          ),
+          _PublicationOverrides(removeAfterCreate: true),
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(produced, isFalse);
+      expect(await destination.readAsString(), 'keep');
+      await expectNoStaging();
+    },
+    skip: !(Platform.isLinux || Platform.isMacOS),
+  );
+
+  for (final protected in [true, false]) {
+    test(
+      'Windows overwrite preserves the target DACL (protected=$protected)',
+      () async {
+        await destination.writeAsString('keep until publication');
+        final expected = await _windowsDacl(
+          destination.path,
+          protected: protected,
+        );
+        expect(
+          await publishFileAtomically(
+            target: target(overwrite: true),
+            producer: (path) async {
+              expect(await _windowsDacl(path), expected);
+              expect(
+                await destination.readAsString(),
+                'keep until publication',
+              );
+              await File(path).writeAsString('replacement');
+            },
+          ),
+          isTrue,
+        );
+        expect(await destination.readAsString(), 'replacement');
+        expect(await _windowsDacl(destination.path), expected);
+        await expectNoStaging();
+      },
+      skip: !Platform.isWindows,
+    );
+  }
+
+  test(
+    'Windows DACL is read again at the publication boundary',
+    () async {
+      await destination.writeAsString('keep until publication');
+      final before = await _windowsDacl(destination.path, protected: false);
+      String? expected;
+      expect(
+        await publishFileAtomically(
+          target: target(overwrite: true),
+          producer: (path) async {
+            expect(await _windowsDacl(path), before);
+            await File(path).writeAsString('replacement');
+            expected = await _windowsDacl(destination.path, protected: true);
+            expect(expected, isNot(before));
+          },
+        ),
+        isTrue,
+      );
+      expect(await _windowsDacl(destination.path), expected);
+      await expectNoStaging();
+    },
+    skip: !Platform.isWindows,
+  );
+
+  test(
+    'Windows locked target reports failure without overwriting or leaving staging',
+    () async {
+      await destination.writeAsString('keep while locked');
+      final handle = using(
+        (arena) => _createWindowsFile(
+          destination.path.toNativeUtf16(allocator: arena),
+          0x80000000,
+          0,
+          nullptr,
+          3,
+          0x80,
+          nullptr,
+        ),
+      );
+      expect(handle.address, isNot(Pointer<Void>.fromAddress(-1).address));
+      try {
+        await expectLater(
+          publishFileAtomically(
+            target: target(overwrite: true),
+            producer: (path) async {
+              await File(path).writeAsString('replacement');
+            },
+          ),
+          throwsA(isA<FileSystemException>()),
+        );
+      } finally {
+        expect(_closeWindowsHandle(handle), isNot(0));
+      }
+      expect(await destination.readAsString(), 'keep while locked');
+      await expectNoStaging();
+    },
+    skip: !Platform.isWindows,
+  );
 
   test('existing unapproved destination rejects before producing', () async {
     await destination.writeAsString('keep');
@@ -237,7 +418,7 @@ void main() {
     },
   );
 
-  test('real rename failure leaves a destination directory intact', () async {
+  test('a rejected destination directory stays intact', () async {
     final targetDirectory = await Directory(destination.path).create();
     final marker = await File(
       p.join(targetDirectory.path, 'keep'),
@@ -254,6 +435,32 @@ void main() {
     expect(await marker.readAsString(), 'keep');
     await expectNoStaging();
   });
+
+  test(
+    'a rejected destination symlink and its source stay intact',
+    () async {
+      final source = await File(
+        p.join(directory.path, 'source.pdf'),
+      ).writeAsString('keep source');
+      final link = await Link(destination.path).create(source.path);
+      await expectLater(
+        publishFileAtomically(
+          target: target(overwrite: true),
+          producer: (path) async {
+            await File(path).writeAsString('replacement');
+          },
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await source.readAsString(), 'keep source');
+      expect(await link.exists(), isTrue);
+      await source.delete();
+      await expectNoStaging();
+    },
+    skip: Platform.isWindows
+        ? 'Creating a symlink may require elevated rights.'
+        : null,
+  );
 
   test('flush failure is retained even when closing also fails', () async {
     await destination.writeAsString('keep');
@@ -366,11 +573,79 @@ void main() {
   );
 }
 
+Future<String> _windowsDacl(String path, {bool? protected}) async {
+  final result = await Process.run(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      r'''
+$ErrorActionPreference = 'Stop'
+$path = $env:OTZARIA_TEST_FILE
+if ($env:OTZARIA_TEST_PROTECTED -ne '') {
+  $protected = $env:OTZARIA_TEST_PROTECTED -eq 'true'
+  $acl = Get-Acl -LiteralPath $path
+  $acl.SetAccessRuleProtection($protected, $false)
+  $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+  $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+    $sid, [System.Security.AccessControl.FileSystemRights]::FullControl,
+    [System.Security.AccessControl.AccessControlType]::Allow)
+  $acl.SetAccessRule($rule)
+  Set-Acl -LiteralPath $path -AclObject $acl
+}
+$acl = Get-Acl -LiteralPath $path
+$acl.GetSecurityDescriptorSddlForm(
+  [System.Security.AccessControl.AccessControlSections]::Access)
+''',
+    ],
+    environment: {
+      'OTZARIA_TEST_FILE': path,
+      'OTZARIA_TEST_PROTECTED': protected?.toString() ?? '',
+    },
+  );
+  expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+  return (result.stdout as String).trim();
+}
+
+final _kernel = DynamicLibrary.open('kernel32.dll');
+final _createWindowsFile = _kernel
+    .lookupFunction<
+      Pointer<Void> Function(
+        Pointer<Utf16>,
+        Uint32,
+        Uint32,
+        Pointer<Void>,
+        Uint32,
+        Uint32,
+        Pointer<Void>,
+      ),
+      Pointer<Void> Function(
+        Pointer<Utf16>,
+        int,
+        int,
+        Pointer<Void>,
+        int,
+        int,
+        Pointer<Void>,
+      )
+    >('CreateFileW');
+final _closeWindowsHandle = _kernel
+    .lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>(
+      'CloseHandle',
+    );
+
 final class _PublicationOverrides extends IOOverrides {
-  _PublicationOverrides({this.renameError, this.flushError, this.closeError});
+  _PublicationOverrides({
+    this.renameError,
+    this.flushError,
+    this.closeError,
+    this.removeAfterCreate = false,
+  });
   final FileSystemException? renameError;
   final FileSystemException? flushError;
   final FileSystemException? closeError;
+  final bool removeAfterCreate;
   var renameCalls = 0;
   var closed = false;
 
@@ -393,6 +668,7 @@ class _PublicationFile implements File {
   @override
   Future<File> create({bool recursive = false, bool exclusive = false}) async {
     await delegate.create(recursive: recursive, exclusive: exclusive);
+    if (overrides.removeAfterCreate) await delegate.delete();
     return this;
   }
 

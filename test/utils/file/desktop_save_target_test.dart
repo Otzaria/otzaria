@@ -224,20 +224,20 @@ void main() {
       ..writeAsStringSync('keep');
     final origin = await build(tester);
     final approval = Completer<bool>();
-    var confirmationOpened = false;
+    String? confirmedName;
     final future = chooseDesktopSaveTarget(
       context: origin,
       fileName: 'report',
       extension: 'pdf',
       confirmOverwrite: (name) {
-        expect(name, 'report.pdf');
-        confirmationOpened = true;
+        confirmedName = name;
         return approval.future;
       },
     );
     try {
       await enterName(tester, 'report');
-      await _waitFor(tester, () => confirmationOpened);
+      await _waitFor(tester, () => confirmedName != null);
+      expect(confirmedName, 'report.pdf');
       await tester.pumpWidget(const SizedBox.shrink());
       approval.complete(true);
       expect(await _settle(tester, future), isNull);
