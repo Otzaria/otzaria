@@ -1329,7 +1329,32 @@ class FindRefRepository {
     bool includePersonalBooks = false,
     FindRefPreferences? preferences,
   }) async {
-    final query = _parseQuery(rawRef);
+    final ref = expandQueryAmudMarks(rawRef);
+    final expanded = expandQueryLocatorAbbreviations(ref);
+    Future<List<DbReferenceResult>> search(String query) => _findRefsForQuery(
+      query,
+      includePersonalBooks: includePersonalBooks,
+      preferences: preferences,
+    );
+    if (expanded == ref) return search(ref);
+
+    // ציטוט קיים (תהילים פ״ט מ״ג, פמ״ג מ״ג) קודם להרחבת המיקום.
+    final literalResults = await search(ref);
+    if (literalResults.any(
+      (r) => r.isSourceLine || (r.tocLevel > 0 && !r.isPartialTocMatch),
+    )) {
+      return literalResults;
+    }
+    final expandedResults = await search(expanded);
+    return expandedResults.isEmpty ? literalResults : expandedResults;
+  }
+
+  Future<List<DbReferenceResult>> _findRefsForQuery(
+    String ref, {
+    required bool includePersonalBooks,
+    FindRefPreferences? preferences,
+  }) async {
+    final query = _parseQuery(ref);
     if (query == null) return const [];
     var queryTokens = query.tokens;
 
@@ -1543,9 +1568,7 @@ class FindRefRepository {
     List<String> tokens,
     ({List<String> headTokens, String prefix})? dibbur,
   })?
-  _parseQuery(String rawRef) {
-    // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
-    final ref = expandQueryLocatorAbbreviations(expandQueryAmudMarks(rawRef));
+  _parseQuery(String ref) {
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) return null;
     final tokens = _tokenize(cleanedQuery);
