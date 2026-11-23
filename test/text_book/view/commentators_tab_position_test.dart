@@ -24,6 +24,8 @@ class _LoadingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     });
   }
 
+  void replaceLoaded(TextBookLoaded loaded) => emit(loaded);
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -163,5 +165,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('מפרשים על כתובות, דף ב'), findsOneWidget);
+
+    tabBloc.replaceLoaded(_loaded(book, [TocEntry(text: 'דף ג', index: 0)], 0));
+    await tester.pump();
+
+    expect(find.text('מפרשים על כתובות, דף ג'), findsOneWidget);
   });
 }
