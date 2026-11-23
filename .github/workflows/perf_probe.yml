@@ -99,6 +99,8 @@ jobs:
         run: ./tool/perf_probe/test_webview_hosting_probe.ps1
       - name: Validate WebView fixture state and bounded observers
         run: node --test tool/perf_probe/test_webview_probe_fixture.mjs
+      - name: Validate POSIX process ownership, native units and PDF smoke evidence
+        run: python3 -B -m unittest tool.perf_probe.test_perf_probe_posix -v
 
   webview:
     name: Live WebView2 resource scenario (profile)
