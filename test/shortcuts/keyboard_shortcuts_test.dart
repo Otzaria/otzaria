@@ -1161,7 +1161,11 @@ void main() {
       FocusRepository().resetForTesting();
     });
 
-    Future<TabsBloc> pumpWithTabs(WidgetTester tester, int tabCount) async {
+    Future<TabsBloc> pumpWithTabs(
+      WidgetTester tester,
+      int tabCount, {
+      VoidCallback? onFindRefRequested,
+    }) async {
       final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
       final historyBloc = _StubHistoryBloc();
       final navigationBloc = _StubNavigationBloc();
@@ -1188,7 +1192,7 @@ void main() {
           child: MaterialApp(
             home: Scaffold(
               body: KeyboardShortcuts(
-                onFindRefRequested: () {},
+                onFindRefRequested: onFindRefRequested ?? () {},
                 child: const SizedBox(width: 100, height: 100),
               ),
             ),
@@ -1205,6 +1209,36 @@ void main() {
       await tester.sendKeyUpEvent(key);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pump();
+    }
+
+    for (final (key, shortcut) in [
+      (LogicalKeyboardKey.tab, 'ctrl+tab'),
+      (LogicalKeyboardKey.digit3, 'ctrl+3'),
+    ]) {
+      testWidgets('קיצור מותאם $shortcut קודם למעבר בין כרטיסיות', (
+        tester,
+      ) async {
+        whenListen(
+          settingsBlocLocal,
+          settingsControllerLocal.stream,
+          initialState: SettingsState.initial().copyWith(
+            shortcuts: {'key-shortcut-open-find-ref': shortcut},
+          ),
+        );
+        var findRefRequests = 0;
+        final tabsBloc = await pumpWithTabs(
+          tester,
+          5,
+          onFindRefRequested: () => findRefRequests++,
+        );
+        tabsBloc.add(const SetCurrentTab(0));
+        await tester.pump();
+
+        await sendCtrl(tester, key);
+
+        expect(findRefRequests, 1);
+        expect(tabsBloc.state.currentTabIndex, 0);
+      });
     }
 
     testWidgets('Ctrl+3 עובר לטאב השלישי', (tester) async {
