@@ -4045,12 +4045,16 @@ class FindRefRepository {
               .take(end)
               .where((d) => d.isSubstringMatch(query.text))
               .length;
-      for (
-        var i = end;
-        i < decorated.length && quota > 0 && kept.length < _maxResultCap;
-        i++
-      ) {
+      for (var i = end; i < decorated.length && quota > 0; i++) {
         if (decorated[i].isSubstringMatch(query.text)) {
+          // בתקרה מלאה המכסה דוחקת את התאמת-התחילית האחרונה, ולא נמחקת.
+          if (kept.length >= _maxResultCap) {
+            kept.removeAt(
+              kept.lastIndexWhere(
+                (k) => !decorated[k].isSubstringMatch(query.text),
+              ),
+            );
+          }
           kept.add(i);
           quota--;
         }
