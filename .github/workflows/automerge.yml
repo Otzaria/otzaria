@@ -125,8 +125,10 @@ jobs:
           esac
 
           # בוחרים ריצה עדכנית לכל workflow ואירוע, בלי לאחד jobs של workflows שונים.
+          # ריצות של automerge עצמו אינן CI: ריצה שנכשלה הייתה חוסמת את ה-PR לתמיד.
           workflows=$(gh api --paginate "repos/$R/actions/runs?head_sha=$head&per_page=100" \
-            --jq '.workflow_runs[] | {workflow_id, event, run_number, name, status, conclusion, check_suite_id}' \
+            --jq '.workflow_runs[] | select(.path != ".github/workflows/automerge.yml")
+              | {workflow_id, event, run_number, name, status, conclusion, check_suite_id}' \
             | jq -s 'group_by([.workflow_id, .event]) | map(max_by(.run_number))')
           waiting=$(jq -r '.[] | select(.status != "completed" or (.conclusion | IN("success", "skipped", "neutral") | not)) | .name' <<< "$workflows")
           [ -z "$waiting" ] || { echo "Workflows not passing:"; echo "$waiting"; exit 0; }
