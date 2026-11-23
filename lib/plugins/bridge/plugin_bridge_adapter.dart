@@ -16,7 +16,10 @@ import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/utils/file/desktop_save_target.dart';
+import 'package:otzaria/utils/file/atomic_file_publication.dart';
+import 'package:otzaria/utils/file/mobile_pdf_export_service.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' show BlocProvider;
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
@@ -692,6 +695,8 @@ class PluginBridgeAdapter {
   final PluginDatabaseService _databaseService;
   final PluginHighlightRegistry _highlightRegistry;
   final PluginSearchFieldSessionService _searchFieldSessions;
+  final MobilePdfExportService? _mobilePdfExportService;
+  MobilePdfExportOperation? _mobilePdfExport;
 
   PluginBridgeAdapter(
     this.plugin, {
@@ -714,6 +719,7 @@ class PluginBridgeAdapter {
     PluginBookCorrectionService? bookCorrectionService,
     DirectErrorReportService? directReportService,
     PluginSearchFieldSessionService? searchFieldSessions,
+    this._mobilePdfExportService,
   }) : _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
        _pluginReportService = reportService,
        _pluginBookCorrectionService = bookCorrectionService,
@@ -964,6 +970,8 @@ class PluginBridgeAdapter {
   /// משחרר תרומות ופעולות ממתינות של הדף; המתאם משמש גם את הדף הבא.
   void releaseRuntime({bool removeRegistrations = true}) {
     _fileAccessGeneration++;
+    final export = _mobilePdfExport;
+    if (export != null) unawaited(_cancelMobilePdfExport(export));
     // מסיר רק את תרומות המופע הזה — מופע אחר של אותו תוסף ממשיך לתפקד,
     // וה-dedup בציור חושף את העותקים שלו.
     final key = (pluginId: plugin.pluginId, instanceId: instanceId);
@@ -5256,34 +5264,53 @@ class PluginBridgeAdapter {
       case 'exportPdf':
         final capture =
             _dependencies.capturePluginPagePdf ?? _defaultCapturePagePdf;
-        final saver =
-            _dependencies.pickSaveLocation ?? _defaultPickSaveLocation;
         final suggested = pluginSaveFileName(
           args['fileName'] as String?,
           'pdf',
         );
         final layout = _parsePdfLayout(args);
         return await _runUserGatedDialog(() async {
+          _checkFileAccess();
           final pdf = await capture(
             plugin.pluginId,
             instanceId,
             layout: layout,
           );
-          final chosen = await saver(
+          _checkFileAccess();
+          final mobile =
+              _mobilePdfExportService ?? MobilePdfExportService.instance;
+          if (mobile.isSupported) {
+            return _exportMobilePdf(mobile, pdf, suggested);
+          }
+          final target = await _pickPdfExportTarget(
             suggestedName: suggested,
-            allowedExtensions: const ['pdf'],
             title: args['title'] as String?,
           );
-          if (chosen == null || chosen.isEmpty) {
+          if (target == null) {
             return {'saved': false, 'name': null};
           }
-          // בורר המיקום ניתן להזרקה, וחוזהו אינו מבטיח שהסיומת תושלם.
-          final target = chosen.toLowerCase().endsWith('.pdf')
-              ? chosen
-              : '$chosen.pdf';
-          await File(target).writeAsBytes(pdf, flush: true);
+          final saved = await publishFileAtomically(
+            target: target,
+            producer: (stagingPath) async {
+              _checkFileAccess();
+              await File(stagingPath).writeAsBytes(pdf);
+              _checkFileAccess();
+            },
+            isCancelled: () {
+              // Recheck the RPC's original lifetime and authorization before
+              // publication, including while another save owns the target.
+              _checkFileAccess();
+              return false;
+            },
+          );
           // הנתיב עצמו אינו מוחזר — התוסף אינו מקבל גישה למה שנשמר.
-          return {'saved': true, 'name': p.basename(target)};
+          return {
+            'saved': saved,
+            'name': saved ? p.basename(target.path) : null,
+          };
+        }).onError<FileSystemException>((_, _) {
+          // הגשר מחזיר לתוסף את הודעת השגיאה, וחריגת קבצים כוללת נתיב מלא.
+          throw Exception('error.internal: failed to save the PDF');
         });
       default:
         throw Exception("error.unknown_method: Unknown action in ui: $action");
@@ -6266,30 +6293,154 @@ class PluginBridgeAdapter {
     required String suggestedName,
     List<String>? allowedExtensions,
     String? title,
+  }) async => (await _defaultPickSaveTarget(
+    suggestedName: suggestedName,
+    allowedExtensions: allowedExtensions,
+    title: title,
+  ))?.path;
+
+  Future<DesktopSaveTarget?> _defaultPickSaveTarget({
+    required String suggestedName,
+    List<String>? allowedExtensions,
+    String? title,
   }) async {
+    _checkFileAccess();
     final context = rpcWindowContext;
     if (context == null || !context.mounted) return null;
     if (!await verifySaferModePassword(context)) {
       return null;
     }
     if (!context.mounted) return null;
+    _checkFileAccess();
     final target = await chooseDesktopSaveTarget(
       context: context,
       fileName: suggestedName,
       extension: allowedExtensions?.firstOrNull,
       dialogTitle: title,
-      confirmOverwrite: (fileName) {
+      confirmOverwrite: _confirmSaveOverwrite,
+      isCancelled: () {
         _checkFileAccess();
-        return _dependencies.showWarningDialog(
-          title: 'הקובץ כבר קיים',
-          content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
-          subtitle: 'התוכן הקיים יוחלף.',
-        );
+        return false;
       },
     );
     if (target == null) return null;
     _checkFileAccess();
-    return target.path;
+    return target;
+  }
+
+  Future<DesktopSaveTarget?> _pickPdfExportTarget({
+    required String suggestedName,
+    String? title,
+  }) async {
+    final picker = _dependencies.pickSaveLocation;
+    if (picker == null) {
+      return _defaultPickSaveTarget(
+        suggestedName: suggestedName,
+        allowedExtensions: const ['pdf'],
+        title: title,
+      );
+    }
+    final chosen = await picker(
+      suggestedName: suggestedName,
+      allowedExtensions: const ['pdf'],
+      title: title,
+    );
+    _checkFileAccess();
+    if (chosen == null || chosen.isEmpty) return null;
+    // The injected picker chooses a location; it promises neither a suffix
+    // nor approval to replace a file that already occupies that location.
+    final path = chosen.toLowerCase().endsWith('.pdf') ? chosen : '$chosen.pdf';
+    final exists =
+        await FileSystemEntity.type(path, followLinks: false) !=
+        FileSystemEntityType.notFound;
+    _checkFileAccess();
+    if (exists && !await _confirmSaveOverwrite(p.basename(path))) return null;
+    return DesktopSaveTarget(path: path, overwriteApproved: exists);
+  }
+
+  Future<Map<String, dynamic>> _exportMobilePdf(
+    MobilePdfExportService service,
+    Uint8List pdf,
+    String fileName,
+  ) async {
+    _checkFileAccess();
+    final context = rpcWindowContext;
+    if (context == null || !context.mounted) {
+      return {'saved': false, 'name': null};
+    }
+    if (!await verifySaferModePassword(context)) {
+      return {'saved': false, 'name': null};
+    }
+    if (!context.mounted) return {'saved': false, 'name': null};
+    _checkFileAccess();
+    final window = AppWindowKeys.of(context);
+    final operation = service.start(
+      fileName: fileName,
+      producer: (path) async {
+        _checkFileAccess();
+        await File(path).writeAsBytes(pdf, flush: true);
+        _checkFileAccess();
+      },
+    );
+    _mobilePdfExport = operation;
+    final stopRevocationListener =
+        PluginRegistryRepository.onPendingFileAccessRevoked(
+          plugin.pluginId,
+          () => unawaited(_cancelMobilePdfExport(operation)),
+        );
+    try {
+      // Cancel acknowledgement cannot release a file still held by UIKit.
+      final result = await operation.result;
+      if (result.cleanupError != null) {
+        debugPrint('Plugin PDF export cleanup: ${result.cleanupError}');
+      }
+      if (result.residualDocument != null) {
+        UiSnack.showWarning(
+          PdfMessages.mobilePdfExportResidual(result.residualDisplayName),
+          window: window,
+        );
+      } else if (result.status == MobilePdfExportStatus.saved) {
+        return {'saved': true, 'name': result.displayName};
+      } else if (result.status == MobilePdfExportStatus.failed) {
+        debugPrint(
+          'Plugin PDF export failed: ${result.errorCode}: ${result.errorMessage}',
+        );
+        if (!_disposed && !operation.isCancellationRequested) {
+          UiSnack.showError(PdfMessages.mobilePdfSaveFailed, window: window);
+        }
+      }
+      return {'saved': false, 'name': null};
+    } catch (error, stack) {
+      debugPrint('Plugin PDF export failed: $error\n$stack');
+      if (!_disposed && !operation.isCancellationRequested) {
+        UiSnack.showError(PdfMessages.mobilePdfSaveFailed, window: window);
+      }
+      return {'saved': false, 'name': null};
+    } finally {
+      stopRevocationListener();
+      if (identical(_mobilePdfExport, operation)) _mobilePdfExport = null;
+    }
+  }
+
+  Future<void> _cancelMobilePdfExport(
+    MobilePdfExportOperation operation,
+  ) async {
+    try {
+      await operation.cancel();
+    } catch (error, stack) {
+      debugPrint('Plugin PDF export cancellation failed: $error\n$stack');
+    }
+  }
+
+  Future<bool> _confirmSaveOverwrite(String fileName) async {
+    _checkFileAccess();
+    final approved = await _dependencies.showWarningDialog(
+      title: 'הקובץ כבר קיים',
+      content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
+      subtitle: 'התוכן הקיים יוחלף.',
+    );
+    _checkFileAccess();
+    return approved;
   }
 
   /// מעתיק את ההעלאה ליעד: staging באותה תיקייה, ואז rename.

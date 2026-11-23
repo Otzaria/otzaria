@@ -11,6 +11,9 @@ on:
       - 'lib/utils/file/save_target_name.dart'
       - 'lib/utils/file/file_picker_dialog_options.dart'
       - 'lib/plugins/bridge/plugin_save_target.dart'
+      - 'lib/plugins/bridge/plugin_bridge_adapter.dart'
+      - 'lib/utils/file/mobile_pdf_export_*.dart'
+      - 'test/plugins/bridge/plugin_bridge_ui_print_test.dart'
       - 'test/printing/pdf_export_cancellation_test.dart'
       - 'test/printing/pdf_file_*_test.dart'
       - 'test/printing/print_pdf_*_test.dart'
@@ -85,6 +88,7 @@ jobs:
         run: >-
           flutter test --no-pub --concurrency=1 --reporter expanded
           --file-reporter json:pdf-file-export-tests.jsonl
+          test/plugins/bridge/plugin_bridge_ui_print_test.dart
           test/printing/pdf_export_cancellation_test.dart
           test/printing/pdf_file_cleanup_test.dart
           test/printing/pdf_file_stream_test.dart
