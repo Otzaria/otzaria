@@ -1,5 +1,5 @@
 const perfPdfMultiWindowProtocol = <String, Object?>{
-  'version': 1,
+  'version': 2,
   'nativeWindows': 2,
   'sources': 'distinct verified paths with identical generated PDF content',
   'primaryPages': [1, 3],
@@ -13,6 +13,8 @@ const perfPdfMultiWindowProtocol = <String, Object?>{
   'printHeight': 320,
   'printRightToLeft': true,
   'transitionRasterPage': 2,
+  'rasterInk': 'all RGB channels below 128 after compositing over white',
+  'rasterAlpha': 'printing macOS premultiplied; PDFium straight',
   'nativeTransitions': ['minimizeRestore', 'closeSecondary', 'closeReopened'],
   'readiness': 'native view identity, target center and final visible image',
   'close': 'event stream closed, native dispose awaited, native view absent',
@@ -33,6 +35,31 @@ const perfPdfMultiWindowSteps = <String>[
   'closeReopened',
   'teardown',
 ];
+
+/// Counts visible dark RGBA/BGRA content after compositing over white.
+/// Antialiased glyphs may have no opaque pixels; transparent RGB is not ink.
+int perfPdfInkPixelsOnWhite(
+  List<int> pixels, {
+  bool premultipliedAlpha = false,
+}) {
+  if (pixels.length % 4 != 0) {
+    throw ArgumentError(
+      'Native raster must contain complete four-byte pixels.',
+    );
+  }
+  var ink = 0;
+  for (var offset = 0; offset < pixels.length; offset += 4) {
+    final alpha = pixels[offset + 3];
+    final white = 255 * (255 - alpha);
+    final multiplier = premultipliedAlpha ? 255 : alpha;
+    if (pixels[offset] * multiplier + white < 128 * 255 &&
+        pixels[offset + 1] * multiplier + white < 128 * 255 &&
+        pixels[offset + 2] * multiplier + white < 128 * 255) {
+      ink++;
+    }
+  }
+  return ink;
+}
 
 Map<Object?, Object?> _map(Object? value) =>
     value is Map ? value : const <Object?, Object?>{};
@@ -105,15 +132,21 @@ bool _overlap(Object? first, Object? second) {
       (b['startUs'] as int) < (a['endUs'] as int);
 }
 
-bool _raster(Object? value, String format) {
+bool _raster(
+  Object? value,
+  String format, {
+  bool premultipliedAlpha = false,
+}) {
   final data = _map(value);
   return _positive(data['width']) &&
       _positive(data['height']) &&
       data['pixelFormat'] == format &&
+      data['alphaPremultiplied'] == premultipliedAlpha &&
       data['pixelBytes'] is int &&
       data['pixelBytes'] ==
           (data['width'] as int) * (data['height'] as int) * 4 &&
-      _positive(data['inkPixels']) &&
+      data['inkPixels'] is int &&
+      (data['inkPixels'] as int) > 10 &&
       (data['inkPixels'] as int) <=
           (data['width'] as int) * (data['height'] as int) &&
       _hash(data['sha256']);
@@ -232,7 +265,11 @@ List<String> perfPdfMultiWindowErrors(Object? value) {
         _hash(printing['pngSha256']) &&
         printing['pngBytes'] is int &&
         (printing['pngBytes'] as int) > 8 &&
-        _raster(printing['raster'], 'rgba8888') &&
+        _raster(
+          printing['raster'],
+          'rgba8888',
+          premultipliedAlpha: report['platform'] == 'macos',
+        ) &&
         _map(printing['raster'])['width'] == 480 &&
         _map(printing['raster'])['height'] == 320,
     'Vector output, RTL order and real printing raster proof are required.',

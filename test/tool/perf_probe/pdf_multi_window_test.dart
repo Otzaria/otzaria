@@ -39,6 +39,7 @@ Map<String, dynamic> _raster([String format = 'bgra8888']) => {
   'width': 100,
   'height': 80,
   'pixelFormat': format,
+  'alphaPremultiplied': false,
   'pixelBytes': 32000,
   'inkPixels': 120,
   'sha256': _hash,
@@ -176,15 +177,63 @@ void _reject(
   void Function(Map<String, dynamic>) change, {
   required String reason,
 }) {
-  final report = _fixture();
+  // Real receipts arrive as JSON, including malformed values in negative tests.
+  final report = jsonDecode(jsonEncode(_fixture())) as Map<String, dynamic>;
   change(report);
   expect(perfPdfMultiWindowErrors(report), isNotEmpty, reason: reason);
 }
 
 void main() {
+  test('raster proof counts antialiased text as it appears on white', () {
+    expect(perfPdfInkPixelsOnWhite([0, 0, 0, 192]), 1);
+    expect(perfPdfInkPixelsOnWhite([0, 0, 0, 128]), 1);
+    expect(perfPdfInkPixelsOnWhite([0, 0, 0, 127]), 0);
+    expect(perfPdfInkPixelsOnWhite([127, 127, 127, 255]), 1);
+    expect(perfPdfInkPixelsOnWhite([128, 128, 128, 255]), 0);
+  });
+
+  test('blank, transparent and bright pixels cannot establish native ink', () {
+    for (final pixel in [
+      [0, 0, 0, 0],
+      [255, 255, 255, 0],
+      [255, 255, 255, 255],
+      [255, 0, 0, 255],
+      [0, 255, 0, 255],
+      [0, 0, 255, 255],
+      [100, 100, 100, 128],
+    ]) {
+      expect(perfPdfInkPixelsOnWhite(pixel), 0, reason: '$pixel');
+    }
+    expect(perfPdfInkPixelsOnWhite([]), 0);
+    expect(() => perfPdfInkPixelsOnWhite([0, 0, 0]), throwsArgumentError);
+  });
+
+  test('raster proof preserves opaque RGB and BGRA darkness semantics', () {
+    final rgba = [20, 50, 80, 200, 100, 120, 110, 255];
+    final bgra = [80, 50, 20, 200, 110, 120, 100, 255];
+    expect(perfPdfInkPixelsOnWhite(rgba), 2);
+    expect(perfPdfInkPixelsOnWhite(bgra), 2);
+  });
+
+  test('premultiplied Apple pixels are not multiplied by alpha twice', () {
+    final gray = [50, 50, 50, 160];
+    expect(perfPdfInkPixelsOnWhite(gray), 1);
+    expect(perfPdfInkPixelsOnWhite(gray, premultipliedAlpha: true), 0);
+    expect(
+      perfPdfInkPixelsOnWhite([0, 0, 0, 192], premultipliedAlpha: true),
+      1,
+    );
+    expect(
+      perfPdfInkPixelsOnWhite([0, 0, 0, 0], premultipliedAlpha: true),
+      0,
+    );
+  });
+
   test('accepts complete actual-window evidence on all desktop platforms', () {
     for (final platform in ['windows', 'linux', 'macos']) {
       final report = _fixture()..['platform'] = platform;
+      report['steps']['concurrentWork']['printing']['raster']['alphaPremultiplied'] =
+          platform == 'macos';
       expect(perfPdfMultiWindowErrors(report), isEmpty, reason: platform);
     }
   });
@@ -441,7 +490,8 @@ void main() {
         'width': 0,
         'height': -1,
         'pixelBytes': 31999,
-        'inkPixels': 0,
+        'inkPixels': 10,
+        'alphaPremultiplied': true,
         'sha256': 'invalid',
         'pixelFormat': name == 'printing' ? 'bgra8888' : 'rgba8888',
       }.entries) {
@@ -452,6 +502,19 @@ void main() {
           step['raster'][entry.key] = entry.value;
         }, reason: '$name ${entry.key}');
       }
+      _reject((report) {
+        final step = name == 'printing'
+            ? report['steps']['concurrentWork']['printing']
+            : report['steps'][name];
+        step['raster'].remove('alphaPremultiplied');
+      }, reason: '$name must identify its alpha representation');
+
+      final report = _fixture();
+      final step = name == 'printing'
+          ? report['steps']['concurrentWork']['printing']
+          : report['steps'][name];
+      step['raster']['inkPixels'] = 11;
+      expect(perfPdfMultiWindowErrors(report), isEmpty, reason: name);
     }
   });
 
@@ -585,6 +648,8 @@ Future<_SmokeFiles> _smoke({
   final pngBytes = [137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4];
   await File(p.join(receipt.path, 'two-up.png')).writeAsBytes(pngBytes);
   final evidence = _fixture()..['platform'] = platform;
+  evidence['steps']['concurrentWork']['printing']['raster']['alphaPremultiplied'] =
+      platform == 'macos';
   evidence['fixture'] = {
     'sourceKind': 'generated',
     'pageCount': 10,

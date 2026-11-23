@@ -533,9 +533,23 @@ class _MultiWindowProbe {
           result.isClean && result.indexedBooks == 1,
           'Actual PDF indexing did not complete cleanly: $result',
         );
+        final verifiedPages = <int>[];
+        final searchResults = <Map<String, Object?>>[];
+        record['indexing'] = {
+          'clean': true,
+          'indexedBooks': result.indexedBooks,
+          'indexedPath': _primaryBook.path,
+          'verifiedPages': verifiedPages,
+          'searchResults': searchResults,
+        };
         for (final page in [2, 4]) {
+          final query = 'PDF preview fixture - page $page';
+          // Exercise the UI's search path, including the engine's query
+          // normalization, with the original PDF text unchanged.
           final hits = await const SearchRepository()
-              .searchLiteralPhrase('PDF preview fixture - page $page', [], 100)
+              .searchTexts(
+                SearchEngineRequest(query: query, facets: const [], limit: 100),
+              )
               .timeout(_deadline);
           final own = hits.where(
             (hit) =>
@@ -543,14 +557,28 @@ class _MultiWindowProbe {
                 hit.isPdf &&
                 hit.segment == BigInt.from(page - 1),
           );
-          _require(own.length == 1, 'Index did not return PDF page $page.');
+          final matchingHits = own.length;
+          searchResults.add({
+            'query': query,
+            'page': page,
+            'totalHits': hits.length,
+            'matchingHits': matchingHits,
+            'hits': [
+              for (final hit in hits)
+                {
+                  'filePath': hit.filePath,
+                  'isPdf': hit.isPdf,
+                  'segment': hit.segment.toString(),
+                },
+            ],
+          });
+          _require(
+            matchingHits == 1,
+            'Index returned $matchingHits matches for PDF page $page '
+            'among ${hits.length} hits.',
+          );
+          verifiedPages.add(page);
         }
-        record['indexing'] = {
-          'clean': true,
-          'indexedBooks': result.indexedBooks,
-          'indexedPath': _primaryBook.path,
-          'verifiedPages': [2, 4],
-        };
       }),
       observed('printing', () async {
         record['printing'] = await _tracked(
@@ -610,6 +638,9 @@ class _MultiWindowProbe {
         raster.height,
         raster.pixels,
         'rgba8888',
+        // The pinned printing plugin uses premultipliedLast on macOS;
+        // Windows/Linux return PDFium's straight-alpha bitmap bytes.
+        premultipliedAlpha: Platform.isMacOS,
       );
       final png = await raster.toPng();
       await File(p.join(output.path, 'two-up.png')).writeAsBytes(
@@ -637,26 +668,23 @@ class _MultiWindowProbe {
     int width,
     int height,
     Uint8List pixels,
-    String pixelFormat,
-  ) {
+    String pixelFormat, {
+    bool premultipliedAlpha = false,
+  }) {
     _require(
       width > 0 && height > 0 && pixels.length == width * height * 4,
       'Invalid native raster dimensions or byte count.',
     );
-    var ink = 0;
-    for (var offset = 0; offset < pixels.length; offset += 4) {
-      if (pixels[offset] < 128 &&
-          pixels[offset + 1] < 128 &&
-          pixels[offset + 2] < 128 &&
-          pixels[offset + 3] == 255) {
-        ink++;
-      }
-    }
-    _require(ink > 10, 'Native raster has no opaque text or vector content.');
+    final ink = perfPdfInkPixelsOnWhite(
+      pixels,
+      premultipliedAlpha: premultipliedAlpha,
+    );
+    _require(ink > 10, 'Native raster has no visible text or vector content.');
     return {
       'width': width,
       'height': height,
       'pixelFormat': pixelFormat,
+      'alphaPremultiplied': premultipliedAlpha,
       'pixelBytes': pixels.length,
       'inkPixels': ink,
       'sha256': sha256.convert(pixels).toString(),
