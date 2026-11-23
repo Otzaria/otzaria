@@ -171,4 +171,24 @@ void main() {
       'רש"י',
     ]);
   });
+
+  testWidgets('כרטיסייה משוחזרת שומרת על הבחירה שלה (issue #5810)', (
+    tester,
+  ) async {
+    final book = TextBook(title: 'בראשית');
+    await tester.runAsync(
+      () => TextBookPerBookSettings.mutate(
+        book,
+        (existing) => TextBookPerBookSettings(commentatorsTabSelection: _all),
+      ),
+    );
+
+    final restored = openTab(book)
+      ..applyBookSelection = false
+      ..selectedCommentators = ['רמב"ן'];
+    addTearDown(restored.dispose);
+    expect((await show(tester, restored)).selectedCommentatorsOverride, [
+      'רמב"ן',
+    ]);
+  });
 }

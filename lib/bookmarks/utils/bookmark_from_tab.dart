@@ -186,7 +186,7 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
               openLeftPane: openLeftPane,
             )
             as TextBookTab;
-    return CommentatorsTab(sourceTab: sourceTab);
+    return CommentatorsTab(sourceTab: sourceTab)..applyBookSelection = false;
   }
 
   final tab = OpenedTab.fromBook(

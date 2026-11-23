@@ -209,6 +209,7 @@ TextBookPerBookSettings _withDisplayFields(
         : displayLayer,
     continuousReadingMode: continuousReadingMode,
     activeCommentators: existing?.activeCommentators,
+    commentatorsTabSelection: existing?.commentatorsTabSelection,
     pageShapeLeftWidth: existing?.pageShapeLeftWidth,
     pageShapeRightWidth: existing?.pageShapeRightWidth,
     pageShapeBottomHeight: existing?.pageShapeBottomHeight,

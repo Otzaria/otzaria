@@ -429,6 +429,10 @@ class TextBookPerBookSettings {
   /// שבחירת המשתמש תיטען בכל פתיחה. רשימה ריקה = המשתמש ביטל את כל הבחירה.
   final List<String>? activeCommentators;
 
+  /// בחירת המפרשים האחרונה בכרטיסיית מפרשים של ספר זה, נפרדת מ-
+  /// [activeCommentators] של החלונית הצדדית. כרטיסיית מפרשים חדשה נפתחת ממנה.
+  final List<String>? commentatorsTabSelection;
+
   // רוחב/גודל הטורים בצורת הדף (נשמר רק אם המשתמש שינה אותם בתצוגה זו)
   final double? pageShapeLeftWidth; // רוחב טור המפרש השמאלי
   final double? pageShapeRightWidth; // רוחב טור המפרש הימני
@@ -446,6 +450,7 @@ class TextBookPerBookSettings {
     this.displayLayer,
     this.continuousReadingMode,
     this.activeCommentators,
+    this.commentatorsTabSelection,
     this.pageShapeLeftWidth,
     this.pageShapeRightWidth,
     this.pageShapeBottomHeight,
@@ -466,6 +471,8 @@ class TextBookPerBookSettings {
     if (continuousReadingMode != null)
       'continuousReadingMode': continuousReadingMode,
     if (activeCommentators != null) 'activeCommentators': activeCommentators,
+    if (commentatorsTabSelection != null)
+      'commentatorsTabSelection': commentatorsTabSelection,
     if (pageShapeLeftWidth != null) 'pageShapeLeftWidth': pageShapeLeftWidth,
     if (pageShapeRightWidth != null) 'pageShapeRightWidth': pageShapeRightWidth,
     if (pageShapeBottomHeight != null)
@@ -491,6 +498,8 @@ class TextBookPerBookSettings {
       continuousReadingMode: json['continuousReadingMode'] as bool?,
       activeCommentators: (json['activeCommentators'] as List<dynamic>?)
           ?.cast<String>(),
+      commentatorsTabSelection:
+          (json['commentatorsTabSelection'] as List<dynamic>?)?.cast<String>(),
       pageShapeLeftWidth: (json['pageShapeLeftWidth'] as num?)?.toDouble(),
       pageShapeRightWidth: (json['pageShapeRightWidth'] as num?)?.toDouble(),
       pageShapeBottomHeight: (json['pageShapeBottomHeight'] as num?)
@@ -518,6 +527,7 @@ class TextBookPerBookSettings {
     TextDisplayLayer? displayLayer,
     bool? continuousReadingMode,
     List<String>? activeCommentators,
+    List<String>? commentatorsTabSelection,
     bool clearActiveCommentators = false,
     double? pageShapeLeftWidth,
     double? pageShapeRightWidth,
@@ -538,6 +548,9 @@ class TextBookPerBookSettings {
       activeCommentators: clearActiveCommentators
           ? null
           : activeCommentators ?? this.activeCommentators,
+      commentatorsTabSelection: clearActiveCommentators
+          ? null
+          : commentatorsTabSelection ?? this.commentatorsTabSelection,
       pageShapeLeftWidth: pageShapeLeftWidth ?? this.pageShapeLeftWidth,
       pageShapeRightWidth: pageShapeRightWidth ?? this.pageShapeRightWidth,
       pageShapeBottomHeight:
@@ -576,7 +589,18 @@ class TextBookPerBookSettings {
     });
   }
 
-  /// ניקוי בחירת המפרשים הפר-ספרית בלבד (שאר ההגדרות נשמרות). משמש אחרי
+  /// שומר את בחירת המפרשים של כרטיסיית מפרשים לספר (issue #5810).
+  static Future<void> saveCommentatorsTabSelection(
+    Book book,
+    List<String> commentators,
+  ) => mutate(
+    book,
+    (existing) => (existing ?? TextBookPerBookSettings()).copyWith(
+      commentatorsTabSelection: List<String>.from(commentators),
+    ),
+  );
+
+  /// ניקוי בחירות המפרשים הפר-ספריות בלבד (שאר ההגדרות נשמרות). משמש אחרי
   /// קביעת מפרשים לקטגוריה, כדי שהקביעה תחול גם על הספר הנוכחי.
   static Future<void> clearActiveCommentators(Book book) => mutate(
     book,
