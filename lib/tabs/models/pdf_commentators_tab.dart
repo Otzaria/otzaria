@@ -45,6 +45,9 @@ class PdfCommentatorsTab extends OpenedTab {
     if (active != null) {
       sourceTab.activeCommentators = active.toSet();
     }
+    if (json['currentTitle'] case final String title) {
+      sourceTab.currentTitle.value = title;
+    }
 
     return PdfCommentatorsTab(
       sourceTab: sourceTab,
@@ -78,6 +81,8 @@ class PdfCommentatorsTab extends OpenedTab {
     'type': 'PdfCommentatorsTab',
     'isPinned': isPinned,
     'sourceTab': sourceTab.toJson(),
+    // הכותרת שאליה נווט בכרטיסייה; ה-sourceTab שומר רק את העמוד.
+    'currentTitle': sourceTab.currentTitle.value,
     'activeCommentators': sourceTab.activeCommentators.toList(),
   };
 }
