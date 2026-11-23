@@ -164,8 +164,6 @@ dependencies:
       ref: 88f594ee8378f403bf308ce57ca83920d2677f8f
   # הפורק Otzaria/flutter_inappwebview מתוחזק אצלנו (upstream אינו פעיל).
   # כל ה-overrides מוצמדים לאותו קומיט.
-  # TODO: אחרי מיזוג fix/texture-unregister-lifetime לענף codex/repair-host-scroll-5275
-  # בפורק (#5881), להצמיד את כל ה-refs לקומיט המיזוג.
   flutter_inappwebview:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
