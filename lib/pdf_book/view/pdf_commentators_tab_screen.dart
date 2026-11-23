@@ -729,9 +729,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       autofocus: true,
       onKeyEvent: (_, event) => handleCommentatorsTabShortcuts(
         event,
+        settings: context.read<SettingsBloc>(),
         onPrint: () => _panelKey.currentState?.printDisplayedCommentaries(),
         onSearch: _openSearchPanel,
         onToggleNavPane: _toggleNavPane,
+        onPrevMajor: _navigateToPrevHeading,
+        onPrevMinor: _navigateToPrevParagraph,
+        onNextMinor: _navigateToNextParagraph,
+        onNextMajor: _navigateToNextHeading,
       ),
       child: Scaffold(
         body: Column(

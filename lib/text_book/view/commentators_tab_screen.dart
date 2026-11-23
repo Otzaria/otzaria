@@ -783,10 +783,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 autofocus: true,
                 onKeyEvent: (_, event) => handleCommentatorsTabShortcuts(
                   event,
+                  settings: context.read<SettingsBloc>(),
                   onPrint: () =>
                       _commentaryKey.currentState?.printDisplayedCommentaries(),
                   onSearch: _openSearchPane,
                   onToggleNavPane: _toggleNavPane,
+                  onPrevMajor: () => _navigateToPrevChapter(chapters),
+                  onPrevMinor: () => _navigateToPrevVerse(chapters),
+                  onNextMinor: () => _navigateToNextVerse(chapters),
+                  onNextMajor: () => _navigateToNextChapter(chapters),
                 ),
                 child: Scaffold(
                   body: Column(
