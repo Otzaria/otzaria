@@ -85,13 +85,31 @@ def child_exit(process):
     return result.si_status if result.si_code == os.CLD_EXITED else -result.si_status
 
 
-def _darwin_group_has_only_zombies(process):
-    if sys.platform != "darwin" or child_exit(process) is None:
+def _darwin_group_has_only_zombies(process, evidence=None):
+    if evidence is None:
+        evidence = {}
+    evidence.update(platform=sys.platform, parentPid=os.getpid())
+    if sys.platform != "darwin":
         return False
+    deadline = time.monotonic() + 5
+    exit_code = child_exit(process)
+    evidence["initialExitCode"] = exit_code
+    # XNU removes exiting processes from proc_find before waitid can observe SZOMB.
+    # Keep the child unreaped while its exit becomes observable.
+    while exit_code is None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(.01, remaining))
+        exit_code = child_exit(process)
+    waitable = exit_code is not None and time.monotonic() <= deadline
+    evidence.update(childExitCode=exit_code, waitableBeforeDeadline=waitable)
     result = subprocess.run(["ps", "-axo", "pid=,ppid=,pgid=,stat="],
                             capture_output=True, text=True, encoding="utf-8",
                             env={**os.environ, "LC_ALL": "C"}, timeout=5)
-    if result.returncode:
+    evidence["processTable"] = {"exitCode": result.returncode,
+                                "stdout": result.stdout, "stderr": result.stderr}
+    if not waitable or result.returncode:
         return False
     members = []
     for line in result.stdout.splitlines():
@@ -115,9 +133,15 @@ def cleanup_group(process, grace=0.2):
         except ProcessLookupError:
             pass
         except PermissionError as error:
-            # XNU filters zombies from killpg, then returns EPERM when none remain.
-            # https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/kern_sig.c#L1709-L1718
-            if error.errno != errno.EPERM or not _darwin_group_has_only_zombies(process):
+            evidence = {"pid": process.pid, "signal": int(signum), "errno": error.errno}
+            accepted = False
+            try:
+                accepted = (error.errno == errno.EPERM
+                            and _darwin_group_has_only_zombies(process, evidence))
+            finally:
+                if not accepted:
+                    print(json.dumps({"cleanupRefused": evidence}), file=sys.stderr)
+            if not accepted:
                 raise
         if signum == signal.SIGTERM:
             time.sleep(grace)

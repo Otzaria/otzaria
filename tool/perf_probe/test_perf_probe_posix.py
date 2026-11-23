@@ -123,12 +123,80 @@ class DarwinGroupCleanupTest(unittest.TestCase):
 
     def test_darwin_permission_is_not_ignored_for_a_living_owned_child(self):
         process = self.child("import time; time.sleep(30)")
-        with mock.patch.object(runner.sys, "platform", "darwin"), \
+        for state in ("S", "Z"):
+            clock = [100.0]
+            diagnostic = io.StringIO()
+            table = f"{process.pid} {os.getpid()} {process.pid} {state}\n"
+
+            def advance(delay):
+                clock[0] += delay
+
+            with self.subTest(state=state), \
+                 contextlib.redirect_stderr(diagnostic), \
+                 mock.patch.object(runner.sys, "platform", "darwin"), \
+                 mock.patch.object(runner.os, "killpg", side_effect=self.permission()), \
+                 mock.patch.object(runner.time, "monotonic", side_effect=lambda: clock[0]), \
+                 mock.patch.object(runner.time, "sleep", side_effect=advance), \
+                 mock.patch.object(runner.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, table, "")) as ps:
+                with self.assertRaises(PermissionError):
+                    runner.cleanup_group(process, grace=0)
+                ps.assert_called_once()
+            self.assertEqual(clock[0], 105.0)
+            evidence = json.loads(diagnostic.getvalue())["cleanupRefused"]
+            self.assertEqual(evidence["pid"], process.pid)
+            self.assertEqual(evidence["signal"], signal.SIGTERM)
+            self.assertEqual(evidence["errno"], 1)
+            self.assertIsNone(evidence["childExitCode"])
+            self.assertFalse(evidence["waitableBeforeDeadline"])
+            self.assertEqual(evidence["processTable"]["stdout"], table)
+            self.assertIsNone(process.returncode)
+
+    def test_darwin_permission_waits_without_reaping_until_its_child_is_waitable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            release = Path(temporary) / "exit"
+            process = self.child(f"""from pathlib import Path
+import time
+while not Path({str(release)!r}).exists(): time.sleep(.001)
+raise SystemExit(37)
+""")
+            real_sleep = time.sleep
+
+            def settle(delay):
+                if not release.exists():
+                    self.assertIsNone(runner.child_exit(process))
+                    release.touch()
+                real_sleep(delay)
+
+            with mock.patch.object(runner.sys, "platform", "darwin"), \
+                 mock.patch.object(runner.os, "killpg", side_effect=self.permission()), \
+                 mock.patch.object(runner.time, "sleep", side_effect=settle), \
+                 mock.patch.object(process, "wait", wraps=process.wait) as reap:
+                runner.cleanup_group(process, grace=0)
+                reap.assert_called_once_with(timeout=5)
+            self.assertTrue(release.exists())
+            self.assertEqual(process.returncode, 37)
+            with self.assertRaises(ChildProcessError):
+                runner.child_exit(process)
+
+    def test_darwin_exit_observed_after_deadline_is_not_accepted_or_reaped(self):
+        process = self.exited()
+        clock = [100.0]
+        diagnostic = io.StringIO()
+        table = f"{process.pid} {os.getpid()} {process.pid} Z\n"
+        with contextlib.redirect_stderr(diagnostic), \
+             mock.patch.object(runner.sys, "platform", "darwin"), \
              mock.patch.object(runner.os, "killpg", side_effect=self.permission()), \
-             mock.patch.object(runner.subprocess, "run") as ps:
+             mock.patch.object(runner, "child_exit", side_effect=[None, 37]), \
+             mock.patch.object(runner.time, "monotonic", side_effect=lambda: clock[0]), \
+             mock.patch.object(runner.time, "sleep", side_effect=lambda _: clock.__setitem__(0, 106.0)), \
+             mock.patch.object(runner.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, table, "")):
             with self.assertRaises(PermissionError):
                 runner.cleanup_group(process, grace=0)
-            ps.assert_not_called()
+        evidence = json.loads(diagnostic.getvalue())["cleanupRefused"]
+        self.assertEqual(evidence["childExitCode"], 37)
+        self.assertFalse(evidence["waitableBeforeDeadline"])
+        self.assertIsNone(process.returncode)
+        self.assertEqual(runner.child_exit(process), 37)
 
     def test_darwin_permission_is_not_ignored_for_any_live_or_unknown_group_member(self):
         process = self.exited()
