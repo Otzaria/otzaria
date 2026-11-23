@@ -17,6 +17,7 @@ on:
       - 'test/tool/perf_probe/pdf_reader_probe*'
       - 'test/tool/perf_probe/pdf_reader_case_test.dart'
       - 'test/tool/perf_probe/pdf_case_fixture_test.dart'
+      - 'test/tool/perf_probe/pdf_book_reader_probe*'
       - 'test/tool/perf_probe/perf_fixture_test.dart'
       - 'test/tool/perf_probe/report_test.dart'
       - 'test/tool/perf_probe/pdf_image_budget_test.dart'
@@ -27,6 +28,10 @@ on:
       - 'integration_test/support/perf_recorder.dart'
       - 'integration_test/support/perf_fixture.dart'
       - 'integration_test/support/perf_pdf_reader.dart'
+      - 'integration_test/support/perf_pdf_book_reader.dart'
+      - 'integration_test/support/perf_probe_wait.dart'
+      - 'lib/pdf_book/models/pdf_book_render_observation.dart'
+      - 'lib/pdf_book/view/pdf_book_screen.dart'
       - 'integration_test/support/perf_pdf_image_budget.dart'
       - 'integration_test/perf_resource_probe_test.dart'
       - 'integration_test/webview_resource_probe_test.dart'
@@ -55,7 +60,7 @@ on:
       scenario_set:
         description: Actions to measure after app startup
         type: choice
-        options: [all, pdf-reader]
+        options: [all, pdf-reader, pdf-book-view]
         default: all
       pdf_page_count:
         description: Generated PDF size (real PDF inputs stay local)
@@ -177,7 +182,11 @@ jobs:
             ${{ runner.temp }}/webview-probe/device-hwnd/**/report.json
 
   desktop:
-    name: Windows app measurements (PDF reader smoke on PRs)
+    name: Windows app measurements (${{ matrix.scenario }})
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJSON(github.event_name == 'pull_request' && '["pdf-reader","pdf-book-view"]' || format('["{0}"]', inputs.scenario_set || 'all')) }}
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: windows-latest
@@ -200,7 +209,7 @@ jobs:
           PROBE_CACHE: ${{ inputs.cache_state || 'cold' }}
           PROBE_LAUNCHES: ${{ inputs.launches || 1 }}
           PROBE_REPETITIONS: ${{ inputs.repetitions || 1 }}
-          PROBE_SCENARIOS: ${{ inputs.scenario_set || 'pdf-reader' }}
+          PROBE_SCENARIOS: ${{ matrix.scenario }}
           PROBE_WARMUP: ${{ github.event_name == 'workflow_dispatch' && 1 || 0 }}
           PROBE_PDF_PAGES: ${{ inputs.pdf_page_count || '600' }}
         run: |
@@ -218,6 +227,8 @@ jobs:
             -HardwareId "github-hosted-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
       - name: Require PDF budget and post-close observations from the actual app
         shell: pwsh
+        env:
+          PROBE_SCENARIOS: ${{ matrix.scenario }}
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
@@ -225,20 +236,33 @@ jobs:
           if ($report.successful -ne $true) { throw 'The app measurement run did not pass.' }
           if ($report.metadata.settings.resourceObservationVersion -ne 1) { throw 'PDF resource observation version is missing.' }
           if ($report.metadata.settings.framePolicy -ne 'fullyLive') { throw 'The integration frame policy is missing or unexpected.' }
-          foreach ($name in @('pdf.reader.open', 'pdf.reader.close', 'pdf.reader.idle_after_close')) {
-            $rows = @($report.scenarios | Where-Object name -eq $name)
-            if ($rows.Count -ne 1 -or $rows[0].status -ne 'passed' -or $rows[0].measured -lt 1) { throw "Missing measured phase: $name" }
-            foreach ($point in @('before', 'after')) {
-              if ($rows[0].imageBudget.$point.complete -ne $true) { throw "Incomplete PDF budget coverage: $name / $point" }
-            }
+          if ($report.metadata.settings.scenarioSet -ne $env:PROBE_SCENARIOS) { throw 'The app ran the wrong PDF scenario set.' }
+          $prefixes = switch ($env:PROBE_SCENARIOS) {
+            'pdf-reader' { @('pdf.reader') }
+            'pdf-book-view' { @('pdf.book_view') }
+            'all' { @('pdf.reader', 'pdf.book_view') }
+            default { throw 'Unknown PDF scenario set.' }
           }
-          $idle = $report.scenarios | Where-Object name -eq 'pdf.reader.idle_after_close'
-          if ($idle.measurementKind -ne 'resource-observation' -or $idle.observationWindowMs -ne 3000 -or $null -ne $idle.latencyMs) { throw 'PDF post-close window was not a fixed resource observation.' }
+          foreach ($prefix in $prefixes) {
+            $names = @("$prefix.open", "$prefix.close", "$prefix.idle_after_close")
+            if ($prefix -eq 'pdf.book_view') {
+              $names += @('pdf.book_view.thumbnails_first_image', 'pdf.book_view.jump_forward', 'pdf.book_view.jump_backward', 'pdf.book_view.prepare_reversals', 'pdf.book_view.rapid_reversals')
+            }
+            foreach ($name in $names) {
+              $rows = @($report.scenarios | Where-Object name -eq $name)
+              if ($rows.Count -ne 1 -or $rows[0].status -ne 'passed' -or $rows[0].measured -lt 1) { throw "Missing measured phase: $name" }
+              foreach ($point in @('before', 'after')) {
+                if ($rows[0].imageBudget.$point.complete -ne $true) { throw "Incomplete PDF budget coverage: $name / $point" }
+              }
+            }
+            $idle = $report.scenarios | Where-Object name -eq "$prefix.idle_after_close"
+            if ($idle.measurementKind -ne 'resource-observation' -or $idle.observationWindowMs -ne 3000 -or $null -ne $idle.latencyMs) { throw "PDF post-close window was not a fixed resource observation: $prefix" }
+          }
       - name: Upload observations, including partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: perf-${{ inputs.mode || 'profile' }}-${{ inputs.cache_state || 'cold' }}-${{ inputs.scenario_set || 'pdf-reader' }}
+          name: perf-${{ inputs.mode || 'profile' }}-${{ inputs.cache_state || 'cold' }}-${{ matrix.scenario }}
           if-no-files-found: warn
           retention-days: 14
           path: |

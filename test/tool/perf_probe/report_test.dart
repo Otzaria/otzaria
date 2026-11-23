@@ -476,6 +476,32 @@ void main() {
       },
     );
 
+    test('thumbnail checkpoints compare apart from the full phase', () {
+      const name = 'pdf.book_view.thumbnails_first_image';
+      Map<String, dynamic> withThumbnail(double atMs) => report([
+        phase(
+          name: name,
+          extra: {
+            'details': {
+              'checkpointsMs': {'first_visible_thumbnail_observed': atMs},
+            },
+          },
+        ),
+      ]);
+
+      final baseline = withThumbnail(3);
+      final candidate = withThumbnail(5);
+      final points = scenario(candidate, name)['checkpointsMs'];
+      expect(points['first_visible_thumbnail_observed']['p50'], 5);
+      final comparison = compareProbeReports(baseline, candidate);
+      final metrics = comparison['scenarios'].single['metrics'];
+      expect(metrics['latencyMs.p50']['delta'], 0);
+      expect(
+        metrics['checkpointsMs.first_visible_thumbnail_observed.p50']['delta'],
+        2,
+      );
+    });
+
     test('reader smoke and full workload are not comparable', () {
       Map<String, dynamic> workload(String value) => report(
         [opening()],

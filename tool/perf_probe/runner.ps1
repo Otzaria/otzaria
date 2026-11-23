@@ -3,7 +3,7 @@
 param(
   [ValidateSet('profile', 'debug', 'release')][string]$Mode = 'profile',
   [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
-  [ValidateSet('all', 'pdf-reader')][string]$ScenarioSet = 'all',
+  [ValidateSet('all', 'pdf-reader', 'pdf-book-view')][string]$ScenarioSet = 'all',
   [string]$PdfCase = '',
   [ValidateRange(0, 10)][int]$Warmup = 1,
   [ValidateRange(1, 100)][int]$Repetitions = 5,
