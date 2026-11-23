@@ -46,9 +46,11 @@ def _capture(path, *, copy_to=None, maximum=None):
         if source.read(1):
             raise ValueError(f"PDF case input changed while reading: {path}")
         after = os.fstat(source.fileno())
-    if (not stat.S_ISREG(before.st_mode) or _stamp(observed) != _stamp(before)
+    # Windows stat can report birthtime as ctime while fstat reports change time.
+    # Keep each API's complete time checks; compare the shared fields across APIs.
+    if (not stat.S_ISREG(before.st_mode) or _stamp(observed)[:-1] != _stamp(before)[:-1]
             or _stamp(before) != _stamp(after) or path.resolve(strict=True) != resolved
-            or _stamp(path.stat()) != _stamp(after)):
+            or _stamp(path.stat()) != _stamp(observed)):
         raise ValueError(f"PDF case input changed while reading: {path}")
     return _FileIdentity(path, resolved, _stamp(after), digest.hexdigest(), after.st_size)
 

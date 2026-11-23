@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -113,6 +114,50 @@ class PdfCaseSnapshotTests(unittest.TestCase):
         with patch.object(cases.os, "fstat", side_effect=edit_after_read), \
                 self.assertRaisesRegex(ValueError, "changed while reading"):
             cases._capture(self.pdf, copy_to=self.output / "copy.pdf")
+
+    def descriptor_stat(self, value, **changes):
+        return SimpleNamespace(**({key: getattr(value, key) for key in (
+            "st_mode", "st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")} | changes))
+
+    def test_path_and_descriptor_ctime_can_have_different_windows_meanings(self):
+        fstat = cases.os.fstat
+        def changed_meaning(fd):
+            value = fstat(fd)
+            return self.descriptor_stat(value, st_ctime_ns=value.st_ctime_ns + 1000000)
+        with patch.object(cases.os, "fstat", side_effect=changed_meaning):
+            snapshot = self.prepare()
+            snapshot.verify_run(*self.run_files(snapshot))
+
+    def test_descriptor_change_time_still_detects_an_edit_during_read(self):
+        fstat, calls = cases.os.fstat, 0
+        def changed_after_read(fd):
+            nonlocal calls
+            calls += 1
+            value = fstat(fd)
+            return self.descriptor_stat(value, st_ctime_ns=value.st_ctime_ns + calls)
+        with patch.object(cases.os, "fstat", side_effect=changed_after_read), \
+                self.assertRaisesRegex(ValueError, "changed while reading"):
+            cases._capture(self.pdf)
+
+    def test_saved_descriptor_change_time_still_detects_a_later_edit(self):
+        fstat, delta = cases.os.fstat, 1000000
+        def change_time(fd):
+            value = fstat(fd)
+            return self.descriptor_stat(value, st_ctime_ns=value.st_ctime_ns + delta)
+        with patch.object(cases.os, "fstat", side_effect=change_time):
+            snapshot = self.prepare()
+            delta += 1000000
+            with self.assertRaisesRegex(ValueError, "changed"):
+                snapshot.verify()
+
+    def test_path_and_open_descriptor_must_identify_the_same_file(self):
+        fstat = cases.os.fstat
+        def different_file(fd):
+            value = fstat(fd)
+            return self.descriptor_stat(value, st_ino=value.st_ino + 1)
+        with patch.object(cases.os, "fstat", side_effect=different_file), \
+                self.assertRaisesRegex(ValueError, "changed while reading"):
+            cases._capture(self.pdf)
 
     def test_same_content_replacement_is_detected(self):
         snapshot = self.prepare()
