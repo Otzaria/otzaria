@@ -3255,6 +3255,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       DropOrphanedIndexEntries(library),
                     );
                     if (state.error == null) {
+                      context.read<TabsBloc>().add(
+                        const RefreshCatalogTitles(),
+                      );
                       unawaited(
                         PersonalNotesUserBookKeys()
                             .assignPending(library)

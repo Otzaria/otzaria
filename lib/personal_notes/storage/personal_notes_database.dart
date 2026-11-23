@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
@@ -40,6 +41,8 @@ class PersonalNotesDatabase {
   static const _columnUpdatedAt = 'updated_at';
 
   static const _tableUserBookKeys = 'personal_notes_user_book_keys';
+  static const _tableKeyMoves = 'personal_notes_key_moves';
+  static const _tableMeta = 'personal_notes_meta';
 
   PersonalNotesDatabase._();
 
@@ -102,6 +105,18 @@ class PersonalNotesDatabase {
       )
     ''');
     db.execute('INSERT OR IGNORE INTO $_tableUserBookKeys VALUES (1, 0, -1)');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS $_tableMeta '
+      '(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+    );
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS $_tableKeyMoves (
+        from_key TEXT NOT NULL,
+        to_key TEXT NOT NULL,
+        note_ids TEXT NOT NULL,
+        moved_at TEXT NOT NULL
+      )
+    ''');
     db.execute('''
       CREATE TABLE IF NOT EXISTS $_tableNotes (
         $_columnId TEXT PRIMARY KEY,
@@ -314,12 +329,14 @@ class PersonalNotesDatabase {
   /// מעביר את [notes] למפתח [bookId] רק אם לא השתנו; מחזיר false אם נדרשת הכרעה מחדש.
   Future<bool> moveNotesToBook(
     Iterable<PersonalNote> notes,
-    String bookId,
-  ) async {
+    String bookId, {
+    bool recordMove = false,
+  }) async {
     final expected = {for (final note in notes) note.id: note};
     if (expected.isEmpty) return true;
     final db = await database;
     final changedBooks = <String>{};
+    final movedByKey = <String, List<String>>{};
     var complete = true;
     withTransaction(db, () {
       for (final note in expected.values) {
@@ -339,10 +356,37 @@ class PersonalNotesDatabase {
           'UPDATE $_tableNotes SET $_columnBookId = ? WHERE $_columnId = ?',
           [bookId, note.id],
         );
+        if (recordMove) {
+          (movedByKey[current.bookId] ??= []).add(note.id);
+        }
+      }
+      for (final entry in movedByKey.entries) {
+        db.execute('INSERT INTO $_tableKeyMoves VALUES (?, ?, ?, ?)', [
+          entry.key,
+          bookId,
+          jsonEncode(entry.value),
+          DateTime.now().toIso8601String(),
+        ]);
       }
     });
     _notifyChanges(changedBooks);
     return complete;
+  }
+
+  Future<String?> metaValue(String key) async {
+    final db = await database;
+    final rows = db.select('SELECT value FROM $_tableMeta WHERE key = ?', [
+      key,
+    ]);
+    return rows.isEmpty ? null : rows.first['value'] as String;
+  }
+
+  Future<void> setMetaValue(String key, String value) async {
+    final db = await database;
+    db.execute('INSERT OR REPLACE INTO $_tableMeta VALUES (?, ?)', [
+      key,
+      value,
+    ]);
   }
 
   /// מכניס הערות בעסקה אחת, ומדלג על מזהה קיים אלא אם נבחר [replace].
