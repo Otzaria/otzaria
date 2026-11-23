@@ -67,14 +67,22 @@ class PdfFontFallback {
     PdfPasswordProvider? passwordProvider,
     bool reopenOnFontChange = true,
   }) async {
+    String? retryPassword;
     Future<PdfDocument> open({required bool allowReopen}) async {
       var opening = _fontLoads.beginOpening();
+      String? requestedPassword;
       Future<String?> requestPassword() async {
+        final acceptedPassword = retryPassword;
+        if (acceptedPassword != null) {
+          retryPassword = null;
+          return acceptedPassword;
+        }
+
         // הזנת סיסמה אינה עבודת מנוע: פתיחות אחרות צריכות להמשיך בינתיים.
         _fontLoads.cancelOpening(opening);
-        final password = await passwordProvider!();
-        if (password != null) opening = _fontLoads.beginOpening();
-        return password;
+        requestedPassword = await passwordProvider!();
+        if (requestedPassword != null) opening = _fontLoads.beginOpening();
+        return requestedPassword;
       }
 
       try {
@@ -91,6 +99,7 @@ class PdfFontFallback {
         // ה־worker חייב להשתחרר מהמסמך לפני פתיחתו מחדש. גם הפתיחה
         // החוזרת משתתפת בגילוי, כי היא עלולה לקבל אירוע של מסמך אחר.
         await document.dispose();
+        retryPassword = requestedPassword;
         return await open(allowReopen: false);
       } finally {
         _fontLoads.cancelOpening(opening);
