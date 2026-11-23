@@ -1643,8 +1643,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: add9fc27474a134152198217f606c24aa2b01404
-      resolved-ref: add9fc27474a134152198217f606c24aa2b01404
+      ref: d1875dea50f391cc5e0dd25ce43d80ed9a3dc159
+      resolved-ref: d1875dea50f391cc5e0dd25ce43d80ed9a3dc159
       url: "https://github.com/Otzaria/otzaria_library_updater"
     source: git
     version: "0.9.1"
