@@ -267,11 +267,14 @@ class TextBookRepository {
   /// של [book], כפי שנשמרו: סוג מקורי, בלי סינוני תצוגה. [Link.index1] היא
   /// השורה ב-[book], ו-[Link.path2]/[Link.index2] — הספר והשורה ששומרים את
   /// הקישור. רק מהמסד של הספר עצמו (רשמי או מצורף); אחרת — ריק.
+  /// [targetBookTitles]/[targetTitlePrefixes] מסננים את הספר האחר לפני [limit].
   Future<List<Link>> getIncomingLinksInRange(
     TextBook book, {
     required int startIndex,
     required int endIndex,
     List<String>? connectionTypes,
+    List<String>? targetBookTitles,
+    List<String>? targetTitlePrefixes,
     int? limit,
   }) async {
     if (book.source.isUser) return const [];
@@ -292,9 +295,11 @@ class TextBookRepository {
       fileType,
       startLineIndex: startIndex,
       endLineIndex: endIndex,
+      targetBookTitles: targetBookTitles,
       source: book.source.isAttached ? book.source : BookSource.official,
       incoming: true,
       incomingConnectionTypes: connectionTypes,
+      incomingTitlePrefixes: targetTitlePrefixes,
       incomingLimit: limit,
     );
   }

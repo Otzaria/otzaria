@@ -573,6 +573,21 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
     ''', params).toMapList();
 }
 
+final _incomingTitleMatchers = Expando<_IncomingTitleMatcher>();
+
+class _IncomingTitleMatcher {
+  _IncomingTitleMatcher(sqlite3.Database db) {
+    db.createFunction(
+      functionName: 'otzaria_incoming_title_matches',
+      argumentCount: const sqlite3.AllowedArgumentCount(1),
+      directOnly: true,
+      function: (args) => matches?.call(args[0] as String) == true ? 1 : 0,
+    );
+  }
+
+  bool Function(String)? matches;
+}
+
 // קישורים נכנסים ל-SDK. השאילתה קוראת רק את צד היעד השמור ואת שורות הכיסוי שלו.
 List<Map<String, dynamic>> _loadIncomingLinkRows(
   sqlite3.Database db,
@@ -582,6 +597,8 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
   required int startLineIndex,
   required int endLineIndex,
   required List<String>? connectionTypes,
+  required List<String>? sourceTitles,
+  required List<String>? sourceTitlePrefixes,
   required int? limit,
 }) {
   List<int>? typeIds;
@@ -609,10 +626,39 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
                 SELECT id FROM connection_type WHERE name IS NOT NULL
               )""" : ''})';
   final bookFilter = official ? '' : 'AND l.targetBookId = ?';
+  final titles = sourceTitles?.toSet();
+  final prefixes = sourceTitlePrefixes?.toSet();
+  final hasTitleFilter = titles != null || prefixes != null;
+  if (hasTitleFilter &&
+      titles?.isEmpty != false &&
+      prefixes?.isEmpty != false) {
+    return const [];
+  }
+  final titleFilter = hasTitleFilter
+      ? 'WHERE otzaria_incoming_title_matches(sb.title)'
+      : '';
+  // SQLite שומר את ה־callback עד סגירת החיבור. המסננים חיים רק בזמן השאילתה.
+  final matcher = hasTitleFilter
+      ? (_incomingTitleMatchers[db] ??= _IncomingTitleMatcher(db))
+      : null;
+  if (matcher != null) {
+    if (prefixes == null || prefixes.isEmpty) {
+      matcher.matches = (title) => titles?.contains(title) == true;
+    } else {
+      final prefixMatches = <String, bool>{};
+      matcher.matches = (title) =>
+          titles?.contains(title) == true ||
+          prefixMatches.putIfAbsent(
+            title,
+            () => prefixes.any(title.startsWith),
+          );
+    }
+  }
 
-  return db
-      .select(
-        '''
+  try {
+    return db
+        .select(
+          '''
       WITH win(id) AS (
         SELECT id FROM line WHERE bookId = ? AND lineIndex BETWEEN ? AND ?
       ),
@@ -639,20 +685,24 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
       JOIN book sb ON sb.id = l.sourceBookId
       LEFT JOIN connection_type ct ON ct.id = l.connectionTypeId
       ${_rangeEndJoinClause(hasRanges, panelSide: 0)}
+      $titleFilter
       ORDER BY tl.lineIndex, l.id
       ${limit == null ? '' : 'LIMIT ?'}
     ''',
-        [
-          bookId,
-          startLineIndex,
-          endLineIndex,
-          if (!official) bookId,
-          ...?typeIds,
-          if (hasRanges) ...?typeIds,
-          ?limit,
-        ],
-      )
-      .toMapList();
+          [
+            bookId,
+            startLineIndex,
+            endLineIndex,
+            if (!official) bookId,
+            ...?typeIds,
+            if (hasRanges) ...?typeIds,
+            ?limit,
+          ],
+        )
+        .toMapList();
+  } finally {
+    matcher?.matches = null;
+  }
 }
 
 /// מזהה הספר [title] — בקטגוריה [categoryId] כשהמסד מכיר קטגוריות — או null.
@@ -1081,6 +1131,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
   required List<String>? targetBookTitles,
   bool incoming = false,
   List<String>? incomingConnectionTypes,
+  List<String>? incomingTitlePrefixes,
   int? incomingLimit,
   ReadOnlyConnection? connection,
 }) {
@@ -1107,6 +1158,8 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
         connectionTypes: incomingConnectionTypes,
+        sourceTitles: targetBookTitles,
+        sourceTitlePrefixes: incomingTitlePrefixes,
         limit: incomingLimit,
       );
     }
@@ -1626,6 +1679,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
   List<String>? targetBookTitles,
   bool incoming = false,
   List<String>? incomingConnectionTypes,
+  List<String>? incomingTitlePrefixes,
   int? incomingLimit,
 }) {
   return Isolate.run(
@@ -1640,6 +1694,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
       targetBookTitles: targetBookTitles,
       incoming: incoming,
       incomingConnectionTypes: incomingConnectionTypes,
+      incomingTitlePrefixes: incomingTitlePrefixes,
       incomingLimit: incomingLimit,
     ),
   );
@@ -1830,6 +1885,8 @@ Object? runRangeRequestOnConnection(
       targetBookTitles: (args['targetBookTitles'] as List?)?.cast<String>(),
       incoming: args['incoming'] as bool? ?? false,
       incomingConnectionTypes: (args['incomingConnectionTypes'] as List?)
+          ?.cast<String>(),
+      incomingTitlePrefixes: (args['incomingTitlePrefixes'] as List?)
           ?.cast<String>(),
       incomingLimit: args['incomingLimit'] as int?,
       connection: connection,
@@ -4894,6 +4951,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     BookSource source = BookSource.official,
     bool incoming = false,
     List<String>? incomingConnectionTypes,
+    List<String>? incomingTitlePrefixes,
     int? incomingLimit,
   }) async {
     final normalizedTargetBookTitles =
@@ -4923,6 +4981,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         'targetBookTitles': normalizedTargetBookTitles,
         if (incoming) 'incoming': true,
         'incomingConnectionTypes': ?incomingConnectionTypes,
+        'incomingTitlePrefixes': ?incomingTitlePrefixes,
         'incomingLimit': ?incomingLimit,
       },
       () => _runBookLinksInRangeInIsolate(
@@ -4936,6 +4995,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         targetBookTitles: normalizedTargetBookTitles,
         incoming: incoming,
         incomingConnectionTypes: incomingConnectionTypes,
+        incomingTitlePrefixes: incomingTitlePrefixes,
         incomingLimit: incomingLimit,
       ),
     );
