@@ -123,7 +123,7 @@ class ReportTests(unittest.TestCase):
     def setUp(self):
         self.commits = {"baseline": "a" * 40, "candidate": "b" * 40}
         self.settings = {"mode": "profile", "cacheState": "cold", "scenario": "pdf-book-view",
-                         "launches": 3, "repetitions": 5}
+                         "pages": 1000, "launches": 3, "repetitions": 5}
         self.sdk = {"frameworkRevision": "c" * 40}
         self.hardware = "one actual host session"
         names = ["startup.first_content", "startup.window_useful"] + [f"pdf.book_view.{name}" for name in (
@@ -138,7 +138,10 @@ class ReportTests(unittest.TestCase):
                     "cacheState": "cold", "launchCount": 3, "repetitions": 5, "warmup": 1,
                     "bindingMode": "framework", "hardwareId": self.hardware,
                     "flutterVersion": self.sdk["frameworkRevision"],
-                    "settings": {"scenarioSet": "pdf-book-view"},
+                    "settings": {"scenarioSet": "pdf-book-view",
+                        "pdfReaderCase": {"source": {
+                            "kind": "generated", "pageCount": 1000, "mixedPageSizes": True,
+                        }}},
                     "machine": {"cpu": "fixture CPU"}, "engineIdentity": {"bundleSha256": "d" * 64}},
                 "scenarios": [{"name": name, "status": "passed", "measured": 3 if name.startswith("startup.") else 15} for name in names],
             }
@@ -180,6 +183,14 @@ class ReportTests(unittest.TestCase):
                     reports = copy.deepcopy(self.reports)
                     reports[role]["metadata"][field] = value
                     self.validate(reports)
+
+    def test_identical_but_wrong_pdf_corpus_is_rejected(self):
+        for field, value in (("kind", "external"), ("pageCount", 600), ("mixedPageSizes", False)):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "wrong PDF corpus"):
+                reports = copy.deepcopy(self.reports)
+                for report in reports.values():
+                    report["metadata"]["settings"]["pdfReaderCase"]["source"][field] = value
+                self.validate(reports)
 
     def test_analyzer_exit_success_does_not_imply_comparability(self):
         for field, value in (("comparable", False), ("reasons", ["metadata:viewport"]),

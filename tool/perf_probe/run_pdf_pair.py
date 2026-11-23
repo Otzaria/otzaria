@@ -133,6 +133,7 @@ def validate_reports(reports: dict, commits: dict, settings: dict, hardware_id: 
         "warmup": 1, "bindingMode": "framework", "hardwareId": hardware_id,
         "flutterVersion": sdk["frameworkRevision"],
     }
+    expected_corpus = {"kind": "generated", "pageCount": settings["pages"], "mixedPageSizes": True}
     prefix = "pdf.book_view" if settings["scenario"] == "pdf-book-view" else "pdf.reader"
     actions = {"open", "jump_forward", "jump_backward", "close", "idle_after_close"}
     actions |= {"thumbnails_first_image", "prepare_reversals", "rapid_reversals"} if prefix == "pdf.book_view" else {"zoom"}
@@ -148,8 +149,13 @@ def validate_reports(reports: dict, commits: dict, settings: dict, hardware_id: 
             raise ValueError(f"{role} did not measure the requested clean commit.")
         if any(type(metadata.get(k)) is not type(value) or metadata[k] != value for k, value in expected.items()):
             raise ValueError(f"{role} measured different settings, hardware or Flutter SDK.")
-        if metadata.get("settings", {}).get("scenarioSet") != settings["scenario"]:
+        measured_settings = metadata.get("settings", {})
+        if measured_settings.get("scenarioSet") != settings["scenario"]:
             raise ValueError(f"{role} measured the wrong PDF scenario.")
+        actual_corpus = measured_settings.get("pdfReaderCase", {}).get("source", {})
+        if any(type(actual_corpus.get(k)) is not type(value) or actual_corpus[k] != value
+               for k, value in expected_corpus.items()):
+            raise ValueError(f"{role} measured the wrong PDF corpus.")
         rows = report.get("scenarios", [])
         names[role] = [row.get("name") for row in rows]
         if any(not isinstance(n, str) for n in names[role]) or len(set(names[role])) != len(rows):
