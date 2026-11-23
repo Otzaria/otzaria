@@ -1083,6 +1083,20 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
   // ── AppBar ─────────────────────────────────────────────────────────────────
 
+  String _currentTitleRef(TextBookLoaded state, List<TocEntry> chapters) {
+    final chapter = _selectedChapter;
+    final String ref;
+    if (chapter != null && chapters.contains(chapter)) {
+      final child = _selectedVerseIdx >= 0
+          ? chapter.children.elementAtOrNull(_selectedVerseIdx)
+          : null;
+      ref = (child ?? chapter).fullText;
+    } else {
+      ref = refFromTocList(widget.tab.currentIndex, state.tableOfContents);
+    }
+    return addBookTitleToRef(refUpToDaf(ref), state.book.title);
+  }
+
   Widget _buildAppBar(
     BuildContext context,
     TextBookLoaded state,
@@ -1100,7 +1114,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       ),
     );
     return CommentatorsTabTopBar(
-      title: 'מפרשים על ${state.book.title}',
+      title: 'מפרשים על ${_currentTitleRef(state, chapters)}',
       prevMajorTooltip: 'הפרק הקודם',
       nextMajorTooltip: 'הפרק הבא',
       navPaneOpen: _navPaneOpen,
