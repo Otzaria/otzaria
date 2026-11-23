@@ -227,6 +227,55 @@ void main() {
     expect(await shownIndexes(tester, tab), [7]);
   });
 
+  testWidgets('קיצורי הקטע והפרק בכרטיסייה פועלים כמו חיצי הסרגל '
+      '(issue #5796)', (tester) async {
+    final book = TextBook(title: 'בראשית');
+    final root = TocEntry(text: 'ספר', index: 0);
+    for (final (name, start) in [('פרק א', 0), ('פרק ב', 6)]) {
+      final chapter = TocEntry(
+        text: name,
+        index: start,
+        level: 2,
+        parent: root,
+      );
+      root.children.add(chapter);
+      for (var i = start + 1; i < start + 6; i++) {
+        chapter.children.add(
+          TocEntry(text: 'פסוק $i', index: i, level: 3, parent: chapter),
+        );
+      }
+    }
+    final tab = openOn(sourceWith(book, {3}), book, toc: [root]);
+    expect(await shownIndexes(tester, tab), [3]);
+    List<int>? shown() => tester
+        .widget<CommentaryListBase>(find.byType(CommentaryListBase))
+        .indexes;
+    Future<void> altPress(LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump();
+    }
+
+    await altPress(LogicalKeyboardKey.arrowDown);
+    expect(shown(), [4]);
+    await altPress(LogicalKeyboardKey.arrowUp);
+    expect(shown(), [3]);
+    await altPress(LogicalKeyboardKey.pageDown);
+    final nextChapter = shown();
+    await altPress(LogicalKeyboardKey.pageUp);
+    final prevChapter = shown();
+
+    await tester.tap(find.byTooltip('הפרק הבא').first);
+    await tester.pump();
+    expect(shown(), nextChapter);
+    expect(nextChapter, contains(6));
+    await tester.tap(find.byTooltip('הפרק הקודם').first);
+    await tester.pump();
+    expect(shown(), prevChapter);
+    expect(prevChapter, isNot(contains(6)));
+  });
+
   test('פתיחת הכרטיסייה מעתיקה בחירה בלי לשנות את נתוני הסשן', () {
     final book = TextBook(title: 'בראשית');
     final selected = {3, 5, 7};

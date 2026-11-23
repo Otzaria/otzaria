@@ -17,12 +17,20 @@ import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
+/// צעד הזום של גופן המפרשים — בכפתורי הסרגל ובקיצורי המקלדת.
+const double _zoomStep = 2;
+
 /// קיצורי המקלדת של כרטיסיית מפרשים — אותן פעולות של כפתורי הסרגל.
 KeyEventResult handleCommentatorsTabShortcuts(
   KeyEvent event, {
+  required SettingsBloc settings,
   required VoidCallback onPrint,
   required VoidCallback onSearch,
   required VoidCallback onToggleNavPane,
+  required VoidCallback onPrevMajor,
+  required VoidCallback onPrevMinor,
+  required VoidCallback onNextMinor,
+  required VoidCallback onNextMajor,
 }) {
   if (ShortcutHelper.shouldIgnoreWhileEditing(event)) {
     return KeyEventResult.ignored;
@@ -31,6 +39,20 @@ KeyEventResult handleCommentatorsTabShortcuts(
     (ShortcutValidator.printKey, onPrint),
     (ShortcutValidator.currentWindowSearchKey, onSearch),
     ('key-shortcut-toggle-nav-pane', onToggleNavPane),
+    if (!ShortcutHelper.isEditingText) ...[
+      ('key-shortcut-prev-toc', onPrevMajor),
+      ('key-shortcut-prev-segment', onPrevMinor),
+      ('key-shortcut-next-segment', onNextMinor),
+      ('key-shortcut-next-toc', onNextMajor),
+      (
+        ShortcutValidator.zoomInKey,
+        () => settings.add(const AdjustCommentatorsFontSize(_zoomStep)),
+      ),
+      (
+        ShortcutValidator.zoomOutKey,
+        () => settings.add(const AdjustCommentatorsFontSize(-_zoomStep)),
+      ),
+    ],
   ]) {
     if (ShortcutHelper.matchesShortcut(
       event,
@@ -139,8 +161,10 @@ class CommentatorsTabTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.read<SettingsBloc>();
     final compact = AppDensity.of(context).isCompact;
-    void onZoomIn() => settings.add(const AdjustCommentatorsFontSize(2));
-    void onZoomOut() => settings.add(const AdjustCommentatorsFontSize(-2));
+    void onZoomIn() =>
+        settings.add(const AdjustCommentatorsFontSize(_zoomStep));
+    void onZoomOut() =>
+        settings.add(const AdjustCommentatorsFontSize(-_zoomStep));
     void onShowBookmarks() => showBookBookmarksDialog(context, book);
     // Per build: the centre writes it at layout, and this build's menu reads
     // it when it opens.
