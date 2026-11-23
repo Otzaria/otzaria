@@ -119,6 +119,36 @@ void main() {
     );
   });
 
+  testWidgets('כותרת כרטיסיית מפרשי PDF מציינת את הכותרת הנוכחית '
+      '(issue #5794)', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'פרק א': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'פרק א';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה פרק א'), findsOneWidget);
+
+    sourceTab.currentTitle.value = 'פרק ב';
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה פרק ב'), findsOneWidget);
+  });
+
   testWidgets('כרטסיית מפרשי PDF מסתנכרנת עם currentTitle של sourceTab', (
     tester,
   ) async {
