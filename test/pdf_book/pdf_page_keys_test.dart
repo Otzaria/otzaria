@@ -870,6 +870,44 @@ void main() {
       },
     );
   }
+
+  testWidgets('PDF מוגדל: חץ הפוך מיד אחרי שחרור החץ הקודם אינו נבלע', (
+    tester,
+  ) async {
+    final (_, tab) = await pumpBook(tester);
+    final controller = tab.pdfViewerController;
+    final document = controller.document;
+    try {
+      await controller.goToPage(pageNumber: 6, duration: Duration.zero);
+      await settle(tester, rounds: 5);
+      await dragIntoViewer(tester);
+      await controller.setZoom(
+        controller.centerPosition,
+        controller.currentZoom * 2,
+        duration: Duration.zero,
+      );
+      await settle(tester, rounds: 5);
+      final page = controller.pageNumber!;
+      final startLeft = controller.visibleRect.left;
+
+      // לחיצה, שחרור ולחיצה הפוכה לפני פעימת הטיימר הבאה.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await settle(tester, rounds: 10);
+
+      expect(controller.pageNumber, page);
+      expect(
+        (controller.visibleRect.left - startLeft) * controller.currentZoom,
+        closeTo(0, 1),
+        reason: 'הלחיצה על → מחזירה את הגלילה של ←',
+      );
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    }
+  });
 }
 
 class _TabsRepository implements TabsRepository {

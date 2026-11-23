@@ -1903,7 +1903,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               }
             } else if (event is KeyUpEvent) {
               if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                  event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                  event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                  event.logicalKey == _horizontalScrollKey) {
                 _stopContinuousScroll();
                 return KeyEventResult.handled;
               }
