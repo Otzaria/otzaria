@@ -158,6 +158,12 @@ void main() {
           legacy.text,
           reason: '$bookId',
         );
+        // Lines = rows, equal to the joined text split on '\n'.
+        expect(
+          await readBookContentLines(db, k),
+          legacy.text?.split('\n'),
+          reason: '$bookId',
+        );
         expect((await readBookContentBytes(db, k))?.bytes, legacy.bytes);
         expect(
           (await readBookContentTransferable(
@@ -184,6 +190,10 @@ void main() {
     final legacy = legacyRead(dbPath, 1);
     expect(legacy.text, ['א', '$bomב', 'ג$bom', '', 'ד'].join('\n'));
     expect(await readBookContentText(db, key(1)), legacy.text);
+    expect(
+      await readBookContentLines(db, key(1)),
+      legacy.text?.split('\n'),
+    );
     // הבייטים נשארים כפי שמאוחסנים, כולל ה-BOM.
     expect(
       (await readBookContentBytes(db, key(1)))?.bytes,
@@ -217,6 +227,10 @@ void main() {
 
     final legacy = legacyRead(dbPath, 1);
     expect(await readBookContentText(db, key(1)), legacy.text);
+    expect(
+      await readBookContentLines(db, key(1)),
+      legacy.text?.split('\n'),
+    );
     expect((await readBookContentBytes(db, key(1)))?.bytes, legacy.bytes);
     expect(
       (await readBookContentTransferable(
@@ -242,6 +256,15 @@ void main() {
       final legacy = legacyRead(dbPath, 1);
       expect(legacy.text, contains('\n\nאחרי NULL'));
       expect(await readBookContentText(db, key(1)), legacy.text);
+      expect(
+        await readBookContentLines(db, key(1)),
+        legacy.text?.split('\n'),
+      );
+      expect(await readBookContentLines(db, key(2)), isNull);
+      expect(
+        await readBookContentLines(db, key(1)),
+        legacy.text?.split('\n'),
+      );
       expect(await readBookContentText(db, key(2)), isNull);
       if (encoding == 'UTF-8') {
         expect((await readBookContentBytes(db, key(1)))?.bytes, legacy.bytes);
@@ -256,6 +279,7 @@ void main() {
     final BookTextKey stale = (id: 1, title: 'שמות');
 
     expect(await readBookContentText(db, stale), isNull);
+    expect(await readBookContentLines(db, stale), isNull);
     expect(await readBookContentBytes(db, stale), isNull);
     expect(await readBookContentTransferable(db, stale), isNull);
   });
@@ -331,6 +355,11 @@ void main() {
       (await BookTextReader.bytes(repository, book(1)))?.bytes,
       legacyRead(dbPath, 1).bytes,
     );
+    expect(
+      await BookTextReader.lines(repository, book(1)),
+      legacyRead(dbPath, 1).text?.split('\n'),
+    );
+    expect(await BookTextReader.lines(repository, book(2)), isNull);
     expect(await BookTextReader.text(repository, book(2)), isNull);
     expect(BookTextReader.mainConnectionReads, 0);
     expect(DbReadWorker.sentMessageCount, sentBefore);
@@ -348,6 +377,11 @@ void main() {
       legacyRead(dbPath, 1).text,
     );
     expect(BookTextReader.mainConnectionReads, 1);
+    expect(
+      await BookTextReader.lines(repository, book(1)),
+      legacyRead(dbPath, 1).text?.split('\n'),
+    );
+    expect(BookTextReader.mainConnectionReads, 2);
   });
 
   group('seforim.db דרך SqliteDataProvider', () {
@@ -369,6 +403,22 @@ void main() {
       await SqliteDataProvider.instance.dispose();
       await UserBooksDatabaseHolder.instance.close();
       AppPaths.debugOverrideDataRootPath(null);
+    });
+
+    test('getBookLinesFromDb: rows as lines through the worker', () async {
+      final provider = SqliteDataProvider.instance;
+      final sentBefore = DbReadWorker.sentMessageCount;
+      for (final id in [1, 2, 3]) {
+        final lines = await provider.getBookLinesFromDb(titles[id]!, 7, 'txt');
+        final text = await provider.getBookTextFromDb(titles[id]!, 7, 'txt');
+        expect(lines, text?.split('\n'), reason: '$id');
+      }
+      expect(
+        await provider.getBookLinesFromDb(titles[1]!, 7, 'txt'),
+        legacyRead(dbPath, 1).text!.split('\n'),
+      );
+      expect(BookTextReader.mainConnectionReads, 0);
+      expect(DbReadWorker.sentMessageCount, greaterThan(sentBefore));
     });
 
     test('טקסט ובייטים מלאים נקראים ב-worker וזהים למסלול הקודם', () async {

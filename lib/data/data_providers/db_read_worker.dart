@@ -483,7 +483,10 @@ class DbReadWorker {
     if (_suspendedForExternalWrite || _closedUntilReopen) {
       throw const DbReadWorkerSuspended();
     }
-    final slot = method == 'bookText' || method == 'bookTextBytes'
+    final slot =
+        method == 'bookText' ||
+            method == 'bookLines' ||
+            method == 'bookTextBytes'
         ? _books
         : _ranges;
     if (slot.stalled) throw const DbReadWorkerUnavailable('stalled');
@@ -1491,6 +1494,13 @@ void _workerMain(_Bootstrap bootstrap) {
       case 'bookText':
         final repo = await ensureRepo(args['dbPath'] as String);
         return readBookContentText(
+          await repo.database.database,
+          _bookTextKey(args),
+          checkpoint: bookReadCheckpoint,
+        );
+      case 'bookLines':
+        final repo = await ensureRepo(args['dbPath'] as String);
+        return readBookContentLines(
           await repo.database.database,
           _bookTextKey(args),
           checkpoint: bookReadCheckpoint,

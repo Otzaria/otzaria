@@ -67,6 +67,18 @@ class BookTextReader {
   );
 
   /// כמו [text], כבייטים גולמיים (UTF-8 כפי שמאוחסן) — מסלול האינדוקס.
+  /// The book's lines, one per row (see [readBookContentLines]).
+  static Future<List<String>?> lines(
+    SeforimRepository repository,
+    db_models.Book book,
+  ) => _load(
+    repository,
+    book,
+    workerMethod: 'bookLines',
+    fromWorker: (result) => (result as List?)?.cast<String>(),
+    read: readBookContentLines,
+  );
+
   static Future<BookContentBytes?> bytes(
     SeforimRepository repository,
     db_models.Book book,
@@ -290,4 +302,57 @@ Future<String?> readBookContentText(
     checkpoint: checkpoint,
   );
   return read == null ? null : utf8.decode(_concat(read.chunks));
+}
+
+/// Reads a book as its list of lines: one entry per row, in line order.
+///
+/// Gives the same lines as splitting [readBookContentText] on '\n' (a row
+/// that itself holds '\n' becomes several lines, as the split would make it),
+/// without building and re-splitting one joined string.
+Future<List<String>?> readBookContentLines(
+  sqlite3.Database db,
+  BookTextKey book, {
+  ReadCheckpoint? checkpoint,
+}) async {
+  final codec = LineContentCodec.of(db);
+  final lines = <String>[];
+  final encoding = db.select('PRAGMA encoding').first.values.first;
+  if (encoding != 'UTF-8') {
+    final rows = db.select(_contentSql(db, blob: false), [book.id, book.title]);
+    if (rows.isEmpty) return null;
+    for (final row in rows) {
+      _addRowLines(lines, codec.text(row.values.first) ?? '');
+    }
+    return lines;
+  }
+  final statement = db.prepare(_contentSql(db, blob: true));
+  try {
+    final raw = statement.raw
+      ..bindInt64(1, book.id)
+      ..bindText(2, book.title);
+    var rows = 0;
+    while (raw.step()) {
+      final bytes = raw.columnInt64(1) != 0
+          ? codec.bytes(raw.columnBlob(0))
+          : raw.columnBlob(0);
+      // utf8.decode drops one leading BOM, as the joined read drops it
+      // from every row.
+      _addRowLines(lines, utf8.decode(bytes));
+      rows++;
+      if (checkpoint != null && rows % _rowsPerCheckpoint == 0) {
+        await checkpoint();
+      }
+    }
+    return rows == 0 ? null : lines;
+  } finally {
+    statement.close();
+  }
+}
+
+void _addRowLines(List<String> lines, String row) {
+  if (row.contains('\n')) {
+    lines.addAll(row.split('\n'));
+  } else {
+    lines.add(row);
+  }
 }

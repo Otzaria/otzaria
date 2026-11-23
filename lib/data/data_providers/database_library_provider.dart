@@ -1956,7 +1956,8 @@ Future<List<Map<String, dynamic>>> _runSelectableVersionKeysInIsolate({
 }
 
 /// Library provider that loads books from the SQLite database.
-class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
+class DatabaseLibraryProvider
+    implements LibraryProvider, LinkLinesProvider, BookLinesProvider {
   final SqliteDataProvider _sqliteProvider = SqliteDataProvider.instance;
   final _cachedKeys = BookKeySet();
   final Map<int, String> _categoryIdToPath = {};
@@ -3188,6 +3189,25 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     String fileType, {
     BookSource preferSource = BookSource.official,
   }) async {
+    final lines = await getBookLines(
+      title,
+      categoryId,
+      fileType,
+      preferSource: preferSource,
+    );
+    return lines?.join('\n');
+  }
+
+  static Future<List<String>?> _fileLines(String? text) async =>
+      text == null ? null : splitBookText(text);
+
+  @override
+  Future<List<String>?> getBookLines(
+    String title,
+    int categoryId,
+    String fileType, {
+    BookSource preferSource = BookSource.official,
+  }) async {
     final source = _resolveSource(
       title: title,
       categoryId: categoryId,
@@ -3195,7 +3215,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       preferSource: preferSource,
     );
     if (source is AttachedBookSource) {
-      return _readAttachedBookText(title, categoryId, source);
+      return _readAttachedBookLines(title, categoryId, source);
     }
     // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
     // עצמו אם isFileBacked, אחרת משורות ה-line).
@@ -3213,11 +3233,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           if (await file.exists()) {
             // PDF מוחזר null — הקוראים שלו עוברים בצנרת נפרדת. פורמט בינארי
             // (ZIP/OLE) לעולם אינו נקרא כטקסט אלא מומר.
-            return await readFileBackedBookText(file, book.fileType, title);
+            return await _fileLines(
+              await readFileBackedBookText(file, book.fileType, title),
+            );
           }
         }
         // נופל לטעינה מתוך ה-DB עצמו (טבלת `line`).
-        return await _readBookTextFromUserBooksDb(
+        return await _readBookLinesFromUserBooksDb(
           repo,
           book.id,
           book.totalLines,
@@ -3236,12 +3258,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         if (book != null && book.isFileBacked && book.filePath != null) {
           final file = File(book.filePath!);
           if (await file.exists()) {
-            return await readFileBackedBookText(file, book.fileType, title);
+            return await _fileLines(
+              await readFileBackedBookText(file, book.fileType, title),
+            );
           }
         }
         // If not external or file not found, try DB text
         if (book != null) {
-          return await _sqliteProvider.getBookTextFromDb(
+          return await _sqliteProvider.getBookLinesFromDb(
             title,
             categoryId,
             fileType,
@@ -3259,7 +3283,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
   /// ספר ממסד מצורף נקרא תמיד משורות ה-`line` שלו — נתיב קובץ שבמסד אינו
   /// נפתח (מסד שאינו בשליטת התוכנה).
-  Future<String?> _readAttachedBookText(
+  Future<List<String>?> _readAttachedBookLines(
     String title,
     int categoryId,
     AttachedBookSource source,
@@ -3271,15 +3295,13 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         preferSource: source,
       );
       if (record == null || record.source != source) return null;
-      final text = await BookTextReader.text(record.repository, record.book);
-      if (text != null) return text;
+      final lines = await BookTextReader.lines(record.repository, record.book);
+      if (lines != null) return lines;
       // ספר מבוסס-קובץ: filePath כבר נפתר בתוך תיקיית המסד (או null).
       final file = record.book.filePath;
       if (file == null || !await File(file).exists()) return null;
-      return await readFileBackedBookText(
-        File(file),
-        record.book.fileType,
-        title,
+      return await _fileLines(
+        await readFileBackedBookText(File(file), record.book.fileType, title),
       );
     } catch (e) {
       debugPrint('⚠️ Error reading attached book text: $e');
@@ -3310,7 +3332,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   }
 
   /// קורא את תוכן הספר משורות ה-`line` של `user_books.db` ומחזיר טקסט מאוחד.
-  Future<String?> _readBookTextFromUserBooksDb(
+  Future<List<String>?> _readBookLinesFromUserBooksDb(
     SeforimRepository repo,
     int bookId,
     int totalLines,
@@ -3319,7 +3341,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       if (totalLines <= 0) return null;
       final lines = await repo.getLines(bookId, 0, totalLines - 1);
       if (lines.isEmpty) return null;
-      return lines.map((l) => l.content).join('\n');
+      return rowsToBookLines(lines.map((l) => l.content));
     } catch (e) {
       debugPrint('⚠️ Error loading user_books lines for book $bookId: $e');
       return null;

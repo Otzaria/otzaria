@@ -458,6 +458,42 @@ class SqliteDataProvider {
   }
 
   /// טקסט הספר מהמסד; [emptyWhenNoLines] מבדיל ספר קיים שהתרוקן מכשל קריאה.
+  /// The book's lines straight from its rows (no joined string).
+  /// Same lines as splitting [getBookTextFromDb] on '\n'.
+  Future<List<String>?> getBookLinesFromDb(
+    String title, [
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource = BookSource.official,
+  ]) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized) return null;
+
+    try {
+      final resolvedBook = await _resolveBookRecord(
+        title,
+        categoryId: categoryId,
+        fileType: fileType,
+        preferSource: preferSource,
+      );
+      if (resolvedBook == null) return null;
+      return await BookTextReader.lines(
+        resolvedBook.repository,
+        resolvedBook.book,
+      );
+    } on DbReadWorkerBusy {
+      rethrow;
+    } catch (e, st) {
+      debugPrint(
+        '[SqliteDataProvider] getBookLinesFromDb failed for '
+        '"$title": $e\n$st',
+      );
+      return null;
+    }
+  }
+
   Future<String?> getBookTextFromDb(
     String title, [
     int? categoryId,

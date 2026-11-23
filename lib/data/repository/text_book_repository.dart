@@ -6,6 +6,7 @@ import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -67,7 +68,15 @@ class TextBookRepository {
         fileType: book.fileType,
       );
 
-  Future<String> getBookContent(TextBook book) async {
+  /// The whole book as one string, built on demand from [getBookLines]
+  /// (for consumers that genuinely need one string: export, print, plugins).
+  Future<String> getBookContent(TextBook book) async =>
+      (await getBookLines(book)).join('\n');
+
+  /// The book's lines, one format for every source: a database book's rows
+  /// as they are, a text file split once. Equals splitting the book's text on
+  /// '\n'; an empty book has no lines.
+  Future<List<String>> getBookLines(TextBook book) async {
     // מהדורה חלופית: נטענת אך ורק משאילתת ה-overlay של version_line — בלי
     // ליפול בשקט לנוסח הממוזג (שהיה מוצג בשם המהדורה). כישלון = טקסט ריק.
     if (book.versionTitle != null) {
@@ -76,7 +85,8 @@ class TextBookRepository {
         startLine: 0,
         endLine: 1 << 30,
       );
-      return range?.lines.join('\n') ?? '';
+      final lines = range == null ? null : rowsToBookLines(range.lines);
+      return bookLinesHaveText(lines) ? lines! : const [];
     }
 
     // Primary path: go through the provider manager (handles file system + DB).
@@ -85,14 +95,14 @@ class TextBookRepository {
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';
 
-    final providerText = await LibraryProviderManager.instance.getBookText(
+    final providerLines = await LibraryProviderManager.instance.getBookLines(
       title,
       categoryId: categoryId,
       fileType: fileType,
       preferSource: book.source,
     );
-    if (providerText != null && providerText.isNotEmpty) {
-      return providerText;
+    if (bookLinesHaveText(providerLines)) {
+      return providerLines!;
     }
 
     // Fallback: read directly from the database (doesn't require provider caches).
@@ -112,24 +122,25 @@ class TextBookRepository {
         final file = File(dbBook.filePath!);
         if (await file.exists()) {
           // PDF מוחזר '' — אין ממנו טקסט, והקוראים שלו בצנרת נפרדת.
-          return await readFileBackedBookText(file, dbBook.fileType, title) ??
-              '';
+          return splitBookText(
+            await readFileBackedBookText(file, dbBook.fileType, title) ?? '',
+          );
         }
       }
 
-      final dbText = await _sqliteProvider.getBookTextFromDb(
+      final dbLines = await _sqliteProvider.getBookLinesFromDb(
         title,
         dbBook.categoryId,
         dbBook.fileType,
         book.source,
       );
-      if (dbText != null && dbText.isNotEmpty) {
-        return dbText;
+      if (bookLinesHaveText(dbLines)) {
+        return dbLines!;
       }
     }
 
     // Last resort: keep existing behavior.
-    return '';
+    return const [];
   }
 
   /// [maxChars] קוטע את הטווח אחרי השורה שממלאת אותו, מההתחלה או מהסוף לפי

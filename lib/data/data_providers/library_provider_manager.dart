@@ -341,6 +341,58 @@ class LibraryProviderManager {
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
+  }) => _readFromProvider(
+    title,
+    categoryId: categoryId,
+    fileType: fileType,
+    preferSource: preferSource,
+    read: (provider, key) => provider.getBookText(
+      title,
+      key.categoryId,
+      key.fileType,
+      preferSource: preferSource,
+    ),
+  );
+
+  /// Gets a book's lines from the appropriate provider: straight from a
+  /// [BookLinesProvider] (a database book's rows), otherwise its text split
+  /// once. Equals splitting [getBookText] on '\n'.
+  Future<List<String>?> getBookLines(
+    String title, {
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource = BookSource.official,
+  }) => _readFromProvider(
+    title,
+    categoryId: categoryId,
+    fileType: fileType,
+    preferSource: preferSource,
+    read: (provider, key) async {
+      if (provider is BookLinesProvider) {
+        return (provider as BookLinesProvider).getBookLines(
+          title,
+          key.categoryId,
+          key.fileType,
+          preferSource: preferSource,
+        );
+      }
+      final text = await provider.getBookText(
+        title,
+        key.categoryId,
+        key.fileType,
+        preferSource: preferSource,
+      );
+      return text == null ? null : splitBookText(text);
+    },
+  );
+
+  Future<T?> _readFromProvider<T>(
+    String title, {
+    required int? categoryId,
+    required String? fileType,
+    required BookSource preferSource,
+    required Future<T?> Function(LibraryProvider provider, BookCompositeKey key)
+    read,
   }) async {
     if (!_isInitialized) await initialize();
 
@@ -353,12 +405,7 @@ class LibraryProviderManager {
     if (mappedKey != null) {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
-        return await provider.getBookText(
-          title,
-          mappedKey.categoryId,
-          mappedKey.fileType,
-          preferSource: preferSource,
-        );
+        return await read(provider, mappedKey);
       }
     }
 
@@ -374,16 +421,11 @@ class LibraryProviderManager {
       return null;
     }
 
-    final text = await located.provider.getBookText(
-      title,
-      located.key.categoryId,
-      located.key.fileType,
-      preferSource: preferSource,
-    );
-    if (text != null) {
+    final result = await read(located.provider, located.key);
+    if (result != null) {
       _mapBook(located.key, located.provider);
     }
-    return text;
+    return result;
   }
 
   /// Gets the table of contents for a book from the appropriate provider

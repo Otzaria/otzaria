@@ -35,7 +35,8 @@ typedef _BookFileScan = ({
 });
 
 /// Library provider that loads books from the file system.
-class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
+class FileSystemLibraryProvider
+    implements LibraryProvider, LinkLinesProvider, BookLinesProvider {
   late String _libraryPath;
   Map<String, String>? _keyToPath;
   Map<String, String>? _catalogKeyToPath;
@@ -355,6 +356,23 @@ class FileSystemLibraryProvider implements LibraryProvider, LinkLinesProvider {
 
     // PDF מוחזר null — התוכן שלו אינו טקסט והקוראים עוברים בצנרת ה-PDF.
     return readFileBackedBookText(file, fileType, title);
+  }
+
+  /// A text file is split into its lines once, when read.
+  @override
+  Future<List<String>?> getBookLines(
+    String title,
+    int categoryId,
+    String fileType, {
+    BookSource preferSource = BookSource.official,
+  }) async {
+    final text = await getBookText(
+      title,
+      categoryId,
+      fileType,
+      preferSource: preferSource,
+    );
+    return text == null ? null : splitBookText(text);
   }
 
   @override

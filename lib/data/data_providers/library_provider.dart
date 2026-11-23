@@ -1,3 +1,5 @@
+import 'dart:isolate';
+
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -84,4 +86,47 @@ abstract class LibraryProvider {
 /// ספק שמחזיר טווח בשאילתה אחת, בלי לאבד את גבולות שורות המקור.
 abstract interface class LinkLinesProvider {
   Future<List<LinkContentLine>> getLinkContentLines(Link link);
+}
+
+/// A provider that reads a book straight into its lines.
+///
+/// One format for every source: a database book hands its rows over as lines,
+/// a text file is split once when read. The viewer and every consumer take
+/// the list; a joined string is built only where one is genuinely needed.
+abstract interface class BookLinesProvider {
+  /// The book's lines, or null when this provider has no text for it.
+  /// Equals splitting [LibraryProvider.getBookText] on '\n'.
+  Future<List<String>?> getBookLines(
+    String title,
+    int categoryId,
+    String fileType, {
+    BookSource preferSource = BookSource.official,
+  });
+}
+
+/// Splits a whole book text into its lines once (off the UI isolate).
+/// An empty text has no lines.
+Future<List<String>> splitBookText(String content) async {
+  if (content.isEmpty) return const [];
+  return Isolate.run(() => content.split('\n'));
+}
+
+/// Whether [lines] hold any text (the lines of an empty string do not).
+bool bookLinesHaveText(List<String>? lines) =>
+    lines != null &&
+    lines.isNotEmpty &&
+    (lines.length > 1 || lines.first.isNotEmpty);
+
+/// The lines of a book stored as rows: one line per row; a row that holds
+/// '\n' gives several lines, as splitting the joined rows would.
+List<String> rowsToBookLines(Iterable<String> rows) {
+  final lines = <String>[];
+  for (final row in rows) {
+    if (row.contains('\n')) {
+      lines.addAll(row.split('\n'));
+    } else {
+      lines.add(row);
+    }
+  }
+  return lines;
 }
