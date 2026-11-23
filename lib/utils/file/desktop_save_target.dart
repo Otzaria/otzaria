@@ -16,8 +16,10 @@ Future<DesktopSaveTarget?> chooseDesktopSaveTarget({
   String? extension,
   String? dialogTitle,
   Future<bool> Function(String fileName)? confirmOverwrite,
+  bool Function()? isCancelled,
 }) async {
-  if (!context.mounted) return null;
+  bool cancelled() => isCancelled?.call() ?? false;
+  if (!context.mounted || cancelled()) return null;
   final windowsOptions = modalWindowsOptions(context);
   final suggested = saveTargetFileName(fileName, extension);
   final folder = await withFilePickerOwner(
@@ -28,7 +30,9 @@ Future<DesktopSaveTarget?> chooseDesktopSaveTarget({
       linuxOptions: kModalLinuxOptions,
     ),
   );
-  if (folder == null || folder.isEmpty || !context.mounted) return null;
+  if (folder == null || folder.isEmpty || !context.mounted || cancelled()) {
+    return null;
+  }
   final typed = await showInputDialog(
     context: context,
     title: dialogTitle ?? 'שמירת קובץ',
@@ -36,14 +40,14 @@ Future<DesktopSaveTarget?> chooseDesktopSaveTarget({
     initialValue: suggested,
     confirmText: 'שמור',
   );
-  if (typed == null || !context.mounted) return null;
+  if (typed == null || !context.mounted || cancelled()) return null;
   final name = saveTargetFileName(typed, extension);
   final path = saveTargetPath(folder: folder, fileName: name);
-  if (path == null) return null;
+  if (path == null || !context.mounted || cancelled()) return null;
   final exists =
       await FileSystemEntity.type(path, followLinks: false) !=
       FileSystemEntityType.notFound;
-  if (!context.mounted) return null;
+  if (!context.mounted || cancelled()) return null;
   if (exists) {
     final approved = confirmOverwrite != null
         ? await confirmOverwrite(name)
@@ -54,7 +58,7 @@ Future<DesktopSaveTarget?> chooseDesktopSaveTarget({
             subtitle: 'התוכן הקיים יוחלף.',
             confirmText: 'החלפה',
           );
-    if (approved != true || !context.mounted) return null;
+    if (approved != true || !context.mounted || cancelled()) return null;
   }
   return DesktopSaveTarget(path: path, overwriteApproved: exists);
 }
