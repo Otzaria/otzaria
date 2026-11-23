@@ -6,6 +6,11 @@ from pathlib import Path, PurePosixPath
 import re
 import struct
 
+try:
+    from .installed_pdf_desktop import validate_desktop_steps
+except ImportError:
+    from installed_pdf_desktop import validate_desktop_steps
+
 PDF_STEPS = ("view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown")
 PAGE_SIZES = ((240, 320), (320, 240), (200, 400), (400, 200))
 
@@ -62,12 +67,16 @@ def validate_pdf_runtime(pdf, platform, output):
             and pdf.get("indexingActiveAfter") is False, "PDF ownership remained after teardown")
     steps = pdf.get("steps")
     require(isinstance(steps, dict), "Missing PDF steps")
-    for name in PDF_STEPS:
+    desktop = platform in ("linux", "windows", "macos")
+    required_steps = (*PDF_STEPS, "desktopLifecycle", "repeatedLifecycle") if desktop else PDF_STEPS
+    for name in required_steps:
         step = steps.get(name)
         require(isinstance(step, dict) and step.get("status") == "passed"
                 and type(step.get("durationMs")) in (int, float)
                 and math.isfinite(step["durationMs"]) and step["durationMs"] >= 0,
                 f"PDF step missing, skipped or failed: {name}")
+    if desktop:
+        validate_desktop_steps(steps)
     for name, page in (("view", 1), ("reopen", 2)):
         require(steps[name].get("visibleRenderState") == "ready"
                 and steps[name].get("targetPage") == page

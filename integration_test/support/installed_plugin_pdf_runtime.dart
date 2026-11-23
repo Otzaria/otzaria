@@ -34,7 +34,10 @@ import 'package:printing/printing.dart';
 import 'package:win32/win32.dart' as win;
 
 import '../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
+import '../../tool/perf_probe/src/installed_pdf_desktop_contract.dart';
+import 'installed_plugin_memory_pressure.dart';
 import 'installed_plugin_pdf_android.dart';
+import 'installed_plugin_pdf_desktop_window.dart';
 import 'installed_plugin_pdf_fixture.dart';
 import 'installed_plugin_pdf_macos.dart';
 import 'installed_plugin_pdf_ios.dart';
@@ -63,6 +66,10 @@ Future<void> runInstalledPdfRuntime({
     'steps': {
       for (final name in installedPdfRuntimeSteps)
         name: <String, Object?>{'status': 'notRun'},
+      if (installedPdfDesktopPlatforms.contains(Platform.operatingSystem)) ...{
+        'desktopLifecycle': <String, Object?>{'status': 'notRun'},
+        'repeatedLifecycle': <String, Object?>{'status': 'notRun'},
+      },
     },
   });
   report.remove('reason');
@@ -117,10 +124,9 @@ class _PdfRuntime {
   final library = Library(categories: []);
   final _ownedDocuments = <PdfDocument>{};
   final _ownedTabs = <PdfBookTab>{};
+  final _viewers = <PdfBookTab, _OwnedPdfViewer>{};
   PdfBookTab? _tab;
-  PdfDocument? _viewerDocument;
-  StreamSubscription<PdfDocumentEvent>? _viewerEvents;
-  Completer<void>? _viewerClosed;
+  PdfDocument? get _viewerDocument => _viewers[_tab]?.document;
   Future<IndexingRunResult>? _indexing;
 
   Map<String, Object?> step(String name) =>
@@ -246,6 +252,9 @@ class _PdfRuntime {
         }),
       ]);
     });
+    if (installedPdfDesktopPlatforms.contains(Platform.operatingSystem)) {
+      await phase('desktopLifecycle', () => desktopLifecycle(book, bytes));
+    }
     await phase('cancelAndRecover', () => cancelAndRecover(book, bytes));
     await phase('reopen', () async {
       final old = _viewerDocument;
@@ -263,11 +272,15 @@ class _PdfRuntime {
         'raster': await checkNativePage(_viewerDocument!.pages[1], 2),
       });
     });
+    if (installedPdfDesktopPlatforms.contains(Platform.operatingSystem)) {
+      await phase('repeatedLifecycle', () => repeatedLifecycle(book));
+    }
     await phase('loadedModules', loadedModules);
     await phase('teardown', () async {
       await cleanup();
       expect(_ownedTabs, isEmpty);
       expect(_ownedDocuments, isEmpty);
+      expect(_viewers, isEmpty);
       expect(provider.isIndexing.value, false);
       expect(PdfViewerActivity.instance.loadingCount.value, 0);
       step('teardown').addAll({
@@ -287,17 +300,11 @@ class _PdfRuntime {
       () => tabs.state.currentTab == tab && tab.pdfViewerController.isReady,
       'Actual PDF reader opens',
     );
-    expect(find.byType(PdfBookScreen), findsOneWidget);
-    expect(
-      tester.widget<PdfBookScreen>(find.byType(PdfBookScreen)).tab,
-      same(tab),
+    final reader = find.byWidgetPredicate(
+      (widget) => widget is PdfBookScreen && identical(widget.tab, tab),
     );
-    _viewerDocument = tab.pdfViewerController.document;
-    final closed = _viewerClosed = Completer<void>();
-    _viewerEvents = _viewerDocument!.events.listen(
-      (_) {},
-      onDone: closed.complete,
-    );
+    expect(reader, findsOneWidget);
+    _viewers[tab] = _OwnedPdfViewer(tab.pdfViewerController.document);
     await navigateInstalledPdfTarget(
       tab.pdfViewerController,
       page,
@@ -306,27 +313,342 @@ class _PdfRuntime {
     );
   }
 
-  Future<void> closeViewer() async {
-    final tab = _tab;
+  Future<void> closeViewer([PdfBookTab? target]) async {
+    final tab = target ?? _tab;
     if (tab == null) return;
     final controller = tab.pdfViewerController;
+    if (!_viewers.containsKey(tab) && controller.isReady) {
+      _viewers[tab] = _OwnedPdfViewer(controller.document);
+    }
     tabs.add(RemoveTabs([tab]));
     await wait(
       () => !tabs.state.tabs.contains(tab) && !controller.isReady,
       'PDF tab host detached',
     );
-    final document = _viewerDocument;
-    if (document != null) {
-      // Wait for the app to request disposal before joining its native close.
-      await _viewerClosed!.future.timeout(_deadline);
-      await document.dispose();
+    final viewer = _viewers[tab];
+    if (viewer != null) {
+      // הסגירה מתחילה בבעלות ה־viewer; ה־probe רק ממתין לסיום ה־native.
+      await viewer.closed.future.timeout(_deadline);
+      await viewer.document.dispose().timeout(_deadline);
+      await viewer.events.cancel();
     }
-    await _viewerEvents?.cancel();
-    _viewerEvents = null;
-    _viewerClosed = null;
-    _viewerDocument = null;
+    _viewers.remove(tab);
     _ownedTabs.remove(tab);
-    _tab = null;
+    if (identical(_tab, tab)) _tab = null;
+  }
+
+  Future<Map<String, Object?>> visibleReader(PdfBookTab tab, int page) async {
+    final controller = tab.pdfViewerController;
+    await tester.pump().timeout(_deadline);
+    await wait(
+      () =>
+          identical(tabs.state.currentTab, tab) &&
+          installedPdfTargetReady(controller, page),
+      'PDF content returns after desktop transition',
+    );
+    expectSync(controller.document, same(_viewers[tab]!.document));
+    return {
+      'path': tab.book.path,
+      'targetPage': page,
+      'reportedPage': controller.pageNumber,
+      'targetCenterVisible': true,
+      'visibleRenderState': controller.visibleRenderState.value.name,
+      'documentUnchanged': true,
+      'navigationIssued': false,
+      'viewWidth': controller.viewSize.width,
+      'viewHeight': controller.viewSize.height,
+    };
+  }
+
+  Future<void> selectPdfTab(PdfBookTab tab) async {
+    _tab = tab;
+    final index = tabs.state.tabs.indexOf(tab);
+    expectSync(index, greaterThanOrEqualTo(0));
+    tabs.add(SetCurrentTab(index));
+    await wait(
+      () => identical(tabs.state.currentTab, tab),
+      'Select real PDF tab',
+    );
+  }
+
+  Future<void> desktopLifecycle(PdfBook book, Uint8List bytes) async {
+    final record = step('desktopLifecycle');
+    final primary = _tab!;
+    final secondaryFile = File(
+      p.join(output.path, 'bundle-runtime-secondary.pdf'),
+    );
+    await secondaryFile.writeAsBytes(bytes, flush: true);
+    final secondaryBook = PdfBook(
+      title: 'בדיקת חבילת PDF — טאב שני',
+      path: secondaryFile.path,
+      source: BookSource.user,
+    );
+    final window = await InstalledPdfDesktopWindow.capture();
+    record.addAll({
+      'originalWindow': window.original,
+      'primaryPath': book.path,
+      'secondaryPath': secondaryBook.path,
+      'activityMeaning':
+          'Overlapping submitted raster and transition futures; native threads are not instrumented.',
+      'physicalSleep': 'notRun',
+      'multipleNativeWindows': 'notRun',
+      'actions': <Map<String, Object?>>[],
+      'tabCohorts': <Map<String, Object?>>[],
+    });
+    PdfBookTab? secondary;
+    try {
+      expect(window.original['ready'], true);
+      await window.normalize();
+      record['normalWindow'] = window.normal;
+      await navigateInstalledPdfTarget(
+        primary.pdfViewerController,
+        2,
+        nextFrame: tester.pump,
+        wait: wait,
+      );
+      Future<void> cohort(int count) async {
+        await selectPdfTab(primary);
+        final reader = await visibleReader(primary, 2);
+        final documents = <PdfDocument>{};
+        final paths = <String>{};
+        for (final tab in _ownedTabs) {
+          expectSync(tabs.state.tabs, contains(tab));
+          expectSync(tab.pdfViewerController.isReady, true);
+          expectSync(
+            tab.pdfViewerController.document,
+            same(_viewers[tab]!.document),
+          );
+          documents.add(tab.pdfViewerController.document);
+          paths.add(tab.book.path);
+        }
+        expectSync(documents, hasLength(count));
+        expectSync(paths, hasLength(count));
+        (record['tabCohorts']! as List).add({
+          'tabCount': count,
+          'nativeDocumentCount': documents.length,
+          'paths': paths.toList(),
+          'primaryReader': reader,
+        });
+      }
+
+      await cohort(1);
+      for (var index = 2; index <= 10; index++) {
+        final nextBook = index == 2
+            ? secondaryBook
+            : PdfBook(
+                title: 'בדיקת חבילת PDF — טאב $index',
+                path: p.join(output.path, 'bundle-runtime-tab-$index.pdf'),
+                source: BookSource.user,
+              );
+        if (index != 2) {
+          await File(nextBook.path).writeAsBytes(bytes, flush: true);
+        }
+        await open(nextBook, index == 2 ? 3 : index % 4 + 1);
+        if (index == 2) secondary = _tab!;
+        if (index == 5 || index == 10) await cohort(index);
+      }
+      record['distinctDocuments'] = true;
+      final clock = Stopwatch()..start();
+      Future<void> transition(
+        String name,
+        Future<Map<String, Object?>> Function() change,
+        PdfBookTab target,
+        int page, {
+        Map<String, Object?>? requestedBounds,
+      }) async {
+        final action = <String, Object?>{
+          'name': name,
+          'status': 'running',
+          'beforeWindow': await InstalledPdfDesktopWindow.read(),
+          'requestedBounds': ?requestedBounds,
+        };
+        (record['actions']! as List<Map<String, Object?>>).add(action);
+        final activity = <String, Object?>{};
+        final operation = <String, Object?>{};
+        action.addAll({'activity': activity, 'transition': operation});
+        Future<void> rasterize() async {
+          activity['startUs'] = clock.elapsedMicroseconds;
+          try {
+            final raster = await Printing.raster(
+              bytes,
+              pages: [0],
+              dpi: 72,
+            ).timeout(_deadline).single;
+            activity['raster'] = installedPdfRasterProof(
+              raster.width,
+              raster.height,
+              raster.pixels,
+              1,
+            );
+          } finally {
+            activity['endUs'] = clock.elapsedMicroseconds;
+          }
+        }
+
+        Future<void> changeWindowOrTab() async {
+          operation['startUs'] = clock.elapsedMicroseconds;
+          try {
+            action['nativeAcknowledgement'] = await change();
+            action['afterWindow'] = await window.reveal();
+            action['reader'] = await visibleReader(target, page);
+          } finally {
+            operation['endUs'] = clock.elapsedMicroseconds;
+          }
+        }
+
+        // הציור אינו מצפה לפריימים בזמן שהחלון מוסתר; שני המסלולים נסגרים גם בכשל.
+        await Future.wait([rasterize(), changeWindowOrTab()]);
+        action['status'] = 'passed';
+        await checkpoint();
+      }
+
+      await transition('hide', window.hide, primary, 2);
+      await transition('minimize', window.minimize, primary, 2);
+      final requested = window.resizedBounds();
+      await transition(
+        'resize',
+        () => window.resize(requested),
+        primary,
+        2,
+        requestedBounds: requested,
+      );
+      final secondaryTab = secondary!;
+      await transition(
+        'switchSecondary',
+        () async {
+          await selectPdfTab(secondaryTab);
+          return InstalledPdfDesktopWindow.read();
+        },
+        secondaryTab,
+        3,
+      );
+      await transition(
+        'switchPrimary',
+        () async {
+          await selectPdfTab(primary);
+          return InstalledPdfDesktopWindow.read();
+        },
+        primary,
+        2,
+      );
+      await transition(
+        'memoryPressure',
+        () async {
+          await notifyInstalledPluginMemoryPressure();
+          record['memoryPressureSource'] =
+              'flutter/system memoryPressure (synthetic)';
+          record['memoryPressureAcknowledged'] = true;
+          for (final tab in _ownedTabs) {
+            expectSync(tab.pdfViewerController.isReady, true);
+            expectSync(
+              tab.pdfViewerController.document,
+              same(_viewers[tab]!.document),
+            );
+          }
+          record['documentsRetainedAfterPressure'] = _ownedTabs.length;
+          return InstalledPdfDesktopWindow.read();
+        },
+        primary,
+        2,
+      );
+    } finally {
+      try {
+        record['restoredWindow'] = await window.restore();
+        record['windowRestored'] = true;
+      } finally {
+        var closed = 0;
+        Object? closeError;
+        StackTrace? closeStack;
+        for (final tab in _ownedTabs.toList().reversed) {
+          if (identical(tab, primary)) continue;
+          try {
+            await closeViewer(tab);
+            closed++;
+          } catch (error, stack) {
+            closeError ??= error;
+            closeStack ??= stack;
+          }
+        }
+        record['additionalNativeCloses'] = closed;
+        record['secondaryNativeCloseCompleted'] =
+            secondary != null && !_ownedTabs.contains(secondary);
+        if (closeError != null) {
+          Error.throwWithStackTrace(closeError, closeStack!);
+        }
+      }
+    }
+    await selectPdfTab(primary);
+    record['restoredReader'] = await visibleReader(primary, 2);
+  }
+
+  Future<void> repeatedLifecycle(PdfBook book) async {
+    final record = step('repeatedLifecycle');
+    final cycles = <Map<String, Object?>>[];
+    record.addAll({
+      'requiredCycles': installedPdfRepeatedLifecycleCycles,
+      'cycles': cycles,
+      'deadlineSeconds': installedPdfRepeatedLifecycleTimeout.inSeconds,
+    });
+    var previous = _viewerDocument;
+    await closeViewer();
+    final clock = Stopwatch()..start();
+    for (var cycle = 1; cycle <= installedPdfRepeatedLifecycleCycles; cycle++) {
+      if (clock.elapsed >= installedPdfRepeatedLifecycleTimeout) {
+        throw TimeoutException(
+          'Fifty native PDF open/render/close cycles',
+          clock.elapsed,
+        );
+      }
+      final page = (cycle - 1) % installedPdfPageSizes.length + 1;
+      final stageDurationMs = <String, double>{};
+      final receipt = <String, Object?>{
+        'cycle': cycle,
+        'targetPage': page,
+        'stageDurationMs': stageDurationMs,
+      };
+      cycles.add(receipt);
+      final started = clock.elapsedMicroseconds;
+      Future<T> timed<T>(String name, Future<T> Function() action) async {
+        final stageStarted = clock.elapsedMicroseconds;
+        try {
+          return await action();
+        } finally {
+          stageDurationMs[name] =
+              (clock.elapsedMicroseconds - stageStarted) / 1000;
+        }
+      }
+
+      try {
+        await timed('openAndReady', () => open(book, page));
+        final document = _viewerDocument!;
+        expect(identical(document, previous), false);
+        receipt.addAll({
+          'differentDocument': true,
+          'visibleRenderState':
+              _tab!.pdfViewerController.visibleRenderState.value.name,
+          'targetCenterVisible': true,
+          'raster': await timed(
+            'nativeProof',
+            () => checkNativePage(document.pages[page - 1], page),
+          ),
+        });
+        previous = document;
+      } finally {
+        await timed('close', closeViewer);
+        receipt['nativeCloseCompleted'] = true;
+        receipt['ownedTabsRemaining'] = _ownedTabs.length;
+        receipt['durationMs'] = (clock.elapsedMicroseconds - started) / 1000;
+      }
+      record['cyclesElapsedMs'] = clock.elapsedMicroseconds / 1000;
+      if (clock.elapsed >= installedPdfRepeatedLifecycleTimeout) {
+        throw TimeoutException(
+          'Native PDF cycles exceeded the deadline after close',
+          clock.elapsed,
+        );
+      }
+      if (cycle % 10 == 0) await checkpoint();
+    }
+    record['completedCycles'] = cycles.length;
   }
 
   Future<IndexingRunResult> index(
@@ -636,13 +958,33 @@ class _PdfRuntime {
       repository.cancelIndexing();
       await pending;
     }
-    await closeViewer();
+    Object? closeError;
+    StackTrace? closeStack;
+    for (final tab in _ownedTabs.toList().reversed) {
+      try {
+        await closeViewer(tab);
+      } catch (error, stack) {
+        closeError ??= error;
+        closeStack ??= stack;
+      }
+    }
     report.addAll({
-      'ownedDocumentsRemaining': _ownedDocuments.length,
+      'ownedDocumentsRemaining': _ownedDocuments.length + _viewers.length,
       'ownedTabsRemaining': _ownedTabs.length,
       'indexingActiveAfter': provider.isIndexing.value,
     });
+    if (closeError != null) Error.throwWithStackTrace(closeError, closeStack!);
   }
+}
+
+class _OwnedPdfViewer {
+  _OwnedPdfViewer(this.document) {
+    events = document.events.listen((_) {}, onDone: closed.complete);
+  }
+
+  final PdfDocument document;
+  final closed = Completer<void>();
+  late final StreamSubscription<PdfDocumentEvent> events;
 }
 
 /// הידיות בתצלום שייכות ל־loader; אין לסגור אותן או לשנות את נתיב הטעינה.

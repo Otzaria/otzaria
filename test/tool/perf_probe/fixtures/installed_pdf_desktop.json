@@ -1,0 +1,596 @@
+{
+  "status": "passed",
+  "durationMs": 1200,
+  "originalWindow": {
+    "source": "window_manager native window queries",
+    "availability": "collected",
+    "visible": true,
+    "minimized": false,
+    "maximized": false,
+    "fullScreen": false,
+    "ready": true,
+    "logicalBounds": {
+      "x": 40,
+      "y": 50,
+      "width": 1000,
+      "height": 700
+    }
+  },
+  "normalWindow": {
+    "source": "window_manager native window queries",
+    "availability": "collected",
+    "visible": true,
+    "minimized": false,
+    "maximized": false,
+    "fullScreen": false,
+    "ready": true,
+    "logicalBounds": {
+      "x": 40,
+      "y": 50,
+      "width": 1000,
+      "height": 700
+    }
+  },
+  "restoredWindow": {
+    "source": "window_manager native window queries",
+    "availability": "collected",
+    "visible": true,
+    "minimized": false,
+    "maximized": false,
+    "fullScreen": false,
+    "ready": true,
+    "logicalBounds": {
+      "x": 40,
+      "y": 50,
+      "width": 1000,
+      "height": 700
+    }
+  },
+  "windowRestored": true,
+  "primaryPath": "/controlled/output/bundle-runtime.pdf",
+  "secondaryPath": "/controlled/output/bundle-runtime-secondary.pdf",
+  "distinctDocuments": true,
+  "secondaryNativeCloseCompleted": true,
+  "restoredReader": {
+    "path": "/controlled/output/bundle-runtime.pdf",
+    "targetPage": 2,
+    "reportedPage": 2,
+    "targetCenterVisible": true,
+    "visibleRenderState": "ready",
+    "documentUnchanged": true,
+    "navigationIssued": false,
+    "viewWidth": 700,
+    "viewHeight": 450
+  },
+  "actions": [
+    {
+      "name": "hide",
+      "status": "passed",
+      "beforeWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "nativeAcknowledgement": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": false,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": false,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "afterWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "reader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      },
+      "activity": {
+        "startUs": 0,
+        "endUs": 6000,
+        "raster": {
+          "page": 1,
+          "width": 240,
+          "height": 320,
+          "pixelSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentPixelsVerified": true
+        }
+      },
+      "transition": {
+        "startUs": 1,
+        "endUs": 9000
+      }
+    },
+    {
+      "name": "minimize",
+      "status": "passed",
+      "beforeWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "nativeAcknowledgement": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": true,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": false,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "afterWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "reader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      },
+      "activity": {
+        "startUs": 10000,
+        "endUs": 16000,
+        "raster": {
+          "page": 1,
+          "width": 240,
+          "height": 320,
+          "pixelSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentPixelsVerified": true
+        }
+      },
+      "transition": {
+        "startUs": 10001,
+        "endUs": 19000
+      }
+    },
+    {
+      "name": "resize",
+      "status": "passed",
+      "beforeWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 1000,
+          "height": 700
+        }
+      },
+      "nativeAcknowledgement": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "afterWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "reader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 580,
+        "viewHeight": 370
+      },
+      "activity": {
+        "startUs": 20000,
+        "endUs": 26000,
+        "raster": {
+          "page": 1,
+          "width": 240,
+          "height": 320,
+          "pixelSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentPixelsVerified": true
+        }
+      },
+      "transition": {
+        "startUs": 20001,
+        "endUs": 29000
+      },
+      "requestedBounds": {
+        "x": 40,
+        "y": 50,
+        "width": 880,
+        "height": 620
+      }
+    },
+    {
+      "name": "switchSecondary",
+      "status": "passed",
+      "beforeWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "nativeAcknowledgement": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "afterWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "reader": {
+        "path": "/controlled/output/bundle-runtime-secondary.pdf",
+        "targetPage": 3,
+        "reportedPage": 3,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      },
+      "activity": {
+        "startUs": 30000,
+        "endUs": 36000,
+        "raster": {
+          "page": 1,
+          "width": 240,
+          "height": 320,
+          "pixelSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentPixelsVerified": true
+        }
+      },
+      "transition": {
+        "startUs": 30001,
+        "endUs": 39000
+      }
+    },
+    {
+      "name": "switchPrimary",
+      "status": "passed",
+      "beforeWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "nativeAcknowledgement": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "afterWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "reader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      },
+      "activity": {
+        "startUs": 40000,
+        "endUs": 46000,
+        "raster": {
+          "page": 1,
+          "width": 240,
+          "height": 320,
+          "pixelSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentPixelsVerified": true
+        }
+      },
+      "transition": {
+        "startUs": 40001,
+        "endUs": 49000
+      }
+    },
+    {
+      "name": "memoryPressure",
+      "status": "passed",
+      "beforeWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "nativeAcknowledgement": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "afterWindow": {
+        "source": "window_manager native window queries",
+        "availability": "collected",
+        "visible": true,
+        "minimized": false,
+        "maximized": false,
+        "fullScreen": false,
+        "ready": true,
+        "logicalBounds": {
+          "x": 40,
+          "y": 50,
+          "width": 880,
+          "height": 620
+        }
+      },
+      "reader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      },
+      "activity": {
+        "startUs": 50000,
+        "endUs": 56000,
+        "raster": {
+          "page": 1,
+          "width": 240,
+          "height": 320,
+          "pixelSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentPixelsVerified": true
+        }
+      },
+      "transition": {
+        "startUs": 50001,
+        "endUs": 59000
+      }
+    }
+  ],
+  "additionalNativeCloses": 9,
+  "memoryPressureSource": "flutter/system memoryPressure (synthetic)",
+  "memoryPressureAcknowledged": true,
+  "documentsRetainedAfterPressure": 10,
+  "tabCohorts": [
+    {
+      "tabCount": 1,
+      "nativeDocumentCount": 1,
+      "paths": [
+        "/controlled/output/bundle-runtime.pdf"
+      ],
+      "primaryReader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      }
+    },
+    {
+      "tabCount": 5,
+      "nativeDocumentCount": 5,
+      "paths": [
+        "/controlled/output/bundle-runtime.pdf",
+        "/controlled/output/bundle-runtime-secondary.pdf",
+        "/controlled/output/bundle-runtime-tab-3.pdf",
+        "/controlled/output/bundle-runtime-tab-4.pdf",
+        "/controlled/output/bundle-runtime-tab-5.pdf"
+      ],
+      "primaryReader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      }
+    },
+    {
+      "tabCount": 10,
+      "nativeDocumentCount": 10,
+      "paths": [
+        "/controlled/output/bundle-runtime.pdf",
+        "/controlled/output/bundle-runtime-secondary.pdf",
+        "/controlled/output/bundle-runtime-tab-3.pdf",
+        "/controlled/output/bundle-runtime-tab-4.pdf",
+        "/controlled/output/bundle-runtime-tab-5.pdf",
+        "/controlled/output/bundle-runtime-tab-6.pdf",
+        "/controlled/output/bundle-runtime-tab-7.pdf",
+        "/controlled/output/bundle-runtime-tab-8.pdf",
+        "/controlled/output/bundle-runtime-tab-9.pdf",
+        "/controlled/output/bundle-runtime-tab-10.pdf"
+      ],
+      "primaryReader": {
+        "path": "/controlled/output/bundle-runtime.pdf",
+        "targetPage": 2,
+        "reportedPage": 2,
+        "targetCenterVisible": true,
+        "visibleRenderState": "ready",
+        "documentUnchanged": true,
+        "navigationIssued": false,
+        "viewWidth": 700,
+        "viewHeight": 450
+      }
+    }
+  ]
+}

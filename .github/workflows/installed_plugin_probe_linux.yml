@@ -12,11 +12,15 @@ on:
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
       - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
+      - 'test/tool/perf_probe/fixtures/installed_pdf_*.json'
       - 'test/tool/perf_probe/perf_fixture*_test.dart'
       - 'test/core/window_listener*_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'tool/perf_probe/src/installed_pdf_runtime_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_desktop_contract.dart'
+      - 'tool/perf_probe/installed_pdf_*.py'
+      - 'tool/perf_probe/test_installed_pdf_desktop.py'
       - 'tool/perf_probe/*posix*.py'
       - 'tool/perf_probe/validate_perf_probe_smoke.py'
       - 'tool/perf_probe/prepare_pdf_case.dart'
@@ -165,6 +169,7 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tool/perf_probe -p 'test_installed_plugin_linux.py' -v \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/session-tests.log"
+          python3 -m unittest tool.perf_probe.test_installed_pdf_desktop -v
           python3 -m unittest tool.perf_probe.test_perf_probe_posix -v \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/posix-contracts.log"
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs \
@@ -172,7 +177,7 @@ jobs:
             2>&1 | tee "$INSTALLED_PROBE_ROOT/fixture-tests.log"
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_probe_test.dart \
-            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart \
             test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_startup_settings_test.dart \

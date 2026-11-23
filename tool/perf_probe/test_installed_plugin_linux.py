@@ -16,11 +16,13 @@ from run_installed_plugin_linux import (
 
 
 def pdf_runtime_report():
+    fixtures = Path(__file__).resolve().parents[2] / "test/tool/perf_probe/fixtures"
     return {"status": "passed", "platform": "linux", "bundlePathsVerified": True,
             "ownedDocumentsRemaining": 0, "ownedTabsRemaining": 0, "indexingActiveAfter": False,
-            "steps": {name: {"status": "passed"} for name in (
+            "steps": {**{name: {"status": "passed"} for name in (
                 "view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown",
-            )}}
+            )}, "desktopLifecycle": json.loads((fixtures / "installed_pdf_desktop.json").read_text()),
+                "repeatedLifecycle": json.loads((fixtures / "installed_pdf_repeated.json").read_text())}}
 
 
 class LinuxSessionTest(unittest.TestCase):

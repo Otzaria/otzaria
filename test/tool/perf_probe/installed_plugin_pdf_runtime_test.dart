@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:test/test.dart';
 
 import '../../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
@@ -6,7 +9,17 @@ Map<String, Object?> _completePdfReport(String platform) => {
   'platform': platform,
   'status': 'passed',
   'steps': {
+    'repeatedLifecycle': jsonDecode(
+      File(
+        'test/tool/perf_probe/fixtures/installed_pdf_repeated.json',
+      ).readAsStringSync(),
+    ),
     for (final name in installedPdfRuntimeSteps) name: {'status': 'passed'},
+    'desktopLifecycle': jsonDecode(
+      File(
+        'test/tool/perf_probe/fixtures/installed_pdf_desktop.json',
+      ).readAsStringSync(),
+    ),
   },
   'bundlePathsVerified': true,
   'ownedDocumentsRemaining': 0,
@@ -182,6 +195,15 @@ void main() {
 
   for (final platform in installedPdfRuntimeModules.keys) {
     group('$platform actual bundle PDF evidence', () {
+      test('a plugin lifecycle pass cannot replace PDF lifecycle evidence', () {
+        final report = _completePdfReport(platform);
+        (report['steps']! as Map).remove('desktopLifecycle');
+        expect(
+          installedPdfRuntimeErrors(report, platform: platform),
+          isNotEmpty,
+        );
+      });
+
       test('requires all runtime phases and completed teardown', () {
         expect(
           installedPdfRuntimeErrors(

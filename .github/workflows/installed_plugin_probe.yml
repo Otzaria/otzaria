@@ -11,11 +11,15 @@ on:
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
       - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
+      - 'test/tool/perf_probe/fixtures/installed_pdf_*.json'
       - 'test/tool/perf_probe/installed_plugin_completion_test.dart'
       - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'tool/perf_probe/src/installed_pdf_runtime_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_desktop_contract.dart'
+      - 'tool/perf_probe/installed_pdf_*.py'
+      - 'tool/perf_probe/test_installed_pdf_desktop.py'
       - 'lib/pdf_book/**'
       - 'lib/indexing/**'
       - 'lib/printing/**'
@@ -103,7 +107,11 @@ jobs:
         run: |
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs tool/perf_probe/test_installed_plugin_store.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart test/tool/perf_probe/installed_plugin_completion_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart test/tool/perf_probe/installed_plugin_completion_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate PDF desktop evidence contracts
+        run: |
+          python -m unittest tool.perf_probe.test_installed_pdf_desktop -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate passive Windows process exit evidence
         if: matrix.platform == 'windows'
@@ -118,6 +126,10 @@ jobs:
         run: |
           & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
           exit $LASTEXITCODE
+      - name: Validate native PDF desktop recovery and repeated closes
+        run: |
+          python tool/perf_probe/installed_pdf_desktop.py --reports "$env:INSTALLED_PROBE_REPORTS" --platform windows 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/pdf-desktop-validation.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve raw results and partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2
