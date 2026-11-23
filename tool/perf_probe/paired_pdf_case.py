@@ -43,8 +43,13 @@ def _capture_input(path, *, target=None, maximum=None):
     if maximum is not None and observed.st_size > maximum:
         raise ValueError(f"PDF case manifest exceeds {maximum} bytes.")
     digest = hashlib.sha256()
-    with resolved.open("rb") as source:
+    # A regular file can be replaced by a FIFO before open. Inspect it without blocking.
+    with open(resolved, "rb", opener=lambda name, flags: os.open(
+            name, flags | getattr(os, "O_NONBLOCK", 0))) as source:
         before = os.fstat(source.fileno())
+        # Windows stat can report birthtime as ctime while fstat reports change time.
+        if not stat.S_ISREG(before.st_mode) or _stamp(observed)[:-1] != _stamp(before)[:-1]:
+            raise ValueError("PDF case input changed while reading.")
         remaining = before.st_size
         while remaining:
             block = source.read(min(1024 * 1024, remaining))
@@ -57,10 +62,7 @@ def _capture_input(path, *, target=None, maximum=None):
         if source.read(1):
             raise ValueError("PDF case input changed while reading.")
         after = os.fstat(source.fileno())
-    # Windows stat can report birthtime as ctime while fstat reports change time.
-    # Keep each API's complete time checks; compare the shared fields across APIs.
-    if (not stat.S_ISREG(before.st_mode) or _stamp(observed)[:-1] != _stamp(before)[:-1]
-            or _stamp(before) != _stamp(after) or path.resolve(strict=True) != resolved
+    if (_stamp(before) != _stamp(after) or path.resolve(strict=True) != resolved
             or _stamp(path.stat()) != _stamp(observed)):
         raise ValueError("PDF case input changed while reading.")
     return _FileIdentity(path, resolved, _stamp(after), digest.hexdigest(), after.st_size)

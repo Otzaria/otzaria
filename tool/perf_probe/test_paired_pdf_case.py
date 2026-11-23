@@ -3,7 +3,10 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -176,6 +179,40 @@ class PdfCaseSnapshotTests(unittest.TestCase):
         with patch.object(cases.os, "fstat", side_effect=different_file), \
                 self.assertRaisesRegex(ValueError, "changed while reading"):
             cases._capture(self.pdf)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "Requires POSIX named pipes")
+    def test_input_replaced_by_fifo_during_open_is_rejected_without_blocking(self):
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", """
+import os
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+from tool.perf_probe.paired_pdf_case import _capture
+
+source = Path(sys.argv[1])
+original_stat = Path.stat
+
+def swap_after_stat(path, *args, **kwargs):
+    observed = original_stat(path, *args, **kwargs)
+    if path == source:
+        path.unlink()
+        os.mkfifo(path)
+    return observed
+
+with patch.object(Path, "stat", swap_after_stat):
+    try:
+        _capture(source)
+    except ValueError as error:
+        if str(error) != "PDF case input changed while reading.":
+            raise
+    else:
+        raise AssertionError("Accepted a FIFO in place of a regular input")
+""", str(self.pdf)],
+            capture_output=True, text=True, timeout=3,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_same_content_replacement_is_detected(self):
         snapshot = self.prepare()
