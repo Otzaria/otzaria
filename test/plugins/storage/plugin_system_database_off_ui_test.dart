@@ -145,4 +145,43 @@ void main() {
     expect(await db.getInstalledPlugin('p1'), isNull);
     expect(await db.getPluginKV('p1', 'default', 'k'), '"after"');
   });
+  test('סגירה ממתינה לפתיחה שכבר החלה', () async {
+    await db.close();
+    final locker = sqlite3.open(dbPath);
+    locker.execute('PRAGMA journal_mode=DELETE');
+    locker.execute('BEGIN EXCLUSIVE');
+    try {
+      final reading = db.hasEnabledPlugin();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(db.openDatabase, isNull);
+      final closing = db.close();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      locker.execute('ROLLBACK');
+      expect(await reading, isTrue);
+      await closing;
+      expect(db.openDatabase, isNull);
+    } finally {
+      locker.close();
+    }
+  });
+
+  test('כשל במחיקה אינו מבטל כתיבת KV של תוסף אחר', () async {
+    (await db.database).execute('''
+      CREATE TRIGGER block_delete BEFORE DELETE ON plugin_installation
+      BEGIN SELECT RAISE(ABORT, 'boom'); END
+    ''');
+    final first = db.setPluginKV('p1', 'default', 'first', '1');
+    final deleting = expectLater(
+      db.deletePlugin('p1'),
+      throwsA(isA<SqliteException>()),
+    );
+    final second = expectLater(
+      db.setPluginKV('other', 'default', 'second', '2'),
+      completes,
+    );
+    await first;
+    await deleting;
+    await second;
+    expect(await db.getPluginKV('other', 'default', 'second'), '2');
+  });
 }

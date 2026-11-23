@@ -83,9 +83,14 @@ class PluginSystemDatabase {
   static Future<Database> _openInBackground(String dbPath) =>
       openSqliteInBackground(() {
         final db = openWritableDatabase(dbPath, 'PluginSystemDatabase');
-        _createSchema(db);
-        ensureSchemaUpgrades(db);
-        return db;
+        try {
+          _createSchema(db);
+          ensureSchemaUpgrades(db);
+          return db;
+        } catch (_) {
+          db.close();
+          rethrow;
+        }
       });
 
   /// מבצע מיגרציות סכמה אידמפוטנטיות ל-DB קיים. חשוף לבדיקות.
@@ -406,7 +411,7 @@ class PluginSystemDatabase {
   }
 
   /// המחיקות עוברות בתור הכתיבה, באותה טרנזקציה, ב-isolate (#5869).
-  Future<void> deletePlugin(String pluginId) => _enqueueWrites([
+  Future<void> deletePlugin(String pluginId) => _enqueueTransaction([
     ('DELETE FROM plugin_installation WHERE plugin_id = ?', [pluginId]),
     ('DELETE FROM plugin_permission_grant WHERE plugin_id = ?', [pluginId]),
     ..._pluginDataDeletes(pluginId),
@@ -415,7 +420,7 @@ class PluginSystemDatabase {
   /// מוחק את כל הנתונים שהתוסף אגר (KV, רשומות שפורסמו כגון אירועי לוח, לוג),
   /// בלי לגעת ברישום ההתקנה ובהרשאות שהמשתמש אישר.
   Future<void> clearPluginData(String pluginId) =>
-      _enqueueWrites(_pluginDataDeletes(pluginId));
+      _enqueueTransaction(_pluginDataDeletes(pluginId));
 
   /// שורות הנתונים של [pluginId] בלבד — משותף למחיקת תוסף ולאיפוס נתוניו.
   @visibleForTesting
@@ -725,12 +730,10 @@ class PluginSystemDatabase {
   /// שקדמו לו בתור כבר נשמרו. [read] סטטית, כדי שתישלח ל-isolate.
   Future<T> _readInIsolate<A, T>(T Function(Database, A) read, A arg) async {
     // קריאה שמתחילה אחרי בקשת העברה רצה על הנתיב החדש; הניקוז מחכה רק לרצות.
-    for (
-      var released = _storageMoveWritesReleased;
-      released != null;
-      released = _storageMoveWritesReleased
-    ) {
-      await released.future;
+    while (true) {
+      final released = _storageMoveWritesReleased;
+      if (released == null && _database != null) break;
+      if (released != null) await released.future;
       await database;
     }
     final result = _selectInIsolate(_dbPath!, read, arg);
@@ -801,19 +804,27 @@ class PluginSystemDatabase {
   }
 
   /// כתיבות תוספים רצות ב-isolate; מה שמצטבר בזמן אצווה נכנס לאצווה הבאה.
-  Future<void> _enqueueWrite(String sql, List<Object?> args) =>
-      _enqueueWrites([(sql, args)]);
-
-  /// [statements] נכנסות יחד לאותה אצווה, ולכן לאותה טרנזקציה.
-  Future<void> _enqueueWrites(List<(String, List<Object?>)> statements) {
+  Future<void> _enqueueWrite(String sql, List<Object?> args) {
     if (_storageMoveWritesReleased case final released?) {
-      return released.future.then((_) => _enqueueWrites(statements));
+      return released.future.then((_) => _enqueueWrite(sql, args));
     }
     if (_openWriteBatch case final open?) {
-      open.addAll(statements);
+      open.add((sql, args));
       return _writeTail!;
     }
-    final batch = _openWriteBatch = [...statements];
+    return _scheduleWrites(_openWriteBatch = [(sql, args)]);
+  }
+
+  /// פעולת מחיקה נשארת אטומית ועצמאית גם כשכתיבות אחרות ממתינות בתור.
+  Future<void> _enqueueTransaction(List<(String, List<Object?>)> statements) {
+    if (_storageMoveWritesReleased case final released?) {
+      return released.future.then((_) => _enqueueTransaction(statements));
+    }
+    _openWriteBatch = null;
+    return _scheduleWrites(statements);
+  }
+
+  Future<void> _scheduleWrites(List<(String, List<Object?>)> batch) {
     final tail = _writeTail = _runWriteBatch(_writeTail, batch);
     _settled(tail).then((_) {
       if (identical(_writeTail, tail)) _writeTail = null;
@@ -826,7 +837,7 @@ class PluginSystemDatabase {
     List<(String, List<Object?>)> batch,
   ) async {
     if (previous != null) await _settled(previous);
-    _openWriteBatch = null;
+    if (identical(_openWriteBatch, batch)) _openWriteBatch = null;
     await _connection();
     await _writeInIsolate(_dbPath!, batch);
   }
@@ -1132,7 +1143,16 @@ class PluginSystemDatabase {
   /// סוגר ומאפס את חיבור ה-DB כדי לאפשר החלפת תיקיית נתונים בזמן ריצה.
   Future<void> close() async {
     // נעילת החיבור מוקמת רק אחרי שהכתיבות שקדמו לבקשת ההעברה נוקזו.
-    if (_storageMoveReleased == null) await _drainWrites();
+    while (_storageMoveReleased == null) {
+      await _drainWrites();
+      if (_opening case final opening?) {
+        await _settled(opening);
+        // משלימים את המשכי הפתיחה לפני סגירת החיבור שנמסר לקוראים.
+        await Future<void>.delayed(Duration.zero);
+      } else if (_writeTail == null && _pendingReads.isEmpty) {
+        break;
+      }
+    }
     final db = _database;
     if (db != null) closeWithCheckpoint(db);
     _database = null;
