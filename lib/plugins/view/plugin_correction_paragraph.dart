@@ -164,11 +164,15 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _tapDown = !_corrected && event.buttons == kPrimaryButton ? event : null;
   }
 
+  bool _outsideTapSlop(PointerDownEvent down, PointerEvent event) =>
+      (event.position - down.position).distance >
+      computeHitSlop(down.kind, MediaQuery.maybeGestureSettingsOf(context));
+
   void _editorPointerMove(PointerMoveEvent event) {
     final down = _tapDown;
     if (down != null &&
         event.pointer == down.pointer &&
-        (event.position - down.position).distance > kTouchSlop) {
+        _outsideTapSlop(down, event)) {
       _tapDown = null;
       _clearTap();
     }
@@ -182,7 +186,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (_corrected ||
         down == null ||
         event.pointer != down.pointer ||
-        (event.position - down.position).distance > kTouchSlop ||
+        _outsideTapSlop(down, event) ||
         event.timeStamp - down.timeStamp >= kLongPressTimeout) {
       return;
     }
