@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -56,6 +57,7 @@ class _ControlledSearcher extends PdfTextSearchSession {
 
   List<PdfTextSearchResult> current = const [];
   bool scanning = false;
+  double progress = 1;
   int? index;
   final actions = <String>[];
 
@@ -64,6 +66,9 @@ class _ControlledSearcher extends PdfTextSearchSession {
 
   @override
   bool get isSearching => scanning;
+
+  @override
+  double get searchProgress => scanning ? 0.5 : progress;
 
   @override
   int? get currentIndex => index;
@@ -105,7 +110,12 @@ class _ControlledSearcher extends PdfTextSearchSession {
   }
 
   @override
-  void stopTextSearch() => actions.add('stop');
+  void stopTextSearch() {
+    actions.add('stop');
+    progress = searchProgress;
+    scanning = false;
+    notifyListeners();
+  }
 }
 
 class _CountedMatch extends Fake implements PdfTextSearchResult {
@@ -308,7 +318,10 @@ Future<void> main() async {
       );
       expect(reads, greaterThan(0));
       expect(reads, lessThan(100));
-      expect(find.text('נמצאו 1000 תוצאות'), findsOneWidget);
+      expect(
+        find.text(PdfMessages.partialSearchResultCount(1000)),
+        findsOneWidget,
+      );
       searcher.scanning = false;
       await _notify(tester, searcher);
       expect(
@@ -345,6 +358,31 @@ Future<void> main() async {
 
       await tester.tap(find.byTooltip('עצור את החיפוש'));
       expect(searcher.actions, ['stop']);
+    });
+
+    testWidgets('תוצאות חלקיות נשארות זמינות לניווט אחרי עצירה', (
+      tester,
+    ) async {
+      final searcher = await _pump(tester);
+      searcher
+        ..scanning = true
+        ..current = [_match(2), _match(3)]
+        ..index = 0;
+      await _notify(tester, searcher);
+      expect(
+        find.text(PdfMessages.currentPartialSearchResult(1, 2)),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('עצור את החיפוש'));
+      await tester.pump();
+      expect(
+        find.text(PdfMessages.currentPartialSearchResult(1, 2)),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('עצור את החיפוש'), findsNothing);
+      await tester.tap(find.byTooltip('התוצאה הבאה'));
+      expect(searcher.actions, ['stop', 'next']);
     });
 
     testWidgets('אחרי הסריקה — אין עצירה; הבאה/הקודמת לפי המיקום', (
