@@ -180,6 +180,8 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await drainPrintingRasterQueue(tester);
       await disposePdfDocument(tester, document);
+      // ה־trailing-page timer של pdfrx בודק mounted רק אחרי ההשהיה שלו.
+      await tester.pump(const Duration(milliseconds: 200));
     });
   });
 
