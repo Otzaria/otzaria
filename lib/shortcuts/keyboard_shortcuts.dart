@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
@@ -136,15 +137,31 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
 
   /// חץ בלי מקש צירוף, ומקש ששוחרר מאזור הקריאה, נבלעים בהעברת הפוקוס ובאזורי
   /// הבחירה לפני ה-late handler, ולכן קיצור שהוקצה להם מופעל כאן.
-  KeyEventResult _handleArrowShortcut(FocusNode _, KeyEvent event) {
+  KeyEventResult _handleScopedKeyEvent(FocusNode _, KeyEvent event) {
     if (event is KeyRepeatEvent && event.physicalKey == _arrowShortcutKey) {
       return KeyEventResult.handled;
     }
     if (event is! KeyRepeatEvent) _arrowShortcutKey = null;
     final keyboard = HardwareKeyboard.instance;
-    if (event is! KeyDownEvent ||
-        !_isActiveWindow ||
-        ShortcutHelper.isEditingText ||
+    if (event is! KeyDownEvent || !_isActiveWindow) {
+      return KeyEventResult.ignored;
+    }
+    // בקורא טקסט במסך מלא, Escape מגיע לכאן לפני ה-DismissIntent של WidgetsApp.
+    if (const SingleActivator(LogicalKeyboardKey.escape).accepts(
+          event,
+          keyboard,
+        ) &&
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS &&
+        _isReadingScreen &&
+        context.read<WindowFullscreenCubit?>()?.state == true &&
+        context.read<TabsBloc>().state.activePane is TextBookTab) {
+      return _handleKeyEvent(
+        event,
+        context.read<SettingsBloc>().state.shortcuts,
+      );
+    }
+    if (ShortcutHelper.isEditingText ||
         !(_focusArrows.any((arrow) => arrow.accepts(event, keyboard)) ||
             (ShortcutValidator.isReleasedReaderKey(event) &&
                 !hasFocusedSelectableRegionSelection()))) {
@@ -724,7 +741,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     return FocusScope(
       node: _shortcutFocusScopeNode,
       autofocus: true,
-      onKeyEvent: _handleArrowShortcut,
+      onKeyEvent: _handleScopedKeyEvent,
       child: widget.child,
     );
   }

@@ -65,6 +65,15 @@ void main() {
       (w) => w is SettingsCard && w.cardId == 'shortcuts.fixed',
     );
     expect(card, findsOneWidget);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.text(
+          'תלוי במסך, במיקוד ובהגדרות',
+        ),
+      ),
+      findsOneWidget,
+    );
 
     const rows = {
       'הכרטיסייה הבאה': 'CTRL + TAB',

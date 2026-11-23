@@ -2169,7 +2169,7 @@ void main() {
   });
 
   group('מסך מלא ב-F11 (issue #3619)', () {
-    testWidgets('F11 מתוך הספר מחליף מצב פעם אחת בלבד, כניסה ויציאה', (
+    testWidgets('F11 מחליף מצב פעם אחת ו-Escape מכבד קיצור מותאם', (
       tester,
     ) async {
       final book = TextBook(title: 'ספר בדיקה');
@@ -2184,6 +2184,7 @@ void main() {
         persist: (_) async {},
       );
       final geometry = _RecordingGeometry();
+      var findRefRequests = 0;
       final keys = AppWindowKeys(id: const AppWindowId('fullscreen-3619'));
       AppWindowKeys.register(keys);
       AppWindowKeys.activateWindow(keys.id);
@@ -2217,7 +2218,55 @@ void main() {
         geometry: geometry,
         fullscreenCubit: fullscreen,
         withGlobalShortcuts: true,
+        onFindRefRequested: () => findRefRequests++,
       );
+
+      fullscreen.syncFromWindow(true);
+      settingsBloc.emitStateForTest(
+        settingsBloc.state.copyWith(
+          shortcuts: const {'key-shortcut-open-find-ref': 'escape'},
+        ),
+      );
+      await tester.pump();
+      final escapeListener = find
+          .descendant(
+            of: find.byType(TextBookViewerBloc),
+            matching: find.byType(KeyboardListener),
+          )
+          .first;
+      expect(
+        tester.widget<KeyboardListener>(escapeListener).focusNode.hasFocus,
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(fullscreen.state, isTrue);
+      expect(findRefRequests, 1);
+      expect(geometry.calls, isEmpty);
+
+      final reader = tester.element(find.byType(TextBookViewerBloc));
+      unawaited(
+        showDialog<void>(
+          context: reader,
+          builder: (_) => const SizedBox.shrink(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(Navigator.of(reader).canPop(), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(Navigator.of(reader).canPop(), isFalse);
+      expect(findRefRequests, 1);
+      expect(fullscreen.state, isTrue);
+      expect(geometry.calls, isEmpty);
+
+      settingsBloc.emitStateForTest(SettingsState.initial());
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(findRefRequests, 1);
+      expect(fullscreen.state, isFalse);
+      expect(geometry.calls, ['fullScreen:false', 'titleBar']);
+      geometry.calls.clear();
 
       // התרחיש מחייב פוקוס בתוך ה-KeyboardListener של הספר.
       final bookListener = find.descendant(
@@ -2729,6 +2778,7 @@ Future<void> _pumpTextBookScreen(
   AppWindowGeometry? geometry,
   WindowFullscreenCubit? fullscreenCubit,
   bool withGlobalShortcuts = false,
+  VoidCallback? onFindRefRequested,
   bool withPaneDragHandle = false,
   ThemeData? theme,
   TextScaler? textScaler,
@@ -2750,7 +2800,10 @@ Future<void> _pumpTextBookScreen(
     viewer = PaneDragHandleScope(pane: tab, enabled: true, child: viewer);
   }
   final screen = withGlobalShortcuts
-      ? KeyboardShortcuts(onFindRefRequested: () {}, child: viewer)
+      ? KeyboardShortcuts(
+          onFindRefRequested: onFindRefRequested ?? () {},
+          child: viewer,
+        )
       : viewer;
   await tester.pumpWidget(
     MultiProvider(

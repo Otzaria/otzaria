@@ -169,7 +169,7 @@ class ShortcutsSettingsTab extends StatefulWidget {
     SettingsSearchEntry(
       id: 'shortcuts.fixed',
       title: 'קיצורים קבועים',
-      subtitle: 'מעבר בין כרטיסיות ומסך מלא — קיצורים שאינם ניתנים לשינוי',
+      subtitle: 'מעבר בין כרטיסיות ומסך מלא',
       tab: SettingsTab.shortcuts,
       cardId: 'shortcuts.fixed',
       keywords: ['ctrl+tab', 'ctrl+1', 'ctrl+9', 'f11', 'כרטיסייה', 'מקלדת'],
@@ -915,7 +915,9 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
         SettingsCard(
           cardId: 'shortcuts.fixed',
           title: context.settingsText('קיצורים קבועים'),
-          subtitle: context.settingsText('קיצורים שאינם ניתנים לשינוי'),
+          subtitle: context.settingsText(
+            'תלוי במסך, במיקוד ובהגדרות',
+          ),
           children: [
             for (final (icon, title, keys) in [
               (
