@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +65,7 @@ void main() {
   const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
   late Directory tempDir;
 
-  setUp(() {
+  setUpAll(() {
     tempDir = Directory.systemTemp.createTempSync('otzaria-pdf-font-');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -75,7 +77,7 @@ void main() {
         );
   });
 
-  tearDown(() {
+  tearDownAll(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, null);
     try {
@@ -114,4 +116,172 @@ void main() {
       });
     },
   );
+
+  testWidgets('מסמכים מקבילים משתפים רישום גופן וכולם נפתחים מחדש', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      await pdfrxFlutterInitialize();
+      const count = 10;
+      final paths = [
+        for (var i = 0; i < count; i++) '${tempDir.path}/shared-$i.pdf',
+      ];
+      final bytes = _nonEmbeddedHebrewPdf('OtzariaSharedHebrewFace');
+      for (final path in paths) {
+        await File(path).writeAsBytes(bytes);
+      }
+      final original = PdfrxEntryFunctions.instance;
+      final backend = _ConcurrentFontBackend(original, count);
+      PdfrxEntryFunctions.instance = backend;
+      try {
+        final documents = await Future.wait([
+          for (final path in paths) PdfFontFallback.openFile(path),
+        ]);
+        expect(backend.registrations, 1);
+        expect(backend.reloads, 1);
+        expect(backend.opened.length, count * 2);
+        expect(backend.opened.take(count).every((doc) => doc.disposed), isTrue);
+        expect(
+          backend.opened.skip(count).every((doc) => !doc.disposed),
+          isTrue,
+        );
+        expect(documents.toSet(), hasLength(count));
+        for (final document in documents) {
+          final text = (await document.pages[0].loadStructuredText()).fullText;
+          expect(text, contains('שלום'));
+        }
+      } finally {
+        for (final document in backend.opened) {
+          if (!document.disposed) await document.dispose();
+        }
+        PdfrxEntryFunctions.instance = original;
+      }
+    });
+  });
+}
+
+class _ConcurrentFontBackend implements PdfrxEntryFunctions {
+  _ConcurrentFontBackend(this.base, this.initialDocuments);
+
+  final PdfrxEntryFunctions base;
+  final int initialDocuments;
+  final opened = <_ObservedFontDocument>[];
+  final _openedInitial = Completer<void>();
+  int registrations = 0;
+  int reloads = 0;
+
+  @override
+  PdfrxBackendType get backendType => base.backendType;
+
+  @override
+  Future<void> init() => base.init();
+
+  @override
+  Future<T> suspendPdfiumWorkerDuringAction<T>(FutureOr<T> Function() action) =>
+      base.suspendPdfiumWorkerDuringAction(action);
+
+  @override
+  Future<R> compute<M, R>(FutureOr<R> Function(M) callback, M message) =>
+      base.compute(callback, message);
+
+  @override
+  Future<PdfDocument> openFile(
+    String filePath, {
+    PdfPasswordProvider? passwordProvider,
+    bool firstAttemptByEmptyPassword = true,
+    bool useProgressiveLoading = false,
+  }) async {
+    try {
+      final document = _ObservedFontDocument(
+        await base.openFile(
+          filePath,
+          passwordProvider: passwordProvider,
+          firstAttemptByEmptyPassword: firstAttemptByEmptyPassword,
+          useProgressiveLoading: useProgressiveLoading,
+        ),
+      );
+      opened.add(document);
+      if (opened.length == initialDocuments && !_openedInitial.isCompleted) {
+        _openedInitial.complete();
+      }
+      await _openedInitial.future;
+      return document;
+    } catch (_) {
+      if (!_openedInitial.isCompleted) _openedInitial.complete();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> configureFontEnvironment({
+    String? fontCachePath,
+    List<String> fontPaths = const [],
+  }) => base.configureFontEnvironment(
+    fontCachePath: fontCachePath,
+    fontPaths: fontPaths,
+  );
+
+  @override
+  Future<void> addFontData({
+    required String face,
+    required Uint8List data,
+    String? resolvedFace,
+  }) async {
+    registrations++;
+    // כל המסמכים המקוריים מספיקים לדווח על הגופן לפני הרישום הראשון.
+    await Future<void>.delayed(Duration.zero);
+    await base.addFontData(face: face, data: data, resolvedFace: resolvedFace);
+  }
+
+  @override
+  Future<void> addFontFile({
+    required String face,
+    required String filePath,
+    String? resolvedFace,
+  }) async {
+    registrations++;
+    await Future<void>.delayed(Duration.zero);
+    await base.addFontFile(
+      face: face,
+      filePath: filePath,
+      resolvedFace: resolvedFace,
+    );
+  }
+
+  @override
+  Future<void> reloadFonts() async {
+    reloads++;
+    await base.reloadFonts();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ObservedFontDocument extends PdfDocument {
+  _ObservedFontDocument(this.base) : super(sourceName: base.sourceName);
+
+  final PdfDocument base;
+  bool disposed = false;
+  Future<void>? closing;
+
+  @override
+  List<PdfPage> get pages => base.pages;
+
+  @override
+  Stream<PdfDocumentEvent> get events => base.events;
+
+  @override
+  PdfPermissions? get permissions => base.permissions;
+
+  @override
+  bool get isEncrypted => base.isEncrypted;
+
+  @override
+  Future<void> dispose() => closing ??= base.dispose().then((_) {
+    disposed = true;
+  });
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:otzaria/pdf_book/utils/pdf_font_load_coordinator.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -18,6 +19,9 @@ class PdfFontFallback {
       const _SystemFamilyResolver(),
       const _BundledFontResolver(),
     ],
+  );
+  static final _fontLoads = PdfFontLoadCoordinator(
+    load: _manager.loadMissingFonts,
   );
 
   /// פותח את [filePath]. גופן שחסר נקבע בזמן הטעינה, ולכן אחרי רישום
@@ -37,13 +41,13 @@ class PdfFontFallback {
     final missing = await _reportedMissingFonts(document);
     if (missing.isEmpty) return document;
 
-    final PdfFontLoadResult result;
+    final bool fontsLoaded;
     try {
-      result = await _manager.loadMissingFonts(missing);
+      fontsLoaded = await _fontLoads.loadMissingFonts(missing);
     } catch (_) {
       return document;
     }
-    if (!result.hasLoadedFonts) return document;
+    if (!fontsLoaded) return document;
 
     // ה-worker של pdfrx חייב להשתחרר מהמסמך לפני פתיחתו מחדש.
     await document.dispose();
