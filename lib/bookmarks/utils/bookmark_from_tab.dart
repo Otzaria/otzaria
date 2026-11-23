@@ -97,6 +97,7 @@ Future<Bookmark?> bookmarkFromReadingTab(
         index: index,
         readingAnchor: anchor,
         commentatorsToShow: blocState.activeCommentators,
+        hasExplicitCommentators: blocState.hasExplicitCommentators,
         workspaceName: workspaceName,
       );
     }
@@ -112,6 +113,7 @@ Future<Bookmark?> bookmarkFromReadingTab(
       index: index,
       readingAnchor: anchor,
       commentatorsToShow: tab.commentators ?? const [],
+      hasExplicitCommentators: tab.commentators != null,
       workspaceName: workspaceName,
     );
   }
@@ -200,7 +202,8 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
     bookmark.book,
     bookmark.index,
     initialReadingAnchor: bookmark.readingAnchor,
-    commentators: bookmark.commentatorsToShow.isEmpty
+    commentators:
+        bookmark.commentatorsToShow.isEmpty && !bookmark.hasExplicitCommentators
         ? null
         : bookmark.commentatorsToShow,
     openLeftPane: openLeftPane,

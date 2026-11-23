@@ -53,6 +53,10 @@ class Bookmark {
   final String ref;
   final Book book;
   final List<String> commentatorsToShow;
+
+  /// [commentatorsToShow] נבחרה במפורש, גם כשהיא ריקה; ברשומה ישנה רשימה ריקה
+  /// טוענת את ברירת המחדל של הספר.
+  final bool hasExplicitCommentators;
   final int index;
   final bool isSearch;
   final Map<String, Map<String, bool>>? searchOptions;
@@ -135,6 +139,7 @@ class Bookmark {
     required this.book,
     required this.index,
     this.commentatorsToShow = const [],
+    this.hasExplicitCommentators = false,
     this.isSearch = false,
     this.searchOptions,
     this.alternativeWords,
@@ -178,6 +183,7 @@ class Bookmark {
       book: book,
       index: index,
       commentatorsToShow: commentatorsToShow,
+      hasExplicitCommentators: hasExplicitCommentators,
       isSearch: isSearch,
       searchOptions: searchOptions,
       alternativeWords: alternativeWords,
@@ -214,6 +220,7 @@ class Bookmark {
       commentatorsToShow: (rawCommentators ?? [])
           .map((e) => e.toString())
           .toList(),
+      hasExplicitCommentators: json['hasExplicitCommentators'] == true,
       isSearch: json['isSearch'] ?? false,
       searchOptions: json['searchOptions'] != null
           ? castMap(json['searchOptions']).map(
@@ -321,6 +328,7 @@ class Bookmark {
       'index': index,
       if (readingAnchor != null) 'readingAnchor': readingAnchor!.toJson(),
       'commentatorsToShow': commentatorsToShow,
+      if (hasExplicitCommentators) 'hasExplicitCommentators': true,
       'isSearch': isSearch,
       'searchOptions': searchOptions,
       'alternativeWords': alternativeWords?.map(
