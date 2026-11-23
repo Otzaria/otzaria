@@ -132,7 +132,7 @@ class ZmanimSettingsContent extends StatelessWidget {
   }
 }
 
-/// שורת קרדיט למקור הזמנים — מציגה "לוח עתים לבינה" כקישור לאתר.
+/// קרדיט על הסברי השיטות, עם הבהרה שהזמנים מחושבים בתוכנה ואינם זמני הלוח.
 class _SourceCredit extends StatelessWidget {
   const _SourceCredit();
 
@@ -156,7 +156,7 @@ class _SourceCredit extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
           child: Text.rich(
             TextSpan(
-              text: 'חלק ניכר מהמידע על הזמנים באדיבות ',
+              text: 'הסברי שיטות החישוב באדיבות ',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -168,6 +168,11 @@ class _SourceCredit extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     decoration: TextDecoration.underline,
                   ),
+                ),
+                const TextSpan(
+                  text:
+                      '. הזמנים עצמם מחושבים בתוכנה באופן עצמאי. '
+                      'הם אינם זמני הלוח, ואין להם קשר רשמי אליו.',
                 ),
               ],
             ),

@@ -897,9 +897,9 @@ final List<ZmanDefinition> kZmanimRegistry = [
   ZmanDefinition(
     id: 'tzeitItimLeVina',
     title: 'צאת הכוכבים',
-    subtitle: 'עיתים לבינה',
+    subtitle: '18 דקות',
     category: 'צאת הכוכבים',
-    explanation: '''צאת הכוכבים לפי לוח עיתים לבינה — 18 דקות אחרי השקיעה.''',
+    explanation: '''צאת הכוכבים — 18 דקות אחרי השקיעה.''',
     defaultEnabled: true,
     compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 18)),
   ),
@@ -932,8 +932,7 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'צאת הכוכבים',
     subtitle: 'חזו"א (9.3°)',
     category: 'צאת הכוכבים',
-    explanation:
-        '''צאת הכוכבים לפי חזון איש — 9.3° מתחת לאופק (כך מחשב לוח עיתים לבינה, 9.28°).''',
+    explanation: '''צאת הכוכבים לפי חזון איש — 9.3° מתחת לאופק.''',
     compute: (c) => c.cal.getTzaisGeonim9Point3Degrees(),
   ),
 
@@ -1163,9 +1162,9 @@ final List<ZmanDefinition> kZmanimRegistry = [
   ZmanDefinition(
     id: 'fastEndItimLenient',
     title: 'יציאת הצום',
-    subtitle: 'לקולא — עיתים לבינה',
+    subtitle: 'לקולא — 18 דקות',
     category: 'תעניות',
-    explanation: '''סיום הצום לקולא — 18 דקות אחרי השקיעה (עיתים לבינה).''',
+    explanation: '''סיום הצום לקולא — 18 דקות אחרי השקיעה.''',
     isRelevant: _isTaanisNotYomKippur,
     defaultEnabled: true,
     compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 18)),
@@ -1183,9 +1182,9 @@ final List<ZmanDefinition> kZmanimRegistry = [
   ZmanDefinition(
     id: 'fastEndItimStringent',
     title: 'יציאת הצום',
-    subtitle: 'לחומרא — עיתים לבינה',
+    subtitle: 'לחומרא — 22 דקות',
     category: 'תעניות',
-    explanation: '''סיום הצום לחומרא — 22 דקות אחרי השקיעה (עיתים לבינה).''',
+    explanation: '''סיום הצום לחומרא — 22 דקות אחרי השקיעה.''',
     isRelevant: _isTaanisNotYomKippur,
     defaultEnabled: true,
     compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 22)),
