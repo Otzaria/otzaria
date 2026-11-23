@@ -583,41 +583,47 @@ void main() {
     await dispose(tester);
   });
 
-  testWidgets('Word retains the byte picker with mobile PDF enabled', (
-    tester,
-  ) async {
-    await Settings.setValue<int>('key-print-destination', 1);
-    final output = File('${directory.path}/mobile-output.docx');
-    final previousOwner = DialogOwner.hwnd();
-    DialogOwner.mainWindowHwnd = 101;
-    addTearDown(() => DialogOwner.mainWindowHwnd = previousOwner);
-    picker.saveWord = (fileName, bytes) async {
-      expect(fileName, 'mobile-output.docx');
-      await output.writeAsBytes(bytes);
-      return output.uri;
-    };
-    if (Platform.isMacOS) {
-      const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'save');
-        expect(call.arguments['fileName'], 'mobile-output.docx');
-        return output.path;
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
+  testWidgets(
+    'Word retains the byte picker with mobile PDF enabled',
+    (
+      tester,
+    ) async {
+      await Settings.setValue<int>('key-print-destination', 1);
+      final output = File('${directory.path}/mobile-output.docx');
+      final previousOwner = DialogOwner.hwnd();
+      DialogOwner.mainWindowHwnd = 101;
+      addTearDown(() => DialogOwner.mainWindowHwnd = previousOwner);
+      picker.saveWord = (fileName, bytes) async {
+        expect(fileName, 'mobile-output.docx');
+        await output.writeAsBytes(bytes);
+        return output.uri;
+      };
+      if (Platform.isMacOS) {
+        const channel = MethodChannel('miguelruivo.flutter.plugins.filepicker');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'save');
+          expect(call.arguments['fileName'], 'mobile-output.docx');
+          return output.path;
+        });
+        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      }
 
-    await open(tester, text: true);
-    expect(find.text('שמור ל-Word'), findsOneWidget);
-    await tester.tap(find.text('שמירה'));
-    await _waitFor(tester, () => closed);
-    expect(saved, isTrue);
-    expect(backend.requests, isEmpty);
-    final document = ZipDecoder().decodeBytes(output.readAsBytesSync());
-    expect(document.findFile('word/document.xml'), isNotNull);
-    await dispose(tester);
-  });
+      await open(tester, text: true);
+      expect(find.text('שמור ל-Word'), findsOneWidget);
+      await tester.tap(find.text('שמירה'));
+      await _waitFor(tester, () => closed);
+      expect(saved, isTrue);
+      expect(backend.requests, isEmpty);
+      final document = ZipDecoder().decodeBytes(output.readAsBytesSync());
+      expect(document.findFile('word/document.xml'), isNotNull);
+      await dispose(tester);
+    },
+    variant: TargetPlatformVariant.only(
+      Platform.isMacOS ? TargetPlatform.macOS : TargetPlatform.android,
+    ),
+  );
 
   for (final (name, seed, brightness) in [
     ('light', AppSeedColors.defaultLight, Brightness.light),

@@ -289,6 +289,15 @@ void main() {
     return (replacement) => replace(() => path = replacement);
   }
 
+  bool settingsBlocked(WidgetTester tester) => tester
+      .widgetList<IgnorePointer>(
+        find.ancestor(
+          of: find.byType(PrintingPagesPerSheetDropdownRow),
+          matching: find.byType(IgnorePointer),
+        ),
+      )
+      .any((widget) => widget.ignoring);
+
   Future<void> chooseName(WidgetTester tester) async {
     await _waitFor(
       tester,
@@ -494,7 +503,7 @@ void main() {
       expect(target.readAsStringSync(), 'original');
       expect(output.listSync(), hasLength(2));
       pending.completeError(StateError('Synthetic PDF generation failure'));
-      await _waitFor(tester, () => find.text('שמירה').evaluate().isNotEmpty);
+      await _waitFor(tester, () => !settingsBlocked(tester));
       expect(target.readAsStringSync(), 'original');
       expect(output.listSync(), hasLength(1));
       expect(closed, isFalse);
@@ -561,22 +570,9 @@ void main() {
       await tester.pump();
       await _waitFor(tester, () => picker.selections == 1);
       expect(find.text('שמירה'), findsOneWidget);
-      final settings = find.byType(PrintingPagesPerSheetDropdownRow);
-      final blockers = find.ancestor(
-        of: settings,
-        matching: find.byType(IgnorePointer),
-      );
-      expect(
-        blockers.evaluate().any((e) => (e.widget as IgnorePointer).ignoring),
-        isTrue,
-      );
+      expect(settingsBlocked(tester), isTrue);
       folder.complete(null);
-      await _waitFor(
-        tester,
-        () => !blockers.evaluate().any(
-          (e) => (e.widget as IgnorePointer).ignoring,
-        ),
-      );
+      await _waitFor(tester, () => !settingsBlocked(tester));
       expect(picker.selections, 1);
       expect(picker.byteSaves, 0);
       expect(output.listSync(), isEmpty);
@@ -602,7 +598,7 @@ void main() {
       replace(input.path);
       await tester.pump();
       folder.complete(output.path);
-      await _waitFor(tester, () => find.text('שמירה').evaluate().isNotEmpty);
+      await _waitFor(tester, () => !settingsBlocked(tester));
       expect(find.byType(InputDialog), findsNothing);
       expect(output.listSync(), isEmpty);
       expect(closed, isFalse);
