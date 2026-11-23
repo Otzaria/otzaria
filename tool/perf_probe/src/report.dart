@@ -6,6 +6,7 @@ const _comparisonKeys = [
   'fixtureId',
   'buildMode',
   'cacheState',
+  'scenarioSet',
   'hardwareId',
   'os',
   'flutterVersion',
@@ -181,7 +182,7 @@ Map<String, dynamic> buildProbeReport({
         conflicts.add(key);
       }
       if (record[key] != null) {
-        meta.putIfAbsent(key, () => record[key]);
+        meta[key] ??= record[key];
       }
     }
     meta.putIfAbsent('schemaVersion', () => record['schemaVersion']);
@@ -191,6 +192,8 @@ Map<String, dynamic> buildProbeReport({
       meta['schemaVersion'] != 2) {
     throw FormatException('גרסת schema לא נתמכת: ${meta['schemaVersion']}');
   }
+  // Older full-suite reports predate the explicit workload field.
+  meta['scenarioSet'] ??= 'all';
   final legacy = meta['schemaVersion'] != 2;
   final runnerFailed = !legacy && meta['status'] != 'passed';
   final samplerErrors =
@@ -399,6 +402,7 @@ Map<String, dynamic> _scenario(
     'latencyMs': sampleDistribution(
       measured.map((p) => p['durationMs'] as num),
     ),
+    'checkpointsMs': _checkpointMeasurements(measured),
     'frames': {
       'count': frameValues['buildMs']!.length,
       'truncatedIterations': truncatedFrames,
@@ -432,6 +436,30 @@ Map<String, dynamic> _scenario(
           ..remove('type')
           ..remove('name'),
     ],
+  };
+}
+
+Map<String, dynamic> _checkpointMeasurements(
+  List<Map<String, dynamic>> phases,
+) {
+  final values = <String, List<num>>{};
+  for (final phase in phases) {
+    final points = _map(_map(phase['details'])['checkpointsMs']);
+    for (final entry in points.entries) {
+      final samples = values.putIfAbsent(entry.key, () => []);
+      final value = _number(entry.value, 'checkpoint ${entry.key}');
+      if (value == null) continue;
+      if (value < 0 || value > (phase['durationMs'] as num)) {
+        throw FormatException('Checkpoint ${entry.key} is outside its phase');
+      }
+      samples.add(value);
+    }
+  }
+  return {
+    for (final entry in values.entries)
+      entry.key: entry.value.length == phases.length
+          ? sampleDistribution(entry.value)
+          : null,
   };
 }
 
@@ -606,9 +634,12 @@ Map<String, dynamic> compareProbeReports(
   final beforeMeta = _map(baseline['metadata']);
   final afterMeta = _map(candidate['metadata']);
   for (final key in _comparisonKeys) {
-    if (beforeMeta[key] == null ||
-        afterMeta[key] == null ||
-        !_same(beforeMeta[key], afterMeta[key])) {
+    final defaultValue = key == 'scenarioSet' ? 'all' : null;
+    final beforeValue = beforeMeta[key] ?? defaultValue;
+    final afterValue = afterMeta[key] ?? defaultValue;
+    if (beforeValue == null ||
+        afterValue == null ||
+        !_same(beforeValue, afterValue)) {
       reasons.add('metadata:$key');
     }
   }
@@ -658,6 +689,8 @@ Map<String, dynamic> compareProbeReports(
 
 final _comparedMetrics = [
   for (final q in ['p50', 'p95', 'p99']) 'latencyMs.$q',
+  for (final checkpoint in ['controller_ready', 'final_image_ready'])
+    for (final q in ['p50', 'p95', 'p99']) 'checkpointsMs.$checkpoint.$q',
   for (final frame in ['buildMs', 'rasterMs', 'totalMs'])
     for (final q in ['p50', 'p95', 'p99']) 'frames.$frame.$q',
   'memory.rssPeakBytes',
@@ -705,6 +738,31 @@ String renderProbeMarkdown(Map<String, dynamic> report) {
       '${_format(_at(s, 'frames.rasterMs.p95'))} | '
       '${_format(_scale(_at(s, 'memory.rssPeakBytes'), 1048576))} |',
     );
+  }
+  final checkpoints = <Map<String, dynamic>>[
+    for (final scenario in report['scenarios'] as List)
+      for (final point in _map(scenario['checkpointsMs']).entries)
+        {
+          'scenario': scenario['name'],
+          'point': point.key,
+          'values': point.value,
+        },
+  ];
+  if (checkpoints.isNotEmpty) {
+    out.writeln(
+      '\nנקודות מוכנות נמדדות מאותה תחילת פעולה; הן אינן שלבים עוקבים. '
+      'משאבים ופריימים משויכים לפעולה השלמה.\n',
+    );
+    out.writeln('| תרחיש | נקודת מוכנות | n | p50 ms | p95 ms | p99 ms |');
+    out.writeln('|---|---|---:|---:|---:|---:|');
+    for (final point in checkpoints) {
+      final values = _map(point['values']);
+      out.writeln(
+        '| ${_cell(point['scenario'])} | ${_cell(point['point'])} | '
+        '${values['count'] ?? "—"} | ${_format(values['p50'])} | '
+        '${_format(values['p95'])} | ${_format(values['p99'])} |',
+      );
+    }
   }
   out.writeln(
     '\n| תרחיש | CPU ממוצע % ליבה | כיסוי CPU % | private peak MiB | heap אחרי p50 MiB | handles peak | תהליכים peak |',

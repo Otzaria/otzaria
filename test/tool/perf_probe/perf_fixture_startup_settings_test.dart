@@ -45,6 +45,8 @@ void main() {
           SettingsRepository.keyShowLocalHebrewBooks: false,
           SettingsRepository.keyFontFamily: 'NotoSerifHebrew',
           SettingsRepository.keyFontSize: 22.0,
+          SettingsRepository.keyEnablePerBookSettings: false,
+          SettingsRepository.keyPdfBookViewByDefault: false,
         };
         Map<String, Object?> values() => {
           for (final key in expected.keys) key: Settings.getValue<Object>(key),
