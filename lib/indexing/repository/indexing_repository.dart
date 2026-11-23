@@ -33,6 +33,7 @@ import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
 import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
 import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
+import 'package:otzaria/indexing/utils/pdf_indexing_document.dart';
 import 'package:otzaria/indexing/utils/pending_reindex_store.dart';
 import 'package:otzaria/indexing/repository/index_change_detector.dart';
 import 'package:otzaria/indexing/models/index_check_scope.dart';
@@ -1794,15 +1795,22 @@ class IndexingRepository {
       outline: <PdfOutlineNode>[],
       droppedPages: 0,
     );
+    final generation = _cancellationGeneration;
+    bool isCancelled() =>
+        !_tantivyDataProvider.isIndexing.value ||
+        generation != _cancellationGeneration;
     final file = File(book.path);
-    if (!await file.exists()) return empty;
+    if (!await file.exists() || isCancelled()) return empty;
 
     // הקורא קודם — טאב שממתין לעמוד היעד לא יחכה בתור מאחורי האינדוקס.
     await PdfViewerActivity.instance.waitUntilIdle();
-    final document = await PdfFontFallback.openFile(
-      book.path,
-    ).timeout(const Duration(seconds: 60));
+    final document = await openIndexingPdf(
+      open: () => PdfFontFallback.openFile(book.path),
+      isCancelled: isCancelled,
+    );
+    if (document == null) return empty;
     try {
+      if (isCancelled()) return empty;
       final outline = await document.loadOutline().timeout(
         const Duration(seconds: 15),
         onTimeout: () => <PdfOutlineNode>[],
@@ -1811,16 +1819,13 @@ class IndexingRepository {
       final extracted = await extractPageTextsWithRetry(
         pageCount: document.pages.length,
         loadPageText: (i) async {
-          final text = await document.pages[i].loadText().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => null,
-          );
+          final text = await document.pages[i].loadText();
           return text?.fullText;
         },
         beforeEachPage: () async {
-          if (!_tantivyDataProvider.isIndexing.value) return false;
+          if (isCancelled()) return false;
           await PdfViewerActivity.instance.waitUntilIdle();
-          return true;
+          return !isCancelled();
         },
       );
       if (extracted == null) return empty;
@@ -1855,35 +1860,52 @@ class IndexingRepository {
     }
   }
 
-  /// טקסט העמודים לפי אינדקס, בסדר עולה. עמוד שחרג מה-timeout (null) מנוסה
-  /// שוב פעם אחת בסוף הספר, כשה-worker של pdfium כבר פנוי.
-  ///
-  /// סדרתי בכוונה: כל קריאות pdfium מסורלות דרך worker יחיד, ותקיעה של עמוד
-  /// אחד מפילה את הטיימרים של העמודים שממתינים אחריו בתור — הניסיון החוזר
-  /// מחזיר אותם. מחזיר null כשה-[beforeEachPage] ביטל את האינדוקס.
+  /// טקסט העמודים לפי אינדקס. אחרי timeout ממתינים שוב לאותה עבודה בסוף
+  /// הספר; null שהתקבל מהעבודה עצמה מאפשר ניסיון חילוץ חדש.
   @visibleForTesting
   static Future<({Map<int, String> texts, int droppedPages})?>
   extractPageTextsWithRetry({
     required int pageCount,
     required Future<String?> Function(int pageIndex) loadPageText,
     required Future<bool> Function() beforeEachPage,
+    Duration pageTimeout = const Duration(seconds: 5),
   }) async {
+    final pending = <int, Future<String?>>{};
+    Future<String?> load(int index) async {
+      final future = pending[index] ??= loadPageText(index);
+      var timedOut = false;
+      final text = await future.timeout(
+        pageTimeout,
+        onTimeout: () {
+          timedOut = true;
+          return null;
+        },
+      );
+      if (!timedOut) pending.remove(index);
+      return text;
+    }
+
     final texts = SplayTreeMap<int, String>();
-    final timedOut = <int>[];
+    final retryPages = <int>[];
     for (int i = 0; i < pageCount; i++) {
       if (!await beforeEachPage()) return null;
-      final text = await loadPageText(i);
+      final text = await load(i);
       if (text == null) {
-        timedOut.add(i);
+        retryPages.add(i);
       } else {
         texts[i] = text;
       }
     }
 
     var droppedPages = 0;
-    for (final i in timedOut) {
+    for (final i in retryPages) {
       if (!await beforeEachPage()) return null;
-      final text = await loadPageText(i);
+      final reusingPending = pending.containsKey(i);
+      var text = await load(i);
+      if (reusingPending && text == null && !pending.containsKey(i)) {
+        if (!await beforeEachPage()) return null;
+        text = await load(i);
+      }
       if (text == null) {
         droppedPages++;
       } else {
