@@ -67,6 +67,7 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_search_api.dart';
+import 'package:otzaria/plugins/bridge/plugin_semantic_bridge.dart';
 import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchStreamUpdate;
@@ -112,6 +113,8 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/navigation/view/main_window_screen.dart'
+    show MainWindowScreenKeyX;
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
     as zmanim_helpers;
@@ -923,6 +926,10 @@ class PluginBridgeAdapter {
   final Set<String> _pendingSearchCancellations = {};
   final Map<String, Future<void> Function()> _activeNetworkFetchStreams = {};
   final Set<String> _pendingNetworkFetchCancellations = {};
+  late final PluginSemanticBridge _semantic = PluginSemanticBridge(
+    books: _semanticBooks,
+    openSettings: _openSemanticSettings,
+  );
 
   static const _searchStreamEvent = '__otzaria.search.query.chunk';
   static const _networkFetchStreamEvent = '__otzaria.network.fetchStream.chunk';
@@ -991,6 +998,7 @@ class PluginBridgeAdapter {
     }
     _activeNetworkFetchStreams.clear();
     _pendingNetworkFetchCancellations.clear();
+    _semantic.release();
     releaseBookContentPage();
   }
 
@@ -1293,6 +1301,8 @@ class PluginBridgeAdapter {
         return await _handleLibrary(action, args);
       case 'search':
         return await _handleSearch(action, args, eventSink: eventSink);
+      case 'semantic':
+        return await _handleSemantic(action, args, eventSink: eventSink);
       case 'reader':
         return await _handleReader(action, args);
       case 'workspace':
@@ -4953,6 +4963,46 @@ class PluginBridgeAdapter {
     } on TimeoutException {
       return null;
     }
+  }
+
+  // ----------------------------------------------------------------
+  // semantic.*
+  // ----------------------------------------------------------------
+  Future<dynamic> _handleSemantic(
+    String action,
+    Map<String, dynamic> args, {
+    required PluginRpcEventSink? eventSink,
+  }) async {
+    switch (action) {
+      case 'getStatus':
+      case 'countTokens':
+      case 'nearest':
+      case 'getCoveredBooks':
+      case 'openSettings':
+        return _semantic.handle(action, args, eventSink: eventSink);
+      default:
+        throw Exception(
+          'error.unknown_method: Unknown action in semantic: $action',
+        );
+    }
+  }
+
+  Future<PluginSemanticBookLookup> _semanticBooks() async {
+    final library = await DataRepository.instance.library;
+    _ensureBookIndex(library);
+    return (
+      find: (Map<String, dynamic> identity) =>
+          _findPluginBook(library, identity),
+      byIndexedPath: _booksByIndexedPath,
+    );
+  }
+
+  /// הגדרות המערכת, שבהן ההסכמה, ההורדה והמחיקה של נתוני החיפוש החכם.
+  Future<bool> _openSemanticSettings() async {
+    final screen =
+        _windowDependencies.windowKeys?.mainWindowScreen.currentState;
+    if (screen == null) return false;
+    return screen.handleInternalDeepLink('otzaria://open/settings/system');
   }
 
   // ----------------------------------------------------------------

@@ -259,6 +259,13 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description:
         'התוסף יכול להריץ חיפוש בתוך הטקסט של כל הספרים ולקבל את התוצאות',
   ),
+  'search.semantic.read': PluginPermissionInfo(
+    label: 'חיפוש לפי משמעות',
+    icon: FluentIcons.sparkle_24_regular,
+    description:
+        'התוסף יכול למצוא בספרייה שורות שקרובות במשמעותן לטקסט, במודל '
+        'ובנתונים שאוצריא הורידה לחיפוש החכם. הכול רץ במחשב שלך',
+  ),
   'search.dialog': PluginPermissionInfo(
     label: 'רכיבים בחלון החיפוש',
     icon: FluentIcons.checkbox_checked_24_regular,
@@ -615,5 +622,11 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description:
         'התוסף יקבל עדכון בכל פעם שחיפוש בטקסט באוצריא מסתיים, עם הביטוי '
         'שחיפשת ומספר התוצאות',
+  ),
+  'events.subscribe:semantic.status_changed': PluginPermissionInfo(
+    label: 'אירועי מצב החיפוש החכם',
+    icon: FluentIcons.sparkle_24_regular,
+    description:
+        'התוסף יקבל עדכון כשהחיפוש החכם מוכן, נכבה, או מקבל נתונים חדשים',
   ),
 };

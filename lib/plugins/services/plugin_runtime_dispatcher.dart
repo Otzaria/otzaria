@@ -88,6 +88,7 @@ class PluginRuntimeDispatcher {
     'reader.current_ref_changed',
     'reader.selection_changed',
     'plugin.permissions_changed',
+    'semantic.status_changed',
   };
 
   static const _maxQueuedOneShots = 50;

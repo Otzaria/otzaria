@@ -178,6 +178,9 @@ const pluginValidPermissions = <String>[
   /// כפתורי תוסף בתוך שדות חיפוש.
   pluginSearchFieldActionsPermission,
 
+  /// השורות הקרובות במשמעותן, במודל ובווקטורים של החיפוש החכם.
+  'search.semantic.read',
+
   // ===== קורא =====
   /// פתיחת ספרים במצב קריאה
   'reader.open',
@@ -338,4 +341,7 @@ const pluginValidPermissions = <String>[
 
   /// הרשמה לאירוע סיום חיפוש טקסט מלא, עם המונה הסופי
   'events.subscribe:search.completed',
+
+  /// הרשמה לשינויי המצב של החיפוש החכם (הסכמה, הורדה, נתונים חדשים)
+  'events.subscribe:semantic.status_changed',
 ];

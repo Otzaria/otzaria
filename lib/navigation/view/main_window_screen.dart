@@ -116,6 +116,7 @@ import 'package:otzaria/widgets/navigation/nav_rail_column.dart';
 import 'package:otzaria/widgets/navigation/nav_rail_item.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/services/plugin_semantic_status_publisher.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -714,6 +715,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
     // פר-תהליך, כמו עדכון הספרייה: שני חלונות היו מורידים לאותו נתיב.
     if (_duties.isProcessOwner) {
+      PluginSemanticStatusPublisher.start();
       DbReadWorker.corruptDatabaseDetected.addListener(
         _corruptLibraryDbChanged,
       );

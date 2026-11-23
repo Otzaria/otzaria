@@ -132,6 +132,11 @@ class PluginBridgeHandler {
   // error.timeout אחרי שהדיווח כבר נשלח, וגורם לכפילות בניסיון חוזר.
   static bool hasOwnTimeout(String method) =>
       method == 'search.query' ||
+      // פתיחת המודל בשימוש הראשון וסריקת הכיסוי אורכות יותר מ-30 שניות
+      // במחשב איטי; PluginSemanticBridge מנהל חסם זמן משלו.
+      method == 'semantic.nearest' ||
+      method == 'semantic.countTokens' ||
+      method == 'semantic.getCoveredBooks' ||
       method == 'network.fetchStream' ||
       method == 'network.download' ||
       method == 'network.fetchFile' ||
@@ -244,6 +249,7 @@ class PluginBridgeHandler {
     final isContentRead = isRateLimitExempt(request.method);
     final isStreamCancellation =
         (request.method == 'search.query' ||
+            request.method == 'semantic.nearest' ||
             request.method == 'network.fetchStream') &&
         PluginBridgeAdapter.isStreamCancellationPayload(request.payload);
     bool? grantedEarly;

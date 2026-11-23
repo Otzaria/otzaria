@@ -214,6 +214,31 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     '0.9.98.1',
     hasPermissionHint: true,
   ),
+  'semantic.getStatus': PluginApiMethod(
+    'search.semantic.read',
+    '0.9.99',
+    hasPermissionHint: true,
+  ),
+  'semantic.countTokens': PluginApiMethod(
+    'search.semantic.read',
+    '0.9.99',
+    hasPermissionHint: true,
+  ),
+  'semantic.nearest': PluginApiMethod(
+    'search.semantic.read',
+    '0.9.99',
+    hasPermissionHint: true,
+  ),
+  'semantic.getCoveredBooks': PluginApiMethod(
+    'search.semantic.read',
+    '0.9.99',
+    hasPermissionHint: true,
+  ),
+  'semantic.openSettings': PluginApiMethod(
+    'search.semantic.read',
+    '0.9.99',
+    hasPermissionHint: true,
+  ),
   'reader.openBook': PluginApiMethod('reader.open', '0.9.89'),
   'reader.openBookAtRef': PluginApiMethod('reader.open', '0.9.89'),
   'reader.printRange': PluginApiMethod(

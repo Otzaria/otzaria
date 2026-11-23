@@ -16,7 +16,8 @@ const String _sdkStubCore = r'''
   window.Otzaria = {
     call: function (method, payload) {
       if (_realSdk) return _realSdk.call(method, payload);
-      if (method === 'search.query' || method === 'network.fetchStream') {
+      if (method === 'search.query' || method === 'semantic.nearest' ||
+          method === 'network.fetchStream') {
         return _notReadyStream();
       }
       return Promise.reject(new Error('Otzaria SDK not ready yet'));
@@ -198,6 +199,9 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
   var _networkStreams = {};
   var _networkSequence = 0;
   var _networkEvent = '__otzaria.network.fetchStream.chunk';
+  var _semanticStreams = {};
+  var _semanticSequence = 0;
+  var _semanticEvent = '__otzaria.semantic.nearest.chunk';
   var rpc = function (method, payload) {
     return window.flutter_inappwebview.callHandler('otzaria_rpc', {
       method: method,
@@ -213,6 +217,11 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
   window.addEventListener(_networkEvent, function (event) {
     var detail = event.detail || {};
     var stream = _networkStreams[detail.streamId];
+    if (stream) stream.push(detail.chunk);
+  });
+  window.addEventListener(_semanticEvent, function (event) {
+    var detail = event.detail || {};
+    var stream = _semanticStreams[detail.streamId];
     if (stream) stream.push(detail.chunk);
   });
   var createRpcStream = function (method, payload, streams, streamId) {
@@ -261,8 +270,11 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
     var request = Object.assign({}, payload || {}, { __streamId: streamId });
     rpc(method, request).then(function (response) {
       if (!response || response.success !== true) {
-        var message = response && response.error && response.error.message;
-        session.fail(new Error(message || 'Stream failed'));
+        var error = response && response.error;
+        var failure = new Error((error && error.message) || 'Stream failed');
+        if (error && error.code) failure.code = error.code;
+        if (error && error.retryable !== undefined) failure.retryable = error.retryable;
+        session.fail(failure);
         return;
       }
       session.finish();
@@ -299,6 +311,10 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
     var id = 'network_' + Date.now().toString(36) + '_' + (++_networkSequence).toString(36);
     return createRpcStream('network.fetchStream', payload, _networkStreams, id);
   };
+  var createSemanticNearestStream = function (payload) {
+    var id = 'semantic_' + Date.now().toString(36) + '_' + (++_semanticSequence).toString(36);
+    return createRpcStream('semantic.nearest', payload, _semanticStreams, id);
+  };
   // בתוך ה-boot רק נרשמת, והמארח מחיל את כולן לפי הסדר לפני מסירת אירועים.
   var recordBootEventOptions = function (request) {
     _bootEventOptions.push(request);
@@ -308,6 +324,7 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
     call: function (method, payload) {
       if (method === 'search.query') return createSearchStream(payload);
       if (method === 'network.fetchStream') return createNetworkFetchStream(payload);
+      if (method === 'semantic.nearest') return createSemanticNearestStream(payload);
       if (method === 'events.setOptions' && _bootEventOptions) {
         return recordBootEventOptions(payload);
       }

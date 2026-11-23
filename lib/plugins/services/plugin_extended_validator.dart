@@ -87,6 +87,8 @@ const Set<String> _knownEvents = {
   'search.requested',
   // אירוע שידור: חיפוש טקסט מלא באוצריא הסתיים, עם המונה הסופי.
   'search.completed',
+  // אירוע מצב: השלב של החיפוש החכם, כפי ש-semantic.getStatus מחזיר אותו.
+  'semantic.status_changed',
   // אירוע ממוקד מ-PluginExternalSearchService: בקשת חיפוש חיצוני ממסך
   // החיפוש המובנה. תוסף-ספק מצהיר עליו ב-activationEvents כדי שהבקשה
   // תעיר מנוע רקע במקום לפתוח את דף התוסף.
@@ -283,6 +285,19 @@ class PluginExtendedValidator {
       );
     }
 
+    if (eventUsage.containsKey('semantic.status_changed') ||
+        declaredPermissions.contains(
+          'events.subscribe:semantic.status_changed',
+        ) ||
+        declaredPermissions.contains('search.semantic.read')) {
+      _requireMinVersion(
+        manifest,
+        _semanticMinVersion,
+        'החיפוש החכם (semantic.*)',
+        errors,
+      );
+    }
+
     final design = _checkDesignCompliance(files);
 
     return PluginValidationReport(
@@ -347,6 +362,7 @@ class PluginExtendedValidator {
   static const String _searchUiOptionsMinVersion = '0.9.98.3';
   static const String _searchFilterLabelsMinVersion = '0.9.99';
   static const String _searchCompletedMinVersion = '0.9.99';
+  static const String _semanticMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
 
   /// `bookTypes`/`bookSources` בפקדי הסרגל ובפריטי תפריט ההקשר.

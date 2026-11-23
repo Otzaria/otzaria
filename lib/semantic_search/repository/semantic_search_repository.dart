@@ -40,8 +40,12 @@ import 'package:otzaria/utils/file/native_sha256.dart';
 import 'package:otzaria/utils/file/zip_entry_io.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
+        SemanticCoveredBooks,
         SemanticHighlightTarget,
+        SemanticNearestInput,
+        SemanticNearestResponse,
         SemanticPassageHighlight,
+        SemanticQueryTokens,
         SemanticRetrievalMode;
 import 'package:path/path.dart' as p;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
@@ -250,6 +254,7 @@ class SemanticSearchRepository {
   SemanticQuantization? _openQuantization;
   final SemanticSearchSession _defaultSession = SemanticSearchSession();
   final Set<SemanticCancelHandle> _activeSearches = {};
+  final Set<SemanticBackgroundCall> _backgroundCalls = {};
 
   /// המצב האחרון שחושב.
   SemanticAvailability get availability => _availability;
@@ -458,6 +463,7 @@ class SemanticSearchRepository {
     SemanticSearchSession? session,
     void Function()? onSearching,
   }) async {
+    _preemptBackgroundCalls();
     final handle = (session ?? _defaultSession)._next();
     _activeSearches.add(handle);
     try {
@@ -489,6 +495,85 @@ class SemanticSearchRepository {
       return await _backend.passageHighlights(query, targets, cancel: cancel);
     } finally {
       _activeSearches.remove(cancel);
+    }
+  }
+
+  /// השורות הקרובות לנקודות של [input], לכלים שליד הקורא (תוספים).
+  ///
+  /// מחזיר `null` כש-[call] בוטל: בידי הכלי, בחיפוש של המשתמש
+  /// ([SemanticBackgroundCall.preempted]), בביטול ההסכמה או בהעברת הספרייה.
+  /// זורק [SemanticFailure] בכל כשל אחר. [onSearching] נקרא כשהמנוע מתחיל.
+  Future<SemanticNearestResponse?> nearest(
+    SemanticNearestInput input, {
+    required SemanticBackgroundCall call,
+    void Function()? onSearching,
+  }) => _runBackground(call, () async {
+    await ensureOpen();
+    if (input.points.any((point) => point.asPassage)) {
+      await _ensurePassageModel(call);
+    }
+    if (call.isCancelled) return null;
+    onSearching?.call();
+    return _backend.nearest(input, cancel: call);
+  });
+
+  /// אורך כל אחד מ-[texts] כשאילתה, בטוקנים. פותח את ה-session כמו חיפוש.
+  Future<SemanticQueryTokens?> queryTokens(
+    List<String> texts, {
+    required SemanticBackgroundCall call,
+  }) => _runBackground(call, () async {
+    await ensureOpen();
+    if (call.isCancelled) return null;
+    return _backend.queryTokens(texts);
+  });
+
+  /// הספרים של האינדקס שהסט המותקן מכסה. כמו חיפוש, רק עם הסכמה ונתונים
+  /// מותקנים; אינו פותח את ה-session.
+  Future<SemanticCoveredBooks?> coveredBooks({
+    required SemanticBackgroundCall call,
+  }) => _runBackground(call, () async {
+    if (_moveInProgress) {
+      throw const SemanticFailure(SemanticFailureKind.libraryMoving);
+    }
+    final availability = await refresh();
+    if (!availability.consentGranted) {
+      throw const SemanticFailure(SemanticFailureKind.consentRequired);
+    }
+    if (availability.phase != SemanticAvailabilityPhase.ready) {
+      throw SemanticFailure(
+        availability.failure?.kind ?? SemanticFailureKind.notReady,
+      );
+    }
+    final paths = await _paths();
+    if (call.isCancelled) return null;
+    return _backend.coveredBooks(paths.vectorsDirectory, cancel: call);
+  });
+
+  Future<T?> _runBackground<T>(
+    SemanticBackgroundCall call,
+    Future<T?> Function() body,
+  ) async {
+    if (call.isCancelled) return null;
+    _activeSearches.add(call);
+    _backgroundCalls.add(call);
+    try {
+      final result = await body();
+      return call.isCancelled ? null : result;
+    } on SemanticFailure catch (failure) {
+      if (call.isCancelled || failure.kind == SemanticFailureKind.cancelled) {
+        return null;
+      }
+      rethrow;
+    } finally {
+      _activeSearches.remove(call);
+      _backgroundCalls.remove(call);
+    }
+  }
+
+  /// חיפוש של המשתמש קודם לכלים: פעולות הרקע שלהם מתבטלות.
+  void _preemptBackgroundCalls() {
+    for (final call in List.of(_backgroundCalls)) {
+      call.preempt();
     }
   }
 

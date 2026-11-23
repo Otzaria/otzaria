@@ -6,7 +6,13 @@ import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticHighlightTarget, SemanticPassageHighlight;
+    show
+        SemanticCoveredBooks,
+        SemanticHighlightTarget,
+        SemanticNearestInput,
+        SemanticNearestResponse,
+        SemanticPassageHighlight,
+        SemanticQueryTokens;
 
 /// החוזה של שכבת החיפוש הסמנטי מול המנוע.
 ///
@@ -66,6 +72,21 @@ abstract interface class SemanticEngineBackend {
   Future<List<SemanticPassageHighlight>> passageHighlights(
     String query,
     List<SemanticHighlightTarget> targets, {
+    required SemanticCancelHandle cancel,
+  });
+
+  /// השורות החיות הקרובות לכמה נקודות (טקסטים או וקטורים), במעבר אחד על הסט.
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  });
+
+  /// אורך כל טקסט כשאילתה, בטוקנים, עם התקרה שבה שאילתה נחתכת.
+  Future<SemanticQueryTokens> queryTokens(List<String> texts);
+
+  /// הספרים של האינדקס הפתוח שהסט ב-[vectorsDir] מכסה.
+  Future<SemanticCoveredBooks> coveredBooks(
+    String vectorsDir, {
     required SemanticCancelHandle cancel,
   });
 }
@@ -133,6 +154,22 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
   Future<List<SemanticPassageHighlight>> passageHighlights(
     String query,
     List<SemanticHighlightTarget> targets, {
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
+
+  @override
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
+
+  @override
+  Future<SemanticQueryTokens> queryTokens(List<String> texts) =>
+      Future.error(_unavailable);
+
+  @override
+  Future<SemanticCoveredBooks> coveredBooks(
+    String vectorsDir, {
     required SemanticCancelHandle cancel,
   }) => Future.error(_unavailable);
 }

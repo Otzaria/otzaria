@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
@@ -312,7 +313,86 @@ class FakeBackend implements SemanticEngineBackend {
         ),
     ];
   }
+
+  final List<SemanticNearestInput> nearestInputs = [];
+  final List<SemanticCancelHandle> nearestHandles = [];
+
+  /// התשובה ל-nearest; `null` = [emptyNearestResponse].
+  SemanticNearestResponse? nearestResponse;
+  SemanticFailure? nearestFailure;
+
+  @override
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('nearest:${input.points.length}');
+    nearestInputs.add(input);
+    nearestHandles.add(cancel);
+    final gate = searchGate;
+    if (gate != null) await gate.future;
+    if (cancel.isCancelled) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+    final failure = nearestFailure;
+    if (failure != null) throw failure;
+    return nearestResponse ?? emptyNearestResponse();
+  }
+
+  final List<List<String>> tokenRequests = [];
+
+  @override
+  Future<SemanticQueryTokens> queryTokens(List<String> texts) async {
+    calls.add('tokens:${texts.length}');
+    tokenRequests.add(texts);
+    return SemanticQueryTokens(
+      counts: Uint32List.fromList([for (final text in texts) text.length + 2]),
+      queryMaxTokens: 256,
+      overheadTokens: 2,
+    );
+  }
+
+  /// הספרים שהסט מכסה, לפי `filePath` של האינדקס.
+  List<String> coveredFilePaths = const [];
+  String coveredSetKey = 'set-1';
+  int coveredCalls = 0;
+
+  @override
+  Future<SemanticCoveredBooks> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('covered');
+    coveredCalls++;
+    if (cancel.isCancelled) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+    return SemanticCoveredBooks(
+      filePaths: coveredFilePaths,
+      setKey: coveredSetKey,
+      generation: BigInt.from(vectors.generation),
+      vectorsLibraryVersion: vectors.libraryVersion,
+      recoveredFromPrevious: false,
+    );
+  }
 }
+
+SemanticNearestResponse emptyNearestResponse({
+  List<SemanticNearestHit> hits = const [],
+  List<SemanticNearestList> perPoint = const [],
+}) => SemanticNearestResponse(
+  hits: hits,
+  perPoint: perPoint,
+  generation: BigInt.from(3),
+  vectorsLibraryVersion: 30,
+  unresolved: 0,
+  staleDropped: 0,
+  truncated: false,
+  embedMs: BigInt.one,
+  scanMs: BigInt.two,
+  resolveMs: BigInt.from(3),
+  rescoreMs: BigInt.zero,
+);
 
 SemanticSearchResponse emptyResponse() => SemanticSearchResponse(
   results: const [],

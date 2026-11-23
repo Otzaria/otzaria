@@ -147,6 +147,33 @@ class _FakeEngine implements SearchEngine {
     ];
   }
 
+  SemanticNearestInput? nearestInput;
+  SemanticCancellationToken? nearestToken;
+
+  @override
+  Future<SemanticNearestResponse> semanticNearest({
+    required SemanticNearestInput input,
+    required SemanticCancellationToken cancellation,
+  }) async {
+    nearestInput = input;
+    nearestToken = cancellation;
+    final error = failure;
+    if (error != null) throw error;
+    return SemanticNearestResponse(
+      hits: const [],
+      perPoint: const [],
+      generation: BigInt.two,
+      vectorsLibraryVersion: 30,
+      unresolved: 0,
+      staleDropped: 0,
+      truncated: false,
+      embedMs: BigInt.zero,
+      scanMs: BigInt.zero,
+      resolveMs: BigInt.zero,
+      rescoreMs: BigInt.zero,
+    );
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -219,6 +246,41 @@ void main() {
     expect(summary.kind, 'base');
     expect(summary.libraryVersion, 30);
     expect(tokens.single.isDisposed, isTrue);
+  });
+
+  test('nearest מעביר את הקלט ומשחרר את ה-token', () async {
+    const input = SemanticNearestInput(
+      points: [SemanticPoint(text: 'א', asPassage: false)],
+      topK: 3,
+      facets: ['/'],
+      exclude: [],
+      pool: SemanticPool.best,
+      maxCandidates: 10,
+      rescore: false,
+    );
+    final response = await adapter.nearest(
+      input,
+      cancel: SemanticCancelHandle(),
+    );
+
+    expect(engine.nearestInput, same(input));
+    expect(response.generation, BigInt.two);
+    expect(tokens.single.isDisposed, isTrue);
+
+    engine.failure = const SemanticError(
+      kind: SemanticErrorKind.invalidInput,
+      message: 'vector width',
+    );
+    await expectLater(
+      adapter.nearest(input, cancel: SemanticCancelHandle()),
+      throwsA(
+        isA<SemanticFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          SemanticFailureKind.invalidInput,
+        ),
+      ),
+    );
   });
 
   test('SemanticError ממופה לפי סוג', () async {
