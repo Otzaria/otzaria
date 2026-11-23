@@ -28,6 +28,7 @@ on:
       - 'lib/core/diagnostics/**'
       - 'lib/core/window_listener.dart'
       - 'test/core/window_listener_native_visibility_test.dart'
+      - 'windows/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/installed_plugin_probe.yml'

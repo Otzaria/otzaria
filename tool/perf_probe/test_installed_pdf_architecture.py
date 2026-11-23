@@ -134,6 +134,26 @@ class NativeArchitectureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "uniquely loaded"):
             self.validate(report, executable)
 
+    def test_linux_library_directory_symlink_cannot_escape_bundle(self):
+        report, executable = self.fixture()
+        libraries = executable.parent / "lib"
+        external = self.root / "external"
+        libraries.rename(external)
+        libraries.symlink_to(external, target_is_directory=True)
+        loaded = report["pdfRuntime"]["steps"]["loadedModules"]
+        for module in loaded["modules"]:
+            module["path"] = str(external / module["name"])
+        loaded["observedModulePaths"] = [module["path"] for module in loaded["modules"]]
+        with self.assertRaisesRegex(ValueError, "escapes the actual bundle"):
+            self.validate(report, executable)
+
+    def test_deleted_linux_mapping_cannot_hide_an_extra_module(self):
+        report, executable = self.fixture()
+        paths = report["pdfRuntime"]["steps"]["loadedModules"]["observedModulePaths"]
+        paths.append(str(self.root / "libpdfium.so") + " (deleted)")
+        with self.assertRaisesRegex(ValueError, "uniquely loaded"):
+            self.validate(report, executable)
+
     def test_missing_mapped_library_is_rejected(self):
         report, executable = self.fixture()
         report["pdfRuntime"]["steps"]["loadedModules"]["observedModulePaths"].pop()

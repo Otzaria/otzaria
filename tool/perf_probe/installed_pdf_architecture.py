@@ -122,14 +122,16 @@ def validate_bundle(report, *, executable, platform, architecture, commit):
     directory = executable.parent if platform == "windows" else executable.parent / "lib"
     receipts = []
     for name in MODULES[platform]:
-        expected = (directory / name).resolve(strict=True)
-        require(expected.parent == directory.resolve(strict=True),
+        expected = directory / name
+        require(expected.resolve(strict=True) == expected,
                 f"PDF module escapes the actual bundle: {name}")
         module = next(item for item in modules if item["name"] == name)
         require(absolute_file(module.get("path")) == expected,
                 f"PDF module report points outside the bundle: {name}")
-        matching = [path for path in observed if Path(path).name.lower() == name]
-        require(len(matching) == 1 and absolute_file(matching[0]) == expected,
+        matching = [path for path in observed
+                    if Path(path.removesuffix(" (deleted)")).name.lower() == name]
+        require(len(matching) == 1 and not matching[0].endswith(" (deleted)")
+                and absolute_file(matching[0]) == expected,
                 f"PDF library was not uniquely loaded from the bundle: {name}")
         receipt = binary_receipt(expected, platform=platform, architecture=architecture)
         require(type(module.get("bytes")) is int and module["bytes"] == receipt["bytes"]
