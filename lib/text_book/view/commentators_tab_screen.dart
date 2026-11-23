@@ -1219,7 +1219,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           onTypeChipsChanged: (types) => _typeSelection.value = types,
           heCategories: bookCategoriesSource(state.book),
           onCategoryDefaultsSaved: () =>
-              TextBookPerBookSettings.clearActiveCommentators(state.book),
+              TextBookPerBookSettings.clearCommentatorsTabSelection(
+                state.book,
+                selected,
+              ),
         );
       },
     );

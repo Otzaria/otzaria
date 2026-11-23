@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -191,4 +192,45 @@ void main() {
       'רמב"ן',
     ]);
   });
+  testWidgets('היסטוריית מפרשי טקסט משמרת בחירה ריקה מפורשת', (tester) async {
+    final tab = openTab(TextBook(title: 'בראשית'))..selectedCommentators = [];
+    addTearDown(tab.dispose);
+    await show(tester, tab);
+
+    final bookmark = await bookmarkFromReadingTab(tab);
+    expect(bookmark?.commentatorsToShow, isEmpty);
+    final restored = tabFromBookmark(bookmark!) as CommentatorsTab;
+    addTearDown(restored.sourceTab.dispose);
+    addTearDown(restored.dispose);
+    expect(restored.applyBookSelection, isFalse);
+    expect(restored.selectedCommentators, isEmpty);
+  });
+
+  test(
+    'קביעת קטגוריה אינה מנקה את המסך האחר או בחירת כרטיסייה מאוחרת',
+    () async {
+      final book = TextBook(title: 'בראשית');
+      await TextBookPerBookSettings.mutate(
+        book,
+        (_) => TextBookPerBookSettings(
+          activeCommentators: const ['רש"י'],
+          commentatorsTabSelection: const ['רמב"ן'],
+        ),
+      );
+      await TextBookPerBookSettings.clearActiveCommentators(
+        book,
+        expected: ['רש"י'],
+      );
+      var saved = await TextBookPerBookSettings.load(book);
+      expect(saved?.activeCommentators, isNull);
+      expect(saved?.commentatorsTabSelection, ['רמב"ן']);
+
+      await TextBookPerBookSettings.saveCommentatorsTabSelection(book, _all);
+      await TextBookPerBookSettings.clearCommentatorsTabSelection(book, [
+        'רמב"ן',
+      ]);
+      saved = await TextBookPerBookSettings.load(book);
+      expect(saved?.commentatorsTabSelection, _all);
+    },
+  );
 }

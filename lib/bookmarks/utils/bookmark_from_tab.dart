@@ -44,6 +44,9 @@ Future<Bookmark?> bookmarkFromReadingTab(
     final blocState = tab.blocState;
     if (blocState is TextBookLoaded && blocState.visibleIndices.isNotEmpty) {
       final index = tab.currentIndex;
+      final selected = List.of(
+        tab.selectedCommentators ?? blocState.activeCommentators,
+      );
       final ref = await _lineRef(
         blocState.book,
         index,
@@ -53,13 +56,16 @@ Future<Bookmark?> bookmarkFromReadingTab(
         ref: 'מפרשים | $ref',
         book: blocState.book,
         index: index,
-        commentatorsToShow: blocState.activeCommentators,
+        commentatorsToShow: selected,
         workspaceName: workspaceName,
         targetKind: BookmarkTargetKind.commentators,
       );
     }
     if (!useStoredPositionFallback) return null;
     final source = tab.sourceTab;
+    final selected = List.of(
+      tab.selectedCommentators ?? source.commentators ?? const <String>[],
+    );
     final ref = await _lineRef(
       source.book,
       source.index,
@@ -69,8 +75,7 @@ Future<Bookmark?> bookmarkFromReadingTab(
       ref: 'מפרשים | $ref',
       book: source.book,
       index: source.index,
-      commentatorsToShow:
-          tab.selectedCommentators ?? source.commentators ?? const [],
+      commentatorsToShow: selected,
       workspaceName: workspaceName,
       targetKind: BookmarkTargetKind.commentators,
     );
@@ -186,7 +191,9 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
               openLeftPane: openLeftPane,
             )
             as TextBookTab;
-    return CommentatorsTab(sourceTab: sourceTab)..applyBookSelection = false;
+    return CommentatorsTab(sourceTab: sourceTab)
+      ..applyBookSelection = false
+      ..selectedCommentators = List.of(bookmark.commentatorsToShow);
   }
 
   final tab = OpenedTab.fromBook(

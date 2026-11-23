@@ -588,25 +588,30 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     });
   }
 
-  /// בוחר אוטומטית את מפרשי ברירת המחדל של הספר (כמו בכרטיסיית הטקסט), כל עוד
-  /// אין בחירה פר-ספר שמורה ואין מפרשים פעילים. [available] = המפרשים הזמינים
-  /// מתוך ה-links של הספר.
   Future<void> _applyDefaultCommentatorsIfNeeded(List<String> available) async {
-    final sourceTab = widget.tab.sourceTab;
-    if (available.isEmpty || sourceTab.activeCommentators.isNotEmpty) return;
-
-    final saved = await PdfBookPerBookSettings.load(sourceTab.book);
-    final selection = await DefaultCommentators.resolveAutoSelection(
-      sourceTab.book,
-      availableCommentators: available,
-      savedSelection: saved?.activeCommentators,
-    );
-    if (!mounted ||
-        selection == null ||
-        sourceTab.activeCommentators.isNotEmpty) {
+    final tab = widget.tab;
+    if (!tab.applyBookSelection || available.isEmpty) return;
+    final source = tab.sourceTab;
+    final saved = await PdfBookPerBookSettings.load(source.book);
+    final selection =
+        saved?.commentatorsTabSelection ??
+        (source.activeCommentators.isEmpty
+            ? await DefaultCommentators.resolveAutoSelection(
+                source.book,
+                availableCommentators: available,
+                savedSelection: saved?.activeCommentators,
+              )
+            : null);
+    if (!mounted || !identical(tab, widget.tab) || !tab.applyBookSelection) {
       return;
     }
-    setState(() => sourceTab.activeCommentators.addAll(selection));
+    tab.applyBookSelection = false;
+    if (selection == null) return;
+    setState(() {
+      source.activeCommentators
+        ..clear()
+        ..addAll(selection);
+    });
   }
 
   @override
@@ -1049,9 +1054,12 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           selectedTypes: selectedTypes,
           availableKeys: chipKeys,
         );
+        final tab = widget.tab;
+        final source = tab.sourceTab;
+        final openingSelection = source.activeCommentators.toList();
         return CommentatorsSelectionPanel(
           groups: _commentatorGroups,
-          selectedCommentators: widget.tab.sourceTab.activeCommentators
+          selectedCommentators: openingSelection
               .where(availableTitles.contains)
               .toList(),
           bookTitle: widget.tab.sourceTab.book.title,
@@ -1064,8 +1072,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           commentatorsByType: CommentaryTypeFilter.commentatorsByType(allLinks),
           onTypeChipsChanged: (types) => _typeSelection.value = types,
           onSelectionChanged: (list) async {
+            tab.applyBookSelection = false;
             setState(() {
-              widget.tab.sourceTab.activeCommentators
+              source.activeCommentators
                 ..clear()
                 ..addAll(list);
             });
@@ -1075,16 +1084,15 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
             // שמירה פר-ספר תמיד (לא תלוי ב-enablePerBookSettings) כדי שהבחירה
             // תיטען בכל פתיחה.
             final settings = PdfBookPerBookSettings(
-              activeCommentators: List.from(
-                widget.tab.sourceTab.activeCommentators,
-              ),
+              commentatorsTabSelection: List.of(list),
             );
-            await settings.save(widget.tab.sourceTab.book);
+            await settings.save(source.book);
           },
-          heCategories: bookCategoriesSource(widget.tab.sourceTab.book),
+          heCategories: bookCategoriesSource(source.book),
           onCategoryDefaultsSaved: () =>
-              PdfBookPerBookSettings.clearActiveCommentators(
-                widget.tab.sourceTab.book,
+              PdfBookPerBookSettings.clearCommentatorsTabSelection(
+                source.book,
+                openingSelection,
               ),
         );
       },
