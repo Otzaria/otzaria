@@ -10,6 +10,11 @@ abstract class PdfMessages {
   static const String textLocationNotFound = 'לא נמצא מיקום תואם בטקסט';
   static const String noTextLayer =
       'ספר זה הוא סריקה בלבד ואינו מכיל טקסט, ולכן לא ניתן לחפש בתוכו';
+  static const String searchIncomplete = 'החיפוש לא הושלם';
+  static String partialSearchResultCount(int count) =>
+      'נמצאו עד כה $count תוצאות';
+  static String currentPartialSearchResult(int current, int count) =>
+      'תוצאה $current מתוך $count שנמצאו עד כה';
   static const String advancedSearchUnavailableInTalmudPdf =
       'חיפוש מתקדם אינו זמין במהדורת ה-PDF של התלמוד הבבלי. '
       'ניתן לחפש בגרסת הטקסט של המסכת, ולפתוח משם את התוצאה.';

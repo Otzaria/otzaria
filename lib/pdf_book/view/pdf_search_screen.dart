@@ -897,6 +897,30 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     _searchResults = _simpleResults;
   }
 
+  bool get _simpleSearchComplete =>
+      !widget.textSearcher.isSearching &&
+      widget.textSearcher.searchError == null &&
+      widget.textSearcher.searchProgress == 1;
+
+  bool get _canCheckSimpleSearch =>
+      _isSimpleSearch &&
+      _simpleSearchComplete &&
+      widget.textSearcher.isActive &&
+      _simpleSearchQuery == widget.searchController.text;
+
+  String? get _resultErrorMessage {
+    if (!_isSimpleSearch) return _searchErrorMessage;
+    final searcher = widget.textSearcher;
+    if (_simpleSearchQuery == widget.searchController.text &&
+        searcher.searchError != null) {
+      return LibraryMessages.searchError;
+    }
+    return _searchErrorMessage ??
+        (searcher.searchProgress != null && !_simpleSearchComplete
+            ? PdfMessages.searchIncomplete
+            : null);
+  }
+
   void _onTextSearcherMatchesChanged() {
     final searcher = widget.textSearcher;
     if (searcher is CenteredTextSearchSession && searcher.isPageHighlighting) {
@@ -908,12 +932,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           _updateSimpleResults();
           _isSearching = widget.textSearcher.isSearching;
         });
-        // גלילה לעמוד הנוכחי בסיום החיפוש — רק אם השאילתה הממתינה עדיין
-        // תואמת למה שמופיע בשדה החיפוש. זה מונע גלילה על תוצאות מיושנות
-        // של חיפוש פשוט קודם שהסתיים אחרי שהמשתמש כבר שינה את השאילתה.
+        // עצירה או השהיה אינן סיום סריקה, ושאילתה ישנה אינה מגלילה תוצאות.
         final pendingQuery = _pendingSimpleSearchScrollFor;
         if (pendingQuery != null &&
-            !_isSearching &&
+            _canCheckSimpleSearch &&
             _searchResults.isNotEmpty) {
           var controllerQuery = widget.searchController.text.trim();
           if (utils.hasNikud(controllerQuery)) {
@@ -925,7 +947,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           }
         }
 
-        if (!_isSearching &&
+        if (_canCheckSimpleSearch &&
             _searchResults.isEmpty &&
             _searchErrorMessage == null &&
             _textLayerCheckedGeneration != _searchGeneration &&
@@ -937,13 +959,35 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     }
   }
 
-  /// סריקה שהסתיימה בלי אף התאמה: קודם נבדק אם לספר יש טקסט לחפש בו,
-  /// ורק אם יש — נסיגה לסדר המילים ההפוך. בספר סרוק בלי טקסט אין מה
-  /// לחפש בשום סדר, ולכן שם מוצגת ההודעה בלבד.
+  /// בסריקה מלאה וריקה מנסים סדר מילים הפוך רק אם יש שכבת טקסט.
   Future<void> _onEmptySimpleSearch(int generation) async {
-    if (!await _checkTextLayer(generation)) return;
-    if (!mounted || generation != _searchGeneration) return;
-    _startReversedOrderSearch();
+    final searcher = widget.textSearcher;
+    final session = searcher.searchSession;
+    bool isCurrent() =>
+        mounted &&
+        generation == _searchGeneration &&
+        identical(searcher, widget.textSearcher) &&
+        session == searcher.searchSession &&
+        _canCheckSimpleSearch;
+    var hasText = false;
+    try {
+      hasText = await _checkTextLayer(isCurrent);
+    } catch (_) {
+      if (isCurrent()) {
+        setState(() => _searchErrorMessage = LibraryMessages.searchError);
+      }
+    }
+    if (!isCurrent()) {
+      if (mounted &&
+          generation == _searchGeneration &&
+          _textLayerCheckedGeneration == generation &&
+          identical(searcher, widget.textSearcher)) {
+        _textLayerCheckedGeneration = -1;
+        if (_canCheckSimpleSearch) _onTextSearcherMatchesChanged();
+      }
+      return;
+    }
+    if (hasText) _startReversedOrderSearch();
   }
 
   /// חיפוש חוזר בסדר המילים ההפוך. שכבת הטקסט של חלק מהספרים הסרוקים
@@ -969,7 +1013,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   /// בודקת אם לספר בכלל יש טקסט לחפש בו, כדי שספר סרוק לא יציג
   /// "אין תוצאות" מטעה על מילה שרואים על העמוד. מחזירה אם יש טקסט שמיש.
-  Future<bool> _checkTextLayer(int generation) async {
+  Future<bool> _checkTextLayer(bool Function() isCurrent) async {
     final pdfState = context.read<PdfBookBloc>().state;
     final pages = PdfBookSearchView.textLayerProbePages(
       currentPage: pdfState is PdfBookLoaded ? _currentPage(pdfState) : 1,
@@ -978,11 +1022,12 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
     final texts = <String>[];
     for (final page in pages) {
+      if (!isCurrent()) return false;
       final pageText = await widget.textSearcher.loadText(pageNumber: page);
+      if (!isCurrent()) return false;
       if (pageText != null) texts.add(pageText.fullText);
     }
 
-    if (!mounted || generation != _searchGeneration) return false;
     // בלי טקסט כלל אי אפשר להכריע (המסמך עדיין לא נטען) — נשארים ב"אין תוצאות".
     if (texts.isEmpty) return false;
     if (PdfBookSearchView.hasSearchableText(texts)) return true;
@@ -1014,9 +1059,18 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   String? _resultCountString() {
     if (_searchResults.isEmpty) return null;
+    final partial = _isSimpleSearch && !_simpleSearchComplete;
     final current = widget.textSearcher.currentIndex;
     if (_isSimpleSearch && current != null && current < _searchResults.length) {
-      return 'תוצאה ${current + 1} מתוך ${_searchResults.length}';
+      return partial
+          ? PdfMessages.currentPartialSearchResult(
+              current + 1,
+              _searchResults.length,
+            )
+          : 'תוצאה ${current + 1} מתוך ${_searchResults.length}';
+    }
+    if (partial) {
+      return PdfMessages.partialSearchResultCount(_searchResults.length);
     }
     if (_resultsTruncated) {
       return 'מוצגות ${_searchResults.length} התוצאות הראשונות';
@@ -1443,7 +1497,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           searchableInBookQuery(widget.searchController.text) != null &&
           _searchResults.isEmpty &&
           !_isSearching,
-      errorMessage: _searchErrorMessage,
+      errorMessage: _resultErrorMessage,
       onSearchTextChanged: (_) {
         // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
         final query = searchableInBookQuery(widget.searchController.text);
