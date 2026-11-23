@@ -133,20 +133,28 @@ void main() {
     addTearDown(sourceTab.dispose);
     sourceTab.pdfHeadings = PdfHeadings(
       bookTitle: 'PDF בדיקה',
-      headingsMap: {'פרק א': 1, 'פרק ב': 10},
+      headingsMap: {'PDF בדיקה': 1, 'פרק ב': 10},
     );
-    sourceTab.currentTitle.value = 'פרק א';
+    sourceTab.currentTitle.value = 'PDF בדיקה';
 
     final tab = PdfCommentatorsTab(sourceTab: sourceTab);
     await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
     await tester.pump();
 
-    expect(find.text('מפרשים על PDF בדיקה פרק א'), findsOneWidget);
+    expect(find.text('מפרשים על PDF בדיקה'), findsOneWidget);
 
     sourceTab.currentTitle.value = 'פרק ב';
     await tester.pump();
 
-    expect(find.text('מפרשים על PDF בדיקה פרק ב'), findsOneWidget);
+    expect(find.text('מפרשים על PDF בדיקה, פרק ב'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    sourceTab.pdfHeadings = null;
+    sourceTab.currentTitle.value = '';
+    sourceTab.pageNumber = 7;
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה, עמוד 7'), findsOneWidget);
   });
 
   testWidgets('כרטסיית מפרשי PDF מסתנכרנת עם currentTitle של sourceTab', (

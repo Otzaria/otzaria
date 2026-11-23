@@ -23,6 +23,7 @@ import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
@@ -113,8 +114,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     final headings = _sortedHeadings;
     if (headings == null || idx < 0 || idx >= headings.length) return;
     final source = widget.tab.sourceTab;
-    source.currentTitle.value = headings[idx].key;
-    _pdfPageForHeading(idx).then((page) {
+    final heading = headings[idx];
+    source.currentTitle.value = heading.key;
+    _pdfPageForHeading(source.book, heading.value).then((page) {
       if (page != null && mounted && version == _headingSelectionVersion) {
         source.pageNumber = page;
       }
@@ -907,10 +909,15 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     });
   }
 
-  /// עמוד ה-PDF של הכותרת [idx]; null כשאין מיפוי אמין.
-  Future<int?> _pdfPageForHeading(int idx) async {
-    final book = widget.tab.sourceTab.book;
-    final line = _sortedHeadings![idx].value;
+  MapEntry<String, int>? get _selectedHeading {
+    final headings = _sortedHeadings;
+    final index = _selectedHeadingIdx;
+    if (headings == null || index < 0 || index >= headings.length) return null;
+    return headings[index];
+  }
+
+  /// עמוד ה-PDF של שורת הכותרת, אם נמצא לה מיפוי.
+  Future<int?> _pdfPageForHeading(PdfBook book, int line) async {
     try {
       final library = await DataRepository.instance.library;
       final textBook = library.getCompanionBook(book, TextBook) as TextBook?;
@@ -923,38 +930,27 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   }
 
   Future<void> _addBookmark(BuildContext context) async {
-    final sourceTab = widget.tab.sourceTab;
+    final source = widget.tab.sourceTab;
     final bookmarkBloc = context.read<BookmarkBloc>();
-    final headings = _sortedHeadings;
-    final hasSelectedHeading =
-        headings != null &&
-        _selectedHeadingIdx >= 0 &&
-        _selectedHeadingIdx < headings.length;
-
-    // הכותרת הנבחרת בכרטיסייה (כפי שמוצג בסרגל), ולא מצב הספר המקורי
-    final heading = hasSelectedHeading
-        ? headings[_selectedHeadingIdx].key.trim()
-        : sourceTab.currentTitle.value.trim();
-
-    // עמוד ברירת מחדל — מצב הספר המקורי אם אין כותרת נבחרת
-    int page = sourceTab.pdfViewerController.isReady
-        ? (sourceTab.pdfViewerController.pageNumber ?? sourceTab.pageNumber)
-        : sourceTab.pageNumber;
-
-    // המרת שורת הכותרת הנבחרת לעמוד PDF מדויק; אם לא ניתן — נשארים על ברירת המחדל
-    if (hasSelectedHeading) {
-      page = await _pdfPageForHeading(_selectedHeadingIdx) ?? page;
+    final book = source.book;
+    final selected = _selectedHeading;
+    final heading = (selected?.key ?? source.currentTitle.value).trim();
+    final commentators = source.activeCommentators.toList();
+    int page = source.pdfViewerController.isReady
+        ? (source.pdfViewerController.pageNumber ?? source.pageNumber)
+        : source.pageNumber;
+    if (selected != null) {
+      page = await _pdfPageForHeading(book, selected.value) ?? page;
     }
-
-    final ref = heading.isNotEmpty
-        ? '${sourceTab.book.title} $heading'
-        : '${sourceTab.book.title} עמוד $page';
-
+    final ref = addBookTitleToRef(
+      heading.isEmpty ? 'עמוד $page' : heading,
+      book.title,
+    );
     final added = bookmarkBloc.addPdfCommentatorsBookmark(
       ref: 'מפרשים | $ref',
-      book: sourceTab.book,
+      book: book,
       index: page,
-      commentatorsToShow: sourceTab.activeCommentators.toList(),
+      commentatorsToShow: commentators,
       pdfCommentatorsHeading: heading.isEmpty ? null : heading,
     );
     UiSnack.show(
@@ -964,8 +960,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   Widget _buildAppTopBar(BuildContext context) {
     final isCompact = AppDensity.of(context).isCompact;
+    final source = widget.tab.sourceTab;
+    final heading = (_selectedHeading?.key ?? source.currentTitle.value).trim();
+    final ref = addBookTitleToRef(
+      heading.isEmpty ? 'עמוד ${source.pageNumber}' : heading,
+      source.book.title,
+    );
     return CommentatorsTabTopBar(
-      title: 'מפרשים על ${widget.tab.sourceTab.book.title}',
+      title: 'מפרשים על $ref',
       titleMaxLines: 1,
       prevMajorTooltip: 'הכותרת הקודמת',
       nextMajorTooltip: 'הכותרת הבאה',
