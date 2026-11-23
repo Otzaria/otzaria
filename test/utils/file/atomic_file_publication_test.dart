@@ -574,6 +574,8 @@ void main() {
 }
 
 Future<String> _windowsDacl(String path, {bool? protected}) async {
+  // Windows PowerShell may inherit PowerShell Core's module search path.
+  // Direct .NET calls keep this probe independent of cmdlet auto-loading.
   final result = await Process.run(
     'powershell.exe',
     [
@@ -585,16 +587,16 @@ $ErrorActionPreference = 'Stop'
 $path = $env:OTZARIA_TEST_FILE
 if ($env:OTZARIA_TEST_PROTECTED -ne '') {
   $protected = $env:OTZARIA_TEST_PROTECTED -eq 'true'
-  $acl = Get-Acl -LiteralPath $path
+  $acl = [System.IO.File]::GetAccessControl($path)
   $acl.SetAccessRuleProtection($protected, $false)
   $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
     $sid, [System.Security.AccessControl.FileSystemRights]::FullControl,
     [System.Security.AccessControl.AccessControlType]::Allow)
   $acl.SetAccessRule($rule)
-  Set-Acl -LiteralPath $path -AclObject $acl
+  [System.IO.File]::SetAccessControl($path, $acl)
 }
-$acl = Get-Acl -LiteralPath $path
+$acl = [System.IO.File]::GetAccessControl($path)
 $acl.GetSecurityDescriptorSddlForm(
   [System.Security.AccessControl.AccessControlSections]::Access)
 ''',
