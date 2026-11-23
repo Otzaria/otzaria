@@ -191,7 +191,7 @@ void main() {
           'minchaKetanaGRA',
           'plagGRA',
           'tzeitTikochinsky',
-          'tzeitItimLeVina',
+          'tzeit18Minutes',
           'rt72Shavos',
           'candleLighting',
         ]),
