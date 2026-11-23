@@ -75,11 +75,18 @@ class PluginSystemDatabase {
 
   Future<Database> _initDatabase() async {
     final dbPath = _dbPath = await AppPaths.resolvePluginsDbPath();
-    final db = openWritableDatabase(dbPath, 'PluginSystemDatabase');
-    _createSchema(db);
-    ensureSchemaUpgrades(db);
-    return db;
+    return _openInBackground(dbPath);
   }
+
+  // הפתיחה הראשונה יוצרת את קובץ ה-shm תחת נעילה גלובלית של SQLite, ובמחשב
+  // עמוס זה נמשך שניות (#5763). סטטית כדי לא ללכוד את this.
+  static Future<Database> _openInBackground(String dbPath) =>
+      openSqliteInBackground(() {
+        final db = openWritableDatabase(dbPath, 'PluginSystemDatabase');
+        _createSchema(db);
+        ensureSchemaUpgrades(db);
+        return db;
+      });
 
   /// מבצע מיגרציות סכמה אידמפוטנטיות ל-DB קיים. חשוף לבדיקות.
   @visibleForTesting
@@ -107,7 +114,7 @@ class PluginSystemDatabase {
     }
   }
 
-  void _createSchema(Database db) {
+  static void _createSchema(Database db) {
     // 1. plugin_installation
     db.execute('''
       CREATE TABLE IF NOT EXISTS plugin_installation (
@@ -398,37 +405,31 @@ class PluginSystemDatabase {
     );
   }
 
-  Future<void> deletePlugin(String pluginId) async {
-    final db = await database;
-    withTransaction(db, () {
-      db.execute('DELETE FROM plugin_installation WHERE plugin_id = ?', [
-        pluginId,
-      ]);
-      db.execute('DELETE FROM plugin_permission_grant WHERE plugin_id = ?', [
-        pluginId,
-      ]);
-      deletePluginDataRows(db, pluginId);
-    });
-  }
+  /// המחיקות עוברות בתור הכתיבה, באותה טרנזקציה, ב-isolate (#5869).
+  Future<void> deletePlugin(String pluginId) => _enqueueWrites([
+    ('DELETE FROM plugin_installation WHERE plugin_id = ?', [pluginId]),
+    ('DELETE FROM plugin_permission_grant WHERE plugin_id = ?', [pluginId]),
+    ..._pluginDataDeletes(pluginId),
+  ]);
 
   /// מוחק את כל הנתונים שהתוסף אגר (KV, רשומות שפורסמו כגון אירועי לוח, לוג),
   /// בלי לגעת ברישום ההתקנה ובהרשאות שהמשתמש אישר.
-  Future<void> clearPluginData(String pluginId) async {
-    final db = await database;
-    withTransaction(db, () => deletePluginDataRows(db, pluginId));
-  }
+  Future<void> clearPluginData(String pluginId) =>
+      _enqueueWrites(_pluginDataDeletes(pluginId));
 
   /// שורות הנתונים של [pluginId] בלבד — משותף למחיקת תוסף ולאיפוס נתוניו.
   @visibleForTesting
   static void deletePluginDataRows(Database db, String pluginId) {
-    db.execute('DELETE FROM plugin_kv_store WHERE plugin_id = ?', [pluginId]);
-    db.execute('DELETE FROM plugin_published_record WHERE plugin_id = ?', [
-      pluginId,
-    ]);
-    db.execute('DELETE FROM plugin_runtime_log WHERE plugin_id = ?', [
-      pluginId,
-    ]);
+    for (final (sql, args) in _pluginDataDeletes(pluginId)) {
+      db.execute(sql, args);
+    }
   }
+
+  static List<(String, List<Object?>)> _pluginDataDeletes(String pluginId) => [
+    ('DELETE FROM plugin_kv_store WHERE plugin_id = ?', [pluginId]),
+    ('DELETE FROM plugin_published_record WHERE plugin_id = ?', [pluginId]),
+    ('DELETE FROM plugin_runtime_log WHERE plugin_id = ?', [pluginId]),
+  ];
 
   Future<void> updatePluginShowInTools(
     String pluginId,
@@ -649,13 +650,21 @@ class PluginSystemDatabase {
   Future<List<PluginPermissionGrant>> getPluginPermissions(
     String pluginId,
   ) async {
-    final db = await database;
-    final rows = db.select(
-      'SELECT * FROM plugin_permission_grant WHERE plugin_id = ? ORDER BY permission',
-      [pluginId],
-    ).toMapList();
-    return rows.map(PluginPermissionGrant.fromDbMap).toList();
+    await database;
+    return _readInIsolate(_selectPluginPermissions, pluginId);
   }
+
+  static List<PluginPermissionGrant> _selectPluginPermissions(
+    Database db,
+    String pluginId,
+  ) => db
+      .select(
+        'SELECT * FROM plugin_permission_grant WHERE plugin_id = ? ORDER BY permission',
+        [pluginId],
+      )
+      .toMapList()
+      .map(PluginPermissionGrant.fromDbMap)
+      .toList();
 
   // --- CRUD for KV Store ---
 
@@ -700,14 +709,21 @@ class PluginSystemDatabase {
     if (bytes <= maxInlineKVReadBytes) {
       return selectKVMany(db, pluginId, namespace, keys);
     }
-    return _readKVInIsolate(pluginId, namespace, keys.toList());
+    return _readInIsolate(_selectKVRequest, (
+      pluginId,
+      namespace,
+      keys.toList(),
+    ));
   }
 
-  Future<Map<String, String>> _readKVInIsolate(
-    String pluginId,
-    String namespace,
-    List<String> keys,
-  ) async {
+  static Map<String, String> _selectKVRequest(
+    Database db,
+    (String, String, List<String>) request,
+  ) => selectKVMany(db, request.$1, request.$2, request.$3);
+
+  /// קריאה בחיבור משני ב-isolate. הקורא המתין קודם ל-[database], ולכן כתיבות
+  /// שקדמו לו בתור כבר נשמרו. [read] סטטית, כדי שתישלח ל-isolate.
+  Future<T> _readInIsolate<A, T>(T Function(Database, A) read, A arg) async {
     // קריאה שמתחילה אחרי בקשת העברה רצה על הנתיב החדש; הניקוז מחכה רק לרצות.
     for (
       var released = _storageMoveWritesReleased;
@@ -717,22 +733,21 @@ class PluginSystemDatabase {
       await released.future;
       await database;
     }
-    final read = _selectKVInIsolate(_dbPath!, pluginId, namespace, keys);
-    final settled = _settled(read);
+    final result = _selectInIsolate(_dbPath!, read, arg);
+    final settled = _settled(result);
     _pendingReads.add(settled);
     settled.then((_) => _pendingReads.remove(settled));
-    return read;
+    return result;
   }
 
-  static Future<Map<String, String>> _selectKVInIsolate(
+  static Future<T> _selectInIsolate<A, T>(
     String path,
-    String pluginId,
-    String namespace,
-    List<String> keys,
+    T Function(Database, A) read,
+    A arg,
   ) => Isolate.run(() {
     final db = openSecondaryWritableConnection(path, 'PluginDbRead');
     try {
-      return selectKVMany(db, pluginId, namespace, keys);
+      return read(db, arg);
     } finally {
       db.close();
     }
@@ -786,15 +801,19 @@ class PluginSystemDatabase {
   }
 
   /// כתיבות תוספים רצות ב-isolate; מה שמצטבר בזמן אצווה נכנס לאצווה הבאה.
-  Future<void> _enqueueWrite(String sql, List<Object?> args) {
+  Future<void> _enqueueWrite(String sql, List<Object?> args) =>
+      _enqueueWrites([(sql, args)]);
+
+  /// [statements] נכנסות יחד לאותה אצווה, ולכן לאותה טרנזקציה.
+  Future<void> _enqueueWrites(List<(String, List<Object?>)> statements) {
     if (_storageMoveWritesReleased case final released?) {
-      return released.future.then((_) => _enqueueWrite(sql, args));
+      return released.future.then((_) => _enqueueWrites(statements));
     }
     if (_openWriteBatch case final open?) {
-      open.add((sql, args));
+      open.addAll(statements);
       return _writeTail!;
     }
-    final batch = _openWriteBatch = [(sql, args)];
+    final batch = _openWriteBatch = [...statements];
     final tail = _writeTail = _runWriteBatch(_writeTail, batch);
     _settled(tail).then((_) {
       if (identical(_writeTail, tail)) _writeTail = null;
@@ -923,7 +942,14 @@ class PluginSystemDatabase {
   Future<List<Map<String, dynamic>>> getPublishedRecordsFull(
     String type,
   ) async {
-    final db = await database;
+    await database;
+    return _readInIsolate(_selectPublishedRecordsFull, type);
+  }
+
+  static List<Map<String, dynamic>> _selectPublishedRecordsFull(
+    Database db,
+    String type,
+  ) {
     final results = db.select(
       'SELECT plugin_id, type, scope, record_key, payload_json FROM plugin_published_record WHERE type = ?',
       [type],
