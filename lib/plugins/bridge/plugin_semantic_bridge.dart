@@ -23,12 +23,10 @@ typedef PluginSemanticBookLookup = ({
 /// חיפוש של המשתמש מבטל פעולות של תוספים, והן מסתיימות ב-`error.preempted`.
 class PluginSemanticBridge {
   PluginSemanticBridge({
-    required Future<PluginSemanticBookLookup> Function() books,
-    required Future<bool> Function() openSettings,
+    required this._books,
+    required this._openSettings,
     SemanticSearchRepository Function()? repository,
-  }) : _books = books,
-       _openSettings = openSettings,
-       _repository = repository ?? (() => SemanticSearchRepository.instance);
+  }) : _repository = repository ?? (() => SemanticSearchRepository.instance);
 
   final Future<PluginSemanticBookLookup> Function() _books;
   final Future<bool> Function() _openSettings;
