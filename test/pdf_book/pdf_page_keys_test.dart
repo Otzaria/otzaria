@@ -797,6 +797,79 @@ void main() {
       );
     }
   }
+
+  // ב-PDF מוגדל מעבר לרוחב המסך ←/→ גוללים בתוך העמוד, ומדפדפים רק בקצה.
+  for (final key in [
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+  ]) {
+    testWidgets(
+      'PDF מוגדל: ${key.keyLabel} גולל עד קצה העמוד ורק אז מדפדף (issue #5790)',
+      (tester) async {
+        final (_, tab) = await pumpBook(tester);
+        final controller = tab.pdfViewerController;
+        final document = controller.document;
+        final towardLeft = key == LogicalKeyboardKey.arrowLeft;
+        try {
+          await controller.goToPage(pageNumber: 6, duration: Duration.zero);
+          await settle(tester, rounds: 5);
+          await dragIntoViewer(tester);
+          await controller.setZoom(
+            controller.centerPosition,
+            controller.currentZoom * 2,
+            duration: Duration.zero,
+          );
+          await settle(tester, rounds: 5);
+          final page = controller.pageNumber!;
+          expect(
+            controller.visibleRect.width,
+            lessThan(controller.layout.documentSize.width),
+          );
+
+          final startLeft = controller.visibleRect.left;
+          await tester.sendKeyEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, page, reason: 'החץ גולל ולא מדפדף');
+          // צעד של 100 פיקסלים במסך; visibleRect נמדד ביחידות המסמך.
+          final moved =
+              (controller.visibleRect.left - startLeft) *
+              controller.currentZoom;
+          expect(towardLeft ? -moved : moved, closeTo(100, 1));
+
+          // החזקה עם חזרות מקש גוללת בלי לצבור דפדופים.
+          await tester.sendKeyDownEvent(key);
+          for (var i = 0; i < 3; i++) {
+            await tester.sendKeyRepeatEvent(key);
+            await tester.pump(const Duration(milliseconds: 30));
+          }
+          await tester.sendKeyUpEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, page);
+
+          // לחיצות נוספות מגיעות לקצה העמוד בלי לדפדף.
+          final width = controller.layout.documentSize.width;
+          bool atEdge() => towardLeft
+              ? controller.visibleRect.left < 1
+              : controller.visibleRect.right > width - 1;
+          for (var i = 0; i < 40 && !atEdge(); i++) {
+            await tester.sendKeyEvent(key);
+            await settle(tester, rounds: 6);
+            expect(controller.pageNumber, page);
+          }
+          expect(atEdge(), isTrue);
+
+          await tester.sendKeyEvent(key);
+          await settle(tester, rounds: 20);
+          expect(controller.pageNumber, towardLeft ? page + 1 : page - 1);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pump(const Duration(seconds: 4));
+          await tester.pumpWidget(const SizedBox.shrink());
+          await disposePdfDocument(tester, document);
+        }
+      },
+    );
+  }
 }
 
 class _TabsRepository implements TabsRepository {
