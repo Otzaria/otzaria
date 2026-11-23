@@ -531,6 +531,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _onTextSearcherUpdated() {
     final searcher = textSearcher;
     widget.tab.searchText = widget.tab.searchController.text;
+    widget.tab.pdfSearchPageHighlight = searcher is CenteredTextSearchSession
+        ? searcher.pageHighlightAnchor
+        : null;
     if (searcher != null) {
       final restoreIndex = _searchIndexRestorer.onSearcherUpdate(
         session: searcher.searchSession,
@@ -1528,6 +1531,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               CenteredTextSearchSession(
                   pdfController,
                   contextLength: 160,
+                  initialPageHighlight: widget.tab.pdfSearchPageHighlight,
                 )
                 ..isActive = _isPdfVisible
                 ..addListener(_onTextSearcherUpdated);
@@ -4970,6 +4974,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.takeCenterSearchMatchPage();
     final searcher = textSearcher;
     if (searcher == null) return;
+    if (searcher is CenteredTextSearchSession && searcher.isPageHighlighting) {
+      unawaited(
+        searcher.navigatePageHighlight(
+          forward: forward,
+          beforeNavigate: _preparePdfJump,
+        ),
+      );
+      return;
+    }
     final index = forward
         ? (searcher.currentIndex ?? -1) + 1
         : (searcher.currentIndex ?? searcher.matches.length) - 1;
