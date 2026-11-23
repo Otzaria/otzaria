@@ -3882,6 +3882,7 @@ printButton.onclick = async () => {
 מייצאת את דף התוסף לקובץ PDF: אותו PDF שנשלח להדפסה, נשמר במקום שהמשתמש
 בוחר בדיאלוג המערכת. מחזירה `{ saved: true, name }` עם שם הקובץ שנשמר, או
 `{ saved: false, name: null }` אם המשתמש ביטל.
+ב־iOS, שמירה יכולה להצליח עם `name: null` כשהבורר אינו מספק שם מאומת.
 
 **הנתיב המלא אינו מוחזר** — התוסף אינו מקבל גישה למה שנשמר; רק שם הקובץ.
 מ-`fileName` נלקח שם מוצע לדיאלוג בלבד (מפרידי נתיב מוסרים ממנו).
@@ -3901,7 +3902,7 @@ printButton.onclick = async () => {
 ```javascript
 const res = await Otzaria.call('ui.exportPdf', {
   fileName: 'שני טורים',  // אופציונלי; שם מוצע בדיאלוג
-  title: 'ייצוא ל-PDF',   // אופציונלי; כותרת הדיאלוג
+  title: 'ייצוא ל-PDF',   // אופציונלי; כותרת הדיאלוג בשולחן העבודה
   pageSize: { widthMm: 210, heightMm: 297 },  // או 'a4'
   orientation: 'portrait',
   marginMm: 0,

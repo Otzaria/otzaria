@@ -29,6 +29,12 @@ abstract class PdfMessages {
       'עיבוד עמודים מרובים בגיליון נכשל';
   static const String wordFileSaved = 'קובץ Word נשמר בהצלחה';
   static const String pdfFileSaved = 'קובץ PDF נשמר בהצלחה';
+  static const String mobilePdfSaveFailed =
+      'לא ניתן לשמור את קובץ ה-PDF. אפשר לנסות שוב.';
+  static String mobilePdfExportResidual(String? fileName) => fileName == null
+      ? 'הייצוא לא הושלם. בתיקייה שנבחרה נשאר קובץ שייתכן שאינו שלם.'
+      : 'הייצוא לא הושלם. בתיקייה שנבחרה נשאר "$fileName". '
+            'ייתכן שהקובץ אינו שלם.';
   static const String fileLockedByAnotherApp =
       'לא ניתן לשמור את הקובץ כי הוא פתוח בתוכנה אחרת. יש לסגור אותו ולנסות שוב.';
 
