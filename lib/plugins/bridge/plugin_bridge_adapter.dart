@@ -6383,6 +6383,11 @@ class PluginBridgeAdapter {
       },
     );
     _mobilePdfExport = operation;
+    final stopRevocationListener =
+        PluginRegistryRepository.onPendingFileAccessRevoked(
+          plugin.pluginId,
+          () => unawaited(_cancelMobilePdfExport(operation)),
+        );
     try {
       // Cancel acknowledgement cannot release a file still held by UIKit.
       final result = await operation.result;
@@ -6412,6 +6417,7 @@ class PluginBridgeAdapter {
       }
       return {'saved': false, 'name': null};
     } finally {
+      stopRevocationListener();
       if (identical(_mobilePdfExport, operation)) _mobilePdfExport = null;
     }
   }

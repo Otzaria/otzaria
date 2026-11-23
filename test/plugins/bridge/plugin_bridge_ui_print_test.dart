@@ -745,6 +745,32 @@ void main() {
       });
     }
 
+    testWidgets('שלילת הרשאה מבקשת ביטול ושומרת staging עד תוצאת iOS', (
+      tester,
+    ) async {
+      await open(tester);
+      var completed = false;
+      final result = start()..then<void>((_) => completed = true);
+      await _waitForMobile(tester, () => backend.requests.length == 1);
+      final request = backend.requests.single;
+
+      PluginRegistryRepository.revokePendingFileAccess('another.plugin');
+      await tester.pump();
+      expect(backend.cancellations, isEmpty);
+      PluginRegistryRepository.revokePendingFileAccess('test.plugin');
+      await _waitForMobile(tester, () => backend.cancellations.length == 1);
+      expect(backend.cancellations, [request.operationId]);
+      expect(completed, isFalse);
+      expect(File(request.sourcePath).existsSync(), isTrue);
+
+      backend.complete(MobilePdfExportStatus.cancelled);
+      expect(await _settleMobile(tester, result), {
+        'saved': false,
+        'name': null,
+      });
+      expect(File(request.sourcePath).existsSync(), isFalse);
+    });
+
     testWidgets('שארית אחרי dispose מוזהרת למשתמש בלי URI בתשובת RPC', (
       tester,
     ) async {

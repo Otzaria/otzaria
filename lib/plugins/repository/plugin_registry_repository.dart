@@ -189,14 +189,30 @@ class PluginRegistryRepository {
   }
 
   static final Map<String, int> _fileAccessGenerations = {};
+  static final _fileAccessRevocations = <String, Set<void Function()>>{};
 
   /// דור הביטול משותף לכל מופעי התוסף, גם כשההרשאה בוטלה מחוץ לגשר.
   static int fileAccessGenerationForPlugin(String pluginId) =>
       _fileAccessGenerations[pluginId] ?? 0;
 
+  /// רושם בקשת ביטול רק למשך פעולה שממתינה לתוצאה מחוץ לגשר.
+  static void Function() onPendingFileAccessRevoked(
+    String pluginId,
+    void Function() cancel,
+  ) {
+    final callbacks = _fileAccessRevocations.putIfAbsent(pluginId, () => {});
+    callbacks.add(cancel);
+    return () {
+      if (!identical(_fileAccessRevocations[pluginId], callbacks)) return;
+      callbacks.remove(cancel);
+      if (callbacks.isEmpty) _fileAccessRevocations.remove(pluginId);
+    };
+  }
+
   static void revokePendingFileAccess(String pluginId) {
     _fileAccessGenerations[pluginId] =
         fileAccessGenerationForPlugin(pluginId) + 1;
+    _fileAccessRevocations.remove(pluginId)?.forEach((cancel) => cancel());
   }
 
   Future<void> setPermission(
