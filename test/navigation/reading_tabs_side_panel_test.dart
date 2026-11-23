@@ -1184,6 +1184,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(columnPosition(tester).pixels, 300);
     });
+
+    testWidgets(
+      'סגירת הכרטיסיה הפעילה כשהיא מוסתרת מגלה את הבאה באותו אינדקס',
+      (tester) async {
+        await pumpPanel(tester, withTabs: manyTabs(), currentTabIndex: 20);
+        columnPosition(tester).jumpTo(0);
+        await tester.pump();
+        final column = columnRect(tester);
+        expect(
+          tester.getRect(find.text('כרטיסיה 21')).top,
+          greaterThan(column.bottom),
+          reason: 'הכרטיסיה הבאה מחוץ לתצוגה לפני הסגירה',
+        );
+
+        final remaining = [...tabs]..removeAt(20);
+        tabsBloc.emitState(TabsState(tabs: remaining, currentTabIndex: 20));
+        await tester.pumpAndSettle();
+        expectVisible(tester, 'כרטיסיה 21');
+      },
+    );
   });
 
   testWidgets('אייקון הכיווץ מתהפך לפי מצב העמודה', (tester) async {

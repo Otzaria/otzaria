@@ -258,13 +258,22 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
     _insertIndex.value = next;
   }
 
+  static OpenedTab? _selectedTab(ReadingTabStrip strip) {
+    final index = strip.selectedIndex;
+    return index != null && index < strip.tabs.length
+        ? strip.tabs[index]
+        : null;
+  }
+
   @override
   void didUpdateWidget(covariant ReadingTabStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!listEquals(_geometry.widths, widget.widths)) {
       _geometry = _TabStripGeometry.fromWidths(widget.widths);
     }
-    if (widget.selectedIndex != oldWidget.selectedIndex) {
+    // סגירת הפעילה יכולה להשאיר את האינדקס ולהחליף את הכרטיסיה שבו.
+    if (widget.selectedIndex != oldWidget.selectedIndex ||
+        _selectedTab(widget) != _selectedTab(oldWidget)) {
       _revealSelected(animate: true);
     }
   }
