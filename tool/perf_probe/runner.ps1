@@ -4,6 +4,7 @@ param(
   [ValidateSet('profile', 'debug', 'release')][string]$Mode = 'profile',
   [ValidateSet('cold', 'warm')][string]$CacheState = 'cold',
   [ValidateSet('all', 'pdf-reader')][string]$ScenarioSet = 'all',
+  [string]$PdfCase = '',
   [ValidateRange(0, 10)][int]$Warmup = 1,
   [ValidateRange(1, 100)][int]$Repetitions = 5,
   [ValidateRange(1, 30)][int]$Launches = 3,
@@ -19,6 +20,8 @@ $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'The automated desktop runner requires Windows. See README.md for other platforms.' }
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if ($Baseline) { $Baseline = [IO.Path]::GetFullPath($Baseline, $PWD.Path) }
+if ($PdfCase) { $PdfCase = [IO.Path]::GetFullPath($PdfCase, $PWD.Path) }
+$pdfCaseSnapshot = ''
 $runDir = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory, $PWD.Path) } else {
   Join-Path $repo ("build/perf_probe/run_" + (Get-Date -Format 'yyyyMMdd_HHmmss') + '_' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 }
@@ -76,6 +79,7 @@ function Invoke-PerfLaunch([string]$Executable, [string]$Directory,
         PERF_CACHE_STATE = $Cache; PERF_LAUNCH_INDEX = "$Index"
         PERF_WARMUP = "$Warmup"; PERF_REPETITIONS = "$Repetitions"
         PERF_SCENARIO_SET = $ScenarioSet
+        PERF_PDF_CASE = $pdfCaseSnapshot
         PERF_PREPARE_ONLY = $(if ($PreparationOnly) { '1' } else { '0' })
       }
     $ticks = $process.StartTime.ToUniversalTime().Ticks
@@ -141,6 +145,11 @@ Push-Location $repo
 try {
   & flutter pub get --enforce-lockfile
   if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency resolution failed.' }
+  if ($PdfCase) {
+    $pdfCaseSnapshot = Join-Path $runDir 'pdf-case.json'
+    & dart tool/perf_probe/prepare_pdf_case.dart $PdfCase $pdfCaseSnapshot
+    if ($LASTEXITCODE -ne 0) { throw 'PDF case validation failed.' }
+  }
   $commit = (& git rev-parse HEAD).Trim()
   if ($LASTEXITCODE -ne 0) { throw 'Cannot identify source commit.' }
   $sdk = (& flutter --version --machine | Out-String | ConvertFrom-Json)
