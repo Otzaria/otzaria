@@ -413,11 +413,41 @@ flutter drive --profile -d windows --no-pub `
   --dart-define=INSTALLED_PROBE_IDLE_MS=3000
 ```
 
-`INSTALLED_PROBE_IDLE_MS` חייב להיות בין 1,000 ל־60,000; ב־CI הוא 1,000.
+`INSTALLED_PROBE_IDLE_MS` חייב להיות בין 1,000 ל־60,000; במסלול macOS הוא
+1,500, ובמסלולי Linux ו־Windows הוא 1,000.
 זהו חלון בדיקת פרוטוקול קצר. מדידה לצורך החלטות על צריכת משאבים מחייבת
 חלונות ארוכים יותר וחזרות באותו מחשב ובאותה בנייה. אין להשוות בין שתי
 מכונות hosted, בין profile ו־release או בין סטים שונים של הגדרות/backend.
 `machineId` הוא תווית המסופקת לריצה, ואינו זיהוי חומרה מאומת.
+
+### בדיקת PDF מתוך חבילת macOS
+
+ב־`webview_apple_smoke.yml`, מסלול macOS עם `run-ci` מריץ גם את
+`installed_plugin_resource_probe_test.dart` באפליקציית profile, אחרי תרחיש
+WKWebView הקיים. הוא פותח קורא אמיתי, מריץ במקביל צפייה, אינדוקס ורסטר
+הדפסה, מייצא שני עמודים עם טקסט וקטורי, ובודק ביטול, התאוששות וסגירת
+מסמך לפני פתיחתו מחדש. ה־PDF הקבוע מצייר רקע לבן אטום כדי שבדיקת הפיקסלים
+לא תסתמך על צבע הרקע שבוחר מנוע הרסטר.
+
+ה־collector של macOS משתמש ברשימת תמונות dyld וב־`dladdr` על סמלי PDFium
+ו־CoreGraphics מתוך `DynamicLibrary.process`. הוא אינו פותח עותק PDFium נוסף.
+שני סמלי PDFium חייבים להשתייך לאותה תמונה מתוך חבילת `.app`; נשמרים נתיב
+קנוני, גודל ו־SHA-256 שלה ושל קובץ ההפעלה. סמלי ההדפסה חייבים להשתייך ל־Apple
+system frameworks. ייתכן שהם ממופים מה־dyld shared cache, ולכן חישוב hashes
+מוגבל לקבצים הארוזים של האפליקציה. הנחות הבדיקה מבוססות על
+[תיעוד dladdr של Apple](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dladdr.3.html)
+ועל [תיעוד מעבר ספריות המערכת למטמון dyld](https://developer.apple.com/documentation/macos-release-notes/macos-big-sur-11_0_1-release-notes/).
+
+`validate_installed_plugin_macos.py` דורש דוח יחיד של macOS/profile וה־commit
+הנבדק, את כל ששת שלבי ה־PDF, ראיות תוכן ואפס מסמכים וטאבים בבעלות הבדיקה.
+הוא מחשב שוב את hashes של הקבצים בחבילה שנבנתה, מאמת את קובצי ה־PDF ואת
+מידות ה־PNG, ומשווה את artifact של התמונות הטעונות לדוח. כשל בבנייה, ב־driver,
+בסמל, בנתיב, בפלט או בשלב חסר מכשיל את העבודה; `notRun` אינו הצלחה.
+ה־artifacts נמצאים תחת `apple-installed-pdf/` בתוך artifact של Apple.
+
+בדיקות החוזה ב־Linux אינן הרצת macOS. העבודה הנייטיבית ב־CI היא בדיקה של
+מחשב ה־runner במצב profile; מדפסת פיזית, iOS והתקני קצה נוספים נשארים מחוץ
+להיקף התרחיש. בדיקת מסמכים סגורים מסתיימת לפני שה־driver מסיים את האפליקציה.
 
 להרצה על Linux או macOS, ועל מכשיר Android/iOS מחובר, אפשר להעביר את
 אותם קובצי מקור מאומתים בקלט הבנייה. כך אין צורך ב־adb push לתיקיית

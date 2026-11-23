@@ -1,8 +1,9 @@
 import 'package:path/path.dart' as p;
 
 import 'installed_pdf_android_contract.dart';
+import 'installed_pdf_macos_contract.dart';
 
-const installedPdfRuntimePlatforms = {'linux', 'windows', 'android'};
+const installedPdfRuntimePlatforms = {'linux', 'windows', 'android', 'macos'};
 
 const installedPdfRuntimeSteps = [
   'view',
@@ -97,6 +98,13 @@ List<String> installedPdfRuntimeErrors(
         steps[name]['status'] != 'passed') {
       errors.add('Required PDF runtime step did not pass: $name');
     }
+  }
+  if (platform == 'macos') {
+    errors.addAll(
+      installedPdfMacosModuleErrors(
+        steps is Map ? steps['loadedModules'] : null,
+      ),
+    );
   }
   if (value['bundlePathsVerified'] != true ||
       value['ownedDocumentsRemaining'] != 0 ||
