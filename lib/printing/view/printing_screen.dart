@@ -894,10 +894,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
     final base = await _createBasePdf(format);
     return withPdfFileCleanup(() async {
+      if (pagesPerSheet <= 1 && !hasPageRange) {
+        return base.source.readBytes();
+      }
       try {
-        if (pagesPerSheet <= 1 && !hasPageRange) {
-          return await base.source.readBytes();
-        }
         return await _createNUpPdf(
           base.source,
           sheetFormat: sheetFormat,

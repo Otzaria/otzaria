@@ -19,6 +19,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:pdf/widgets.dart' as pw;
@@ -53,6 +54,7 @@ class _ProtectedBookRepository extends Fake implements SeforimRepository {
 
 class _RecordingPrinter extends PrintingPlatform {
   int requests = 0;
+  Future<void> Function(LayoutCallback, PdfPageFormat)? runLayout;
 
   @override
   Future<bool> layoutPdf(
@@ -67,6 +69,7 @@ class _RecordingPrinter extends PrintingPlatform {
     bool windowsModernDialog,
   ) async {
     requests++;
+    await runLayout?.call(onLayout, format);
     return false;
   }
 
@@ -331,6 +334,41 @@ void main() {
       await dispose(tester);
     } finally {
       if (!pending.isCompleted) pending.complete(null);
+    }
+  });
+
+  testWidgets('one-up printer read failure is not reported as N-up failure', (
+    tester,
+  ) async {
+    final logging = debugPrint;
+    final previousPrinter = PrintingPlatform.instance;
+    final messages = <String>[];
+    Object? layoutError;
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) messages.add(message);
+    };
+    PrintingPlatform.instance = _RecordingPrinter()
+      ..runLayout = (layout, format) async {
+        try {
+          await layout(format);
+        } catch (error) {
+          layoutError = error;
+          rethrow;
+        }
+      };
+    try {
+      await Settings.setValue<int>('key-print-destination', 2);
+      input.deleteSync();
+      await open(tester);
+
+      await tester.tap(find.widgetWithText(ActionButton, 'הדפסה'));
+      await _waitFor(tester, () => layoutError != null);
+      expect(layoutError, isA<FileSystemException>());
+      expect(messages, isNot(contains(startsWith('[PRINT] N-up failed:'))));
+      await dispose(tester);
+    } finally {
+      debugPrint = logging;
+      PrintingPlatform.instance = previousPrinter;
     }
   });
 
