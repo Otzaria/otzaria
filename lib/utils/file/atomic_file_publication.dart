@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:path/path.dart' as p;
 
 import 'file_publication_permissions.dart';
+import 'file_publication_rename.dart';
 
 class DesktopSaveTarget {
   final String path;
@@ -89,7 +90,11 @@ Future<bool> publishFileAtomically({
       if (isCancelled?.call() ?? false) return false;
       // Same-directory rename has filesystem-specific guarantees. Never fall
       // back to writing over the destination when replacement fails.
-      await staging.rename(destination.path);
+      if (target.overwriteApproved) {
+        await staging.rename(destination.path);
+      } else {
+        await renamePublicationWithoutReplacing(staging.path, destination.path);
+      }
       published = true;
       return true;
     } finally {
