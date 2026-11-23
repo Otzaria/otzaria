@@ -182,7 +182,7 @@ Map<String, dynamic> buildProbeReport({
         conflicts.add(key);
       }
       if (record[key] != null) {
-        meta.putIfAbsent(key, () => record[key]);
+        meta[key] ??= record[key];
       }
     }
     meta.putIfAbsent('schemaVersion', () => record['schemaVersion']);
