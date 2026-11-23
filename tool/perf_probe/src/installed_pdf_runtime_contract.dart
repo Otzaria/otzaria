@@ -24,6 +24,7 @@ Set<String> installedPdfMappedPaths(String maps) {
 
 List<String> installedPdfModuleErrors({
   required String platform,
+  required String bundleDirectory,
   required Set<String> mappedPaths,
   required Map<String, String> expectedPaths,
 }) {
@@ -50,12 +51,16 @@ List<String> installedPdfModuleErrors({
           name,
     );
     final expected = expectedPaths[name];
+    final bundled = windows
+        ? paths.join(bundleDirectory, name)
+        : paths.join(bundleDirectory, 'lib', name);
     if (expected == null ||
-        !paths.isAbsolute(expected) ||
+        !paths.isAbsolute(bundled) ||
+        normalized(expected) != normalized(bundled) ||
         observed.length != 1 ||
         normalized(observed.single) != normalized(expected)) {
       errors.add(
-        '$name must be loaded only from ${expectedPaths[name]}: '
+        '$name must be loaded only from $bundled (resolved: $expected): '
         '${observed.toList()}',
       );
     }
