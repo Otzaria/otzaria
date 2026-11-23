@@ -31,6 +31,11 @@ on:
       - 'tool/perf_probe/test_webview_apple_smoke_validator.py'
       - 'tool/perf_probe/*posix*.py'
       - 'tool/perf_probe/validate_perf_probe_smoke.py'
+      - 'tool/perf_probe/probe_binding.py'
+      - 'tool/perf_probe/framework_pdf_probe.dart'
+      - 'tool/perf_probe/src/probe_*.dart'
+      - 'integration_test/support/perf_resource_workload.dart'
+      - 'integration_test/support/perf_framework_scheduler.dart'
       - 'tool/perf_probe/prepare_pdf_case.dart'
       - 'tool/perf_probe/analyze.dart'
       - 'tool/perf_probe/src/pdf_*.dart'
@@ -245,7 +250,7 @@ jobs:
 
       - name: Measure the actual PDF reader with the POSIX profile runner
         if: env.PROBE_PLATFORM == 'macos'
-        timeout-minutes: 25
+        timeout-minutes: 45
         shell: bash
         run: |
           set -euo pipefail
@@ -255,17 +260,25 @@ jobs:
             2>&1 | tee "$PERF_POSIX_ROOT/contracts.log"
           printf '%s\n' '{"schemaVersion":1,"source":{"kind":"generated","pageCount":600}}' \
             > "$PERF_POSIX_ROOT/case-input.json"
-          python3 tool/perf_probe/run_perf_probe_posix.py \
-            --mode profile --cache-state cold --scenario-set pdf-reader \
+          for binding in integration framework; do
+            run_name=run
+            if [ "$binding" = framework ]; then run_name=framework-run; fi
+            python3 tool/perf_probe/run_perf_probe_posix.py \
+            --mode profile --cache-state cold --scenario-set pdf-reader --binding-mode "$binding" \
             --pdf-case "$PERF_POSIX_ROOT/case-input.json" \
             --warmup 0 --repetitions 1 --launches 1 --display-mode desktop \
             --hardware-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-macos-desktop" \
             --build-timeout-seconds 1200 --timeout-seconds 180 \
-            --output "$PERF_POSIX_ROOT/run" \
-            2>&1 | tee "$PERF_POSIX_ROOT/run.log"
-          python3 tool/perf_probe/validate_perf_probe_smoke.py \
-            --root "$PERF_POSIX_ROOT/run" --platform macos --commit "$GITHUB_SHA" \
-            | tee "$PERF_POSIX_ROOT/verified-result.json"
+            --output "$PERF_POSIX_ROOT/$run_name" \
+            2>&1 | tee "$PERF_POSIX_ROOT/$run_name.log"
+          done
+          for binding in integration framework; do
+            run_name=run
+            if [ "$binding" = framework ]; then run_name=framework-run; fi
+            python3 tool/perf_probe/validate_perf_probe_smoke.py \
+            --root "$PERF_POSIX_ROOT/$run_name" --binding-mode "$binding" --platform macos --commit "$GITHUB_SHA" \
+            | tee "$PERF_POSIX_ROOT/verified-$binding.json"
+          done
 
       - name: Preserve POSIX reader measurements and partial failures
         if: always() && env.PROBE_PLATFORM == 'macos'
@@ -282,6 +295,7 @@ jobs:
             ${{ env.PERF_POSIX_ROOT }}/**/*.md
             ${{ env.PERF_POSIX_ROOT }}/**/*.txt
             !${{ env.PERF_POSIX_ROOT }}/run/data/**
+            !${{ env.PERF_POSIX_ROOT }}/framework-run/data/**
 
       - name: Cleanup only the Simulator created by this job
         if: always() && env.PROBE_PLATFORM == 'ios'
