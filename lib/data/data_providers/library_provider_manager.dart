@@ -5,6 +5,7 @@ import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/official_book_title_renames.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -25,6 +26,8 @@ class LibraryProviderManager {
   /// מפתחות לפי כותרת בסדר ההכנסה — לאיתור ספרים ויעדי קישורים.
   final Map<String, List<BookCompositeKey>> _keysByTitle = {};
 
+  final Map<String, BookCompositeKey> _legacyOfficialKeys = {};
+
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
 
@@ -38,6 +41,7 @@ class LibraryProviderManager {
   void _clearBookMapping() {
     _bookToProvider.clear();
     _keysByTitle.clear();
+    _legacyOfficialKeys.clear();
   }
 
   /// Singleton instance
@@ -106,6 +110,53 @@ class LibraryProviderManager {
   }
 
   BookCompositeKey? _resolveBookKey(
+    String title, {
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource = BookSource.official,
+  }) {
+    final exact = _resolveMappedBookKey(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+      preferSource: preferSource,
+    );
+    if (exact != null ||
+        preferSource.isAttached ||
+        BookCompositeKey.normalizeFileType(fileType) != 'txt') {
+      return exact;
+    }
+    return _legacyOfficialKeys[title];
+  }
+
+  /// הכותרת הרשמית החדשה של ספר שמור, אם הספר כבר נטען בקטלוג.
+  String? catalogTitleFor(
+    String title, {
+    required BookSource source,
+    int? bookId,
+  }) {
+    if (!source.isOfficial) return null;
+    final exact = _keysByTitle[title];
+    if (exact != null) {
+      if (bookId == null || exact.any((key) => key.source.isOfficial)) {
+        return null;
+      }
+    }
+    final rename = officialBookTitleRenames[title];
+    if (rename == null || (bookId != null && bookId != rename.id)) return null;
+    return _legacyOfficialKeys[title]?.title;
+  }
+
+  void _mapLegacyOfficialKey(BookCompositeKey key, int bookId) {
+    if (!key.source.isOfficial || key.fileType != 'txt') return;
+    final oldTitle = officialBookOldTitlesById[bookId];
+    if (oldTitle != null &&
+        officialBookTitleRenames[oldTitle]?.title == key.title) {
+      _legacyOfficialKeys[oldTitle] = key;
+    }
+  }
+
+  BookCompositeKey? _resolveMappedBookKey(
     String title, {
     int? categoryId,
     String? fileType,
@@ -354,10 +405,12 @@ class LibraryProviderManager {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
         return await provider.getBookText(
-          title,
+          mappedKey.title,
           mappedKey.categoryId,
           mappedKey.fileType,
-          preferSource: preferSource,
+          preferSource: mappedKey.title == title
+              ? preferSource
+              : mappedKey.source,
         );
       }
     }
@@ -404,10 +457,12 @@ class LibraryProviderManager {
       final provider = _bookToProvider[mappedKey];
       if (provider != null) {
         return await provider.getBookToc(
-          title,
+          mappedKey.title,
           mappedKey.categoryId,
           mappedKey.fileType,
-          preferSource: preferSource,
+          preferSource: mappedKey.title == title
+              ? preferSource
+              : mappedKey.source,
         );
       }
     }
@@ -455,9 +510,11 @@ class LibraryProviderManager {
     required Map<BookCompositeKey, LibraryProvider> mapping,
     required List<LibraryProvider> providers,
     bool initialized = true,
+    Map<BookCompositeKey, int> bookIds = const {},
   }) {
     _clearBookMapping();
     mapping.forEach(_mapBook);
+    bookIds.forEach(_mapLegacyOfficialKey);
     _providers
       ..clear()
       ..addAll(providers);
@@ -639,6 +696,8 @@ class LibraryProviderManager {
       } else {
         if (dbKeys.contains(key)) {
           _mapBook(key, databaseProvider);
+          final id = book.id;
+          if (id != null && book is TextBook) _mapLegacyOfficialKey(key, id);
         } else {
           _mapBook(key, fileSystemProvider);
         }

@@ -266,6 +266,14 @@ class RemapBookPaths extends TabsEvent {
   List<Object?> get props => [fromDir, toDir];
 }
 
+/// אחרי בניית הקטלוג: טאבים ששוחזרו בכותרת ספר שהקטלוג תיקן נבנים מחדש.
+class RefreshCatalogTitles extends TabsEvent {
+  const RefreshCatalogTitles();
+
+  @override
+  List<Object?> get props => [];
+}
+
 /// שינוי כותרת של טאב פתוח (גם חלונית בתוך טאב מפוצל) בלי להחליף אותו.
 class RenameTab extends TabsEvent {
   final OpenedTab tab;

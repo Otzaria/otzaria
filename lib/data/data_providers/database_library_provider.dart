@@ -5177,21 +5177,30 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
 
     try {
+      final candidates = await BookDatabaseResolver.loadRepositoryCandidates(
+        preferSource: link.targetSource,
+      );
       ResolvedDbBookRecord? resolvedBook;
       findBook:
-      for (final candidate
-          in await BookDatabaseResolver.loadRepositoryCandidates(
-            preferSource: link.targetSource,
-          )) {
+      for (final candidate in candidates) {
         for (final title in targetTitles) {
           resolvedBook = await BookDatabaseResolver.resolveBookInCandidates(
             title: title,
             candidates: [candidate],
             categoryId: link.targetCategoryId,
             fileType: link.targetFileType,
+            allowLegacyOfficialTitle: false,
           );
           if (resolvedBook != null) break findBook;
         }
+      }
+      for (final title in targetTitles) {
+        if (resolvedBook != null) break;
+        resolvedBook = await BookDatabaseResolver.resolveLegacyOfficialBook(
+          title,
+          candidates,
+          fileType: link.targetFileType,
+        );
       }
       if (resolvedBook == null) {
         return [
