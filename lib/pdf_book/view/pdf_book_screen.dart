@@ -37,6 +37,7 @@ import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
 import 'package:otzaria/pdf_book/utils/pdf_chapter_outline.dart';
 import 'package:otzaria/pdf_book/utils/pdf_color_filter.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
+import 'package:otzaria/pdf_book/utils/pdf_horizontal_arrow.dart';
 import 'package:otzaria/pdf_book/utils/pdf_link_range_index.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/pdf_book/utils/pdf_plugin_menu_entries.dart';
@@ -260,6 +261,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   static const int _arrowScrollHoldDelayMicros = 100000;
   static const int _arrowScrollMaxTickMicros = 50000;
   Timer? _scrollTimer;
+  LogicalKeyboardKey? _continuousScrollKey;
+  final _horizontalPageTurnKeys = <LogicalKeyboardKey>{};
   int? _scrollAnchorPage;
   int? _lockedSpreadStartPage;
   ui.Image? _pageTurnSnapshot;
@@ -1734,7 +1737,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           focusNode: _pdfViewFocusNode,
           autofocus: false,
           onFocusChange: (hasFocus) {
-            if (!hasFocus) _pdfTextSelectionActions.cancel();
+            if (!hasFocus) {
+              _pdfTextSelectionActions.cancel();
+              _stopHorizontalScroll();
+            }
           },
           onKeyEvent: (FocusNode node, KeyEvent event) {
             if (event is KeyDownEvent &&
@@ -1743,7 +1749,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               _cancelPersonalNotePointSelection();
               return KeyEventResult.handled;
             }
-            if (event is KeyDownEvent) _pdfTextSelectionActions.cancel();
+            if (event is KeyDownEvent) {
+              _pdfTextSelectionActions.cancel();
+              _horizontalPageTurnKeys.remove(event.logicalKey);
+            }
             if (event is KeyDownEvent || event is KeyRepeatEvent) {
               final keyboard = HardwareKeyboard.instance;
               for (final (key, travel) in [
@@ -1861,7 +1870,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 }
                 return KeyEventResult.handled;
               }
-              if (_isNextPageKey(event.logicalKey)) {
+              final key = event.logicalKey;
+              if (_isHorizontalArrow(key)) {
+                if (_noModifiers && _horizontalArrowTravel(key) > 0) {
+                  _startContinuousScroll(key);
+                  return KeyEventResult.handled;
+                }
+                _horizontalPageTurnKeys.add(key);
+              }
+              if (_isNextPageKey(key)) {
                 _goNextPage();
                 return KeyEventResult.handled;
               } else if (_isPreviousPageKey(event.logicalKey)) {
@@ -1875,6 +1892,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 return KeyEventResult.handled;
               }
             } else if (event is KeyRepeatEvent) {
+              // רק לחיצה שהתחילה בדפדוף יכולה להוסיף דפדופים בהחזקה.
+              if (_isHorizontalArrow(event.logicalKey) &&
+                  !_horizontalPageTurnKeys.contains(event.logicalKey)) {
+                return KeyEventResult.handled;
+              }
               if (_isNextPageKey(event.logicalKey)) {
                 _heldArrowKeys.add(event.logicalKey);
                 _goNextPage();
@@ -1891,11 +1913,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 return KeyEventResult.handled;
               }
             } else if (event is KeyUpEvent) {
-              if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                  event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                _stopContinuousScroll();
+              final key = event.logicalKey;
+              if (key == _continuousScrollKey) _stopContinuousScroll();
+              if (key == LogicalKeyboardKey.arrowUp ||
+                  key == LogicalKeyboardKey.arrowDown) {
                 return KeyEventResult.handled;
               }
+              _horizontalPageTurnKeys.remove(key);
               // שחרור אחרי החזקה מבטל את התור; לחיצות קצרות שומרות את הדפדוף שלהן.
               if (_isPageTurnKey(event.logicalKey)) {
                 final wasHeld = _heldArrowKeys.remove(event.logicalKey);
@@ -4262,6 +4286,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final previous = _lastObservedLayoutMode;
     _lastObservedLayoutMode = mode;
     if (shouldRecomputeLineRangeOnLayoutModeChange(previous, mode)) {
+      _stopHorizontalScroll();
       _pageTurnController.stop(canceled: false);
       _abortInteractivePageTurn();
       _pendingPageTurns.clear();
@@ -5177,6 +5202,37 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         !keyboard.isMetaPressed;
   }
 
+  static bool _isHorizontalArrow(LogicalKeyboardKey key) =>
+      key == LogicalKeyboardKey.arrowLeft ||
+      key == LogicalKeyboardKey.arrowRight;
+
+  double _horizontalArrowTravel(LogicalKeyboardKey key) {
+    final controller = widget.tab.pdfViewerController;
+    final layout = pdfReadyLayoutOrNull(controller);
+    if (layout == null || _isBookViewModeActive()) return 0;
+    final pageIndex = (controller.pageNumber ?? widget.tab.pageNumber) - 1;
+    if (pageIndex < 0 || pageIndex >= layout.pageLayouts.length) return 0;
+    return pdfHorizontalArrowTravel(
+      visibleRect: controller.visibleRect,
+      pageRect: layout.pageLayouts[pageIndex],
+      towardLeft: key == LogicalKeyboardKey.arrowLeft,
+    );
+  }
+
+  void _scrollHorizontalArrow(LogicalKeyboardKey key, double pixels) {
+    final controller = widget.tab.pdfViewerController;
+    final remaining = _horizontalArrowTravel(key);
+    if (remaining == 0) return;
+    final movement = min(pixels / controller.currentZoom, remaining);
+    final dx = key == LogicalKeyboardKey.arrowLeft ? -movement : movement;
+    unawaited(
+      controller.goTo(
+        controller.calcMatrixFor(controller.centerPosition.translate(dx, 0)),
+        duration: Duration.zero,
+      ),
+    );
+  }
+
   static bool _isNextPageKey(LogicalKeyboardKey key) =>
       key == LogicalKeyboardKey.arrowLeft ||
       (key == LogicalKeyboardKey.pageDown && _noModifiers);
@@ -5259,15 +5315,33 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   void _startContinuousScroll(LogicalKeyboardKey key) {
     final controller = widget.tab.pdfViewerController;
-    if (_scrollTimer != null || !controller.isReady || _isPageTurnInProgress) {
-      return;
+    if (!controller.isReady || _isPageTurnInProgress) return;
+    final horizontal = _isHorizontalArrow(key);
+    final previous = _continuousScrollKey;
+    if (previous != null) {
+      if (previous == key || (!horizontal && !_isHorizontalArrow(previous))) {
+        return;
+      }
+      _stopContinuousScroll();
+    }
+    _continuousScrollKey = key;
+    if (horizontal) {
+      _scrollPhysicsProvider.stop();
+    } else {
+      // ניווט פעיל יזיז את המטריצה ויבטל את הגלילה של ה-delegate.
+      unawaited(controller.goTo(controller.value, duration: Duration.zero));
+      _captureScrollAnchor();
+    }
+    void scroll(double pixels) {
+      if (horizontal) {
+        _scrollHorizontalArrow(key, pixels);
+      } else {
+        final dy = key == LogicalKeyboardKey.arrowUp ? pixels : -pixels;
+        _scrollPhysicsProvider.pan(Offset(0, dy));
+      }
     }
 
-    // ניווט פעיל יזיז את המטריצה ויבטל את הגלילה של ה-delegate.
-    unawaited(controller.goTo(controller.value, duration: Duration.zero));
-    _captureScrollAnchor();
-    final direction = key == LogicalKeyboardKey.arrowUp ? 1.0 : -1.0;
-    _scrollPhysicsProvider.pan(Offset(0, direction * _arrowScrollStep));
+    scroll(_arrowScrollStep);
 
     // תנועה רציפה לפי הזמן שעבר; הלחיצה הראשונה כבר כיסתה את ה-100ms הראשונות.
     final clock = Stopwatch()..start();
@@ -5278,14 +5352,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         return;
       }
 
-      if (!_pdfViewFocusNode.hasFocus) {
-        _pdfViewFocusNode.requestFocus();
-      }
-
-      if (!HardwareKeyboard.instance.logicalKeysPressed.contains(key)) {
+      if (!HardwareKeyboard.instance.logicalKeysPressed.contains(key) ||
+          (horizontal &&
+              (!_pdfViewFocusNode.hasFocus ||
+                  !_noModifiers ||
+                  _isBookViewModeActive()))) {
         _stopContinuousScroll();
         return;
       }
+      if (!_pdfViewFocusNode.hasFocus) _pdfViewFocusNode.requestFocus();
 
       final nowMicros = clock.elapsedMicroseconds;
       // בזמן דפדוף אין נרמול לכפולה, וגלילה מתחת לשכבת הדפדוף לא תינעל.
@@ -5295,25 +5370,35 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         return;
       }
       if (nowMicros <= scrolledUntilMicros) return;
-      _scrollAnchorPage ??= widget.tab.pdfViewerController.pageNumber ?? 1;
+      if (!horizontal) {
+        _scrollAnchorPage ??= widget.tab.pdfViewerController.pageNumber ?? 1;
+      }
       // משליכים את רוב הזמן שעבר אם הממשק נתקע, כדי למנוע קפיצה בגלילה.
       final elapsedMicros = min(
         nowMicros - scrolledUntilMicros,
         _arrowScrollMaxTickMicros,
       );
       scrolledUntilMicros = nowMicros;
-      _scrollPhysicsProvider.pan(
-        Offset(0, direction * _arrowScrollSpeed * elapsedMicros / 1e6),
-      );
+      scroll(_arrowScrollSpeed * elapsedMicros / 1e6);
     });
   }
 
+  void _stopHorizontalScroll() {
+    final key = _continuousScrollKey;
+    if (key != null && _isHorizontalArrow(key)) _stopContinuousScroll();
+  }
+
   void _stopContinuousScroll() {
+    final key = _continuousScrollKey;
     _scrollTimer?.cancel();
     _scrollTimer = null;
+    _continuousScrollKey = null;
     _scrollAnchorPage = null;
 
-    if (mounted && !_pdfViewFocusNode.hasFocus) {
+    if (key != null &&
+        !_isHorizontalArrow(key) &&
+        mounted &&
+        !_pdfViewFocusNode.hasFocus) {
       _pdfViewFocusNode.requestFocus();
     }
   }

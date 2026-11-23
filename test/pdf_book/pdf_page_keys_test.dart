@@ -29,6 +29,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 
@@ -75,7 +76,10 @@ void main() {
     }
   }
 
-  Future<(PdfBookBloc, PdfBookTab)> pumpBook(WidgetTester tester) async {
+  Future<(PdfBookBloc, PdfBookTab)> pumpBook(
+    WidgetTester tester, {
+    bool mixedWidths = false,
+  }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -85,7 +89,14 @@ void main() {
       await pdfrxFlutterInitialize();
       final pdf = pw.Document();
       for (var i = 0; i < 12; i++) {
-        pdf.addPage(pw.Page(build: (_) => pw.Text('page ${i + 1}')));
+        pdf.addPage(
+          pw.Page(
+            pageFormat: mixedWidths && i == 9
+                ? const PdfPageFormat(1200, 842)
+                : PdfPageFormat.a4,
+            build: (_) => pw.Text('page ${i + 1}'),
+          ),
+        );
       }
       await file.writeAsBytes(await pdf.save());
     });
@@ -797,6 +808,146 @@ void main() {
       );
     }
   }
+
+  // ב-PDF מוגדל מעבר לרוחב המסך ←/→ גוללים בתוך העמוד, ומדפדפים רק בקצה.
+  for (final key in [
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+  ]) {
+    testWidgets(
+      'PDF מוגדל: ${key.keyLabel} גולל עד קצה העמוד ורק אז מדפדף (issue #5790)',
+      (tester) async {
+        final (_, tab) = await pumpBook(tester, mixedWidths: true);
+        final controller = tab.pdfViewerController;
+        final document = controller.document;
+        final towardLeft = key == LogicalKeyboardKey.arrowLeft;
+        try {
+          await controller.goToPage(pageNumber: 6, duration: Duration.zero);
+          await settle(tester, rounds: 5);
+          await dragIntoViewer(tester);
+          final pageRect = controller.layout.pageLayouts[5];
+          final widthZoom = controller.viewSize.width / pageRect.width;
+          await controller.setZoom(
+            pageRect.center,
+            widthZoom * 0.9,
+            duration: Duration.zero,
+          );
+          await settle(tester, rounds: 5);
+          expect(controller.pageNumber, 6);
+          expect(controller.visibleRect.left, lessThan(pageRect.left));
+          expect(controller.visibleRect.right, greaterThan(pageRect.right));
+          expect(
+            controller.visibleRect.width,
+            lessThan(controller.layout.documentSize.width),
+          );
+          await tester.sendKeyEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, towardLeft ? 7 : 5);
+
+          await controller.goToPage(pageNumber: 6, duration: Duration.zero);
+          await controller.setZoom(
+            pageRect.center,
+            widthZoom * 2,
+            duration: Duration.zero,
+          );
+          await settle(tester, rounds: 5);
+          final page = controller.pageNumber!;
+          final opposite = towardLeft
+              ? LogicalKeyboardKey.arrowRight
+              : LogicalKeyboardKey.arrowLeft;
+          final beforeReversal = controller.visibleRect.left;
+          await tester.sendKeyDownEvent(key);
+          await tester.sendKeyUpEvent(key);
+          await tester.sendKeyDownEvent(opposite);
+          await tester.sendKeyUpEvent(opposite);
+          await settle(tester, rounds: 5);
+          expect(controller.visibleRect.left, closeTo(beforeReversal, 0.5));
+
+          final startLeft = controller.visibleRect.left;
+          await tester.sendKeyEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, page, reason: 'החץ גולל ולא מדפדף');
+          // צעד של 100 פיקסלים במסך; visibleRect נמדד ביחידות המסמך.
+          final moved =
+              (controller.visibleRect.left - startLeft) *
+              controller.currentZoom;
+          expect(towardLeft ? -moved : moved, closeTo(100, 1));
+
+          // החזקה עם חזרות מקש גוללת בלי לצבור דפדופים.
+          await tester.sendKeyDownEvent(key);
+          for (var i = 0; i < 3; i++) {
+            await tester.sendKeyRepeatEvent(key);
+            await tester.pump(const Duration(milliseconds: 30));
+          }
+          await tester.sendKeyUpEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, page);
+
+          // לחיצות נוספות מגיעות לקצה העמוד בלי לדפדף.
+          bool atEdge() => towardLeft
+              ? (controller.visibleRect.left - pageRect.left).abs() < 0.5
+              : (controller.visibleRect.right - pageRect.right).abs() < 0.5;
+          for (var i = 0; i < 40 && !atEdge(); i++) {
+            await tester.sendKeyEvent(key);
+            await settle(tester, rounds: 6);
+            expect(controller.pageNumber, page);
+          }
+          expect(atEdge(), isTrue);
+
+          await tester.sendKeyDownEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, towardLeft ? page + 1 : page - 1);
+          await tester.sendKeyRepeatEvent(key);
+          await tester.sendKeyUpEvent(key);
+          await settle(tester, rounds: 10);
+          expect(controller.pageNumber, towardLeft ? page + 2 : page - 2);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pump(const Duration(seconds: 4));
+          await tester.pumpWidget(const SizedBox.shrink());
+          await disposePdfDocument(tester, document);
+        }
+      },
+    );
+  }
+
+  testWidgets('PDF מוגדל: חץ הפוך מיד אחרי שחרור החץ הקודם אינו נבלע', (
+    tester,
+  ) async {
+    final (_, tab) = await pumpBook(tester);
+    final controller = tab.pdfViewerController;
+    final document = controller.document;
+    try {
+      await controller.goToPage(pageNumber: 6, duration: Duration.zero);
+      await settle(tester, rounds: 5);
+      await dragIntoViewer(tester);
+      await controller.setZoom(
+        controller.centerPosition,
+        controller.currentZoom * 2,
+        duration: Duration.zero,
+      );
+      await settle(tester, rounds: 5);
+      final page = controller.pageNumber!;
+      final startLeft = controller.visibleRect.left;
+
+      // לחיצה, שחרור ולחיצה הפוכה לפני פעימת הטיימר הבאה.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await settle(tester, rounds: 10);
+
+      expect(controller.pageNumber, page);
+      expect(
+        (controller.visibleRect.left - startLeft) * controller.currentZoom,
+        closeTo(0, 1),
+        reason: 'הלחיצה על → מחזירה את הגלילה של ←',
+      );
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    }
+  });
 }
 
 class _TabsRepository implements TabsRepository {
