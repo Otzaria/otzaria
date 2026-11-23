@@ -149,9 +149,9 @@ void main() {
     unawaited(tab.lines.jumpToLine(_target));
     await tester.pump();
 
-    // שורה לא טעונה בגובה אפס אילצה את הרשימה לבנות מאות פריטים כדי למלא
-    // את התצוגה ואת אזור המטמון.
-    expect(_builtItems(), lessThan(loadedJump * 5));
+    // שורות בגובה אפס בונות כאן כ-600 פריטים, מקום שמור כ-90 (נמוך משורה
+    // טעונה, 19 פריטים). הסף ביניהם, כדי ששינוי גובה קטן לא יפיל את הבדיקה.
+    expect(_builtItems(), lessThan(loadedJump * 10));
   });
 
   testWidgets('צורת הדף: שורה ריקה שנטענה נשארת בגובה אפס', (tester) async {
