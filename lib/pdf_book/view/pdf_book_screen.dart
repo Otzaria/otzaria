@@ -3560,11 +3560,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         );
         if (!_isPdfGenerationCurrent(generation)) return;
       }
-      _pageTurnController.duration = pdfQueuedPageTurnDuration(
-        _kPageTurnDuration,
-        _pendingPageTurns.length,
-      );
-
       final composed = await _composeCachedSpreadSnapshot(
         targetSpreadStartPage,
         focusPage: targetPage,
@@ -3589,12 +3584,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           duration: Duration.zero,
         ).catchError((Object _) {});
 
+        // הקלט יכול לשנות את התור בזמן הכנת התמונה וההמתנה לפריים.
+        _pageTurnController.duration = pdfQueuedPageTurnDuration(
+          _kPageTurnDuration,
+          _pendingPageTurns.length,
+        );
         await _pageTurnController.forward(from: 0);
         await navigationFuture;
       } else {
         // הרינדור נכשל או בוטל — חוזרים לזרימה הסדרתית מהצפיין החי.
         if (!await _goToPageAndCaptureTarget(targetPage)) return;
 
+        _pageTurnController.duration = pdfQueuedPageTurnDuration(
+          _kPageTurnDuration,
+          _pendingPageTurns.length,
+        );
         await _pageTurnController.forward(from: 0);
       }
     } finally {
