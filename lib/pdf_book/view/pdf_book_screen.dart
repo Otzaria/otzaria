@@ -330,11 +330,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     onInterrupt: _scrollPhysicsProvider.stop,
   );
 
-  // Pre-rendered spread cache: lets the page-turn animation start instantly
-  // because the target spread snapshot is already in memory at click time.
-  // Key = spread start page (1-indexed). Pages are rendered via pdfrx's
-  // page.render() in the background and composited on-demand into a
-  // viewport-sized ui.Image when a page-turn fires.
+  // תמונות עמודים לפי תחילת כפולה; צילום החלון מורכב מהן בעת דפדוף.
   final Map<int, _PdfSpreadCacheEntry> _spreadCache = {};
 
   final _spreadRenders =
@@ -342,11 +338,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final Map<int, PdfPageRenderCancellationToken> _spreadCancellationTokens = {};
   int? _lastPrerenderTriggeredSpread;
 
-  // תור סדרתי יחיד לכל ה-prerenders: כל עדכון controller מתזמן כפולות,
-  // ובלי תור משותף דפדוף מהיר מריץ כמה רינדורים נייטיביים במקביל ומקפיץ
-  // את שיא הזיכרון (זה מה שהקריס מכונות חלשות).
+  // תור סדרתי מגביל את שיא הזיכרון גם כשדפדוף מהיר מוסיף הרבה בקשות.
   Future<void> _spreadPrerenderQueue = Future.value();
-  final Set<int> _queuedSpreadPrerenders = {};
+  final Set<(int, int)> _queuedSpreadPrerenders = {};
 
   /// כפולות רחוקות מהנוכחית מעבר לטווח הזה לא מרונדרות ומפונות מהמטמון.
   /// בעמודים: ±כפולה אחת — בדיוק מה ש-[_schedulePrerenderForAdjacentSpreads] מרנדר.
@@ -1495,6 +1489,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           });
         }
         _pdfTextSelectionActions.cancel();
+        if (!mounted) return;
+        _pageTurnController.stop(canceled: false);
+        _abortInteractivePageTurn();
+        _pendingPageTurns.clear();
+        _disposeAllSpreadCache();
         if (document == null) {
           widget.tab.documentRef.value = null;
           widget.tab.outline.value = null;
@@ -2855,7 +2854,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       );
       if (!mounted || token != _interactiveTurnToken) return;
     }
-    if (_spreadCache.containsKey(targetSpreadStartPage)) {
+    if (_isSpreadCachedSharpEnough(targetSpreadStartPage)) {
       final composed = await _composeCachedSpreadSnapshot(
         targetSpreadStartPage,
         focusPage: targetPage,
@@ -3006,9 +3005,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         : [spreadStartPage];
   }
 
-  /// Renders the pages of [spreadStartPage] via pdfrx and stores the rendered
-  /// images in the cache. Safe to call repeatedly: completes at once if the
-  /// spread is already cached, and joins the render already running for it.
+  /// משתמש בכפולה חדה שכבר נשמרה, או מצטרף לרינדור שלה אם הוא בתהליך.
   Future<void> _renderSpreadPagesIntoCache(
     int spreadStartPage, {
     PdfPageRenderPriority priority = PdfPageRenderPriority.low,
@@ -3044,12 +3041,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }) async {
     final controller = widget.tab.pdfViewerController;
     if (!controller.isReady || !_isPdfVisible) return;
+    final document = controller.document;
+    final generation = _spreadCacheGeneration;
     final pageNumbers = _pagesInSpread(spreadStartPage);
     if (pageNumbers.isEmpty) return;
     final renderScale = _requiredSpreadRenderScale(controller);
     final pages = [
-      for (final number in pageNumbers) controller.document.pages[number - 1],
+      for (final number in pageNumbers) document.pages[number - 1],
     ];
+    bool isCurrent() =>
+        _isPdfGenerationCurrent(generation) &&
+        controller.isReady &&
+        identical(controller.document, document) &&
+        _spreadPagesAreCurrent(document, pages) &&
+        renderScale >= _requiredSpreadRenderScale(controller) &&
+        (priority == PdfPageRenderPriority.high ||
+            _isSpreadNeeded(spreadStartPage));
+    if (!isCurrent()) return;
     final estimatedBytes = pages.fold<int>(
       0,
       (bytes, page) =>
@@ -3058,16 +3066,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               (page.height * renderScale).ceil() *
               12,
     );
-    final reservation = pdfSharedImageBudget.tryReserve(estimatedBytes);
+    final reservation = pdfSharedImageBudget.tryReserve(
+      estimatedBytes,
+      keepNeeded: priority != PdfPageRenderPriority.high,
+    );
     if (reservation == null) return;
     final pageImages = <int, ui.Image>{};
-    final generation = _spreadCacheGeneration;
     PdfPageRenderCancellationToken? activeToken;
-    bool isCurrent() =>
-        mounted &&
-        _isPdfVisible &&
-        controller.isReady &&
-        generation == _spreadCacheGeneration;
     try {
       for (final page in pages) {
         if (!isCurrent()) return;
@@ -3096,10 +3101,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
       if (!isCurrent()) return;
       final entry = _PdfSpreadCacheEntry(
+        document: document,
+        pages: pages,
         pageImages: Map.of(pageImages),
         renderScale: renderScale,
+        isNeeded: _isSpreadNeeded(spreadStartPage),
       );
       entry.budgetEntry = reservation.commit(
+        isNeeded: entry.isNeeded,
         retainedBytes: pageImages.values.fold<int>(
           0,
           (bytes, image) => bytes + image.width * image.height * 8,
@@ -3141,10 +3150,37 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _isSpreadCachedSharpEnough(int spreadStartPage) {
     final entry = _spreadCache[spreadStartPage];
     if (entry == null) return false;
-    entry.budgetEntry?.touch();
     final controller = widget.tab.pdfViewerController;
-    return !controller.isReady ||
+    if (!controller.isReady ||
+        !identical(controller.document, entry.document) ||
+        !_spreadPagesAreCurrent(entry.document, entry.pages)) {
+      _spreadCache.remove(spreadStartPage)?.dispose();
+      return false;
+    }
+    final sharpEnough =
         entry.renderScale >= _requiredSpreadRenderScale(controller);
+    entry.setNeeded(sharpEnough && _isSpreadNeeded(spreadStartPage));
+    return sharpEnough;
+  }
+
+  bool _spreadPagesAreCurrent(PdfDocument document, List<PdfPage> pages) =>
+      pages.every(
+        (page) =>
+            page.pageNumber <= document.pages.length &&
+            identical(document.pages[page.pageNumber - 1], page),
+      );
+
+  bool _isSpreadNeeded(int spread) {
+    final controller = widget.tab.pdfViewerController;
+    if (!_isPdfVisible || !_isBookViewModeActive() || !controller.isReady) {
+      return false;
+    }
+    final current = _spreadStartPageFor(controller.pageNumber ?? 1);
+    return (spread - current).abs() <= _kSpreadKeepRange ||
+        (_inFlightAnimationTarget != null &&
+            spread == _spreadStartPageFor(_inFlightAnimationTarget!)) ||
+        (_interactiveTargetPage != null &&
+            spread == _spreadStartPageFor(_interactiveTargetPage!));
   }
 
   void _disposeImageMap(Map<int, ui.Image> images) {
@@ -3154,21 +3190,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     images.clear();
   }
 
-  /// Composes a viewport-sized [ui.Image] from cached page images by
-  /// predicting the post-navigation viewer matrix (preserves zoom, centers on
-  /// the target spread) and drawing each page at its predicted viewport rect.
-  /// Returns null if the spread isn't cached, the controller isn't ready, or
-  /// the viewport size is empty.
+  /// מרכיב צילום חלון מתמונות חדות ועדכניות, במטריצת יעד הניווט.
   Future<ui.Image?> _composeCachedSpreadSnapshot(
     int spreadStartPage, {
     int? focusPage,
     required ({ui.Image image, Size viewportLogicalSize}) sourceSnapshot,
   }) async {
+    if (!_isSpreadCachedSharpEnough(spreadStartPage)) return null;
     final entry = _spreadCache[spreadStartPage];
     if (entry == null || entry.pageImages.isEmpty) return null;
 
     final controller = widget.tab.pdfViewerController;
     if (!controller.isReady) return null;
+    final generation = _spreadCacheGeneration;
+    final sourceMatrix = controller.value.clone();
 
     final layout = controller.layout;
     final pageLayouts = layout.pageLayouts;
@@ -3178,11 +3213,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final newSpreadRect = _spreadRectForPageLayout(layout, spreadStartPage);
     if (newSpreadRect == null) return null;
 
-    // Predict the post-navigation viewer matrix exactly as
-    // `_goToPageWithSpreadLock` computes it, so the composed snapshot lands on
-    // the same pixels the live viewer will show after `goTo`.
+    // אותה מטריצת יעד כמו בניווט, כדי שהצילום והצפיין יציגו באותו מקום.
     final currentSpreadRect = _currentSpreadRect(controller);
-    final zoom = controller.value.zoom;
+    final zoom = sourceMatrix.zoom;
 
     final targetCenterY =
         currentSpreadRect != null &&
@@ -3297,21 +3330,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final picture = recorder.endRecording();
     entry.budgetEntry?.touch(isPinned: true);
     try {
-      return await _createBudgetedSnapshot(
+      final snapshot = await _createBudgetedSnapshot(
         width,
         height,
         () => picture.toImage(width, height),
       );
+      if (!_isPdfGenerationCurrent(generation) ||
+          !controller.isReady ||
+          !identical(_spreadCache[spreadStartPage], entry) ||
+          !identical(controller.layout, layout) ||
+          controller.viewSize != viewSize ||
+          controller.value != sourceMatrix ||
+          !_isSpreadCachedSharpEnough(spreadStartPage)) {
+        _disposeBudgetedSnapshot(snapshot);
+        return null;
+      }
+      return snapshot;
     } finally {
       picture.dispose();
       entry.budgetEntry?.touch(isPinned: false);
     }
   }
 
-  /// Kicks off background pre-rendering of the current, next, and previous
-  /// spreads so that `_animateBookPageTurn` finds them already cached.
-  /// Cheap to call repeatedly: skips spreads that are already cached or
-  /// rendering, and de-dupes via [_lastPrerenderTriggeredSpread].
+  /// מתזמן כפולות סמוכות פעם אחת לכל מיקום, תוך שחרור עבודה שהתיישנה.
   void _schedulePrerenderForAdjacentSpreads() {
     if (!_isPdfVisible || !_isBookViewModeActive()) return;
     final controller = widget.tab.pdfViewerController;
@@ -3319,6 +3360,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final currentPage = controller.pageNumber ?? 1;
     final currentSpread = _spreadStartPageFor(currentPage);
+    _evictUnneededSpreadCache();
 
     if (_lastPrerenderTriggeredSpread == currentSpread &&
         _isSpreadCachedSharpEnough(currentSpread)) {
@@ -3348,19 +3390,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     for (final spread in [forward, backward, currentSpread]) {
       if (spread != null) _enqueueSpreadPrerender(spread);
     }
-
-    _evictSpreadCacheFarFrom(currentSpread);
   }
 
   /// מוסיף כפולה לתור הסדרתי. בעת הביצוע (שעשוי להתעכב מאחורי כפולות
   /// קודמות) הרלוונטיות נבדקת שוב — אם המשתמש כבר דפדף הלאה, מדלגים.
   void _enqueueSpreadPrerender(int spread) {
     final generation = _spreadCacheGeneration;
-    if (!_queuedSpreadPrerenders.add(spread)) return;
+    final request = (generation, spread);
+    if (!_queuedSpreadPrerenders.add(request)) return;
     _spreadPrerenderQueue = _spreadPrerenderQueue
         .then((_) async {
-          // ההסרה רק בסיום (finally): כך הדה-דופ מכסה גם את זמן הרינדור עצמו,
-          // ולא רק את ההמתנה בתור — דפדוף הלוך-חזור לא יוסיף רשומה כפולה.
+          // הבעלות נשארת עד סוף הרינדור, ולא רק בזמן ההמתנה בתור.
           try {
             if (!mounted ||
                 !_isPdfVisible ||
@@ -3376,22 +3416,34 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             if ((spread - currentSpread).abs() > _kSpreadKeepRange) return;
             await _renderSpreadPagesIntoCache(spread);
           } finally {
-            _queuedSpreadPrerenders.remove(spread);
+            _queuedSpreadPrerenders.remove(request);
           }
         })
         .catchError((Object e, StackTrace s) {
-          _queuedSpreadPrerenders.remove(spread);
+          _queuedSpreadPrerenders.remove(request);
           debugPrint('Spread pre-render queue error for $spread: $e\n$s');
         });
   }
 
-  /// Keeps cache memory bounded by evicting spreads more than
-  /// [_kSpreadKeepRange] pages away from the current spread.
-  void _evictSpreadCacheFarFrom(int currentSpread) {
+  void _evictUnneededSpreadCache() {
+    for (final render in _spreadRenders.entries) {
+      if (render.value.priority != PdfPageRenderPriority.high &&
+          !_isSpreadNeeded(render.key)) {
+        _spreadCancellationTokens[render.key]?.cancel();
+      }
+    }
+    if (_spreadCache.isEmpty) return;
+    final controller = widget.tab.pdfViewerController;
+    final requiredScale = _requiredSpreadRenderScale(controller);
     final toRemove = <int>[];
-    for (final spread in _spreadCache.keys) {
-      if ((spread - currentSpread).abs() > _kSpreadKeepRange) {
-        toRemove.add(spread);
+    for (final cached in _spreadCache.entries) {
+      final entry = cached.value;
+      if (!_isSpreadNeeded(cached.key) ||
+          !identical(controller.document, entry.document) ||
+          !_spreadPagesAreCurrent(entry.document, entry.pages)) {
+        toRemove.add(cached.key);
+      } else {
+        entry.setNeeded(entry.renderScale >= requiredScale);
       }
     }
     for (final spread in toRemove) {
@@ -3410,6 +3462,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
     _spreadCancellationTokens.clear();
     _spreadRenders.clear();
+    _queuedSpreadPrerenders.clear();
     _lastPrerenderTriggeredSpread = null;
     _lastInitiatedTargetPage = null;
     _inFlightAnimationTarget = null;
@@ -3498,14 +3551,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       await WidgetsBinding.instance.endOfFrame;
       if (!_isPdfGenerationCurrent(generation)) return;
 
-      // Cache lookup: if the target spread was pre-rendered, compose its
-      // snapshot now (cheap, page renders are already in memory) and run
-      // navigation in parallel with the curl. The user gets an instant
-      // page-turn with the new page fully visible from frame 1.
       final targetSpreadStartPage = _spreadStartPageFor(targetPage);
-      // בהחטאה מרנדרים את כפולת היעד עכשיו ומרכיבים ממנה: צילום הצפיין אחרי
-      // הניווט חיכה לקפיצה ולהשהיה, ועדיין תפס לעיתים אריחים לבנים. כפולה
-      // שמורה מזום נמוך יותר מרונדרת גם היא מחדש — אחרת הצילום מטושטש.
+      // יעד חסר או שנשמר בזום נמוך יותר מרונדר בעדיפות של פעולת המשתמש.
       if (!_isSpreadCachedSharpEnough(targetSpreadStartPage)) {
         await _renderSpreadPagesIntoCache(
           targetSpreadStartPage,
@@ -3513,39 +3560,30 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         );
         if (!_isPdfGenerationCurrent(generation)) return;
       }
-      final hasCachedTarget = _spreadCache.containsKey(targetSpreadStartPage);
       _pageTurnController.duration = pdfQueuedPageTurnDuration(
         _kPageTurnDuration,
         _pendingPageTurns.length,
       );
 
-      if (hasCachedTarget) {
-        final composed = await _composeCachedSpreadSnapshot(
-          targetSpreadStartPage,
-          focusPage: targetPage,
-          sourceSnapshot: captureResult,
-        );
+      final composed = await _composeCachedSpreadSnapshot(
+        targetSpreadStartPage,
+        focusPage: targetPage,
+        sourceSnapshot: captureResult,
+      );
+      if (!_isPdfGenerationCurrent(generation)) {
+        _disposeBudgetedSnapshot(composed);
+        return;
+      }
 
-        if (!_isPdfGenerationCurrent(generation)) {
-          _disposeBudgetedSnapshot(composed);
-          return;
-        }
+      if (composed != null) {
+        _updatePageTurnUi(() {
+          _disposeBudgetedSnapshot(_pageTurnTargetSnapshot);
+          _pageTurnTargetSnapshot = composed;
+        });
+        await WidgetsBinding.instance.endOfFrame;
+        if (!_isPdfGenerationCurrent(generation)) return;
 
-        if (composed != null) {
-          _updatePageTurnUi(() {
-            _disposeBudgetedSnapshot(_pageTurnTargetSnapshot);
-            _pageTurnTargetSnapshot = composed;
-          });
-          await WidgetsBinding.instance.endOfFrame;
-          if (!_isPdfGenerationCurrent(generation)) return;
-        }
-
-        // Run navigation concurrently with the animation. The cached snapshot
-        // covers the reveal so any tile churn from goTo is invisible. We
-        // capture the future and await it AFTER the animation so the next
-        // queued page-turn (if any) starts from the actual settled spread,
-        // not a stale viewer mid-transition. The overlay stays visible (at
-        // progress=1) until finally clears it, so the user sees no flash.
+        // הצילום מכסה את הניווט; הדפדוף הבא ממתין גם לנחיתה בצפיין החי.
         final navigationFuture = _goToPageWithSpreadLock(
           targetPage,
           duration: Duration.zero,
@@ -6316,16 +6354,30 @@ class _BookPageTurnTransition {
   });
 }
 
-/// Holds pre-rendered images for the pages of a single book-view spread.
-/// The animation flow composites these page images into a viewport-sized
-/// snapshot on demand (cheap, ~5-15ms) instead of waiting on goToPage +
-/// tile loading + viewport capture (~150-250ms total).
+/// תמונות כפולה ובעלותן; זהות העמודים פוסלת תוכן שהוחלף או הוזז.
 class _PdfSpreadCacheEntry {
+  final PdfDocument document;
+  final List<PdfPage> pages;
   final Map<int, ui.Image> pageImages;
   final double renderScale;
+  bool _isNeeded;
   PdfImageCacheEntry? budgetEntry;
 
-  _PdfSpreadCacheEntry({required this.pageImages, required this.renderScale});
+  _PdfSpreadCacheEntry({
+    required this.document,
+    required this.pages,
+    required this.pageImages,
+    required this.renderScale,
+    required this._isNeeded,
+  });
+
+  bool get isNeeded => _isNeeded;
+
+  void setNeeded(bool needed) {
+    if (_isNeeded == needed) return;
+    _isNeeded = needed;
+    budgetEntry?.touch(isNeeded: needed);
+  }
 
   void dispose() {
     budgetEntry?.dispose();
