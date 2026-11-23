@@ -7,10 +7,74 @@
 למדידת החימום המוקדם של WebView ב־Android, ראו את
 [התרחיש הייעודי בהמשך](#android--חימום-מוקדם-ועלייה-במסלול-האפליקציה).
 
-הפקודה הראשית היא `run_perf_probe.ps1`. היא בונה את יעד האינטגרציה פעם אחת,
+ב־Windows הפקודה היא `run_perf_probe.ps1`, וב־Linux וב־macOS היא
+`run_perf_probe_posix.py`. כל אחת בונה את אותו יעד אינטגרציה פעם אחת,
 מכינה ספרייה סינתטית בתהליך נפרד, ומריצה את האפליקציה בתהליכים חדשים עם
 נתונים מבודדים. הקוד נמצא ביעד הבדיקה בלבד: אין טיימרים, דוגמים או איסוף
 נוספים בבינארי הרגיל של משתמשי האפליקציה.
+
+## הרצה ב־Linux וב־macOS
+
+ה־runner משתמש באותו `PerfFixture`, `PerfRecorder` ומנתח protocol 2 של
+Windows. דרושים Python 3.11 ומעלה ב־Linux או 3.13 ומעלה ב־macOS, Git,
+Flutter הנעול, תלויות הבנייה הרגילות וסביבת desktop פעילה. ב־Linux דרושים
+גם runtime ה־WPE שהאפליקציה משתמשת בו ו־X11 או Wayland. ב־CI משתמשים
+בתשתית Xvfb/DBus/Openbox הקיימת; ב־macOS משתמשים ב־desktop session של ה־runner.
+אין לפתוח מופע נוסף של אוצריא בזמן המדידה.
+
+```bash
+python3 -B tool/perf_probe/run_perf_probe_posix.py \
+  --mode profile --scenario-set pdf-reader --cache-state cold \
+  --pdf-case /tmp/pdf-cases/vector-1000.json \
+  --warmup 1 --repetitions 5 --launches 3 \
+  --output /tmp/otzaria-perf/baseline-cold
+
+# באותו מחשב וב־checkout נקי של הקומיט המועמד, עם אותו קלט ותנאים:
+python3 -B tool/perf_probe/run_perf_probe_posix.py \
+  --mode profile --scenario-set pdf-reader --cache-state cold \
+  --pdf-case /tmp/pdf-cases/vector-1000.json \
+  --warmup 1 --repetitions 5 --launches 3 \
+  --output /tmp/otzaria-perf/candidate-cold \
+  --baseline /tmp/otzaria-perf/baseline-cold
+```
+
+להשוואת warm יש להריץ את שני הצדדים עם `--cache-state warm` ותיקיות פלט
+חדשות. `--mode release` בונה ומפעיל את אותו היעד ללא תלות ב־VM service;
+Dart heap נשאר חסר במצב זה. `--scenario-set` תומך ב־`all`, `pdf-reader`
+ו־`pdf-book-view` כאשר התרחיש קיים בגרסת האפליקציה הנמדדת; ברירת המחדל
+של runner זה היא `pdf-reader`. `--pdf-case` מקבל את אותו JSON המתועד בהמשך;
+ללא קובץ נשמרת תצורת 600 העמודים. ההכנה והפעלת החימום של warm נשמרות
+בתיקיות נפרדות ואינן נכנסות לדגימות. סגירה, timeout, כשל native או דוח
+חסר משאירים פלט חלקי ומחזירים קוד יציאה שאינו אפס.
+
+דוגם ה־POSIX קורא כל 500ms את **תהליך האפליקציה שנוצר בידי ה־runner בלבד**.
+זהות הדגימה כוללת PID וזמן יצירה מונוטוני. ה־manifest שומר
+`sampling.scope=owned-root-process-only`; עמודות `tree*` בדוח הקיים מסכמות
+כאן את התהליך הזה בלבד, ואינן מייצגות את כל צאצאי WebView או את כל צריכת
+האפליקציה. `private commit`, handles, GPU ונתוני הצאצאים נשארים חסרים.
+אין המרה של RSS, `RssAnon` או `phys_footprint` ל־private commit.
+
+ב־Linux המקור הוא [`/proc/<pid>/stat`](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html):
+זמן user+system מחולק ב־`SC_CLK_TCK`, וה־RSS הוא מונה עמודים מקורב כפול
+גודל העמוד. ב־macOS המקור הוא `proc_pid_rusage(RUSAGE_INFO_V0)`;
+[מימוש XNU](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/osfmk/kern/task.c#L6807-L6812)
+מחזיר זמן CPU ביחידות Mach, ולכן ממירים באמצעות `mach_timebase_info`
+ולא מניחים שיחידה שווה ננו־שנייה. יחידות ומקור נשמרים ב־manifest.
+
+ה־runner משאיר את תהליך הבן במצב waitable עד עצירת קבוצת התהליכים שהוא
+יצר, ורק אחר כך אוסף את קוד היציאה. הוא אינו מסיים תהליכים לפי שם, ו־PID
+אינו יכול לשמש קבוצה חדשה במהלך הניקוי. `--timeout-seconds` מגביל הפעלה
+בודדת ו־`--build-timeout-seconds` מגביל בנייה/התקנת תלויות; שניהם אינם ספי
+ביצועים. סיכום `git status` ו־diff נשמר לפני הבנייה, אחריה ולאחר ההרצות.
+עץ שהיה מלוכלך באחת הנקודות נשאר לא כשיר להשוואה גם אם נוקה אחר כך.
+
+ב־CI, ה־jobs הקיימים `installed_plugin_probe_linux.yml` ו־`webview_apple_smoke.yml`
+מריצים גם פתיחת PDF בן 600 עמודים ב־profile, הפעלה קרה אחת וחזרה אחת ללא
+חימום. נשמרים דוח, נקודות המוכנות, דגימות CPU/RSS, פריימים ותצפיות תקציב
+התמונות והשהייה לאחר סגירה. ה־validator מחייב את הפעולות, זהות הקלט ומקור
+קוד נקי; הוא אינו קובע סף לזמני תגובה. קובצי הפלט וכלי ה־CI נכתבים מחוץ
+לעץ המקור, והדוח אינו מחריג שינויים בקוד. הרצת smoke אחת מאמתת את כלי
+המדידה; היא אינה השוואת לפני/אחרי או מדגם ביצועים מייצג.
 
 ## הרצה ב-Windows
 
@@ -268,11 +332,12 @@ native-only memory. גם הפרש RSS פחות Dart heap אינו מדד native 
 - עומקי התורים הפנימיים המלאים אינם חשופים ב-API יציב. `queues.depth`
   מסומן `skipped`; מוני העבודה הפעילה נשמרים בנפרד.
 - אין כאן מדידת GPU, native allocations לפי allocator, או pre-main startup.
-- הדוגם וה-runner האוטומטי מיועדים ל-Windows x64. המנתח ובדיקות החוזה ניידים;
-  אין להציג תוצאות Windows כאילו נמדדו ב-macOS, Linux או מכשיר נייד.
+- יש runners ל־Windows, Linux ו־macOS. היקף דגימת התהליכים שונה ונשמר
+  במטא־נתונים: Windows דוגם עץ תהליכים ו־POSIX דוגם את המארח בלבד.
+  אין להשוות פלטפורמות או היקפי דגימה שונים כאילו היו אותם תנאים.
 - תוסף HTML סינתטי, מסד נתונים קטן ומבנה טקסט קבוע עוזרים לשחזור אך אינם
   תחליף למדידה עם קלט אמיתי כשחוקרים באג תלוי ספר או תוסף מסוים.
-- תרחיש הקורא מאפשר קלט סינתטי וקובצי PDF מקומיים ב-Windows. התמיכה בקלט
+- תרחיש הקורא מאפשר קלט סינתטי וקובצי PDF מקומיים ב־desktop. התמיכה בקלט
   אינה מדידה של כל הקורפוס: מטריצת issue #5538 עדיין דורשת הרצות על קלט
   סרוק וגדול, עומס חיפוש והדפסה במקביל, מכשירים ופלטפורמות נוספות, וכן
   מדידות לפני/אחרי על אותה חומרה.
