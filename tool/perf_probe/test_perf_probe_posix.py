@@ -707,7 +707,7 @@ class OrchestrationTest(PosixFixture):
         runner.capture(["git", "-C", str(self.repository), "-c", "user.name=Probe",
                         "-c", "user.email=probe@example.invalid", "commit", "-qm", "source"])
 
-    def measured_run(self, *, build_fails=False, bad_report=False, **overrides):
+    def measured_run(self, *, build_fails=False, bad_report=False, missing_scheduler=False, **overrides):
         output = self.root / "result"
         args = options(output, **overrides)
         executable = self.app()
@@ -737,6 +737,17 @@ class OrchestrationTest(PosixFixture):
                 manifest = runner.read_json(output / "manifest.json")
                 runner.write_json(output / "report.json", {
                     "complete": not bad_report, "successful": manifest["status"] == "passed" and not bad_report,
+                    "metadata": {**manifest, "settings": bindings.binding_identity(args.binding_mode)},
+                    "notes": [] if missing_scheduler else [{
+                        "name": "framework.scheduler_contract", "launchIndex": index,
+                        "frameworkScheduler": {
+                            "status": "passed",
+                            "source": "Timer -> SchedulerBinding.scheduleFrame -> postFrameCallback",
+                            "deferredFrameDelivered": True, "nativePlatformDispatcher": True,
+                            "bindingClass": "WidgetsFlutterBinding", "requestedAtUs": 25,
+                            "completedAtUs": 50, "frameTimestampUs": 400,
+                        },
+                    } for index in range(args.launches)],
                 })
 
         with (mock.patch.object(runner, "capture", side_effect=capture),
@@ -786,6 +797,12 @@ class OrchestrationTest(PosixFixture):
         self.assertEqual(len(builds), 1)
         self.assertIn(f"--target={target}", builds[0])
         self.assertNotIn(f"--target={runner.TARGET}", builds[0])
+
+    def test_framework_run_rejects_missing_scheduler_evidence(self):
+        code, manifest, _ = self.measured_run(binding_mode="framework", missing_scheduler=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(manifest["status"], "failed")
+        self.assertIn("scheduling check", manifest["analysisError"])
 
     def test_build_failure_still_records_after_build_provenance_and_never_launches(self):
         code, manifest, commands = self.measured_run(build_fails=True)

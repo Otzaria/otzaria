@@ -22,11 +22,11 @@ sys.dont_write_bytecode = True
 if __package__:
     from .posix_engine import BundledFlutterEngine
     from .posix_resources import process_reader
-    from .probe_binding import binding_identity, validate_binding_identity
+    from .probe_binding import binding_identity, validate_binding_identity, validate_framework_scheduler
 else:
     from posix_engine import BundledFlutterEngine
     from posix_resources import process_reader
-    from probe_binding import binding_identity, validate_binding_identity
+    from probe_binding import binding_identity, validate_binding_identity, validate_framework_scheduler
 
 
 FIELDS = ("epoch_ms", "pid", "name", "cpu_total_s", "ws_mb", "priv_mb",
@@ -510,6 +510,10 @@ def run(args, *, repository=REPOSITORY):
                 report = read_json(output / "report.json", maximum=128 * 1024 * 1024)
                 if report.get("complete") is not True or report.get("successful") is not True:
                     raise RuntimeError("Analysis did not confirm a complete successful run")
+                if args.binding_mode == "framework":
+                    metadata = report.get("metadata", {})
+                    validate_binding_identity(metadata.get("settings"), args.binding_mode)
+                    validate_framework_scheduler(report.get("notes"), args.launches)
             except (OSError, ValueError, RuntimeError, Interrupted) as error:
                 failure = failure or error
                 manifest.update(status="failed", analysisError=str(error))

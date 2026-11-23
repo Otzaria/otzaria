@@ -264,6 +264,21 @@ try {
       if ($Baseline) { $arguments += @('--baseline', $Baseline) }
       & dart @arguments
       if ($LASTEXITCODE -ne 0 -and $null -eq $failure) { $failure = "Report analysis failed ($LASTEXITCODE)." }
+      if ($null -eq $failure -and $BindingMode -eq 'framework') {
+        try {
+          $report = Get-Content -LiteralPath (Join-Path $runDir 'report.json') -Raw | ConvertFrom-Json
+          if ($report.complete -ne $true -or $report.successful -ne $true) {
+            throw 'Analysis did not confirm a complete successful run.'
+          }
+          Assert-PerfBindingIdentity $report.metadata.settings $BindingMode
+          Assert-PerfFrameworkScheduler $report.notes $Launches
+        } catch {
+          $failure = $_
+          $manifest.status = 'failed'
+          $manifest.analysisError = $_.Exception.Message
+          Write-PerfJson (Join-Path $runDir 'manifest.json') $manifest
+        }
+      }
     }
   } finally { Pop-Location }
   Write-Host "Results: $runDir"
