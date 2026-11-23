@@ -73,21 +73,26 @@ void main() {
     },
   );
 
-  test(
-    'rejects a symbolic alias of the source',
-    () async {
-      await destination.delete();
-      await Link(destination.path).create(source.path);
-      await expectLater(
-        PrintPdfSource.file(source.path).writeToFile(destination.path),
-        throwsArgumentError,
-      );
-      expect(await source.readAsBytes(), orderedEquals(bytes));
-    },
-    skip: Platform.isWindows
-        ? 'Creating symbolic links requires host privileges.'
-        : false,
-  );
+  for (final sourceIsLink in [false, true]) {
+    test(
+      'rejects a symbolic alias before truncation (sourceIsLink=$sourceIsLink)',
+      () async {
+        await destination.delete();
+        await Link(destination.path).create(source.path);
+        await expectLater(
+          PrintPdfSource.file(
+            sourceIsLink ? destination.path : source.path,
+          ).writeToFile(sourceIsLink ? source.path : destination.path),
+          throwsArgumentError,
+        );
+        expect(await source.readAsBytes(), orderedEquals(bytes));
+        expect(await Link(destination.path).exists(), isTrue);
+      },
+      skip: Platform.isWindows
+          ? 'Creating symbolic links requires host privileges.'
+          : false,
+    );
+  }
 
   test('a read failure closes both files and removes only staging', () async {
     final error = FileSystemException('injected input failure', source.path);
@@ -198,6 +203,9 @@ class _FileSpy implements File {
 
   @override
   Future<bool> exists() => base.exists();
+
+  @override
+  Future<String> resolveSymbolicLinks() => base.resolveSymbolicLinks();
 
   @override
   Future<FileSystemEntity> delete({bool recursive = false}) async {

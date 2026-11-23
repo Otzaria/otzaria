@@ -281,17 +281,45 @@ void main() {
   );
 
   test(
-    'the generated directory is private on POSIX',
+    'the generated directory is private before the desktop POSIX producer',
     () async {
       final lease = await acquire(
         'A',
-        (path) => File(path).writeAsString('private'),
+        (path) async {
+          expect((await File(path).parent.stat()).mode & 0x1ff, 0x1c0);
+          await File(path).writeAsString('private');
+        },
       );
       final mode = (await File(lease.path).parent.stat()).mode;
       expect(mode & 0x1ff, 0x1c0);
     },
-    skip: Platform.isWindows
-        ? 'Windows uses the temporary-directory ACL.'
+    skip: !Platform.isLinux && !Platform.isMacOS
+        ? 'Other platforms use their temporary-directory policy.'
+        : false,
+  );
+
+  test(
+    'a permissions failure prevents generation and drains the entry',
+    () async {
+      final failingCache = PrintPdfFileCache(
+        temporaryDirectory: _DisappearingDirectory(directory),
+      );
+      var generated = false;
+      try {
+        await expectLater(
+          failingCache.acquire('A', (_) async {
+            generated = true;
+          }),
+          throwsA(isA<FileSystemException>()),
+        );
+        expect(generated, isFalse);
+        expect(await directory.list().toList(), isEmpty);
+      } finally {
+        await failingCache.dispose();
+      }
+    },
+    skip: !Platform.isLinux && !Platform.isMacOS
+        ? 'Other platforms use their temporary-directory policy.'
         : false,
   );
 
@@ -323,6 +351,9 @@ class _CleanupFailureDirectory implements Directory {
   var deleteAttempts = 0;
 
   @override
+  String get path => base.path;
+
+  @override
   Uri get uri => base.uri;
 
   @override
@@ -336,6 +367,22 @@ class _CleanupFailureDirectory implements Directory {
   Future<FileSystemEntity> delete({bool recursive = false}) async {
     deleteAttempts++;
     throw error;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _DisappearingDirectory implements Directory {
+  _DisappearingDirectory(this.base);
+
+  final Directory base;
+
+  @override
+  Future<Directory> createTemp([String? prefix]) async {
+    final created = await base.createTemp(prefix);
+    await created.delete();
+    return created;
   }
 
   @override

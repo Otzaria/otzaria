@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:posix/posix.dart' as posix;
+
 import 'print_pdf_source.dart';
 
 /// משתף הפקה שטרם הושלמה ושומר קובץ נוכחי אחד עד להחלפת החתימה.
@@ -61,6 +63,17 @@ class PrintPdfFileCache {
     try {
       final directory = await _temporaryDirectory.createTemp('otzaria-print-');
       entry.directory = directory;
+      if (Platform.isLinux || Platform.isMacOS) {
+        try {
+          posix.chmod(directory.path, '700');
+        } on posix.PosixException catch (error) {
+          throw FileSystemException(
+            'Could not restrict the temporary PDF directory.',
+            directory.path,
+            OSError(error.message, error.code),
+          );
+        }
+      }
       final file = File.fromUri(directory.uri.resolve('base.pdf'));
       entry.path = file.path;
       await generate(file.path);
