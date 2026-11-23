@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticResultSource, SemanticPassageHighlight;
+    show SemanticResultSource, SemanticPassageHighlight, SemanticVote;
 
 import 'semantic_ui_test_support.dart';
 
@@ -22,6 +22,7 @@ class ControlledSource extends FakeResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   }) {
     final request = Request(options.query, offset);

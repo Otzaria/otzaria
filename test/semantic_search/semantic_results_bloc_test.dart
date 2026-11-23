@@ -78,7 +78,10 @@ void main() {
   group('סימונים בדפדוף', () {
     test('העמוד הבא מקבל את הסימונים שעל המסך, בלי הצבעות שבוטלו', () async {
       final source = FakeResultsSource(total: 60);
-      final bloc = buildResultsBloc(source: source);
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
       addTearDown(bloc.close);
       bloc.add(const SemanticSearchSubmitted(_options));
       await _settle(bloc);
