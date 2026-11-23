@@ -73,6 +73,8 @@ class BookSourceBanner extends StatefulWidget {
 class _BookSourceBannerState extends State<BookSourceBanner> {
   bool _expanded = false;
   static const _collapseThreshold = 300;
+  // הכפתור ושתי השורות המקופלות גבוהים כמעט כמו ארבע שורות מלאות.
+  static const _collapseLineThreshold = 4;
   List<List<BannerSegment>> _lines = const [];
 
   /// מקביל ל-[_lines]; null לקטע שאינו קישור.
@@ -150,14 +152,14 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         if (!isOfflineMode || _lines[i].every((s) => s.url == null)) i,
     ];
     if (lineIndices.isEmpty) return const SizedBox.shrink();
-    final longBanner =
+    final longText =
         lineIndices
             .expand((i) => _lines[i])
             .fold<int>(0, (n, s) => n + s.text.length) >
         _collapseThreshold;
-    final visibleLines = longBanner && !_expanded
-        ? lineIndices.take(1)
-        : lineIndices;
+    final plainText = [
+      for (final i in lineIndices) _lines[i].map((s) => s.text).join(),
+    ].join('\n');
     // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
     return SelectionContainer.disabled(
       child: Container(
@@ -168,50 +170,88 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
           color: cs.surfaceContainerHighest,
           borderRadius: AppTokens.borderRadiusAll,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (longBanner)
-              Shortcuts(
-                // מקש הרווח משמש גם לגלילה בקורא שמכיל את הכפתור.
-                shortcuts: const {
-                  SingleActivator(
-                    LogicalKeyboardKey.space,
-                    includeRepeats: false,
-                  ): ActivateIntent(),
-                  SingleActivator(LogicalKeyboardKey.space): DoNothingIntent(),
-                },
-                child: ActionButton.ghost(
-                  text: _expanded ? 'הסתר פרטים' : 'הצג פרטים',
-                  iconWidget: ExpandingChevron(isExpanded: _expanded),
-                  iconAlignment: IconAlignment.end,
-                  onPressed: () => setState(() => _expanded = !_expanded),
+        // קרדיט קצר בתווים יכול להיות גבוה: שורות רבות או חלון צר.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final longBanner =
+                longText ||
+                _renderedLineCount(
+                      context,
+                      TextSpan(text: plainText, style: textStyle),
+                      constraints.maxWidth,
+                    ) >
+                    _collapseLineThreshold;
+            final visibleLines = longBanner && !_expanded
+                ? lineIndices.take(1)
+                : lineIndices;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (longBanner)
+                  Shortcuts(
+                    // מקש הרווח משמש גם לגלילה בקורא שמכיל את הכפתור.
+                    shortcuts: const {
+                      SingleActivator(
+                        LogicalKeyboardKey.space,
+                        includeRepeats: false,
+                      ): ActivateIntent(),
+                      SingleActivator(LogicalKeyboardKey.space):
+                          DoNothingIntent(),
+                    },
+                    child: ActionButton.ghost(
+                      text: _expanded ? 'הסתר פרטים' : 'הצג פרטים',
+                      iconWidget: ExpandingChevron(isExpanded: _expanded),
+                      iconAlignment: IconAlignment.end,
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                    ),
+                  ),
+                Text.rich(
+                  TextSpan(
+                    style: textStyle,
+                    children: [
+                      for (final (n, i) in visibleLines.indexed) ...[
+                        if (n > 0) const TextSpan(text: '\n'),
+                        for (var j = 0; j < _lines[i].length; j++)
+                          _lines[i][j].url == null
+                              ? TextSpan(text: _lines[i][j].text)
+                              : TextSpan(
+                                  text: _lines[i][j].text,
+                                  style: linkStyle,
+                                  recognizer: _recognizers[i][j],
+                                ),
+                      ],
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: longBanner && !_expanded ? 2 : null,
+                  overflow: longBanner && !_expanded
+                      ? TextOverflow.ellipsis
+                      : null,
                 ),
-              ),
-            Text.rich(
-              TextSpan(
-                style: textStyle,
-                children: [
-                  for (final (n, i) in visibleLines.indexed) ...[
-                    if (n > 0) const TextSpan(text: '\n'),
-                    for (var j = 0; j < _lines[i].length; j++)
-                      _lines[i][j].url == null
-                          ? TextSpan(text: _lines[i][j].text)
-                          : TextSpan(
-                              text: _lines[i][j].text,
-                              style: linkStyle,
-                              recognizer: _recognizers[i][j],
-                            ),
-                  ],
-                ],
-              ),
-              textAlign: TextAlign.center,
-              maxLines: longBanner && !_expanded ? 2 : null,
-              overflow: longBanner && !_expanded ? TextOverflow.ellipsis : null,
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  static int _renderedLineCount(
+    BuildContext context,
+    TextSpan span,
+    double width,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        style: DefaultTextStyle.of(context).style,
+        children: [span],
+      ),
+      textAlign: TextAlign.center,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: width);
+    final count = painter.computeLineMetrics().length;
+    painter.dispose();
+    return count;
   }
 }
