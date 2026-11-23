@@ -258,13 +258,20 @@ def verify_posix_engines(output, reports, settings, system):
         actual = binary_identity(image)
         if any(actual[key] != identity[key] for key in actual):
             raise ValueError(f"{role} bundled engine changed after measurement.")
-        names = [f"launch-{index:03d}" for index in range(settings["launches"])]
-        names += (["prepare-data", "prepare-warm"] if settings["cacheState"] == "warm"
-                  else [f"prepare-data-{index}" for index in range(settings["launches"])])
-        for name in names:
+        launches = [(f"launch-{index:03d}", index, False)
+                    for index in range(settings["launches"])]
+        if settings["cacheState"] == "warm":
+            launches.extend([("prepare-data", -1, True), ("prepare-warm", -1, False)])
+        else:
+            launches.extend((f"prepare-data-{index}", -1, True)
+                            for index in range(settings["launches"]))
+        for name, index, preparation in launches:
             launch = read_json(directory / name / "launch.json")
             proof = read_json(directory / name / "engine.json")
             if (type(launch.get("pid")) is not int or launch["pid"] <= 0
+                    or type(launch.get("launchIndex")) is not int or launch["launchIndex"] != index
+                    or launch.get("preparationOnly") is not preparation
+                    or launch.get("completedBeforeTermination") is not True
                     or launch.get("engineVerifiedAfterCompletion") is not True
                     or proof.get("observedAfterCompletion") is not True
                     or type(proof.get("pid")) is not int or proof["pid"] != launch["pid"]
@@ -280,6 +287,12 @@ def verify_posix_engines(output, reports, settings, system):
                         else darwin_engine_images(proof["rawObservation"], proof["pid"], image.name))
             if {Path(mapping["path"]).resolve(strict=True) for mapping in mappings} != {image}:
                 raise ValueError(f"{role}/{name} did not map the claimed bundled engine.")
+            if platform_name == "linux":
+                st = image.stat()
+                device = (os.major(st.st_dev), os.minor(st.st_dev))
+                if any(mapping["inode"] != st.st_ino or mapping["device"] != device
+                       for mapping in mappings):
+                    raise ValueError(f"{role}/{name} mapped a different bundled engine device or inode.")
 
 
 def run_pair(args: argparse.Namespace) -> None:

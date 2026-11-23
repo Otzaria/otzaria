@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -166,16 +167,22 @@ class PosixEvidenceTests(unittest.TestCase):
             identity = {"schemaVersion": 1, "platform": "linux", "buildMode": "profile",
                         "binaryName": image.name, **pair.binary_identity(image)}
             self.reports[role] = {"metadata": {"engineIdentity": identity}}
+            st = image.stat()
+            device = f"{os.major(st.st_dev):x}:{os.minor(st.st_dev):x}"
             image = str(image)
             pair.write_json(directory / "manifest.json", {"engineIdentity": identity,
                 "engineEvidence": {"verifiedAfterRuns": True, "canonicalPath": image}})
-            for name in ("prepare-data", "prepare-warm", "launch-000", "launch-001"):
+            for name, index, preparation in (
+                ("prepare-data", -1, True), ("prepare-warm", -1, False),
+                ("launch-000", 0, False), ("launch-001", 1, False),
+            ):
                 launch = directory / name
                 launch.mkdir()
-                pair.write_json(launch / "launch.json", {"pid": 123, "engineVerifiedAfterCompletion": True})
+                pair.write_json(launch / "launch.json", {"pid": 123, "engineVerifiedAfterCompletion": True,
+                    "completedBeforeTermination": True, "preparationOnly": preparation, "launchIndex": index})
                 pair.write_json(launch / "engine.json", {"pid": 123, "observedAfterCompletion": True,
                     "identity": identity, "canonicalPath": image, "source": "/proc/123/maps",
-                    "rawObservation": f"1000-2000 r-xp 0 08:01 123 {image}\n"})
+                    "rawObservation": f"1000-2000 r-xp 0 {device} {st.st_ino} {image}\n"})
 
     def test_every_warm_preparation_and_measured_launch_requires_mapping_evidence(self):
         pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
@@ -192,6 +199,24 @@ class PosixEvidenceTests(unittest.TestCase):
             with self.subTest(field=key), self.assertRaises(ValueError):
                 pair.write_json(path, {**original, key: value})
                 pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+
+    def test_engine_evidence_requires_the_expected_completed_launch(self):
+        path = self.root / "candidate/launch-001/launch.json"
+        original = pair.read_json(path)
+        for key, value in (("launchIndex", 0), ("preparationOnly", True), ("completedBeforeTermination", False)):
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                pair.write_json(path, {**original, key: value})
+                pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
+
+    def test_mapped_inode_must_match_the_bundled_engine(self):
+        path = self.root / "candidate/launch-001/engine.json"
+        proof = pair.read_json(path)
+        fields = proof["rawObservation"].split(maxsplit=5)
+        fields[4] = str(int(fields[4]) + 1)
+        proof["rawObservation"] = " ".join(fields)
+        pair.write_json(path, proof)
+        with self.assertRaisesRegex(ValueError, "inode"):
+            pair.verify_posix_engines(self.root, self.reports, self.settings, "Linux")
 
     def test_same_report_hash_does_not_replace_before_after_verification(self):
         path = self.root / "candidate/manifest.json"
