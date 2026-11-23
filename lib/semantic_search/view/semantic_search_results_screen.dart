@@ -145,7 +145,7 @@ class _SemanticSearchResultsScreenState
 
   /// אחרי העמוד הראשון, בלי סימון, הגלילה עוצרת: סימון משפר את העמוד הבא.
   bool _awaitsFirstVote(SemanticResultsState state) =>
-      state.votes.isEmpty && state.items.length <= _bloc.pageSize;
+      _bloc.marks.isEmpty && state.items.length <= _bloc.pageSize;
 
   /// מריץ שוב את החיפוש האחרון (כולל צמצום פעיל).
   void _rerun() {
@@ -746,7 +746,7 @@ class _SemanticSearchResultsScreenState
                 const SizedBox(height: 8),
               ] else if (!state.isLoadingMore) ...[
                 Text(
-                  state.votes.isEmpty
+                  _bloc.marks.isEmpty
                       ? context.settingsText(
                           'סימוני אהבתי ולא אהבתי ישפרו את התוצאות הבאות',
                         )
@@ -858,6 +858,7 @@ class _SemanticSearchResultsScreenState
         inBackground: true,
       ),
       onVote: (vote) => _bloc.add(SemanticVoteToggled(index, vote)),
+      onMoreLikeThis: () => _bloc.add(SemanticMoreLikeThisRequested(index)),
       onCopy: () => _copy(item, shownHtml, settings, reference),
       onOpenSibling: (sibling) =>
           _openItem(index, SearchFeedbackOpenVia.click, sibling: sibling),

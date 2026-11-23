@@ -5,6 +5,7 @@ import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/view/semantic_progress_text.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -35,6 +36,8 @@ class SemanticModePanel extends StatelessWidget {
     required this.onDeclineConsent,
     required this.onDownload,
     required this.onCancelDownload,
+    this.marks = const [],
+    this.onRemoveMark,
     this.debug = false,
   });
 
@@ -55,6 +58,10 @@ class SemanticModePanel extends StatelessWidget {
   final VoidCallback onDeclineConsent;
   final VoidCallback onDownload;
   final VoidCallback onCancelDownload;
+
+  /// סימוני התוצאות שיכוונו את החיפוש (בעריכת חיפוש); [onRemoveMark] מסיר.
+  final List<SemanticMark> marks;
+  final ValueChanged<SemanticMark>? onRemoveMark;
 
   /// מצב פיתוח (kDebugMode), שבו מותרת תצוגה מקדימה בלי מנוע.
   final bool debug;
@@ -351,6 +358,38 @@ class SemanticModePanel extends StatelessWidget {
             ],
           ),
         ),
+        if (marks.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            context.settingsText('התוצאות יותאמו לסימונים שלך:'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (index, mark) in marks.indexed)
+                InputChip(
+                  key: ValueKey('semantic-mark-$index'),
+                  avatar: Icon(
+                    mark.relevant
+                        ? FluentIcons.thumb_like_24_regular
+                        : FluentIcons.thumb_dislike_24_regular,
+                  ),
+                  label: Text(mark.reference),
+                  tooltip: mark.title,
+                  visualDensity: VisualDensity.compact,
+                  deleteButtonTooltipMessage: context.settingsText('הסר סימון'),
+                  onDeleted: onRemoveMark == null
+                      ? null
+                      : () => onRemoveMark!(mark),
+                ),
+            ],
+          ),
+        ],
         if (isWholeLibraryScope(scopeSelection)) ...[
           const SizedBox(height: 8),
           SemanticNarrowScopeHint(

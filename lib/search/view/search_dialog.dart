@@ -69,6 +69,7 @@ import 'package:otzaria/search_feedback/search_feedback_service.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_search_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
@@ -237,6 +238,9 @@ class _SearchDialogState extends State<SearchDialog> {
   bool _semanticGroupIdentical =
       SearchDefaults.initialSemanticGroupIdenticalForNewSearch();
   bool _semanticSubmitted = false;
+
+  /// סימוני התוצאות של הכרטיסייה הנערכת; מה שנשאר מועבר לחיפוש הערוך.
+  List<SemanticMark> _semanticMarks = const [];
   SemanticSearchBloc? _semanticBloc;
   TabsBloc? _tabsBloc;
 
@@ -379,6 +383,8 @@ class _SearchDialogState extends State<SearchDialog> {
       _scopeSelection = editedOptions.facets.toSet();
       _semanticIncludeLexical = editedOptions.includeLexical;
       _semanticGroupIdentical = editedOptions.groupIdenticalText;
+      _semanticMarks =
+          _editedSemanticTab?.createdResultsBloc?.marks ?? const [];
     }
 
     // מאזין לשינויים בתיבת החיפוש כדי לעדכן את האפשרויות ולשמור את ההקלדה
@@ -1232,7 +1238,7 @@ class _SearchDialogState extends State<SearchDialog> {
     final edited = _editedSemanticTab;
     if (edited != null) {
       Navigator.of(context).pop();
-      edited.submit(options);
+      edited.submit(options, marks: _semanticMarks);
       return;
     }
     final tab = SemanticSearchTab(runOnFirstShow: true, options: options);
@@ -1287,6 +1293,13 @@ class _SearchDialogState extends State<SearchDialog> {
         }
       },
       groupIdenticalText: _semanticGroupIdentical,
+      marks: _semanticMarks,
+      onRemoveMark: (mark) => setState(
+        () => _semanticMarks = [
+          for (final kept in _semanticMarks)
+            if (kept != mark) kept,
+        ],
+      ),
       onGroupIdenticalTextChanged: (value) {
         setState(() => _semanticGroupIdentical = value);
         if (widget.editTab == null) {

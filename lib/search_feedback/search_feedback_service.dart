@@ -356,8 +356,9 @@ class SearchFeedbackService
   void recordResultsShown(
     SemanticSearchContext context,
     int offset,
-    List<SemanticResultSnapshot> results,
-  ) => _record(context, 'results', [offset, results]);
+    List<SemanticResultSnapshot> results, {
+    int votesInEffect = 0,
+  }) => _record(context, 'results', [offset, results, votesInEffect]);
 
   @override
   String recordOpen(

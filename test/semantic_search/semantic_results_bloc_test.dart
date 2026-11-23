@@ -10,6 +10,7 @@ import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
@@ -108,6 +109,65 @@ void main() {
           id: items[1].id,
           relevant: false,
         ),
+      ]);
+    });
+  });
+
+  group('סימונים שעוברים לחיפוש', () {
+    SemanticMark mark(int n, {bool relevant = true}) =>
+        SemanticMark.of(resultItem(n), relevant: relevant);
+
+    test('מכוונים את העמוד הראשון ומסומנים על התוצאות שלהם', () async {
+      final source = FakeResultsSource(total: 60);
+      final recorder = RecordingRecorder();
+      final bloc = buildResultsBloc(source: source, recorder: recorder);
+      addTearDown(bloc.close);
+      final carried = [mark(2), mark(45, relevant: false)];
+      bloc.add(SemanticSearchSubmitted(_options, marks: carried));
+      await _settle(bloc);
+
+      expect(source.fetchedVotes.single, [
+        for (final mark in carried) mark.vote,
+      ]);
+      expect(bloc.state.votes, {1: SearchFeedbackVote.like});
+      expect(bloc.marks, unorderedEquals(carried));
+      expect(recorder.votes, isEmpty, reason: 'סימון שהועבר אינו הצבעה חדשה');
+      expect(recorder.shownVotes, [2]);
+
+      // ביטול הסימון על התוצאה מסיר גם את הסימון שהועבר לאותה שורה.
+      bloc.add(const SemanticVoteToggled(1, SearchFeedbackVote.like));
+      await _settle(bloc);
+      expect(bloc.marks, [carried[1]]);
+
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+      expect(source.fetchedVotes.last, [carried[1].vote]);
+      expect(bloc.state.votes, {44: SearchFeedbackVote.dislike});
+      expect(recorder.shownVotes, [2, 1]);
+    });
+
+    test('חפש עוד כמו זה מסמן ומחפש מחדש לפי כל הסימונים', () async {
+      final source = FakeResultsSource(total: 60);
+      final recorder = RecordingRecorder();
+      final bloc = buildResultsBloc(source: source, recorder: recorder);
+      addTearDown(bloc.close);
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      bloc.add(const SemanticVoteToggled(0, SearchFeedbackVote.dislike));
+      await _settle(bloc);
+
+      bloc.add(const SemanticMoreLikeThisRequested(3));
+      await _settle(bloc);
+
+      expect(source.fetches.map((page) => page.offset), [0, 0]);
+      expect(source.fetchedVotes.last, [
+        mark(1, relevant: false).vote,
+        mark(4).vote,
+      ]);
+      expect(bloc.state.carriedMarks, [mark(1, relevant: false), mark(4)]);
+      expect(recorder.votes.map((vote) => vote.vote), [
+        SearchFeedbackVote.dislike,
+        SearchFeedbackVote.like,
       ]);
     });
   });

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 
 enum SemanticResultsStatus {
@@ -42,6 +43,9 @@ class SemanticResultsState extends Equatable {
   /// הסימון לפי מיקום ברשימה; בלי ערך = לא סומן.
   final Map<int, SearchFeedbackVote> votes;
 
+  /// סימונים שהועברו לחיפוש הזה מחיפוש קודם (עריכה, "חפש עוד כמו זה").
+  final List<SemanticMark> carriedMarks;
+
   /// מזהה החיפוש, לאיפוס הגלילה בחיפוש חדש.
   final int searchId;
 
@@ -63,6 +67,7 @@ class SemanticResultsState extends Equatable {
     this.message,
     this.isDebugPreview = false,
     this.votes = const {},
+    this.carriedMarks = const [],
     this.searchId = 0,
     this.passageHighlights = const {},
     this.onlyLexical = false,
@@ -81,6 +86,7 @@ class SemanticResultsState extends Equatable {
     bool clearMessage = false,
     bool? isDebugPreview,
     Map<int, SearchFeedbackVote>? votes,
+    List<SemanticMark>? carriedMarks,
     int? searchId,
     Map<int, String>? passageHighlights,
     bool? onlyLexical,
@@ -94,6 +100,7 @@ class SemanticResultsState extends Equatable {
     message: clearMessage ? null : message ?? this.message,
     isDebugPreview: isDebugPreview ?? this.isDebugPreview,
     votes: votes ?? this.votes,
+    carriedMarks: carriedMarks ?? this.carriedMarks,
     searchId: searchId ?? this.searchId,
     passageHighlights: passageHighlights ?? this.passageHighlights,
     onlyLexical: onlyLexical ?? this.onlyLexical,
@@ -110,6 +117,7 @@ class SemanticResultsState extends Equatable {
     message,
     isDebugPreview,
     votes,
+    carriedMarks,
     searchId,
     passageHighlights,
     onlyLexical,

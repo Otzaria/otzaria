@@ -100,6 +100,20 @@ void main() {
     });
   });
 
+  group('results_shown ranked by votes', () {
+    test('rankedByVotes is sent only for a page the marks ordered', () {
+      final plain = builder.resultsShown(searchContext(), 0, [result()])!;
+      expect(plain.containsKey('rankedByVotes'), isFalse);
+      final ranked = builder.resultsShown(
+        searchContext(),
+        30,
+        [result(rank: 31)],
+        votesInEffect: 3,
+      )!;
+      expect(ranked['rankedByVotes'], 3);
+    });
+  });
+
   group('user-book filtering', () {
     test('results_shown drops user-book results', () {
       final event = builder.resultsShown(searchContext(), 0, [

@@ -13,6 +13,7 @@ import 'package:otzaria/semantic_search/bloc/semantic_results_state.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -75,6 +76,7 @@ class SemanticResultsBloc
        super(const SemanticResultsState()) {
     on<SemanticSearchSubmitted>(_onSubmitted);
     on<SemanticMoreResultsRequested>(_onMoreRequested);
+    on<SemanticMoreLikeThisRequested>(_onMoreLikeThis);
     on<SemanticSearchCancelRequested>(_onCancelRequested);
     on<SemanticVoteToggled>(_onVoteToggled);
     on<SemanticHighlightsRequested>(
@@ -135,6 +137,7 @@ class SemanticResultsBloc
       SemanticResultsState(
         status: SemanticResultsStatus.loading,
         options: options,
+        carriedMarks: event.marks,
         searchId: generation,
       ),
     );
@@ -165,7 +168,15 @@ class SemanticResultsBloc
     }
     _source = source;
     final startedAt = _clock();
-    final page = await _fetch(source, options, 0, generation, emit);
+    final votes = _engineVotes();
+    final page = await _fetch(
+      source,
+      options,
+      0,
+      generation,
+      emit,
+      votes: votes,
+    );
     if (page == null || generation != _generation) return;
 
     final engine = await _engineSnapshot(source);
@@ -193,6 +204,7 @@ class SemanticResultsBloc
             ? SemanticResultsStatus.failed
             : SemanticResultsStatus.loaded,
         items: page.items,
+        votes: _carriedVotesOn(page.items, 0),
         morePages: page.hasMore,
         isDebugPreview: source.isDebugPreview,
         message: failedEmpty
@@ -204,7 +216,7 @@ class SemanticResultsBloc
     add(SemanticHighlightsRequested(generation, 0, page.items.length));
     if (_isCollecting) {
       _feedback.recorder.recordSearch(context);
-      _recordShown(context, 0, page.items);
+      _recordShown(context, 0, page.items, votesInEffect: votes.length);
     }
   }
 
@@ -224,26 +236,27 @@ class SemanticResultsBloc
     final searchId = state.searchId;
     final offset = state.items.length;
     emit(state.copyWith(isLoadingMore: true, clearMessage: true));
+    final votes = _engineVotes();
     final page = await _fetch(
       source,
       options,
       offset,
       generation,
       emit,
-      votes: _engineVotes(),
+      votes: votes,
     );
     if (generation != _generation) return;
     if (page == null) {
       emit(state.copyWith(isLoadingMore: false));
       return;
     }
-    // אין לצרף עמוד מסדר חדש לרשימה הישנה. חיפוש מחדש מאפס גם הצבעות,
-    // סימונים והקשר משוב, ומבטל תשובות שעדיין מגיעות מהחיפוש הקודם.
+    // אין לצרף עמוד מסדר חדש לרשימה הישנה. חיפוש מחדש מאפס הקשר משוב ומבטל
+    // תשובות שעדיין מגיעות מהחיפוש הקודם; הסימונים עוברים אליו.
     if (page.sessionRestarted ||
         (_context != null &&
             page.executedMode != _context!.response.executedMode)) {
       await _onSubmitted(
-        SemanticSearchSubmitted(options),
+        SemanticSearchSubmitted(options, marks: marks),
         emit,
         message: SemanticSearchMessages.resultsRefreshed,
       );
@@ -257,6 +270,7 @@ class SemanticResultsBloc
         isLoadingMore: false,
         clearMessage: true,
         items: [...state.items, ...page.items],
+        votes: _carriedVotesOn(page.items, offset),
         // עמוד ריק אומר שאין עוד, גם כשהמקור דיווח אחרת.
         morePages: page.items.isNotEmpty && page.hasMore,
       ),
@@ -266,7 +280,7 @@ class SemanticResultsBloc
     );
     final context = _context;
     if (context != null && _isCollecting && page.items.isNotEmpty) {
-      _recordShown(context, offset, page.items);
+      _recordShown(context, offset, page.items, votesInEffect: votes.length);
     }
   }
 
@@ -354,7 +368,16 @@ class SemanticResultsBloc
       votes[index] = event.vote;
       recorded = event.vote;
     }
-    emit(state.copyWith(votes: votes));
+    final item = state.items[index];
+    emit(
+      state.copyWith(
+        votes: votes,
+        carriedMarks: [
+          for (final mark in state.carriedMarks)
+            if (!mark.isOf(item)) mark,
+        ],
+      ),
+    );
     final context = _context;
     if (context == null || isUserBookAt(index) || !_isCollecting) return;
     unawaited(
@@ -410,16 +433,55 @@ class SemanticResultsBloc
     await _feedback.whenQueued();
   }
 
-  /// ההצבעות שעל המסך, כפי שהמנוע מזהה שורה.
-  List<SemanticVote> _engineVotes() => [
-    for (final MapEntry(key: index, value: vote) in state.votes.entries)
-      if (index < state.items.length && vote != SearchFeedbackVote.cleared)
-        SemanticVote(
-          filePath: state.items[index].filePath,
-          id: state.items[index].id,
-          relevant: vote == SearchFeedbackVote.like,
-        ),
-  ];
+  /// הסימונים שבתוקף: אלה שהועברו לחיפוש ואלה שסומנו בו, שורה אחת פעם אחת.
+  List<SemanticMark> get marks {
+    final shown = [
+      for (final MapEntry(key: index, value: vote) in state.votes.entries)
+        if (index < state.items.length && vote != SearchFeedbackVote.cleared)
+          SemanticMark.of(
+            state.items[index],
+            relevant: vote == SearchFeedbackVote.like,
+          ),
+    ];
+    return [
+      for (final mark in state.carriedMarks)
+        if (!shown.any(mark.sameLine)) mark,
+      ...shown,
+    ];
+  }
+
+  List<SemanticVote> _engineVotes() => [for (final mark in marks) mark.vote];
+
+  /// הסימונים שעל המסך, ועליהם סימון שהועבר לשורה שהגיעה ב-[items].
+  Map<int, SearchFeedbackVote> _carriedVotesOn(
+    List<SemanticResultItem> items,
+    int offset,
+  ) {
+    final votes = Map<int, SearchFeedbackVote>.of(state.votes);
+    for (var i = 0; i < items.length; i++) {
+      for (final mark in state.carriedMarks) {
+        if (mark.isOf(items[i])) {
+          votes[offset + i] = mark.relevant
+              ? SearchFeedbackVote.like
+              : SearchFeedbackVote.dislike;
+        }
+      }
+    }
+    return votes;
+  }
+
+  Future<void> _onMoreLikeThis(
+    SemanticMoreLikeThisRequested event,
+    Emitter<SemanticResultsState> emit,
+  ) async {
+    final options = state.options;
+    final index = event.index;
+    if (options == null || index < 0 || index >= state.items.length) return;
+    if (state.votes[index] != SearchFeedbackVote.like) {
+      _onVoteToggled(SemanticVoteToggled(index, SearchFeedbackVote.like), emit);
+    }
+    await _onSubmitted(SemanticSearchSubmitted(options, marks: marks), emit);
+  }
 
   Future<SemanticResultsPage?> _fetch(
     SemanticResultsSource source,
@@ -508,16 +570,22 @@ class SemanticResultsBloc
   void _recordShown(
     SemanticSearchContext context,
     int offset,
-    List<SemanticResultItem> items,
-  ) {
-    _feedback.recorder.recordResultsShown(context, offset, [
-      for (var i = 0; i < items.length; i++)
-        buildSemanticResultSnapshot(
-          items[i],
-          rank: semanticResultRank(offset, i),
-          isUserBook: isUserBookAt(offset + i),
-        ),
-    ]);
+    List<SemanticResultItem> items, {
+    required int votesInEffect,
+  }) {
+    _feedback.recorder.recordResultsShown(
+      context,
+      offset,
+      [
+        for (var i = 0; i < items.length; i++)
+          buildSemanticResultSnapshot(
+            items[i],
+            rank: semanticResultRank(offset, i),
+            isUserBook: isUserBookAt(offset + i),
+          ),
+      ],
+      votesInEffect: votesInEffect,
+    );
   }
 
   Future<SemanticResultSnapshot> _fullSnapshot(

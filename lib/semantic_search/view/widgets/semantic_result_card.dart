@@ -9,6 +9,7 @@ import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/layout/result_card_frame.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -37,6 +38,7 @@ class SemanticResultCard extends StatelessWidget {
     required this.onKeyboardOpen,
     required this.onOpenInBackground,
     required this.onVote,
+    required this.onMoreLikeThis,
     required this.onCopy,
     required this.onOpenSibling,
     required this.onOpenSiblingInBackground,
@@ -60,6 +62,9 @@ class SemanticResultCard extends StatelessWidget {
   final VoidCallback onKeyboardOpen;
   final VoidCallback onOpenInBackground;
   final ValueChanged<SearchFeedbackVote> onVote;
+
+  /// מסמן את הכרטיס כרלוונטי ומחפש מחדש לפי הסימונים.
+  final VoidCallback onMoreLikeThis;
   final VoidCallback onCopy;
   final ValueChanged<MergedSibling> onOpenSibling;
   final ValueChanged<MergedSibling> onOpenSiblingInBackground;
@@ -133,6 +138,13 @@ class SemanticResultCard extends StatelessWidget {
               vote: SearchFeedbackVote.dislike,
               selected: vote == SearchFeedbackVote.dislike,
               onPressed: () => onVote(SearchFeedbackVote.dislike),
+            ),
+            AppIconButton(
+              key: ValueKey('semantic-more-like-$rank'),
+              icon: const Icon(OtzariaIcons.search_in_star_24_regular),
+              tooltip: context.settingsText('חפש עוד כמו זה'),
+              size: AppIconButtonSize.small,
+              onPressed: onMoreLikeThis,
             ),
             IconButton(
               icon: Icon(

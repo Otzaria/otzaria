@@ -1,5 +1,6 @@
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 
@@ -46,18 +47,25 @@ class SemanticSearchTab extends SearchingTab {
   /// בלי ליצור אותו: לאבחון, שאסור לו להתחיל חיפוש.
   SemanticResultsBloc? get createdResultsBloc => _resultsBloc;
 
-  /// מריץ חיפוש חדש בכרטיסייה ומעדכן את הכותרת.
-  void submit(SemanticQueryOptions options) {
+  /// מריץ חיפוש חדש בכרטיסייה ומעדכן את הכותרת; [marks] מכוונים אותו.
+  void submit(
+    SemanticQueryOptions options, {
+    List<SemanticMark> marks = const [],
+  }) {
     _options = options;
     queryController.text = options.query;
     title = titleFor(options.query);
     titleNotifier.value = title;
-    resultsBloc.add(SemanticSearchSubmitted(options));
+    resultsBloc.add(SemanticSearchSubmitted(options, marks: marks));
   }
 
   /// מצמצם את התוצאות ל-[facets] בתוך ההיקף, בלי לשנות את ההיקף השמור.
+  /// הסימונים עוברים לחיפוש המצומצם.
   void narrow(List<String> facets) => resultsBloc.add(
-    SemanticSearchSubmitted(_options.copyWith(facets: facets)),
+    SemanticSearchSubmitted(
+      _options.copyWith(facets: facets),
+      marks: resultsBloc.marks,
+    ),
   );
 
   static SemanticResultsBloc _defaultResultsBloc(SemanticSearchTab tab) =>

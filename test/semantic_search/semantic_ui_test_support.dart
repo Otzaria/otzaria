@@ -17,6 +17,9 @@ class RecordingRecorder implements SearchFeedbackRecorder {
   bool collecting = true;
   final List<SemanticSearchContext> searches = [];
   final List<({int offset, List<SemanticResultSnapshot> results})> shown = [];
+
+  /// כמה סימונים קבעו את סדר כל דף ב-[shown].
+  final List<int> shownVotes = [];
   final List<({SemanticResultSnapshot result, SearchFeedbackOpenVia via})>
   opens = [];
   final List<({String openId, Duration dwell, SearchFeedbackDwellEnd end})>
@@ -41,8 +44,12 @@ class RecordingRecorder implements SearchFeedbackRecorder {
   void recordResultsShown(
     SemanticSearchContext context,
     int offset,
-    List<SemanticResultSnapshot> results,
-  ) => shown.add((offset: offset, results: results));
+    List<SemanticResultSnapshot> results, {
+    int votesInEffect = 0,
+  }) {
+    shown.add((offset: offset, results: results));
+    shownVotes.add(votesInEffect);
+  }
 
   @override
   String recordOpen(

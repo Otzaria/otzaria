@@ -222,11 +222,13 @@ class SearchFeedbackEventBuilder {
   }
 
   /// דף שהוצג. דף שכל תוצאותיו מספרים אישיים אינו נשלח כלל.
+  /// `rankedByVotes` נשלח רק לדף שסימוני המשתמש קבעו את סדרו.
   Map<String, Object?>? resultsShown(
     SemanticSearchContext context,
     int offset,
-    List<SemanticResultSnapshot> results,
-  ) {
+    List<SemanticResultSnapshot> results, {
+    int votesInEffect = 0,
+  }) {
     final allowed = results.where(_isSendable).toList();
     if (allowed.isEmpty && results.isNotEmpty) return null;
     final header = _header(context, 'results_shown');
@@ -241,6 +243,7 @@ class SearchFeedbackEventBuilder {
       final event = {
         ...header,
         'offset': max(0, offset),
+        if (votesInEffect > 0) 'rankedByVotes': votesInEffect,
         'results': [
           for (final result in page) resultRef(result, snippetMax: snippetMax),
         ],
@@ -484,6 +487,7 @@ Future<Map<String, Object?>?> buildSearchFeedbackEvent(
       context,
       args[0] as int,
       args[1] as List<SemanticResultSnapshot>,
+      votesInEffect: args[2] as int,
     ),
     'open' => builder.open(
       context,

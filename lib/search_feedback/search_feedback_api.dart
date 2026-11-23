@@ -182,11 +182,13 @@ abstract interface class SearchFeedbackRecorder {
 
   void recordSearch(SemanticSearchContext context);
 
+  /// [votesInEffect] - כמה סימונים של המשתמש קבעו את סדר הדף; 0 = סדר המנוע.
   void recordResultsShown(
     SemanticSearchContext context,
     int offset,
-    List<SemanticResultSnapshot> results,
-  );
+    List<SemanticResultSnapshot> results, {
+    int votesInEffect = 0,
+  });
 
   /// מחזיר את ה-openId שיש למסור ל-[recordDwell].
   String recordOpen(

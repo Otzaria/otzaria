@@ -52,6 +52,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         SemanticSearchResult,
         MergedSibling,
         TextStatus,
+        SemanticVote,
         SearchEngine;
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -925,6 +926,20 @@ void main() {
 
     expect(harness.recorder.shown.map((page) => page.offset), [0, 30]);
     expect(harness.recorder.searches, hasLength(1));
+  });
+
+  testWidgets('חפש עוד כמו זה מסמן את הכרטיס ומחפש מחדש לפיו', (
+    tester,
+  ) async {
+    final harness = await pumpScreen(tester);
+    final item = resultItem(2);
+    await tester.tap(find.byKey(const ValueKey('semantic-more-like-2')));
+    await settle(tester);
+
+    expect(harness.source.fetches.map((page) => page.offset), [0, 0]);
+    expect(harness.source.fetchedVotes.last, [
+      SemanticVote(filePath: item.filePath, id: item.id, relevant: true),
+    ]);
   });
 
   testWidgets('בלי סימון הגלילה עוצרת אחרי העמוד הראשון ומציעה לסמן', (

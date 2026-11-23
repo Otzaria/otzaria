@@ -37,6 +37,7 @@ import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria/semantic_search/models/semantic_mark.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -1108,6 +1109,42 @@ void main() {
 
       expect(tab.options.query, 'חסד');
       expect(tab.options.facets, ['/era/ראשונים', '/הלכה']);
+    });
+
+    testWidgets('עריכת חיפוש חכם מציגה את הסימונים ומעבירה את מה שנשאר', (
+      tester,
+    ) async {
+      final tab = SemanticSearchTab(
+        options: const SemanticQueryOptions(query: 'צדקה'),
+        createResultsBloc: (_) =>
+            buildResultsBloc(source: null, recorder: RecordingRecorder()),
+      );
+      addTearDown(tab.dispose);
+      final liked = SemanticMark.of(resultItem(1), relevant: true);
+      final disliked = SemanticMark.of(resultItem(2), relevant: false);
+      tab.submit(tab.options, marks: [liked, disliked]);
+      await tester.pump();
+      await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        editTab: tab,
+        library: scopeLibrary(),
+      );
+      expect(find.byKey(const ValueKey('semantic-mark-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('semantic-mark-1')), findsOneWidget);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('semantic-mark-0')),
+          matching: find.byTooltip('הסר סימון'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('semantic-mark-1')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      expect(tab.resultsBloc.state.carriedMarks, [disliked]);
     });
 
     testWidgets('עריכת חיפוש חכם אינה מחליפה את ההיקף כשהצמצום לא נתמך', (
