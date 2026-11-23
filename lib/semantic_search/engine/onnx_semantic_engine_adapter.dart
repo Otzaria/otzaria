@@ -135,6 +135,7 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
       matchNikud: request.matchNikud,
       matchTaamim: request.matchTaamim,
       ranking: ranking == null ? null : mapRanking(ranking),
+      votes: request.votes,
       cancellation: token,
     );
     final fallback = response.fallbackKind;

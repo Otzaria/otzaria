@@ -135,10 +135,17 @@ class _SemanticSearchResultsScreenState
       return;
     }
     final state = _bloc.state;
-    if (state.hasMore && !state.isLoadingMore && state.message == null) {
+    if (state.hasMore &&
+        !state.isLoadingMore &&
+        state.message == null &&
+        !_awaitsFirstVote(state)) {
       _bloc.add(const SemanticMoreResultsRequested());
     }
   }
+
+  /// אחרי העמוד הראשון, בלי סימון, הגלילה עוצרת: סימון משפר את העמוד הבא.
+  bool _awaitsFirstVote(SemanticResultsState state) =>
+      state.votes.isEmpty && state.items.length <= _bloc.pageSize;
 
   /// מריץ שוב את החיפוש האחרון (כולל צמצום פעיל).
   void _rerun() {
@@ -735,6 +742,19 @@ class _SemanticSearchResultsScreenState
                 Text(
                   _message(state.message)!,
                   key: const ValueKey('semantic-results-page-error'),
+                ),
+                const SizedBox(height: 8),
+              ] else if (!state.isLoadingMore) ...[
+                Text(
+                  state.votes.isEmpty
+                      ? context.settingsText(
+                          'סימוני אהבתי ולא אהבתי ישפרו את התוצאות הבאות',
+                        )
+                      : context.settingsText(
+                          'התוצאות הבאות יותאמו לסימונים שלך',
+                        ),
+                  key: const ValueKey('semantic-results-vote-hint'),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
               ],

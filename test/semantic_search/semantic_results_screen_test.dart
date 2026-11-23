@@ -914,6 +914,8 @@ void main() {
     tester,
   ) async {
     final harness = await pumpScreen(tester);
+    await tester.tap(find.byKey(const ValueKey('semantic-like-1')));
+    await settle(tester);
 
     // גלילה לסוף הרשימה טוענת את העמוד הבא, כמו "טען תוצאות נוספות".
     for (var i = 0; i < 4; i++) {
@@ -923,6 +925,27 @@ void main() {
 
     expect(harness.recorder.shown.map((page) => page.offset), [0, 30]);
     expect(harness.recorder.searches, hasLength(1));
+  });
+
+  testWidgets('בלי סימון הגלילה עוצרת אחרי העמוד הראשון ומציעה לסמן', (
+    tester,
+  ) async {
+    final harness = await pumpScreen(tester);
+    for (var i = 0; i < 4; i++) {
+      await tester.drag(find.byType(ListView), const Offset(0, -3000));
+      await settle(tester);
+    }
+    expect(harness.source.fetches, hasLength(1));
+    final hint = find.byKey(const ValueKey('semantic-results-vote-hint'));
+    expect(
+      tester.widget<Text>(hint).data,
+      'סימוני אהבתי ולא אהבתי ישפרו את התוצאות הבאות',
+    );
+
+    await tester.tap(find.byKey(const ValueKey('semantic-results-more')));
+    await settle(tester);
+    expect(harness.source.fetches.map((page) => page.offset), [0, 30]);
+    expect(harness.source.fetchedVotes.last, isEmpty);
   });
 
   testWidgets('כרטיסייה משוחזרת אינה מחפשת ואינה רושמת עד לחיצה', (
@@ -1006,6 +1029,8 @@ void main() {
     tester,
   ) async {
     final harness = await pumpScreen(tester);
+    await tester.tap(find.byKey(const ValueKey('semantic-like-1')));
+    await settle(tester);
     harness.source.error = StateError('injected page failure');
     for (var i = 0; i < 4; i++) {
       await tester.drag(find.byType(ListView), const Offset(0, -3000));

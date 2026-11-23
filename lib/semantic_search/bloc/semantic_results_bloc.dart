@@ -16,7 +16,7 @@ import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart'
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling, SemanticPassageHighlight;
+    show MergedSibling, SemanticPassageHighlight, SemanticVote;
 
 export 'semantic_results_event.dart';
 export 'semantic_results_state.dart';
@@ -224,7 +224,14 @@ class SemanticResultsBloc
     final searchId = state.searchId;
     final offset = state.items.length;
     emit(state.copyWith(isLoadingMore: true, clearMessage: true));
-    final page = await _fetch(source, options, offset, generation, emit);
+    final page = await _fetch(
+      source,
+      options,
+      offset,
+      generation,
+      emit,
+      votes: _engineVotes(),
+    );
     if (generation != _generation) return;
     if (page == null) {
       emit(state.copyWith(isLoadingMore: false));
@@ -403,19 +410,32 @@ class SemanticResultsBloc
     await _feedback.whenQueued();
   }
 
+  /// ההצבעות שעל המסך, כפי שהמנוע מזהה שורה.
+  List<SemanticVote> _engineVotes() => [
+    for (final MapEntry(key: index, value: vote) in state.votes.entries)
+      if (index < state.items.length && vote != SearchFeedbackVote.cleared)
+        SemanticVote(
+          filePath: state.items[index].filePath,
+          id: state.items[index].id,
+          relevant: vote == SearchFeedbackVote.like,
+        ),
+  ];
+
   Future<SemanticResultsPage?> _fetch(
     SemanticResultsSource source,
     SemanticQueryOptions options,
     int offset,
     int generation,
-    Emitter<SemanticResultsState> emit,
-  ) async {
+    Emitter<SemanticResultsState> emit, {
+    List<SemanticVote> votes = const [],
+  }) async {
     String? failure;
     try {
       final page = await source.fetch(
         options,
         offset: offset,
         limit: pageSize,
+        votes: votes,
         onSearching: offset == 0
             ? () {
                 if (generation == _generation && !emit.isDone) {

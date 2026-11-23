@@ -12,7 +12,11 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling, SemanticPassageHighlight, SemanticResultSource;
+    show
+        MergedSibling,
+        SemanticPassageHighlight,
+        SemanticResultSource,
+        SemanticVote;
 
 import 'semantic_ui_test_support.dart';
 
@@ -68,6 +72,40 @@ void main() {
       bloc.add(const SemanticSearchSubmitted(_options));
       await _settle(bloc);
       expect(bloc.state.onlyLexical, isFalse);
+    });
+  });
+
+  group('סימונים בדפדוף', () {
+    test('העמוד הבא מקבל את הסימונים שעל המסך, בלי הצבעות שבוטלו', () async {
+      final source = FakeResultsSource(total: 60);
+      final bloc = buildResultsBloc(source: source);
+      addTearDown(bloc.close);
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      bloc
+        ..add(const SemanticVoteToggled(0, SearchFeedbackVote.like))
+        ..add(const SemanticVoteToggled(1, SearchFeedbackVote.dislike))
+        ..add(const SemanticVoteToggled(2, SearchFeedbackVote.like))
+        ..add(const SemanticVoteToggled(2, SearchFeedbackVote.like));
+      await _settle(bloc);
+
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+
+      final items = bloc.state.items;
+      expect(source.fetchedVotes.first, isEmpty);
+      expect(source.fetchedVotes.last, [
+        SemanticVote(
+          filePath: items[0].filePath,
+          id: items[0].id,
+          relevant: true,
+        ),
+        SemanticVote(
+          filePath: items[1].filePath,
+          id: items[1].id,
+          relevant: false,
+        ),
+      ]);
     });
   });
 

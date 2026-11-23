@@ -6,7 +6,7 @@ import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticPassageHighlight, SemanticResultSource;
+    show SemanticPassageHighlight, SemanticResultSource, SemanticVote;
 
 import 'semantic_test_support.dart' show FakeConsentStore;
 
@@ -133,6 +133,9 @@ class FakeResultsSource implements SemanticResultsSource {
   int cancels = 0;
   final List<({int offset, int limit})> fetches = [];
 
+  /// הסימונים שנשלחו עם כל בקשה, לפי סדר הבקשות.
+  final List<List<SemanticVote>> fetchedVotes = [];
+
   @override
   bool get isDebugPreview => debug;
 
@@ -144,9 +147,11 @@ class FakeResultsSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   }) async {
     fetches.add((offset: offset, limit: limit));
+    fetchedVotes.add(votes);
     final preparing = prepareGate;
     if (preparing != null) await preparing.future;
     onSearching?.call();

@@ -49,6 +49,7 @@ class _FakeEngine implements SearchEngine {
   SemanticVectorsInstallInput? installInput;
   SemanticArtifactInput? openInput;
   SemanticRankingOptions? ranking;
+  List<SemanticVote>? votes;
   SemanticCancellationToken? searchToken;
   Object? failure;
   Completer<void>? searchPause;
@@ -101,9 +102,11 @@ class _FakeEngine implements SearchEngine {
     required bool matchNikud,
     required bool matchTaamim,
     SemanticRankingOptions? ranking,
+    List<SemanticVote>? votes,
     required SemanticCancellationToken cancellation,
   }) async {
     this.ranking = ranking;
+    this.votes = votes;
     searchToken = cancellation;
     await searchPause?.future;
     return SemanticSearchResponse(
@@ -297,6 +300,20 @@ void main() {
       cancel: early,
     );
     expect(tokens.last.isCancelled, isTrue);
+  });
+
+  test('search: הסימונים שבבקשה מגיעים למנוע', () async {
+    final vote = SemanticVote(
+      filePath: '/ספר',
+      id: BigInt.from(7),
+      relevant: true,
+    );
+    await adapter.search(
+      SemanticSearchRequest(query: 'חסד', facets: const ['/'], votes: [vote]),
+      cancel: SemanticCancelHandle(),
+    );
+
+    expect(engine.votes, [vote]);
   });
 
   test('mapRanking ממפה את כל השדות, כולל ספרי היסוד', () {

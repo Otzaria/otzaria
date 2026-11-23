@@ -17,7 +17,8 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         SemanticGroupingMode,
         SemanticHighlightTarget,
         SemanticPassageHighlight,
-        SemanticRetrievalMode;
+        SemanticRetrievalMode,
+        SemanticVote;
 
 /// מקור עמודי התוצאות של מסך החיפוש הסמנטי.
 abstract interface class SemanticResultsSource {
@@ -29,10 +30,12 @@ abstract interface class SemanticResultsSource {
 
   /// `null` כשחיפוש חדש יותר החליף את זה. זורק `SemanticFailure` בכשל.
   /// [onSearching] נקרא כשההכנה הסתיימה והחיפוש עצמו מתחיל.
+  /// [votes] - סימוני המשתמש על מה שהוצג; המנוע מסדר לפיהם את מה שטרם הוצג.
   Future<SemanticResultsPage?> fetch(
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   });
 
@@ -89,6 +92,7 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   }) async {
     final outcome = await _repository.search(
@@ -105,6 +109,7 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
         grouping: options.groupIdenticalText
             ? SemanticGroupingMode.identicalText
             : null,
+        votes: votes,
       ),
       ranking: ranking,
       session: _session,
@@ -186,6 +191,7 @@ class DebugLexicalPreviewSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   }) async {
     final generation = ++_generation;

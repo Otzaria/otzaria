@@ -179,6 +179,9 @@ class SemanticSearchRequest {
   final bool matchNikud;
   final bool matchTaamim;
 
+  /// סימוני המשתמש על תוצאות שכבר הוצגו; משנים רק את סדר מה שטרם הוצג.
+  final List<SemanticVote> votes;
+
   const SemanticSearchRequest({
     required this.query,
     required this.facets,
@@ -190,6 +193,7 @@ class SemanticSearchRequest {
     this.grouping,
     this.matchNikud = false,
     this.matchTaamim = false,
+    this.votes = const [],
   });
 
   /// מנוע החיפוש תומך במרחק עריכה עד [kMaxFuzzyDistance].
@@ -613,6 +617,7 @@ class RustSearchEngineOperations
           grouping: request.grouping,
           matchNikud: request.matchNikud,
           matchTaamim: request.matchTaamim,
+          votes: request.votes,
           cancellation: token,
         )
         .whenComplete(token.dispose);
