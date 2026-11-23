@@ -5,7 +5,7 @@ Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_diagnostics.psm
 Import-Module (Join-Path $PSScriptRoot 'installed_plugin_windows_exit.psm1') -Force
 # Synthetic minidumps exercise parsing/ownership only, not an installed debugger.
 & (Get-Module installed_plugin_windows_diagnostics) {
-    function script:Read-InstalledPluginDumpWithDebugger { param($State, $DumpPath) }
+    function script:Read-InstalledPluginDumpWithDebugger { param($State, $DumpPath, $Architecture) }
 }
 $script:assertions = 0
 function Assert-Equal($Expected, $Actual, [string]$Message) {
@@ -74,6 +74,18 @@ try {
         $copied = $state.files | Where-Object { $_.artifact -eq 'modules/otzaria.exe' }
         Assert-Equal (Get-FileHash (Join-Path $profile 'otzaria.exe')).Hash.ToLowerInvariant() $copied.sha256 'The uploaded module is hashed after copying'
     }
+    $armProfile = Join-Path $repo 'build/windows/arm64/runner/Profile'
+    New-Item -ItemType Directory -Path $armProfile -Force | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $armProfile 'otzaria.exe'), [byte[]](21, 22, 23, 24))
+    [IO.File]::WriteAllBytes((Join-Path $armProfile 'otzaria.pdb'), [byte[]](25, 26, 27, 28))
+    $armState = New-TestState 'arm64-bundle'
+    Complete-InstalledPluginCrashDiagnostics -State $armState -RepositoryRoot $repo -Identity $null -Failed $true -DumpWaitSeconds 0 -Architecture arm64
+    Assert-Equal $true (Test-Path (Join-Path $armState.directory 'artifacts/symbols/build/windows/arm64/runner/Profile/otzaria.pdb')) 'ARM64 failure preserves its actual PDB'
+    Assert-Equal $false (Test-Path (Join-Path $armState.directory 'artifacts/symbols/build/windows/x64/runner/Profile/otzaria.pdb')) 'An ARM64 failure cannot collect the x64 build symbols'
+    $armCopied = $armState.files | Where-Object { $_.artifact -eq 'modules/otzaria.exe' }
+    Assert-Equal (Get-FileHash (Join-Path $armProfile 'otzaria.exe')).Hash.ToLowerInvariant() $armCopied.sha256 'ARM64 module bytes are collected from the ARM64 bundle'
+    Assert-Equal $false ('otzaria.exe' -in $armState.symbols.missing) 'ARM64 symbols are matched to the actual modules'
+
     $limited = New-TestState 'limited'
     $limited.maxFileBytes = 3
     Assert-Equal $null (Copy-InstalledPluginDiagnosticFile $limited (Join-Path $profile 'otzaria.pdb') 'too-large.pdb') 'Oversized symbol files are omitted'

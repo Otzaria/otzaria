@@ -213,11 +213,12 @@ function Copy-InstalledPluginDiagnosticFile {
 }
 
 function Read-InstalledPluginDumpWithDebugger {
-    param([hashtable]$State, [string]$DumpPath)
+    param([hashtable]$State, [string]$DumpPath,
+        [ValidateSet('x64', 'arm64')][string]$Architecture = 'x64')
     if (-not $IsWindows) { return }
     $candidates = @(
-        (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/Debuggers/x64/cdb.exe'),
-        (Join-Path $env:ProgramFiles 'Windows Kits/10/Debuggers/x64/cdb.exe')
+        (Join-Path ${env:ProgramFiles(x86)} "Windows Kits/10/Debuggers/$Architecture/cdb.exe"),
+        (Join-Path $env:ProgramFiles "Windows Kits/10/Debuggers/$Architecture/cdb.exe")
     )
     $debugger = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
     if ($null -eq $debugger) { return }
@@ -248,7 +249,8 @@ function Read-InstalledPluginDumpWithDebugger {
 
 function Complete-InstalledPluginCrashDiagnostics {
     param([Parameter(Mandatory)][hashtable]$State, [Parameter(Mandatory)][string]$RepositoryRoot,
-        [AllowNull()][hashtable]$Identity, [bool]$Failed, [ValidateRange(0, 15)][int]$DumpWaitSeconds = 10)
+        [AllowNull()][hashtable]$Identity, [bool]$Failed, [ValidateRange(0, 15)][int]$DumpWaitSeconds = 10,
+        [ValidateSet('x64', 'arm64')][string]$Architecture = 'x64')
     try {
         if (-not $State.ownsDirectory -or -not $Failed) { return }
         $State.symbols.reason = 'Profile binaries and available build PDBs, copied after failure with byte/file bounds.'
@@ -272,13 +274,13 @@ function Complete-InstalledPluginCrashDiagnostics {
                 Start-Sleep -Milliseconds 200
             } while ($true)
         }
-        $profile = Join-Path $RepositoryRoot 'build/windows/x64/runner/Profile'
+        $profile = Join-Path $RepositoryRoot "build/windows/$Architecture/runner/Profile"
         $modules = @(if (Test-Path -LiteralPath $profile -PathType Container) {
             Get-ChildItem -LiteralPath $profile -File | Where-Object { $_.Extension -in @('.exe', '.dll') } | Select-Object -First 65
         })
         $symbolNames = @($modules | ForEach-Object { $_.BaseName + '.pdb'; $_.Name + '.pdb' })
         $pdbs = @()
-        foreach ($root in @('build/windows/x64/pdb', 'build/windows/x64/runner', 'build/windows/x64/plugins', 'windows/flutter/ephemeral')) {
+        foreach ($root in @("build/windows/$Architecture/pdb", "build/windows/$Architecture/runner", "build/windows/$Architecture/plugins", 'windows/flutter/ephemeral')) {
             $path = Join-Path $RepositoryRoot $root
             if (Test-Path -LiteralPath $path -PathType Container) {
                 $pdbs += @(Get-ChildItem -LiteralPath $path -Filter '*.pdb' -File -Recurse |
@@ -299,7 +301,7 @@ function Complete-InstalledPluginCrashDiagnostics {
         }
         $aot = Join-Path $profile 'data/app.so'
         if (Test-Path -LiteralPath $aot -PathType Leaf) { $null = Copy-InstalledPluginDiagnosticFile -State $State -Path $aot -RelativePath 'modules/app.so' }
-        if ($null -ne $dumpPath) { Read-InstalledPluginDumpWithDebugger -State $State -DumpPath $dumpPath }
+        if ($null -ne $dumpPath) { Read-InstalledPluginDumpWithDebugger -State $State -DumpPath $dumpPath -Architecture $Architecture }
     } catch { $State.errors.Add("Post-exit diagnostics: $($_.Exception.Message)") }
     finally {
         # Diagnostic and restoration failures are receipts only; they never replace the native/driver failure.
