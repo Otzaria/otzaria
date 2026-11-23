@@ -78,6 +78,8 @@ class MacosInstalledPdfContracts(unittest.TestCase):
         steps["loadedModules"] = self.loaded
         steps["teardown"].update(viewerDetached=True, viewerNativeCloseCompleted=True, viewerLoadingCount=0)
         fixture_path = self.output / "bundle-runtime.pdf"
+        steps["desktopLifecycle"] = json.loads((Path(__file__).resolve().parents[2] / "test/tool/perf_probe/fixtures/installed_pdf_desktop.json").read_text())
+        steps["repeatedLifecycle"] = json.loads((Path(__file__).resolve().parents[2] / "test/tool/perf_probe/fixtures/installed_pdf_repeated.json").read_text())
         self.report = {
             "schemaVersion": 1, "status": "passed", "platform": "macos", "buildMode": "profile",
             "flutterVersion": "3.47.7", "commit": COMMIT, "pid": 173, "runId": "173-1234",
@@ -108,7 +110,7 @@ class MacosInstalledPdfContracts(unittest.TestCase):
         result = self.accept()
         self.assertEqual(result["status"], "passed")
         self.assertEqual(len(result["bundledFiles"]), 2)
-        self.assertEqual(result["pdfSteps"], list(subject.PDF_STEPS))
+        self.assertEqual(result["pdfSteps"], [*subject.PDF_STEPS, "desktopLifecycle", "repeatedLifecycle"])
         self.assertEqual(len(result["pngArtifacts"]), 2)
         self.assertFalse(result["physicalDeviceAcceptance"])
 
@@ -120,7 +122,7 @@ class MacosInstalledPdfContracts(unittest.TestCase):
         self.assertEqual(len(self.accept()["bundledFiles"]), 1)
 
     def test_missing_or_skipped_pdf_steps_cannot_pass(self):
-        for name in subject.PDF_STEPS:
+        for name in (*subject.PDF_STEPS, "desktopLifecycle", "repeatedLifecycle"):
             for status in (None, "notRun", "failed"):
                 with self.subTest(name=name, status=status):
                     report = copy.deepcopy(self.report)

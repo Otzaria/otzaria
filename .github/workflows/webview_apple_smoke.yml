@@ -16,12 +16,14 @@ on:
       - 'integration_test/support/installed_plugin_*.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
+      - 'test/tool/perf_probe/fixtures/installed_pdf_*.json'
       - 'test_driver/webview_resource_probe.dart'
       - 'tool/perf_probe/prepare_installed_plugin_source.py'
       - 'tool/perf_probe/src/installed_pdf_*_contract.dart'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'tool/perf_probe/validate_installed_plugin_macos.py'
       - 'tool/perf_probe/installed_pdf_*.py'
+      - 'tool/perf_probe/test_installed_pdf_desktop.py'
       - 'tool/perf_probe/run_installed_pdf_ios.py'
       - 'tool/perf_probe/test_installed_pdf_ios.py'
       - 'tool/perf_probe/test_installed_plugin_macos.py'
@@ -72,7 +74,8 @@ jobs:
           python3 -m unittest -v \
             tool/perf_probe/test_webview_apple_smoke_validator.py \
             tool/perf_probe/test_installed_plugin_macos.py \
-            tool/perf_probe/test_installed_pdf_ios.py
+            tool/perf_probe/test_installed_pdf_ios.py \
+            tool/perf_probe/test_installed_pdf_desktop.py
 
   portable-webview:
     if: needs.gate.outputs.run == 'true'
@@ -204,7 +207,7 @@ jobs:
             2>&1 | tee "$INSTALLED_PROBE_ROOT/source.log"
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_pdf_macos_test.dart \
-            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart \
             test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/contracts.log"
 
@@ -338,7 +341,7 @@ jobs:
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_pdf_ios_test.dart \
             test/tool/perf_probe/installed_plugin_pdf_macos_test.dart \
-            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart \
             test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart
       - name: Run actual PDF app and verify Simulator bundle provenance
         timeout-minutes: 45

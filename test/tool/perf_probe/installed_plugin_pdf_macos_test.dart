@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:test/test.dart';
 
@@ -48,8 +49,18 @@ Map<String, dynamic> _report() => {
   'ownedTabsRemaining': 0,
   'indexingActiveAfter': false,
   'steps': {
+    'repeatedLifecycle': jsonDecode(
+      File(
+        'test/tool/perf_probe/fixtures/installed_pdf_repeated.json',
+      ).readAsStringSync(),
+    ),
     for (final name in installedPdfRuntimeSteps)
       name: {'status': 'passed', if (name == 'loadedModules') ..._images()},
+    'desktopLifecycle': jsonDecode(
+      File(
+        'test/tool/perf_probe/fixtures/installed_pdf_desktop.json',
+      ).readAsStringSync(),
+    ),
   },
 };
 

@@ -11,6 +11,11 @@ import subprocess
 import sys
 import time
 
+try:
+    from .installed_pdf_desktop import validate_desktop_steps
+except ImportError:
+    from installed_pdf_desktop import validate_desktop_steps
+
 
 class Interrupted(Exception):
     def __init__(self, signum):
@@ -132,6 +137,10 @@ def require_linux_result(root):
         for name in ("view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown")
     ):
         raise RuntimeError("All required PDF runtime steps must pass")
+    try:
+        validate_desktop_steps(steps)
+    except ValueError as error:
+        raise RuntimeError(f"PDF runtime: {error}") from error
     return {"path": str(reports[0]), "runId": run_id, "status": "passed"}
 
 

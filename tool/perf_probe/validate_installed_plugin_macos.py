@@ -125,7 +125,8 @@ def validate(wrapper, bundle, output, commit):
     require(image_artifact == {k: v for k, v in steps["loadedModules"].items()
                                if k not in ("status", "durationMs")}, "Loaded-image artifact differs from report")
     return {"status": "passed", "platform": "macos", "buildMode": "profile", "commit": commit,
-            "runId": run_id, "pdfSteps": list(PDF_STEPS), "bundledFiles": binaries, "pngArtifacts": pngs,
+            "runId": run_id, "pdfSteps": [*PDF_STEPS, "desktopLifecycle", "repeatedLifecycle"],
+            "bundledFiles": binaries, "pngArtifacts": pngs,
             "physicalPrinter": "notRun", "physicalDeviceAcceptance": False}
 
 

@@ -96,7 +96,7 @@ $boot = $armed.AddSeconds(2)
 $micros = [long](($boot.Ticks - [datetime]::UnixEpoch.Ticks) / 10)
 function New-Report {
     $steps = @{}
-    foreach ($name in @('view', 'concurrentWork', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
+    foreach ($name in @('view', 'concurrentWork', 'desktopLifecycle', 'repeatedLifecycle', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
         $steps[$name] = @{ status = 'passed' }
     }
     return @{ pid = 42; runId = "42-$micros"; platform = 'windows'; buildMode = 'profile'; status = 'passed'; errors = @(); testFailures = @()
@@ -322,7 +322,7 @@ foreach ($key in $pdfFailures.Keys) {
     $report.pdfRuntime.Remove($key)
     Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $zero) "Missing PDF $key cannot pass"
 }
-foreach ($name in @('view', 'concurrentWork', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
+foreach ($name in @('view', 'concurrentWork', 'desktopLifecycle', 'repeatedLifecycle', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
     foreach ($status in @($null, 'notRun', 'unsupported', 'running', 'failed')) {
         $report = New-Report
         if ($null -eq $status) { $report.pdfRuntime.steps.Remove($name) }

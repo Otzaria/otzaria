@@ -364,7 +364,7 @@ function Get-InstalledPluginRunExitCode {
         $pdf['status'] -ne 'passed' -or $pdf['bundlePathsVerified'] -ne $true -or
         $pdf['ownedDocumentsRemaining'] -ne 0 -or $pdf['ownedTabsRemaining'] -ne 0 -or
         $pdf['indexingActiveAfter'] -ne $false -or $pdf['steps'] -isnot [System.Collections.IDictionary]) { return 1 }
-    foreach ($name in @('view', 'concurrentWork', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
+    foreach ($name in @('view', 'concurrentWork', 'desktopLifecycle', 'repeatedLifecycle', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
         $phase = $pdf['steps'][$name]
         if ($phase -isnot [System.Collections.IDictionary] -or $phase['status'] -ne 'passed') { return 1 }
     }
