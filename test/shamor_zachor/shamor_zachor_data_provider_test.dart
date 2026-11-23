@@ -506,6 +506,22 @@ void main() {
       },
     );
 
+    test(
+      'טביעת התוכן מחושבת מחדש כשהקובץ משתנה באותו נתיב ובאותו אורך',
+      () async {
+        final file = File(p.join(tempDir.path, 'pdfs', 'משתנה.pdf'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('%PDF-1.4 א');
+        final before = await PdfTrackingIdentity.fingerprint(file.path);
+        expect(await PdfTrackingIdentity.fingerprint(file.path), before);
+
+        file
+          ..writeAsStringSync('%PDF-1.4 ב')
+          ..setLastModifiedSync(DateTime(2030));
+        expect(await PdfTrackingIdentity.fingerprint(file.path), isNot(before));
+      },
+    );
+
     group('זהות בין מכשירים וגיבוי (סגירת #5767)', () {
       /// עובר ל"מכשיר" אחר: הגדרות ריקות, אותה ספרייה רשמית.
       Future<void> switchDevice() async {
