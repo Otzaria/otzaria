@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <permission android:name="org.otzaria.otzaria.pdfexportprobe.CONTROL" android:protectionLevel="signature" />
+    <uses-permission android:name="org.otzaria.otzaria.pdfexportprobe.CONTROL" />
+    <application>
+        <activity
+            android:name="org.otzaria.otzaria.PdfExportProbeActivity"
+            android:exported="true"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true">
+            <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
+        </activity>
+    </application>
+</manifest>
