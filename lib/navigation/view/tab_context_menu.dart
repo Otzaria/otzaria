@@ -94,6 +94,7 @@ ReadingTabStrip buildTabsReadingTabStrip(
     stripColor: AppSurfaces.readerBackground(context),
     axis: axis,
     scrollable: scrollable,
+    selectedIndex: state.currentTabIndex,
     crossExtent: crossExtent,
     tabs: state.tabs,
     widths: widths,
