@@ -5,6 +5,9 @@ on:
     paths:
       - 'tool/perf_probe/run_pdf_pair.py'
       - 'tool/perf_probe/test_pdf_pair.py'
+      - 'tool/perf_probe/paired_pdf_case.py'
+      - 'tool/perf_probe/test_paired_pdf_case.py'
+      - 'tool/perf_probe/prepare_pair_ci_case.dart'
       - 'tool/perf_probe/pdf_layout_pair.json'
       - 'tool/perf_probe/posix_engine.py'
       - 'tool/perf_probe/test_posix_engine.py'
@@ -73,7 +76,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7.0.1
-      - run: python3 -B -m unittest tool.perf_probe.test_pdf_pair tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
+      - run: python3 -B -m unittest tool.perf_probe.test_pdf_pair tool.perf_probe.test_paired_pdf_case tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
 
   pair:
     name: Same Windows host (${{ matrix.cache }}, ${{ inputs.mode || 'profile' }})
@@ -114,9 +117,15 @@ jobs:
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
           git config --global core.longpaths true
+          python -B -m unittest tool.perf_probe.test_pdf_pair tool.perf_probe.test_paired_pdf_case -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dart tool/perf_probe/prepare_pair_ci_case.dart (Join-Path $env:RUNNER_TEMP 'pdf-pair-corpus') $env:PAIR_PAGES
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $arguments = @('tool/perf_probe/run_pdf_pair.py', '--output', (Join-Path $env:RUNNER_TEMP 'pdf-pair'),
             '--mode', $env:PAIR_MODE, '--cache-state', $env:PAIR_CACHE, '--scenario', $env:PAIR_SCENARIO,
-            '--pages', $env:PAIR_PAGES, '--launches', $env:PAIR_LAUNCHES,
+            '--pdf-case', (Join-Path $env:RUNNER_TEMP 'pdf-pair-corpus/case.json'), '--launches', $env:PAIR_LAUNCHES,
             '--repetitions', $env:PAIR_REPETITIONS, '--order', $env:PAIR_ORDER)
           if ($env:PAIR_BASELINE -or $env:PAIR_CANDIDATE) {
             $commits = @($env:PAIR_BASELINE, $env:PAIR_CANDIDATE)
@@ -258,7 +267,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B -m unittest tool.perf_probe.test_pdf_pair \
-            tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
+            tool.perf_probe.test_paired_pdf_case tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
           python3 -B - <<'PY'
           import json, os, pathlib, re, subprocess
           baseline, candidate = os.environ['PAIR_BASELINE'], os.environ['PAIR_CANDIDATE']
@@ -278,9 +287,11 @@ jobs:
       - name: Measure both snapshots in this one POSIX host session
         run: |
           set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart tool/perf_probe/prepare_pair_ci_case.dart "$RUNNER_TEMP/pdf-pair-corpus" "$PAIR_PAGES"
           arguments=(tool/perf_probe/run_pdf_pair.py --output "$RUNNER_TEMP/pdf-pair"
             --mode "$PAIR_MODE" --cache-state "$PAIR_CACHE" --scenario "$PAIR_SCENARIO"
-            --pages "$PAIR_PAGES" --launches "$PAIR_LAUNCHES" --repetitions "$PAIR_REPETITIONS"
+            --pdf-case "$RUNNER_TEMP/pdf-pair-corpus/case.json" --launches "$PAIR_LAUNCHES" --repetitions "$PAIR_REPETITIONS"
             --order "$PAIR_ORDER")
           if [ -n "$PAIR_BASELINE" ] || [ -n "$PAIR_CANDIDATE" ]; then
             arguments+=(--baseline "$PAIR_BASELINE" --candidate "$PAIR_CANDIDATE")
