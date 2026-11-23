@@ -34,13 +34,14 @@ import 'package:printing/printing.dart';
 import 'package:win32/win32.dart' as win;
 
 import '../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
+import 'installed_plugin_pdf_android.dart';
 import 'installed_plugin_pdf_fixture.dart';
 import 'installed_plugin_pdf_readiness.dart';
 import 'installed_plugin_pdf_output_assertions.dart';
 
 const _deadline = Duration(seconds: 45);
 
-/// רץ בתוך חבילת שולחן העבודה, בלי להחליף loader או ערוץ native.
+/// רץ מתוך האפליקציה המותקנת, בלי להחליף loader או ערוץ native.
 Future<void> runInstalledPdfRuntime({
   required WidgetTester tester,
   required BuildContext context,
@@ -55,7 +56,7 @@ Future<void> runInstalledPdfRuntime({
     'executable': Platform.resolvedExecutable,
     'physicalPrinter': 'notRun',
     'scope':
-        'Desktop bundle: actual reader, indexing, vector export and raster; '
+        'Installed app: actual reader, indexing, vector export and raster; '
         'not physical printer or device-matrix acceptance.',
     'steps': {
       for (final name in installedPdfRuntimeSteps)
@@ -65,7 +66,10 @@ Future<void> runInstalledPdfRuntime({
   report.remove('reason');
   await checkpoint();
   try {
-    expect(Platform.isLinux || Platform.isWindows, true);
+    expect(
+      installedPdfRuntimePlatforms.contains(Platform.operatingSystem),
+      true,
+    );
     await probe.run();
     report['status'] = 'passed';
     expect(
@@ -528,7 +532,8 @@ class _PdfRuntime {
       'printingSubscriptionCanceledAfterPages': received,
       'printingRecoveryPage': 4,
       'printingCancellationScope':
-          'Subscription cancellation; native job may finish. Recovery raster waits behind it.',
+          'The subscription was cancelled. The native job may keep running '
+          'while recovery is requested.',
       'indexCancellationObserved': true,
       'indexRecoveryPages': installedPdfPageSizes.length,
       'originalIndexPreserved': true,
@@ -537,6 +542,11 @@ class _PdfRuntime {
   }
 
   Future<void> loadedModules() async {
+    if (Platform.isAndroid) {
+      step('loadedModules').addAll(await installedAndroidPdfModules(output));
+      report['bundlePathsVerified'] = true;
+      return;
+    }
     final directory = await Directory(
       p.dirname(Platform.resolvedExecutable),
     ).resolveSymbolicLinks();

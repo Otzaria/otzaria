@@ -20,6 +20,38 @@ Home/resume operates on the installed controlled foreground plugin. The pinned
 Store's discard/restoration and the background-host open/idle/close checks run
 as distinct later phases in the same real app process.
 
+The same installed app then opens the real `PdfBookScreen`, navigates between
+mixed-size pages, indexes and searches their text through Tantivy while viewing
+and rasterizing them, composes a vector RTL two-up export, cancels and recovers
+render/index/raster work, closes the native document and opens a different one.
+Every PDF phase and final resource teardown must pass. A missing, skipped or
+unsupported `pdfRuntime` report fails both the Dart and host contracts.
+
+## PDF library provenance
+
+The host reads the unique compressed `lib/x86_64/libpdfium.so` ZIP entry from
+the APK, checks its ELF64 x86_64 shared-library header and hashes the decompressed
+bytes with bounded reads. After installation, `pm path --user 0` supplies the
+dedicated package's actual base APK. Its SHA-256 must match the built APK, and
+the extracted native library must have the entry's SHA-256 at the corresponding
+`lib/x86_64/libpdfium.so` path. This uses the app's existing
+`useLegacyPackaging=true`; it does not change packaging or load a second PDFium.
+
+Inside the app, `/proc/self/maps` must contain an executable mapping of that
+library. The app records its canonical path, size and SHA-256. At the completion
+boundary, the host independently reads `/proc/<pid>/maps` with `run-as`, checks
+the original process identity before and after, and compares both observations
+with the installed APK evidence. Missing, deleted, foreign or duplicate app
+PDFium mappings fail. The host retains `bundle-runtime-host-maps.txt` and the
+structured PDF report alongside the existing lifecycle evidence.
+
+Android's printing plugin uses `android.graphics.pdf.PdfRenderer`, not the
+private desktop printing PDFium library. Separate system/APEX PDFium mappings
+are recorded and allowed; they cannot substitute for the app's APK library.
+The scenario verifies real `Printing.raster` pixels and recovery, not physical
+printer output. This x86_64 emulator debug run is functional coverage; physical
+Android devices, other ABIs and profile/release performance remain separate.
+
 ## Run
 
 Use the reviewed Flutter 3.47.7 SDK, Java 17, Android SDK/NDK, `aapt2`, Rust with
@@ -159,7 +191,7 @@ app data clearing in the runner.
 | Result | Scope |
 | --- | --- |
 | Python controlled-process and Dart loopback tests | Host protocol, bounded failure handling, stale identity, lifecycle replacement, quiet guards and final report validation. These are not device executions. |
-| `Installed plugin Android lifecycle` native job | Actual app and installed plugins on an Android API 34 x86_64 emulator, debug build. Success requires real OS transition and all original scenario phases. |
+| `Installed plugin Android lifecycle and PDF runtime` native job | Actual app and installed plugins on an Android API 34 x86_64 emulator, debug build. Success requires real OS transitions, every plugin/PDF phase, and APK-to-loaded-module evidence. |
 | Physical Android profile/release and performance acceptance | **NOT_RUN** by this runner. No memory, CPU, energy, frame-rate or user-interaction performance threshold is accepted from emulator debug output. |
 | Windows, macOS, Linux and iOS | Remain **NOT_RUN** in this Android report. Desktop minimize/hide are **unsupported**, with an explicit platform reason. |
 

@@ -45,6 +45,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
 import 'support/installed_plugin_android_control.dart';
 import 'support/installed_plugin_catalog.dart';
@@ -92,7 +93,7 @@ void main() {
     ),
     'physicalDeviceAcceptance': false,
     'acceptanceScope':
-        'Controlled installed-plugin integration and desktop PDF runtime; no resource-saving threshold or default-policy tuning.',
+        'Controlled installed-plugin integration and PDF runtime; no resource-saving threshold or default-policy tuning.',
     'cacheState':
         'fresh isolated app data; OS, engine and filesystem caches are not cleared',
     'platformMatrix': <String, Object?>{
@@ -124,7 +125,7 @@ void main() {
     'pdfRuntime': <String, Object?>{
       'status': 'notRun',
       'reason':
-          'Actual-bundle PDF runtime is enabled in the Linux and Windows scenarios.',
+          'PDF runtime is enabled only on supported installed-app scenarios.',
     },
   };
   binding.reportData = {'installedPluginProbe': report};
@@ -444,7 +445,7 @@ void main() {
             'Production lifecycle, discard and background timers are not disabled.',
       };
       await active.run();
-      if (Platform.isLinux || Platform.isWindows) {
+      if (installedPdfRuntimePlatforms.contains(Platform.operatingSystem)) {
         await runInstalledPdfRuntime(
           tester: tester,
           context: active.context,

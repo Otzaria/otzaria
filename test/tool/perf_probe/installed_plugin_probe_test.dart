@@ -114,7 +114,7 @@ void main() {
     });
   });
   group('restoration evidence contract', () {
-    for (final platform in ['linux', 'windows']) {
+    for (final platform in ['linux', 'windows', 'android']) {
       test('a $platform plugin pass also requires the actual PDF runtime', () {
         final report = completeReport()..['platform'] = platform;
         expect(
@@ -123,7 +123,7 @@ void main() {
         );
         report['pdfRuntime'] = {'status': 'notRun'};
         expect(installedReportErrors(report), isNotEmpty);
-        report['platform'] = 'android';
+        report['platform'] = 'ios';
         expect(installedReportErrors(report), isEmpty);
       });
     }
