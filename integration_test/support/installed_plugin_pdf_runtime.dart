@@ -37,6 +37,7 @@ import '../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
 import 'installed_plugin_pdf_android.dart';
 import 'installed_plugin_pdf_fixture.dart';
 import 'installed_plugin_pdf_macos.dart';
+import 'installed_plugin_pdf_ios.dart';
 import 'installed_plugin_pdf_readiness.dart';
 import 'installed_plugin_pdf_output_assertions.dart';
 
@@ -545,6 +546,11 @@ class _PdfRuntime {
   Future<void> loadedModules() async {
     if (Platform.isAndroid) {
       step('loadedModules').addAll(await installedAndroidPdfModules(output));
+      report['bundlePathsVerified'] = true;
+      return;
+    }
+    if (Platform.isIOS) {
+      step('loadedModules').addAll(await collectInstalledPdfIosImages(output));
       report['bundlePathsVerified'] = true;
       return;
     }

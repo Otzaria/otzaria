@@ -1,9 +1,19 @@
 import 'package:path/path.dart' as p;
 
 import 'installed_pdf_android_contract.dart';
+import 'installed_pdf_ios_contract.dart';
 import 'installed_pdf_macos_contract.dart';
 
-const installedPdfRuntimePlatforms = {'linux', 'windows', 'android', 'macos'};
+const installedPluginPdfRuntimePlatforms = {
+  'linux',
+  'windows',
+  'android',
+  'macos',
+};
+const installedPdfRuntimePlatforms = {
+  ...installedPluginPdfRuntimePlatforms,
+  'ios',
+};
 
 const installedPdfRuntimeSteps = [
   'view',
@@ -88,6 +98,13 @@ List<String> installedPdfRuntimeErrors(
   if (platform == 'android') {
     errors.addAll(
       installedAndroidPdfModuleErrors(
+        steps is Map ? steps['loadedModules'] : null,
+      ),
+    );
+  }
+  if (platform == 'ios') {
+    errors.addAll(
+      installedPdfIosModuleErrors(
         steps is Map ? steps['loadedModules'] : null,
       ),
     );

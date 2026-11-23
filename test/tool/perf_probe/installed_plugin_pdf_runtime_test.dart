@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 import '../../../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
 

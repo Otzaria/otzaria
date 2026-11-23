@@ -449,6 +449,42 @@ system frameworks. ייתכן שהם ממופים מה־dyld shared cache, ול�
 מחשב ה־runner במצב profile; מדפסת פיזית, iOS והתקני קצה נוספים נשארים מחוץ
 להיקף התרחיש. בדיקת מסמכים סגורים מסתיימת לפני שה־driver מסיים את האפליקציה.
 
+### PDF עצמאי ב־iOS Simulator
+
+אותו workflow של Apple כולל עבודה נפרדת בשם
+`Actual installed PDF / iOS Simulator / debug`, מאחורי `ci_gate.yml` ו־`run-ci`.
+היא אינה תלויה בתוצאת WKWebView: בדיקת שחזור הגלילה של WebView נשארת
+ידנית ב־iOS, עם אותן בדיקות ותנאי הצלחה. יעד
+`installed_pdf_ios_probe_test.dart` מפעיל את bootstrap של האפליקציה על
+`PerfFixture` חדש ואת תרחיש ה־PDF המשותף. הוא אינו מתקין תוספי בדיקה,
+והדוח מסמן במפורש `webViewScenario: notRun`.
+
+`run_installed_pdf_ios.py` יוצר iPhone Simulator ייעודי, בוחר runtime מותקן
+ותואם ומריץ `flutter drive --debug`. Flutter אינו תומך ב־profile על iOS
+Simulator. בתום הריצה המארח משווה את UDID, ה־runtime וה־ABI שנצפו עם
+`simctl`, ואת קובצי ההפעלה ו־PDFium שנמצאו ב־dyld עם החבילה שנבנתה ועם
+הנתיב שהחזיר `get_app_container`. נדרשים SHA-256 זהים, בעלים נייטיבי יחיד
+לשני סמלי PDFium ו־Mach-O המיועד ל־iOS Simulator. קובץ `Runner.debug.dylib`
+תקף רק במיקומו המדויק בחבילה. CoreGraphics יכול להגיע מהמטמון המשותף של
+ה־runtime; הוא אינו נדרש להיות עותק PDFium נוסף.
+
+כל ששת שלבי ה־PDF, פיקסלי התוכן, האינדקס, הייצוא, הביטול והסגירה הנייטיבית
+חייבים לעבור. דוח חסר, בדיקה שדולגה, קוד יציאה שגוי או hash שונה מכשילים
+את העבודה. נשמרים דוח ה־driver, דוח המכשיר, PDF/PNG, ראיות הספריות ופרטי
+הסימולטור ב־artifact `installed-pdf-ios-simulator-debug`. גם פלט חלקי נשמר
+לפני מחיקת הסימולטור שנוצר בריצה. אין מחיקה של סימולטורים אחרים.
+
+על Mac עם Xcode ו־iPhone Simulator מותקן, אחרי `flutter pub get --enforce-lockfile`,
+בחרו תיקיית פלט חדשה שעדיין אינה קיימת:
+
+```bash
+python3 tool/perf_probe/run_installed_pdf_ios.py \
+  --root /tmp/otzaria-pdf-ios-evidence --commit "$(git rev-parse HEAD)"
+```
+
+זהו תרחיש פונקציונלי על סימולטור, בלי קבלת ביצועים, מכשיר פיזי או מדפסת.
+מסלול תוספי iOS הפיזי שלהלן נשאר עצמאי ואינו טוען שה־PDF עבר בו.
+
 להרצה על Linux או macOS, ועל מכשיר Android/iOS מחובר, אפשר להעביר את
 אותם קובצי מקור מאומתים בקלט הבנייה. כך אין צורך ב־adb push לתיקיית
 האפליקציה או בהעתקת נתיב מהמחשב לתוך המכשיר. הדוגמה הבאה משתמשת

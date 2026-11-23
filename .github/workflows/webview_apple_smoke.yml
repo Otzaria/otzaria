@@ -11,6 +11,7 @@ on:
       - 'integration_test/support/perf_recorder.dart'
       - 'integration_test/support/webview_probe_*.dart'
       - 'integration_test/installed_plugin_resource_probe_test.dart'
+      - 'integration_test/installed_pdf_ios_probe_test.dart'
       - 'integration_test/support/installed_plugin_*.dart'
       - 'integration_test/support/perf_fixture.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
@@ -20,6 +21,9 @@ on:
       - 'tool/perf_probe/src/installed_pdf_*_contract.dart'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
       - 'tool/perf_probe/validate_installed_plugin_macos.py'
+      - 'tool/perf_probe/installed_pdf_*.py'
+      - 'tool/perf_probe/run_installed_pdf_ios.py'
+      - 'tool/perf_probe/test_installed_pdf_ios.py'
       - 'tool/perf_probe/test_installed_plugin_macos.py'
       - 'tool/perf_probe/validate_webview_apple_smoke.py'
       - 'tool/perf_probe/test_webview_apple_smoke_validator.py'
@@ -61,7 +65,8 @@ jobs:
         run: |
           python3 -m unittest -v \
             tool/perf_probe/test_webview_apple_smoke_validator.py \
-            tool/perf_probe/test_installed_plugin_macos.py
+            tool/perf_probe/test_installed_plugin_macos.py \
+            tool/perf_probe/test_installed_pdf_ios.py
 
   portable-webview:
     if: needs.gate.outputs.run == 'true'
@@ -248,3 +253,55 @@ jobs:
             ${{ runner.temp }}/apple-webview-${{ env.PROBE_PLATFORM }}/
             ${{ env.WEBVIEW_PROBE_REPORTS }}/
             ${{ runner.temp }}/apple-installed-pdf/
+
+  ios-pdf:
+    name: Actual installed PDF / iOS Simulator / debug
+    needs: [gate, report-contracts]
+    if: needs.gate.outputs.run == 'true' && (github.event_name == 'pull_request' || inputs.platform == 'ios')
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      BOT: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      CARGO_BUILD_JOBS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve locked dependencies and verify PDF contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/tool/perf_probe/installed_plugin_pdf_ios_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_macos_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart
+      - name: Run actual PDF app and verify Simulator bundle provenance
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tool/perf_probe/run_installed_pdf_ios.py \
+            --root "$RUNNER_TEMP/installed-pdf-ios" --commit "$GITHUB_SHA"
+      - name: Cleanup only the PDF Simulator created by this job
+        if: always()
+        shell: bash
+        run: python3 tool/perf_probe/run_installed_pdf_ios.py --root "$RUNNER_TEMP/installed-pdf-ios" --cleanup
+      - name: Preserve PDF reports, native artifacts and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-pdf-ios-simulator-debug
+          if-no-files-found: warn
+          retention-days: 14
+          path: ${{ runner.temp }}/installed-pdf-ios/
