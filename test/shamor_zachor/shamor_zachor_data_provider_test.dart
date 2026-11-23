@@ -470,6 +470,42 @@ void main() {
       },
     );
 
+    test(
+      'שני קובצי PDF באותו אורך שנבדלים מחוץ לאזורי הדגימה הם שני ספרים',
+      () async {
+        // 512KB; ההבדל בבית 128K — בין הדגימה הראשונה לדגימת האמצע.
+        List<int> content(int marker) => List<int>.filled(512 * 1024, 0x20)
+          ..setAll(0, '%PDF-1.4'.codeUnits)
+          ..[128 * 1024] = marker;
+        String write(String name, int marker) {
+          final file = File(p.join(tempDir.path, 'pdfs', name))
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(content(marker));
+          return file.path;
+        }
+
+        final first = PdfBook(title: 'כרך א', path: write('a.pdf', 0x41));
+        final second = PdfBook(title: 'כרך ב', path: write('b.pdf', 0x42));
+        expect(
+          await PdfTrackingIdentity.of(second),
+          isNot(await PdfTrackingIdentity.of(first)),
+        );
+
+        final provider = buildProvider();
+        addTearDown(provider.dispose);
+        await provider.loadAllData();
+        await provider.addPdfBooks([first]);
+        final result = await provider.addPdfBooks([second]);
+
+        expect(result.added, 1, reason: 'הקובץ השני דולג כספר שכבר במעקב');
+        expect(persistedPdfBooks().map((e) => e['title']), {'כרך א', 'כרך ב'});
+        expect(await provider.trackedPdfBooksAmong([first, second]), {
+          first,
+          second,
+        });
+      },
+    );
+
     group('זהות בין מכשירים וגיבוי (סגירת #5767)', () {
       /// עובר ל"מכשיר" אחר: הגדרות ריקות, אותה ספרייה רשמית.
       Future<void> switchDevice() async {
@@ -721,6 +757,93 @@ void main() {
             0,
           );
           expect(szData(), before);
+        },
+      );
+
+      test(
+        'הסבה אחרי ייבוא של אותו PDF במפתח היציב: הנתונים שיובאו אינם נדרסים',
+        () async {
+          // מכשיר א (גרסה חדשה): הספר במפתח היציב, פריט 1 מסומן ושם עמודה.
+          final key = await trackAndMark('ספר', 'תוכן משותף', marked: [1]);
+          final progressA = ShamorZachorProgressProvider();
+          addTearDown(progressA.dispose);
+          await progressA.ensureLoaded();
+          await progressA.renameColumn(key, 'learn', 'עיון');
+          final backupA = szData();
+
+          // מכשיר ב (גרסה קודמת): אותו קובץ במפתח מונה -1.
+          await switchDevice();
+          final path = pdfFile('ספר.pdf', 'תוכן משותף');
+          await Settings.setValue<String>(
+            'sz:tracked_pdf_books',
+            jsonEncode([
+              {
+                'key': -1,
+                'identity': path,
+                'title': 'ספר',
+                'pages': 2,
+                'outline': const [],
+              },
+            ]),
+          );
+          await Settings.setValue<String>(
+            'sz:progress_by_id',
+            jsonEncode({
+              '-1': {
+                '0': {'learn': true},
+                '1': {'review1': true},
+              },
+            }),
+          );
+          await Settings.setValue<String>(
+            'sz:completion_dates_by_id',
+            jsonEncode({'-1': '2026-01-01'}),
+          );
+          await Settings.setValue<String>(
+            'sz:book_columns',
+            jsonEncode({
+              '-1': [
+                {'id': 'learn', 'label': 'לימוד ישן'},
+                {'id': 'col_b', 'label': 'מפרש'},
+              ],
+            }),
+          );
+          await Settings.setValue<int>('sz:last_touched:-1', 0);
+
+          // ייבוא הגיבוי של מכשיר א, ואז ההסבה.
+          final merged = BackupImportMerge.mergeShamorZachor(szData(), backupA);
+          for (final entry in merged.toWrite.entries) {
+            await cache.setObject(entry.key, entry.value);
+          }
+          final provider = buildProvider(pageCount: 2);
+          addTearDown(provider.dispose);
+          await provider.loadAllData();
+          final progress = ShamorZachorProgressProvider();
+          addTearDown(progress.dispose);
+          await progress.ensureLoaded();
+          final library = [PdfBook(title: 'ספר', path: path)];
+          expect(
+            await provider.migrateLegacyPdfBooks(library, progress.rekeyBooks),
+            1,
+          );
+
+          expect(persistedPdfBooks().single['key'], key);
+          final marks = progress.getProgressForBookById(key);
+          expect(
+            marks['1']?.getProperty('learn'),
+            isTrue,
+            reason: 'הסימון שיובא נדרס בהסבה',
+          );
+          expect(marks['1']?.getProperty('review1'), isTrue);
+          expect(marks['0']?.getProperty('learn'), isTrue);
+          expect(progress.getProgressForBookById(-1), isEmpty);
+          expect(progress.lastTouchedIndexById(key), 1);
+          expect(progress.lastTouchedIndexById(-1), isNull);
+          expect(
+            progress.getColumnsForBook(key).map((c) => c.label),
+            ['עיון', 'חזרה 1', 'חזרה 2', 'חזרה 3', 'מפרש'],
+          );
+          expect(progress.getCompletionDateSyncById(key), '2026-01-01');
         },
       );
 
