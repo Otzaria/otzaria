@@ -27,6 +27,10 @@ abstract class PdfMessages {
   static const String pageRangeRenderFailed = 'עיבוד טווח העמודים שנבחר נכשל';
   static const String multiPageSheetRenderFailed =
       'עיבוד עמודים מרובים בגיליון נכשל';
+  static String pdfFileSavedAs(String fileName) =>
+      'קובץ PDF נשמר בשם "$fileName"';
+  static const String choosePdfFolder = 'בחירת תיקייה';
+  static const String pdfCopyToFolder = 'הקובץ יישמר כעותק חדש בתיקייה שתיבחר.';
   static const String wordFileSaved = 'קובץ Word נשמר בהצלחה';
   static const String pdfFileSaved = 'קובץ PDF נשמר בהצלחה';
   static const String mobilePdfSaveFailed =
