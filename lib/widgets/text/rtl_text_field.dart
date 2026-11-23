@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
@@ -104,11 +103,15 @@ class _RtlTextFieldState extends State<RtlTextField> {
     _boundController.addListener(_restartCursorBlink);
     _effectiveFocusNode.addListener(_handleFocusChange);
 
-    // גם FocusNode שכבר בפוקוס: Flutter פותח מקלדת רק בשינוי פוקוס.
-    if (_effectiveFocusNode.hasPrimaryFocus ||
-        (widget.autofocus && widget.focusNode != null && Platform.isAndroid)) {
+    final focusNode = _effectiveFocusNode;
+    final alreadyFocused = focusNode.hasPrimaryFocus;
+    if (alreadyFocused || _usesAndroidAutofocus) {
+      // פתיחת מקלדת לשדה שכבר בפוקוס לא צריכה להחזיר פוקוס שאבד.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _editable?.requestKeyboard();
+        if (!mounted || !identical(_effectiveFocusNode, focusNode)) return;
+        if (!alreadyFocused || focusNode.hasPrimaryFocus) {
+          _editable?.requestKeyboard();
+        }
       });
     }
   }
@@ -332,6 +335,12 @@ class _RtlTextFieldState extends State<RtlTextField> {
     setState(() => _cursorVisible = visible);
   }
 
+  bool get _usesAndroidAutofocus =>
+      widget.autofocus &&
+      widget.focusNode != null &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+
   PointerDeviceKind? _lastPointerKind;
   final _verticalCaret = _DefaultVerticalCaretAction();
 
@@ -340,8 +349,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
     final bool isRtl = Directionality.of(context) == TextDirection.rtl;
 
     // באנדרואיד, לא משתמשים ב-autofocus ישירות אלא דרך requestFocus ב-initState
-    final shouldUseAutofocus =
-        widget.autofocus && (widget.focusNode == null || !Platform.isAndroid);
+    final shouldUseAutofocus = widget.autofocus && !_usesAndroidAutofocus;
 
     Widget textField = TextField(
       controller: _boundController,
