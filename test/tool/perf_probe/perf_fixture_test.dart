@@ -4,11 +4,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:path/path.dart' as p;
+import 'package:pdfrx/pdfrx.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../../integration_test/support/perf_fixture.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  final originalModule = Pdfrx.pdfiumModulePath;
+  setUpAll(() {
+    final module = Platform.isWindows
+        ? 'pdfium.dll'
+        : Platform.isMacOS
+        ? 'libpdfium_dart.dylib'
+        : 'libpdfium.so';
+    Pdfrx.pdfiumModulePath = File(
+      'build/native_assets/${Platform.operatingSystem}/$module',
+    ).absolute.path;
+  });
+  tearDownAll(() => Pdfrx.pdfiumModulePath = originalModule);
   late Directory temp;
   setUp(
     () async =>
@@ -29,6 +43,29 @@ void main() {
       await first.prepare(preparationOnly: true);
       await second.prepare(preparationOnly: true);
       expect(first.id, second.id);
+      expect(
+        await File(first.pdfPath).readAsBytes(),
+        orderedEquals(await File(second.pdfPath).readAsBytes()),
+      );
+      await pdfrxInitialize(tmpPath: temp.path);
+      final pdf = await PdfDocument.openFile(
+        first.pdfPath,
+        useProgressiveLoading: true,
+      );
+      try {
+        expect(pdf.pages.length, perfPdfPageCount);
+        await pdf.reloadPages(pageNumbersToReload: [300]);
+        final middle = pdf.pages[299];
+        expect(middle.isLoaded, isTrue);
+        expect(middle.width, greaterThan(middle.height));
+        expect(pdf.pages.first.width, lessThan(pdf.pages.first.height));
+        expect(
+          (await middle.loadText())!.fullText,
+          contains('PDF preview fixture - page 300'),
+        );
+      } finally {
+        await pdf.dispose();
+      }
       final db = sqlite3.open(first.dbPath, mode: OpenMode.readOnly);
       try {
         final books = db.select(
@@ -78,6 +115,23 @@ void main() {
       throwsStateError,
     );
     expect(await File(fixture.dbPath).exists(), isFalse);
+  });
+
+  test('changed or missing PDF input cannot become a warm sample', () async {
+    final fixture = PerfFixture(Directory(p.join(temp.path, 'pdf-input')));
+    await fixture.prepare(preparationOnly: true);
+    await File(
+      fixture.pdfPath,
+    ).writeAsString('tampered', mode: FileMode.append);
+    await expectLater(
+      fixture.prepare(preparationOnly: false),
+      throwsStateError,
+    );
+    await File(fixture.pdfPath).delete();
+    await expectLater(
+      fixture.prepare(preparationOnly: false),
+      throwsA(isA<FileSystemException>()),
+    );
   });
 
   test('nonempty folders are never overwritten by preparation', () async {
