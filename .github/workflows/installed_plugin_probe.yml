@@ -10,10 +10,15 @@ on:
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
       - 'test/tool/perf_probe/installed_plugin_completion_test.dart'
       - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_runtime_contract.dart'
+      - 'lib/pdf_book/**'
+      - 'lib/indexing/**'
+      - 'lib/printing/**'
       - 'lib/plugins/**'
       - 'lib/core/diagnostics/**'
       - 'lib/core/window_listener.dart'
@@ -98,7 +103,7 @@ jobs:
         run: |
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs tool/perf_probe/test_installed_plugin_store.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_completion_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart test/tool/perf_probe/installed_plugin_completion_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate passive Windows process exit evidence
         if: matrix.platform == 'windows'
@@ -109,7 +114,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 -NativeControlReportPath '${{ runner.temp }}/installed-plugin-probe/native-exit-control.json' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run actual installed plugin hosts and dispatcher
+      - name: Run installed plugin and PDF runtime in the actual bundle
         run: |
           & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
           exit $LASTEXITCODE

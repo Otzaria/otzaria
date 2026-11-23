@@ -50,6 +50,7 @@ import 'support/installed_plugin_android_control.dart';
 import 'support/installed_plugin_catalog.dart';
 import 'support/installed_plugin_completion.dart';
 import 'support/installed_plugin_fixture.dart';
+import 'support/installed_plugin_pdf_runtime.dart';
 import 'support/perf_recorder.dart';
 import 'support/webview_probe_metrics.dart';
 import 'support/webview_probe_window.dart';
@@ -91,7 +92,7 @@ void main() {
     ),
     'physicalDeviceAcceptance': false,
     'acceptanceScope':
-        'Controlled installed-plugin integration; no resource-saving threshold or default-policy tuning.',
+        'Controlled installed-plugin integration and desktop PDF runtime; no resource-saving threshold or default-policy tuning.',
     'cacheState':
         'fresh isolated app data; OS, engine and filesystem caches are not cleared',
     'platformMatrix': <String, Object?>{
@@ -120,6 +121,11 @@ void main() {
     'boundaries': <Map<String, Object?>>[],
     'errors': <String>[],
     'policyRestored': false,
+    'pdfRuntime': <String, Object?>{
+      'status': 'notRun',
+      'reason':
+          'Actual-bundle PDF runtime is enabled in the Linux and Windows scenarios.',
+    },
   };
   binding.reportData = {'installedPluginProbe': report};
   File? reportFile;
@@ -438,6 +444,15 @@ void main() {
             'Production lifecycle, discard and background timers are not disabled.',
       };
       await active.run();
+      if (Platform.isLinux || Platform.isWindows) {
+        await runInstalledPdfRuntime(
+          tester: tester,
+          context: active.context,
+          output: output,
+          report: report['pdfRuntime']! as Map<String, Object?>,
+          checkpoint: active.checkpoint,
+        );
+      }
       final errorsAfter = await errorsFile.exists()
           ? await errorsFile.readAsString()
           : '';
@@ -499,7 +514,7 @@ void main() {
     );
     expect(contractErrors, isEmpty);
     expect(errors, isEmpty);
-  }, timeout: const Timeout(Duration(minutes: 18)));
+  }, timeout: const Timeout(Duration(minutes: 20)));
 }
 
 class _Scenario {
