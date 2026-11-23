@@ -35,8 +35,8 @@ final Expando<LongLineSplit> _splitCache = Expando<LongLineSplit>(
   'longLineSplit',
 );
 
-/// מפצל את [span] (התוצר השטוח של `SimpleInlineHtml.tryParse`) למקטעים.
-/// null כשהשורה קצרה או כשאין בה מקום בטוח לחיתוך.
+/// מפצל את [span] (ספאן שורה של המסלול המהיר, או פסקה של HtmlWidget)
+/// למקטעים. null כשהשורה קצרה או כשאין בה מקום בטוח לחיתוך.
 LongLineSplit? splitLongLine(TextSpan span) {
   final cached = _splitCache[span];
   if (cached != null) return cached;
@@ -45,78 +45,124 @@ LongLineSplit? splitLongLine(TextSpan span) {
   return split;
 }
 
+/// טקסט של ספאן אחד (או תו מציין של WidgetSpan), ו-[cuttable] — מותר לחתוך בו.
+typedef _Leaf = ({String text, bool cuttable});
+
 LongLineSplit? _split(TextSpan span) {
-  if (span.style != null || span.recognizer != null) return null;
-  final List<TextSpan> leaves;
-  if (span.children == null) {
-    final text = span.text;
-    if (text == null) return null;
-    leaves = [TextSpan(text: text)];
-  } else {
-    if (span.text != null) return null;
-    leaves = <TextSpan>[];
-    for (final child in span.children!) {
-      if (child is! TextSpan ||
-          child.children != null ||
-          child.text == null ||
-          child.recognizer != null) {
-        return null;
-      }
-      leaves.add(child);
-    }
-  }
-  final text = leaves.map((leaf) => leaf.text!).join();
-  if (text.length <= kLongLineMinChars) return null;
+  final leaves = <_Leaf>[];
+  if (!_collectLeaves(span, false, leaves)) return null;
+  final length = leaves.fold(0, (sum, leaf) => sum + leaf.text.length);
+  if (length <= kLongLineMinChars) return null;
+  final text = leaves.map((leaf) => leaf.text).join();
   final cuts = _cutPositions(text, leaves);
   if (cuts.isEmpty) return null;
-
-  final chunks = <TextSpan>[];
-  final starts = <int>[0, ...cuts];
-  var current = <TextSpan>[];
-  var leafStart = 0;
-  var nextCut = 0;
-  for (final leaf in leaves) {
-    final leafText = leaf.text!;
-    final leafEnd = leafStart + leafText.length;
-    var from = leafStart;
-    // חיתוכים נבחרים רק בספאנים בלי עיצוב, ולכן ספאן מעוצב לא מתפצל.
-    while (nextCut < cuts.length && cuts[nextCut] <= leafEnd) {
-      final cut = cuts[nextCut++];
-      if (cut > from) {
-        current.add(
-          TextSpan(text: leafText.substring(from - leafStart, cut - leafStart)),
-        );
-      }
-      chunks.add(TextSpan(children: current));
-      current = <TextSpan>[];
-      from = cut;
-    }
-    if (from == leafStart) {
-      current.add(leaf);
-    } else if (from < leafEnd) {
-      current.add(TextSpan(text: leafText.substring(from - leafStart)));
-    }
-    leafStart = leafEnd;
-  }
-  chunks.add(TextSpan(children: current));
-  return LongLineSplit._(text, chunks, starts);
+  final chunks = [
+    for (final (_, chunk) in _Slicer(cuts).pieces(span)) chunk as TextSpan,
+  ];
+  return LongLineSplit._(text, chunks, [0, ...cuts]);
 }
 
-/// מקומות החיתוך בטקסט: אחרי רווח בספאן בלי עיצוב, מחוץ לבידוד או הטבעה
+/// ספאן עם אינטראקציה אינו נחתך, וגם לא הספאנים שבתוכו; עיצוב עובר לכל חלק.
+bool _collectLeaves(InlineSpan span, bool blocked, List<_Leaf> leaves) {
+  if (span is PlaceholderSpan) {
+    leaves.add((
+      text: String.fromCharCode(PlaceholderSpan.placeholderCodeUnit),
+      cuttable: false,
+    ));
+    return true;
+  }
+  if (span is! TextSpan) return false;
+  blocked =
+      blocked ||
+      span.recognizer != null ||
+      span.onEnter != null ||
+      span.onExit != null ||
+      span.semanticsLabel != null;
+  final text = span.text;
+  if (text != null) leaves.add((text: text, cuttable: !blocked));
+  for (final child in span.children ?? const <InlineSpan>[]) {
+    if (!_collectLeaves(child, blocked, leaves)) return false;
+  }
+  return true;
+}
+
+/// מחלק עץ ספאנים לפי [cuts]; ספאן שכולו במקטע אחד נשאר אותו מופע.
+class _Slicer {
+  _Slicer(this.cuts);
+
+  final List<int> cuts;
+  int _offset = 0;
+  int _chunk = 0;
+
+  /// מספר המקטע של [offset]; נקרא בסדר עולה בלבד.
+  int _chunkAt(int offset) {
+    while (_chunk < cuts.length && cuts[_chunk] <= offset) {
+      _chunk++;
+    }
+    return _chunk;
+  }
+
+  /// החלקים של [span] לפי הסדר, כל אחד עם מספר המקטע שלו.
+  List<(int, InlineSpan)> pieces(InlineSpan span) {
+    final first = _chunkAt(_offset);
+    if (span is! TextSpan) {
+      _offset++;
+      return [(first, span)];
+    }
+    final texts = <int, String>{};
+    final text = span.text;
+    if (text != null) {
+      var from = 0;
+      while (from < text.length) {
+        final chunk = _chunkAt(_offset + from);
+        final end = chunk < cuts.length
+            ? math.min(text.length, cuts[chunk] - _offset)
+            : text.length;
+        texts[chunk] = text.substring(from, end);
+        from = end;
+      }
+      _offset += text.length;
+    }
+    final children = <int, List<InlineSpan>>{};
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      for (final (chunk, piece) in pieces(child)) {
+        (children[chunk] ??= []).add(piece);
+      }
+    }
+    final chunks = {...texts.keys, ...children.keys}.toList()..sort();
+    if (chunks.length <= 1) return [(first, span)];
+    return [
+      for (final chunk in chunks)
+        (
+          chunk,
+          TextSpan(
+            text: texts[chunk],
+            children: children[chunk],
+            style: span.style,
+            mouseCursor: span.mouseCursor,
+            locale: span.locale,
+            spellOut: span.spellOut,
+          ),
+        ),
+    ];
+  }
+}
+
+/// מקומות החיתוך בטקסט: אחרי רווח בספאן בלי אינטראקציה, מחוץ לבידוד או הטבעה
 /// כיווניים, ולא לפני סימן צירוף. עדיף סוף משפט קרוב. סימן הצירוף נבדק
 /// רק במועמדים בחלונות הבחירה, לא בכל רווח.
-List<int> _cutPositions(String text, List<TextSpan> leaves) {
+List<int> _cutPositions(String text, List<_Leaf> leaves) {
   final cuttable = Uint8List(text.length + 1);
   var depth = 0;
   var offset = 0;
   for (final leaf in leaves) {
-    final leafText = leaf.text!;
+    final leafText = leaf.text;
     for (var i = 0; i < leafText.length; i++) {
       final c = leafText.codeUnitAt(i);
       if (_opensDirectional(c)) depth++;
       if ((c == 0x2069 || c == 0x202C) && depth > 0) depth--;
       final at = offset + i + 1;
-      if (leaf.style == null && c == 0x20 && depth == 0 && at < text.length) {
+      if (leaf.cuttable && c == 0x20 && depth == 0 && at < text.length) {
         final previous = i > 0 ? leafText.codeUnitAt(i - 1) : -1;
         final sentence =
             previous == 0x2E ||
@@ -255,15 +301,25 @@ class LongLineChunks extends StatefulWidget {
   const LongLineChunks({
     super.key,
     required this.split,
-    required this.style,
+    required TextStyle this.style,
     this.strutStyle,
-    required this.textAlign,
-  });
+    required TextAlign this.textAlign,
+  }) : paragraph = null;
+
+  /// מקטעי פסקה ש-HtmlWidget בנה: כל מקטע הוא עותק של [paragraph] עם טקסט המקטע.
+  const LongLineChunks.paragraph({
+    super.key,
+    required this.split,
+    required Widget this.paragraph,
+    this.strutStyle,
+  }) : style = null,
+       textAlign = null;
 
   final LongLineSplit split;
-  final TextStyle style;
+  final TextStyle? style;
   final StrutStyle? strutStyle;
-  final TextAlign textAlign;
+  final TextAlign? textAlign;
+  final Widget? paragraph;
 
   @override
   State<LongLineChunks> createState() => _LongLineChunksState();
@@ -308,13 +364,18 @@ class _LongLineChunksState extends State<LongLineChunks> {
     if (identical(widget.split, oldWidget.split) &&
         widget.style == oldWidget.style &&
         widget.strutStyle == oldWidget.strutStyle &&
-        widget.textAlign == oldWidget.textAlign) {
+        widget.textAlign == oldWidget.textAlign &&
+        widget.paragraph == oldWidget.paragraph) {
       return;
     }
     // הדגשה חדשה באותו טקסט נבנית מחדש בבת אחת; טקסט או גופן אחר — בהדרגה.
+    // בפסקה של HtmlWidget הגופן נמצא בסגנון השורש של הספאן ולא ב-[style].
     final keep =
         widget.split.text == oldWidget.split.text &&
-            widget.style == oldWidget.style
+            widget.style == oldWidget.style &&
+            widget.strutStyle == oldWidget.strutStyle &&
+            widget.split.chunks.first.style ==
+                oldWidget.split.chunks.first.style
         ? math.min(_built.length, widget.split.chunks.length)
         : 0;
     _built.clear();
@@ -324,17 +385,24 @@ class _LongLineChunksState extends State<LongLineChunks> {
   void _addChunks([int count = kLongLineChunksPerFrame]) {
     final split = widget.split;
     final end = math.min(_built.length + count, split.chunks.length);
+    final paragraph = widget.paragraph;
     for (var i = _built.length; i < end; i++) {
       _built.add(
         _LongLineChunk(
           lineText: split.text,
           start: split.starts[i],
-          child: SelectionFillText.rich(
-            split.chunks[i],
-            style: widget.style,
-            strutStyle: widget.strutStyle,
-            textAlign: widget.textAlign,
-          ),
+          child: paragraph != null
+              ? withSelectionFillRichText(
+                  paragraph,
+                  strutStyle: widget.strutStyle,
+                  text: split.chunks[i],
+                )
+              : SelectionFillText.rich(
+                  split.chunks[i],
+                  style: widget.style,
+                  strutStyle: widget.strutStyle,
+                  textAlign: widget.textAlign,
+                ),
         ),
       );
     }

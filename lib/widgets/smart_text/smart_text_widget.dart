@@ -17,6 +17,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_text.dart';
+import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
@@ -613,12 +614,26 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
       return built;
     }
     final strutStyle = exactLineHeightStrut(resolved.prepareTextStyle(), text);
+    final longLine =
+        text is TextSpan && !_headingTags.contains(tree.element.localName)
+        ? splitLongLine(text)
+        : null;
 
     final richText = Builder(
-      builder: (context) => withSelectionFillRichText(
-        built.builder(context),
-        strutStyle: strutStyle,
-      ),
+      builder: (context) {
+        final paragraph = built.builder(context);
+        final isRichText =
+            paragraph is RichText ||
+            (paragraph is MouseRegion && paragraph.child is RichText);
+        if (longLine == null || !isRichText) {
+          return withSelectionFillRichText(paragraph, strutStyle: strutStyle);
+        }
+        return LongLineChunks.paragraph(
+          split: longLine,
+          paragraph: paragraph,
+          strutStyle: strutStyle,
+        );
+      },
     );
     return text.visitChildren((span) => span is! WidgetSpan)
         ? richText
@@ -675,6 +690,8 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     super.reset(state);
   }
 }
+
+const Set<String> _headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
 
 /// ה-callbacks הנוכחיים של [_SmartTextWidgetFactory]; נקראים בלי תלות, כך
 /// שהחלפתם לא בונה מחדש את העץ.

@@ -152,10 +152,14 @@ TextSpan _withTextSpacingOverrides(
 }
 
 /// מחזיר את [built] כשה-`RichText` שבשורשו נבנה מחדש עם [strutStyle] ועם מילוי
-/// גובה השורה לבחירה. מבנה לא מוכר חוזר כפי שהוא.
-Widget withSelectionFillRichText(Widget built, {StrutStyle? strutStyle}) {
+/// גובה השורה לבחירה, ועם [text] במקום הטקסט שלו. מבנה לא מוכר חוזר כפי שהוא.
+Widget withSelectionFillRichText(
+  Widget built, {
+  StrutStyle? strutStyle,
+  InlineSpan? text,
+}) {
   if (built is RichText) {
-    return _rebuild(built, strutStyle);
+    return _rebuild(built, strutStyle, text);
   }
   if (built is MouseRegion && built.child is RichText) {
     return MouseRegion(
@@ -165,7 +169,7 @@ Widget withSelectionFillRichText(Widget built, {StrutStyle? strutStyle}) {
       cursor: built.cursor,
       opaque: built.opaque,
       hitTestBehavior: built.hitTestBehavior,
-      child: _rebuild(built.child! as RichText, strutStyle),
+      child: _rebuild(built.child! as RichText, strutStyle, text),
     );
   }
   return built;
@@ -173,15 +177,17 @@ Widget withSelectionFillRichText(Widget built, {StrutStyle? strutStyle}) {
 
 /// בלי `selectionRegistrar` הטקסט אינו בר-בחירה ואין מה למלא — נשאר
 /// `RichText` רגיל, ולא נבנה מחדש אלא אם ה-strut באמת משתנה.
-RichText _rebuild(RichText source, StrutStyle? strutStyle) {
+RichText _rebuild(RichText source, StrutStyle? strutStyle, InlineSpan? text) {
   final selectable = source.selectionRegistrar != null;
-  if (!selectable && (strutStyle == null || strutStyle == source.strutStyle)) {
+  if (!selectable &&
+      text == null &&
+      (strutStyle == null || strutStyle == source.strutStyle)) {
     return source;
   }
   final construct = selectable ? SelectionFillRichText.new : RichText.new;
   return construct(
     key: source.key,
-    text: source.text,
+    text: text ?? source.text,
     textAlign: source.textAlign,
     textDirection: source.textDirection,
     softWrap: source.softWrap,
