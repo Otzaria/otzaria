@@ -39,18 +39,20 @@ KeyEventResult handleCommentatorsTabShortcuts(
     (ShortcutValidator.printKey, onPrint),
     (ShortcutValidator.currentWindowSearchKey, onSearch),
     ('key-shortcut-toggle-nav-pane', onToggleNavPane),
-    ('key-shortcut-prev-toc', onPrevMajor),
-    ('key-shortcut-prev-segment', onPrevMinor),
-    ('key-shortcut-next-segment', onNextMinor),
-    ('key-shortcut-next-toc', onNextMajor),
-    (
-      ShortcutValidator.zoomInKey,
-      () => settings.add(const AdjustCommentatorsFontSize(_zoomStep)),
-    ),
-    (
-      ShortcutValidator.zoomOutKey,
-      () => settings.add(const AdjustCommentatorsFontSize(-_zoomStep)),
-    ),
+    if (!ShortcutHelper.isEditingText) ...[
+      ('key-shortcut-prev-toc', onPrevMajor),
+      ('key-shortcut-prev-segment', onPrevMinor),
+      ('key-shortcut-next-segment', onNextMinor),
+      ('key-shortcut-next-toc', onNextMajor),
+      (
+        ShortcutValidator.zoomInKey,
+        () => settings.add(const AdjustCommentatorsFontSize(_zoomStep)),
+      ),
+      (
+        ShortcutValidator.zoomOutKey,
+        () => settings.add(const AdjustCommentatorsFontSize(-_zoomStep)),
+      ),
+    ],
   ]) {
     if (ShortcutHelper.matchesShortcut(
       event,

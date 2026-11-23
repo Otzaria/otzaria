@@ -560,8 +560,13 @@ void main() {
     await Settings.setValue<String>('key-shortcut-next-toc', 'n');
     await press(ctrl, LogicalKeyboardKey.keyF);
     await tester.pumpAndSettle();
+    expect(ShortcutHelper.isEditingText, isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyN, character: 'n');
     await tester.pump();
+    expect(lineStart(), 1);
+
+    await Settings.setValue<String>('key-shortcut-next-toc', 'alt+pagedown');
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageDown);
     expect(lineStart(), 1);
   });
 

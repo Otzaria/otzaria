@@ -852,9 +852,16 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   void _navigateToPrevParagraph() {
     if (!_isNavigationReady) return;
-    _extraLines.clear();
     final paragraphs = _getParagraphs(_selectedHeadingIdx);
-    if (_selectedParagraphIdx > 0 && paragraphs.isNotEmpty) {
+    final hasPreviousParagraph =
+        _selectedParagraphIdx > 0 && paragraphs.isNotEmpty;
+    if (!hasPreviousParagraph &&
+        _selectedParagraphIdx != 0 &&
+        _selectedHeadingIdx <= 0) {
+      return;
+    }
+    _extraLines.clear();
+    if (hasPreviousParagraph) {
       setState(() => _selectedParagraphIdx--);
       return;
     }
@@ -864,7 +871,6 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       return;
     }
     // מ"כל הכותרת" → הכותרת הקודמת (כולה)
-    if (_selectedHeadingIdx <= 0) return;
     final prevHeadingIdx = _selectedHeadingIdx - 1;
     setState(() {
       _selectedHeadingIdx = prevHeadingIdx;
@@ -875,15 +881,17 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   void _navigateToNextParagraph() {
     if (!_isNavigationReady) return;
-    _extraLines.clear();
     final paragraphs = _getParagraphs(_selectedHeadingIdx);
-    // מ"כל הכותרת" (-1) → פסקה ראשונה (0); אחרת לפסקה הבאה
-    if (_selectedParagraphIdx + 1 < paragraphs.length) {
-      setState(() => _selectedParagraphIdx++);
+    final hasNextParagraph = _selectedParagraphIdx + 1 < paragraphs.length;
+    if (!hasNextParagraph &&
+        (_sortedHeadings == null ||
+            _selectedHeadingIdx + 1 >= _sortedHeadings!.length)) {
       return;
     }
-    if (_sortedHeadings == null ||
-        _selectedHeadingIdx + 1 >= _sortedHeadings!.length) {
+    _extraLines.clear();
+    // מ"כל הכותרת" (-1) → פסקה ראשונה (0); אחרת לפסקה הבאה
+    if (hasNextParagraph) {
+      setState(() => _selectedParagraphIdx++);
       return;
     }
     final nextHeadingIdx = _selectedHeadingIdx + 1;
