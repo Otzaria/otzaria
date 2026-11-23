@@ -45,6 +45,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR supersedes its previous run; a manual measurement is never cancelled.
+concurrency:
+  group: perf-probe-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   gate:
     uses: ./.github/workflows/ci_gate.yml
@@ -77,11 +82,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - name: Resolve pinned dependencies
         shell: pwsh
         run: |
@@ -158,11 +161,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve pinned dependencies
         shell: pwsh
