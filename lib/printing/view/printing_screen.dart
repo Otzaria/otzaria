@@ -486,6 +486,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _dataFuture = widget.data;
       _cachedBasePdf = null;
       _cachedBaseKey = null;
+      _pendingBasePdfs.clear();
       _anchorEntries = null;
       _totalPdfPages = 0;
       if (_isPdfSource) {
@@ -651,6 +652,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
     _preview.dispose();
     _cachedBasePdf = null;
+    _pendingBasePdfs.clear();
     super.dispose();
   }
 
@@ -831,6 +833,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // באותו כיוון עמוד, טווח עמודים ב-PDF חיצוני) רק מרסטר את המסמך שוב.
   Uint8List? _cachedBasePdf;
   String? _cachedBaseKey;
+  final _pendingBasePdfs = <String, Future<Uint8List>>{};
 
   /// חתימת כל הפרמטרים שמשפיעים על תוכן ה-base PDF. מספר העמודים בגיליון
   /// נכלל רק דרך גודל עמוד הטקסט, וטווח עמודים ב-PDF חיצוני בכוונה אינו נכלל.
@@ -880,21 +883,31 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (cached != null && _cachedBaseKey == key) {
       return PrintPdfSource.data(cached);
     }
-    final override = widget.createPdfOverride;
-    final Uint8List bytes;
-    if (override != null) {
-      final effectiveFormat = orientation == pw.PageOrientation.landscape
-          ? format.landscape
-          : format;
-      bytes = await override(effectiveFormat);
-    } else {
-      bytes = await createPdf(format, sourceFormat: sourceFormat);
+    final pending = _pendingBasePdfs.putIfAbsent(key, () async {
+      final override = widget.createPdfOverride;
+      if (override != null) {
+        final effectiveFormat = orientation == pw.PageOrientation.landscape
+            ? format.landscape
+            : format;
+        return override(effectiveFormat);
+      }
+      return createPdf(format, sourceFormat: sourceFormat);
+    });
+    try {
+      final bytes = await pending;
+      if (mounted &&
+          !_preview.isStopped &&
+          identical(_pendingBasePdfs[key], pending) &&
+          _baseCacheKey(format) == key) {
+        _cachedBasePdf = bytes;
+        _cachedBaseKey = key;
+      }
+      return PrintPdfSource.data(bytes);
+    } finally {
+      if (identical(_pendingBasePdfs[key], pending)) {
+        _pendingBasePdfs.remove(key);
+      }
     }
-    if (mounted && !_preview.isStopped && _baseCacheKey(format) == key) {
-      _cachedBasePdf = bytes;
-      _cachedBaseKey = key;
-    }
-    return PrintPdfSource.data(bytes);
   }
 
   Future<Uint8List> _createNUpPdf(
