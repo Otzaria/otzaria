@@ -316,6 +316,11 @@ jobs:
             python3 -B "${arguments[@]}"
           fi
 
+      - name: Locate evidence inside the active runner environment
+        if: always()
+        id: evidence-root
+        run: echo "root=$RUNNER_TEMP" >> "$GITHUB_OUTPUT"
+
       - name: Preserve raw measurements, engine evidence and partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2
@@ -324,12 +329,12 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: |
-            ${{ runner.temp }}/pdf-pair/pair.json
-            ${{ runner.temp }}/pdf-pair/pdf-case.json
-            ${{ runner.temp }}/pdf-pair/logs/*.log
-            ${{ runner.temp }}/pdf-pair/results/**/*.json
-            ${{ runner.temp }}/pdf-pair/results/**/*.jsonl
-            ${{ runner.temp }}/pdf-pair/results/**/*.csv
-            ${{ runner.temp }}/pdf-pair/results/**/*.md
-            ${{ runner.temp }}/pdf-pair/results/**/*.log
-            ${{ runner.temp }}/pdf-pair-session/**
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/pair.json
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/pdf-case.json
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/logs/*.log
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.json
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.jsonl
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.csv
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.md
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.log
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair-session/**
