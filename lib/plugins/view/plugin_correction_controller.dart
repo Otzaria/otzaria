@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/plugins/services/plugin_correction_text.dart';
+import 'package:otzaria/plugins/view/plugin_correction_projection.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show TextDiffOp, computeTextDiff;
 import 'package:otzaria/theme/app_fonts.dart';
@@ -26,24 +27,65 @@ const CorrectionFormat _plainFormat = (
   heading: null,
 );
 
-/// בקר העורך: מסתיר את הרווחים שנוצרו מתגיות בלוק בקצוות, ומציג את עיצוב
-/// המקור. טקסט שהוקלד יורש את עיצוב התו שלפניו (או של הטקסט שהוחלף).
+typedef CorrectionUndoValue = ({String canonical, TextEditingValue editing});
+typedef _Edit = ({_EditorState state, TextEditingValue value});
+
+/// הטקסט המלא של הפסקה ועיצובו. כל עריכה ממוזגת אליו, וכל ערך בהיסטוריית
+/// הביטול נושא אותו.
+class _EditorState {
+  _EditorState(this.projection, this.runs);
+
+  final CorrectionProjection projection;
+  final List<({int end, CorrectionFormat format})> runs;
+
+  late final List<CorrectionFormat> fullFormats = _expand();
+  late final List<CorrectionFormat> visibleFormats = [
+    for (var i = 0; i < projection.visible.length; i++)
+      fullFormats[projection.fullOffset(i)],
+  ];
+
+  List<CorrectionFormat> _expand() {
+    final result = <CorrectionFormat>[];
+    var start = 0;
+    for (final run in runs) {
+      result.addAll(List.filled(run.end - start, run.format));
+      start = run.end;
+    }
+    return result;
+  }
+
+  _EditorState withHiding({required bool nikud, required bool teamim}) {
+    final next = projection.withHiding(nikud: nikud, teamim: teamim);
+    return identical(next, projection) ? this : _EditorState(next, runs);
+  }
+}
+
+/// בקר העורך: מסתיר את רווחי תגיות הבלוק בקצוות ואת מה שהקורא מסתיר, ומציג את
+/// עיצוב המקור. כל עריכה ממוזגת אל הטקסט המלא לפי הטווח שנערך.
 class PluginCorrectionController extends TextEditingController {
   late PluginCorrectionText source;
   String? _sourceText;
   String _prefix = '';
   String _suffix = '';
-  List<CorrectionFormat> _formats = const [];
-  String _sourceEditorText = '';
-  List<CorrectionFormat> _sourceEditorFormats = const [];
+  bool _removeNikud;
+  bool _removeTeamim;
+  late _EditorState _state;
+  late _EditorState _sourceState;
   TextEditingValue? _editingValue;
-  Object _formatSource = Object();
+  Object _epoch = Object();
+  ({TextEditingValue before, TextEditingValue after, _Edit result})? _pending;
+  final VoidCallback? onEdit;
+  ValueNotifier<CorrectionUndoValue>? _undoValue;
 
   /// כמו בקריאה: טקסט שבין סוגריים מוצג מוקטן (`RenderSettings.formatParentheses`).
   bool formatParentheses = true;
-  List<({int end, CorrectionFormat format})> _runs = const [];
 
-  PluginCorrectionController(String raw) {
+  PluginCorrectionController(
+    String raw, {
+    this._removeNikud = false,
+    this._removeTeamim = false,
+    this.onEdit,
+  }) {
     setSource(raw);
   }
 
@@ -52,51 +94,154 @@ class PluginCorrectionController extends TextEditingController {
     source = PluginCorrectionText(raw);
     _sourceText = raw;
     final formats = _sourceFormats(source);
-    final text = forEditor(source.plain);
-    _sourceEditorText = text;
-    _sourceEditorFormats = formats.sublist(
-      _prefix.length,
-      formats.length - _suffix.length,
+    final text = _stripMargins(source.plain);
+    _sourceState = _stateOf(
+      text,
+      formats.sublist(_prefix.length, formats.length - _suffix.length),
     );
-    _formats = _sourceEditorFormats;
-    _formatSource = Object();
-    _runs = _formatRuns(_formats);
-    _setFormattedValue(TextEditingValue(text: text));
+    _state = _sourceState;
+    _epoch = Object();
+    _pending = null;
+    _setFormattedValue(TextEditingValue(text: _state.projection.visible));
+    _resetUndo();
+  }
+
+  /// ערכי ביטול שמשתנים גם כשעריכה משנה רק סימנים מוסתרים.
+  ValueNotifier<CorrectionUndoValue> get undoValue => _undoValue!;
+
+  CorrectionUndoValue get _snapshot => (canonical: canonical, editing: value);
+
+  void _resetUndo() {
+    _undoValue?.dispose();
+    _undoValue = ValueNotifier(_snapshot);
+  }
+
+  void applyUndoValue(CorrectionUndoValue snapshot) {
+    undoValue.value = snapshot;
+    value = snapshot.editing;
+  }
+
+  @override
+  void dispose() {
+    undoValue.dispose();
+    super.dispose();
+  }
+
+  /// מחליף מה מוסתר, בלי לגעת בטקסט המלא; הבחירה עוברת למקומה בטקסט הגלוי.
+  void setHiding({required bool nikud, required bool teamim}) {
+    if (nikud == _removeNikud && teamim == _removeTeamim) return;
+    _removeNikud = nikud;
+    _removeTeamim = teamim;
+    _sourceState = _sourceState.withHiding(nikud: nikud, teamim: teamim);
+    _pending = null;
+    _showState(_state.withHiding(nikud: nikud, teamim: teamim), value);
   }
 
   /// עיצוב כל יחידת UTF-16 בטקסט שבעורך.
-  List<CorrectionFormat> get formats => List.unmodifiable(_formats);
+  List<CorrectionFormat> get formats =>
+      List.unmodifiable(_state.visibleFormats);
+
+  /// הטקסט המלא של הפסקה, כפי שהשירות שומר אותו.
+  String get canonical => _prefix + _state.projection.full + _suffix;
+
+  /// הטקסט המלא שיתקבל אם [after] יחליף את הערך הנוכחי.
+  String canonicalAfter(TextEditingValue after) =>
+      _prefix + _editAfter(after).state.projection.full + _suffix;
+
+  /// שחזור טיוטה שאין עמה היסטוריית עריכה: העיצוב נגזר ממקור הפסקה.
+  void restoreCanonical(String canonical) {
+    final text = _stripMargins(canonical);
+    final formats = _remapFormats(
+      _sourceState.projection.full,
+      text,
+      _sourceState.fullFormats,
+    );
+    _pending = null;
+    _showState(_stateOf(text, formats), value);
+    _resetUndo();
+  }
+
+  _EditorState _stateOf(String full, List<CorrectionFormat> formats) =>
+      _EditorState(
+        CorrectionProjection(
+          full,
+          nikud: _removeNikud,
+          teamim: _removeTeamim,
+        ),
+        _formatRuns(formats),
+      );
+
+  /// מציג [state] ומעביר אליו את הבחירה של [from] דרך הטקסט המלא.
+  void _showState(_EditorState state, TextEditingValue from) {
+    final shown = _shown(from, _state.projection, state.projection);
+    _state = state;
+    _setFormattedValue(shown);
+  }
+
+  static TextEditingValue _shown(
+    TextEditingValue from,
+    CorrectionProjection previous,
+    CorrectionProjection next,
+  ) {
+    int map(int offset) => offset < 0
+        ? offset
+        : next.visibleOffset(
+            previous.fullOffset(offset.clamp(0, previous.visible.length)),
+          );
+    final selection = from.selection;
+    return TextEditingValue(
+      text: next.visible,
+      selection: selection.isValid
+          ? selection.copyWith(
+              baseOffset: map(selection.baseOffset),
+              extentOffset: map(selection.extentOffset),
+            )
+          : selection,
+    );
+  }
 
   @override
   TextEditingValue get value => _editingValue ?? super.value;
 
   @override
   set value(TextEditingValue newValue) {
+    final previous = _state;
+    final wasComposing = !value.composing.isCollapsed;
     if (newValue is _FormattedEditingValue &&
-        identical(newValue.source, _formatSource)) {
-      if (!identical(newValue.runs, _runs)) {
-        _formats = newValue.expandFormats();
-        _runs = newValue.runs;
+        identical(newValue.epoch, _epoch)) {
+      final state = newValue.state.withHiding(
+        nikud: _removeNikud,
+        teamim: _removeTeamim,
+      );
+      // ערך מההיסטוריה שנוצר לפני שהוחלף מה שמוסתר.
+      if (!identical(state, newValue.state)) {
+        newValue = _shown(
+          newValue,
+          newValue.state.projection,
+          state.projection,
+        );
       }
+      _state = state;
     } else if (newValue.text != text) {
-      _formats =
-          !newValue.selection.isValid && newValue.text == _sourceEditorText
-          ? _sourceEditorFormats
-          : _editFormats(value, newValue, _formats);
-      _runs = _formatRuns(_formats);
+      final edit = _editAfter(newValue);
+      // שינוי הטקסט בעיצומה של הרכבה עלול להחזיר את המקלדת לאותו קלט שוב.
+      if (!newValue.composing.isCollapsed && newValue.text != edit.value.text) {
+        return;
+      }
+      _state = edit.state;
+      newValue = edit.value;
     }
+    _pending = null;
     _setFormattedValue(newValue);
-  }
-
-  /// שחזור טיוטה שאין עמה היסטוריית עריכה: העיצוב נגזר ממקור הפסקה.
-  void restoreDraftValue(TextEditingValue newValue) {
-    _formats = _remapFormats(
-      _sourceEditorText,
-      newValue.text,
-      _sourceEditorFormats,
-    );
-    _runs = _formatRuns(_formats);
-    _setFormattedValue(newValue);
+    final changed = previous.projection.full != _state.projection.full;
+    if (changed) onEdit?.call();
+    if (value.composing.isCollapsed &&
+        value.selection.isValid &&
+        (changed ||
+            wasComposing ||
+            !undoValue.value.editing.selection.isValid)) {
+      undoValue.value = _snapshot;
+    }
   }
 
   void _setFormattedValue(TextEditingValue value) {
@@ -106,23 +251,19 @@ class PluginCorrectionController extends TextEditingController {
     super.value = formatted;
     if (previous == formatted &&
         previous is _FormattedEditingValue &&
-        (!identical(previous.source, _formatSource) ||
-            !identical(previous.runs, _runs))) {
+        (!identical(previous.epoch, _epoch) ||
+            !identical(previous.state, _state))) {
       notifyListeners();
     }
   }
 
   _FormattedEditingValue _formattedValue(TextEditingValue value) {
     if (value is _FormattedEditingValue &&
-        identical(value.source, _formatSource) &&
-        identical(value.runs, _runs)) {
+        identical(value.epoch, _epoch) &&
+        identical(value.state, _state)) {
       return value;
     }
-    return _FormattedEditingValue(
-      value,
-      source: _formatSource,
-      runs: _runs,
-    );
+    return _FormattedEditingValue(value, epoch: _epoch, state: _state);
   }
 
   static List<({int end, CorrectionFormat format})> _formatRuns(
@@ -137,11 +278,29 @@ class PluginCorrectionController extends TextEditingController {
     return runs;
   }
 
-  static List<CorrectionFormat> _editFormats(
-    TextEditingValue before,
-    TextEditingValue after,
-    List<CorrectionFormat> formats,
-  ) {
+  /// המצב אחרי ש-[after] מחליף את הערך הנוכחי.
+  _Edit _editAfter(TextEditingValue after) {
+    if (after is _FormattedEditingValue && identical(after.epoch, _epoch)) {
+      return (state: after.state, value: after);
+    }
+    if (after.text == text) return (state: _state, value: after);
+    if (!after.selection.isValid &&
+        after.text == _sourceState.projection.visible) {
+      return (state: _sourceState, value: after);
+    }
+    final before = value;
+    final pending = _pending;
+    if (pending != null && pending.before == before && pending.after == after) {
+      return pending.result;
+    }
+    final result = _edit(before, after);
+    _pending = (before: before, after: after, result: result);
+    return result;
+  }
+
+  /// הטווח ב-[before] ש-[after] החליף: לפי הבחירה, ההרכבה או מחיקה בסמן. רק בלי
+  /// הסבר כזה משווים את הטקסטים, בעוגן בסמן החדש.
+  static TextRange _editRange(TextEditingValue before, TextEditingValue after) {
     final delta = after.text.length - before.text.length;
     bool replaces(int start, int end) =>
         start >= 0 &&
@@ -152,57 +311,134 @@ class PluginCorrectionController extends TextEditingController {
         after.text.endsWith(before.text.substring(end));
 
     final selection = before.selection;
-    TextRange? range;
     if (selection.isValid && replaces(selection.start, selection.end)) {
-      range = selection;
-    } else if (before.isComposingRangeValid &&
+      return selection;
+    }
+    if (before.isComposingRangeValid &&
         !before.composing.isCollapsed &&
         replaces(before.composing.start, before.composing.end)) {
-      range = before.composing;
-    } else if (selection.isValid && selection.isCollapsed && delta < 0) {
+      return before.composing;
+    }
+    if (selection.isValid && selection.isCollapsed && delta < 0) {
       final caret = selection.extentOffset;
       final nextCaret = after.selection.isValid
           ? after.selection.extentOffset
           : null;
       if ((nextCaret == null || nextCaret == caret + delta) &&
           replaces(caret + delta, caret)) {
-        range = TextRange(start: caret + delta, end: caret);
-      } else if ((nextCaret == null || nextCaret == caret) &&
+        return TextRange(start: caret + delta, end: caret);
+      }
+      if ((nextCaret == null || nextCaret == caret) &&
           replaces(caret, caret - delta)) {
-        range = TextRange(start: caret, end: caret - delta);
+        return TextRange(start: caret, end: caret - delta);
       }
     }
-    if (range == null) {
-      var start = 0;
-      while (start < before.text.length &&
-          start < after.text.length &&
-          before.text.codeUnitAt(start) == after.text.codeUnitAt(start)) {
-        start++;
-      }
-      var end = before.text.length;
-      while (end > start &&
-          end + delta > start &&
-          before.text.codeUnitAt(end - 1) ==
-              after.text.codeUnitAt(end + delta - 1)) {
-        end--;
-      }
-      range = TextRange(start: start, end: end);
+    var start = 0;
+    final limit = after.selection.isValid
+        ? after.selection.extentOffset
+        : after.text.length;
+    while (start < before.text.length &&
+        start < after.text.length &&
+        start < limit &&
+        before.text.codeUnitAt(start) == after.text.codeUnitAt(start)) {
+      start++;
     }
-    final addedEnd = range.end + delta;
-    return [
-      ...formats.sublist(0, range.start),
-      ..._replaceFormats(
-        before.text.substring(range.start, range.end),
-        after.text.substring(range.start, addedEnd),
-        formats.sublist(range.start, range.end),
-        previous: range.start > 0 ? formats[range.start - 1] : null,
-        next: range.end < formats.length ? formats[range.end] : null,
-      ),
-      ...formats.sublist(range.end),
-    ];
+    var end = before.text.length;
+    while (end > start &&
+        end + delta > start &&
+        before.text.codeUnitAt(end - 1) ==
+            after.text.codeUnitAt(end + delta - 1)) {
+      end--;
+    }
+    return TextRange(start: start, end: end);
   }
 
-  String forEditor(String canonical) {
+  /// ממזג את העריכה אל הטקסט המלא: רק הטווח שנערך מוחלף, כולל הסימנים
+  /// המוסתרים שבתוכו, וכל השאר נשאר כמות שהוא.
+  _Edit _edit(TextEditingValue before, TextEditingValue after) {
+    final range = _editRange(before, after);
+    final delta = after.text.length - before.text.length;
+    final removed = before.text.substring(range.start, range.end);
+    final added = after.text.substring(range.start, range.end + delta);
+    final explicitSelection =
+        before.selection.isValid &&
+        !before.selection.isCollapsed &&
+        before.selection.start == range.start &&
+        before.selection.end == range.end;
+    final (prefix, suffix) = explicitSelection
+        ? (0, 0)
+        : _commonAffixes(removed, added);
+    final inserted = added.substring(prefix, added.length - suffix);
+    final projection = _state.projection;
+    final start = projection.fullOffset(range.start + prefix);
+    final end = projection.fullOffset(range.end - suffix);
+    final visibleFormats = _state.visibleFormats;
+    final insertedFormats = _replaceFormats(
+      removed,
+      added,
+      visibleFormats.sublist(range.start, range.end),
+      previous: range.start > 0 ? visibleFormats[range.start - 1] : null,
+      next: range.end < visibleFormats.length
+          ? visibleFormats[range.end]
+          : null,
+    ).sublist(prefix, added.length - suffix);
+    final fullFormats = _state.fullFormats;
+    final state = _stateOf(projection.full.replaceRange(start, end, inserted), [
+      ...fullFormats.sublist(0, start),
+      ...insertedFormats,
+      ...fullFormats.sublist(end),
+    ]);
+    final projected = state.projection;
+    if (after.text == projected.visible) return (state: state, value: after);
+
+    final visibleStart = range.start + prefix;
+    final insertedEnd = visibleStart + inserted.length;
+    int map(int offset) {
+      if (offset < 0) return offset;
+      if (offset < visibleStart) {
+        return projected.visibleOffset(projection.fullOffset(offset));
+      }
+      if (offset <= insertedEnd) {
+        return projected.visibleOffset(start + offset - visibleStart);
+      }
+      final beforeOffset = offset - delta;
+      return projected.visibleOffset(
+        projection.fullOffset(beforeOffset) + inserted.length - (end - start),
+      );
+    }
+
+    return (
+      state: state,
+      value: after.copyWith(
+        text: projected.visible,
+        selection: after.selection.copyWith(
+          baseOffset: map(after.selection.baseOffset),
+          extentOffset: map(after.selection.extentOffset),
+        ),
+        composing: TextRange.empty,
+      ),
+    );
+  }
+
+  /// אורך הרצף המשותף בתחילת [removed] ו-[added], ואורך הרצף המשותף בסופם.
+  static (int, int) _commonAffixes(String removed, String added) {
+    var prefix = 0;
+    while (prefix < removed.length &&
+        prefix < added.length &&
+        removed.codeUnitAt(prefix) == added.codeUnitAt(prefix)) {
+      prefix++;
+    }
+    var suffix = 0;
+    while (suffix < removed.length - prefix &&
+        suffix < added.length - prefix &&
+        removed.codeUnitAt(removed.length - 1 - suffix) ==
+            added.codeUnitAt(added.length - 1 - suffix)) {
+      suffix++;
+    }
+    return (prefix, suffix);
+  }
+
+  String _stripMargins(String canonical) {
     final prefix = source.plain.substring(0, source.visibleStart);
     final suffix = source.plain.substring(source.visibleEnd);
     _prefix = '';
@@ -217,8 +453,6 @@ class PluginCorrectionController extends TextEditingController {
     return canonical.substring(prefix.length, canonical.length - suffix.length);
   }
 
-  String forService(String visible) => _prefix + visible + _suffix;
-
   @override
   TextSpan buildTextSpan({
     required BuildContext context,
@@ -226,9 +460,10 @@ class PluginCorrectionController extends TextEditingController {
     required bool withComposing,
   }) {
     final parenthesized = formatParentheses ? _parenthesized(text) : null;
+    final visibleFormats = _state.visibleFormats;
     if (parenthesized == null &&
-        (_formats.length != text.length ||
-            _formats.every((format) => format == _plainFormat))) {
+        (visibleFormats.length != text.length ||
+            visibleFormats.every((format) => format == _plainFormat))) {
       return super.buildTextSpan(
         context: context,
         style: style,
@@ -240,8 +475,8 @@ class PluginCorrectionController extends TextEditingController {
         : TextRange.empty;
     final base = style ?? const TextStyle();
     final linkColor = Theme.of(context).colorScheme.primary;
-    final formats = _formats.length == text.length
-        ? _formats
+    final formats = visibleFormats.length == text.length
+        ? visibleFormats
         : List.filled(text.length, _plainFormat);
     final children = <TextSpan>[];
     var start = 0;
@@ -499,19 +734,7 @@ class PluginCorrectionController extends TextEditingController {
     CorrectionFormat? previous,
     CorrectionFormat? next,
   }) {
-    var prefix = 0;
-    while (prefix < removed.length &&
-        prefix < added.length &&
-        removed.codeUnitAt(prefix) == added.codeUnitAt(prefix)) {
-      prefix++;
-    }
-    var suffix = 0;
-    while (suffix < removed.length - prefix &&
-        suffix < added.length - prefix &&
-        removed.codeUnitAt(removed.length - 1 - suffix) ==
-            added.codeUnitAt(added.length - 1 - suffix)) {
-      suffix++;
-    }
+    final (prefix, suffix) = _commonAffixes(removed, added);
     final replaced = prefix < removed.length - suffix;
     final inherited = replaced
         ? old[prefix]
@@ -526,30 +749,21 @@ class PluginCorrectionController extends TextEditingController {
   }
 }
 
-// היסטוריית Flutter שומרת את העיצוב עם אותו ערך, גם כשנוסחים זהים נוצרו אחרת.
+// היסטוריית Flutter שומרת את המצב המלא עם אותו ערך, גם כשנוסחים זהים נוצרו
+// אחרת.
 class _FormattedEditingValue extends TextEditingValue {
   _FormattedEditingValue(
     TextEditingValue value, {
-    required this.source,
-    required this.runs,
+    required this.epoch,
+    required this.state,
   }) : super(
          text: value.text,
          selection: value.selection,
          composing: value.composing,
        );
 
-  final Object source;
-  final List<({int end, CorrectionFormat format})> runs;
-
-  List<CorrectionFormat> expandFormats() {
-    final result = <CorrectionFormat>[];
-    var start = 0;
-    for (final run in runs) {
-      result.addAll(List.filled(run.end - start, run.format));
-      start = run.end;
-    }
-    return result;
-  }
+  final Object epoch;
+  final _EditorState state;
 
   @override
   TextEditingValue copyWith({
@@ -563,7 +777,7 @@ class _FormattedEditingValue extends TextEditingValue {
       composing: composing,
     );
     return text == null || text == this.text
-        ? _FormattedEditingValue(result, source: source, runs: runs)
+        ? _FormattedEditingValue(result, epoch: epoch, state: state)
         : result;
   }
 }

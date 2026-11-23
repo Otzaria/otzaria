@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 void main() {
   for (final source in ['<br>אב', 'אב<br>', '<br>אב<br>']) {
@@ -8,10 +9,8 @@ void main() {
       final controller = PluginCorrectionController(source);
       addTearDown(controller.dispose);
       for (final canonical in [controller.source.plain, 'אם', '', ' אמת ']) {
-        expect(
-          controller.forService(controller.forEditor(canonical)),
-          canonical,
-        );
+        controller.restoreCanonical(canonical);
+        expect(controller.canonical, canonical);
       }
     });
   }
@@ -21,10 +20,10 @@ void main() {
     addTearDown(controller.dispose);
     controller.setSource('<p>אב</p>');
     expect(controller.text, 'אב');
-    expect(controller.forService(controller.text), ' אב ');
+    expect(controller.canonical, ' אב ');
     controller.setSource('<i>גד</i>');
     expect(controller.text, 'גד');
-    expect(controller.forService(controller.text), 'גד');
+    expect(controller.canonical, 'גד');
   });
 
   test('הד חוזר של אותו מקור משמר בחירה ו-IME', () {
@@ -99,7 +98,7 @@ void main() {
       final controller = PluginCorrectionController(source);
       addTearDown(controller.dispose);
       controller.text = 'אם גד';
-      expect(controller.forService(controller.text), ' אם גד ');
+      expect(controller.canonical, ' אם גד ');
       expect(controller.formats.length, controller.text.length);
     });
 
@@ -341,7 +340,7 @@ void main() {
     test('שחזור טיוטה עם מופע חוזר אינו מנחש שהמופע המודגש שרד', () {
       final controller = PluginCorrectionController('<b>אב</b> אב <i>גד</i>');
       addTearDown(controller.dispose);
-      controller.restoreDraftValue(const TextEditingValue(text: 'אב גד'));
+      controller.restoreCanonical('אב גד');
       expect(controller.formats.take(2).every((f) => !f.bold), isTrue);
       expect(controller.formats.skip(3).every((f) => f.italic), isTrue);
     });
@@ -349,7 +348,7 @@ void main() {
     test('שחזור טיוטה משמר מופעים חוזרים כשנערכה רק מילה אחרת', () {
       final controller = PluginCorrectionController('<b>אב</b> אב גד');
       addTearDown(controller.dispose);
-      controller.restoreDraftValue(const TextEditingValue(text: 'אב אב גה'));
+      controller.restoreCanonical('אב אב גה');
       expect(controller.formats.map((f) => f.bold), [
         true,
         true,
@@ -365,7 +364,7 @@ void main() {
     test('שחזור מילה מעורבת אינו מעצב תו פנימי שלא השתנה', () {
       final controller = PluginCorrectionController('<b>א</b>בג');
       addTearDown(controller.dispose);
-      controller.restoreDraftValue(const TextEditingValue(text: 'הבד'));
+      controller.restoreCanonical('הבד');
       expect(controller.formats.every((f) => !f.bold), isTrue);
     });
 
@@ -382,6 +381,109 @@ void main() {
       expect(controller.formats[2].italic, isTrue);
       expect(controller.formats[2].bold, isFalse);
       expect(controller.formats[3].italic, isFalse);
+    });
+  });
+
+  group('הסתרת ניקוד וטעמים', () {
+    const patah = '\u05B7';
+    const holam = '\u05B9';
+    const samples = [
+      'בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֣ת־הַשָּׁמַ֔יִם',
+      'אב ׀ גד',
+      'אב־׀גד ׀',
+    ];
+
+    for (final sample in samples) {
+      for (final nikud in [false, true]) {
+        for (final teamim in [false, true]) {
+          test('מחיקת כל תו בנפרד: "$sample" ניקוד=$nikud טעמים=$teamim', () {
+            final shown = utils.removeMarks(
+              sample,
+              nikud: nikud,
+              teamim: teamim,
+            );
+            for (var i = 0; i < shown.length; i++) {
+              final controller = PluginCorrectionController(
+                sample,
+                removeNikud: nikud,
+                removeTeamim: teamim,
+              );
+              addTearDown(controller.dispose);
+              expect(controller.text, shown);
+              controller.value = TextEditingValue(
+                text: shown.replaceRange(i, i + 1, ''),
+                selection: TextSelection.collapsed(offset: i),
+              );
+              // מה שהעורך מציג אחרי המחיקה הוא מה שהקורא יציג מהמקור שנשמר.
+              expect(
+                utils.removeMarks(
+                  controller.canonical,
+                  nikud: nikud,
+                  teamim: teamim,
+                ),
+                controller.text,
+                reason: 'מחיקת התו $i',
+              );
+            }
+          });
+        }
+      }
+    }
+
+    test('עריכה בלי סימון בחירה מעגנת את הטווח בסמן החדש', () {
+      final controller = PluginCorrectionController(
+        'ב$patahב$holam',
+        removeNikud: true,
+      );
+      addTearDown(controller.dispose);
+      controller.value = const TextEditingValue(
+        text: 'ב',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+      expect(controller.canonical, 'ב$holam');
+    });
+
+    test('ערך מההיסטוריה שנוצר לפני החלפת ההסתרה מוצג לפי ההסתרה הנוכחית', () {
+      final controller = PluginCorrectionController('ב$patahב$holam');
+      addTearDown(controller.dispose);
+      final before = controller.value;
+      controller.value = before.copyWith(
+        text: 'ב$patahג$holam',
+        selection: const TextSelection.collapsed(offset: 3),
+      );
+      controller.setHiding(nikud: true, teamim: false);
+      expect(controller.text, 'בג');
+      controller.value = before;
+      expect(controller.text, 'בב');
+      expect(controller.canonical, 'ב$patahב$holam');
+      expect(controller.formats.length, 2);
+    });
+
+    test('החלפת ההסתרה ממפה את הבחירה ושומרת על העיצוב והטקסט המלא', () {
+      final controller = PluginCorrectionController(
+        '<b>ב$patah</b>ב$holam',
+      );
+      addTearDown(controller.dispose);
+      controller.selection = const TextSelection.collapsed(offset: 2);
+      controller.setHiding(nikud: true, teamim: false);
+      expect(controller.text, 'בב');
+      expect(controller.selection, const TextSelection.collapsed(offset: 1));
+      expect(controller.formats.map((f) => f.bold), [true, false]);
+      controller.setHiding(nikud: false, teamim: false);
+      expect(controller.text, 'ב$patahב$holam');
+      expect(controller.formats.map((f) => f.bold), [true, true, false, false]);
+      expect(controller.canonical, 'ב$patahב$holam');
+    });
+
+    test('שחזור טיוטה מציג אותה לפי ההסתרה ומשמר את הסימנים שבה', () {
+      final controller = PluginCorrectionController(
+        'ב$patahב$holamג',
+        removeNikud: true,
+      );
+      addTearDown(controller.dispose);
+      controller.restoreCanonical('ב$patahב');
+      expect(controller.text, 'בב');
+      expect(controller.canonical, 'ב$patahב');
     });
   });
 }
