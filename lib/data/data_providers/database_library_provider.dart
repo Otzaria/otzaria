@@ -573,6 +573,21 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
     ''', params).toMapList();
 }
 
+final _incomingTitleMatchers = Expando<_IncomingTitleMatcher>();
+
+class _IncomingTitleMatcher {
+  _IncomingTitleMatcher(sqlite3.Database db) {
+    db.createFunction(
+      functionName: 'otzaria_incoming_title_matches',
+      argumentCount: const sqlite3.AllowedArgumentCount(1),
+      directOnly: true,
+      function: (args) => matches?.call(args[0] as String) == true ? 1 : 0,
+    );
+  }
+
+  bool Function(String)? matches;
+}
+
 // קישורים נכנסים ל-SDK. השאילתה קוראת רק את צד היעד השמור ואת שורות הכיסוי שלו.
 List<Map<String, dynamic>> _loadIncomingLinkRows(
   sqlite3.Database db,
@@ -611,19 +626,39 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
                 SELECT id FROM connection_type WHERE name IS NOT NULL
               )""" : ''})';
   final bookFilter = official ? '' : 'AND l.targetBookId = ?';
-  final titleConditions = [
-    if (sourceTitles != null)
-      'sb.title IN (${List.filled(sourceTitles.length, '?').join(', ')})',
-    for (final _ in sourceTitlePrefixes ?? const <String>[])
-      'substr(sb.title, 1, length(?)) = ?',
-  ];
-  final titleFilter = sourceTitles == null && sourceTitlePrefixes == null
-      ? ''
-      : 'WHERE ${titleConditions.isEmpty ? '0' : titleConditions.join(' OR ')}';
+  final titles = sourceTitles?.toSet();
+  final prefixes = sourceTitlePrefixes?.toSet();
+  final hasTitleFilter = titles != null || prefixes != null;
+  if (hasTitleFilter &&
+      titles?.isEmpty != false &&
+      prefixes?.isEmpty != false) {
+    return const [];
+  }
+  final titleFilter = hasTitleFilter
+      ? 'WHERE otzaria_incoming_title_matches(sb.title)'
+      : '';
+  // SQLite שומר את ה־callback עד סגירת החיבור. המסננים חיים רק בזמן השאילתה.
+  final matcher = hasTitleFilter
+      ? (_incomingTitleMatchers[db] ??= _IncomingTitleMatcher(db))
+      : null;
+  if (matcher != null) {
+    if (prefixes == null || prefixes.isEmpty) {
+      matcher.matches = (title) => titles?.contains(title) == true;
+    } else {
+      final prefixMatches = <String, bool>{};
+      matcher.matches = (title) =>
+          titles?.contains(title) == true ||
+          prefixMatches.putIfAbsent(
+            title,
+            () => prefixes.any(title.startsWith),
+          );
+    }
+  }
 
-  return db
-      .select(
-        '''
+  try {
+    return db
+        .select(
+          '''
       WITH win(id) AS (
         SELECT id FROM line WHERE bookId = ? AND lineIndex BETWEEN ? AND ?
       ),
@@ -654,22 +689,20 @@ List<Map<String, dynamic>> _loadIncomingLinkRows(
       ORDER BY tl.lineIndex, l.id
       ${limit == null ? '' : 'LIMIT ?'}
     ''',
-        [
-          bookId,
-          startLineIndex,
-          endLineIndex,
-          if (!official) bookId,
-          ...?typeIds,
-          if (hasRanges) ...?typeIds,
-          ...?sourceTitles,
-          for (final prefix in sourceTitlePrefixes ?? const <String>[]) ...[
-            prefix,
-            prefix,
+          [
+            bookId,
+            startLineIndex,
+            endLineIndex,
+            if (!official) bookId,
+            ...?typeIds,
+            if (hasRanges) ...?typeIds,
+            ?limit,
           ],
-          ?limit,
-        ],
-      )
-      .toMapList();
+        )
+        .toMapList();
+  } finally {
+    matcher?.matches = null;
+  }
 }
 
 /// מזהה הספר [title] — בקטגוריה [categoryId] כשהמסד מכיר קטגוריות — או null.
