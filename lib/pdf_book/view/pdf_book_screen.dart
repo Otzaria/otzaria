@@ -1117,11 +1117,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final hasTextSelection = _hasPdfTextSelection();
     final selectedText = hasTextSelection
-        ? widget
-              .tab
-              .pdfViewerController
-              .textSelectionDelegate
-              .selectedTextIfLoaded
+        ? _pdfTextSelectionActions.selectedTextSnapshot ??
+              widget
+                  .tab
+                  .pdfViewerController
+                  .textSelectionDelegate
+                  .selectedTextIfLoaded
         : null;
     final selection = selectedText == null
         ? null
@@ -1168,7 +1169,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     required String? loadedText,
   }) {
     if (!hasPluginContextMenuItems) return const [];
-    final controller = widget.tab.pdfViewerController;
     final pageNumber = _menuPageNumber(tapPosition, hasSelection: hasSelection);
     return buildPdfPluginMenuEntries(
       book: widget.tab.book,
@@ -1176,8 +1176,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       currentRef: pdfPageRef(widget.tab, pageNumber),
       hasSelection: hasSelection,
       loadedText: loadedText,
-      readSelectedText: () =>
-          controller.textSelectionDelegate.getSelectedText(),
+      readSelectedText: () async => await _readPdfTextSelection() ?? '',
       copyAllowed: _isPdfCopyAllowed(),
       menuContext: menuContext,
     );
@@ -1220,6 +1219,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _pdfTextSelectionActions.copy(keepSelection: keepSelection),
         errorMessage: CommonMessages.textCopyError,
       );
+
+  Future<String?> _readPdfTextSelection({
+    bool requireCopyPermission = true,
+  }) async {
+    try {
+      return await _pdfTextSelectionActions.readSelectedText(
+        requireCopyPermission: requireCopyPermission,
+      );
+    } catch (_) {
+      if (mounted && _isPdfVisible) {
+        UiSnack.showError(PdfMessages.textSelectionFailed);
+      }
+      return null;
+    }
+  }
+
+  void _onPdfTextSelectionChanged(PdfTextSelection _) =>
+      _pdfTextSelectionActions.discardStaleSnapshot();
 
   Future<void> _selectAllPdfText() => _showPdfTextActionResult(
     _pdfTextSelectionActions.selectAll(),
@@ -1302,13 +1319,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   ) async {
     final controller = widget.tab.pdfViewerController;
     if (!controller.isReady) return;
-    final selection =
-        loadedSelection ??
-        ReaderMenuSelection(
-          await controller.textSelectionDelegate.getSelectedText(),
-        );
-    if (!mounted) return;
-    openGlobalSearch(context, selection.cleaned, insertAdjacent: true);
+    final selection = loadedSelection;
+    final rawText = selection == null
+        ? await _readPdfTextSelection(requireCopyPermission: false)
+        : null;
+    if (!mounted || !_isPdfVisible || (selection == null && rawText == null)) {
+      return;
+    }
+    openGlobalSearch(
+      context,
+      (selection ?? ReaderMenuSelection(rawText)).cleaned,
+      insertAdjacent: true,
+    );
   }
 
   /// צבע הרקע שמועבר ל-[PdfViewerParams.backgroundColor].
@@ -1367,6 +1389,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       scrollByMouseWheel: 1.0,
       textSelectionParams: PdfTextSelectionParams(
         enabled: !_isHandMode && !_isChoosingPersonalNotePoint,
+        onTextSelectionChange: _onPdfTextSelectionChanged,
       ),
       // נעילת הציר מתבצעת ב-TrackpadPanRecognizer; PanAxis נועל גם אלכסונים.
       panAxis: PanAxis.free,
@@ -1491,6 +1514,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             if (mounted) setState(() {});
           });
         }
+        _pdfTextSelectionActions.releaseSelectedTextSnapshot();
         _pdfTextSelectionActions.cancel();
         if (!mounted) return;
         _pageTurnController.stop(canceled: false);
@@ -3923,6 +3947,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.personalNoteNavigationRequests.removeListener(
       _onPersonalNoteNavigationRequested,
     );
+    _pdfTextSelectionActions.releaseSelectedTextSnapshot();
     _pdfTextSelectionActions.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _nextFitIsPage.dispose();
@@ -4246,6 +4271,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   @override
   void didHaveMemoryPressure() {
+    _pdfTextSelectionActions.releaseSelectedTextSnapshot();
     _pageTurnController.stop(canceled: false);
     _abortInteractivePageTurn();
     _pendingPageTurns.clear();
@@ -4260,6 +4286,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   void _releaseImagesWhileHidden() {
     _pdfTextSelectionActions.cancel();
+    _pdfTextSelectionActions.releaseSelectedTextSnapshot();
     _trackpadFling.stop();
     _scrollPhysicsProvider.stop();
     _stopContinuousScroll();
