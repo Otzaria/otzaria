@@ -310,10 +310,13 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                                 spacing: 12,
                                 children: [
                                   Flexible(
-                                    child: Text(
-                                      category?.path ?? book!.details,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    // ספרים באותו שם נבדלים רק בסוף הנתיב:
+                                    // כשהוא נחתך, הרמז מציג כותרת ונתיב מלאים.
+                                    child: OverflowTooltipText(
+                                      text: category?.path ?? book!.details,
+                                      tooltipMessage:
+                                          category?.path ??
+                                          '${book!.title}\n${book.details}',
                                       style: TextStyle(
                                         fontSize: AppTokens.fontSM,
                                         color: cs.onSurfaceVariant,
@@ -322,13 +325,11 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                                   ),
                                   if (inherited != null)
                                     Flexible(
-                                      child: Text(
-                                        context.settingsText(
+                                      child: OverflowTooltipText(
+                                        text: context.settingsText(
                                           'מוסתר דרך {category}',
                                           args: {'category': inherited},
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           fontSize: AppTokens.fontSM,
                                           color: cs.primary,
