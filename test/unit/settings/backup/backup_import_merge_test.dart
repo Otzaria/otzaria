@@ -182,6 +182,25 @@ void main() {
       );
     });
 
+    test('הנתונים המקושרים לספר מיובא מגיעים איתו, והמקומיים מנצחים', () {
+      final result = BackupImportMerge.mergeShamorZachor(
+        {
+          'sz:completion_dates_by_id': json.encode({'1': 'מקומי'}),
+        },
+        {
+          'sz:completion_dates_by_id': json.encode({
+            '1': 'מגיבוי',
+            '2': 'מגיבוי',
+          }),
+        },
+      );
+
+      expect(
+        json.decode(result.toWrite['sz:completion_dates_by_id'] as String),
+        {'1': 'מקומי', '2': 'מגיבוי'},
+      );
+    });
+
     test('מפתח אחר נכתב רק אם אינו קיים מקומית', () {
       final result = BackupImportMerge.mergeShamorZachor(
         {'sz:sidebar_visible': false},
