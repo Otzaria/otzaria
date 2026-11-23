@@ -926,8 +926,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         contentLines = (state as TextBookLoaded).content;
         loadedLineFlags = _loadedContentFlags;
       } else if (requiresRenderedToc) {
-        final content = await repository.getBookContent(book);
-        contentLines = await splitContentLines(content);
+        contentLines = await repository.getBookLines(book);
         loadedLineFlags = List<bool>.filled(contentLines.length, true);
         _setLoadedContentFlags(book, loadedLineFlags);
         _markLoadedContentRange(
@@ -987,8 +986,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
 
       if (contentLines == null) {
-        final content = await repository.getBookContent(book);
-        contentLines = await splitContentLines(content);
+        contentLines = await repository.getBookLines(book);
         loadedLineFlags = List<bool>.filled(contentLines.length, true);
         _setLoadedContentFlags(book, loadedLineFlags);
         _markLoadedContentRange(
@@ -3033,9 +3031,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   Future<void> _loadFullBookInBackground(TextBook book) async {
     try {
-      final fullContent = await repository.getBookContent(book);
+      final lines = await repository.getBookLines(book);
 
-      if (fullContent.isEmpty) {
+      if (lines.isEmpty) {
         return;
       }
 
@@ -3048,10 +3046,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         return;
       }
 
-      final lines = await splitContentLines(fullContent);
-      if (isClosed) {
-        return;
-      }
       add(
         ApplyFullBookContent(
           bookTitle: book.title,

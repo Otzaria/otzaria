@@ -86,6 +86,12 @@ class _Repository extends TextBookRepository {
   Future<bool> supportsContinuousReadingMode(TextBook book) async => true;
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async => _lines.join('\n');
 
   @override

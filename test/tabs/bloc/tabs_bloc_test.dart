@@ -3193,6 +3193,12 @@ class _PinpointFakeTextBookRepository extends TextBookRepository {
   final Future<String>? pendingContent;
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async {
     return pendingContent ??
         content ??

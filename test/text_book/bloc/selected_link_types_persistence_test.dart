@@ -131,6 +131,12 @@ class _FakeTextBookRepository extends TextBookRepository {
   _FakeTextBookRepository() : super(fileSystem: FileSystemData.instance);
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async =>
       List.generate(10, (index) => 'שורה $index').join('\n');
 

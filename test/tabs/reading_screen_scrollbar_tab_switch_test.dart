@@ -276,6 +276,12 @@ class _FakeTextBookRepository extends TextBookRepository {
   }
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async =>
       [for (var i = 0; i < _lineCount; i++) _line(i)].join('\n');
 }

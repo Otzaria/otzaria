@@ -112,8 +112,6 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/touch_pinch_scale_recognizer.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/utils/link_helpers.dart';
-import 'package:otzaria/text_book/utils/link_processing.dart'
-    show splitContentLines;
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
@@ -2589,8 +2587,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _searchViewInputs = inputs;
     return _searchView = TextBookSearchView(
       focusNode: textSearchFocusNode,
-      contentLoader: () async =>
-          splitContentLines(await repository.getBookContent(book)),
+      contentLoader: () => repository.getBookLines(book),
       lines: widget.tab.lines,
       // הוא מעביר את טקסט החיפוש מה-state הנוכחי אל תוך רכיב החיפוש
       initialQuery: state.searchText,
@@ -3075,10 +3072,7 @@ Future<void> _dispatchContextMenuShortcut({
   final selectedLineCount = text.split('\n').length;
   List<String>? fullContentLines;
   if (selectedLineCount > 1) {
-    final fullContent = await textBookBloc.repository.getBookContent(
-      state.book,
-    );
-    fullContentLines = await splitContentLines(fullContent);
+    fullContentLines = await textBookBloc.repository.getBookLines(state.book);
   }
 
   // השורה המסומנת נטענה בהכרח, אבל ברשימה חלקית (חימום/שחרור) עשויים
@@ -3087,8 +3081,8 @@ Future<void> _dispatchContextMenuShortcut({
       ? state.content[sectionIndex]
       : '';
   if (rawText.isEmpty) {
-    fullContentLines ??= await splitContentLines(
-      await textBookBloc.repository.getBookContent(state.book),
+    fullContentLines ??= await textBookBloc.repository.getBookLines(
+      state.book,
     );
     if (sectionIndex < fullContentLines.length) {
       rawText = fullContentLines[sectionIndex];

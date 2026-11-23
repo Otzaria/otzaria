@@ -28,6 +28,12 @@ class _Repository extends TextBookRepository {
   final Completer<void> firstCallStarted = Completer<void>();
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async =>
       List.generate(40, (i) => 'שורה $i').join('\n');
 

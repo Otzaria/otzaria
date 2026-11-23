@@ -499,6 +499,12 @@ class _TwoSectionRepository extends TextBookRepository {
   _TwoSectionRepository() : super(fileSystem: FileSystemData.instance);
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async {
     return List.generate(40, (i) => 'שורה $i').join('\n');
   }

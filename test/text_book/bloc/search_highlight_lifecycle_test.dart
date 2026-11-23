@@ -96,6 +96,12 @@ class _Repository extends TextBookRepository {
   );
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async => _text;
 
   @override

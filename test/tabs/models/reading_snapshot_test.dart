@@ -802,6 +802,12 @@ class _Repository extends TextBookRepository {
   static final _lines = List.generate(20, (i) => 'שורה $i');
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async => _lines.join('\n');
 
   @override

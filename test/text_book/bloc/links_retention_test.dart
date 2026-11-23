@@ -25,6 +25,12 @@ class _WindowLinksRepository extends TextBookRepository {
   static final _lines = List.generate(_lineCount, (i) => 'שורה $i');
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async => _lines.join('\n');
   @override
   Future<List<TocEntry>> getTableOfContents(TextBook book) async => const [];

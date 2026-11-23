@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart'
+    show splitBookText;
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
@@ -683,13 +685,13 @@ void main() {
     });
   });
 
-  group('splitContentLines', () {
+  group('splitBookText', () {
     test('תוכן ריק מחזיר רשימה ריקה', () async {
-      expect(await splitContentLines(''), isEmpty);
+      expect(await splitBookText(''), isEmpty);
     });
 
     test('מפצל תוכן לפי שורות ב-isolate', () async {
-      expect(await splitContentLines('א\nב\nג'), ['א', 'ב', 'ג']);
+      expect(await splitBookText('א\nב\nג'), ['א', 'ב', 'ג']);
     });
   });
 }

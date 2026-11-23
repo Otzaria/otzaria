@@ -331,6 +331,12 @@ class _Repository extends TextBookRepository {
   _Repository() : super(fileSystem: FileSystemData.instance);
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async => 'שורה א\nשורה ב';
 
   @override

@@ -14,6 +14,12 @@ class _LinksRepository extends TextBookRepository {
   _LinksRepository() : super(fileSystem: FileSystemData.instance);
   int loads = 0;
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async =>
       List.generate(100, (i) => 'שורה $i').join('\n');
   @override

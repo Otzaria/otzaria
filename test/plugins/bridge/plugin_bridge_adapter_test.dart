@@ -8896,6 +8896,12 @@ class _CountingTextBookRepository extends Fake implements TextBookRepository {
   int failures = 0;
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async {
     loads++;
     final content = contents[book.title] ?? 'תוכן של ${book.title}';
@@ -8913,6 +8919,12 @@ class _EditionTextBookRepository extends Fake implements TextBookRepository {
   _EditionTextBookRepository(this.contents);
 
   final Map<TextBook, String> contents;
+
+  @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
 
   @override
   Future<String> getBookContent(TextBook book) async => contents[book]!;

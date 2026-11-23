@@ -2885,6 +2885,12 @@ class _FakeTextBookRepository extends Fake implements TextBookRepository {
   final String content;
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async => content;
 }
 

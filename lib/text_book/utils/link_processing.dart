@@ -377,11 +377,3 @@ List<String> buildPreviewLines(String previewContent, int previewStartLine) {
   return List<String>.filled(previewStartLine, '', growable: true)
     ..addAll(previewLines);
 }
-
-Future<List<String>> splitContentLines(String content) async {
-  if (content.isEmpty) {
-    return const [];
-  }
-
-  return Isolate.run(() => content.split('\n'));
-}

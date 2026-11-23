@@ -52,6 +52,12 @@ class _PrintRepository extends Mock implements TextBookRepository {
   }
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async {
     reads++;
     final text = contents ?? 'content:${book.source.wireKey}';

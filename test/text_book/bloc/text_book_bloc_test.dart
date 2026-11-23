@@ -2431,6 +2431,12 @@ class _FakeTextBookRepository extends TextBookRepository {
   int getBookContentRangeCalls = 0;
 
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async {
     getBookContentCalls++;
     return List.generate(40, (index) => 'שורה $index').join('\n');
@@ -2486,6 +2492,12 @@ class _FakeTextBookRepository extends TextBookRepository {
 
 class _EmptyContentTextBookRepository extends _FakeTextBookRepository {
   @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
+  @override
   Future<String> getBookContent(TextBook book) async {
     return '';
   }
@@ -2503,6 +2515,12 @@ class _EmptyContentTextBookRepository extends _FakeTextBookRepository {
 }
 
 class _MarkdownTocRepository extends _FakeTextBookRepository {
+  @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
+
   @override
   Future<String> getBookContent(TextBook book) async {
     getBookContentCalls++;
@@ -2525,6 +2543,12 @@ class _MarkdownTocRepository extends _FakeTextBookRepository {
 
 class _DelayedContentTextBookRepository extends _FakeTextBookRepository {
   final Completer<String> _fullContentCompleter = Completer<String>();
+
+  @override
+  Future<List<String>> getBookLines(TextBook book) async {
+    final content = await getBookContent(book);
+    return content.isEmpty ? const [] : content.split('\n');
+  }
 
   @override
   Future<String> getBookContent(TextBook book) async {
