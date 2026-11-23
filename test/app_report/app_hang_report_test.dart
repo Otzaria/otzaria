@@ -8,6 +8,7 @@ import 'package:otzaria/app_report/services/app_hang_report.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/crash_report_flow.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
@@ -61,6 +62,19 @@ void main() {
       expect(blocks.single.isAppHangRecovered, isFalse);
       expect(blocks.single.isStartupStall, isFalse);
       expect(blocks.single.isCrashEvidence, isFalse);
+    });
+
+    test('חיפוש חכם איטי נכלל בלוג בלי להיחשב לראיית קריסה', () {
+      final block = parseErrorLogBlocks(
+        ErrorLogFile.formatEntry(
+          title: 'Slow smart search',
+          error: 'Smart search took 61000 ms',
+        ),
+      ).single;
+
+      expect(block.title, 'Slow smart search');
+      expect(block.isCrashEvidence, isFalse);
+      expect(block.isAppHang, isFalse);
     });
 
     test('חתימה יציבה בין תקיעות באותו מקום, גם כשההמתנה במערכת שונה', () {
