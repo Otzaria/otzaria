@@ -24,6 +24,10 @@ class PrintPdfSource {
     int cancellationAddress = 0,
   }) async {
     final destination = File(stagingPath);
+    if (await FileSystemEntity.type(stagingPath, followLinks: false) ==
+        FileSystemEntityType.link) {
+      throw ArgumentError('The PDF staging path cannot be a symbolic link.');
+    }
     final sourcePath = _path;
     if (sourcePath != null &&
         (File(sourcePath).absolute.path == destination.absolute.path ||

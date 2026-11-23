@@ -94,6 +94,24 @@ void main() {
     );
   }
 
+  test(
+    'a dangling staging link cannot create a missing source',
+    () async {
+      await destination.delete();
+      await source.delete();
+      final link = await Link(destination.path).create(source.path);
+      await expectLater(
+        PrintPdfSource.file(source.path).writeToFile(destination.path),
+        throwsArgumentError,
+      );
+      expect(await source.exists(), isFalse);
+      expect(await link.target(), source.path);
+    },
+    skip: Platform.isWindows
+        ? 'Creating symbolic links requires host privileges.'
+        : false,
+  );
+
   test('a read failure closes both files and removes only staging', () async {
     final error = FileSystemException('injected input failure', source.path);
     final input = _FileSpy(source, readError: error);
