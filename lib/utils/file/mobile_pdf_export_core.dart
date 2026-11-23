@@ -54,7 +54,7 @@ class MobilePdfExportCoordinator {
   }
 
   static Future<void> _deleteDirectory(Directory directory) async {
-    await directory.delete(recursive: true);
+    await directory.delete();
   }
 }
 
@@ -99,6 +99,7 @@ class _MobilePdfExportOperation implements MobilePdfExportOperation {
   bool _terminal = false;
   Future<void>? _cancelFuture;
   Directory? _ownedDirectory;
+  File? _ownedSource;
   String? _rootPath;
   String _stage = 'staging_failed';
 
@@ -155,11 +156,13 @@ class _MobilePdfExportOperation implements MobilePdfExportOperation {
       );
     }
     _terminal = true;
-    try {
-      await _cleanup();
-    } catch (error, stack) {
-      _logFailure('staging cleanup', error, stack);
-      outcome = outcome.withStagingCleanupError(error);
+    if (!outcome.hasNativeStagingCleanupFailure) {
+      try {
+        await _cleanup();
+      } catch (error, stack) {
+        _logFailure('staging cleanup', error, stack);
+        outcome = outcome.withStagingCleanupError(error);
+      }
     }
     _result.complete(outcome);
   }
@@ -197,6 +200,7 @@ class _MobilePdfExportOperation implements MobilePdfExportOperation {
     _ownedDirectory = directory;
     final source = File(p.join(directory.path, fileName));
     await source.create(exclusive: true);
+    _ownedSource = source;
     if (_cancelled) return _cancelledResult();
     _stage = 'producer_failed';
     await producer(source.path);
@@ -238,12 +242,12 @@ class _MobilePdfExportOperation implements MobilePdfExportOperation {
   Future<void> _cleanup() async {
     final directory = _ownedDirectory;
     if (directory == null) return;
-    await _checkRoot();
     final type = await FileSystemEntity.type(
       directory.path,
       followLinks: false,
     );
     if (type == FileSystemEntityType.notFound) return;
+    await _checkRoot();
     if (type == FileSystemEntityType.link) {
       await Link(directory.path).delete();
       return;
@@ -255,6 +259,25 @@ class _MobilePdfExportOperation implements MobilePdfExportOperation {
         directory.path,
       );
     }
+    final source = _ownedSource;
+    if (source != null) {
+      final sourceType = await FileSystemEntity.type(
+        source.path,
+        followLinks: false,
+      );
+      if (sourceType == FileSystemEntityType.file) {
+        await source.delete();
+      } else if (sourceType == FileSystemEntityType.link) {
+        await Link(source.path).delete();
+      } else if (sourceType != FileSystemEntityType.notFound) {
+        throw FileSystemException(
+          'Export source changed before cleanup',
+          source.path,
+        );
+      }
+    }
+    // An unexpected sibling is not ours to remove. Native may already have
+    // removed this child; otherwise delete only a now-empty directory.
     await coordinator._deleteStagingDirectory(directory);
   }
 
