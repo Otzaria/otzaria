@@ -164,10 +164,12 @@ dependencies:
       ref: 88f594ee8378f403bf308ce57ca83920d2677f8f
   # הפורק Otzaria/flutter_inappwebview מתוחזק אצלנו (upstream אינו פעיל).
   # כל ה-overrides מוצמדים לאותו קומיט.
+  # TODO: אחרי מיזוג fix/texture-unregister-lifetime לענף codex/repair-host-scroll-5275
+  # בפורק (#5881), להצמיד את כל ה-refs לקומיט המיזוג.
   flutter_inappwebview:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview
   # נדרש ישירות עבור WindowsFileDropManager (גרירת קבצים אל החלון).
   flutter_inappwebview_windows: any
@@ -297,33 +299,33 @@ dependency_overrides:
   flutter_inappwebview_windows:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview_windows
   flutter_inappwebview_platform_interface:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview_platform_interface
   flutter_inappwebview_ios:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview_ios
   flutter_inappwebview_macos:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview_macos
   flutter_inappwebview_linux:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview_linux
   # הגרסה שב-pub.dev קוראת ל-setStatusBarColor שהוצא משימוש ב-Android 15.
   flutter_inappwebview_android:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
-      ref: 93d61d5997499fe62938a4b46cbcbddb018815c7
+      ref: b2e8e95112cef9c1c6fb6f8b4643e9212adfb510
       path: flutter_inappwebview_android
 
   # TODO: להישאר במזלג עד שחרור V14 ב-pub.dev ואימות כיסוי כל השיפורים ובדיקות המעבר; 13.3.3 אינה מספיקה.
