@@ -161,8 +161,11 @@ class PluginSemanticBridge {
     final key =
         '${vectors.identityDigest}:${vectors.generation}:'
         '${vectors.libraryVersion}:$_indexEpoch';
-    var covered = _coveredCache?.key == key ? _coveredCache!.books : null;
-    if (covered == null) {
+    final cached = _coveredCache;
+    final engine.SemanticCoveredBooks covered;
+    if (cached != null && cached.key == key) {
+      covered = cached.books;
+    } else {
       covered = await _background(
         (call) => _repository().coveredBooks(call: call),
       );
