@@ -55,6 +55,25 @@ void main() {
   });
 
   test(
+    'a missing source still closes and removes its owned staging file',
+    () async {
+      await source.delete();
+      final input = _FileSpy(source);
+      final output = _FileSpy(destination);
+      await expectLater(
+        _withFiles(
+          input,
+          output,
+          () => PrintPdfSource.file(source.path).writeToFile(destination.path),
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(output.handle!.closed, isTrue);
+      expect(await destination.exists(), isFalse);
+    },
+  );
+
+  test(
     'rejects a symbolic alias of the source',
     () async {
       await destination.delete();

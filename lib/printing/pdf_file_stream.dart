@@ -67,20 +67,20 @@ class PdfFileStream extends PdfStream {
   int get offset => _offset;
 
   @override
-  void putByte(int value) {
+  void putByte(int s) {
     PdfExportCancellationToken.throwIfCancelledAt(cancellationAddress);
-    _buffer[_buffered++] = value;
+    _buffer[_buffered++] = s;
     _offset++;
     if (_buffered == _buffer.length) flush();
   }
 
   @override
-  void putBytes(List<int> bytes) {
+  void putBytes(List<int> s) {
     var start = 0;
-    while (start < bytes.length) {
+    while (start < s.length) {
       PdfExportCancellationToken.throwIfCancelledAt(cancellationAddress);
-      final count = min(bytes.length - start, _buffer.length - _buffered);
-      _buffer.setRange(_buffered, _buffered + count, bytes, start);
+      final count = min(s.length - start, _buffer.length - _buffered);
+      _buffer.setRange(_buffered, _buffered + count, s, start);
       _buffered += count;
       _offset += count;
       start += count;
@@ -89,20 +89,20 @@ class PdfFileStream extends PdfStream {
   }
 
   @override
-  void putStream(PdfStream stream) {
-    if (stream is PdfFileStream) {
+  void putStream(PdfStream s) {
+    if (s is PdfFileStream) {
       throw UnsupportedError(
         'Copy file-backed PDFs through their source file.',
       );
     }
-    super.putStream(stream);
+    super.putStream(s);
   }
 
   @override
-  void setBytes(int offset, Iterable<int> bytes) {
+  void setBytes(int offset, Iterable<int> iterable) {
     RangeError.checkValueInInterval(offset, 0, _offset, 'offset');
     flush();
-    final iterator = bytes.iterator;
+    final iterator = iterable.iterator;
     var position = offset;
     _file.setPositionSync(position);
     withPdfFileCleanupSync(() {

@@ -265,20 +265,20 @@ class _MirroredPdfFileStream extends PdfFileStream {
   var patches = 0;
 
   @override
-  void putByte(int value) {
-    super.putByte(value);
-    reference.putByte(value);
+  void putByte(int s) {
+    super.putByte(s);
+    reference.putByte(s);
   }
 
   @override
-  void putBytes(List<int> bytes) {
-    super.putBytes(bytes);
-    reference.putBytes(bytes);
+  void putBytes(List<int> s) {
+    super.putBytes(s);
+    reference.putBytes(s);
   }
 
   @override
-  void setBytes(int offset, Iterable<int> bytes) {
-    final patch = bytes.toList();
+  void setBytes(int offset, Iterable<int> iterable) {
+    final patch = iterable.toList();
     patches++;
     super.setBytes(offset, patch);
     reference.setBytes(offset, patch);
