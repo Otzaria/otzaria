@@ -32,6 +32,7 @@ import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/file/mobile_pdf_export_service.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:path/path.dart' as p;
 import 'package:posix/posix.dart' as posix;
 
 import '../../helpers/memory_settings_cache.dart';
@@ -185,7 +186,7 @@ void main() {
     pickerBarrier = null;
     pickerStarted = null;
     tempDir = Directory.systemTemp.createTempSync('otzaria_export_pdf');
-    saveLocation = '${tempDir.path}/דף.pdf';
+    saveLocation = p.join(tempDir.path, 'דף.pdf');
     adapter = buildAdapter();
   });
 
