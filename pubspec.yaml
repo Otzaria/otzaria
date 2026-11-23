@@ -112,8 +112,10 @@ dependencies:
   pinenacl: ^0.6.0
   path: ^1.9.1
   http: ^1.6.0
-  zstandard: ^1.5.6
-  zstandard_native: ^1.5.6
+  # מ-1.5.1 zstd מקושר סטטית ב-SPM (macOS/iOS) ונשמרים רק ~10 סמלים; libzstd
+  # של האפליקציה צריך את כל ה-API (DCtx, מילונים) — לא לשדרג בלי לבדוק בבנייה.
+  zstandard: 1.5.0
+  zstandard_native: 1.5.0
   ffi: ^2.2.0
   win32: ^6.4.0
   win32_registry: ^3.0.3
