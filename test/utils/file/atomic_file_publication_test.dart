@@ -289,6 +289,33 @@ void main() {
   });
 
   test(
+    'an unapproved target created immediately before rename survives',
+    () async {
+      var produced = false;
+      var checksAfterProduction = 0;
+      await expectLater(
+        publishFileAtomically(
+          target: target(),
+          producer: (path) async {
+            await File(path).writeAsString('new output');
+            produced = true;
+          },
+          isCancelled: () {
+            // The final check runs after inspecting destination permissions.
+            if (produced && ++checksAfterProduction == 3) {
+              destination.writeAsStringSync('another save won');
+            }
+            return false;
+          },
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await destination.readAsString(), 'another save won');
+      await expectNoStaging();
+    },
+  );
+
+  test(
     'producer failure preserves the original error and destination',
     () async {
       await destination.writeAsString('keep');

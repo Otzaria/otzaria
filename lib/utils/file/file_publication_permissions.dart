@@ -2,8 +2,9 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
-import 'package:path/path.dart' as p;
 import 'package:posix/posix.dart' as posix;
+
+import 'file_publication_rename.dart';
 
 void makeFilePublicationPrivate(String path) {
   if (Platform.isLinux || Platform.isMacOS) _setPosixMode(path, 0x180);
@@ -56,8 +57,10 @@ void _copyWindowsDacl(String source, String destination) {
     final dacl = arena<Pointer<Void>>();
     final control = arena<Uint16>();
     final revision = arena<Uint32>();
-    final sourceName = _windowsPath(source).toNativeUtf16(allocator: arena);
-    final destinationName = _windowsPath(destination).toNativeUtf16(
+    final sourceName = windowsPublicationPath(
+      source,
+    ).toNativeUtf16(allocator: arena);
+    final destinationName = windowsPublicationPath(destination).toNativeUtf16(
       allocator: arena,
     );
     try {
@@ -107,15 +110,6 @@ void _copyWindowsDacl(String source, String destination) {
       if (descriptor.value != nullptr) _localFree(descriptor.value);
     }
   });
-}
-
-String _windowsPath(String path) {
-  if (path.startsWith(r'\\?\') || path.startsWith(r'\\.\')) return path;
-  final absolute = p.normalize(p.absolute(path));
-  if (absolute.length < 260) return absolute;
-  return absolute.startsWith(r'\\')
-      ? r'\\?\UNC\' + absolute.substring(2)
-      : r'\\?\' + absolute;
 }
 
 final _security = DynamicLibrary.open('advapi32.dll');
