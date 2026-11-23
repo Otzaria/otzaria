@@ -33,8 +33,9 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
             nativeArguments = call.arguments;
-            if (call.method != 'dir')
+            if (call.method != 'dir') {
               throw StateError('Unexpected write picker');
+            }
             return picker.getDirectoryPath();
           });
     }
@@ -246,6 +247,36 @@ void main() {
       await _settle(tester, future);
     }
   });
+
+  testWidgets(
+    'cancelled export never opens the name dialog on a mounted owner',
+    (
+      tester,
+    ) async {
+      final folder = Completer<String?>();
+      picker.select = () => folder.future;
+      final origin = await build(tester);
+      var cancelled = false;
+      final future = chooseDesktopSaveTarget(
+        context: origin,
+        fileName: 'report',
+        extension: 'pdf',
+        isCancelled: () => cancelled,
+      );
+      try {
+        await _waitFor(tester, () => picker.calls == 1);
+        cancelled = true;
+        folder.complete(directory.path);
+        expect(await _settle(tester, future), isNull);
+        expect(origin.mounted, isTrue);
+        expect(find.byType(InputDialog), findsNothing);
+        expect(directory.listSync(), isEmpty);
+      } finally {
+        if (!folder.isCompleted) folder.complete(null);
+        await _settle(tester, future);
+      }
+    },
+  );
 
   testWidgets('an already disposed owner never opens the native picker', (
     tester,
