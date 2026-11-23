@@ -372,7 +372,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     // סך-הבתים של ה-hash מהריצה הקודמת — total מדויק למד ההתקדמות (גודל
     // הקובץ הוא הערכת-יתר של ~25%). בריצה הראשונה נופלים לגודל הקובץ.
     final hintFile = File(p.join(cacheDir.path, 'verify_total_bytes.txt'));
-    var verifyTotalHint = _readIntQuietly(hintFile);
+    var verifyTotalHint = await _readIntQuietly(hintFile);
     var lastVerifyDone = 0;
 
     // רמז בתים לכל טבלה — נדרש כשהמניפסט מאפשר אימות חלקי, שאז ה-total הוא
@@ -380,7 +380,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     final tableBytesFile = File(
       p.join(cacheDir.path, 'verify_table_bytes.json'),
     );
-    var verifyTableBytes = _readTableBytesQuietly(tableBytesFile);
+    var verifyTableBytes = await _readTableBytesQuietly(tableBytesFile);
 
     // הטבלאות שאף צעד לא אימת — מועמדות לבדיקת סטייה אחרי סיום השרשרת.
     Set<String>? deferredIntersection;
@@ -707,11 +707,11 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     required String dbDir,
     required bool reusableExtracted,
   }) async {
-    if (!cacheDir.existsSync()) cacheDir.createSync(recursive: true);
+    await cacheDir.create(recursive: true);
     int cacheNeeded = 0;
     if (!reusableExtracted) {
       final partial = File(p.join(cacheDir.path, patchFile.file));
-      final resumed = _resumablePatchBytes(partial, patchFile);
+      final resumed = await _resumablePatchBytes(partial, patchFile);
       cacheNeeded =
           (patchFile.size - resumed).clamp(0, patchFile.size) +
           patchFile.uncompressedSize;
@@ -754,13 +754,16 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  int _resumablePatchBytes(File partial, PatchFileEntry patchFile) {
+  Future<int> _resumablePatchBytes(
+    File partial,
+    PatchFileEntry patchFile,
+  ) async {
     try {
-      if (!partial.existsSync()) return 0;
-      final length = partial.lengthSync();
+      if (!await partial.exists()) return 0;
+      final length = await partial.length();
       final sidecar = File(PatchDownloader.resumeSidecarPath(partial.path));
-      if (!sidecar.existsSync()) return 0;
-      final lines = sidecar.readAsStringSync().split('\n');
+      if (!await sidecar.exists()) return 0;
+      final lines = (await sidecar.readAsString()).split('\n');
       if (lines.first != patchFile.sha256) return 0;
       if (length == patchFile.size) return length;
       if (length <= 0 || length > patchFile.size || lines.length < 2) return 0;
@@ -968,7 +971,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     for (final step in plan.deltaSteps) {
       final patchFile = step.manifest.patchFiles.first;
       final partial = File(p.join(cacheDir, patchFile.file));
-      if (_resumablePatchBytes(partial, patchFile) > 0) return true;
+      if (await _resumablePatchBytes(partial, patchFile) > 0) return true;
     }
     return false;
   }
@@ -1102,8 +1105,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       // ייתכן שהפעולה המתינה זמן רב מאחורי כתיבה אחרת. ביטול שהגיע בזמן
       // ההמתנה חייב לעצור לפני סגירת ה-runtime ולפני יצירת גיבוי כבד.
       _throwIfCancelled(isCancelled);
+      Future<void>? backupCleanup;
       // rename על מסד פתוח נכשל ב-Windows.
-      await accessGate.runExclusive(
+      final replacement = accessGate.runExclusive<void>(
         dbPath: dbPath,
         body: (scope) async {
           var recoveryStarted = false;
@@ -1120,22 +1124,11 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             _throwIfCancelled(isCancelled);
             _deleteDbWithSidecarsQuietly(dbPath);
             File(newDbPath).renameSync(dbPath);
-            scope.markDbReplaced();
             _deleteQuietly('$newDbPath-wal');
             _deleteQuietly('$newDbPath-shm');
-            recovery.finishSuccess(dbPath);
-            DbReadWorker.corruptDatabaseDetected.value = false;
-            // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
-            // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
-            try {
-              onDbReplaced?.call();
-            } catch (error, stackTrace) {
-              // callback הוא התראה בלבד; אסור שכשל במאזין יגלגל לאחור DB תקין
-              // אחרי שגיבוי ההתאוששות כבר נוקה.
-              debugPrint(
-                'Full DB replacement callback failed: $error\n$stackTrace',
-              );
-            }
+            final cleanup = recovery.finishSuccessAsync(dbPath);
+            cleanup.ignore();
+            backupCleanup = cleanup;
           } catch (error) {
             // לפני beginApply אין לפעולה הזו artifacts משלה; rollback בשלב הזה
             // עלול לגעת בטעות בגיבוי ישן שאינו שייך לריצה הנוכחית.
@@ -1145,8 +1138,23 @@ class LibraryUpdateRepository implements LibraryUpdateService {
             }
             rethrow;
           }
+
+          scope.markDbReplaced();
+          DbReadWorker.corruptDatabaseDetected.value = false;
+          // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
+          // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
+          try {
+            onDbReplaced?.call();
+          } catch (error, stackTrace) {
+            // ההודעה למאזין היא best-effort אחרי השלמת ההחלפה.
+            debugPrint(
+              'Full DB replacement callback failed: $error\n$stackTrace',
+            );
+          }
         },
       );
+      // פותחים את המסד לפני ההמתנה לניקוי, שעדיין מוגן בתור ובנעילות.
+      await replacement.whenComplete(() => backupCleanup);
     });
   }
 
@@ -1440,10 +1448,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   static double? _fraction(int done, int total) =>
       total > 0 ? (done / total).clamp(0.0, 1.0) : null;
 
-  static int? _readIntQuietly(File file) {
+  static Future<int?> _readIntQuietly(File file) async {
     try {
-      if (!file.existsSync()) return null;
-      final value = int.tryParse(file.readAsStringSync().trim());
+      if (!await file.exists()) return null;
+      final value = int.tryParse((await file.readAsString()).trim());
       return (value != null && value > 0) ? value : null;
     } catch (_) {
       return null;
@@ -1457,10 +1465,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     } catch (_) {}
   }
 
-  static Map<String, int>? _readTableBytesQuietly(File file) {
+  static Future<Map<String, int>?> _readTableBytesQuietly(File file) async {
     try {
-      if (!file.existsSync()) return null;
-      final decoded = jsonDecode(file.readAsStringSync());
+      if (!await file.exists()) return null;
+      final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map) return null;
       final result = <String, int>{};
       decoded.forEach((key, value) {
