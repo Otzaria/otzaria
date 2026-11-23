@@ -13,7 +13,6 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/migration/models/book.dart' as db_models;
 import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
-import 'package:otzaria/data/book_identity.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/models/books.dart' show PdfBook;
 import 'package:pdfrx/pdfrx.dart';
@@ -90,7 +89,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   /// בודק אם ספר נוסף ידנית למעקב לפי מזהה
   bool isBookTrackedById(int bookId) => bookId < 0
-      ? _trackedPdfBooks.any((e) => e['key'] == bookId)
+      ? _trackedPdfBooks.any((e) => e['key'] == bookId && e['deleted'] != true)
       : _trackedBookIds.contains(bookId);
 
   /// נתיב אחרון שבו נמצא כל ספר במעקב במכשיר הזה (זהות → נתיב).
@@ -103,7 +102,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// שווה לגודל של ספר במעקב.
   Future<Set<PdfBook>> trackedPdfBooksAmong(Iterable<PdfBook> books) async {
     final tracked = <PdfBook>{};
-    if (_trackedPdfBooks.isEmpty) return tracked;
+    if (_trackedPdfBooks.every((entry) => entry['deleted'] == true)) {
+      return tracked;
+    }
     for (final book in books) {
       if (await _trackedPdfEntryOf(book) != null) tracked.add(book);
     }
@@ -119,7 +120,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
       }
       final identity = await PdfTrackingIdentity.of(book);
       final entry = _trackedPdfBooks.firstWhereOrNull(
-        (e) => e['identity'] == identity,
+        (e) => e['identity'] == identity && e['deleted'] != true,
       );
       if (entry != null) _pdfPathByIdentity[identity] = book.path;
       return entry;
@@ -132,7 +133,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// אין במכשיר קובץ בעל אותה זהות.
   Future<PdfBook?> findTrackedPdf(int key, Iterable<PdfBook> library) async {
     final entry = _trackedPdfBooks.firstWhereOrNull((e) => e['key'] == key);
-    if (entry == null || PdfTrackingIdentity.isLegacyKey(key)) return null;
+    if (entry == null || entry['deleted'] == true) return null;
     final lastPath = _pdfPathByIdentity[entry['identity']];
     final fileName = entry['fileName'];
     final candidates = library.sortedBy<num>(
@@ -318,6 +319,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
     if (_trackedPdfBooks.isEmpty) return data;
     final books = <String, BookDetails>{};
     for (final entry in _trackedPdfBooks) {
+      if (entry['deleted'] == true) continue;
       final pages = entry['pages'] as int;
       final outline = (entry['outline'] as List)
           .map((raw) => BookSection.fromJson((raw as Map).cast()))
@@ -338,6 +340,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
         categoryPath: pdfCategoryName,
       );
     }
+    if (books.isEmpty) return data;
     return {
       ...data,
       pdfCategoryName: BookCategory(
@@ -832,7 +835,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
       try {
         final identity = await PdfTrackingIdentity.of(book);
         if (loaded.containsKey(identity) ||
-            _trackedPdfBooks.any((e) => e['identity'] == identity)) {
+            _trackedPdfBooks.any(
+              (e) => e['identity'] == identity && e['deleted'] != true,
+            )) {
           continue;
         }
         final info = await _pdfInfoLoader(book.path);
@@ -861,10 +866,16 @@ class ShamorZachorDataProvider with ChangeNotifier {
     _loadTrackedBooksList();
     int added = 0;
     for (final entry in loaded.values) {
-      if (_trackedPdfBooks.any((e) => e['identity'] == entry['identity'])) {
+      final index = _trackedPdfBooks.indexWhere(
+        (e) => e['identity'] == entry['identity'],
+      );
+      if (index < 0) {
+        _trackedPdfBooks.add(entry);
+      } else if (_trackedPdfBooks[index]['deleted'] == true) {
+        _trackedPdfBooks[index] = entry;
+      } else {
         continue;
       }
-      _trackedPdfBooks.add(entry);
       added++;
     }
     if (added > 0) {
@@ -873,71 +884,6 @@ class ShamorZachorDataProvider with ChangeNotifier {
     }
     return (added: added, failed: failed);
   }
-
-  /// מעביר ספרי PDF שנשמרו במפתח ממונה מקומי (גרסה קודמת) לזהות שנגזרת
-  /// מהספר עצמו, יחד עם ההתקדמות והנתונים המקושרים ([rekey]). אידמפוטנטי:
-  /// רשומה שכבר עברה, או שהקובץ שלה לא נמצא במכשיר, אינה משתנה.
-  Future<int> migrateLegacyPdfBooks(
-    Iterable<PdfBook> library,
-    Future<void> Function(Map<int, int> keys) rekey,
-  ) async {
-    final legacy = _trackedPdfBooks
-        .where((e) => PdfTrackingIdentity.isLegacyKey(e['key'] as int))
-        .toList();
-    final migrated = <int, Map<String, dynamic>>{};
-    for (final entry in legacy) {
-      // הזהות הישנה (מזהה ספר אישי או נתיב) תקפה רק במכשיר שהקצה אותה, ולכן
-      // נדרשת גם התאמה של הכותרת ושל מספר העמודים.
-      final book = library.firstWhereOrNull(
-        (b) => _legacyIdentityOf(b) == entry['identity'],
-      );
-      if (book == null || book.title != entry['title']) continue;
-      try {
-        if ((await _pdfInfoLoader(book.path)).pageCount != entry['pages']) {
-          continue;
-        }
-        final identity = await PdfTrackingIdentity.of(book);
-        _pdfPathByIdentity[identity] = book.path;
-        migrated[entry['key'] as int] = {
-          ...entry,
-          'identity': identity,
-          'key': PdfTrackingIdentity.keyOf(identity),
-          'fileName': p.basename(book.path),
-          'size': await File(book.path).length(),
-        };
-      } catch (e) {
-        _logger.warning("Failed to migrate tracked PDF '${book.title}'", e);
-      }
-    }
-    if (migrated.isEmpty) return 0;
-
-    try {
-      await rekey({
-        for (final MapEntry(:key, :value) in migrated.entries)
-          key: value['key'] as int,
-      });
-    } catch (e) {
-      // הרשומות נשארות במפתח הישן, וההעברה תנוסה שוב בפתיחה הבאה.
-      _logger.warning('Failed to move progress of migrated PDF books', e);
-      return 0;
-    }
-    _loadTrackedBooksList();
-    _trackedPdfBooks.removeWhere((e) => migrated.containsKey(e['key']));
-    for (final entry in migrated.values) {
-      if (!_trackedPdfBooks.any((e) => e['identity'] == entry['identity'])) {
-        _trackedPdfBooks.add(entry);
-      }
-    }
-    await _saveTrackedBooksList();
-    await loadAllData();
-    return migrated.length;
-  }
-
-  /// הזהות שגרסה קודמת שמרה לספר PDF.
-  static String _legacyIdentityOf(PdfBook book) =>
-      book.source.isUser && book.id != null
-      ? BookIdentity.userBookKey(book.id!)
-      : BookIdentity.indexedFilePath(book);
 
   static Future<({int pageCount, List<PdfOutlineNode> outline})> _loadPdfInfo(
     String path,
@@ -1016,7 +962,12 @@ class ShamorZachorDataProvider with ChangeNotifier {
   Future<void> removeBookFromTracking(int bookId) async {
     _loadTrackedBooksList();
     _trackedBookIds.remove(bookId);
-    _trackedPdfBooks.removeWhere((e) => e['key'] == bookId);
+    final pdf = _trackedPdfBooks.firstWhereOrNull((e) => e['key'] == bookId);
+    if (pdf != null) {
+      pdf
+        ..removeWhere((key, _) => key != 'identity' && key != 'key')
+        ..['deleted'] = true;
+    }
     await _saveTrackedBooksList();
     await loadAllData();
   }
@@ -1031,7 +982,10 @@ class ShamorZachorDataProvider with ChangeNotifier {
                   Settings.getValue<String>(_trackedPdfBooksKey) ?? '[]',
                 )
                 as List)
-          (raw as Map).cast<String, dynamic>(),
+          if (raw is Map &&
+              raw['key'] is int &&
+              !PdfTrackingIdentity.isLegacyKey(raw['key'] as int))
+            raw.cast<String, dynamic>(),
       ];
     } catch (e) {
       _logger.warning('Failed to load tracked PDF books list', e);

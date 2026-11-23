@@ -101,15 +101,6 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
       if (mounted) {
         _notifyTitleChange();
-        final library = context.read<LibraryBloc?>()?.state.library;
-        if (library != null && progressProvider.error == null) {
-          unawaited(
-            dataProvider.migrateLegacyPdfBooks(
-              library.getAllBooks().whereType<PdfBook>(),
-              progressProvider.rekeyBooks,
-            ),
-          );
-        }
       }
     });
   }

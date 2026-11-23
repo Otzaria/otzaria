@@ -1,17 +1,16 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/models/books.dart' show PdfBook;
+import 'package:otzaria/utils/file/native_sha256.dart';
 
 /// זהות ספר PDF במעקב שמור וזכור, זהה בכל מכשיר שמחזיק את אותו ספר.
 ///
 /// ספר קטלוג בעל מזהה חיצוני (היברובוקס: `hb:<id>`) מזוהה לפיו. כל PDF אחר
-/// (אישי, או קובץ בתיקייה) מזוהה לפי תוכנו: SHA-256 של הקובץ כולו
-/// ([fingerprint]). הנתיב, שם הקובץ ומזהה הספר האישי משתנים בין מכשירים
-/// ולכן אינם חלק מהזהות.
+/// (אישי, או קובץ בתיקייה) מזוהה לפי SHA-256 של כל הקובץ. הנתיב, שם הקובץ ומזהה הספר האישי
+/// משתנים בין מכשירים ולכן אינם חלק מהזהות.
 class PdfTrackingIdentity {
   PdfTrackingIdentity._();
 
@@ -32,25 +31,9 @@ class PdfTrackingIdentity {
   static bool isContentIdentity(String identity) =>
       identity.startsWith(_contentPrefix);
 
-  static final Map<String, Future<String>> _fingerprints = {};
-
-  /// SHA-256 של כל הקובץ ב-[path] (hex), בקריאה בזרימה ב-isolate נפרד. נשמר
-  /// לפי נתיב, גודל וזמן שינוי, ולכן כל גרסה של קובץ מחושבת פעם אחת.
-  static Future<String> fingerprint(String path) async {
-    final file = File(path);
-    final key =
-        '$path|${await file.length()}|'
-        '${(await file.lastModified()).microsecondsSinceEpoch}';
-    final hash = _fingerprints[key] ??= Isolate.run(
-      () async => (await sha256.bind(File(path).openRead()).single).toString(),
-    );
-    try {
-      return await hash;
-    } catch (_) {
-      _fingerprints.remove(key);
-      rethrow;
-    }
-  }
+  /// טביעת תוכן של הקובץ ב-[path] (hex).
+  static Future<String> fingerprint(String path) =>
+      Isolate.run(() => sha256OfFileFast(path));
 
   /// המפתח המספרי שתחתיו נשמרים ההתקדמות וכל הנתונים המקושרים לספר. נגזר
   /// מהזהות בלבד, ולכן זהה בכל מכשיר ואינו מתנגש במזהי seforim.db החיוביים.

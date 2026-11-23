@@ -507,18 +507,29 @@ void main() {
     );
 
     test(
-      'טביעת התוכן מחושבת מחדש כשהקובץ משתנה באותו נתיב ובאותו אורך',
+      'החלפה באותו נתיב, גודל וזמן שינוי אינה פותחת PDF אחר',
       () async {
         final file = File(p.join(tempDir.path, 'pdfs', 'משתנה.pdf'))
           ..createSync(recursive: true)
           ..writeAsStringSync('%PDF-1.4 א');
+        final original = PdfBook(title: 'ספר מקורי', path: file.path);
+        final provider = buildProvider();
+        addTearDown(provider.dispose);
+        await provider.loadAllData();
+        await provider.addPdfBooks([original]);
+        final key = persistedKeyOf(original.title);
+        expect(await provider.findTrackedPdf(key, [original]), same(original));
         final before = await PdfTrackingIdentity.fingerprint(file.path);
-        expect(await PdfTrackingIdentity.fingerprint(file.path), before);
+        final modified = file.lastModifiedSync();
+        final length = file.lengthSync();
 
         file
           ..writeAsStringSync('%PDF-1.4 ב')
-          ..setLastModifiedSync(DateTime(2030));
+          ..setLastModifiedSync(modified);
+        expect(file.lastModifiedSync(), modified);
+        expect(file.lengthSync(), length);
         expect(await PdfTrackingIdentity.fingerprint(file.path), isNot(before));
+        expect(await provider.findTrackedPdf(key, [original]), isNull);
       },
     );
 
@@ -684,214 +695,6 @@ void main() {
         );
         expect(archived.containsKey('sz:last_touched:-1'), isFalse);
       });
-
-      test(
-        'הסבת מפתחות מונה ישנים לזהות: כל הנתונים עוברים, וריצה חוזרת לא משנה',
-        () async {
-          final path = pdfFile('ישן.pdf', 'תוכן ישן');
-          await Settings.setValue<String>(
-            'sz:tracked_pdf_books',
-            jsonEncode([
-              {
-                'key': -1,
-                'identity': path,
-                'title': 'ספר ישן',
-                'pages': 2,
-                'outline': const [],
-              },
-              {
-                'key': -2,
-                'identity': '/missing.pdf',
-                'title': 'חסר',
-                'pages': 2,
-                'outline': const [],
-              },
-            ]),
-          );
-          await Settings.setValue<String>(
-            'sz:progress_by_id',
-            jsonEncode({
-              '-1': {
-                '0': {'learn': true},
-              },
-            }),
-          );
-          await Settings.setValue<String>(
-            'sz:completion_dates_by_id',
-            jsonEncode({'-1': '2026-01-01'}),
-          );
-          await Settings.setValue<String>(
-            'sz:book_columns',
-            jsonEncode({
-              '-1': [
-                {'id': 'learn', 'label': 'עיון'},
-              ],
-            }),
-          );
-          await Settings.setValue<int>('sz:last_touched:-1', 1);
-
-          final provider = buildProvider(pageCount: 2);
-          addTearDown(provider.dispose);
-          await provider.loadAllData();
-          final progress = ShamorZachorProgressProvider();
-          addTearDown(progress.dispose);
-          await progress.ensureLoaded();
-          final library = [PdfBook(title: 'ספר ישן', path: path)];
-
-          expect(
-            await provider.migrateLegacyPdfBooks(library, progress.rekeyBooks),
-            1,
-          );
-
-          final key = PdfTrackingIdentity.keyOf(
-            await PdfTrackingIdentity.of(library.single),
-          );
-          expect(persistedKeyOf('ספר ישן'), key);
-          expect(
-            persistedKeyOf('חסר'),
-            -2,
-            reason: 'קובץ שלא נמצא נשאר כמות שהוא',
-          );
-          expect(pdfBooks(provider)['ספר ישן']?.id, key);
-          expect(progress.getProgressForBookById(-1), isEmpty);
-          expect(
-            progress.getProgressForBookById(key)['0']?.getProperty('learn'),
-            isTrue,
-          );
-          expect(progress.getCompletionDateSyncById(key), '2026-01-01');
-          expect(progress.getColumnsForBook(key).single.label, 'עיון');
-          expect(progress.lastTouchedIndexById(key), 1);
-          expect(progress.lastTouchedIndexById(-1), isNull);
-          expect(
-            await provider.findTrackedPdf(key, library),
-            same(library.single),
-          );
-
-          final before = szData();
-          expect(
-            await provider.migrateLegacyPdfBooks(library, progress.rekeyBooks),
-            0,
-          );
-          expect(szData(), before);
-        },
-      );
-
-      test(
-        'הסבה אחרי ייבוא של אותו PDF במפתח היציב: הנתונים שיובאו אינם נדרסים',
-        () async {
-          // מכשיר א (גרסה חדשה): הספר במפתח היציב, פריט 1 מסומן ושם עמודה.
-          final key = await trackAndMark('ספר', 'תוכן משותף', marked: [1]);
-          final progressA = ShamorZachorProgressProvider();
-          addTearDown(progressA.dispose);
-          await progressA.ensureLoaded();
-          await progressA.renameColumn(key, 'learn', 'עיון');
-          final backupA = szData();
-
-          // מכשיר ב (גרסה קודמת): אותו קובץ במפתח מונה -1.
-          await switchDevice();
-          final path = pdfFile('ספר.pdf', 'תוכן משותף');
-          await Settings.setValue<String>(
-            'sz:tracked_pdf_books',
-            jsonEncode([
-              {
-                'key': -1,
-                'identity': path,
-                'title': 'ספר',
-                'pages': 2,
-                'outline': const [],
-              },
-            ]),
-          );
-          await Settings.setValue<String>(
-            'sz:progress_by_id',
-            jsonEncode({
-              '-1': {
-                '0': {'learn': true},
-                '1': {'review1': true},
-              },
-            }),
-          );
-          await Settings.setValue<String>(
-            'sz:completion_dates_by_id',
-            jsonEncode({'-1': '2026-01-01'}),
-          );
-          await Settings.setValue<String>(
-            'sz:book_columns',
-            jsonEncode({
-              '-1': [
-                {'id': 'learn', 'label': 'לימוד ישן'},
-                {'id': 'col_b', 'label': 'מפרש'},
-              ],
-            }),
-          );
-          await Settings.setValue<int>('sz:last_touched:-1', 0);
-
-          // ייבוא הגיבוי של מכשיר א, ואז ההסבה.
-          final merged = BackupImportMerge.mergeShamorZachor(szData(), backupA);
-          for (final entry in merged.toWrite.entries) {
-            await cache.setObject(entry.key, entry.value);
-          }
-          final provider = buildProvider(pageCount: 2);
-          addTearDown(provider.dispose);
-          await provider.loadAllData();
-          final progress = ShamorZachorProgressProvider();
-          addTearDown(progress.dispose);
-          await progress.ensureLoaded();
-          final library = [PdfBook(title: 'ספר', path: path)];
-          expect(
-            await provider.migrateLegacyPdfBooks(library, progress.rekeyBooks),
-            1,
-          );
-
-          expect(persistedPdfBooks().single['key'], key);
-          final marks = progress.getProgressForBookById(key);
-          expect(
-            marks['1']?.getProperty('learn'),
-            isTrue,
-            reason: 'הסימון שיובא נדרס בהסבה',
-          );
-          expect(marks['1']?.getProperty('review1'), isTrue);
-          expect(marks['0']?.getProperty('learn'), isTrue);
-          expect(progress.getProgressForBookById(-1), isEmpty);
-          expect(progress.lastTouchedIndexById(key), 1);
-          expect(progress.lastTouchedIndexById(-1), isNull);
-          expect(
-            progress.getColumnsForBook(key).map((c) => c.label),
-            ['עיון', 'חזרה 1', 'חזרה 2', 'חזרה 3', 'מפרש'],
-          );
-          expect(progress.getCompletionDateSyncById(key), '2026-01-01');
-        },
-      );
-
-      test(
-        'הסבה אינה מצמידה רשומה ישנה לקובץ שכותרתו או מספר עמודיו שונים',
-        () async {
-          final path = pdfFile('ישן.pdf', 'תוכן');
-          await Settings.setValue<String>(
-            'sz:tracked_pdf_books',
-            jsonEncode([
-              {
-                'key': -1,
-                'identity': path,
-                'title': 'ספר ממכשיר אחר',
-                'pages': 2,
-                'outline': const [],
-              },
-            ]),
-          );
-          final provider = buildProvider(pageCount: 2);
-          addTearDown(provider.dispose);
-          await provider.loadAllData();
-
-          expect(
-            await provider.migrateLegacyPdfBooks([
-              PdfBook(title: 'ספר מקומי', path: path),
-            ], (_) async => fail('אין להעביר נתונים')),
-            0,
-          );
-          expect(persistedKeyOf('ספר ממכשיר אחר'), -1);
-        },
-      );
     });
   });
 }

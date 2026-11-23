@@ -360,38 +360,38 @@ class BackupMerge {
     return !candidateUpdated.isBefore(existingUpdated);
   }
 
-  /// שמור-וזכור: ההתקדמות והמפות המקושרות לספר ממוזגות פר-ספר (החדש מנצח
-  /// לכל ספר, ספר ישן-בלבד נשמר), ורשימת ספרי ה-PDF מאוחדת לפי זהות הספר
-  /// ([ShamorZachorBackupMerge]). מיזוג פר-דף אסור — היה מחזיר סימונים
-  /// שבוטלו בכוונה.
+  /// שמור-וזכור: מיזוג פר-ספר בתוך `sz:progress_by_id` (החדש מנצח לכל ספר,
+  /// ספר ישן-בלבד נשמר). מיזוג פר-דף אסור — היה מחזיר סימונים שבוטלו בכוונה.
   static Map<String, dynamic>? _mergeShamorZachor(
-    Map<String, dynamic>? older,
-    Map<String, dynamic>? newer,
+    Map<String, dynamic>? olderSnapshot,
+    Map<String, dynamic>? newerSnapshot,
   ) {
-    if (older == null && newer == null) return null;
-    final merged =
-        <String, dynamic>{
-          ...?older,
-          ...?newer,
-        }..removeWhere(
-          (key, _) =>
-              ShamorZachorBackupMerge.isLegacyPdfRecordKey(key) &&
-              !(newer?.containsKey(key) ?? false),
-        );
+    if (olderSnapshot == null && newerSnapshot == null) return null;
+    final older = ShamorZachorBackupMerge.withoutPdfData(olderSnapshot ?? {});
+    final newer = ShamorZachorBackupMerge.withoutPdfData(newerSnapshot ?? {});
+    final merged = <String, dynamic>{...older, ...newer};
 
-    for (final key in ShamorZachorBackupMerge.bookKeyedMaps) {
-      final map = ShamorZachorBackupMerge.mergeBookMap(
-        newer?[key],
-        older?[key],
-      ).merged;
-      if (map != null) merged[key] = json.encode(map);
+    const progressKey = 'sz:progress_by_id';
+    final olderProgress = _decodeJsonMap(older[progressKey]);
+    final newerProgress = _decodeJsonMap(newer[progressKey]);
+    if (olderProgress != null || newerProgress != null) {
+      merged[progressKey] = json.encode({...?olderProgress, ...?newerProgress});
     }
-    const pdfKey = ShamorZachorBackupMerge.trackedPdfBooksKey;
-    final pdfBooks = ShamorZachorBackupMerge.mergeTrackedPdfBooks(
-      newer?[pdfKey],
-      older?[pdfKey],
-    ).merged;
-    if (pdfBooks != null) merged[pdfKey] = json.encode(pdfBooks);
+    final pdf = ShamorZachorBackupMerge.mergePdfData(
+      newerSnapshot ?? {},
+      olderSnapshot ?? {},
+    );
+    ShamorZachorBackupMerge.addPdfData(merged, pdf.data, merged);
     return merged;
+  }
+
+  static Map<String, dynamic>? _decodeJsonMap(Object? raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      final decoded = json.decode(raw);
+      return decoded is Map ? decoded.cast<String, dynamic>() : null;
+    } catch (_) {
+      return null;
+    }
   }
 }

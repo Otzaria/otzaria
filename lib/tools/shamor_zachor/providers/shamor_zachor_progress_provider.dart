@@ -513,64 +513,6 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     );
   }
 
-  /// מעביר את ההתקדמות ואת כל הנתונים המקושרים מכל מפתח ב-[keys] אל המפתח
-  /// שמולו. הנתונים נטענים מחדש מהאחסון, כדי שספק שטרם נטען לא ימחק דבר.
-  ///
-  /// נתונים שכבר נמצאים במפתח היעד (למשל מגיבוי שיובא לפני ההעברה) מנצחים,
-  /// ונתוני המפתח הישן רק משלימים אותם: סימוני פריט מתאחדים, עמודות שאינן
-  /// ביעד נוספות אחרי עמודותיו, ותאריכים ומיקום אחרון נלקחים רק אם חסרים.
-  Future<void> rekeyBooks(Map<int, int> keys) => _queueProgressUpdate(() async {
-    _progressById = await _progressService.loadProgressDataById();
-    _completionDatesById = await _progressService.loadCompletionDatesById();
-    _columnsByBookId = await _progressService.loadColumnsByBookId();
-    _columnDatesById = await _progressService.loadColumnCompletionDates();
-    for (final MapEntry(key: from, value: to) in keys.entries) {
-      void move<V>(Map<int, V> map, V Function(V target, V moved) merge) {
-        final value = map.remove(from);
-        if (value != null) {
-          map.update(to, (t) => merge(t, value), ifAbsent: () => value);
-        }
-      }
-
-      // יעד עם התקדמות ובלי עמודות מותאמות מציג את עמודות ברירת המחדל.
-      if (_columnsByBookId.containsKey(from) && _progressById.containsKey(to)) {
-        _columnsByBookId.putIfAbsent(to, () => kDefaultProgressColumns);
-      }
-      move(_progressById, (target, moved) {
-        moved.forEach((item, p) {
-          target.update(
-            item,
-            (t) => PageProgress.fromJson({...p.toJson(), ...t.toJson()}),
-            ifAbsent: () => p,
-          );
-        });
-        return target;
-      });
-      move(_completionDatesById, (target, _) => target);
-      move(
-        _columnsByBookId,
-        (target, moved) => [
-          ...target,
-          ...moved.where((c) => target.every((t) => t.id != c.id)),
-        ].take(maxColumns).toList(),
-      );
-      move(_columnDatesById, (target, moved) => {...moved, ...target});
-      final lastTouched = _progressService.loadLastTouchedIndex(from);
-      if (lastTouched != null) {
-        if (_progressService.loadLastTouchedIndex(to) == null) {
-          await _progressService.saveLastTouchedIndex(to, lastTouched);
-        }
-        await _progressService.saveLastTouchedIndex(from, null);
-      }
-    }
-    await _progressService.saveProgressDataById(_progressById);
-    await _progressService.saveCompletionDatesById(_completionDatesById);
-    await _progressService.saveColumnsByBookId(_columnsByBookId);
-    await _progressService.saveColumnCompletionDates(_columnDatesById);
-    _clearSummaryCache();
-    notifyListeners();
-  });
-
   /// Clear all progress for a specific book by ID
   Future<void> clearBookProgressById(int bookId) =>
       _queueProgressUpdate(() async {
