@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/pdf_headings.dart';
@@ -75,6 +76,7 @@ void main() {
 
     final bookmark = await bookmarkFromReadingTab(tab);
     expect(bookmark?.ref, contains('משנה ז'), reason: 'history on close');
+    expect(bookmark?.index, 1, reason: 'PDF page mapping is unavailable');
 
     final restored = PdfCommentatorsTab.fromJson(tab.toJson());
     addTearDown(restored.dispose);
@@ -83,6 +85,15 @@ void main() {
     await show(tester, restored);
 
     expect(shownLine(), 10, reason: 'session restore');
+    final historyRecord = Bookmark.fromJson(
+      bookmark!.copyWith(label: 'שם תצוגה מותאם').toJson(),
+    );
+    final fromHistory = tabFromBookmark(historyRecord) as PdfCommentatorsTab;
+    addTearDown(fromHistory.dispose);
+    fromHistory.sourceTab.pdfHeadings = _headings();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await show(tester, fromHistory);
+    expect(shownLine(), 10, reason: 'history restore without page mapping');
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

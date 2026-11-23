@@ -104,17 +104,20 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   List<MapEntry<String, int>>? _sortedHeadings;
   int _headingIdx = 0;
+  int _headingSelectionVersion = 0;
   int get _selectedHeadingIdx => _headingIdx;
 
   /// בחירת המשתמש נרשמת גם בטאב, כדי שהשחזור וההיסטוריה ייפתחו בה.
   set _selectedHeadingIdx(int idx) {
+    final version = ++_headingSelectionVersion;
     _headingIdx = idx;
     final headings = _sortedHeadings;
     if (headings == null || idx < 0 || idx >= headings.length) return;
-    widget.tab.sourceTab.currentTitle.value = headings[idx].key;
+    final source = widget.tab.sourceTab;
+    source.currentTitle.value = headings[idx].key;
     _pdfPageForHeading(idx).then((page) {
-      if (page != null && mounted && idx == _headingIdx) {
-        widget.tab.sourceTab.pageNumber = page;
+      if (page != null && mounted && version == _headingSelectionVersion) {
+        source.pageNumber = page;
       }
     });
   }
@@ -306,6 +309,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   void didUpdateWidget(covariant PdfCommentatorsTabScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.tab.sourceTab != widget.tab.sourceTab) {
+      _headingSelectionVersion++;
       oldWidget.tab.sourceTab.currentTitle.removeListener(_syncWithSourceTab);
       widget.tab.sourceTab.currentTitle.addListener(_syncWithSourceTab);
       _syncWithSourceTab();
@@ -333,6 +337,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     if (currentTitle == _sortedHeadings?.elementAtOrNull(_headingIdx)?.key) {
       return;
     }
+    _headingSelectionVersion++;
     var nextSelectedHeadingIdx = _selectedHeadingIdx;
     var selection = (firstIdx: nextSelectedHeadingIdx, secondIdx: -1);
 
@@ -489,9 +494,11 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       setState(() {});
     }
 
-    // פתיחה מסימניה/שחזור: ה-sourceTab נבנה מחדש ללא currentTitle — נמקם את
-    // הכותרת לפי עמוד ה-PDF השמור (אחרת תמיד נפתחת הכותרת הראשונה).
-    if (tab.currentTitle.value.isEmpty && tab.pageNumber > 1) {
+    final headings = _sortedHeadings;
+    if (identical(tab, widget.tab.sourceTab) &&
+        headings != null &&
+        _resolveTitleSelection(headings, tab.currentTitle.value).firstIdx < 0 &&
+        tab.pageNumber > 1) {
       await _resolveHeadingForPage(tab.pageNumber);
     }
   }
@@ -500,16 +507,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   /// שורת כל כותרת לעמוד ומבצע חיפוש בינארי לכותרת בעלת העמוד הגבוה ביותר
   /// שאינו עולה על עמוד היעד (הכותרות ממוינות לפי שורה → העמודים מונוטוניים).
   Future<void> _resolveHeadingForPage(int targetPage) async {
+    final source = widget.tab.sourceTab;
+    final version = _headingSelectionVersion;
     final headings = _sortedHeadings;
     if (headings == null || headings.isEmpty) return;
     try {
       final library = await DataRepository.instance.library;
       final textBook =
-          library.getCompanionBook(
-                widget.tab.sourceTab.book,
-                TextBook,
-              )
-              as TextBook?;
+          library.getCompanionBook(source.book, TextBook) as TextBook?;
       if (textBook == null) return;
 
       int lo = 0;
@@ -520,7 +525,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         final page = await textToPdfPage(
           textBook,
           headings[mid].value,
-          pdfBook: widget.tab.sourceTab.book,
+          pdfBook: source.book,
         );
         if (page == null) return; // אין מיפוי אמין — נשארים בברירת המחדל
         if (page <= targetPage) {
@@ -530,11 +535,12 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           hi = mid - 1;
         }
       }
-      if (!mounted) return;
+      if (!mounted || version != _headingSelectionVersion) return;
       setState(() {
         _headingIdx = best;
         _selectedParagraphIdx = _kAllPara;
       });
+      source.currentTitle.value = headings[best].key;
     } catch (e) {
       debugPrint('שגיאה במיפוי עמוד לכותרת בכרטיסיית מפרשים: $e');
     }
@@ -933,6 +939,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       index: page,
       commentatorsToShow: sourceTab.activeCommentators.toList(),
       targetKind: BookmarkTargetKind.commentators,
+      pdfCommentatorsHeading: heading.isEmpty ? null : heading,
     );
     UiSnack.show(
       added ? NotesMessages.bookmarkAdded : NotesMessages.bookmarkAlreadyExists,

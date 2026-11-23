@@ -155,6 +155,7 @@ Future<Bookmark?> bookmarkFromReadingTab(
       commentatorsToShow: sourceTab.activeCommentators.toList(),
       workspaceName: workspaceName,
       targetKind: BookmarkTargetKind.commentators,
+      pdfCommentatorsHeading: heading.isEmpty ? null : heading,
     );
   }
 
@@ -173,6 +174,7 @@ OpenedTab tabFromBookmark(Bookmark bookmark, {double? screenWidth}) {
         pageNumber: bookmark.index,
         openLeftPane: openLeftPane,
       )..activeCommentators = bookmark.commentatorsToShow.toSet();
+      sourceTab.currentTitle.value = bookmark.pdfCommentatorsHeading ?? '';
       return PdfCommentatorsTab(sourceTab: sourceTab);
     }
 

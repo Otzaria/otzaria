@@ -136,6 +136,7 @@ class BookmarkBloc extends Cubit<BookmarkState> {
     List<String>? commentatorsToShow,
     BookmarkTargetKind targetKind = BookmarkTargetKind.book,
     String? label,
+    String? pdfCommentatorsHeading,
   }) {
     final save = _addBookmark(
       ref: ref,
@@ -144,6 +145,7 @@ class BookmarkBloc extends Cubit<BookmarkState> {
       commentatorsToShow: commentatorsToShow,
       targetKind: targetKind,
       label: label,
+      pdfCommentatorsHeading: pdfCommentatorsHeading,
     );
     if (save == null) return false;
     unawaited(save);
@@ -158,6 +160,7 @@ class BookmarkBloc extends Cubit<BookmarkState> {
     List<String>? commentatorsToShow,
     BookmarkTargetKind targetKind = BookmarkTargetKind.book,
     String? label,
+    String? pdfCommentatorsHeading,
   }) {
     final bookmark = Bookmark(
       ref: ref,
@@ -166,6 +169,7 @@ class BookmarkBloc extends Cubit<BookmarkState> {
       commentatorsToShow: commentatorsToShow ?? [],
       targetKind: targetKind,
       label: label,
+      pdfCommentatorsHeading: pdfCommentatorsHeading,
       createdAt: DateTime.now(),
     );
     // כפילות נמדדת לפי זיהוי הספר + המיקום (index), כדי לאפשר מספר סימניות
