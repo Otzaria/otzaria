@@ -23,7 +23,7 @@ void main() {
       final primary = StateError('write failed');
       final stack = StackTrace.fromString('original write location');
       try {
-        await withPdfFileCleanup(
+        await withPdfFileCleanup<void>(
           () => Error.throwWithStackTrace(primary, stack),
           () => throw StateError('delete failed'),
         );
