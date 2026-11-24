@@ -851,6 +851,59 @@ void main() {
   </w:body>
 </w:document>''';
 
+    test('הדגשה מסגנון תו עוברת בירושה ומכבדת ביטול במקטע', () {
+      const styles =
+          '<w:styles $_xmlNs>'
+          '<w:style w:type="character" w:styleId="Strong">'
+          '<w:rPr><w:bCs/></w:rPr></w:style>'
+          '<w:style w:type="character" w:styleId="Child">'
+          '<w:basedOn w:val="Strong"/><w:rPr><w:bCs w:val="0"/></w:rPr>'
+          '</w:style>'
+          '<w:style w:type="character" w:styleId="Toggle">'
+          '<w:basedOn w:val="Child"/><w:rPr><w:bCs/></w:rPr></w:style>'
+          '</w:styles>';
+      String run(String style, String text, [String direct = '']) =>
+          '<w:r><w:rPr><w:rStyle w:val="$style"/>$direct</w:rPr>'
+          '<w:t>$text</w:t></w:r>';
+      final document =
+          '<w:document $_xmlNs><w:body><w:p>'
+          '${run("Child", "ראשון")}'
+          '${run("Child", "שני", '<w:bCs w:val="0"/>')}'
+          '${run("Toggle", "שלישי")}'
+          '${run("Missing", "רביעי", "<w:bCs/>")}'
+          '</w:p></w:body></w:document>';
+      final result = docxToText(
+        _buildDocx(_utf8Xml(document), stylesXmlBytes: _utf8Xml(styles)),
+        'בדיקה',
+      );
+      expect(result, '<h1>בדיקה</h1>\n<b>ראשון</b>שנישלישי<b>רביעי</b>');
+    });
+
+    test('כתב עברי ולועזי שומרים את ההדגשה המוגדרת לכל כתב', () {
+      const styles =
+          '<w:styles $_xmlNs>'
+          '<w:style w:type="character" w:styleId="Latin">'
+          '<w:rPr><w:b/></w:rPr></w:style>'
+          '<w:style w:type="character" w:styleId="Both">'
+          '<w:rPr><w:b/><w:bCs/></w:rPr></w:style></w:styles>';
+      String convert(String properties, String text) => docxToText(
+        _buildDocx(
+          _utf8Xml(runWithProps(properties, text)),
+          stylesXmlBytes: _utf8Xml(styles),
+        ),
+        'בדיקה',
+      ).split('\n').last;
+      const latin = '<w:rStyle w:val="Latin"/>';
+      expect(convert(latin, 'עברית'), 'עברית');
+      expect(convert(latin, 'ABC'), '<b>ABC</b>');
+      expect(convert(latin, 'ABCעברית'), '<b>ABC</b>עברית');
+      expect(convert('$latin<w:rtl/>', 'ABC'), 'ABC');
+      expect(
+        convert('<w:rStyle w:val="Both"/><w:bCs w:val="0"/>', 'עברית'),
+        'עברית',
+      );
+    });
+
     test('w:bCs בלבד (בלי w:b) מומר ל-<b>', () {
       final result = docxToText(
         _buildDocx(_utf8Xml(runWithProps('<w:bCs/>', 'מודגש'))),
