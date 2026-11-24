@@ -9,6 +9,8 @@ import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show SearchScope;
 
 import '../../helpers/memory_settings_cache.dart';
 import '../../support/search_engine_test_init.dart';
@@ -159,13 +161,24 @@ Future<void> main() async {
         addTearDown(tab.dispose);
         final bloc = await loadedBloc(repository, () => null);
         bloc.add(
-          AddHistory(tab, scopeFacets: const ['/new'], filterFacets: filter),
+          AddHistory(
+            tab,
+            scopeFacets: const ['/new'],
+            filterFacets: filter,
+            proximityScope: SearchScope.sameSection,
+          ),
         );
         final saved = (await bloc.stream.firstWhere(
           (s) => s.history.isNotEmpty,
         )).history.single;
         expect(saved.searchScopeFacets, ['/new']);
         expect(saved.searchFilterFacets, filter);
+        expect(
+          SearchConfiguration.fromMap(
+            saved.searchConfiguration!,
+          ).proximityScope,
+          SearchScope.sameSection,
+        );
       },
       skip: engineReady ? false : searchEngineSkipReason,
     );
