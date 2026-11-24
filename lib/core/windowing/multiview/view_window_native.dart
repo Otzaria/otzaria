@@ -105,17 +105,8 @@ class Win32ViewWindowNative implements ViewWindowNative {
   @override
   void hide(int hwnd) => ShowWindow(_h(hwnd), SW_HIDE);
 
-  /// העלאה מכוונת: נרשמת קודם בשער ההפעלה של ה-runner, אחרת לחיצה על
-  /// חלון אחר ממש לפניה חוסמת אותה (#5743).
   @override
-  Future<void> focus(int hwnd) async {
-    try {
-      await _channel.invokeMethod<void>('noteUserActivation', {'hwnd': hwnd});
-    } catch (e) {
-      debugPrint('noteUserActivation failed: $e');
-    }
-    SetForegroundWindow(_h(hwnd));
-  }
+  void focus(int hwnd) => SetForegroundWindow(_h(hwnd));
 
   /// הפקודה ש-`windowManager.startDragging` שולח לחלון הראשי.
   @visibleForTesting
