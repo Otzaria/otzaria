@@ -1,7 +1,7 @@
 name: Automerge
 
 # ממזג בשם Otzaria Bot, בקומיט מיזוג, PR עם תווית automerge כשכל הבדיקות עברו על ה-head שלו.
-# ענף שמאחורי הבסיס עובר קודם ריבייס ודחיפה בכוח, וה-CI רץ עליו שוב לפני המיזוג.
+# ענף שמאחורי הבסיס עובר קודם ריבייס ודחיפה בכוח, ומיד אחריהם מתבצע המיזוג, בלי להמתין ל-CI על הקומיט המורבס.
 # אין כאן הרצה של קוד מה-PR: רק git rebase ו-push.
 on:
   pull_request_target:
@@ -181,16 +181,18 @@ jobs:
             fi
             git push -q --force-with-lease="$head_ref:$head" origin "HEAD:$head_ref" \
               || give_up "הדחיפה אחרי הריבייס נכשלה."
-            echo "Rebased and pushed; merge waits for CI on the new head"
-            exit 0
+            head=$(git rev-parse HEAD)
+            echo "Rebased and pushed $head; merging without waiting for CI"
           fi
 
           if [ "$(gh api "repos/$R/git/ref/heads/$base" --jq .object.sha)" != "$base_head" ]; then
             echo "Base moved during the checks; waiting for CI on the new base"
             exit 0
           fi
-          if ! gh pr merge "$PR" -R "$R" --merge --match-head-commit "$head"; then
+          # אחרי דחיפה GitHub עשוי לעדכן את ה-head של ה-PR באיחור קצר.
+          for attempt in 1 2 3; do
+            gh pr merge "$PR" -R "$R" --merge --match-head-commit "$head" && { echo "Merged #$PR"; exit 0; }
             [ "$(gh api "repos/$R/pulls/$PR" --jq .merged)" = true ] && { echo "Already merged"; exit 0; }
-            give_up "המיזוג של הקומיט \`${head:0:7}\` נדחה ב-GitHub."
-          fi
-          echo "Merged #$PR"
+            [ "$attempt" = 3 ] || sleep 5
+          done
+          give_up "המיזוג של הקומיט \`${head:0:7}\` נדחה ב-GitHub."

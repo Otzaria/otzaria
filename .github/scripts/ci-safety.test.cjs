@@ -58,8 +58,9 @@ const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 fs.appendFileSync(process.env.CI_SAFETY_CALLS, JSON.stringify(args) + '\\n');
 let value;
 if (args[0] === 'api') {
-  const route = args.find(arg => arg.startsWith('repos/'));
-  if (route.endsWith('/pulls/42')) value = data.originalPr;
+  const route = args.find(arg => arg.startsWith('repos/') || arg.startsWith('users/'));
+  if (route.startsWith('users/')) value = { id: 1 };
+  else if (route.endsWith('/pulls/42')) value = data.originalPr;
   else if (/\\/pulls\\/\\d+$/.test(route)) value = data.pr;
   else if (route.includes('/permission')) value = { permission: 'write' };
   else if (route.includes('/git/ref/heads/')) {
@@ -103,6 +104,26 @@ console.log(JSON.stringify(value));
 
 test('merges when the current dev commit and all PR checks pass', t => {
   const s = fixture(t); s.execute(); assert.equal(s.merged(), true);
+});
+
+test('a branch behind the base is rebased and merged in the same run', t => {
+  const s = fixture(t, { behind: 2, pr: { state: 'open', draft: false, labels: [{ name: 'automerge' }, { name: 'run-ci' }],
+    head: { sha: 'pr-head', ref: 'feature', repo: { full_name: 'Otzaria/otzaria' } }, base: { ref: 'dev' } } });
+  s.execute(`git() {
+  echo "$*" >> "$RUNNER_TEMP/git.log"
+  case "$1" in
+    clone) mkdir -p "\${@: -1}" ;;
+    rebase) touch "$RUNNER_TEMP/rebased" ;;
+    rev-parse) [ -f "$RUNNER_TEMP/rebased" ] && echo rebased-head || echo pr-head ;;
+  esac
+}
+${mergeScript}`, { BOT_SLUG: 'otzaria-bot' });
+  const log = readFileSync(path.join(s.dir, 'git.log'), 'utf8');
+  assert.match(log, /rebase -q FETCH_HEAD/);
+  assert.match(log, /push -q --force-with-lease=feature:pr-head origin HEAD:feature/);
+  const merge = s.calls().find(args => args[0] === 'pr' && args[1] === 'merge');
+  assert.ok(merge);
+  assert.equal(merge[merge.indexOf('--match-head-commit') + 1], 'rebased-head');
 });
 
 test('the CI gate discards output from a failed labels request', t => {
