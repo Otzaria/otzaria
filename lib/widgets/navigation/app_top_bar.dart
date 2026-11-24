@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerDownEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -536,6 +537,7 @@ class _AppTopBarState extends State<AppTopBar>
 const double _kAutoHideRevealStrip = 8.0;
 const Duration _kAutoHideDelay = Duration(milliseconds: 600);
 const Duration _kAutoHideInitialDelay = Duration(milliseconds: 1500);
+const Duration _kAutoHideTouchDelay = Duration(seconds: 3);
 const Duration _kAutoHideAnimDuration = Duration(milliseconds: 150);
 
 /// חלונית קריאה כמו Column: הילד הראשון הוא הסרגל העליון, והשאר מתחתיו.
@@ -633,6 +635,12 @@ class _AppTopBarLayoutState extends State<AppTopBarLayout>
     hasFocus ? _show() : _scheduleHide(_kAutoHideDelay);
   }
 
+  void _onRevealStripPointerDown(PointerDownEvent event) {
+    if (_autoHide != true || event.kind != PointerDeviceKind.touch) return;
+    _show();
+    _scheduleHide(_kAutoHideTouchDelay);
+  }
+
   @override
   Widget build(BuildContext context) {
     final autoHide = _autoHide!;
@@ -686,7 +694,13 @@ class _AppTopBarLayoutState extends State<AppTopBarLayout>
                       child: widget.children.first,
                     ),
                   ),
-                  SizedBox(height: autoHide ? _kAutoHideRevealStrip : 0),
+                  Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: _onRevealStripPointerDown,
+                    child: SizedBox(
+                      height: autoHide ? _kAutoHideRevealStrip : 0,
+                    ),
+                  ),
                 ],
               ),
             ),
