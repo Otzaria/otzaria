@@ -1288,6 +1288,15 @@ class SeforimRepository {
 
   // --- Lines ---
 
+  /// Checks for embedded text without reading the book or relying on totalLines.
+  Future<bool> hasStoredLines(int bookId) async {
+    if (!(await _capabilities).hasLines) return false;
+    final db = await _database.database;
+    return db.select('SELECT 1 FROM line WHERE bookId = ? LIMIT 1', [
+      bookId,
+    ]).isNotEmpty;
+  }
+
   Future<Line?> getLineByIndex(int bookId, int lineIndex) async {
     return await _database.lineDao.selectByBookIdAndIndex(bookId, lineIndex);
   }

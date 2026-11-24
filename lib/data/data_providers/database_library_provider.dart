@@ -5211,16 +5211,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         ];
       }
 
-      // ספר file-backed (תיקייה שנוספה בלי "הוסף למסד הנתונים") — אין שורות
-      // ב-DB, התוכן נקרא מהקובץ עצמו לפי אותו פיצול שורות של הסורק.
       final dbBook = resolvedBook.book;
       final dbBookFormat = documentFormatOf(
         fileType: dbBook.fileType,
         path: dbBook.filePath,
       );
-      if (dbBook.isFileBacked &&
+      // במסד מצורף השורות המוטמעות קודמות לקובץ הנלווה, כמו בפתיחת הספר.
+      final readFromFile =
+          dbBook.isFileBacked &&
           dbBook.filePath != null &&
-          (dbBookFormat?.isTextual ?? false)) {
+          (dbBookFormat?.isTextual ?? false) &&
+          (!resolvedBook.source.isAttached ||
+              !await resolvedBook.repository.hasStoredLines(dbBook.id));
+      if (readFromFile) {
         final file = File(dbBook.filePath!);
         if (!await file.exists()) {
           return [
