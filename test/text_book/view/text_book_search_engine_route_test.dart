@@ -439,7 +439,7 @@ Future<void> main() async {
 
   group('ברירת המחדל השמורה חלה על חיפוש חדש בספר (issue #1937)', () {
     tearDown(() {
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
       SearchDefaults.saveExactDefaults(const {});
     });
 
@@ -465,7 +465,7 @@ Future<void> main() async {
     });
 
     testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר', (tester) async {
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
       final repository = _RecordingSearchRepository(results: const []);
       final harness = await pumpSearchView(
         tester,
@@ -482,7 +482,7 @@ Future<void> main() async {
     testWidgets(
       'מרווח שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #3501)',
       (tester) async {
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         final repository = _RecordingSearchRepository(results: const []);
         final simpleQueries = <String>[];
         final harness = await pumpSearchView(
@@ -508,7 +508,7 @@ Future<void> main() async {
       'מצב מתקדם שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #4078)',
       (tester) async {
         SearchDefaults.saveModeDefault(SearchMode.advanced);
-        SearchDefaults.saveDistanceDefault(10);
+        SearchDefaults.saveDistanceDefault(10, mode: SearchMode.advanced);
         addTearDown(() => SearchDefaults.saveModeDefault(SearchMode.exact));
         final repository = _RecordingSearchRepository(results: const []);
         final harness = await pumpSearchView(
@@ -530,7 +530,7 @@ Future<void> main() async {
     testWidgets(
       'מרווח ו"בכל סדר" שמורים: החזרת מצב ה-bloc אינה מחזירה מילה אחת למנוע',
       (tester) async {
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         SearchDefaults.saveAnyOrderDefault(true);
         addTearDown(() => SearchDefaults.saveAnyOrderDefault(false));
         final repository = _RecordingSearchRepository(results: const []);
@@ -554,7 +554,7 @@ Future<void> main() async {
     testWidgets(
       '"בכל סדר" שמור נשאר אחרי הד ה-bloc של מילה אחת (issue #3690)',
       (tester) async {
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         SearchDefaults.saveAnyOrderDefault(true);
         addTearDown(() => SearchDefaults.saveAnyOrderDefault(false));
         final repository = _RecordingSearchRepository(results: const []);
@@ -779,7 +779,7 @@ Future<void> main() async {
 
   testWidgets('עריכת חיפוש מתקדם משוחזר משמרת את ההגדרות', (tester) async {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     final repository = _RecordingSearchRepository(results: const []);
     final harness = await pumpSearchView(
       tester,

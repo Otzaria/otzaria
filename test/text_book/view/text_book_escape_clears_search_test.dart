@@ -181,10 +181,10 @@ Future<void> main() async {
     'חיפוש טקסט מסומן מתחיל מברירות המחדל השמורות (issue #3690)',
     (tester) async {
       SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
       addTearDown(() {
         SearchDefaults.saveExactDefaults(const {});
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
       });
       final bloc = await pumpScreen(
         tester,
@@ -213,11 +213,11 @@ Future<void> main() async {
     tester,
   ) async {
     SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
-    SearchDefaults.saveDistanceDefault(3);
+    SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
     SearchDefaults.saveAnyOrderDefault(true);
     addTearDown(() {
       SearchDefaults.saveExactDefaults(const {});
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
       SearchDefaults.saveAnyOrderDefault(false);
     });
     final bloc = await pumpScreen(
