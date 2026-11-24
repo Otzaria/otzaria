@@ -451,9 +451,7 @@ class _LinksListViewState extends State<LinksListView> {
         if (chipKeys.length > 1 && _showFilters) ...[
           ConstrainedBox(
             // מגביל את גובה המסננים כדי שלא יכסו את רשימת הקישורים.
-            constraints: BoxConstraints(
-              maxHeight: constraints.maxHeight * 0.3,
-            ),
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.3),
             child: SingleChildScrollView(
               padding: const EdgeInsetsDirectional.fromSTEB(
                 AppTokens.spaceSM,
@@ -871,10 +869,9 @@ class _LinksListViewState extends State<LinksListView> {
     final instanceKey = buildSelectedLinkInstanceKey(link);
     final contentKey = buildSelectedLinkContentKey(link);
     final restoredExpanded =
-        PageStorage.maybeOf(context)?.readState(
+        PageStorage.maybeOf(
               context,
-              identifier: instanceKey,
-            )
+            )?.readState(context, identifier: instanceKey)
             as bool?;
     final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
     return ExpansionTile(

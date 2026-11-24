@@ -197,9 +197,7 @@ void main() {
     );
   }
 
-  testWidgets('חלונית המפרשים: מעבר לחלון אחר שומר את הבחירה', (
-    tester,
-  ) async {
+  testWidgets('חלונית המפרשים: מעבר לחלון אחר שומר את הבחירה', (tester) async {
     final otherFocus = FocusNode();
     addTearDown(otherFocus.dispose);
     await pumpPane(
@@ -233,9 +231,7 @@ void main() {
     await expectKeptOnWindowBlur(tester, 'פירוש ארוך', otherFocus);
   });
 
-  testWidgets('חלונית הקישורים: מעבר לחלון אחר שומר את הבחירה', (
-    tester,
-  ) async {
+  testWidgets('חלונית הקישורים: מעבר לחלון אחר שומר את הבחירה', (tester) async {
     CommentaryService.seedEraCache({'ספר מקושר': CommentaryEra.other});
     addTearDown(CommentaryService.clearEraCache);
     final link = _ContentLink(

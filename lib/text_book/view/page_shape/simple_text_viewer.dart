@@ -2911,9 +2911,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// Prepares native drag content under the same protection as regular copy.
-  SelectedTextDragPreparation? _captureSelectedTextDrag(
-    String capturedText,
-  ) {
+  SelectedTextDragPreparation? _captureSelectedTextDrag(String capturedText) {
     if (capturedText.trim().isEmpty) return null;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return null;

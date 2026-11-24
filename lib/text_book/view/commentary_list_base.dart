@@ -411,9 +411,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (state is! TextBookLoaded) return null;
     return buildCommentaryCopyGuard(
       links,
-      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
-        _itemKeys[_getLinkKey(link)]!,
-      ),
+      selectionOf: (link) =>
+          CommentarySelectionTracker.selectionIn(_itemKeys[_getLinkKey(link)]!),
       renderSettings: RenderSettings.fromProfile(
         state.commentaryDisplayProfile,
       ),
@@ -662,9 +661,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
   }
 
-  Future<CommentaryNotesByLine> _personalNotesForGroup(
-    CommentaryGroup group,
-  ) {
+  Future<CommentaryNotesByLine> _personalNotesForGroup(CommentaryGroup group) {
     // המפתח כמו בשמירה מתפריט המפרש: לפי מקור ספר היעד.
     final key = personalNotesBookKeyFor(
       group.bookTitle,
@@ -1436,11 +1433,10 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   void deactivate() {
     if (widget.shrinkWrap && _inlineStorageIdentifier != null) {
       // ה-sliver עשוי לנתק את הפריט מאבותיו לפני deactivate.
-      _inlineStorage?.writeState(
-        context,
-        (_allExpanded, Map<String, bool>.of(_expansionStates)),
-        identifier: _inlineStorageIdentifier,
-      );
+      _inlineStorage?.writeState(context, (
+        _allExpanded,
+        Map<String, bool>.of(_expansionStates),
+      ), identifier: _inlineStorageIdentifier);
     }
     super.deactivate();
   }
@@ -2228,49 +2224,48 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             _schedulePendingCommentatorScroll();
                           }
 
-                          Widget buildList(
-                            ScrollPhysics physics,
-                          ) => ScrollablePositionedList.builder(
-                            itemScrollController: _itemScrollController,
-                            itemPositionsListener: _itemPositionsListener,
-                            listController: _listController,
-                            restorePosition: widget.shrinkWrap,
-                            findChildIndexCallback: (key) =>
-                                _flatIndexByKey[key],
-                            initialScrollIndex: flatItems.isEmpty
-                                ? 0
-                                : _lastScrollIndex.clamp(
-                                    0,
-                                    flatItems.length - 1,
-                                  ),
-                            physics: physics,
-                            shrinkWrap: widget.shrinkWrap,
-                            itemCount: flatItems.length,
-                            itemBuilder: (context, index) {
-                              final item = flatItems[index];
-                              final link = item.link;
-                              final child = link == null
-                                  ? _buildGroupHeader(item.group)
-                                  : _buildLinkItem(
-                                      item.group,
-                                      link,
-                                      item.previousVisibleLink,
-                                      state,
-                                    );
-                              return KeyedSubtree(
-                                key: _flatItemKey(item),
-                                child: item.showDivider
-                                    ? Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          child,
-                                          const Divider(height: 1),
-                                        ],
-                                      )
-                                    : child,
+                          Widget buildList(ScrollPhysics physics) =>
+                              ScrollablePositionedList.builder(
+                                itemScrollController: _itemScrollController,
+                                itemPositionsListener: _itemPositionsListener,
+                                listController: _listController,
+                                restorePosition: widget.shrinkWrap,
+                                findChildIndexCallback: (key) =>
+                                    _flatIndexByKey[key],
+                                initialScrollIndex: flatItems.isEmpty
+                                    ? 0
+                                    : _lastScrollIndex.clamp(
+                                        0,
+                                        flatItems.length - 1,
+                                      ),
+                                physics: physics,
+                                shrinkWrap: widget.shrinkWrap,
+                                itemCount: flatItems.length,
+                                itemBuilder: (context, index) {
+                                  final item = flatItems[index];
+                                  final link = item.link;
+                                  final child = link == null
+                                      ? _buildGroupHeader(item.group)
+                                      : _buildLinkItem(
+                                          item.group,
+                                          link,
+                                          item.previousVisibleLink,
+                                          state,
+                                        );
+                                  return KeyedSubtree(
+                                    key: _flatItemKey(item),
+                                    child: item.showDivider
+                                        ? Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              child,
+                                              const Divider(height: 1),
+                                            ],
+                                          )
+                                        : child,
+                                  );
+                                },
                               );
-                            },
-                          );
                           final listView = widget.handOffEdgeDragsToParent
                               ? EdgeDragHandoff(
                                   builder: (_, physics) => buildList(physics),
