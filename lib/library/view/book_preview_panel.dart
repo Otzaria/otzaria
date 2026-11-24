@@ -280,6 +280,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           !loaded.isContentLineLoaded(line)) {
         return null;
       }
+      if (widget.initialTextContinuesToNextLine) return 1.0;
       return matchFractionInLine(
         loaded.content[line],
         query,
