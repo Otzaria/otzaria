@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/services.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -39,6 +40,42 @@ int? resolveReadyPdfPageNumber({
   required int? Function() readPageNumber,
 }) {
   return isReady ? readPageNumber() : null;
+}
+
+/// ממתינה באופן חסום לפריסת עמוד היעד, ומבטלת אם המסמך או מיקום המשתמש השתנו.
+Future<bool> waitForInitialPdfPageLayout({
+  required bool Function() isCurrentSession,
+  required int Function() interactionGeneration,
+  required int capturedInteractionGeneration,
+  required int Function() pageLayoutCount,
+  required int targetPage,
+  int maxAttempts = 300,
+  Duration interval = const Duration(milliseconds: 10),
+  Future<void> Function(Duration) delay = Future<void>.delayed,
+}) async {
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    if (!isCurrentSession() ||
+        interactionGeneration() != capturedInteractionGeneration) {
+      return false;
+    }
+    if (pageLayoutCount() >= targetPage) return true;
+    await delay(interval);
+  }
+  return isCurrentSession() &&
+      interactionGeneration() == capturedInteractionGeneration &&
+      pageLayoutCount() >= targetPage;
+}
+
+/// קלט מקלדת שמזיז את הקורא מבטל תיקון פתיחה מושהה.
+bool cancelsPendingPdfInitialPageAlignment(KeyEvent event) {
+  if (event is! KeyDownEvent) return false;
+  final key = event.logicalKey;
+  return key == LogicalKeyboardKey.arrowUp ||
+      key == LogicalKeyboardKey.arrowDown ||
+      key == LogicalKeyboardKey.arrowLeft ||
+      key == LogicalKeyboardKey.arrowRight ||
+      key == LogicalKeyboardKey.pageUp ||
+      key == LogicalKeyboardKey.pageDown;
 }
 
 /// ה-layout של [controller], או null אם עוד לא חושב: ב-pdfrx `isReady` נעשה

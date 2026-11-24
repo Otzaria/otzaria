@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
 import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
@@ -544,6 +545,109 @@ void main() {
       );
       expect(result, isNull);
       expect(pageNumberAccessed, isFalse);
+    });
+  });
+
+  group('waitForInitialPdfPageLayout', () {
+    test('ממתינה עד שעמוד היעד נכנס ל-layout', () async {
+      var layouts = 0;
+      final result = await waitForInitialPdfPageLayout(
+        isCurrentSession: () => true,
+        interactionGeneration: () => 4,
+        capturedInteractionGeneration: 4,
+        pageLayoutCount: () => layouts,
+        targetPage: 5,
+        maxAttempts: 3,
+        delay: (_) async {
+          layouts = 5;
+        },
+      );
+      expect(result, isTrue);
+    });
+
+    test('מבטלת תיקון כשהמשתמש זז בזמן ההמתנה', () async {
+      var generation = 4;
+      final result = await waitForInitialPdfPageLayout(
+        isCurrentSession: () => true,
+        interactionGeneration: () => generation,
+        capturedInteractionGeneration: 4,
+        pageLayoutCount: () => 0,
+        targetPage: 5,
+        maxAttempts: 3,
+        delay: (_) async {
+          generation++;
+        },
+      );
+      expect(result, isFalse);
+    });
+
+    test('timeout אינו מאשר תיקון כשה-layout נשאר חלקי', () async {
+      var delays = 0;
+      final result = await waitForInitialPdfPageLayout(
+        isCurrentSession: () => true,
+        interactionGeneration: () => 4,
+        capturedInteractionGeneration: 4,
+        pageLayoutCount: () => 4,
+        targetPage: 5,
+        maxAttempts: 3,
+        delay: (_) async {
+          delays++;
+        },
+      );
+      expect(result, isFalse);
+      expect(delays, 3);
+    });
+
+    test('layout שעדיין אינו זמין אינו זורק בזמן ההמתנה', () async {
+      final controller = _LayoutController(ready: true);
+      final result = await waitForInitialPdfPageLayout(
+        isCurrentSession: () => true,
+        interactionGeneration: () => 4,
+        capturedInteractionGeneration: 4,
+        pageLayoutCount: () =>
+            pdfReadyLayoutOrNull(controller)?.pageLayouts.length ?? 0,
+        targetPage: 5,
+        maxAttempts: 1,
+        delay: (_) async {},
+      );
+      expect(result, isFalse);
+      expect(controller.layoutAccessed, isTrue);
+    });
+  });
+
+  group('cancelsPendingPdfInitialPageAlignment', () {
+    KeyDownEvent down(
+      PhysicalKeyboardKey physical,
+      LogicalKeyboardKey logical,
+    ) {
+      return KeyDownEvent(
+        physicalKey: physical,
+        logicalKey: logical,
+        timeStamp: Duration.zero,
+      );
+    }
+
+    test('חיצים ו-Page Up/Down מבטלים תיקון פתיחה מושהה', () {
+      expect(
+        [
+          down(PhysicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowUp),
+          down(PhysicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown),
+          down(PhysicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowLeft),
+          down(PhysicalKeyboardKey.arrowRight, LogicalKeyboardKey.arrowRight),
+          down(PhysicalKeyboardKey.pageUp, LogicalKeyboardKey.pageUp),
+          down(PhysicalKeyboardKey.pageDown, LogicalKeyboardKey.pageDown),
+        ].every(cancelsPendingPdfInitialPageAlignment),
+        isTrue,
+      );
+    });
+
+    test('מקש שאינו מנווט אינו מבטל את התיקון', () {
+      expect(
+        cancelsPendingPdfInitialPageAlignment(
+          down(PhysicalKeyboardKey.keyA, LogicalKeyboardKey.keyA),
+        ),
+        isFalse,
+      );
     });
   });
 

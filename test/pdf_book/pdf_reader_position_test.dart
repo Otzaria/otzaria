@@ -64,11 +64,15 @@ void main() {
     }
   }
 
-  Future<void> pumpUntil(WidgetTester tester, bool Function() condition) async {
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() condition, {
+    String Function()? diagnostics,
+  }) async {
     for (var i = 0; i < 200 && !condition(); i++) {
       await settle(tester, 1);
     }
-    expect(condition(), isTrue);
+    expect(condition(), isTrue, reason: diagnostics?.call());
   }
 
   Future<PdfBookTab> pumpReader(
@@ -176,16 +180,30 @@ void main() {
       initialPage: initialPage,
     );
     final controller = tab.pdfViewerController;
-    final targetPage = controller.layout.pageLayouts[initialPage - 1];
-    final previousPage = controller.layout.pageLayouts[initialPage - 2];
     await pumpUntil(
       tester,
-      () =>
-          (controller.visibleRect.top - targetPage.top).abs() < 0.1 &&
-          controller.pageNumber == initialPage &&
-          tab.pageNumber == initialPage,
+      () {
+        final pages = controller.layout.pageLayouts;
+        if (pages.length < initialPage) return false;
+        return (controller.visibleRect.top - pages[initialPage - 1].top).abs() <
+                0.1 &&
+            controller.pageNumber == initialPage &&
+            tab.pageNumber == initialPage;
+      },
+      diagnostics: () {
+        final pages = controller.layout.pageLayouts;
+        final targetTop = pages.length >= initialPage
+            ? pages[initialPage - 1].top
+            : null;
+        return 'layouts=${pages.length}, '
+            'visibleTop=${controller.visibleRect.top}, '
+            'targetTop=$targetTop, controllerPage=${controller.pageNumber}, '
+            'tabPage=${tab.pageNumber}';
+      },
     );
 
+    final targetPage = controller.layout.pageLayouts[initialPage - 1];
+    final previousPage = controller.layout.pageLayouts[initialPage - 2];
     expect(controller.visibleRect.top, closeTo(targetPage.top, 0.1));
     expect(controller.visibleRect.overlaps(previousPage), isFalse);
     expect(controller.pageNumber, initialPage);

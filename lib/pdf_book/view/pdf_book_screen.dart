@@ -256,6 +256,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   int _pdfNotesLoadGeneration = 0;
   int _pdfNoteNavigationGeneration = 0;
   int _pdfDocumentSession = 0;
+  int _pdfInteractionGeneration = 0;
   bool _personalNoteViewerReady = false;
   bool _isChoosingPersonalNotePoint = false;
   PersonalNote? _noteToReanchor;
@@ -1636,19 +1637,35 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           isReady: controller.isReady,
           readPageNumber: () => controller.pageNumber,
         );
+        // pdfrx עשוי לדווח על עמוד היעד כשהתצוגה עדיין מעוגנת לשוליים שלו.
         final needsInitialPageNavigation =
-            currentReadyPage == null || currentReadyPage != initialTargetPage;
+            initialTargetPage > 1 ||
+            currentReadyPage == null ||
+            currentReadyPage != initialTargetPage;
         if (needsInitialPageNavigation) {
           _isJumping = true;
           try {
+            final interactionGeneration = _pdfInteractionGeneration;
             await WidgetsBinding.instance.endOfFrame;
             if (currentSession()) {
-              await _goToPageWithSpreadLock(
-                initialTargetPage,
-                duration: Duration.zero,
+              final shouldCorrect = await waitForInitialPdfPageLayout(
+                isCurrentSession: currentSession,
+                interactionGeneration: () => _pdfInteractionGeneration,
+                capturedInteractionGeneration: interactionGeneration,
+                pageLayoutCount: () =>
+                    pdfReadyLayoutOrNull(controller)?.pageLayouts.length ?? 0,
+                targetPage: initialTargetPage,
               );
-              if (!currentSession()) return;
-              await Future.delayed(const Duration(milliseconds: 200));
+              // layout חלקי אינו חוזר ל-goToPage, שמציג את שולי העמוד הקודם.
+              if (shouldCorrect) {
+                await _goToPageWithSpreadLock(
+                  initialTargetPage,
+                  duration: Duration.zero,
+                );
+                if (currentSession()) {
+                  await Future.delayed(const Duration(milliseconds: 200));
+                }
+              }
             }
           } finally {
             if (currentSession()) {
@@ -1806,6 +1823,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             }
           },
           onKeyEvent: (FocusNode node, KeyEvent event) {
+            if (cancelsPendingPdfInitialPageAlignment(event)) {
+              _pdfInteractionGeneration++;
+            }
             if (event is KeyDownEvent &&
                 event.logicalKey == LogicalKeyboardKey.escape &&
                 _isChoosingPersonalNotePoint) {
@@ -1999,7 +2019,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           child: _pdfViewerSuspended
               ? const SizedBox.expand()
               : Listener(
-                  onPointerDown: (_) => _pdfTextSelectionActions.cancel(),
+                  onPointerDown: (_) {
+                    _pdfInteractionGeneration++;
+                    _pdfTextSelectionActions.cancel();
+                  },
+                  onPointerSignal: (_) => _pdfInteractionGeneration++,
+                  onPointerPanZoomStart: (_) => _pdfInteractionGeneration++,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
