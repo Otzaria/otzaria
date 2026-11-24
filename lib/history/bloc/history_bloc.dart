@@ -330,6 +330,11 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       if (text.trim().isEmpty) return null;
 
       final searchState = searchingTab.searchBloc.state;
+      final configuration = proximityScopeOverride == null
+          ? searchState.configuration
+          : searchState.configuration.copyWith(
+              proximityScope: proximityScopeOverride,
+            );
 
       final formattedQuery = _buildFormattedQuery(searchingTab);
       final scopeFacets = scopeFacetsOverride ?? searchState.searchScopeFacets;
@@ -338,6 +343,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
           (scopeFacetsOverride == null
               ? searchState.currentFacets
               : scopeFacets);
+      final sameFacets =
+          identical(filterFacets, scopeFacets) ||
+          setEquals(filterFacets.toSet(), scopeFacets.toSet());
       final nonRootScopeFacets = scopeFacets
           .where((facet) => facet != '/')
           .toList();
@@ -363,16 +371,13 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         searchScopeFacets: nonRootScopeFacets.isNotEmpty
             ? nonRootScopeFacets
             : null,
-        searchFilterFacets: setEquals(filterFacets.toSet(), scopeFacets.toSet())
-            ? null
-            : List<String>.of(filterFacets),
-        searchMode: searchState.configuration.searchMode,
-        distance: searchState.configuration.distance,
+        searchFilterFacets: sameFacets ? null : List<String>.of(filterFacets),
+        searchMode: configuration.searchMode,
+        distance: configuration.distance,
         // ה-configuration המלא נשמר כמפה כדי ששחזור יחזיר גם הגדרות שאין
         // להן שדה ייעודי (מיון, איחוד תוצאות, התאמת מילים, רגקס).
-        searchConfiguration: searchState.configuration.toMap(),
-        proximityScope:
-            proximityScopeOverride ?? searchState.configuration.proximityScope,
+        searchConfiguration: configuration.toMap(),
+        proximityScope: configuration.proximityScope,
       );
     }
 
