@@ -59,6 +59,7 @@ windows/runner/*
 !windows/runner/snap_layouts.cpp
 !windows/runner/snap_layouts.h
 !windows/runner/window_centering.h
+!windows/runner/activation_gate.h
 !windows/runner/crash_record.cpp
 !windows/runner/crash_record.h
 !windows/runner/crash_wer.cpp

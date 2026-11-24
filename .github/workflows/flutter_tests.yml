@@ -122,6 +122,12 @@ jobs:
             test/windows/native_exception_records_test.cpp -o "$RUNNER_TEMP/native_exception_records_test"
           "$RUNNER_TEMP/native_exception_records_test"
 
+      - name: Test the window focus policy
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/activation_gate_test.cpp -o "$RUNNER_TEMP/activation_gate_test"
+          "$RUNNER_TEMP/activation_gate_test"
+
       # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
       # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
       - name: Setup Flutter
@@ -490,6 +496,21 @@ jobs:
         shell: pwsh
         timeout-minutes: 3
         run: test/windows/run_shift_key_normalizer_test.ps1
+
+      - name: Test the native window focus guard
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'MSVC not found' }
+          $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $runner = Join-Path $env:GITHUB_WORKSPACE 'windows/runner'
+          $testSource = Join-Path $env:GITHUB_WORKSPACE 'test/windows/activation_gate_test.cpp'
+          cmd /c "call `"$vcvars`" >nul && cl /nologo /std:c++17 /W4 /WX /EHsc /I`"$runner`" `"$testSource`" /link user32.lib"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\activation_gate_test.exe
+          exit $LASTEXITCODE
 
       - name: Test the native Windows clipboard bitmap reader
         shell: pwsh
