@@ -59,7 +59,8 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_event.dart'
+    hide UpdateFontSize;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -2230,14 +2231,14 @@ void main() {
         ),
       );
       await tester.pump();
-      final escapeListener = find
+      final readerFocus = find
           .descendant(
             of: find.byType(TextBookViewerBloc),
-            matching: find.byType(KeyboardListener),
+            matching: find.byType(Focus),
           )
           .first;
       expect(
-        tester.widget<KeyboardListener>(escapeListener).focusNode.hasFocus,
+        tester.widget<Focus>(readerFocus).focusNode!.hasFocus,
         isTrue,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -2270,13 +2271,8 @@ void main() {
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
       geometry.calls.clear();
 
-      // התרחיש מחייב פוקוס בתוך ה-KeyboardListener של הספר.
-      final bookListener = find.descendant(
-        of: find.byType(TextBookViewerBloc),
-        matching: find.byType(KeyboardListener),
-      );
       expect(
-        tester.widget<KeyboardListener>(bookListener.first).focusNode.hasFocus,
+        tester.widget<Focus>(readerFocus).focusNode!.hasFocus,
         isTrue,
       );
 
@@ -2299,6 +2295,13 @@ void main() {
       await tester.pump();
       expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
       expect(fullscreen.state, isTrue);
+
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'f9');
+      bloc.receivedEvents.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), hasLength(1));
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
 
       geometry.calls.clear();
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
