@@ -34,6 +34,7 @@ SOURCE_FILES = (
     "tool/perf_probe/run_pdf_text_profile.dart",
     "tool/perf_probe/run_pdf_text_profile.py",
     "tool/perf_probe/test_pdf_text_native.py",
+    "tool/perf_probe/src/pdf_image_budget.dart",
     "tool/perf_probe/src/pdf_text_profile.dart",
     "tool/perf_probe/src/pdf_text_profile_report.dart",
     "tool/perf_probe/src/report.dart",
