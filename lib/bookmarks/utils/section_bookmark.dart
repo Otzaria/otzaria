@@ -37,7 +37,10 @@ Future<void> addTextSectionBookmark(
     ref: ref,
     book: state.book,
     index: index,
-    commentatorsToShow: state.activeCommentators,
+    commentatorsToShow:
+        state.activeCommentators.isNotEmpty || state.hasExplicitCommentators
+        ? state.activeCommentators
+        : null,
     label: label,
   );
   UiSnack.showQuick(
