@@ -89,6 +89,22 @@ Future<void> main() async {
     }
 
     test(
+      'בכל סדר: הביטוי השלם נמצא גם כשהמילים מופיעות בסדר הפוך',
+      () {
+        final reversed = query.split(' ').reversed.join(' ');
+        final line = quotedLine.replaceFirst(query, reversed);
+        final fraction = matchFractionInLine(
+          line,
+          query,
+          searchOptions: options,
+          matchPolicy: const SearchMatchPolicy(anyOrder: true),
+        );
+        expect(fraction, closeTo(line.indexOf(reversed) / line.length, 0.001));
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test(
       'בלי הביטוי השלם בשורה: השבר לפי המילה המודגשת הראשונה, כמו קודם',
       () {
         final partialOnly = quotedLine.replaceFirst('בסמוך ', '');
