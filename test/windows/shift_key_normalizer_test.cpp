@@ -198,6 +198,56 @@ void CheckLayout(HWND first, HWND second, HWND unhooked, HKL layout) {
             << '\n';
 }
 
+// issue #5934: בלי NumLock המקלדת המספרית שולחת VK_UP וכו' עם קוד הסריקה של
+// הספרה ובלי extended, וה-engine מתרגם לפי קוד הסריקה ל-numpad8. בצד הנווט
+// הם צריכים להגיע כחצים; ספרות, מקשי הנווט האמיתיים ו-NumLock דולק — בלי שינוי.
+void CheckNumpadNavigation(HWND window) {
+  BYTE original[256];
+  Require(GetKeyboardState(original) != 0, "Keyboard state could not be read");
+  const struct {
+    WPARAM key;
+    LPARAM scan;
+  } navigation[] = {{VK_HOME, 0x47},  {VK_UP, 0x48},    {VK_PRIOR, 0x49},
+                    {VK_LEFT, 0x4b},  {VK_RIGHT, 0x4d}, {VK_END, 0x4f},
+                    {VK_DOWN, 0x50},  {VK_NEXT, 0x51},  {VK_INSERT, 0x52},
+                    {VK_DELETE, 0x53}};
+  try {
+    for (const bool num_lock : {false, true}) {
+      BYTE keyboard[256]{};
+      keyboard[VK_NUMLOCK] = num_lock ? 0x01 : 0x00;
+      Require(SetKeyboardState(keyboard) != 0,
+              "The test thread keyboard state could not be set");
+      for (const UINT type : {WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP}) {
+        const bool up = type == WM_KEYUP || type == WM_SYSKEYUP;
+        const LPARAM flags = 1 | (up ? kKeyUp : 0) |
+                             (type == WM_SYSKEYDOWN || type == WM_SYSKEYUP
+                                  ? 0x20000000
+                                  : 0);
+        for (const auto& key : navigation) {
+          const LPARAM numpad = flags | (key.scan << 16);
+          // NumLock דולק + Shift: Windows שולח את אותו VK — נשאר כמו היום.
+          Check(window, type, key.key, numpad,
+                num_lock ? numpad : numpad | kExtendedBit);
+          Check(window, type, key.key, numpad | kExtendedBit,
+                numpad | kExtendedBit);
+        }
+        Check(window, type, VK_NUMPAD8, flags | 0x00480000, flags | 0x00480000);
+        Check(window, type, VK_NUMPAD0, flags | 0x00520000, flags | 0x00520000);
+        Check(window, type, VK_DECIMAL, flags | 0x00530000, flags | 0x00530000);
+        Check(window, type, VK_CLEAR, flags | 0x004c0000, flags | 0x004c0000);
+        Check(window, type, VK_UP, flags | 0x00110000, flags | 0x00110000);
+        Check(window, type, VK_UP, flags, flags);
+      }
+    }
+  } catch (...) {
+    SetKeyboardState(original);
+    throw;
+  }
+  Require(SetKeyboardState(original) != 0,
+          "The original keyboard state could not be restored");
+  std::cout << "numpad_navigation=checked\n";
+}
+
 }  // namespace
 
 int main() {
@@ -230,6 +280,7 @@ int main() {
     Require(GetKeyboardLayoutList(count, layouts.data()) == count,
             "Keyboard layouts changed while the test was starting");
     for (const HKL layout : layouts) CheckLayout(first, second, unhooked, layout);
+    CheckNumpadNavigation(first);
     Require(DestroyWindow(first) != 0 && IsWindow(first) == 0,
             "The first test window did not close");
     first = nullptr;
