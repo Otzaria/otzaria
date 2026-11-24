@@ -348,7 +348,16 @@ void main() {
     expect(section, contains('i < kTopFrames'));
     expect(section, contains('i >= bottom_begin'));
     // בתחתית יש לרוב רק לולאת ההודעות; קצה ה-Dart שמעליה חייב להישמר.
+    expect(section, contains('count > kTopFrames + kBottomFrames'));
     expect(section, contains('DartImageBase(frames[i - 1]) != 0'));
+    expect(
+      section,
+      contains('outer_begin = i - (std::min)(i, kOuterDartFrames)'),
+    );
+    expect(
+      section,
+      contains('outer_end = (std::min)(count, i + kBelowDartFrames)'),
+    );
     expect(section, contains('i >= outer_begin && i < outer_end'));
   });
 }
