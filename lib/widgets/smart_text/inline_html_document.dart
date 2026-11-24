@@ -120,23 +120,31 @@ class InlineHtmlDocument {
   /// מנסה להמיר את [html] (אחרי processText) לשורה. null — נדרש HtmlWidget.
   ///
   /// התוצאה (גם null) נשמרת ב-LRU לפי (html, סגנון, גופן משתנה).
-  static InlineHtmlLine? parseLine(String html, TextStyle baseStyle) {
+  ///
+  /// [lenient] — תגיות ועיצוב שהמסלול המהיר לא תומך בהם נפתחים לטקסט שלהם,
+  /// חוץ מ-`<pre>`, `white-space: pre` ומגבלת שורות, שנשארים ב-HtmlWidget.
+  static InlineHtmlLine? parseLine(
+    String html,
+    TextStyle baseStyle, {
+    bool lenient = false,
+  }) {
     if (html.isEmpty || html.length > _cacheMaxChars) {
-      return _parseLineUncached(html, baseStyle);
+      return _parseLineUncached(html, baseStyle, lenient);
     }
     // גופן מערכת משתנה מזוהה ברקע ומשנה את fontVariations של הבולד.
     final key = (
       html,
       baseStyle,
       AppFonts.boldFontVariations(baseStyle.fontFamily) != null,
+      lenient,
     );
     final cached = _cache.remove(key);
     if (cached != null) {
       _cache[key] = cached;
       return cached.$1;
     }
-    final result = _parseLineUncached(html, baseStyle);
-    if (result == null) SmartTextRenderStats.fullPathHtml(html);
+    final result = _parseLineUncached(html, baseStyle, lenient);
+    if (result == null && !lenient) SmartTextRenderStats.fullPathHtml(html);
     // אומדן: כל רצף הוא ספאן וסגנון.
     final nodes = 1 + 2 * (result?.document.runs.length ?? 0);
     if (nodes > _cacheMaxNodes) return result;
@@ -154,7 +162,10 @@ class InlineHtmlDocument {
     return result;
   }
 
-  static final LinkedHashMap<(String, TextStyle, bool), (InlineHtmlLine?, int)>
+  static final LinkedHashMap<
+    (String, TextStyle, bool, bool),
+    (InlineHtmlLine?, int)
+  >
   _cache = LinkedHashMap();
   static int _cacheChars = 0;
   static int _cacheNodes = 0;
@@ -169,7 +180,11 @@ class InlineHtmlDocument {
     _cacheNodes = 0;
   }
 
-  static InlineHtmlLine? _parseLineUncached(String html, TextStyle baseStyle) {
+  static InlineHtmlLine? _parseLineUncached(
+    String html,
+    TextStyle baseStyle,
+    bool lenient,
+  ) {
     final nodes = parseInlineHtmlNodes(html);
     if (nodes == null) return null;
     final heading = _wholeLineHeading(nodes);
@@ -183,11 +198,12 @@ class InlineHtmlDocument {
         style,
         inheritedVariations: baseStyle.fontVariations,
         rootFontSize: baseStyle.fontSize,
+        lenient: lenient,
       ).build(heading.nodes);
       if (document == null || document.plainText.isEmpty) return null;
       return InlineHtmlLine(style, document, isHeading: true);
     }
-    final document = _InlineBuilder(baseStyle).build(nodes);
+    final document = _InlineBuilder(baseStyle, lenient: lenient).build(nodes);
     if (document == null) return null;
     return InlineHtmlLine(baseStyle, document, isHeading: false);
   }
@@ -391,6 +407,7 @@ class _InlineBuilder {
     this.baseStyle, {
     List<FontVariation>? inheritedVariations,
     double? rootFontSize,
+    this.lenient = false,
   }) : inheritedVariations = inheritedVariations ?? baseStyle.fontVariations,
        rootFontSize = rootFontSize ?? baseStyle.fontSize;
 
@@ -402,6 +419,7 @@ class _InlineBuilder {
 
   /// גודל השורש של HtmlWidget, שאליו יחסיים `medium`, `large` וכו' — גם בכותרת.
   final double? rootFontSize;
+  final bool lenient;
   final List<InlineLink> _links = [];
 
   InlineHtmlDocument? build(List<dom.Node> nodes) {
@@ -440,14 +458,50 @@ class _InlineBuilder {
       if (node is dom.Text) {
         _addText(tree, node.data);
       } else if (node is dom.Element) {
-        final props = _resolveElement(node, tree.props);
+        _Props props;
+        try {
+          props = _resolveElement(node, tree.props);
+        } on _Unsupported {
+          if (!lenient || _needsHtmlLayout(node)) rethrow;
+          if (_isHidden(node)) continue;
+          props = _Props.child(tree.props);
+        }
         final sub = _Tree(tree, props);
+        // בלוק שנפתח מופרד ברווח, כדי שמילים משני צדיו לא יתחברו.
+        final block = lenient && _blockTags.contains(node.localName);
+        if (block) sub.children.add(_Bit.whitespace(sub, ' '));
         _addNodes(sub, node.nodes);
+        if (block) sub.children.add(_Bit.whitespace(sub, ' '));
         if (node.localName == 'br') sub.children.add(_Bit.lineBreak(sub));
         tree.children.add(sub);
       }
     }
   }
+
+  static const Set<String> _blockTags = {
+    'p', 'div', 'li', 'tr', 'td', 'th', 'blockquote', 'center', //
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  };
+
+  /// פריסה שאי אפשר לחקות בפסקה רגילה: גלילה אופקית או מגבלת שורות.
+  static bool _needsHtmlLayout(dom.Element element) {
+    if (element.localName == 'pre') return true;
+    for (final declaration in element.styles) {
+      switch (declaration.property) {
+        case 'max-lines' || '-webkit-line-clamp' || 'text-overflow':
+          return true;
+        case 'white-space' when declaration.term?.startsWith('pre') ?? false:
+          return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _isHidden(dom.Element element) =>
+      const {'script', 'style', 'template'}.contains(element.localName) ||
+      element.styles.any(
+        (d) => d.property == 'display' && d.term == 'none',
+      );
 
   /// `_addText` של fwfh: רווח בודד נשאר בתוך הטקסט, רצפים אחרים הם ביטי רווח.
   void _addText(_Tree tree, String data) {

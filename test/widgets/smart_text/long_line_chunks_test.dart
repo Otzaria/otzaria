@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
@@ -339,6 +340,78 @@ void main() {
     await tester.pump();
 
     expect(selection?.plainText, expected);
+  });
+
+  group('שורה ארוכה עם markup שהמסלול המהיר לא תומך בו (#5906)', () {
+    String unsupported(String line) =>
+        '<font color="#123456">$line'
+        '<span style="margin-right: 4px">שוליים</span>'
+        '<span style="display: none">מוסתר</span></font>';
+
+    testWidgets('נפרסת במקטעים ושומרת את הדגשת החיפוש', (tester) async {
+      final line = unsupported(_syntheticLine(60000, markersAt: const [0.7]));
+      await tester.pumpWidget(
+        _host(
+          SmartTextWidget(
+            text: line,
+            settings: _settings.copyWith(searchText: _marker),
+          ),
+        ),
+      );
+
+      expect(find.byType(HtmlWidget), findsNothing);
+      final first = _paragraphs(tester);
+      expect(first.length, kLongLineChunksPerFrame);
+      expect(
+        first.single.text.toPlainText().length,
+        lessThan(kLongLineChunkChars * 2),
+      );
+
+      await tester.pumpAndSettle();
+      final plain = _textOf(tester);
+      expect(plain, isNot(contains('<')));
+      expect(plain, contains('שוליים'));
+      expect(plain, contains('מודגש בתוך השורה'));
+      expect(plain, isNot(contains('מוסתר')));
+      TextStyle? markerStyle;
+      for (final paragraph in _paragraphs(tester)) {
+        paragraph.text.visitChildren((span) {
+          if (span is TextSpan && span.text == _marker) {
+            markerStyle = span.style;
+          }
+          return markerStyle == null;
+        });
+      }
+      expect(markerStyle?.color ?? markerStyle?.background?.color, isNotNull);
+    });
+
+    testWidgets('שורה קצרה נשארת ב-HtmlWidget', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          SmartTextWidget(
+            text: unsupported(_syntheticLine(2000)),
+            settings: _settings,
+          ),
+        ),
+      );
+      expect(find.byType(HtmlWidget), findsOneWidget);
+    });
+
+    for (final (name, html) in [
+      ('<pre>', '<pre>${'abcdef ' * 6000}</pre>'),
+      (
+        'max-lines',
+        '<font><span style="max-lines: 1; text-overflow: ellipsis">'
+            '${'מילה ' * 8000}</span></font>',
+      ),
+    ]) {
+      testWidgets('$name נשאר ב-HtmlWidget', (tester) async {
+        await tester.pumpWidget(
+          _host(SmartTextWidget(text: html, settings: _settings)),
+        );
+        expect(find.byType(HtmlWidget), findsOneWidget);
+      });
+    }
   });
 
   testWidgets('הדגשת חיפוש מסומנת גם במקטע שאינו הראשון', (tester) async {

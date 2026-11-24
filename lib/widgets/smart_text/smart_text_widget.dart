@@ -17,6 +17,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_text.dart';
+import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
@@ -222,7 +223,20 @@ class SmartTextWidget extends StatelessWidget {
     // מסלול מהיר: שורה שכל ה-markup בה inline מוצגת ב-Text.rich, בספאנים זהים
     // לאלה ש-HtmlWidget היה בונה — בלי עלות עץ הווידג'טים של fwfh.
     if (renderMode == RenderMode.column && !debugForceHtmlWidget) {
-      final line = InlineHtmlDocument.parseLine(processedHtml, textStyle);
+      var line = InlineHtmlDocument.parseLine(processedHtml, textStyle);
+      // שורה ענקית ב-HtmlWidget נפרסת כולה בפריים אחד (#5906); עדיף לוותר
+      // על ה-markup שאינו נתמך ולהציג אותה במקטעים.
+      if (line == null && processedHtml.length > kLongLineMinChars) {
+        final lenient = InlineHtmlDocument.parseLine(
+          processedHtml,
+          textStyle,
+          lenient: true,
+        );
+        if (lenient != null &&
+            lenient.document.plainText.length > kLongLineMinChars) {
+          line = lenient;
+        }
+      }
       if (line != null) {
         SmartTextRenderStats.fastLine(heading: line.isHeading);
         final document = line.document;
