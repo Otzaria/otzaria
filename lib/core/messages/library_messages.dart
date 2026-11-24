@@ -125,6 +125,10 @@ abstract class LibraryMessages {
   static const String updateCheckNetworkError =
       'שגיאה בחיבור לרשת במהלך בדיקת עדכונים';
 
+  static const String invalidLibraryReleaseResponse =
+      'לא התקבלו פרטי הורדה תקינים של הספרייה. בדקו את החיבור ונסו שוב, '
+      'או בחרו תיקייה שהוכנה במסייע ההורדה.';
+
   static const String updateCheckError = 'שגיאה בבדיקת עדכונים';
 
   static const String libraryDbCorruptTitle = 'קובץ הספרייה פגום';
