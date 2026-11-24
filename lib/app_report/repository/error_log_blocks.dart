@@ -125,7 +125,7 @@ const Set<String> _systemModules = {
 const int _hangDartFrames = 8;
 const int _hangDartFramesPerEntry = 4;
 
-/// הנייטיב כותב [_hangTopFrames] פריימים עליונים, `... (N frames omitted) ...` ותחתית.
+/// הנייטיב כותב [_hangTopFrames] פריימים עליונים ואחריהם קטעים, כל אחד אחרי `... (N frames omitted) ...`.
 /// החתימה רק מהראש, כמו ברשומות שנחתכו בעבר ב-48, כדי שלא תשתנה עם עומק המחסנית.
 const int _hangTopFrames = 48;
 
