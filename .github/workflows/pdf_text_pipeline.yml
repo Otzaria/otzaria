@@ -7,6 +7,7 @@ on:
       - 'tool/perf_probe/run_pdf_text_profile.*'
       - 'tool/perf_probe/test_pdf_text_native.py'
       - 'tool/perf_probe/pdf_text_profile.md'
+      - 'tool/perf_probe/src/pdf_image_budget.dart'
       - 'tool/perf_probe/src/pdf_text_profile*.dart'
       - 'tool/perf_probe/src/report.dart'
       - 'test/tool/perf_probe/pdf_text*'
