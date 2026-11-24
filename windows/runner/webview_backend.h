@@ -3,7 +3,7 @@
 
 namespace otzaria {
 
-// Windows 10 1903. עד 1809 (כולל LTSC 2019, ‏17763.1–17763.2989)
+// Windows 10 1903. עד 1809 (כולל LTSC 2019, 17763.1–17763.2989)
 // Direct3D11CaptureFramePool::Close ב-GraphicsCapture.dll ממתין עד 2 שניות
 // (WaitForSingleObject(…, 2000)) ל-thread הלכידה, ואם לא הספיק — fail-fast
 // לכל התהליך (0xc0000409, #4211). מ-18362 Close רק מאותת ל-thread וחוזר.
