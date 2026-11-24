@@ -74,6 +74,7 @@ Future<void> main() async {
     TextBook book, {
     List<String>? content,
     String query = '',
+    bool continuesToNextLine = false,
     ValueNotifier<int>? resultIndex,
   }) async {
     await tester.pumpWidget(
@@ -94,6 +95,8 @@ Future<void> main() async {
                     builder: (_, index, _) => BookPreviewPanel(
                       book: book,
                       initialTextIndex: index,
+                      initialTextContinuesToNextLine:
+                          continuesToNextLine && index == 1,
                       searchText: query,
                     ),
                   ),
@@ -213,6 +216,61 @@ Future<void> main() async {
       globalBox.overlaps(tester.getRect(reader)),
       isTrue,
       reason: 'Match $globalBox, preview ${tester.getRect(reader)}',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 5));
+  }, skip: !engineReady);
+
+  testWidgets('תוצאה שנמשכת לשורה הבאה מוצגת מסוף שורת המקור', (
+    tester,
+  ) async {
+    const query = 'unique first second';
+    final resultIndex = ValueNotifier(0);
+    addTearDown(resultIndex.dispose);
+    final bloc = await pumpLoadedPreview(
+      tester,
+      TextBook(title: 'ספר בדיקה'),
+      resultIndex: resultIndex,
+      query: query,
+      continuesToNextLine: true,
+      content: [
+        query,
+        '${List.filled(500, 'word').join(' ')} unique first',
+        'second fragment',
+        ...List.filled(15, 'end'),
+      ],
+    );
+    await emitAndPump(
+      tester,
+      bloc,
+      (state) => state.copyWith(searchText: query),
+    );
+    await tester.pumpAndSettle();
+    resultIndex.value = 1;
+    await tester.pumpAndSettle();
+
+    final reader = find.byType(CombinedView);
+    final nextLine = find.descendant(
+      of: reader,
+      matching: find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText().contains('second fragment'),
+      ),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(nextLine.first);
+    final globalBox = paragraph
+        .getBoxesForSelection(
+          TextSelection(
+            baseOffset: 0,
+            extentOffset: paragraph.text.toPlainText().length,
+          ),
+        )
+        .first
+        .toRect()
+        .shift(paragraph.localToGlobal(Offset.zero));
+    expect(
+      globalBox.overlaps(tester.getRect(reader)),
+      isTrue,
+      reason: 'Next result line $globalBox, preview ${tester.getRect(reader)}',
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 5));
