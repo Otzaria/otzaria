@@ -38,6 +38,9 @@ class PluginCorrectionController extends TextEditingController {
   List<CorrectionFormat> _sourceEditorFormats = const [];
   TextEditingValue? _editingValue;
   Object _formatSource = Object();
+
+  /// כמו בקריאה: טקסט שבין סוגריים מוצג מוקטן (`RenderSettings.formatParentheses`).
+  bool formatParentheses = true;
   List<({int end, CorrectionFormat format})> _runs = const [];
 
   PluginCorrectionController(String raw) {
@@ -222,8 +225,10 @@ class PluginCorrectionController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    if (_formats.length != text.length ||
-        _formats.every((format) => format == _plainFormat)) {
+    final parenthesized = formatParentheses ? _parenthesized(text) : null;
+    if (parenthesized == null &&
+        (_formats.length != text.length ||
+            _formats.every((format) => format == _plainFormat))) {
       return super.buildTextSpan(
         context: context,
         style: style,
@@ -235,14 +240,19 @@ class PluginCorrectionController extends TextEditingController {
         : TextRange.empty;
     final base = style ?? const TextStyle();
     final linkColor = Theme.of(context).colorScheme.primary;
+    final formats = _formats.length == text.length
+        ? _formats
+        : List.filled(text.length, _plainFormat);
     final children = <TextSpan>[];
     var start = 0;
     while (start < text.length) {
-      final format = _formats[start];
+      final format = formats[start];
+      final small = parenthesized?[start] ?? false;
       final inComposing = start >= composing.start && start < composing.end;
       var end = start + 1;
       while (end < text.length &&
-          _formats[end] == format &&
+          formats[end] == format &&
+          (parenthesized?[end] ?? false) == small &&
           end != composing.start &&
           end != composing.end) {
         end++;
@@ -250,7 +260,7 @@ class PluginCorrectionController extends TextEditingController {
       children.add(
         TextSpan(
           text: text.substring(start, end),
-          style: _resolve(format, base, linkColor, inComposing),
+          style: _resolve(format, base, linkColor, inComposing, small),
         ),
       );
       start = end;
@@ -263,9 +273,15 @@ class PluginCorrectionController extends TextEditingController {
     TextStyle base,
     Color linkColor,
     bool composing,
+    bool parenthesized,
   ) {
-    if (format == _plainFormat && !composing) return null;
+    if (format == _plainFormat && !composing && !parenthesized) return null;
     var style = base;
+    if (parenthesized) {
+      style = style.copyWith(
+        fontSize: (style.fontSize ?? 14) * kHtmlSmallerFontScale,
+      );
+    }
     if (format.heading != null) {
       style =
           SimpleInlineHtml.headingStyleForTag(format.heading!, style) ?? style;
@@ -294,6 +310,26 @@ class PluginCorrectionController extends TextEditingController {
       );
     }
     return style;
+  }
+
+  /// תווים בתוך זוג סוגריים סמוך, באותו כלל של `formatTextWithParentheses`;
+  /// null כשאין כאלה.
+  static List<bool>? _parenthesized(String text) {
+    List<bool>? marks;
+    var open = -1;
+    for (var i = 0; i < text.length; i++) {
+      final char = text.codeUnitAt(i);
+      if (char == 0x28) {
+        open = i;
+      } else if (char == 0x29) {
+        if (open != -1) {
+          marks ??= List.filled(text.length, false);
+          marks.fillRange(open, i + 1, true);
+        }
+        open = -1;
+      }
+    }
+    return marks;
   }
 
   static final _tagName = RegExp(r'^<\s*(/?)\s*([a-zA-Z][a-zA-Z0-9]*)');
