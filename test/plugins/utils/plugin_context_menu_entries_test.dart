@@ -502,5 +502,66 @@ void main() {
 
       expect(entries.map((entry) => entry.label), ['A1']);
     });
+
+    test('מפריד ללא פעולה אינו גורם לקיבוץ', () {
+      final entries = buildPluginContextMenuEntries(
+        records: const [
+          ('a', a1),
+          ('b', PluginContextMenuItem(id: 'separator', type: 'separator')),
+        ],
+        selection: selection,
+      );
+
+      expect(entries.where((entry) => !entry.isDivider).single.label, 'A1');
+    });
+
+    test('פעולות במקטעים שונים שומרות את נתוני הלחיצה שלהן', () async {
+      const action = {
+        'type': 'storage.set',
+        'args': {
+          'key': 'last',
+          'value': {r'$selection': 'selectedText'},
+        },
+      };
+      final calls = <String, (String, String)>{};
+      final entries = buildPluginContextMenuEntries(
+        records: const [
+          (
+            'book',
+            PluginContextMenuItem(id: 'book', label: 'Book', action: action),
+          ),
+          (
+            'highlight',
+            PluginContextMenuItem(
+              id: 'highlight',
+              label: 'Highlight',
+              contexts: ['reader-highlight'],
+              action: action,
+            ),
+          ),
+        ],
+        selection: const {'text': 'original', 'bookTitle': 'book'},
+        additionalSection: (
+          context: 'reader-highlight',
+          selection: const {'text': 'highlighted', 'bookTitle': 'highlight'},
+        ),
+        resolveSelectedText: () async => 'resolved',
+        selectionActionDispatcher: (id, _, payload) async {
+          calls[id] = (
+            payload['currentBook'] as String,
+            payload['selectedText'] as String,
+          );
+        },
+      );
+
+      final children = entries.single.children!;
+      children.first.onTap!();
+      children.last.onTap!();
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, {
+        'book': ('book', 'resolved'),
+        'highlight': ('highlight', 'highlighted'),
+      });
+    });
   });
 }
