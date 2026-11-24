@@ -2098,11 +2098,41 @@ Future<void> main() async {
         '',
         mode: SearchMode.advanced,
       );
-      final exact = SearchingTab.newSearch('חיפוש', '', mode: SearchMode.exact);
+      final exact = SearchingTab.newSearch(
+        'חיפוש',
+        'בראשית',
+        mode: SearchMode.exact,
+      );
       addTearDown(advanced.dispose);
       addTearDown(exact.dispose);
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
       expect(advanced.searchBloc.state.distance, 3);
       expect(exact.searchBloc.state.distance, 0);
+
+      // חיפוש מהספרייה או מאיתור נפתח עם טאב זמני שנושא את השאילתה.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: SearchDialog(existingTab: exact),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('מתקדם'));
+      await tester.pumpAndSettle();
+      expect(exact.searchBloc.state.distance, 3);
+
+      exact.searchBloc.add(UpdateDistanceWithoutSearch(4));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      expect(
+        SearchDefaults.initialDistanceForNewSearch(SearchMode.advanced),
+        4,
+      );
+      expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 3);
     },
   );
 
