@@ -1343,9 +1343,12 @@ class _CombinedViewState extends State<CombinedView> {
     final currentSelectedIndex = state.selectedIndex;
 
     if (currentSelectedIndex != null) {
-      // אם האינדקס הנבחר כבר לא נראה (האינדקסים הנראים שונו עקב גלילה)
-      final visibleIndices = state.visibleIndices;
-      if (!visibleIndices.contains(currentSelectedIndex)) {
+      // אם האינדקס הנבחר כבר לא נראה (האינדקסים הנראים שונו עקב גלילה).
+      // visibleIndices מתעדכן באיחור (debounce), ולכן קטע שהניווט הרגע נחת
+      // עליו נבדק גם מול המיקום הנמדד עצמו.
+      final position = widget.tab.lines.position.value;
+      if (!state.visibleIndices.contains(currentSelectedIndex) &&
+          !(position?.visibleLines.contains(currentSelectedIndex) ?? false)) {
         _addTextBookEventIfOpen(const UpdateSelectedIndex(null));
       }
     }
