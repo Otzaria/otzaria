@@ -872,30 +872,41 @@ class _SearchDialogState extends State<SearchDialog> {
           onSelect: (bookmark) {
             _searchTab.queryController.text = bookmark.book.title;
 
+            // תחום של חיפוש מילולי עשוי לכלול ספר שאינו נתמך בחיפוש חכם.
+            final restoreLibrarySearch =
+                _supportsSemanticMode && !_isSemanticActive;
+            final configuration = restoreLibrarySearch
+                ? bookmark.restoredSearchConfiguration
+                : null;
             // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
-            if (bookmark.searchOptions != null) {
+            final options = bookmark.searchOptions;
+            if (options != null || restoreLibrarySearch) {
+              final exactOptions = configuration?.searchMode == SearchMode.exact
+                  ? SearchQueryBuilder.globalOptionsFromPerWord(
+                      options ?? const {},
+                      query: bookmark.book.title,
+                    )
+                  : null;
               _searchTab.searchOptions
                 ..clear()
-                ..addAll(bookmark.searchOptions!);
-              _searchTab.globalSearchOptions.clear();
-              _searchTab.useGlobalSearchOptions.value = false;
+                ..addAll(exactOptions == null ? options ?? const {} : const {});
+              _searchTab.globalSearchOptions
+                ..clear()
+                ..addAll(exactOptions ?? const {});
+              _searchTab.useGlobalSearchOptions.value = exactOptions != null;
             }
-            if (bookmark.alternativeWords != null) {
+            if (bookmark.alternativeWords != null || restoreLibrarySearch) {
               _searchTab.alternativeWords
                 ..clear()
-                ..addAll(bookmark.alternativeWords!);
+                ..addAll(bookmark.alternativeWords ?? const {});
             }
-            if (bookmark.spacingValues != null) {
+            if (bookmark.spacingValues != null || restoreLibrarySearch) {
               _searchTab.spacingValues
                 ..clear()
-                ..addAll(bookmark.spacingValues!);
+                ..addAll(bookmark.spacingValues ?? const {});
             }
-            // רשומות ההיסטוריה של החיפוש הן מילוליות. חיפוש חכם עשוי שלא
-            // לתמוך בהיקף השמור, למשל כשהוא מוגבל לספר אישי.
-            if (widget.bookTitle == null &&
-                widget.onSearch == null &&
-                !widget.returnResultOnSubmit &&
-                !_isSemanticActive) {
+            _historyResultFilter = null;
+            if (configuration != null) {
               final scope = bookmark.searchScopeFacets;
               setState(() {
                 _scopeSelection = scope == null || scope.isEmpty
@@ -903,6 +914,7 @@ class _SearchDialogState extends State<SearchDialog> {
                     : scope.toSet();
                 _historyResultFilter = bookmark.searchFilterFacets;
               });
+              _searchTab.useSavedAlternatives = false;
               _searchTab.negativeQueryController.text =
                   bookmark.negativeSearchText ?? '';
               _searchTab.negativeSearchOptions
@@ -916,22 +928,21 @@ class _SearchDialogState extends State<SearchDialog> {
               _searchTab.negativeSpacingValues
                 ..clear()
                 ..addAll(bookmark.negativeSpacingValues ?? {});
-              final mode = bookmark.searchMode;
-              if (mode != null) {
-                _searchTab.searchBloc.add(SetSearchModeWithoutSearch(mode));
-              }
-              final distance = bookmark.distance;
-              if (distance != null) {
-                _searchTab.searchBloc.add(
-                  UpdateDistanceWithoutSearch(distance),
-                );
-              }
-              final proximity = bookmark.proximityScope;
-              if (proximity != null) {
-                _searchTab.searchBloc.add(
-                  UpdateProximityScopeWithoutSearch(proximity),
-                );
-              }
+              _searchTab.searchBloc
+                ..add(SetSearchModeWithoutSearch(configuration.searchMode))
+                ..add(UpdateDistanceWithoutSearch(configuration.distance))
+                ..add(
+                  UpdateProximityScopeWithoutSearch(
+                    configuration.proximityScope,
+                  ),
+                )
+                ..add(
+                  UpdateWordMatchModeWithoutSearch(
+                    configuration.wordMatchMode,
+                    count: configuration.wordMatchCount,
+                  ),
+                )
+                ..add(UpdateWordOrderWithoutSearch(configuration.anyOrder));
             }
 
             _historyMenuController.close();
