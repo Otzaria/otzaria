@@ -279,7 +279,8 @@ Map<String, int> _headingStylesFrom(xml.XmlElement? root) {
 }
 
 typedef _Bold = ({bool latin, bool complex});
-const _noBold = (latin: false, complex: false);
+typedef _StyleBold = ({bool? latin, bool? complex});
+const _StyleBold _unspecifiedBold = (latin: null, complex: null);
 
 class _CharacterBoldStyles {
   _CharacterBoldStyles(xml.XmlElement? root) {
@@ -293,9 +294,9 @@ class _CharacterBoldStyles {
   }
 
   final _definitions = <String, xml.XmlElement>{};
-  final _resolved = <String, _Bold>{};
+  final _resolved = <String, _StyleBold>{};
 
-  _Bold _resolve(String id) {
+  _StyleBold _resolve(String id) {
     final cached = _resolved[id];
     if (cached != null) return cached;
     final chain = <String>{};
@@ -305,21 +306,23 @@ class _CharacterBoldStyles {
         _definitions.containsKey(current)) {
       if (!chain.add(current)) {
         for (final member in chain) {
-          _resolved[member] = _noBold;
+          _resolved[member] = _unspecifiedBold;
         }
-        return _noBold;
+        return _unspecifiedBold;
       }
       current = _definitions[current]!
           .getElement('w:basedOn')
           ?.getAttribute('w:val');
     }
-    var bold = _resolved[current] ?? _noBold;
+    var bold = _resolved[current] ?? _unspecifiedBold;
     for (final member in chain.toList().reversed) {
       final props = _definitions[member]!.getElement('w:rPr');
-      // בסגנון ערך מופעל הופך את מצב האב. עיצוב ישיר על ה-run קובע ערך מוחלט.
+      final latin = props?.getElement('w:b');
+      final complex = props?.getElement('w:bCs');
+      // לפי ECMA-376 §17.7.3, בתוך basedOn הערך המפורש הקרוב ביותר גובר.
       bold = (
-        latin: bold.latin != _isOnOff(props?.getElement('w:b')),
-        complex: bold.complex != _isOnOff(props?.getElement('w:bCs')),
+        latin: latin == null ? bold.latin : _isOnOff(latin),
+        complex: complex == null ? bold.complex : _isOnOff(complex),
       );
       _resolved[member] = bold;
     }
@@ -330,21 +333,25 @@ class _CharacterBoldStyles {
     final style = props?.getElement('w:rStyle')?.getAttribute('w:val');
     final latin = props?.getElement('w:b');
     final complex = props?.getElement('w:bCs');
-    if (!_definitions.containsKey(style)) {
+    final inherited = style == null || !_definitions.containsKey(style)
+        ? _unspecifiedBold
+        : _resolve(style);
+    if (inherited.latin == null && inherited.complex == null) {
+      // סגנון ללא הגדרת הדגשה משאיר את פירוש העיצוב הישיר של הממיר.
       final direct = _isOnOff(latin) || _isOnOff(complex);
       return (latin: direct, complex: direct);
     }
-    final inherited = _resolve(style!);
-    final complexBold = complex == null ? inherited.complex : _isOnOff(complex);
+    final latinBold = latin == null
+        ? inherited.latin ?? false
+        : _isOnOff(latin);
+    final complexBold = complex == null
+        ? inherited.complex ?? false
+        : _isOnOff(complex);
     final forceComplex =
         _isOnOff(props?.getElement('w:cs')) ||
         _isOnOff(props?.getElement('w:rtl'));
     return (
-      latin: forceComplex
-          ? complexBold
-          : latin == null
-          ? inherited.latin
-          : _isOnOff(latin),
+      latin: forceComplex ? complexBold : latinBold,
       complex: complexBold,
     );
   }
