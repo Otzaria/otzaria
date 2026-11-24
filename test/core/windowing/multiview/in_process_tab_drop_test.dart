@@ -24,7 +24,8 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 import '../../../test_helpers/fake_view_window.dart';
 
 class _RecordingTabsBloc extends Cubit<TabsState> implements TabsBloc {
-  _RecordingTabsBloc() : super(const TabsState(tabs: [], currentTabIndex: 0));
+  _RecordingTabsBloc([List<OpenedTab> tabs = const []])
+    : super(TabsState(tabs: tabs, currentTabIndex: 0));
 
   final List<TabsEvent> events = [];
 
@@ -567,6 +568,48 @@ void main() {
       expect(runner.named('endTabDrag'), hasLength(1));
       await source.close();
     });
+
+    for (final overPeer in [true, false]) {
+      testWidgets(
+        overPeer
+            ? 'שחרור מוקדם מעל חלון אחר מעביר את הכרטיסייה הלא פעילה'
+            : 'שחרור מוקדם ללא חלון יעד משאיר את הכרטיסייה במקור',
+        (tester) async {
+          final windows = FakeViewWindows(tester);
+          final view = windows.registry.open(size: const Size(800, 600))!;
+          final drops = makeDrops(windows.registry);
+          final target = _target(1);
+          drops.register(view.id, target.target);
+          final opener = _FakeOpener();
+          WindowOpener.debugOverride = opener;
+          final active = ToolTab(toolId: 'builtin.notes', title: 'הערות');
+          final dragged = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+          final source = _RecordingTabsBloc([active, dragged]);
+          runner.systemDrag = {
+            'ran': false,
+            if (overPeer) 'hwnd': view.handle.hwnd,
+          };
+          final drag = CrossWindowTabDrag(inProcess: drops)
+            ..begin(dragged, colors, tabsBloc: source);
+
+          await tester.pump(const Duration(seconds: 1));
+          await drag.handleDroppedOutside(dragged, source);
+
+          expect(runner.named('dragOutToSystem'), hasLength(1));
+          expect(opener.opened, isEmpty);
+          if (overPeer) {
+            expect(target.received.single.$1.title, dragged.title);
+            expect(target.received.single.$2, 1);
+            expect(source.events, [RemoveTab(dragged)]);
+          } else {
+            expect(target.received, isEmpty);
+            expect(source.events, isEmpty);
+          }
+          drag.dispose();
+          await source.close();
+        },
+      );
+    }
 
     testWidgets('גרירה שנמסרה למערכת ושוחררה מעל שורת המשימות מבוטלת', (
       tester,

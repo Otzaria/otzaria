@@ -387,9 +387,11 @@ class CrossWindowTabDrag {
     _timer?.cancel();
     _timer = null;
 
-    // `ran == false` פירושו שהנייטיב לא הריץ לולאת גרירה בכלל (למשל אין
-    // תצוגה חיה). אין תוצאה להסתמך עליה, ולכן אין להעביר את הכרטיסיה.
-    if (outcome == null || !outcome.ran) return _hidePreview();
+    // בשחרור לפני תחילת הלולאה Windows עדיין מחזיר את החלון שתחת הסמן.
+    // בביטול או בכשל אין חלון יעד.
+    if (outcome == null || (!outcome.ran && outcome.slot == null)) {
+      return _hidePreview();
+    }
     // ⚠️ נשאר בקוד. את מסלול הגרירה אי אפשר לבדוק אוטומטית — הוא תלוי
     // בהחלטות ה-shell — ושורה אחת בלוג היא ההבדל בין אבחון לניחוש.
     debugPrint(
