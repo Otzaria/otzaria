@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
+import 'package:otzaria/bookmarks/models/bookmark.dart' show bookIdentity;
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -29,7 +30,6 @@ import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
-import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/external_uri_router.dart';
@@ -44,6 +44,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
@@ -158,7 +159,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   /// אינדקסי התוצאות שסומנו לפתיחה בבת אחת (Ctrl/Shift+לחיצה).
   final ValueNotifier<Set<int>> _checked = ValueNotifier<Set<int>>(const {});
+  List<DbReferenceResult>? _checkedRefs;
   int? _checkAnchor;
+  bool _openingResults = false;
   bool _queryIsEmpty = true;
 
   /// השאילתה המנורמלת שבשדה. תוצאות של שאילתה אחרת מוצגות אך אינן נפתחות.
@@ -299,7 +302,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final text = _focus.findRefSearchController.text;
     final normalized = FindRefBloc.normalizeQuery(text);
     // גם שינוי שלא דרך ההקלדה (קישור איתור חיצוני) מבטל Enter ממתין.
-    if (normalized != _typedQuery.value) _pendingEnter = false;
+    if (normalized != _typedQuery.value) {
+      _pendingEnter = false;
+      _clearChecked();
+    }
     _typedQuery.value = normalized;
     final isEmpty = text.isEmpty;
     if (isEmpty != _queryIsEmpty && mounted) {
@@ -319,6 +325,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final text = _focus.findRefSearchController.text;
     if (text.length >= 2) {
       _selectedIndex.value = 0;
+      _clearChecked();
       bloc.add(
         SearchRefRequested(
           text,
@@ -352,7 +359,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       FindRefBloc.normalizeQuery(state.query) == _typedQuery.value;
 
   void _openPendingEnterIfCurrent(FindRefState state) {
-    if (!_pendingEnter || !_isCurrentSuccess(state)) return;
+    if (_openingResults || !_pendingEnter || !_isCurrentSuccess(state)) return;
     final success = state as FindRefSuccess;
     if (success.refs.isEmpty &&
         success.externalRefs.isEmpty &&
@@ -373,6 +380,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final selection = const HiddenLibraryStore().load();
     if (selection == _lastVisibilitySelection) return;
     _lastVisibilitySelection = selection;
+    _clearChecked();
     final query = _focus.findRefSearchController.text;
     _visibilityRevision++;
     final bloc = context.read<FindRefBloc>();
@@ -580,32 +588,36 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }
 
   void _clearChecked() {
+    _checkedRefs = null;
     _checkAnchor = null;
     if (_checked.value.isNotEmpty) _checked.value = const {};
   }
 
-  /// Shift מוסיף טווח מהעוגן; Ctrl/Cmd או סימון קיים מחליפים את מצב השורה.
-  bool _handleCheckTap(int index, int nativeCount) {
-    if (index >= nativeCount) return false;
+  void _cancelChecked() {
+    _clearChecked();
+    _focus.findRefSearchFocusNode.requestFocus();
+  }
+
+  bool get _selectionGesture {
     final keyboard = HardwareKeyboard.instance;
-    final shift = keyboard.isShiftPressed;
-    final additive = keyboard.isControlPressed || keyboard.isMetaPressed;
-    if (!shift && !additive && _checked.value.isEmpty) return false;
+    return _checked.value.isNotEmpty ||
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed;
+  }
+
+  /// Shift מוסיף טווח מהעוגן; Ctrl/Cmd או סימון קיים מחליפים את מצב השורה.
+  void _checkResult(int index, List<DbReferenceResult> refs) {
+    if (!identical(_checkedRefs, refs)) _clearChecked();
+    _checkedRefs = refs;
     final next = {..._checked.value};
-    // תחילת סימון: השורה הנוכחית (המודגשת) נכללת, כמו בסייר הקבצים.
-    final current = _selectedIndex.value;
-    if (next.isEmpty && current < nativeCount) {
-      next.add(current);
-      _checkAnchor ??= current;
-    }
-    if (shift) {
-      final from = (_checkAnchor ?? _selectedIndex.value).clamp(
-        0,
-        nativeCount - 1,
-      );
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      final from = _checkAnchor ?? index;
       final lo = from < index ? from : index;
       final hi = from < index ? index : from;
-      next.addAll([for (var i = lo; i <= hi; i++) i]);
+      for (var i = lo; i <= hi; i++) {
+        next.add(i);
+      }
       _checkAnchor ??= from;
     } else {
       if (!next.remove(index)) next.add(index);
@@ -613,22 +625,74 @@ class _FindRefDialogState extends State<FindRefDialog> {
     }
     _checked.value = next;
     _selectedIndex.value = index;
-    return true;
   }
 
-  /// פותח את התוצאות המסומנות לפי סדר הרשימה, וסוגר את הדיאלוג בסוף.
+  bool get _dialogIsCurrent =>
+      mounted && (ModalRoute.of(context)?.isCurrent ?? true);
+
+  /// פותר את היעדים לפני פתיחת הכרטיסיות, כדי שסגירה או רענון יבטלו את הפעולה.
   Future<void> _openChecked() async {
-    final refs = _shownRefs;
-    final indexes = _checked.value.where((i) => i < refs.length).toList()
-      ..sort();
-    if (indexes.isEmpty) return;
-    // מנקים מיד, כדי שלחיצה כפולה לא תפתח פעמיים.
-    _clearChecked();
-    for (final i in indexes) {
-      if (!mounted) return;
-      await _openRef(refs[i], closeDialog: false);
+    final state = _findRefBloc.state;
+    if (_openingResults || !_dialogIsCurrent || !_isCurrentSuccess(state)) {
+      return;
     }
-    if (mounted) Navigator.of(context).pop();
+    final refs = (state as FindRefSuccess).refs;
+    if (!identical(refs, _checkedRefs)) return;
+    final checked = _checked.value;
+    final indexes = checked.toList()..sort();
+    if (indexes.isEmpty) return;
+    final coordinator = bookOpenCoordinatorOf(context);
+    final navigator = Navigator.of(context);
+    final visibility = _lastVisibilitySelection;
+    final visibilityRevision = _visibilityRevision;
+    final prepared = <(DbReferenceResult, Book, OpenedTab)>[];
+    var transferred = 0;
+    bool canOpen() {
+      final current = _findRefBloc.state;
+      return _dialogIsCurrent &&
+          identical(_checked.value, checked) &&
+          current is FindRefSuccess &&
+          identical(current.refs, refs) &&
+          _isCurrentSuccess(current) &&
+          visibilityRevision == _visibilityRevision;
+    }
+
+    _openingResults = true;
+    try {
+      for (final i in indexes) {
+        if (!canOpen()) return;
+        final ref = refs[i];
+        final target = await _prepareRef(ref, coordinator);
+        if (target != null) prepared.add((ref, target.book, target.tab));
+      }
+      if (!canOpen() ||
+          prepared.isEmpty ||
+          const HiddenLibraryStore().load() != visibility) {
+        return;
+      }
+      FindRefRecentStore.remember(state.query);
+      _clearChecked();
+      navigator.pop();
+      final currentTab = coordinator.tabsBloc.state.currentTab;
+      if (currentTab != null) {
+        coordinator.historyBloc.add(CaptureStateForHistory(currentTab));
+      }
+      final recorded = <String>{};
+      for (final (ref, book, tab) in prepared) {
+        // תוצאות שונות של אותו ספר צריכות להישאר פתוחות במיקומים שונים.
+        coordinator.tabsBloc.add(AddTab(tab));
+        transferred++;
+        if (recorded.add(bookIdentity(book))) {
+          _recordOpenedRef(ref, batch: true);
+        }
+      }
+      coordinator.showReadingScreen();
+    } finally {
+      for (final (_, _, tab) in prepared.skip(transferred)) {
+        tab.dispose();
+      }
+      _openingResults = false;
+    }
   }
 
   Widget _buildCheckedBar() {
@@ -675,7 +739,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                   ActionButton.inline(
                     text: context.settingsText('ביטול בחירה'),
                     tooltip: context.settingsText('ביטול הבחירה (Esc)'),
-                    onPressed: _clearChecked,
+                    onPressed: _cancelChecked,
                   ),
                   const SizedBox(width: AppTokens.spaceSM),
                   ActionButton.recommended(
@@ -692,81 +756,76 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  /// פותח את התוצאה.
-  ///
-  /// [initialCommentators] סמנטיקה:
-  ///   null  → ברירת מחדל: history fallback (התנהגות onTap הרגילה).
-  ///   []    → bypass מפורש: ללא מפרשים, גם אם בעבר היו (= "פתח ללא מפרש").
-  ///   [...] → רשימה מפורשת (= "פתח עם רש"י").
-  Future<void> _openRef(
-    DbReferenceResult ref, {
-    List<String>? initialCommentators,
-    bool closeDialog = true,
-  }) async {
-    _rememberCurrentQuery();
+  Future<void> _openRef(DbReferenceResult ref) async {
+    final state = _findRefBloc.state;
+    if (_openingResults ||
+        !_dialogIsCurrent ||
+        state is! FindRefSuccess ||
+        !_isCurrentSuccess(state)) {
+      return;
+    }
+    FindRefRecentStore.remember(state.query);
+    final coordinator = bookOpenCoordinatorOf(context);
+    final navigator = Navigator.of(context);
+    final visibility = _lastVisibilitySelection;
+    _openingResults = true;
+    try {
+      final target = await _prepareRef(ref, coordinator);
+      if (target == null) return;
+      if (!_dialogIsCurrent ||
+          const HiddenLibraryStore().load() != visibility) {
+        target.tab.dispose();
+        return;
+      }
+      navigator.pop();
+      coordinator.openTab(
+        target.tab,
+        navigateToPositionIfReused:
+            target.tab is! ResolvingTab && ref.reference != ref.title,
+      );
+      _recordOpenedRef(ref);
+    } finally {
+      _openingResults = false;
+    }
+  }
+
+  Future<({Book book, OpenedTab tab})?> _prepareRef(
+    DbReferenceResult ref,
+    BookOpenCoordinator coordinator,
+  ) async {
     // אינדקס 0 נקרא "בלי מיקום" ומשוחזר מההיסטוריה; רק תוצאת ספר-בלבד היא כזו.
     final hasExplicitLocation = ref.reference != ref.title;
+    final segment = ref.segment.toInt();
+    final index = await _bookIndexes.tryLoad();
+    final visibility = index?.visibility;
+    if (visibility != null &&
+        !visibility.allowsCandidate(
+          ref.source,
+          ref.bookId,
+          ref.filePath,
+          fileType: ref.isPdf ? 'pdf' : 'txt',
+        )) {
+      return null;
+    }
     Book? book;
-    var openAsPdf = ref.isPdf;
-    var segment = ref.segment.toInt();
 
     if (ref.isPdf && ref.filePath.isNotEmpty) {
       // לפי הנתיב ולא לפי הכותרת — לאותה כותרת עשוי להיות גם ספר טקסט.
-      final index = await _bookIndexes.tryLoad();
       book =
           index?.pdfBookByPath(ref.filePath) ??
           PdfBook(title: ref.title, path: ref.filePath);
     } else {
-      // אם המשתמש ביקש מפרש מסוים — חייבים TextBookTab, כי PdfBookTab אינו
-      // מקבל commentators כלל.
-      final needsTextBook =
-          initialCommentators != null && initialCommentators.isNotEmpty;
-
-      final index = await _bookIndexes.tryLoad();
-      final visibility = index?.visibility;
-      if (visibility != null &&
-          !visibility.allowsCandidate(
-            ref.source,
-            ref.bookId,
-            ref.filePath,
-            fileType: ref.isPdf ? 'pdf' : 'txt',
-          )) {
-        return;
-      }
-
       // הגדרת "פורמט פתיחת תלמוד בבלי": תוצאת טקסט של מסכת בבלי נפתחת
       // מיידית כטאב טעינה שממופה ל-PDF בתוכו. מזהים את ספר המקור בעץ לפי
       // bookId (זהות יציבה); בלי זיהוי ודאי לא ממירים ל-PDF, אחרת בחירה
       // לפי כותרת בלבד עלולה לפתוח ספר אחר בעל שם זהה.
-      if (!needsTextBook &&
-          ref.source.isOfficial &&
-          index != null &&
-          ref.bookId > 0) {
+      if (ref.source.isOfficial && index != null && ref.bookId > 0) {
         final sourceBook = index.officialTextBookById(ref.bookId);
         if (sourceBook != null) {
           final target = await resolveTalmudBavliPdfBook(sourceBook);
           if (target != null) {
-            if (!mounted) return;
-            final tabsBloc = context.read<TabsBloc>();
-            final navigationBloc = context.read<NavigationBloc>();
-            final historyBloc = context.read<HistoryBloc>();
-            final layoutWidth = readingLayoutWidthResolverOf(context);
-            if (closeDialog) Navigator.of(context).pop();
-            // כמו ב-BookOpenCoordinator.openBook: שמירת מיקום הקריאה של הטאב
-            // הנוכחי להיסטוריה לפני שהטאב הדחוי תופס את המוקד.
-            if (tabsBloc.state.hasOpenTabs) {
-              historyBloc.add(
-                CaptureStateForHistory(tabsBloc.state.currentTab!),
-              );
-            }
             final openLeftPane = shouldAutoOpenReadingLeftPane(
-              screenWidth: layoutWidth(),
-            );
-            final coordinator = BookOpenCoordinator(
-              tabsBloc: tabsBloc,
-              historyBloc: historyBloc,
-              navigationBloc: navigationBloc,
-              layoutWidth: layoutWidth,
+              screenWidth: coordinator.layoutWidth?.call(),
             );
             final resolvingTab = buildTalmudBavliResolvingTab(
               target: target,
@@ -778,7 +837,6 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 segment,
                 '',
                 explicitIndex: hasExplicitLocation,
-                initialCommentators: initialCommentators,
                 dedupeKey: dedupeKey,
               ),
               buildPdfTab: (page, dedupeKey) => PdfBookTab(
@@ -789,10 +847,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 requiresStableLayout: true,
               ),
             );
-            tabsBloc.add(OpenOrFocusTab(resolvingTab));
-            navigationBloc.add(const NavigateToScreen(Screen.reading));
-            _recordOpenedRef(ref);
-            return;
+            return (book: sourceBook, tab: resolvingTab);
           }
         }
       }
@@ -804,7 +859,6 @@ class _FindRefDialogState extends State<FindRefDialog> {
           ref.title,
           bookId: ref.bookId > 0 ? ref.bookId : null,
           source: ref.source,
-          preferTextBook: needsTextBook,
         );
         // ספרי בבלי מופיעים בעץ הספרייה כ-PdfBook גם כשה-DB מכיר אותם
         // כ-txt; ה-segment הוא אינדקס טקסט, לכן נפתחת מהדורת הטקסט.
@@ -819,21 +873,16 @@ class _FindRefDialogState extends State<FindRefDialog> {
       );
     }
 
-    if (!mounted) return;
-    if (closeDialog) Navigator.of(context).pop();
-    openBook(
-      context,
+    final tab = coordinator.buildTab(
       book,
       segment,
       '',
-      ignoreHistory: openAsPdf,
+      ignoreHistory: ref.isPdf,
       explicitIndex: hasExplicitLocation,
-      navigateToPositionIfReused: hasExplicitLocation,
-      requiresStableLayout: openAsPdf,
-      initialCommentators: initialCommentators,
+      requiresStableLayout: ref.isPdf,
       markerReference: ref.isAltToc ? ref.reference : null,
     );
-    _recordOpenedRef(ref);
+    return (book: book, tab: tab);
   }
 
   /// הכרטיסייה שבה ספר התוצאה כבר פתוח — לפי זהות הספר שבה [TabsBloc] ממחזר
@@ -851,6 +900,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   /// עובר לכרטיסייה הפתוחה בלי להזיז את מקום הקריאה בה.
   void _focusOpenTab(DbReferenceResult ref) {
+    if (_openingResults || !_dialogIsCurrent) return;
     final target = _openTabShowing(ref);
     if (target == null) return;
     _rememberCurrentQuery();
@@ -869,7 +919,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     List<_CommentatorEntry> commentators,
     DbReferenceResult ref,
   ) async {
-    if (commentators.isEmpty) return;
+    if (_openingResults || !_dialogIsCurrent || commentators.isEmpty) return;
     final visibilityRevision = _visibilityRevision;
 
     final buttonContext = buttonKey.currentContext;
@@ -891,7 +941,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
 
     if (selected == null ||
-        !mounted ||
+        !_dialogIsCurrent ||
         visibilityRevision != _visibilityRevision) {
       return;
     }
@@ -1024,8 +1074,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
   bool _openRecorded = false;
 
   /// רושם בהעדפות האישיות את ספר התוצאה שנפתחה, בלי לעכב את הפתיחה.
-  void _recordOpenedRef(DbReferenceResult ref) {
-    if (_openRecorded) return;
+  void _recordOpenedRef(DbReferenceResult ref, {bool batch = false}) {
+    if (_openRecorded && !batch) return;
     _openRecorded = true;
     unawaited(
       _findRefBloc.findRefRepository.recordFindRefOpen(
@@ -1143,18 +1193,27 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
           return KeyEventResult.ignored;
         }
-        if (event.logicalKey == LogicalKeyboardKey.escape &&
-            _checked.value.isNotEmpty) {
-          _clearChecked();
-          return KeyEventResult.handled;
-        }
-
         if (resultCount == 0) return KeyEventResult.ignored;
         final key = event.logicalKey;
         final current = _selectedIndex.value;
         // Home/End (גם Ctrl+Shift לבחירה) שייכים לשדה; Ctrl לבדו — לרשימה.
         final keyboard = HardwareKeyboard.instance;
         final ctrlOnly = keyboard.isControlPressed && !keyboard.isShiftPressed;
+        if ((key == LogicalKeyboardKey.enter ||
+                key == LogicalKeyboardKey.numpadEnter) &&
+            (keyboard.isShiftPressed ||
+                keyboard.isControlPressed ||
+                keyboard.isMetaPressed)) {
+          final state = _findRefBloc.state;
+          if (event is KeyDownEvent &&
+              !_openingResults &&
+              state is FindRefSuccess &&
+              _isCurrentSuccess(state) &&
+              current < state.refs.length) {
+            _checkResult(current, state.refs);
+          }
+          return KeyEventResult.handled;
+        }
         final int? target = switch (key) {
           LogicalKeyboardKey.arrowDown => current + 1,
           LogicalKeyboardKey.arrowUp => current - 1,
@@ -1190,6 +1249,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }
 
   void _onSubmitted(String value) {
+    if (_openingResults || !_dialogIsCurrent) return;
     // ניסיון לטפל בקישור ישיר — אם זה קישור, ייפתח ישירות
     if (_isDeepLinkText(value)) {
       _tryHandleDeepLink(value);
@@ -1197,6 +1257,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
     }
     // תוצאות של שאילתה קודמת אינן נפתחות: Enter ממתין לתוצאות החדשות.
     final state = _findRefBloc.state;
+    if (_isCurrentSuccess(state) && _checked.value.isNotEmpty) {
+      unawaited(_openChecked());
+      return;
+    }
     if (_isCurrentSuccess(state) && _findRefBloc.shownOrderIsStale) {
       _dispatchSearch(value);
       _pendingEnter = true;
@@ -1209,10 +1273,6 @@ class _FindRefDialogState extends State<FindRefDialog> {
           (state is FindRefLoading ||
               state is FindRefSuccess ||
               state is FindRefInitial);
-      return;
-    }
-    if (_checked.value.isNotEmpty) {
-      unawaited(_openChecked());
       return;
     }
     final success = state as FindRefSuccess;
@@ -1302,7 +1362,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (!identical(state, _supersededVisibilityState)) {
           _supersededVisibilityState = null;
         }
-        if (state is FindRefSuccess && !identical(state.refs, _shownRefs)) {
+        if (_checkedRefs != null &&
+            (state is! FindRefSuccess ||
+                !identical(state.refs, _checkedRefs))) {
           _clearChecked();
         }
         if (state is FindRefSuccess) {
@@ -1413,7 +1475,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 isSelected: index == _selectedIndex.value,
                 isChecked: _checked.value.contains(index),
                 interactive: interactive,
-                nativeCount: refs.length,
+                refs: refs,
               );
             }
             final extra = source?.externalRefs ?? _shownExternalRefs;
@@ -1434,8 +1496,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
     int index, {
     required bool isSelected,
     required bool interactive,
-    bool isChecked = false,
-    int nativeCount = 0,
+    required bool isChecked,
+    required List<DbReferenceResult> refs,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final eligible = !ref.isPdf && ref.bookId > 0 && ref.source.isOfficial;
@@ -1448,7 +1510,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
     // Material (ולא Container צבוע) כדי שהצבע והריפל של ה-ListTile ייראו —
     // ListTile מצייר אותם על ה-Material הקרוב, ורקע שמעליו מסתיר אותם.
-    return Padding(
+    final tile = Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: highlighted
@@ -1483,7 +1545,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
             child: isChecked
                 ? Icon(
                     FluentIcons.checkmark_24_regular,
-                    size: 20,
+                    size: AppTokens.iconMD,
                     color: colorScheme.onPrimaryContainer,
                   )
                 : _buildResultIcon(
@@ -1552,17 +1614,38 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 ),
           onTap: interactive
               ? () {
-                  if (_handleCheckTap(index, nativeCount)) return;
-                  _openRef(ref);
+                  final state = _findRefBloc.state;
+                  if (_openingResults ||
+                      !_dialogIsCurrent ||
+                      !_isCurrentSuccess(state) ||
+                      !identical((state as FindRefSuccess).refs, refs)) {
+                    return;
+                  }
+                  if (_selectionGesture) {
+                    _checkResult(index, refs);
+                  } else {
+                    unawaited(_openRef(ref));
+                  }
                 }
               : null,
         ),
       ),
     );
+    return Semantics(
+      checked: _checked.value.isEmpty ? null : isChecked,
+      child: tile,
+    );
   }
 
   /// External references are not seforim.db ids: never send them to _openRef.
   Future<void> _openExternal(PluginFindRefHit hit) async {
+    if (_openingResults || !_dialogIsCurrent) return;
+    final state = _findRefBloc.state;
+    if (state is! FindRefSuccess ||
+        !_isCurrentSuccess(state) ||
+        !state.externalRefs.contains(hit)) {
+      return;
+    }
     final service = context.read<FindRefBloc>().externalService;
     _rememberCurrentQuery();
     Navigator.of(context).pop();
@@ -1594,7 +1677,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
         leading: const Icon(FluentIcons.book_open_24_regular),
         title: LibraryOverflowTooltipText(text: hit.reference, maxLines: 2),
         subtitle: Text(hit.providerTitle, maxLines: 1),
-        onTap: interactive ? () => _openExternal(hit) : null,
+        onTap: interactive
+            ? () {
+                if (!_selectionGesture) unawaited(_openExternal(hit));
+              }
+            : null,
       ),
     ),
   );
@@ -1876,7 +1963,27 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    includeSemantics: false,
+    onKeyEvent: (_, event) {
+      if (event is KeyRepeatEvent &&
+          event.logicalKey == LogicalKeyboardKey.escape) {
+        return KeyEventResult.handled;
+      }
+      if (event is! KeyDownEvent ||
+          event.logicalKey != LogicalKeyboardKey.escape ||
+          _checked.value.isEmpty) {
+        return KeyEventResult.ignored;
+      }
+      _cancelChecked();
+      return KeyEventResult.handled;
+    },
+    child: _buildDialog(context),
+  );
+
+  Widget _buildDialog(BuildContext context) {
     final media = MediaQuery.of(context);
     final screenSize = media.size;
     // insetPadding של Dialog מתווסף ל-viewInsets (המקלדת במובייל), ולכן
