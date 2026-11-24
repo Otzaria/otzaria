@@ -128,6 +128,13 @@ ULONG_PTR DartImageBase(ULONG_PTR address) {
     return 0;
   }
   const auto base = reinterpret_cast<ULONG_PTR>(info.AllocationBase);
+  // הקריאה מדף שמור (PAGE_GUARD) מבטלת את ההגנה גם אם החריגה נתפסת.
+  MEMORY_BASIC_INFORMATION header = {};
+  if (::VirtualQuery(reinterpret_cast<LPCVOID>(base), &header,
+                     sizeof(header)) == 0 || header.State != MEM_COMMIT ||
+      (header.Protect & (PAGE_NOACCESS | PAGE_EXECUTE | PAGE_GUARD)) != 0) {
+    return 0;
+  }
   unsigned char magic[4] = {};
   if (!ReadBytes(base, magic, sizeof(magic))) return 0;
   return memcmp(magic, "\x7f" "ELF", sizeof(magic)) == 0 ? base : 0;
@@ -418,17 +425,17 @@ void AppendStackSection(const std::vector<ULONG_PTR>& frames,
   *report += "Stack (module+RVA):\n";
   const size_t count = frames.size();
   // בתחתית יש לרוב רק לולאת ההודעות; מי שהתחיל את העבודה הוא קצה ה-Dart שמעליה.
+  size_t outer_begin = 0;
   size_t outer_end = 0;
-  for (size_t i = count; i > 0; --i) {
-    if (DartImageBase(frames[i - 1]) != 0) {
-      outer_end = (std::min)(count, i + kBelowDartFrames);
-      break;
+  if (count > kTopFrames + kBottomFrames) {
+    for (size_t i = count; i > kTopFrames - kBelowDartFrames; --i) {
+      if (DartImageBase(frames[i - 1]) != 0) {
+        outer_begin = i - (std::min)(i, kOuterDartFrames);
+        outer_end = (std::min)(count, i + kBelowDartFrames);
+        break;
+      }
     }
   }
-  const size_t outer_begin =
-      outer_end > kOuterDartFrames + kBelowDartFrames
-          ? outer_end - kOuterDartFrames - kBelowDartFrames
-          : 0;
   const size_t bottom_begin = count > kBottomFrames ? count - kBottomFrames : 0;
   auto kept = [&](size_t i) {
     return i < kTopFrames || (i >= outer_begin && i < outer_end) ||
