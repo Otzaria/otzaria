@@ -379,6 +379,20 @@ void main() {
           expect(bloc.state.compactMenuModeFor(isSmallWindow: false), isFalse);
         },
       );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'כיבוי הסתרת הסרגל במסך מלא נשמר (#5199)',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateFullscreenAutoHideToolbar(false)),
+        expect: () => [
+          settingsBloc.state.copyWith(fullscreenAutoHideToolbar: false),
+        ],
+        verify: (_) {
+          verify(
+            mockRepository.updateFullscreenAutoHideToolbar(false),
+          ).called(1);
+        },
+      );
     });
 
     // q12 Q8, ss5: בחלון נמוך התצוגה המקדימה בספרייה סגורה עד שהמשתמש פותח

@@ -7,6 +7,7 @@ import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -720,6 +721,19 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       }
       final newFullscreenState = !context.read<WindowFullscreenCubit>().state;
       FullscreenHelper.toggleFullscreen(context, newFullscreenState);
+      return KeyEventResult.handled;
+    }
+
+    // F9 - הסתרת סרגל הקורא במסך מלא, או הצגתו הקבועה
+    if (ShortcutHelper.matchesShortcut(event, 'f9') &&
+        !DeviceChrome.isMobile &&
+        context.read<WindowFullscreenCubit>().state) {
+      final settings = context.read<SettingsBloc>();
+      settings.add(
+        UpdateFullscreenAutoHideToolbar(
+          !settings.state.fullscreenAutoHideToolbar,
+        ),
+      );
       return KeyEventResult.handled;
     }
 

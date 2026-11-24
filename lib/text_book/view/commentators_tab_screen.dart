@@ -798,7 +798,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                   onNextMajor: () => _navigateToNextChapter(chapters),
                 ),
                 child: Scaffold(
-                  body: Column(
+                  body: AppTopBarLayout(
                     children: [
                       _buildAppBar(context, state, chapters),
                       Expanded(

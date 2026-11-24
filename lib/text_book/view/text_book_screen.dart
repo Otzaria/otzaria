@@ -1015,7 +1015,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
 
                 if (state.showPageShapeView) {
-                  // hasPrimaryFocus ולא hasFocus: ה-KeyboardListener הזה עוטף
+                  // hasPrimaryFocus ולא hasFocus: ה-Focus הזה עוטף
                   // את כל גוף המסך (כולל פאנל החיפוש), ו-hasFocus מחזיר true
                   // גם כשצאצא (שדה החיפוש) ממוקד. unfocus כזה היה מסיר פוקוס
                   // מכל התת-עץ ומבריח את הסמן משדה החיפוש בכל הקלדה. כאן
@@ -1049,7 +1049,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     !navigationSearchFocusNode.hasFocus &&
                     !altTitlesSearchFocusNode.hasFocus) {
                   // ממקד את אזור הגלילה (ProgressiveScroll) דרך ה-requester
-                  // שרשם CombinedView; הוא צאצא של ה-KeyboardListener הזה,
+                  // שרשם CombinedView; הוא צאצא של ה-Focus הזה,
                   // לכן Ctrl+P/Home וכו' ממשיכים לעבוד. fallback ל-node הזה
                   // אם אין requester (למשל צורת הדף).
                   final didFocus =
@@ -1059,25 +1059,30 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               });
 
-              return KeyboardListener(
+              return Focus(
                 focusNode: _bookContentFocusNode,
-                autofocus: false,
-                onKeyEvent: (event) => _handleGlobalKeyEvent(
-                  event,
-                  context,
-                  state,
-                  widget.tab,
-                  openSearchFromToolbar: _openSearchFromToolbar,
-                  onPrint: () => handlePrintPress(state),
-                  openNotesForCurrentView: () =>
-                      _openPersonalNotesForCurrentView(state),
-                  isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
-                  selectedTextForNote: _selectedTextForSearch,
-                  selectedLineForNote: _selectedLineForNote,
-                  selectedColumnForNote: _selectedColumnForNote,
-                ),
+                onKeyEvent: (_, event) {
+                  final handled = _handleGlobalKeyEvent(
+                    event,
+                    context,
+                    state,
+                    widget.tab,
+                    openSearchFromToolbar: _openSearchFromToolbar,
+                    onPrint: () => handlePrintPress(state),
+                    openNotesForCurrentView: () =>
+                        _openPersonalNotesForCurrentView(state),
+                    isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
+                    selectedTextForNote: _selectedTextForSearch,
+                    selectedLineForNote: _selectedLineForNote,
+                    selectedColumnForNote: _selectedColumnForNote,
+                  );
+                  // קיצור ספר שהוקצה ל-F9 קודם להסתרת הסרגל.
+                  return handled && ShortcutHelper.matchesShortcut(event, 'f9')
+                      ? KeyEventResult.handled
+                      : KeyEventResult.ignored;
+                },
                 child: Scaffold(
-                  body: Column(
+                  body: AppTopBarLayout(
                     children: [
                       // בטלפון הסרגל נעלם בגלילה למטה וחוזר בגלילה למעלה
                       // או בהקשה (ChromeAutoHideScope בחלון הראשי).

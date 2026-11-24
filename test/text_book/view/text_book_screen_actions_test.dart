@@ -18,6 +18,7 @@ import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -38,6 +39,7 @@ import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
+import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -57,7 +59,8 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_event.dart'
+    hide UpdateFontSize;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -2228,14 +2231,14 @@ void main() {
         ),
       );
       await tester.pump();
-      final escapeListener = find
+      final readerFocus = find
           .descendant(
             of: find.byType(TextBookViewerBloc),
-            matching: find.byType(KeyboardListener),
+            matching: find.byType(Focus),
           )
           .first;
       expect(
-        tester.widget<KeyboardListener>(escapeListener).focusNode.hasFocus,
+        tester.widget<Focus>(readerFocus).focusNode!.hasFocus,
         isTrue,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -2268,26 +2271,45 @@ void main() {
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
       geometry.calls.clear();
 
-      // התרחיש מחייב פוקוס בתוך ה-KeyboardListener של הספר.
-      final bookListener = find.descendant(
-        of: find.byType(TextBookViewerBloc),
-        matching: find.byType(KeyboardListener),
-      );
       expect(
-        tester.widget<KeyboardListener>(bookListener.first).focusNode.hasFocus,
+        tester.widget<Focus>(readerFocus).focusNode!.hasFocus,
         isTrue,
       );
+
+      // F9 פועל רק במסך מלא.
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
       await tester.pump();
       expect(fullscreen.state, isTrue);
       expect(geometry.calls, ['titleBar', 'fullScreen:true']);
+      await tester.pump();
+      expect(find.text(WindowMessages.fullscreenToolbarHint), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
+      expect(fullscreen.state, isTrue);
+
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'f9');
+      bloc.receivedEvents.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), hasLength(1));
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
 
       geometry.calls.clear();
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
       await tester.pump();
       expect(fullscreen.state, isFalse);
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
+      // ההודעה מוצגת פעם אחת בלבד, ונסגרת מעצמה.
+      await tester.pump(const Duration(seconds: 7));
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
@@ -2854,7 +2876,9 @@ Future<void> _pumpTextBookScreen(
                   controller: _PluginWindow(),
                   geometry: geometry ?? _PluginWindow(),
                   keys: windowKeys,
-                  child: screen,
+                  child: fullscreenCubit == null
+                      ? screen
+                      : WindowFullscreenTopBarScope(child: screen),
                 ),
         ),
       ),
@@ -2965,7 +2989,11 @@ class _CapturingFilePicker extends FilePickerPlatform
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
+    on<SettingsEvent>((event, emit) {
+      if (event is UpdateFullscreenAutoHideToolbar) {
+        emit(state.copyWith(fullscreenAutoHideToolbar: event.autoHide));
+      }
+    });
   }
 
   void emitStateForTest(SettingsState state) => emit(state);

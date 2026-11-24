@@ -4413,7 +4413,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final content = CallbackShortcuts(
       bindings: _configurableBindings(),
       child: Scaffold(
-        body: Column(
+        body: AppTopBarLayout(
           children: [
             ListenableBuilder(
               listenable: Listenable.merge([
