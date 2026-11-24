@@ -439,18 +439,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final library = _library;
     final tree =
         _treeCache ?? (library == null ? null : ScopeTree.cachedFor(library));
-    final node = tree?.nodesByFacet[facet];
-    if (node != null) return node.title;
-
-    // מפתח ספר מהצורה 'כותרת|קטגוריה|...' נושא את הכותרת לפני ה-'|'; מפתח
-    // מזהה ('id:5') אינו שם, ואז אין מה להציג בלי העץ.
-    final pipe = facet.indexOf('|');
-    final head = pipe < 0 ? facet : facet.substring(0, pipe);
-    final segment = head.split('/').last;
-    if (segment.isEmpty || RegExp(r'^(id|uid|ext):').hasMatch(segment)) {
-      return null;
-    }
-    return Category.displayNameForPathSegment(segment);
+    return ScopeTree.facetDisplayName(facet, tree: tree);
   }
 
   /// הסינונים הפעילים ל-chips. בחירת קטגוריות/ספרים ספציפיים
