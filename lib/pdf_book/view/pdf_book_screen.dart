@@ -732,7 +732,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (widget.tab.pdfViewerController.isReady && widget.tab.pageNumber > 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (mounted && widget.tab.pdfViewerController.isReady) {
-          await _goToPageWithSpreadLock(widget.tab.pageNumber);
+          await _goToPageWithSpreadLock(
+            widget.tab.pageNumber,
+            focusViewer: false,
+          );
         }
       });
     }
@@ -1658,9 +1661,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               );
               // layout חלקי אינו חוזר ל-goToPage, שמציג את שולי העמוד הקודם.
               if (shouldCorrect) {
+                // הפתיחה לא גונבת פוקוס משדות החיפוש/הניווט.
                 await _goToPageWithSpreadLock(
                   initialTargetPage,
                   duration: Duration.zero,
+                  focusViewer: false,
                 );
                 if (currentSession()) {
                   await Future.delayed(const Duration(milliseconds: 200));
@@ -1739,8 +1744,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         () => TrackpadPanRecognizer(
                           onPanDelta: _handleTrackpadPanDelta,
                           onPanEnd: _handleTrackpadPanEnd,
-                          onInteractionStart: () =>
-                              _pdfInteractionGeneration++,
+                          onInteractionStart: () => _pdfInteractionGeneration++,
                           onPanZoomEvent: (event) {
                             final controller = widget.tab.pdfViewerController;
                             if (controller.isReady) {
@@ -2638,6 +2642,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Future<void> _goToPageWithSpreadLock(
     int pageNumber, {
     Duration duration = const Duration(milliseconds: 200),
+    bool focusViewer = true,
   }) async {
     final controller = widget.tab.pdfViewerController;
     if (!controller.isReady) return;
@@ -2690,7 +2695,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               duration: duration,
             )
             .timeout(const Duration(seconds: 3), onTimeout: () {});
-        if (!_pdfViewFocusNode.hasFocus) {
+        if (focusViewer && !_pdfViewFocusNode.hasFocus) {
           _pdfViewFocusNode.requestFocus();
         }
         return;
@@ -2723,7 +2728,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           .timeout(const Duration(seconds: 3), onTimeout: () {});
     }
 
-    if (!_pdfViewFocusNode.hasFocus) {
+    if (focusViewer && !_pdfViewFocusNode.hasFocus) {
       _pdfViewFocusNode.requestFocus();
     }
   }
