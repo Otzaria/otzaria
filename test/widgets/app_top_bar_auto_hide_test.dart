@@ -43,6 +43,7 @@ void main() {
     double paneStart = 0,
     FocusNode? buttonFocus,
     VoidCallback? onPressed,
+    VoidCallback? onContentTap,
   }) async {
     final settingsBloc = StubSettingsBloc(
       SettingsState.initial().copyWith(fullscreenAutoHideToolbar: autoHide),
@@ -90,9 +91,13 @@ void main() {
                               key: contentKey,
                               behavior: HitTestBehavior.opaque,
                               onPointerDown: (_) => contentPresses++,
-                              child: Semantics(
-                                label: 'תוכן',
-                                child: const SizedBox.expand(),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: onContentTap,
+                                child: Semantics(
+                                  label: 'תוכן',
+                                  child: const SizedBox.expand(),
+                                ),
                               ),
                             ),
                           ),
@@ -170,11 +175,34 @@ void main() {
   });
 
   testWidgets('פס הרגישות לא בולע לחיצות על התוכן שמתחתיו', (tester) async {
-    await pumpBar(tester);
+    var barPresses = 0;
+    var contentTaps = 0;
+    await pumpBar(
+      tester,
+      onPressed: () => barPresses++,
+      onContentTap: () => contentTaps++,
+    );
     await waitUntilHidden(tester);
 
-    await tester.tapAt(const Offset(400, 4));
-    expect(contentPresses, 1);
+    await tester.tapAt(const Offset(400, 30));
+    await tester.pumpAndSettle();
+    expect(reveal(tester), 0.0);
+
+    final touch = await tester.startGesture(const Offset(400, 4));
+    await tester.pumpAndSettle();
+    expect(reveal(tester), 1.0);
+    expect(find.byTooltip('צא ממסך מלא').hitTestable(), findsOneWidget);
+    expect(tester.getTopLeft(find.byKey(contentKey)).dy, 0);
+    await touch.up();
+    expect(contentPresses, 2);
+    expect(contentTaps, 2);
+
+    await tester.tap(find.byKey(buttonKey));
+    expect(barPresses, 1);
+    expect(contentPresses, 2);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(reveal(tester), 0.0);
   });
 
   testWidgets('מיקוד מקלדת בכפתור מציג את הסרגל ומשאיר אותו', (tester) async {
