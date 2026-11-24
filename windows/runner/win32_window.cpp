@@ -4,6 +4,7 @@
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
+#include "activation_gate.h"
 #include "resource.h"
 
 namespace {
@@ -119,40 +120,27 @@ namespace {
 // החלון שהמשתמש בחר לאחרונה בלחיצה, והרגע שבו.
 //
 // ⚠️ הבסיס ל-[Win32Window::ShouldVetoActivation] — ראו שם.
-HWND g_user_activated = nullptr;
-ULONGLONG g_user_activated_at = 0;
+otzaria::ActivationGate<HWND> g_activation_gate;
 
-// כמה זמן בחירת המשתמש "מוגנת" מפני הפעלה תוכניתית של חלון אחר שלנו.
-//
-// חלון בסדר גודל של חצי שנייה: ארוך מספיק כדי לכסות את ההפעלה החוזרת
-// שהמנוע מייצר (נמדדה תוך ~30ms), וקצר מספיק שלא יחסום העלאה לגיטימית
-// (כרטיסיה שהועברה, `otzaria://`) שמגיעה אחרי אינטראקציה אמיתית.
-constexpr ULONGLONG kUserChoiceGraceMs = 500;
-
-bool IsOtzariaWindow(HWND window) {
-  if (!window) return false;
+std::wstring WindowClassOf(HWND window) {
   wchar_t name[64] = {0};
   ::GetClassNameW(window, name, sizeof(name) / sizeof(name[0]));
-  return ::wcscmp(name, kWindowClassName) == 0;
+  return name;
+}
+
+bool IsShownWindow(HWND window) {
+  return ::IsWindow(window) && ::IsWindowVisible(window);
 }
 
 }  // namespace
 
 void Win32Window::NoteUserActivation(HWND window) {
-  g_user_activated = window;
-  g_user_activated_at = ::GetTickCount64();
+  g_activation_gate.NoteUserActivation(window, ::GetTickCount64());
 }
 
 bool Win32Window::ShouldVetoActivation(HWND window) {
-  if (g_user_activated == nullptr) return false;
-  if (window == g_user_activated) return false;
-  if (!IsOtzariaWindow(window) || !IsOtzariaWindow(g_user_activated)) {
-    return false;
-  }
-  if (!::IsWindow(g_user_activated) || !::IsWindowVisible(g_user_activated)) {
-    return false;
-  }
-  return ::GetTickCount64() - g_user_activated_at < kUserChoiceGraceMs;
+  return g_activation_gate.ShouldVetoActivation(window, ::GetTickCount64(),
+                                                WindowClassOf, IsShownWindow);
 }
 
 Win32Window::Win32Window() {

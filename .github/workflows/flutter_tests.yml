@@ -122,6 +122,12 @@ jobs:
             test/windows/native_exception_records_test.cpp -o "$RUNNER_TEMP/native_exception_records_test"
           "$RUNNER_TEMP/native_exception_records_test"
 
+      - name: Test the window activation gate
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/activation_gate_test.cpp -o "$RUNNER_TEMP/activation_gate_test"
+          "$RUNNER_TEMP/activation_gate_test"
+
       # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
       # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
       - name: Setup Flutter
