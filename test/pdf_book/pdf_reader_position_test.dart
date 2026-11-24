@@ -212,6 +212,35 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('ניווט תכנותי אחרי isReady אינו נדרס בתיקון הפתיחה', (
+    tester,
+  ) async {
+    const initialPage = 5;
+    final tab = await pumpReader(
+      tester,
+      List.filled(12, PdfPageFormat.a4),
+      initialPage: initialPage,
+    );
+    final controller = tab.pdfViewerController;
+    await pumpUntil(
+      tester,
+      () => controller.layout.pageLayouts.length >= initialPage,
+    );
+
+    await controller.goToPage(
+      pageNumber: initialPage,
+      anchor: PdfPageAnchor.center,
+      duration: Duration.zero,
+    );
+    await settle(tester, 20);
+
+    final targetPage = controller.layout.pageLayouts[initialPage - 1];
+    expect(controller.visibleRect.contains(targetPage.center), isTrue);
+    expect(controller.pageNumber, initialPage);
+
+    await unmount(tester);
+  });
+
   testWidgets('אחרי קפיצה רחוקה הטאב מחזיק את העמוד שעל המסך (#3248)', (
     tester,
   ) async {

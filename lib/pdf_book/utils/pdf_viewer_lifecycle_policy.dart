@@ -47,6 +47,8 @@ Future<bool> waitForInitialPdfPageLayout({
   required bool Function() isCurrentSession,
   required int Function() interactionGeneration,
   required int capturedInteractionGeneration,
+  required int Function() programmaticNavigationGeneration,
+  required int capturedProgrammaticNavigationGeneration,
   required int Function() pageLayoutCount,
   required int targetPage,
   int maxAttempts = 300,
@@ -55,7 +57,9 @@ Future<bool> waitForInitialPdfPageLayout({
 }) async {
   for (var attempt = 0; attempt < maxAttempts; attempt++) {
     if (!isCurrentSession() ||
-        interactionGeneration() != capturedInteractionGeneration) {
+        interactionGeneration() != capturedInteractionGeneration ||
+        programmaticNavigationGeneration() !=
+            capturedProgrammaticNavigationGeneration) {
       return false;
     }
     if (pageLayoutCount() >= targetPage) return true;
@@ -63,6 +67,8 @@ Future<bool> waitForInitialPdfPageLayout({
   }
   return isCurrentSession() &&
       interactionGeneration() == capturedInteractionGeneration &&
+      programmaticNavigationGeneration() ==
+          capturedProgrammaticNavigationGeneration &&
       pageLayoutCount() >= targetPage;
 }
 

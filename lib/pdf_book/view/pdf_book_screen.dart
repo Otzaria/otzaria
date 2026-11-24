@@ -67,6 +67,7 @@ import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_fling.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
+import 'package:otzaria/pdf_book/utils/tracked_pdf_viewer_controller.dart';
 import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/pdf_book/view/widgets/open_url_confirmation.dart';
 import 'package:otzaria/pdf_book/view/page_turn_geometry.dart';
@@ -222,7 +223,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   bool get wantKeepAlive => true;
 
-  late final PdfViewerController pdfController;
+  late final TrackedPdfViewerController pdfController;
   late final PdfBookBloc _bloc;
   String? _resolvedPdfPath;
   // שומרים הפניה קבועה לאותו ניסיון פתיחה, כי pdfrx משווה זהות אחרי await.
@@ -609,7 +610,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       widget.tab.pageNumber = 1;
     }
     _initialPageNumber = widget.tab.pageNumber;
-    pdfController = PdfViewerController();
+    pdfController = TrackedPdfViewerController();
     widget.tab.pdfViewerController = pdfController;
     _searchIndexRestorer = PdfSearchIndexRestorer(
       widget.tab.pdfSearchCurrentMatchIndex,
@@ -1649,18 +1650,27 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           _isJumping = true;
           try {
             final interactionGeneration = _pdfInteractionGeneration;
+            final programmaticNavigationGeneration =
+                pdfController.programmaticNavigationGeneration;
             await WidgetsBinding.instance.endOfFrame;
             if (currentSession()) {
               final shouldCorrect = await waitForInitialPdfPageLayout(
                 isCurrentSession: currentSession,
                 interactionGeneration: () => _pdfInteractionGeneration,
                 capturedInteractionGeneration: interactionGeneration,
+                programmaticNavigationGeneration: () =>
+                    pdfController.programmaticNavigationGeneration,
+                capturedProgrammaticNavigationGeneration:
+                    programmaticNavigationGeneration,
                 pageLayoutCount: () =>
                     pdfReadyLayoutOrNull(controller)?.pageLayouts.length ?? 0,
                 targetPage: initialTargetPage,
               );
-              // layout חלקי אינו חוזר ל-goToPage, שמציג את שולי העמוד הקודם.
-              if (shouldCorrect) {
+              // layout חלקי או ניווט חדש אינם חוזרים ל-goToPage, שמציג את
+              // שולי העמוד הקודם ועלול לדרוס את הניווט החדש.
+              if (shouldCorrect &&
+                  pdfController.programmaticNavigationGeneration ==
+                      programmaticNavigationGeneration) {
                 // הפתיחה לא גונבת פוקוס משדות החיפוש/הניווט.
                 await _goToPageWithSpreadLock(
                   initialTargetPage,

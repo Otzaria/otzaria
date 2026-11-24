@@ -553,6 +553,8 @@ void main() {
         isCurrentSession: () => true,
         interactionGeneration: () => 4,
         capturedInteractionGeneration: 4,
+        programmaticNavigationGeneration: () => 8,
+        capturedProgrammaticNavigationGeneration: 8,
         pageLayoutCount: () => layouts,
         targetPage: 5,
         maxAttempts: 3,
@@ -569,11 +571,31 @@ void main() {
         isCurrentSession: () => true,
         interactionGeneration: () => generation,
         capturedInteractionGeneration: 4,
+        programmaticNavigationGeneration: () => 8,
+        capturedProgrammaticNavigationGeneration: 8,
         pageLayoutCount: () => 0,
         targetPage: 5,
         maxAttempts: 3,
         delay: (_) async {
           generation++;
+        },
+      );
+      expect(result, isFalse);
+    });
+
+    test('מבטלת תיקון כשמתחיל ניווט תכנותי בזמן ההמתנה', () async {
+      var navigationGeneration = 8;
+      final result = await waitForInitialPdfPageLayout(
+        isCurrentSession: () => true,
+        interactionGeneration: () => 4,
+        capturedInteractionGeneration: 4,
+        programmaticNavigationGeneration: () => navigationGeneration,
+        capturedProgrammaticNavigationGeneration: 8,
+        pageLayoutCount: () => 0,
+        targetPage: 5,
+        maxAttempts: 3,
+        delay: (_) async {
+          navigationGeneration++;
         },
       );
       expect(result, isFalse);
@@ -585,6 +607,8 @@ void main() {
         isCurrentSession: () => true,
         interactionGeneration: () => 4,
         capturedInteractionGeneration: 4,
+        programmaticNavigationGeneration: () => 8,
+        capturedProgrammaticNavigationGeneration: 8,
         pageLayoutCount: () => 4,
         targetPage: 5,
         maxAttempts: 3,
@@ -602,6 +626,8 @@ void main() {
         isCurrentSession: () => true,
         interactionGeneration: () => 4,
         capturedInteractionGeneration: 4,
+        programmaticNavigationGeneration: () => 8,
+        capturedProgrammaticNavigationGeneration: 8,
         pageLayoutCount: () =>
             pdfReadyLayoutOrNull(controller)?.pageLayouts.length ?? 0,
         targetPage: 5,
