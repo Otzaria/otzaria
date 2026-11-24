@@ -175,9 +175,7 @@ void main() {
       expect(_linkSpans(tester), hasLength(1));
     });
 
-    testWidgets('a credit of many short lines collapses', (
-      tester,
-    ) async {
+    testWidgets('a credit of many short lines collapses', (tester) async {
       final manyLines = [for (var i = 1; i <= 8; i++) 'שורה $i'].join('\n');
       await tester.pumpWidget(_wrap(BookSourceBanner(text: manyLines)));
       expect(find.text('הצג פרטים'), findsOneWidget);
@@ -282,9 +280,7 @@ void main() {
       expect(_linkSpans(tester), hasLength(1));
     });
 
-    testWidgets('omits lines that contain a link when offline', (
-      tester,
-    ) async {
+    testWidgets('omits lines that contain a link when offline', (tester) async {
       await tester.pumpWidget(
         _wrap(const BookSourceBanner(text: text), isOfflineMode: true),
       );
