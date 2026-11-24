@@ -931,6 +931,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'טקסט המקור (לא ניתן לעריכה):': 'Original text (read only):',
     'טקסט מוצע': 'Proposed text',
     'טרם נבחר מיקום': 'No Location Chosen Yet',
+    'טרם נשמרו במחשב זה הערות עדכון לספרייה.': 'No library release notes have been saved on this device yet.',
     'י-ה-ו-ה יוצג כ-י-ק-ו-ק': 'The Divine Name is shown in a substituted spelling',
     'ידוד': 'Y-Dalet-V-Dalet',
     'ידני': 'Manual',

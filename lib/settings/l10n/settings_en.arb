@@ -1587,6 +1587,7 @@
   "גודל ההורדה: {size}": "Download size: {size}",
   "מה חדש:": "What's new:",
   "מה חדש בספרים": "What's New in the Books",
+  "טרם נשמרו במחשב זה הערות עדכון לספרייה.": "No library release notes have been saved on this device yet.",
   "מה חדש בגרסת הספרייה": "What's new in this library version",
   "חיפוש ספר ברשימה": "Search for a book in the list",
   "המסד יוחלף במקומו; הגרסה הקודמת נשמרת עד שהעדכון יאומת.": "The database is replaced in place; the previous version is kept until the update is verified.",

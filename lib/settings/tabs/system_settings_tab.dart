@@ -372,7 +372,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   String? _appVersion;
   String? _libraryVersion;
   ({int library, int personal})? _bookCounts;
-  bool _hasLibraryChanges = false;
   bool _checkingSoftwareUpdate = false;
   bool _checkingLibraryUpdate = false;
   static const _backupFolderName = 'תיקיית גיבוי';
@@ -413,8 +412,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       }
     });
     _loadVersionInfo();
-    _refreshLibraryChanges();
-    LibraryChangesNotes.instance.revision.addListener(_refreshLibraryChanges);
     _loadBackupStatus();
     _loadResolvedBackupPath();
     AppPaths.getDefaultBackupPath().then((p) {
@@ -460,15 +457,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     });
   }
 
-  Future<void> _refreshLibraryChanges() async {
-    final has = await LibraryChangesNotes.instance.store.hasAny().catchError(
-      (_) => false,
-    );
-    if (mounted && has != _hasLibraryChanges) {
-      setState(() => _hasLibraryChanges = has);
-    }
-  }
-
   Future<void> _checkUpdatesNow(
     Future<String?> Function() check,
     void Function(bool checking) setChecking,
@@ -491,9 +479,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       _openAdvancedSection,
     );
     unawaited(_settingsSubscription.cancel());
-    LibraryChangesNotes.instance.revision.removeListener(
-      _refreshLibraryChanges,
-    );
     super.dispose();
   }
 
@@ -870,12 +855,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                         (v) => _checkingLibraryUpdate = v,
                       ),
               ),
-            if (_hasLibraryChanges)
-              ActionButton.ghost(
-                icon: FluentIcons.sparkle_24_regular,
-                text: context.settingsText('מה חדש בגרסת הספרייה'),
-                onPressed: () => LibraryChangesNotes.instance.showAll(context),
-              ),
+            ActionButton.ghost(
+              icon: FluentIcons.sparkle_24_regular,
+              text: context.settingsText('מה חדש בגרסת הספרייה'),
+              onPressed: () => LibraryChangesNotes.instance.showAll(context),
+            ),
             if (_bookCounts != null)
               ActionButton.ghost(
                 icon: OtzariaIcons.list_24_regular,

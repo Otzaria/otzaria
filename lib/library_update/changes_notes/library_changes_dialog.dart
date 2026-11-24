@@ -146,7 +146,16 @@ Future<void> showLibraryChangesDialog(
   context: context,
   builder: settingsDialogBuilder(
     context,
-    (_) => LibraryChangesDialog(notes: notes),
+    (context) => notes.isEmpty
+        ? AppDialog.singleAction(
+            title: context.settingsText('מה חדש בספרים'),
+            icon: FluentIcons.sparkle_24_regular,
+            content: context.settingsText(
+              'טרם נשמרו במחשב זה הערות עדכון לספרייה.',
+            ),
+            confirmText: context.settingsText('סגור'),
+          )
+        : LibraryChangesDialog(notes: notes),
   ),
 );
 

@@ -99,6 +99,22 @@ void main() {
     );
   });
 
+  testWidgets('בלי הערות מציג הסבר במקום שדה חיפוש', (tester) async {
+    await tester.pumpWidget(_app(const SizedBox()));
+    final context = tester.element(find.byType(Scaffold));
+    final closed = showLibraryChangesDialog(context, const []);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('טרם נשמרו במחשב זה הערות עדכון לספרייה.'),
+      findsOneWidget,
+    );
+    expect(find.byType(EditableText), findsNothing);
+    await tester.tap(find.text('סגור'));
+    await tester.pumpAndSettle();
+    await closed;
+  });
+
   testWidgets('RTL, רשימה ארוכה נגללת, חיפוש מסנן וסגירה', (tester) async {
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1;
