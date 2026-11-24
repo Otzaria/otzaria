@@ -1473,11 +1473,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                     padding: const EdgeInsetsDirectional.only(
                                       end: 4,
                                     ),
-                                    child: Icon(
-                                      contentIconData,
-                                      size: 14,
-                                      color: colorScheme.onSurface,
-                                    ),
+                                    child: tab is SearchingTab
+                                        ? SearchTabLeading(
+                                            tab: tab,
+                                            size: 14,
+                                            color: colorScheme.onSurface,
+                                          )
+                                        : Icon(
+                                            contentIconData,
+                                            size: 14,
+                                            color: colorScheme.onSurface,
+                                          ),
                                   ),
                                 if (toolIcon != null)
                                   Padding(

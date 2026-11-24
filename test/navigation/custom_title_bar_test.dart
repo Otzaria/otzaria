@@ -32,6 +32,9 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/search/bloc/search_bloc.dart';
+import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -63,6 +66,11 @@ import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/fake_view_window.dart';
 import '../test_helpers/second_test_view.dart';
+
+/// SearchBloc שהטסט פולט לו state ישירות (emit מוגן).
+class _ControlledSearchBloc extends SearchBloc {
+  void emitState(SearchState state) => emit(state);
+}
 
 class _NewTabRegistryRepo extends Fake implements PluginRegistryRepository {
   @override
@@ -952,6 +960,67 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'כרטיסיית חיפוש ברקע מציגה ספינר בזמן החיפוש (issue #5766)',
+      (tester) async {
+        final bloc = _ControlledSearchBloc();
+        await pumpTabs(tester, [
+          _makeTextTab('ספר פתוח'),
+          SearchingTab('חיפוש: קקק', 'קקק', searchBloc: bloc),
+        ]);
+        // מצב ה-BLoC מגיע ב-microtask, ובסרגל הוא מצויר רק בפריים שאחריו.
+        Future<void> pumpBlocUpdate() async {
+          await tester.pump();
+          await tester.pump();
+        }
+
+        Finder spinnerInStrip() => find.descendant(
+          of: find.byType(ReadingTabStrip),
+          matching: find.byType(LoadingIndicator),
+        );
+        expect(searchIconInStrip(), findsOneWidget);
+        expect(spinnerInStrip(), findsNothing);
+
+        bloc.emitState(bloc.state.copyWith(isLoading: true, isCounting: true));
+        await pumpBlocUpdate();
+        expect(spinnerInStrip(), findsOneWidget);
+        expect(searchIconInStrip(), findsNothing);
+        expect(tester.getSize(spinnerInStrip()), const Size(14, 14));
+        expect(find.text('קקק'), findsOneWidget, reason: 'הכותרת לא משתנה');
+
+        bloc.emitState(
+          bloc.state.copyWith(isLoading: false, isCounting: false),
+        );
+        await pumpBlocUpdate();
+        expect(spinnerInStrip(), findsNothing);
+        expect(searchIconInStrip(), findsOneWidget);
+      },
+    );
+
+    testWidgets('ספינר החיפוש בכרטיסיה צרה מוצג כמו האייקון (issue #5766)', (
+      tester,
+    ) async {
+      final tabs = crowdedTabs(10);
+      final bloc = _ControlledSearchBloc();
+      tabs[tabs.length - 1] = SearchingTab(
+        'חיפוש: קקק',
+        'קקק',
+        searchBloc: bloc,
+      );
+      bloc.emitState(bloc.state.copyWith(isLoading: true));
+      await pumpTabs(tester, tabs);
+
+      expect(
+        find.descendant(
+          of: find.byType(ReadingTabStrip),
+          matching: find.byType(LoadingIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('קקק'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('בכרטיסיה שאין בה מקום לאייקון אין אייקון ואין גלישה', (
       tester,
