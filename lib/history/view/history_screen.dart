@@ -200,9 +200,13 @@ class _HistoryViewState extends State<HistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    _library = context.select<LibraryBloc?, Library?>(
+    final library = context.select<LibraryBloc?, Library?>(
       (bloc) => bloc?.state.library,
     );
+    if (!identical(library, _library)) {
+      _library = library;
+      _scopeTreeRequestedFor = null;
+    }
     return BlocBuilder<HistoryBloc, HistoryState>(
       builder: (context, state) {
         // רשימות ומפות בתוך Bookmark ניתנות לשינוי גם בלי להחליף את הרשומה.
@@ -465,12 +469,16 @@ class _HistoryViewState extends State<HistoryView> {
   }
 
   /// שמות היקף החיפוש להצגה. מפתח ספר ('id:5') נפתר לכותרת מעץ ההיקף; אם
-  /// העץ טרם נבנה, הוא נבנה ברקע והרשימה מתרעננת כשהוא מוכן.
+  /// העץ טרם נבנה, הוא נבנה במנות והרשימה מתרעננת כשהוא מוכן.
   List<String> _facetDisplayNames(List<String> facets) {
     final library = _library;
     final tree = library == null ? null : ScopeTree.cachedFor(library);
     return facets.map((facet) {
-      final name = ScopeTree.facetDisplayName(facet, tree);
+      final name = ScopeTree.facetDisplayName(
+        facet,
+        tree: tree,
+        allowLegacyFallback: false,
+      );
       if (name != null) return name;
       if (!facet.split('/').any((segment) => segment.isNotEmpty)) return facet;
       if (tree == null && library != null) _requestScopeTree(library);
