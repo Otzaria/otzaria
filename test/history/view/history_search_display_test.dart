@@ -11,7 +11,13 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/history/view/history_screen.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
 
@@ -19,6 +25,9 @@ import '../../helpers/memory_settings_cache.dart';
 
 class _HistoryBloc extends MockBloc<HistoryEvent, HistoryState>
     implements HistoryBloc {}
+
+class _LibraryBloc extends MockBloc<LibraryEvent, LibraryState>
+    implements LibraryBloc {}
 
 class _CountingFacets extends ListBase<String> {
   final List<String> values;
@@ -319,5 +328,62 @@ void main() {
     );
     expect(_display(list, item), (subtitle: 'פרק א', tooltip: null));
     expect(facets.reads, 0);
+  });
+
+  testWidgets('חיפוש בספר מסוים מוצג בשם הספר ולא במפתח המזהה שלו', (
+    tester,
+  ) async {
+    final genesis = TextBook(id: 5, title: 'בראשית', categoryPath: 'תנ"ך/תורה');
+    final torah = Category(
+      title: 'תורה',
+      description: '',
+      shortDescription: '',
+      order: 1,
+      subCategories: [],
+      books: [genesis],
+      parent: null,
+    );
+    final tanach = Category(
+      title: 'תנ"ך',
+      description: '',
+      shortDescription: '',
+      order: 1,
+      subCategories: [torah],
+      books: [],
+      parent: null,
+    );
+    final library = Library(categories: [tanach]);
+    tanach.parent = library;
+    torah.parent = tanach;
+    final libraryBloc = _LibraryBloc();
+    whenListen(
+      libraryBloc,
+      const Stream<LibraryState>.empty(),
+      initialState: LibraryState(library: library),
+    );
+
+    final bookFacet = FacetHelper.buildBookFacet(
+      FacetHelper.resolveCategoryPath(genesis),
+      genesis,
+    );
+    expect(bookFacet, endsWith('/id:5'));
+    final missingFacet = bookFacet.replaceFirst('id:5', 'id:9');
+    expect(ScopeTree.cachedFor(library), isNull);
+
+    await tester.pumpWidget(
+      BlocProvider<LibraryBloc>.value(value: libraryBloc, child: buildWidget()),
+    );
+    states.add(
+      HistoryLoaded([
+        _search(query: 'א', scope: [bookFacet]),
+        _search(query: 'ב', scope: [missingFacet]),
+        _search(query: 'ג', scope: ['/תנ"ך/בראשית|תנ"ך|txt|']),
+      ]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('בקטגוריות: בראשית'), findsNWidgets(2));
+    expect(find.textContaining('id:'), findsNothing);
+    expect(find.textContaining('|'), findsNothing);
   });
 }
