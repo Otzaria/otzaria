@@ -159,8 +159,9 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         _collapseThreshold;
     final plainText = longText
         ? null
-        : [for (final i in lineIndices) _lines[i].map((s) => s.text).join()]
-              .join('\n');
+        : [
+            for (final i in lineIndices) _lines[i].map((s) => s.text).join(),
+          ].join('\n');
     // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
     return SelectionContainer.disabled(
       child: Container(
