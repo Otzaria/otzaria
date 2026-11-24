@@ -241,6 +241,55 @@ void main() {
       );
     });
 
+    test('קישור לספר מצורף עם נתיב נלווה קורא את השורות מהמסד', () async {
+      final path = fullAttached('מקור');
+      const title = SeforimFixtureIds.rashiTitle;
+      final db = sqlite3.sqlite3.open(path);
+      db.execute('ALTER TABLE book ADD COLUMN fileType TEXT');
+      db.execute('ALTER TABLE book ADD COLUMN filePath TEXT');
+      db.execute(
+        "UPDATE book SET fileType = 'txt', filePath = 'companion.txt' WHERE id = ?",
+        [SeforimFixtureIds.rashiId],
+      );
+      db.close();
+
+      final library = await attach(path);
+      final book = await attachedBook(library, title);
+      final manager = LibraryProviderManager.instance;
+      manager.seedMappingsForTesting(mapping: {}, providers: [provider]);
+      final link = Link(
+        heRef: title,
+        index1: 1,
+        path2: title,
+        index2: 1,
+        index2End: 2,
+        connectionType: 'commentary',
+        targetSource: library.source!,
+      );
+      final text = await provider.getBookText(
+        title,
+        book.categoryId!,
+        'txt',
+        preferSource: library.source!,
+      );
+      expect(text, 'מקור: דיבור ראשון\nמקור: דיבור שני');
+      final expected = [
+        (lineIndex: 0, content: 'מקור: דיבור ראשון'),
+        (lineIndex: 1, content: 'מקור: דיבור שני'),
+      ];
+      expect(await manager.getLinkContentLines(link), expected);
+
+      // גם כשיש קובץ נלווה קריא, הקישור מצביע לאותה שורה כמו הקורא.
+      File(p.join(p.dirname(path), 'companion.txt')).writeAsStringSync(
+        'אחד\nשניים\nשלוש',
+      );
+      expect(await manager.getLinkContentLines(link), expected);
+      expect(
+        await provider.getLinkContent(link.withTargetRange(3, 3)),
+        'שגיאה: אינדקס מחוץ לטווח',
+      );
+    });
+
     test('תוכן קישור שומר כותרת מצורפת שמסתיימת בסיומת', () async {
       final dbPath = fullAttached('כותרות');
       final db = sqlite3.sqlite3.open(dbPath);
@@ -530,6 +579,17 @@ void main() {
       preferSource: library.source!,
     );
     expect(text, contains('תוכן מהקובץ'));
+    final link = Link(
+      heRef: 'קובץ טקסט',
+      index1: 1,
+      path2: 'קובץ טקסט',
+      index2: 1,
+      connectionType: 'commentary',
+      targetSource: library.source!,
+    );
+    expect(await provider.getLinkContent(link), 'תוכן מהקובץ');
+    File(p.join(dir.path, 'txt', 'a.txt')).deleteSync();
+    expect(await provider.getLinkContent(link), 'שגיאה: הקובץ לא נמצא');
   });
 
   test('בידוד: חיבור מוקשח ב-isolate דוחה כתיבה', () async {
