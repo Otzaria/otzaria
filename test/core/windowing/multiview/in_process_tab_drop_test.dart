@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -80,6 +82,7 @@ class _Runner {
 
   /// מה שתחת הסמן כשהגרירה שנמסרה למערכת מסתיימת.
   Map<String, Object?> systemDrag = const {};
+  Completer<void>? systemDragGate;
   final List<MethodCall> calls = [];
 
   void install() => TestDefaultBinaryMessengerBinding
@@ -91,7 +94,7 @@ class _Runner {
           return {'x': 300, 'y': 40, ...target};
         }
         if (call.method == 'dragOutToSystem') {
-          return {
+          final result = {
             'ran': true,
             'snapped': false,
             'left': 1100,
@@ -104,6 +107,8 @@ class _Runner {
             'isShellTray': false,
             ...systemDrag,
           };
+          await systemDragGate?.future;
+          return result;
         }
         return null;
       });
@@ -585,6 +590,16 @@ void main() {
           final active = ToolTab(toolId: 'builtin.notes', title: 'הערות');
           final dragged = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
           final source = _RecordingTabsBloc([active, dragged]);
+          final confirmation = Completer<bool>();
+          final originalConfirm = CrossWindowTabDrag.confirmTransfer;
+          addTearDown(
+            () => CrossWindowTabDrag.confirmTransfer = originalConfirm,
+          );
+          final confirmations = <OpenedTab>[];
+          CrossWindowTabDrag.confirmTransfer = (tab) {
+            confirmations.add(tab);
+            return confirmation.future;
+          };
           runner.systemDrag = {
             'ran': false,
             if (overPeer) 'hwnd': view.handle.hwnd,
@@ -593,6 +608,12 @@ void main() {
             ..begin(dragged, colors, tabsBloc: source);
 
           await tester.pump(const Duration(seconds: 1));
+          expect(runner.named('endTabDrag'), hasLength(1));
+          expect(target.received, isEmpty);
+          expect(source.events, isEmpty);
+          expect(confirmations, overPeer ? [same(dragged)] : isEmpty);
+          confirmation.complete(true);
+          await tester.pump();
           await drag.handleDroppedOutside(dragged, source);
 
           expect(runner.named('dragOutToSystem'), hasLength(1));
@@ -610,6 +631,80 @@ void main() {
         },
       );
     }
+
+    testWidgets('תשובת שחרור מוקדם מגרירה קודמת אינה עוצרת גרירה חדשה', (
+      tester,
+    ) async {
+      final windows = FakeViewWindows(tester);
+      final view = windows.registry.open(size: const Size(800, 600))!;
+      final drops = makeDrops(windows.registry);
+      final target = _target(1);
+      drops.register(view.id, target.target);
+      final first = ToolTab(toolId: 'builtin.notes', title: 'הערות');
+      final second = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+      final source = _RecordingTabsBloc([first, second]);
+      addTearDown(source.close);
+      final drag = CrossWindowTabDrag(inProcess: drops);
+      addTearDown(drag.dispose);
+      final release = Completer<void>();
+      runner.systemDragGate = release;
+      runner.systemDrag = {'ran': false, 'hwnd': view.handle.hwnd};
+
+      drag.begin(first, colors, tabsBloc: source);
+      await tester.pump(const Duration(seconds: 1));
+      expect(runner.named('dragOutToSystem'), hasLength(1));
+
+      drag.begin(second, colors, tabsBloc: source);
+      runner.systemDragGate = null;
+      release.complete();
+      await tester.pump();
+      expect(runner.named('endTabDrag'), isEmpty);
+      expect(target.received, isEmpty);
+      expect(source.events, isEmpty);
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(runner.named('dragOutToSystem'), hasLength(2));
+      expect(target.received.single.$1.title, second.title);
+      expect(source.events, [RemoveTab(second)]);
+    });
+
+    testWidgets('ביטול אישור מגרירה קודמת אינו מסתיר גרירה חדשה', (
+      tester,
+    ) async {
+      final windows = FakeViewWindows(tester);
+      final view = windows.registry.open(size: const Size(800, 600))!;
+      final drops = makeDrops(windows.registry);
+      final target = _target(1);
+      drops.register(view.id, target.target);
+      final first = ToolTab(toolId: 'builtin.notes', title: 'הערות');
+      final second = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+      final source = _RecordingTabsBloc([first, second]);
+      addTearDown(source.close);
+      final originalConfirm = CrossWindowTabDrag.confirmTransfer;
+      addTearDown(() => CrossWindowTabDrag.confirmTransfer = originalConfirm);
+      final confirmation = Completer<bool>();
+      final confirmations = <OpenedTab>[];
+      CrossWindowTabDrag.confirmTransfer = (tab) {
+        confirmations.add(tab);
+        return confirmation.future;
+      };
+      final drag = CrossWindowTabDrag(inProcess: drops);
+      runner.systemDrag = {'hwnd': view.handle.hwnd};
+
+      drag.begin(first, colors, tabsBloc: source);
+      await tester.pump(const Duration(seconds: 1));
+      expect(runner.named('dragOutToSystem'), hasLength(1));
+      expect(confirmations, [same(first)]);
+      expect(runner.named('endTabDrag'), isEmpty);
+
+      drag.begin(second, colors, tabsBloc: source);
+      confirmation.complete(false);
+      await tester.pump();
+      expect(runner.named('endTabDrag'), isEmpty);
+      expect(target.received, isEmpty);
+      expect(source.events, isEmpty);
+      drag.dispose();
+    });
 
     testWidgets('גרירה שנמסרה למערכת ושוחררה מעל שורת המשימות מבוטלת', (
       tester,
