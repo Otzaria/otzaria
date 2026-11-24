@@ -231,7 +231,7 @@ RegExp crossLinePattern(String source) =>
 /// מיקום יחסי (0..1) של ההתאמה ל-[query] בשורת המקור [rawLine], לאחר ניקוי
 /// זהה לחיפוש. משמש לדיוק גלילה אל המילה בתוך פסקה ארוכה. 0 אם אין התאמה.
 /// [matchOffset] — היסט הופעה ספציפית בשורה הנקייה (ראה
-/// TextSearchResult.matchOffset); בלעדיו נלקחת ההופעה הראשונה.
+/// TextSearchResult.matchOffset); בלעדיו מעדיפים את הביטוי השלם הראשון בשורה.
 /// שאר הפרמטרים הם פרמטרי ההדגשה של הספר, כך שההופעה נמצאת באותה תבנית שמודגשת.
 /// [pattern] מוזרק בבדיקות בלבד — בייצור נבנה מהמנוע.
 double matchFractionInLine(
@@ -259,8 +259,7 @@ double matchFractionInLine(
       query,
       wholeWord: wholeWord,
     );
-    // מחוץ למרווח הרגיל השורה מודגשת מילה-מילה, וציטוט חלקי שלפני הביטוי
-    // השלם משך אליו את הגלילה — לכן מעדיפים את הביטוי השלם כשהוא בשורה.
+    // כשהשורה מודגשת מילה-מילה, ציטוט חלקי יכול להקדים את הביטוי השלם.
     final complete = matchPolicy.hasStandardWordMatching
         ? const <List<int>>[]
         : utils.computeHighlightSpans(
