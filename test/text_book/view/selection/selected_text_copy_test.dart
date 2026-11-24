@@ -6,11 +6,142 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
+import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 void main() {
+  group('rich copy across source rows (#5290)', () {
+    const rows = [
+      '<a href="outside">before</a>',
+      'skip <a href="one">first </a>',
+      '<i>middle</i>',
+      '<a href="two">last</a> skip',
+    ];
+    for (final gap in ['\n', ' ']) {
+      test(
+        'copies both hrefs using the selected separator ${gap.codeUnits}',
+        () async {
+          final plain = ['first', 'middle', 'last'].join(gap);
+          final copy = await buildSelectedTextCopy(
+            plainText: plain,
+            selectedIndex: 1,
+            selectionLineStart: 1,
+            selectionLineEnd: 3,
+            sourceContent: rows,
+            textBookState: null,
+            settingsState: SettingsState.initial(),
+          );
+          expect(copy!.plainText, plain);
+          expect(
+            copy.htmlText,
+            '<a href="one">first</a>$gap<i>middle</i>$gap<a href="two">last</a>',
+          );
+          final html = CopyUtils.buildStyledHtml(
+            htmlText: copy.htmlText,
+            fontFamily: 'Arial',
+            fontSize: 16,
+          );
+          expect(html, contains('<a href="one">first</a>'));
+          expect(html, contains('<a href="two">last</a>'));
+        },
+      );
+    }
+
+    test('uses displayed text when punctuation is hidden in the source', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'one two three',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const ['<b>one,two</b>', '<a href="three">three</a>'],
+        ),
+        '<b>one two</b> <a href="three">three</a>',
+      );
+    });
+
+    test(
+      'preserves the link when the selection ends on visible punctuation',
+      () {
+        expect(
+          resolveHtmlTextForSelection(
+            plainText: 'first\n.',
+            selectedIndex: 0,
+            selectionLineStart: 0,
+            selectionLineEnd: 1,
+            sourceContent: const ['<a href="one">first</a>', '.'],
+          ),
+          '<a href="one">first</a>\n.',
+        );
+      },
+    );
+
+    test('escapes displayed punctuation and link attributes in rich HTML', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: '<first> & last',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const [
+            '<a href="https://example.org/?x=1&amp;y=2">&lt;first&gt;</a>',
+            '&amp; last',
+          ],
+        ),
+        '<a href="https://example.org/?x=1&amp;y=2">&lt;first&gt;</a> '
+        '&amp; last',
+      );
+    });
+
+    test('keeps link text when the source destination is not allowed', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'first\nlast',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const [
+            '<a href="file:///fixtures/reference.txt">first</a>',
+            '<a href="https://example.org/reference">last</a>',
+          ],
+        ),
+        '<a>first</a>\n<a href="https://example.org/reference">last</a>',
+      );
+    });
+
+    test('ignores matches outside either end of the known source range', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'middle',
+          selectedIndex: 2,
+          selectionLineStart: 1,
+          selectionLineEnd: 3,
+          sourceContent: rows,
+        ),
+        'middle',
+      );
+    });
+
+    test(
+      'different markup on repeated matches across the same boundary is ambiguous',
+      () {
+        const selected = 'one one one';
+        expect(
+          resolveHtmlTextForSelection(
+            plainText: selected,
+            selectedIndex: 0,
+            selectionLineStart: 0,
+            selectionLineEnd: 1,
+            sourceContent: const ['one <a href="a">one</a>', '<b>one</b> one'],
+          ),
+          selected,
+        );
+      },
+    );
+  });
+
   group('resolveHtmlTextForSelection', () {
     test('מחזיר HTML מקורי כשהבחירה מכסה את כל השורה', () {
       final resolved = resolveHtmlTextForSelection(
