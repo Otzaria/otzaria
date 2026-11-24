@@ -139,23 +139,35 @@ Future<void> main() async {
     }, skip: engineReady ? false : searchEngineSkipReason);
   }
 
-  test('תחום מפורש מהדיאלוג אינו לוכד את הסינון הקודם של הטאב', () async {
-    final repository = _MemoryHistoryRepository();
-    final tab = SearchingTab(
-      'ממון מזיק',
-      'ממון מזיק',
-      initialConfiguration: const SearchConfiguration(
-        currentFacets: ['/old/book'],
-        searchScopeFacets: ['/old'],
-      ),
+  for (final filter in <List<String>?>[
+    null,
+    const [],
+    const ['/new/book'],
+  ]) {
+    test(
+      'שמירת היקף חדש מחליפה את הסינון הקודם בסינון הדיאלוג: $filter',
+      () async {
+        final repository = _MemoryHistoryRepository();
+        final tab = SearchingTab(
+          'ממון מזיק',
+          'ממון מזיק',
+          initialConfiguration: const SearchConfiguration(
+            currentFacets: ['/old/book'],
+            searchScopeFacets: ['/old'],
+          ),
+        );
+        addTearDown(tab.dispose);
+        final bloc = await loadedBloc(repository, () => null);
+        bloc.add(
+          AddHistory(tab, scopeFacets: const ['/new'], filterFacets: filter),
+        );
+        final saved = (await bloc.stream.firstWhere(
+          (s) => s.history.isNotEmpty,
+        )).history.single;
+        expect(saved.searchScopeFacets, ['/new']);
+        expect(saved.searchFilterFacets, filter);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
     );
-    addTearDown(tab.dispose);
-    final bloc = await loadedBloc(repository, () => null);
-    bloc.add(AddHistory(tab, scopeFacets: const ['/new']));
-    final saved = (await bloc.stream.firstWhere(
-      (s) => s.history.isNotEmpty,
-    )).history.single;
-    expect(saved.searchScopeFacets, ['/new']);
-    expect(saved.searchFilterFacets, isNull);
-  }, skip: engineReady ? false : searchEngineSkipReason);
+  }
 }

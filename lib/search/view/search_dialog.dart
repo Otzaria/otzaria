@@ -222,6 +222,7 @@ class _SearchDialogState extends State<SearchDialog> {
   /// בחירת היקף החיפוש המאוחדת — facets קטגוריאליים (עץ/ספרים) וממדיים
   /// (תקופה/מחבר/ספרי יסוד) יחד. נשלט ע"י [SearchScopeMenuButton].
   Set<String> _scopeSelection = {'/'};
+  List<String>? _historyResultFilter;
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   final MenuController _defaultsMenuController = MenuController();
@@ -896,11 +897,41 @@ class _SearchDialogState extends State<SearchDialog> {
                 !widget.returnResultOnSubmit &&
                 !_isSemanticActive) {
               final scope = bookmark.searchScopeFacets;
-              setState(
-                () => _scopeSelection = scope == null || scope.isEmpty
+              setState(() {
+                _scopeSelection = scope == null || scope.isEmpty
                     ? {'/'}
-                    : scope.toSet(),
-              );
+                    : scope.toSet();
+                _historyResultFilter = bookmark.searchFilterFacets;
+              });
+              _searchTab.negativeQueryController.text =
+                  bookmark.negativeSearchText ?? '';
+              _searchTab.negativeSearchOptions
+                ..clear()
+                ..addAll(bookmark.negativeSearchOptions ?? {});
+              _searchTab.negativeGlobalSearchOptions.clear();
+              _searchTab.useGlobalNegativeSearchOptions.value = false;
+              _searchTab.negativeAlternativeWords
+                ..clear()
+                ..addAll(bookmark.negativeAlternativeWords ?? {});
+              _searchTab.negativeSpacingValues
+                ..clear()
+                ..addAll(bookmark.negativeSpacingValues ?? {});
+              final mode = bookmark.searchMode;
+              if (mode != null) {
+                _searchTab.searchBloc.add(SetSearchModeWithoutSearch(mode));
+              }
+              final distance = bookmark.distance;
+              if (distance != null) {
+                _searchTab.searchBloc.add(
+                  UpdateDistanceWithoutSearch(distance),
+                );
+              }
+              final proximity = bookmark.proximityScope;
+              if (proximity != null) {
+                _searchTab.searchBloc.add(
+                  UpdateProximityScopeWithoutSearch(proximity),
+                );
+              }
             }
 
             _historyMenuController.close();
@@ -1107,6 +1138,10 @@ class _SearchDialogState extends State<SearchDialog> {
       parsedCategory,
       _scopeSelection,
     );
+    final historyFilter = parsedCategory.categoryFound
+        ? null
+        : _historyResultFilter;
+    final currentFacets = historyFilter ?? facetsToSearch;
     final distance = _searchTab.searchBloc.state.distance;
     final configuration = currentState.configuration;
     final proximityScope = configuration.proximityScope;
@@ -1117,7 +1152,7 @@ class _SearchDialogState extends State<SearchDialog> {
       mode: currentMode,
       distance: distance,
       proximityScope: proximityScope,
-      facets: facetsToSearch,
+      facets: currentFacets,
       normalizedParameters: normalizedParameters,
       normalizedNegativeParameters: normalizedNegativeParameters,
     )) {
@@ -1134,6 +1169,7 @@ class _SearchDialogState extends State<SearchDialog> {
         distance: distance,
         configuration: configuration,
         facetsToSearch: facetsToSearch,
+        historyFilter: historyFilter,
         effectiveAlternatives: effectiveAlternatives,
         normalizedParameters: normalizedParameters,
         normalizedNegativeParameters: normalizedNegativeParameters,
@@ -1155,7 +1191,7 @@ class _SearchDialogState extends State<SearchDialog> {
           wordMatchMode: configuration.wordMatchMode,
           wordMatchCount: configuration.wordMatchCount,
           anyOrder: configuration.anyOrder,
-          currentFacets: facetsToSearch,
+          currentFacets: currentFacets,
           searchScopeFacets: facetsToSearch,
           pluginSearchSelections: _allPluginSearchSelections(),
         ),
@@ -1169,11 +1205,7 @@ class _SearchDialogState extends State<SearchDialog> {
       effectiveAlternatives: effectiveAlternatives,
     );
 
-    // מעבירים את ה-scope במפורש להיסטוריה — SetFacetsWithoutSearch מעדכן את
-    // state אסינכרונית, ובלי זה החיפוש היה נשמר בלי ה-scope שנבחר.
-    context.read<HistoryBloc>().add(
-      AddHistory(newSearchTab, scopeFacets: facetsToSearch),
-    );
+    context.read<HistoryBloc>().add(AddHistory(newSearchTab));
 
     // ביצוע החיפוש בטאב החדש
     newSearchTab.searchBloc.add(
@@ -1379,6 +1411,7 @@ class _SearchDialogState extends State<SearchDialog> {
     required int distance,
     required SearchConfiguration configuration,
     required List<String> facetsToSearch,
+    required List<String>? historyFilter,
     required Map<int, List<String>> effectiveAlternatives,
     required SearchModeScopedParameters normalizedParameters,
     required SearchModeScopedParameters normalizedNegativeParameters,
@@ -1410,10 +1443,16 @@ class _SearchDialogState extends State<SearchDialog> {
     // facetsToSearch כבר כולל את ממדי הסינון שנבחרו בדיאלוג (הם אותחלו
     // מה-state של טאב היעד וניתנים לעריכה בדיאלוג עצמו).
     target.searchBloc.add(SetFacetsWithoutSearch(facetsToSearch));
+    if (historyFilter != null) {
+      target.searchBloc.add(
+        SetFacetsWithoutSearch(historyFilter, keepScope: true),
+      );
+    }
     context.read<HistoryBloc>().add(
       AddHistory(
         target,
         scopeFacets: facetsToSearch,
+        filterFacets: historyFilter,
         proximityScope: configuration.proximityScope,
       ),
     );
@@ -1440,7 +1479,10 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   void _onScopeChanged(Set<String> selection) {
-    setState(() => _scopeSelection = selection);
+    setState(() {
+      _scopeSelection = selection;
+      _historyResultFilter = null;
+    });
     final categories = FacetHelper.categoryFacetsOf(selection).toSet();
     final dimensions = FacetHelper.dimensionFacetsOf(selection).toSet();
     final isAll = categories.isEmpty || categories.contains('/');
