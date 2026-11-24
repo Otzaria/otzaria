@@ -29,6 +29,8 @@ import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show SearchScope, WordMatchMode;
 
 import '../support/search_engine_test_init.dart';
 import '../test_helpers/memory_cache_provider.dart';
@@ -74,8 +76,9 @@ Future<void> main() async {
 
   Future<TabsBloc> pumpDialog(
     WidgetTester tester,
-    List<Bookmark> history,
-  ) async {
+    List<Bookmark> history, {
+    SearchingTab? editTab,
+  }) async {
     final tabsBloc = _MockTabsBloc();
     final historyBloc = _MockHistoryBloc();
     final indexingBloc = _MockIndexingBloc();
@@ -124,7 +127,7 @@ Future<void> main() async {
             BlocProvider<NavigationBloc>.value(value: navigationBloc),
             BlocProvider<LibraryBloc>.value(value: libraryBloc),
           ],
-          child: const Scaffold(body: SearchDialog()),
+          child: Scaffold(body: SearchDialog(editTab: editTab)),
         ),
       ),
     );
@@ -202,27 +205,63 @@ Future<void> main() async {
 
     expect(currentScope(tester), {'/'});
   });
-  for (final editScope in [false, true]) {
+  for (final (editTab, editScope, typedCategory, filter) in [
+    (false, false, false, const ['/group/book']),
+    (false, true, false, const ['/group/book']),
+    (false, false, true, const ['/group/book']),
+    (true, false, false, const <String>[]),
+  ]) {
     testWidgets(
-      'הגשת חיפוש מההיסטוריה שומרת החרגה וסינון, עריכת היקף: $editScope',
+      'הגשה מההיסטוריה, עריכת טאב: $editTab, היקף: $editScope, '
+      'קטגוריה מפורשת: $typedCategory, מסנן: $filter',
       (tester) async {
         final previousSearches = ActiveLexicalSearches.instance;
         addTearDown(() => ActiveLexicalSearches.instance = previousSearches);
         ActiveLexicalSearches.instance = ActiveLexicalSearches(
           stallThreshold: null,
         );
-        final tabsBloc = await pumpDialog(tester, [
-          Bookmark(
-            ref: 'בדיקה',
-            book: TextBook(title: 'בדיקה'),
-            index: 0,
-            isSearch: true,
-            searchMode: SearchMode.advanced,
-            distance: 6,
-            searchFilterFacets: const ['/group/book'],
-            negativeSearchText: 'לדלג',
-          ),
-        ]);
+        final target = editTab
+            ? SearchingTab(
+                'קודם',
+                'קודם',
+                initialConfiguration: const SearchConfiguration(
+                  searchMode: SearchMode.exact,
+                  currentFacets: ['/old/book'],
+                  searchScopeFacets: ['/old'],
+                ),
+              )
+            : null;
+        if (target != null) addTearDown(target.dispose);
+        final tabsBloc = await pumpDialog(
+          tester,
+          [
+            Bookmark(
+              ref: 'בדיקה',
+              book: TextBook(title: 'בדיקה אחת נוספת'),
+              index: 0,
+              isSearch: true,
+              searchMode: SearchMode.advanced,
+              distance: 6,
+              proximityScope: SearchScope.sameSection,
+              searchConfiguration: const SearchConfiguration(
+                distance: 6,
+                wordMatchMode: WordMatchMode.atLeast,
+                wordMatchCount: 3,
+                anyOrder: true,
+              ).toMap(),
+              searchFilterFacets: filter,
+              negativeSearchText: 'לדלג תמיד',
+              negativeSearchOptions: const {
+                'לדלג_0': {'קידומות דקדוקיות': true},
+              },
+              negativeAlternativeWords: const {
+                0: ['להחסיר'],
+              },
+              negativeSpacingValues: const {'0-1': '2'},
+            ),
+          ],
+          editTab: target,
+        );
         await tester.tap(find.byTooltip('היסטוריית חיפושים'));
         await tester.pumpAndSettle();
         await tester.tap(
@@ -239,23 +278,89 @@ Future<void> main() async {
               .onChanged({'/other'});
           await tester.pump();
         }
+        if (typedCategory) {
+          await tester.enterText(
+            find.byType(EditableText).first,
+            'בדיקה אחת נוספת @תנ״ך',
+          );
+          await tester.pump();
+        }
         await tester.tap(find.byTooltip('חפש'));
         await tester.pump();
-        final events = verify(() => tabsBloc.add(captureAny())).captured;
-        final tab = events.whereType<AddTab>().single.tab as SearchingTab;
-        addTearDown(tab.dispose);
+        final tab =
+            target ??
+            (verify(
+                  () => tabsBloc.add(captureAny()),
+                ).captured.whereType<AddTab>().single.tab
+                as SearchingTab);
+        if (target == null) addTearDown(tab.dispose);
+        final scope = editScope
+            ? ['/other']
+            : typedCategory
+            ? ['/תנ״ך']
+            : ['/'];
         expect(
           tab.searchBloc.state.searchScopeFacets,
-          editScope ? ['/other'] : ['/'],
+          scope,
         );
         expect(
           tab.searchBloc.state.currentFacets,
-          editScope ? ['/other'] : ['/group/book'],
+          editScope || typedCategory ? scope : filter,
         );
-        expect(tab.negativeQueryController.text, 'לדלג');
-        expect(tab.searchBloc.state.distance, 6);
+        expect(tab.searchBloc.state.negativeQuery, 'לדלג תמיד');
+        expect(tab.negativeSearchOptions, {
+          'לדלג_0': {'קידומות דקדוקיות': true},
+        });
+        expect(tab.negativeAlternativeWords, {
+          0: ['להחסיר'],
+        });
+        expect(tab.negativeSpacingValues, {'0-1': '2'});
+        final configuration = tab.searchBloc.state.configuration;
+        expect(configuration.searchMode, SearchMode.advanced);
+        expect(configuration.distance, 6);
+        expect(configuration.proximityScope, SearchScope.sameSection);
+        expect(configuration.wordMatchMode, WordMatchMode.atLeast);
+        expect(configuration.wordMatchCount, 3);
+        expect(configuration.anyOrder, isTrue);
       },
       skip: !engineReady,
     );
   }
+
+  testWidgets('הצ׳יפים של חיפוש מדויק משקפים אפשרויות משוחזרות', (
+    tester,
+  ) async {
+    await pumpDialog(tester, [
+      Bookmark(
+        ref: 'בדיקה',
+        book: TextBook(title: 'בדיקה נוספת'),
+        index: 0,
+        isSearch: true,
+        searchMode: SearchMode.exact,
+        searchOptions: const {
+          'בדיקה_0': {'קידומות דקדוקיות': true, 'סיומות דקדוקיות': true},
+          'נוספת_1': {'קידומות דקדוקיות': true, 'סיומות דקדוקיות': true},
+        },
+      ),
+    ]);
+    await tester.tap(find.byTooltip('היסטוריית חיפושים'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(searchHistoryMenuKey),
+        matching: find.text('בדיקה'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    FilterChip chip(String label) => tester.widget<FilterChip>(
+      find.widgetWithText(FilterChip, label),
+    );
+    expect(chip('קידומות דקדוקיות').selected, isTrue);
+    expect(chip('סיומות דקדוקיות').selected, isTrue);
+    await tester.tap(find.widgetWithText(FilterChip, 'קידומות דקדוקיות'));
+    await tester.pump();
+    expect(chip('קידומות דקדוקיות').selected, isFalse);
+    expect(chip('סיומות דקדוקיות').selected, isTrue);
+  }, skip: !engineReady);
 }
