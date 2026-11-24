@@ -210,6 +210,33 @@ void main() {
       expect(find.text('הצג פרטים'), findsOneWidget);
     });
 
+    testWidgets('rechecks wrapping when accessibility text spacing changes', (
+      tester,
+    ) async {
+      final dispatcher = tester.platformDispatcher;
+      addTearDown(dispatcher.clearLetterSpacingOverrideTestValue);
+      final credit = List.filled(4, 'credit lines').join('\n');
+      await tester.pumpWidget(
+        _wrap(
+          Center(
+            child: SizedBox(
+              width: 200,
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(fontFamily: 'Ahem'),
+                child: BookSourceBanner(text: credit, fontSize: 20),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('הצג פרטים'), findsNothing);
+
+      dispatcher.letterSpacingOverrideTestValue = 6;
+      await tester.pumpAndSettle();
+
+      expect(find.text('הצג פרטים'), findsOneWidget);
+    });
+
     testWidgets('the banner is excluded from text selection', (tester) async {
       await tester.pumpWidget(
         _wrap(SelectionArea(child: const BookSourceBanner(text: text))),
