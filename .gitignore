@@ -68,6 +68,7 @@ windows/runner/*
 !windows/runner/incident_context.h
 !windows/runner/image_identity.cpp
 !windows/runner/image_identity.h
+!windows/runner/webview_backend.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה
 # מפורשת כאן. קבצים שכבר tracked ממשיכים להיות tracked ולכן הבעיה אינה
 # נראית — אבל קובץ **חדש** נבלע בשקט: `git add -A` מדלג עליו בלי מילה,
