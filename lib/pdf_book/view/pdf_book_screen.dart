@@ -731,9 +731,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (widget.tab.pdfViewerController.isReady && widget.tab.pageNumber > 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (mounted && widget.tab.pdfViewerController.isReady) {
-          await widget.tab.pdfViewerController.goToPage(
-            pageNumber: widget.tab.pageNumber,
-          );
+          await _goToPageWithSpreadLock(widget.tab.pageNumber);
         }
       });
     }
@@ -1645,8 +1643,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           try {
             await WidgetsBinding.instance.endOfFrame;
             if (currentSession()) {
-              await controller.goToPage(
-                pageNumber: initialTargetPage,
+              await _goToPageWithSpreadLock(
+                initialTargetPage,
                 duration: Duration.zero,
               );
               if (!currentSession()) return;
@@ -2677,13 +2675,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // viewport to settle while new tiles keep arriving. Time out the await so
     // page-turn state cannot deadlock the navigation flow.
     //
-    // goToPage() resets zoom to fit-page when the user has zoomed in beyond
-    // fit-page level. Preserve zoom by computing the target matrix explicitly.
+    // goToPage מנפח את מלבן היעד במרווח העמוד ומציג שוליים מהעמוד הקודם.
+    // מטריצה מהמלבן עצמו גם משמרת זום וגם מעגנת את עמוד היעד בדיוק.
     // safePage נגזר מ-pageCount, וב-טעינה הדרגתית pageLayouts יכול להיות קצר ממנו
     // (גם ריק) — אז נופלים ל-goToPage הבטוח, אחרת אינדוקס מחוץ-לטווח יקרוס.
     if (controller.layout.pageLayouts.length < safePage) {
       await controller
-          .goToPage(pageNumber: safePage)
+          .goToPage(pageNumber: safePage, duration: duration)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
     } else {
       final page = controller.layout.pageLayouts[safePage - 1];
@@ -2694,6 +2692,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             controller.calcMatrixFor(
               page.topCenter.translate(0, halfViewHeight),
             ),
+            duration: duration,
           )
           .timeout(const Duration(seconds: 3), onTimeout: () {});
     }

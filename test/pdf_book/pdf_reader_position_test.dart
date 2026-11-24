@@ -74,6 +74,7 @@ void main() {
   Future<PdfBookTab> pumpReader(
     WidgetTester tester,
     List<PdfPageFormat> pages, {
+    int initialPage = 1,
     Future<void>? perBookSettingsBlockedUntil,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1000, 700));
@@ -91,7 +92,7 @@ void main() {
     });
     final tab = PdfBookTab(
       book: PdfBook(title: 'ספר בדיקה', path: file.path),
-      pageNumber: 1,
+      pageNumber: initialPage,
     );
     if (perBookSettingsBlockedUntil != null) {
       unawaited(
@@ -161,6 +162,34 @@ void main() {
     await pumpUntil(tester, () => bloc.state is PdfBookLoaded);
     await settle(tester, 20);
     expect(controller.pageNumber, scrolledTo);
+
+    await unmount(tester);
+  });
+
+  testWidgets('פתיחה בעמוד אינה מציגה את שולי העמוד הקודם (#5928)', (
+    tester,
+  ) async {
+    const initialPage = 5;
+    final tab = await pumpReader(
+      tester,
+      List.filled(12, PdfPageFormat.a4),
+      initialPage: initialPage,
+    );
+    final controller = tab.pdfViewerController;
+    final targetPage = controller.layout.pageLayouts[initialPage - 1];
+    final previousPage = controller.layout.pageLayouts[initialPage - 2];
+    await pumpUntil(
+      tester,
+      () =>
+          (controller.visibleRect.top - targetPage.top).abs() < 0.1 &&
+          controller.pageNumber == initialPage &&
+          tab.pageNumber == initialPage,
+    );
+
+    expect(controller.visibleRect.top, closeTo(targetPage.top, 0.1));
+    expect(controller.visibleRect.overlaps(previousPage), isFalse);
+    expect(controller.pageNumber, initialPage);
+    expect(tab.pageNumber, initialPage);
 
     await unmount(tester);
   });
