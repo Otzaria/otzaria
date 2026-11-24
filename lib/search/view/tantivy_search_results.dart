@@ -832,13 +832,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             if (!state.resultsTruncated || state.results.isEmpty) {
               return scrollView;
             }
-            // תוצאות חלקיות: השאילתה חרגה מתקציב איסוף-הטרמים במנוע, כך שרק
-            // ההרחבות בעדיפות הגבוהה הוגשו. מציגים באנר קבוע מעל הרשימה.
+            // תוצאות חלקיות: מציגים באנר קבוע מעל הרשימה.
             return Column(
               children: [
-                _buildTruncatedBanner(
-                  scoped: state.currentFacets.any((f) => f != '/'),
-                ),
+                _buildTruncatedBanner(),
                 Expanded(child: scrollView),
               ],
             );
@@ -1210,11 +1207,9 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     );
   }
 
-  /// תקציב ההרחבות במנוע נמדד מול כל האינדקס ולא מול הספרים שבסינון, ולכן
-  /// צמצום ההיקף אינו מחזיר את הצורות שנחתכו — העצה היא לכבות הרחבות.
-  Widget _buildTruncatedBanner({required bool scoped}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
+  Widget _buildTruncatedBanner() {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(
         AppTokens.spaceSM,
         AppTokens.spaceSM,
         AppTokens.spaceSM,
@@ -1223,10 +1218,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       child: AppInfoBanner(
         tone: AppInfoBannerTone.warning,
         message:
-            'ייתכן שהתוצאות חלקיות: מילה נפוצה בחיפוש התרחבה (קידומות, סיומות, '
-            'כתיב מלא וכד׳) ליותר מדי צורות בספרייה, ולכן נבדקו רק הצורות '
-            'הנפוצות שלה${scoped ? ' — גם בתוך הספרים שנבחרו' : ''}. '
-            'כבו את ההרחבות במילים הקצרות או הוסיפו מילה.',
+            'ייתכן שהתוצאות חלקיות: החיפוש הגיע למגבלת העיבוד. '
+            'נסו לכבות הרחבות מילים או לפשט את החיפוש.',
       ),
     );
   }
