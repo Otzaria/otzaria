@@ -62,6 +62,55 @@ void main() {
       );
     });
 
+    test(
+      'preserves the link when the selection ends on visible punctuation',
+      () {
+        expect(
+          resolveHtmlTextForSelection(
+            plainText: 'first\n.',
+            selectedIndex: 0,
+            selectionLineStart: 0,
+            selectionLineEnd: 1,
+            sourceContent: const ['<a href="one">first</a>', '.'],
+          ),
+          '<a href="one">first</a>\n.',
+        );
+      },
+    );
+
+    test('escapes displayed punctuation and link attributes in rich HTML', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: '<first> & last',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const [
+            '<a href="https://example.org/?x=1&amp;y=2">&lt;first&gt;</a>',
+            '&amp; last',
+          ],
+        ),
+        '<a href="https://example.org/?x=1&amp;y=2">&lt;first&gt;</a> '
+        '&amp; last',
+      );
+    });
+
+    test('keeps link text when the source destination is not allowed', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'first\nlast',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const [
+            '<a href="file:///fixtures/reference.txt">first</a>',
+            '<a href="https://example.org/reference">last</a>',
+          ],
+        ),
+        '<a>first</a>\n<a href="https://example.org/reference">last</a>',
+      );
+    });
+
     test('ignores matches outside either end of the known source range', () {
       expect(
         resolveHtmlTextForSelection(
