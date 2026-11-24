@@ -122,9 +122,12 @@ namespace {
 // ⚠️ הבסיס ל-[Win32Window::ShouldVetoActivation] — ראו שם.
 otzaria::ActivationGate<HWND> g_activation_gate;
 
+// רק חלונות של ה-thread הזה; מחלקת המנוע קיימת גם בתוכנות Flutter אחרות.
 std::wstring WindowClassOf(HWND window) {
   wchar_t name[64] = {0};
-  ::GetClassNameW(window, name, sizeof(name) / sizeof(name[0]));
+  if (::GetWindowThreadProcessId(window, nullptr) == ::GetCurrentThreadId()) {
+    ::GetClassNameW(window, name, sizeof(name) / sizeof(name[0]));
+  }
   return name;
 }
 

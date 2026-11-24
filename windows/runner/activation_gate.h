@@ -12,9 +12,11 @@ namespace otzaria {
 // (כרטיסיה שהועברה, `otzaria://`) שמגיעה אחרי אינטראקציה אמיתית.
 constexpr unsigned long long kUserChoiceGraceMs = 500;
 
-// חלון אוצריא לפי מחלקת החלון.
+// חלון אוצריא לפי מחלקת החלון: הראשי של ה-runner, או חלון Dart שהמנוע
+// יצר (ריבוי תצוגות). בלי חלונות ה-Dart המנוע מחזיר את הפוקוס לראשי (#5743).
 inline bool IsOtzariaWindowClass(const std::wstring& name) {
-  return name == L"FLUTTER_RUNNER_WIN32_WINDOW";
+  return name == L"FLUTTER_RUNNER_WIN32_WINDOW" ||
+         name == L"FLUTTER_HOST_WINDOW";
 }
 
 // השער של [Win32Window::ShouldVetoActivation], בלי Win32 כדי שייבדק לבד.
