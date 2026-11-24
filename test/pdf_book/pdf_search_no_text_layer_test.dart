@@ -56,11 +56,12 @@ class _FakeReadyController extends PdfViewerController {
   }) => null;
 }
 
-/// מחזיר שכבת טקסט קבועה לכל עמוד, במקום לטעון מ-pdfium.
+/// מחזיר טקסט שנקבע בטסט, במקום לטעון מ-pdfium.
 class _FakeTextSearcher extends PdfTextSearchSession {
-  _FakeTextSearcher(super.controller, this.pageFullText);
+  _FakeTextSearcher(super.controller, this.pageFullText, {this.pageTexts});
 
   final String pageFullText;
+  final Map<int, String?>? pageTexts;
   final List<int> requestedPages = [];
 
   // pdfrx מסמן חיפוש פעיל לפני useDocument, והקונטרולר המזויף לא מריץ אותו.
@@ -73,9 +74,11 @@ class _FakeTextSearcher extends PdfTextSearchSession {
   @override
   Future<PdfPageText?> loadText({required int pageNumber}) async {
     requestedPages.add(pageNumber);
+    final fullText = pageTexts == null ? pageFullText : pageTexts![pageNumber];
+    if (fullText == null) return null;
     return PdfPageText(
       pageNumber: pageNumber,
-      fullText: pageFullText,
+      fullText: fullText,
       charRects: const [],
       fragments: const [],
     );
@@ -171,7 +174,7 @@ void main() {
     expect(find.text(PdfMessages.noTextLayer), findsOneWidget);
     expect(find.text('אין תוצאות'), findsNothing);
     // העמוד המוצג נדגם ראשון, ולא רק עמוד 1 שעלול להיות שער ריק.
-    expect(textSearcher.requestedPages.first, 3);
+    expect(textSearcher.requestedPages, [3, 4, 8]);
   });
 
   testWidgets('הדגימה מתחילה מהעמוד המוצג בפועל ולא מעמוד הפתיחה שב-state', (
@@ -196,7 +199,7 @@ void main() {
     expect(textSearcher.requestedPages.first, 7);
   });
 
-  testWidgets('ספר עם טקסט עברי ובלי התאמות נשאר ב"אין תוצאות"', (
+  testWidgets('טקסט שימושי בדגימה הראשונה חוסך את שתי הטעינות הנותרות', (
     tester,
   ) async {
     final searchController = TextEditingController(text: 'אשר');
@@ -217,7 +220,54 @@ void main() {
 
     expect(find.text(PdfMessages.noTextLayer), findsNothing);
     expect(find.text('אין תוצאות'), findsOneWidget);
+    expect(textSearcher.requestedPages, [3]);
   });
+
+  for (final scenario in [
+    (
+      name: 'טקסט שימושי רק בדגימה השלישית אינו מסומן כסריקה בלבד',
+      pageTexts: <int, String?>{3: '123', 4: '', 8: 'טקסט עברי'},
+      hasNoTextLayer: false,
+    ),
+    (
+      name: 'עמודים שטרם נטענו אינם מסומנים כסריקה בלבד',
+      pageTexts: <int, String?>{},
+      hasNoTextLayer: false,
+    ),
+    (
+      name: 'טקסט ללא אותיות עם עמודים שטרם נטענו מסומן כסריקה בלבד',
+      pageTexts: <int, String?>{4: '123'},
+      hasNoTextLayer: true,
+    ),
+  ]) {
+    testWidgets(scenario.name, (tester) async {
+      final searchController = TextEditingController(text: 'אשר');
+      final focusNode = FocusNode();
+      final textSearcher = _FakeTextSearcher(
+        _FakeReadyController(),
+        '',
+        pageTexts: scenario.pageTexts,
+      );
+      addTearDown(searchController.dispose);
+      addTearDown(focusNode.dispose);
+      addTearDown(textSearcher.dispose);
+
+      await _pumpSearchView(tester, textSearcher, searchController, focusNode);
+      textSearcher.notifyListeners();
+      await tester.pump();
+      await tester.pump();
+
+      expect(textSearcher.requestedPages, [3, 4, 8]);
+      expect(
+        find.text(PdfMessages.noTextLayer),
+        scenario.hasNoTextLayer ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.text('אין תוצאות'),
+        scenario.hasNoTextLayer ? findsNothing : findsOneWidget,
+      );
+    });
+  }
 
   group('דגימת עמודים לבדיקת הטקסט', () {
     test('דוגמת את העמוד המוצג ועוד שניים פרושים על הספר', () {

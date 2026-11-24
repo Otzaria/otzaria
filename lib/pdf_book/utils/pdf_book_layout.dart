@@ -113,7 +113,10 @@ class BookViewLayoutMemo {
       for (final page in pages) ...[page.width, page.height],
     ];
     return _layout = buildBookViewPageLayout(
-      pageSizes: [for (final page in pages) Size(page.width, page.height)],
+      pageSizes: [
+        for (var i = 0; i < _sizes.length; i += 2)
+          Size(_sizes[i], _sizes[i + 1]),
+      ],
       hasCover: hasCover,
       verticalMargin: verticalMargin,
     );

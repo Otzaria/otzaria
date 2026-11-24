@@ -1374,7 +1374,7 @@ Future<void> main() async {
           searcher.isActive = true;
           await tester.pump();
           await tester.pump();
-          expect(searcher.requestedPages, hasLength(4));
+          expect(searcher.requestedPages, hasLength(2));
           expect(searcher.searches, hasLength(2));
           expect(searcher.searchedPatterns.last.hasMatch('רבנן תנו'), isTrue);
           await _finishScan(tester, searcher);
@@ -1409,7 +1409,7 @@ Future<void> main() async {
       await tester.pump();
       await tester.pump();
 
-      expect(searcher.requestedPages, hasLength(4));
+      expect(searcher.requestedPages, hasLength(2));
       expect(searcher.searches, hasLength(2));
       expect(searcher.searchedPatterns.last.hasMatch('רבנן תנו'), isTrue);
       await _finishScan(tester, searcher);
@@ -1439,7 +1439,7 @@ Future<void> main() async {
         expect(tester.takeException(), isNull);
         if (paused) {
           expect(find.text(LibraryMessages.searchError), findsNothing);
-          expect(searcher.requestedPages, hasLength(4));
+          expect(searcher.requestedPages, hasLength(2));
           expect(searcher.searches, hasLength(2));
           expect(searcher.searchedPatterns.last.hasMatch('רבנן תנו'), isTrue);
         } else {
