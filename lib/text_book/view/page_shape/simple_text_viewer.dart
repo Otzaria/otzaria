@@ -73,6 +73,7 @@ import 'package:otzaria/text_book/view/text_correction_editor.dart'
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/widgets/misc/navigation_key_tracker.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
@@ -1100,7 +1101,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     _activeCommentarySlot = AppWindowKeys.of(context)._activeCommentary;
     _focus = FocusRepository.of(context);
     _configureScrollControllers();
-    _selectionFocusNode = FocusNode(debugLabel: 'SelectionAreaFocus');
+    _selectionFocusNode = KeepSelectionOnWindowBlurFocusNode(
+      debugLabel: 'SelectionAreaFocus',
+    );
     _resolvedKeyboardFocusNode;
     _navigationKeys = NavigationKeyTracker(
       hasNavigationFocus: () =>

@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/utils/book_note_report.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show buildCorrectionTemplate;
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
@@ -372,6 +373,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   ); // ה-link האחרון שנוגעו בו (לכותרות בהעתקה)
   final Object _selectionOwner = Object(); // מזהה ייחודי לבעלות על הבחירה
   final GlobalKey<SelectionAreaState> _selectionAreaKey = GlobalKey();
+  final _selectionAreaFocusNode = KeepSelectionOnWindowBlurFocusNode();
   bool _showCommentatorsFilter = false; // האם להציג את מסך בחירת המפרשים
   bool _filterWasAutoOpened = false; // האם מסך הסינון נפתח אוטומטית (לא ידנית)
   // הבקשה אינה בונה מחדש, ולכן זוכרים שנשלחה עד שנבחרו מפרשים,
@@ -1445,6 +1447,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   @override
   void dispose() {
+    _selectionAreaFocusNode.dispose();
     unawaited(_searchSubscription?.cancel());
     unawaited(_searchBloc.close());
 
@@ -2295,6 +2298,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             child: RtlSelectionShortcuts(
                               child: SelectionArea(
                                 key: _selectionAreaKey,
+                                focusNode: _selectionAreaFocusNode,
                                 contextMenuBuilder: (context, _) =>
                                     const SizedBox.shrink(),
                                 onSelectionChanged: (selection) =>

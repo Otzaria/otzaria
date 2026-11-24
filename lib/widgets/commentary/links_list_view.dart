@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -1007,7 +1008,12 @@ class _LinksListViewState extends State<LinksListView> {
               // קישור פתוח שנבנה מחדש בגלילה: שלד טעינה מקצר אותו לפריים אחד,
               // והגדילה אחריו דוחפת את הרשימה.
               initialData: _loadedContent[contentKey],
-              builder: (context, content) => _buildLinkContent(content, link),
+              // צומת פוקוס לכל קישור; מתחדש יחד עם מפתח ה-SelectionArea.
+              builder: (context, content) => KeepSelectionOnWindowBlurFocus(
+                key: ValueKey(_selectionRevision),
+                builder: (focusNode) =>
+                    _buildLinkContent(content, link, focusNode),
+              ),
               errorBuilder: (context, error) =>
                   BlocBuilder<SettingsBloc, SettingsState>(
                     builder: (context, settingsState) {
@@ -1042,7 +1048,7 @@ class _LinksListViewState extends State<LinksListView> {
     }, onError: (Object _) => failed());
   }
 
-  Widget _buildLinkContent(String content, Link link) {
+  Widget _buildLinkContent(String content, Link link, FocusNode focusNode) {
     if (content.isEmpty) {
       return BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
@@ -1071,6 +1077,7 @@ class _LinksListViewState extends State<LinksListView> {
           key: ValueKey(
             'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
           ),
+          focusNode: focusNode,
           contextMenuBuilder: (context, selectableRegionState) {
             return const SizedBox.shrink();
           },

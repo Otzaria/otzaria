@@ -509,6 +509,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
 class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
   String? _selectedText;
   final Object _selectionOwner = Object();
+  final _selectionFocusNode = KeepSelectionOnWindowBlurFocusNode();
   // onExit של ספאן מגיע גם אחרי שהווידג'ט הוסר מהעץ, וכבר אין context.
   late final AppWindowKeys _previewWindow;
 
@@ -537,6 +538,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
   @override
   void dispose() {
     widget.selectionSyncController?.clear(_selectionOwner);
+    _selectionFocusNode.dispose();
     super.dispose();
   }
 
@@ -687,6 +689,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
         return _notesCopyWrapper(
           child: RtlSelectionShortcuts(
             child: SelectionArea(
+              focusNode: _selectionFocusNode,
               // ביטול תפריט ברירת המחדל של Flutter — נשתמש ב-AppContextMenuRegion.
               contextMenuBuilder: (context, _) => const SizedBox.shrink(),
               onSelectionChanged: (selection) =>
