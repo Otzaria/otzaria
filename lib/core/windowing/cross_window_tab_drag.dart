@@ -376,7 +376,10 @@ class CrossWindowTabDrag {
       return;
     }
 
+    final generation = _dragGeneration;
     _handedOff = true;
+    _timer?.cancel();
+    _timer = null;
     final last = _lastDragOverSlot;
     if (last != null) _notifyDragLeave(last);
     _lastDragOverSlot = null;
@@ -384,16 +387,12 @@ class CrossWindowTabDrag {
 
     _cancelFlutterDrag?.call();
     final outcome = await _dragOutToSystem();
-    _timer?.cancel();
-    _timer = null;
+    if (generation != _dragGeneration) return;
 
-    // בשחרור לפני תחילת הלולאה Windows עדיין מחזיר את החלון שתחת הסמן.
-    // בביטול או בכשל אין חלון יעד.
-    if (outcome == null || (!outcome.ran && outcome.slot == null)) {
-      return _hidePreview();
-    }
-    // ⚠️ נשאר בקוד. את מסלול הגרירה אי אפשר לבדוק אוטומטית — הוא תלוי
-    // בהחלטות ה-shell — ושורה אחת בלוג היא ההבדל בין אבחון לניחוש.
+    if (outcome == null) return _hidePreview();
+    final peerSlot = outcome.snapped ? null : outcome.slot;
+    // שחרור לפני תחילת הלולאה יכול להעביר רק לחלון היעד שכבר קיים.
+    if (!outcome.ran && peerSlot == null) return _hidePreview();
     debugPrint(
       'גרירה הסתיימה: snapped=${outcome.snapped} '
       'rect=${outcome.left},${outcome.top} '
@@ -421,13 +420,18 @@ class CrossWindowTabDrag {
       }
     }
 
-    if (!await confirmTransfer(tab)) return _hidePreview();
+    // בשחרור מוקדם טיימר המעקב הנייטיבי פעיל עד הסתרת התצוגה.
+    if (!outcome.ran) _hidePreview();
+    final confirmed = await confirmTransfer(tab);
+    if (generation != _dragGeneration) return;
+    if (!confirmed) {
+      if (outcome.ran) _hidePreview();
+      return;
+    }
 
-    if (!outcome.snapped && outcome.slot != null) {
-      // הכרטיסיה נכנסת לחלון קיים — אין מה להחליף את הרוח, והיא מוסתרת
-      // מיד כדי שלא תרחף מעל היעד.
-      _hidePreview();
-      await _transferToPeer(outcome.slot!, tab, bloc, outcome.x, outcome.y);
+    if (peerSlot != null) {
+      if (outcome.ran) _hidePreview();
+      await _transferToPeer(peerSlot, tab, bloc, outcome.x, outcome.y);
       return;
     }
 
