@@ -424,15 +424,6 @@ LRESULT CALLBACK FramelessViewProc(HWND hwnd, UINT message, WPARAM wparam,
     case WM_NCACTIVATE:
       if (framed) return 1;
       break;
-    case WM_MOUSEACTIVATE:
-      // בחירה מפורשת של המשתמש, כמו בחלון הראשי (#5743).
-      Win32Window::NoteUserActivation(hwnd);
-      break;
-    case WM_SHOWWINDOW:
-      // חשיפת חלון Dart (חלון חדש, `show`) היא כוונה מפורשת, כמו
-      // חשיפת חלון במודל הקודם; אחרת לחיצה קודמת חוסמת אותה (#5743).
-      if (wparam && lparam == 0) Win32Window::NoteUserActivation(hwnd);
-      break;
     case WM_NCDESTROY:
       ::RemoveWindowSubclass(hwnd, FramelessViewProc, kFramelessSubclassId);
       break;
@@ -793,20 +784,11 @@ bool FlutterWindow::OnCreate() {
           return;
         }
 
-        // העלאה מכוונת של חלון Dart (`focus`), כמו `raiseSelf` לראשי (#5743).
-        if (call.method_name() == "noteUserActivation") {
-          const HWND hwnd = HwndArgument(call.arguments());
-          if (hwnd != nullptr) Win32Window::NoteUserActivation(hwnd);
-          result->Success();
-          return;
-        }
-
         // מביא את החלון הזה לחזית; ראשי שהמשתמש סגר מוצג מחדש.
         // לפני החשיפה הראשונה אין הצגה: את זו עושה Dart כשהתוכן מוכן.
         if (call.method_name() == "raiseSelf") {
           const HWND self = GetHandle();
           if (self && !RestoreClosedWindow()) {
-            Win32Window::NoteUserActivation(self);
             ::BringWindowToTop(self);
             ::SetForegroundWindow(self);
           }
@@ -1070,8 +1052,6 @@ bool FlutterWindow::RestoreClosedWindow() {
   if (!self || !closed_by_user_) return false;
   closed_by_user_ = false;
   if (::IsWindowVisible(self)) return false;
-  // שחזור הוא כוונה מפורשת — ראו [Win32Window::ShouldVetoActivation].
-  NoteUserActivation(self);
   ::ShowWindow(self, SW_SHOW);
   ::BringWindowToTop(self);
   ::SetForegroundWindow(self);
