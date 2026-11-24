@@ -4,7 +4,6 @@
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
-#include "activation_gate.h"
 #include "resource.h"
 
 namespace {
@@ -115,37 +114,6 @@ void WindowClassRegistrar::UnregisterWindowClass() {
   class_registered_ = false;
 }
 
-namespace {
-
-// החלון שהמשתמש בחר לאחרונה בלחיצה, והרגע שבו.
-//
-// ⚠️ הבסיס ל-[Win32Window::ShouldVetoActivation] — ראו שם.
-otzaria::ActivationGate<HWND> g_activation_gate;
-
-// רק חלונות של ה-thread הזה; מחלקת המנוע קיימת גם בתוכנות Flutter אחרות.
-std::wstring WindowClassOf(HWND window) {
-  wchar_t name[64] = {0};
-  if (::GetWindowThreadProcessId(window, nullptr) == ::GetCurrentThreadId()) {
-    ::GetClassNameW(window, name, sizeof(name) / sizeof(name[0]));
-  }
-  return name;
-}
-
-bool IsShownWindow(HWND window) {
-  return ::IsWindow(window) && ::IsWindowVisible(window);
-}
-
-}  // namespace
-
-void Win32Window::NoteUserActivation(HWND window) {
-  g_activation_gate.NoteUserActivation(window, ::GetTickCount64());
-}
-
-bool Win32Window::ShouldVetoActivation(HWND window) {
-  return g_activation_gate.ShouldVetoActivation(window, ::GetTickCount64(),
-                                                WindowClassOf, IsShownWindow);
-}
-
 Win32Window::Win32Window() {
   ++g_active_window_count;
 }
@@ -254,11 +222,6 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
     }
-
-    case WM_MOUSEACTIVATE:
-      // בחירה מפורשת של המשתמש — ראו [ShouldVetoActivation].
-      NoteUserActivation(hwnd);
-      break;
 
     case WM_ACTIVATE:
       // ⚠️ **רק בהפעלה, לא בביטול הפעלה.** זו שורה מקוד ה-runner
