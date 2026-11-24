@@ -272,6 +272,10 @@ class _SearchDialogState extends State<SearchDialog> {
       widget.returnResultOnSubmit ||
       widget.editTab != null;
 
+  // גם חיפוש חדש שמגיע עם שאילתה מהספרייה או מאיתור משתמש בסשן.
+  bool get _usesDistanceSession =>
+      widget.editTab == null && (_ownsSearchTab || !_usesStagedSubmit);
+
   /// תרומות סטטיות מיועדות לחיפוש הספרייה, שבו בחירתן נשמרת עם טאב התוצאות.
   /// בחיפוש בתוך ספר ה-callback הקיים אינו נושא את הבחירות הלאה.
   bool get _supportsPluginSearchDialogItems =>
@@ -914,19 +918,21 @@ class _SearchDialogState extends State<SearchDialog> {
     _searchTab.queryController.removeListener(_queryListener);
     _advancedControlsHasFocus.dispose();
     _semanticBloc?.close();
+    final config = _searchTab.searchBloc.state.configuration;
+    if (_usesDistanceSession && config.searchMode != SearchMode.fuzzy) {
+      SearchDefaults.rememberSessionDistance(
+        config.distance,
+        config.searchMode,
+      );
+    }
     _disposeHandedOffExistingTab();
     if (_ownsSearchTab) {
       if (widget.editTab == null) {
         // מצב החיפוש והפרמטרים (אפשרויות לפי מצב + מרווח) נשמרים לסשן
         // הנוכחי; בהפעלה הבאה חוזרים לברירת המחדל (חיפוש רגיל).
-        final config = _searchTab.searchBloc.state.configuration;
         _rememberSessionOptionsForMode(config.searchMode);
         SearchDefaults.rememberSessionMode(config.searchMode);
         if (config.searchMode != SearchMode.fuzzy) {
-          SearchDefaults.rememberSessionDistance(
-            config.distance,
-            config.searchMode,
-          );
           SearchDefaults.rememberSessionAnyOrder(config.anyOrder);
         }
         if (config.searchMode == SearchMode.advanced) {
@@ -961,29 +967,30 @@ class _SearchDialogState extends State<SearchDialog> {
     }
   }
 
-  /// מעבר מצב בדיאלוג של חיפוש חדש: האפשרויות הגלובליות של המצב הישן
-  /// נשמרות לסשן שלו, ואלו של המצב החדש נטענות במקומן — כך שלכל מצב
-  /// סט אפשרויות עצמאי. בעריכת טאב קיים האפשרויות שייכות לטאב ולא מוחלפות.
-  void _swapGlobalOptionsForModeChange(
-    SearchMode oldMode,
+  /// משמר את העדפות הסשן לפי המצב ומחיל את הערכים של המצב החדש.
+  void _swapPreferencesForModeChange(
+    SearchConfiguration oldConfig,
     SearchMode newMode,
-    int oldDistance,
   ) {
-    if (!_ownsSearchTab || widget.editTab != null || oldMode == newMode) {
-      return;
+    final oldMode = oldConfig.searchMode;
+    if (oldMode == newMode) return;
+    if (_usesDistanceSession) {
+      if (oldMode != SearchMode.fuzzy) {
+        SearchDefaults.rememberSessionDistance(oldConfig.distance, oldMode);
+      }
+      if (newMode != SearchMode.fuzzy) {
+        _searchTab.searchBloc.add(
+          UpdateDistanceWithoutSearch(
+            SearchDefaults.initialDistanceForNewSearch(newMode),
+          ),
+        );
+      }
     }
+    if (!_ownsSearchTab || widget.editTab != null) return;
     _rememberSessionOptionsForMode(oldMode);
-    if (oldMode != SearchMode.fuzzy) {
-      SearchDefaults.rememberSessionDistance(oldDistance, oldMode);
-    }
     if (newMode == SearchMode.fuzzy) {
       return; // אין אפשרויות מילה במקורב; המפה תוחלף בכניסה למצב הבא
     }
-    _searchTab.searchBloc.add(
-      UpdateDistanceWithoutSearch(
-        SearchDefaults.initialDistanceForNewSearch(newMode),
-      ),
-    );
     setState(() {
       _searchTab.globalSearchOptions
         ..clear()
@@ -1514,11 +1521,7 @@ class _SearchDialogState extends State<SearchDialog> {
             ? SetSearchMode(mode)
             : SetSearchModeWithoutSearch(mode),
       );
-      _swapGlobalOptionsForModeChange(
-        oldConfig.searchMode,
-        mode,
-        oldConfig.distance,
-      );
+      _swapPreferencesForModeChange(oldConfig, mode);
       setState(() => _moreOptionsExpanded = null);
     }
     _searchTab.searchFieldFocusNode.requestFocus();
