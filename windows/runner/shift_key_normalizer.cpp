@@ -32,6 +32,23 @@ LPARAM CompleteControlVScanCode(WPARAM key, LPARAM flags) {
   return flags | (static_cast<LPARAM>(scan_code) << 16);
 }
 
+// בלי NumLock המקלדת המספרית שולחת VK_UP/VK_HOME וכו' עם קוד הסריקה של
+// הספרה ובלי extended, וה-engine גוזר ממנו numpad8 במקום arrowUp (#5934).
+// דגל extended הופך אותו למקש הנווט; ספרות ו-NumLock דולק (Shift) לא משתנים.
+LPARAM MarkNumpadNavigationExtended(WPARAM key, LPARAM flags) {
+  const UINT scan_code = (flags & kScanCodeMask) >> 16;
+  if ((flags & kExtendedBit) != 0 || scan_code < 0x47 || scan_code > 0x53 ||
+      (GetKeyState(VK_NUMLOCK) & 1) != 0) {
+    return flags;
+  }
+  switch (key) {
+    case VK_UP: case VK_DOWN: case VK_LEFT: case VK_RIGHT: case VK_HOME:
+    case VK_END: case VK_PRIOR: case VK_NEXT: case VK_INSERT: case VK_DELETE:
+      return flags | kExtendedBit;
+  }
+  return flags;
+}
+
 LRESULT CALLBACK NormalizerProc(HWND hwnd,
                                 UINT message,
                                 WPARAM wparam,
@@ -53,7 +70,8 @@ LRESULT CALLBACK NormalizerProc(HWND hwnd,
         lparam = (lparam & ~(kScanCodeMask | kExtendedBit)) |
                  (static_cast<LPARAM>(normalized) << 16);
       } else {
-        lparam = CompleteControlVScanCode(wparam, lparam);
+        lparam = MarkNumpadNavigationExtended(
+            wparam, CompleteControlVScanCode(wparam, lparam));
       }
       break;
     case WM_NCDESTROY:
