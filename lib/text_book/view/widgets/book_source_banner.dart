@@ -157,9 +157,11 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
             .expand((i) => _lines[i])
             .fold<int>(0, (n, s) => n + s.text.length) >
         _collapseThreshold;
-    final plainText = [
-      for (final i in lineIndices) _lines[i].map((s) => s.text).join(),
-    ].join('\n');
+    final plainText = longText
+        ? null
+        : [
+            for (final i in lineIndices) _lines[i].map((s) => s.text).join(),
+          ].join('\n');
     // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
     return SelectionContainer.disabled(
       child: Container(
@@ -174,13 +176,13 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final longBanner =
-                longText ||
-                _renderedLineCount(
-                      context,
-                      TextSpan(text: plainText, style: textStyle),
-                      constraints.maxWidth,
-                    ) >
-                    _collapseLineThreshold;
+                plainText == null ||
+                _exceedsLineThreshold(
+                  context,
+                  plainText,
+                  textStyle,
+                  constraints.maxWidth,
+                );
             final visibleLines = longBanner && !_expanded
                 ? lineIndices.take(1)
                 : lineIndices;
@@ -236,22 +238,33 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
     );
   }
 
-  static int _renderedLineCount(
+  static bool _exceedsLineThreshold(
     BuildContext context,
-    TextSpan span,
+    String text,
+    TextStyle textStyle,
     double width,
   ) {
+    final effectiveStyle = DefaultTextStyle.of(context).style.merge(textStyle);
     final painter = TextPainter(
       text: TextSpan(
-        style: DefaultTextStyle.of(context).style,
-        children: [span],
+        text: text,
+        style: effectiveStyle.copyWith(
+          fontWeight: MediaQuery.boldTextOf(context) ? FontWeight.bold : null,
+          letterSpacing: MediaQuery.maybeLetterSpacingOverrideOf(context),
+          wordSpacing: MediaQuery.maybeWordSpacingOverrideOf(context),
+        ),
       ),
       textAlign: TextAlign.center,
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
-    )..layout(maxWidth: width);
-    final count = painter.computeLineMetrics().length;
-    painter.dispose();
-    return count;
+      locale: Localizations.maybeLocaleOf(context),
+      maxLines: _collapseLineThreshold,
+    );
+    try {
+      painter.layout(maxWidth: width);
+      return painter.didExceedMaxLines;
+    } finally {
+      painter.dispose();
+    }
   }
 }
