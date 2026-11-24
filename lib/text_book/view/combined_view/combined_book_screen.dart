@@ -1814,14 +1814,19 @@ class _CombinedViewState extends State<CombinedView> {
       final textBookState = context.read<TextBookBloc>().state;
       if (textBookState is! TextBookLoaded) return;
 
+      final selectedIndex = _currentSelectedIndex.value;
+      final lineStart = _selectionLineStart;
+      final lineEnd = _selectionLineEnd;
       await copySelectedTextForBook(
         plainText: plainText,
-        selectedIndex: _currentSelectedIndex.value,
+        selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
         sourceContent: widget.data,
         textBookState: textBookState,
         segmentCount: selectionSegmentCount(
-          start: _selectionLineStart,
-          end: _selectionLineEnd,
+          start: lineStart,
+          end: lineEnd,
           text: plainText,
         ),
         settingsState: settingsState,
@@ -1849,10 +1854,12 @@ class _CombinedViewState extends State<CombinedView> {
     final sourceWidget = widget;
     final settingsState = context.read<SettingsBloc>().state;
     final selectedIndex = _currentSelectedIndex.value;
+    final lineStart = _selectionLineStart;
+    final lineEnd = _selectionLineEnd;
     final source = _sourceSelection;
     final segmentCount = selectionSegmentCount(
-      start: _selectionLineStart,
-      end: _selectionLineEnd,
+      start: lineStart,
+      end: lineEnd,
       text: capturedText,
     );
     return () async {
@@ -1860,6 +1867,8 @@ class _CombinedViewState extends State<CombinedView> {
       final content = await buildSelectedTextCopy(
         plainText: capturedText,
         selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
         sourceContent: sourceWidget.data,
         textBookState: state,
         settingsState: settingsState,

@@ -14,23 +14,49 @@ String? sliceHtmlBySelection({
   required String html,
   required String selectedText,
 }) {
-  if (html.isEmpty || selectedText.trim().isEmpty) {
-    return null;
-  }
+  return sliceHtmlLinesBySelection(lines: [html], selectedText: selectedText);
+}
 
-  final fragment = html_parser.parseFragment(
+/// חיתוך מתוך השורות שזוהו בבחירה. ההתאמה חייבת להגיע לשתי שורות הקצה.
+/// כל שורה מפוענחת בנפרד, כפי שהיא מוצגת בקורא.
+String? sliceHtmlLinesBySelection({
+  required List<String> lines,
+  required String selectedText,
+}) {
+  if (lines.isEmpty || selectedText.trim().isEmpty) return null;
+
+  dom.DocumentFragment parseLine(String html) => html_parser.parseFragment(
     text_utils.stripNonAcronymQuotes(notes.stripInlineNotes(html)),
   );
+
+  final fragment = parseLine(lines.first);
   final slots = <_Slot>[];
   final rawText = StringBuffer();
   _collectSlots(fragment.nodes, slots, rawText);
+  final firstLineEnd = rawText.length;
+  var lastLineStart = 0;
+  final rowGaps = <int>{};
+  for (final html in lines.skip(1)) {
+    rowGaps.add(rawText.length);
+    final gap = dom.Text(' ');
+    _collectSlots([gap], slots, rawText);
+    fragment.nodes.add(gap);
+    lastLineStart = rawText.length;
+    final row = parseLine(html);
+    _collectSlots(row.nodes, slots, rawText);
+    fragment.nodes.addAll(row.nodes.toList());
+  }
   if (slots.isEmpty) {
     return null;
   }
 
   String? sliced;
   final ranges = <(int, int)>{};
-  final sources = _matchKeys(rawText.toString(), removedQuotes: const {});
+  final sources = _matchKeys(
+    rawText.toString(),
+    removedQuotes: const {},
+    rowGaps: rowGaps,
+  );
   final selections = _matchKeys(selectedText);
   for (final source in sources) {
     for (final selection in selections) {
@@ -41,7 +67,8 @@ String? sliceHtmlBySelection({
           source.offsets[start],
           source.offsets[start + selection.key.length - 1],
         );
-        if (ranges.add(range)) {
+        if (range.$1 >= firstLineEnd) break;
+        if (range.$2 >= lastLineStart && ranges.add(range)) {
           if (ranges.length > _maxOccurrences) return null;
           final candidate = _buildSlice(
             fragment: fragment,
@@ -64,12 +91,24 @@ String? sliceHtmlBySelection({
   return sliced;
 }
 
-List<_MatchKey> _matchKeys(String text, {Set<int>? removedQuotes}) {
-  final current = _MatchKey.from(text, removedQuotes: removedQuotes);
+List<_MatchKey> _matchKeys(
+  String text, {
+  Set<int>? removedQuotes,
+  Set<int> rowGaps = const {},
+}) {
+  final current = _MatchKey.from(
+    text,
+    removedQuotes: removedQuotes,
+    rowGaps: rowGaps,
+  );
   if (!text.codeUnits.any(text_utils.isRemovablePunctuationUnit)) {
     return [current];
   }
-  final joined = _MatchKey.from(text, joinAtPunctuation: true);
+  final joined = _MatchKey.from(
+    text,
+    joinAtPunctuation: true,
+    rowGaps: rowGaps,
+  );
   return [current, if (joined.key != current.key) joined];
 }
 
@@ -163,6 +202,7 @@ class _MatchKey {
     String text, {
     bool joinAtPunctuation = false,
     Set<int>? removedQuotes,
+    Set<int> rowGaps = const {},
   }) {
     // ההחלפה מוחלת על שני צדי ההשוואה, כדי שההתאמה תעבוד בלי תלות בהגדרת
     // "החלפת שמות קדושים". היא שומרת על האורך, ולכן המיקומים נשארים תקפים.
@@ -199,7 +239,9 @@ class _MatchKey {
       if (_isIgnored(codeUnit)) continue;
 
       if (_isSpacing(codeUnit)) {
-        pendingSpaceAt ??= i;
+        // מעבר שורה בבחירה שייך לרווח בין רכיבי השורות, גם כשבקישור
+        // שלפניו יש רווח סופי. כך התג נסגר לפני ש-CopyUtils עוטף כל שורה.
+        if (pendingSpaceAt == null || rowGaps.contains(i)) pendingSpaceAt = i;
         continue;
       }
 

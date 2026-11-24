@@ -2860,35 +2860,44 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     try {
       final textBookState = context.read<TextBookBloc>().state;
       if (textBookState is! TextBookLoaded) return;
+      final selectedIndex = _savedSelectedIndex;
+      final lineStart = _selectionLineStart;
+      final lineEnd = _selectionLineEnd;
+      final sourceWidget = widget;
+      final source = _sourceSelection;
+      final headerIndex = _sourceIndex(selectedIndex);
+      final copyTarget = _textTarget;
       final protection = await _textProtection(textBookState);
       if (!mounted) return;
       final settingsState = context.read<SettingsBloc>().state;
 
       await copySelectedTextForBook(
         plainText: plainText,
-        selectedIndex: _savedSelectedIndex,
-        sourceContent: widget.content,
+        selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
+        sourceContent: sourceWidget.content,
         textBookState: textBookState,
         protection: protection,
         segmentCount: selectionSegmentCount(
-          start: _selectionLineStart,
-          end: _selectionLineEnd,
+          start: lineStart,
+          end: lineEnd,
           text: plainText,
         ),
         settingsState: settingsState,
-        fontFamily: widget.fontFamily ?? settingsState.fontFamily,
-        fontSize: widget.fontSize,
-        headerBookOverride: widget.reportBook,
-        headerIndexOverride: _sourceIndex(_savedSelectedIndex),
-        headerContentOverride: widget.isBookNotesColumn
+        fontFamily: sourceWidget.fontFamily ?? settingsState.fontFamily,
+        fontSize: sourceWidget.fontSize,
+        headerBookOverride: sourceWidget.reportBook,
+        headerIndexOverride: headerIndex,
+        headerContentOverride: sourceWidget.isBookNotesColumn
             ? textBookState.content
-            : widget.reportBook != null
-            ? widget.content
+            : sourceWidget.reportBook != null
+            ? sourceWidget.content
             : null,
         removeNikud: removeNikud,
         copyProfile: profile,
-        copyTarget: _textTarget,
-        source: _sourceSelection,
+        copyTarget: copyTarget,
+        source: source,
         plainTextOnly: plainTextOnly,
       );
     } catch (e) {
@@ -2908,12 +2917,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final sourceWidget = widget;
     final settings = context.read<SettingsBloc>().state;
     final selectedIndex = _savedSelectedIndex;
+    final lineStart = _selectionLineStart;
+    final lineEnd = _selectionLineEnd;
     final source = _sourceSelection;
     final copyTarget = _textTarget;
     final headerIndex = _sourceIndex(selectedIndex);
     final segmentCount = selectionSegmentCount(
-      start: _selectionLineStart,
-      end: _selectionLineEnd,
+      start: lineStart,
+      end: lineEnd,
       text: capturedText,
     );
     return () async {
@@ -2925,6 +2936,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final content = await buildSelectedTextCopy(
         plainText: capturedText,
         selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
         sourceContent: sourceWidget.content,
         textBookState: state,
         settingsState: settings,
