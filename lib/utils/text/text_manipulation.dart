@@ -1812,6 +1812,7 @@ List<List<int>> computeHighlightSpans(
   int searchDistance = 0,
   SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
   bool isSearchResultLine = false,
+  bool partialWordMatch = false,
 }) {
   // שורת תוצאה ב"בכל סדר" מודגשת מילה-מילה; כאן נדרש הרצף שהמתאם מצא.
   final anyOrderPhrase =
@@ -1830,6 +1831,7 @@ List<List<int>> computeHighlightSpans(
     searchDistance: searchDistance,
     matchPolicy: anyOrderPhrase ? SearchMatchPolicy.standard : matchPolicy,
     isSearchResultLine: isSearchResultLine,
+    partialWordMatch: partialWordMatch,
     anyOrder: matchPolicy.anyOrder,
   );
   return [

@@ -231,7 +231,7 @@ RegExp crossLinePattern(String source) =>
 /// מיקום יחסי (0..1) של ההתאמה ל-[query] בשורת המקור [rawLine], לאחר ניקוי
 /// זהה לחיפוש. משמש לדיוק גלילה אל המילה בתוך פסקה ארוכה. 0 אם אין התאמה.
 /// [matchOffset] — היסט הופעה ספציפית בשורה הנקייה (ראה
-/// TextSearchResult.matchOffset); בלעדיו נלקחת ההופעה הראשונה.
+/// TextSearchResult.matchOffset); בלעדיו מעדיפים את הביטוי השלם הראשון בשורה.
 /// שאר הפרמטרים הם פרמטרי ההדגשה של הספר, כך שההופעה נמצאת באותה תבנית שמודגשת.
 /// [pattern] מוזרק בבדיקות בלבד — בייצור נבנה מהמנוע.
 double matchFractionInLine(
@@ -255,18 +255,42 @@ double matchFractionInLine(
   } else if (pattern != null) {
     offset = pattern.firstMatch(clean)?.start ?? -1;
   } else {
-    final ranges = utils.computeHighlightRanges(
-      clean,
+    final partialWordMatch = literalPartialWordMatch(
       query,
-      searchOptions: searchOptions,
-      alternativeWords: alternativeWords,
-      spacingValues: spacingValues,
-      isFuzzy: isFuzzy,
-      searchDistance: searchDistance,
-      matchPolicy: matchPolicy,
-      isSearchResultLine: true,
-      partialWordMatch: literalPartialWordMatch(query, wholeWord: wholeWord),
+      wholeWord: wholeWord,
     );
+    // כשהשורה מודגשת מילה-מילה, ציטוט חלקי יכול להקדים את הביטוי השלם.
+    final complete = matchPolicy.hasStandardWordMatching
+        ? const <List<int>>[]
+        : utils.computeHighlightSpans(
+            clean,
+            query,
+            searchOptions: searchOptions,
+            alternativeWords: alternativeWords,
+            spacingValues: spacingValues,
+            isFuzzy: isFuzzy,
+            searchDistance: searchDistance,
+            matchPolicy: SearchMatchPolicy(
+              querySemantics: matchPolicy.querySemantics,
+              anyOrder: matchPolicy.anyOrder,
+            ),
+            isSearchResultLine: true,
+            partialWordMatch: partialWordMatch,
+          );
+    final ranges = complete.isNotEmpty
+        ? complete
+        : utils.computeHighlightRanges(
+            clean,
+            query,
+            searchOptions: searchOptions,
+            alternativeWords: alternativeWords,
+            spacingValues: spacingValues,
+            isFuzzy: isFuzzy,
+            searchDistance: searchDistance,
+            matchPolicy: matchPolicy,
+            isSearchResultLine: true,
+            partialWordMatch: partialWordMatch,
+          );
     offset = ranges.isEmpty ? -1 : ranges.first.first;
   }
   if (offset <= 0) return 0;

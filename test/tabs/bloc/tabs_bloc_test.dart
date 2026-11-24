@@ -680,6 +680,51 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    test('פתיחת תוצאת חיפוש בטאב קיים גוללת להתאמה המלאה', () async {
+      if (!await tryInitSearchEngine()) {
+        markTestSkipped(searchEngineSkipReason);
+        return;
+      }
+      const query = 'אלף בית גימל';
+      const line = 'פתיחה בית גימל תוכן נוסף אלף בית גימל סוף';
+      final bloc = _newBloc(_FakeTabsRepository());
+      addTearDown(() => _closeBlocAndAllowDeferredDispose(bloc));
+      final book = TextBook(title: 'ספר א', categoryId: 1);
+      final existingTab = TextBookTab(
+        book: book,
+        index: 0,
+        blocOverride: _RecordingTextBookBloc(
+          loaded: true,
+          content: const ['', line],
+        ),
+      )..currentTitle.value = 'פרק א';
+
+      bloc.add(AddTab(existingTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+      bloc.add(
+        OpenOrFocusTab(
+          TextBookTab(
+            book: book,
+            index: 1,
+            searchText: query,
+            searchOrigin: InBookSearchOrigin.globalResult,
+            initialSearchResultLines: const {1},
+            searchMode: SearchMode.advanced,
+            matchPolicy: const SearchMatchPolicy(
+              proximityScope: SearchScope.sameParagraph,
+            ),
+          ),
+          targetTitle: 'ספר א, פרק א',
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, [existingTab]);
+      final anchor = existingTab.lines.captureAnchor()!;
+      expect(anchor.line, 1);
+      expect(anchor.intraLineFraction, line.indexOf(query) / line.length);
+    });
+
     // #2587: סעיף בשו"ע אינו בתוכן העניינים, ולכן כותרת הטאב זהה לכותרת היעד.
     group('טאב פתוח באותה כותרת עם יעד בשורה אחרת', () {
       Future<(TabsBloc, TextBookTab)> openAndRetarget({

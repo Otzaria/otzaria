@@ -971,21 +971,44 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       if (targetText == null) return;
       final targetIndex = incomingTab.index;
       final marker = incomingTab.markerReference;
-      double? resolveMarker(int line) {
+      final anchorToSearch =
+          marker == null &&
+          incomingTab.searchOrigin == InBookSearchOrigin.globalResult &&
+          incomingTab.initialSearchResultLines?.contains(targetIndex) == true &&
+          incomingTab.searchText.isNotEmpty &&
+          incomingTab.pinpointHighlight?.isNotEmpty != true &&
+          incomingTab.highlightText.isEmpty &&
+          incomingTab.permanentHighlightLine == null;
+      double? resolveFraction(int line) {
         final state = targetText.blocState;
         if (state is! TextBookLoaded ||
             line >= state.content.length ||
             !state.isContentLineLoaded(line)) {
           return null;
         }
-        return bracketMarkerFractionForReference(state.content[line], marker!);
+        final content = state.content[line];
+        if (marker != null) {
+          return bracketMarkerFractionForReference(content, marker);
+        }
+        return matchFractionInLine(
+          content,
+          incomingTab.searchText,
+          searchOptions: incomingTab.searchOptions,
+          alternativeWords: incomingTab.alternativeWords,
+          spacingValues: incomingTab.spacingValues,
+          isFuzzy: incomingTab.searchMode == SearchMode.fuzzy,
+          searchDistance: incomingTab.searchDistance,
+          matchPolicy: incomingTab.matchPolicy,
+        );
       }
 
       // יעד שנקבע לפני שהקורא מחובר נשמר ומבוצע בחיבור; tab.index מתעדכן מיד.
       final navigation = targetText.lines.scrollToLine(
         targetIndex,
         alignment: 0,
-        resolveFraction: marker == null ? null : resolveMarker,
+        resolveFraction: marker != null || anchorToSearch
+            ? resolveFraction
+            : null,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
