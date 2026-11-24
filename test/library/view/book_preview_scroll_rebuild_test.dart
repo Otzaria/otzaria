@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../support/search_engine_test_init.dart';
 
 class _Recorder<E, S> extends Bloc<E, S> {
   final events = <E>[];
@@ -59,8 +61,9 @@ class _NotesBloc extends _Recorder<PersonalNotesEvent, PersonalNotesState>
   _NotesBloc() : super(const PersonalNotesState.initial());
 }
 
-void main() {
+Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final engineReady = await tryInitSearchEngine();
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
@@ -68,8 +71,11 @@ void main() {
 
   Future<TextBookBloc> pumpLoadedPreview(
     WidgetTester tester,
-    TextBook book,
-  ) async {
+    TextBook book, {
+    List<String>? content,
+    String query = '',
+    ValueNotifier<int>? resultIndex,
+  }) async {
     await tester.pumpWidget(
       MultiBlocProvider(
         providers: [
@@ -80,7 +86,18 @@ void main() {
           BlocProvider<HistoryBloc>(create: (_) => _HistoryBloc()),
         ],
         child: MaterialApp(
-          home: Scaffold(body: BookPreviewPanel(book: book)),
+          home: Scaffold(
+            body: resultIndex == null
+                ? BookPreviewPanel(book: book)
+                : ValueListenableBuilder<int>(
+                    valueListenable: resultIndex,
+                    builder: (_, index, _) => BookPreviewPanel(
+                      book: book,
+                      initialTextIndex: index,
+                      searchText: query,
+                    ),
+                  ),
+          ),
         ),
       ),
     );
@@ -111,7 +128,7 @@ void main() {
       TextBookLoaded(
         book: book,
         showLeftPane: false,
-        content: List.generate(200, (i) => 'שורה $i'),
+        content: content ?? List.generate(200, (i) => 'שורה $i'),
         fontSize: 18,
         showSplitView: false,
         showPageShapeView: false,
@@ -144,6 +161,62 @@ void main() {
     await tester.pump();
     await tester.pump();
   }
+
+  testWidgets('מעבר לתוצאה באותו ספר מציג את ההתאמה בתוך פסקה ארוכה', (
+    tester,
+  ) async {
+    const query = 'unique needle';
+    final resultIndex = ValueNotifier(0);
+    addTearDown(resultIndex.dispose);
+    final bloc = await pumpLoadedPreview(
+      tester,
+      TextBook(title: 'ספר בדיקה'),
+      resultIndex: resultIndex,
+      query: query,
+      content: [
+        query,
+        '${List.filled(500, 'word').join(' ')} $query',
+        ...List.filled(15, 'end'),
+      ],
+    );
+    await emitAndPump(
+      tester,
+      bloc,
+      (state) => state.copyWith(searchText: query),
+    );
+    await tester.pumpAndSettle();
+    resultIndex.value = 1;
+    await tester.pumpAndSettle();
+    final reader = find.byType(CombinedView);
+    final text = find.descendant(
+      of: reader,
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is RichText &&
+            w.text.toPlainText().contains('word') &&
+            w.text.toPlainText().contains(query),
+      ),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(text.first);
+    final offset = paragraph.text.toPlainText().indexOf(query);
+    final box = paragraph
+        .getBoxesForSelection(
+          TextSelection(
+            baseOffset: offset,
+            extentOffset: offset + query.length,
+          ),
+        )
+        .first
+        .toRect();
+    final globalBox = box.shift(paragraph.localToGlobal(Offset.zero));
+    expect(
+      globalBox.overlaps(tester.getRect(reader)),
+      isTrue,
+      reason: 'Match $globalBox, preview ${tester.getRect(reader)}',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 5));
+  }, skip: !engineReady);
 
   testWidgets('גלילה בתצוגה המקדימה אינה בונה מחדש את הקורא', (tester) async {
     final bloc = await pumpLoadedPreview(tester, TextBook(title: 'ספר בדיקה'));
