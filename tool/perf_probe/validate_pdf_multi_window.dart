@@ -30,8 +30,10 @@ bool _same(Object? first, Object? second) {
   }
   if (first is List && second is List) {
     return first.length == second.length &&
-        List.generate(first.length, (index) => index)
-            .every((index) => _same(first[index], second[index]));
+        List.generate(
+          first.length,
+          (index) => index,
+        ).every((index) => _same(first[index], second[index]));
   }
   return first == second;
 }
@@ -40,8 +42,7 @@ void _fields(Map<String, dynamic> source, Map<String, Object?> expected) {
   for (final entry in expected.entries) {
     final actual = source[entry.key];
     _require(
-      actual == entry.value &&
-          (entry.value is! int || actual is int),
+      actual == entry.value && (entry.value is! int || actual is int),
       'Missing or unexpected ${entry.key}: $actual',
     );
   }
@@ -80,7 +81,10 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
   required String buildMode,
   String expectedEngineSha256 = '',
 }) async {
-  _require(RegExp(r'^[a-f0-9]{40}$').hasMatch(commit), 'Invalid expected commit.');
+  _require(
+    RegExp(r'^[a-f0-9]{40}$').hasMatch(commit),
+    'Invalid expected commit.',
+  );
   _require(
     const ['windows', 'linux', 'macos'].contains(platform) &&
         const ['profile', 'release'].contains(buildMode),
@@ -160,9 +164,11 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
   final journal = await _ownedFile(root, p.join(root.path, 'phases.jsonl'));
   _require(await journal.length() < 128 * 1024 * 1024, 'Journal is too large.');
   final records = parseProbeRecords(await journal.readAsString());
-  final primary = records.where(
-    (row) => row['type'] == 'meta' && row.containsKey('pid'),
-  ).toList();
+  final primary = records
+      .where(
+        (row) => row['type'] == 'meta' && row.containsKey('pid'),
+      )
+      .toList();
   _require(
     primary.length == 1 &&
         primary.single['launchIndex'] == 0 &&
@@ -182,7 +188,13 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
     'Missing native process identity.',
   );
   _fields(process, {'launchIndex': 0, 'pid': appPid});
-  final sourcePath = p.join(root.path, 'data', 'cold-0', 'pdf', 'reader-mixed.pdf');
+  final sourcePath = p.join(
+    root.path,
+    'data',
+    'cold-0',
+    'pdf',
+    'reader-mixed.pdf',
+  );
   final sourceHash = await _hash(root, sourcePath);
   _require(
     _same(primary.single['fixturePdf'], {
@@ -193,9 +205,11 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
     }),
     'Measured source PDF hash, count or kind differs from the prepared file.',
   );
-  final phases = records.where(
-    (row) => row['type'] == 'phase' && row['name'] == 'pdf_multi_window',
-  ).toList();
+  final phases = records
+      .where(
+        (row) => row['type'] == 'phase' && row['name'] == 'pdf_multi_window',
+      )
+      .toList();
   _require(phases.length == 1, 'Expected one native multi-window phase.');
   final phase = phases.single;
   _fields(phase, {
@@ -224,7 +238,10 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
   _require(receipts.length == 1, 'Missing or duplicate owned-window receipt.');
   final directory = receipts.single;
   final sidecar = await _readJson(root, p.join(directory.path, 'report.json'));
-  _require(_same(sidecar, evidence), 'Journal and native-window receipt differ.');
+  _require(
+    _same(sidecar, evidence),
+    'Journal and native-window receipt differ.',
+  );
   final copyPath = p.join(directory.path, 'secondary.pdf');
   _require(
     fixture['copyPath'] is String &&
@@ -238,7 +255,8 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
     'printing',
   );
   _require(
-    await _hash(root, p.join(directory.path, 'two-up.pdf')) == printing['sha256'],
+    await _hash(root, p.join(directory.path, 'two-up.pdf')) ==
+        printing['sha256'],
     'The actual vector output differs from the native printing receipt.',
   );
   final png = await _ownedFile(root, p.join(directory.path, 'two-up.png'));
@@ -279,7 +297,10 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
     (scheduler['completedAtUs'] as int) >= (scheduler['requestedAtUs'] as int),
     'The frame predates its request.',
   );
-  final completion = await _readJson(root, p.join(launch.path, 'completion.json'));
+  final completion = await _readJson(
+    root,
+    p.join(launch.path, 'completion.json'),
+  );
   _fields(completion, {
     'status': 'passed',
     'fixtureId': fixtureId,
@@ -420,7 +441,11 @@ Future<void> main(List<String> arguments) async {
   try {
     final options = <String, String>{};
     const allowed = {
-      '--root', '--commit', '--platform', '--mode', '--expected-engine-sha256',
+      '--root',
+      '--commit',
+      '--platform',
+      '--mode',
+      '--expected-engine-sha256',
     };
     for (var index = 0; index < arguments.length; index += 2) {
       if (index + 1 >= arguments.length ||
