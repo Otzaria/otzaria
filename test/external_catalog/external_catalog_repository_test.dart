@@ -1149,7 +1149,7 @@ void main() {
               ? "INSERT INTO otzar_hahochma (book_id, title, volume) VALUES "
                     "(1, 'ערוך השלחן', 'אורח חיים א'), "
                     "(2, 'ערוך השלחן', 'אורח חיים ב'), "
-                    "(3, 'ספר', NULL), (4, 'ספר אחר', ' '), "
+                    "(3, 'ערוך השלחן הקצר', NULL), (4, 'ספר אחר', ' '), "
                     "(5, 'כרך יחיד', 'כרך יחיד')"
               : "INSERT INTO otzar_hahochma (book_id, title) VALUES "
                     "(1, 'ערוך השלחן'), (2, 'ערוך השלחן')",
@@ -1167,7 +1167,7 @@ void main() {
           {
             1: 'ערוך השלחן – אורח חיים א',
             2: 'ערוך השלחן – אורח חיים ב',
-            3: 'ספר',
+            3: 'ערוך השלחן הקצר',
             4: 'ספר אחר',
             5: 'כרך יחיד',
           },
@@ -1230,6 +1230,21 @@ void main() {
         );
 
         expect(found.map((book) => book.id), [2]);
+      });
+
+      test('השם המקורי המדויק קודם לשמות שרק מכילים אותו', () async {
+        createCatalog(withVolume: true);
+        final data = _CatalogDataRepository(repository);
+        addTearDown(data.bookSearchWorkerForTesting.dispose);
+
+        final found = await data.findBooks(
+          'ערוך השלחן',
+          Library(categories: []),
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+        );
+
+        expect(found.map((book) => book.id), [1, 2, 3]);
       });
     });
 
