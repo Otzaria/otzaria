@@ -52,7 +52,7 @@ class SourceTests(unittest.TestCase):
         return {"baseline": self.baseline, "candidate": self.candidate}
 
     def test_immutable_sources_keep_their_tree_and_harness_identity(self):
-        result = pair.verify_sources(self.repo, self.commits(), ["lib/application.txt"])
+        result = pair.verify_sources(self.repo, self.commits())
         self.assertEqual(result["changedPaths"], ["lib/application.txt"])
         self.assertEqual(result["sources"]["baseline"]["tree"], self.git("rev-parse", f"{self.baseline}^{{tree}}"))
         self.assertEqual(result["sources"]["baseline"]["harnessObjects"], result["sources"]["candidate"]["harnessObjects"])
@@ -81,10 +81,6 @@ class SourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dependencyObjects"):
             pair.verify_sources(self.repo, self.commits())
 
-    def test_fixed_experiment_rejects_an_unrelated_extra_change(self):
-        with self.assertRaisesRegex(ValueError, "declared source delta"):
-            pair.verify_sources(self.repo, self.commits(), ["lib/other.txt"])
-
     def test_tracked_untracked_and_revision_changes_are_rejected(self):
         pair.verify_checkout(self.repo, self.candidate)
         self.application.write_text("uncommitted\n", encoding="utf-8")
@@ -105,7 +101,7 @@ class SourceTests(unittest.TestCase):
         self.assertFalse(args.output.exists())
 
     def arguments(self, output):
-        return argparse.Namespace(source=self.repo, output=output, experiment=None,
+        return argparse.Namespace(source=self.repo, output=output,
             baseline=self.baseline, candidate=self.candidate, mode="profile", cache_state="cold",
             scenario="pdf-book-view", pages=1000, pdf_case=None, launches=3, repetitions=5,
             order="baseline-first", expected_engine_sha256="", display_mode="desktop")
@@ -259,17 +255,28 @@ class PlatformArgumentsTests(unittest.TestCase):
         self.assertIn("-BindingMode", command)
 
     def test_cli_accepts_an_external_case_or_generated_pages_but_not_both(self):
+        revisions = ["--baseline", "a" * 40, "--candidate", "b" * 40]
         for options in (("--pdf-case", "a case.json"), ("--pages", "100"), ()):
-            with self.subTest(options=options), patch.object(sys, "argv", ["pair", "--output", "result", *options]), \
+            with self.subTest(options=options), patch.object(sys, "argv", ["pair", "--output", "result", *revisions, *options]), \
                     patch.object(pair, "run_pair") as run:
                 self.assertEqual(pair.main(), 0)
                 args = run.call_args.args[0]
                 self.assertEqual(args.pdf_case, Path("a case.json") if "--pdf-case" in options else None)
                 self.assertEqual(args.pages, 100 if "--pages" in options else None)
-        with patch.object(sys, "argv", ["pair", "--output", "result", "--pages", "100", "--pdf-case", "case.json"]), \
+        with patch.object(sys, "argv", ["pair", "--output", "result", *revisions, "--pages", "100", "--pdf-case", "case.json"]), \
                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
             pair.main()
         self.assertEqual(error.exception.code, 2)
+
+    def test_cli_requires_both_source_revisions_before_starting_work(self):
+        for revisions in ((), ("--baseline", "a" * 40), ("--candidate", "b" * 40)):
+            with self.subTest(revisions=revisions), \
+                    patch.object(sys, "argv", ["pair", "--output", "result", *revisions]), \
+                    patch.object(pair, "run_pair") as run, contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    pair.main()
+                self.assertEqual(error.exception.code, 2)
+                run.assert_not_called()
 
 
 @unittest.skipUnless(sys.platform in ("linux", "darwin"), "POSIX receipts require a native POSIX filesystem")

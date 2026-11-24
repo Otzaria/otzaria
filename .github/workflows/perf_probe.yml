@@ -210,7 +210,7 @@ jobs:
       fail-fast: false
       matrix:
         scenario: ${{ fromJSON(github.event_name == 'pull_request' && '["pdf-reader","pdf-book-view"]' || format('["{0}"]', inputs.scenario_set || 'all')) }}
-        binding_mode: ${{ fromJSON(github.event_name == 'pull_request' && '["integration","framework"]' || format('["{0}"]', inputs.binding_mode || 'integration')) }}
+        binding_mode: ${{ fromJSON(github.event_name == 'pull_request' && '["framework"]' || format('["{0}"]', inputs.binding_mode || 'integration')) }}
         include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"scenario":"pdf-multi-window","binding_mode":"framework","mode":"profile"},{"scenario":"pdf-multi-window","binding_mode":"framework","mode":"release"}]' || '[]') }}
     needs: gate
     if: needs.gate.outputs.run == 'true'

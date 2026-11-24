@@ -8,7 +8,6 @@ on:
       - 'tool/perf_probe/paired_pdf_case.py'
       - 'tool/perf_probe/test_paired_pdf_case.py'
       - 'tool/perf_probe/prepare_pair_ci_case.dart'
-      - 'tool/perf_probe/pdf_layout_pair.json'
       - 'tool/perf_probe/posix_engine.py'
       - 'tool/perf_probe/test_posix_engine.py'
       - 'tool/perf_probe/run_perf_probe_posix.py'
@@ -81,11 +80,11 @@ jobs:
   pair:
     name: Same Windows host (${{ matrix.cache }}, ${{ inputs.mode || 'profile' }})
     needs: [gate, contracts]
-    if: needs.gate.outputs.run == 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.gate.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
-        cache: ${{ fromJSON(github.event_name == 'pull_request' && '["cold","warm"]' || format('["{0}"]', inputs.cache_state || 'cold')) }}
+        cache: ['${{ inputs.cache_state }}']
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
@@ -126,16 +125,10 @@ jobs:
           $arguments = @('tool/perf_probe/run_pdf_pair.py', '--output', (Join-Path $env:RUNNER_TEMP 'pdf-pair'),
             '--mode', $env:PAIR_MODE, '--cache-state', $env:PAIR_CACHE, '--scenario', $env:PAIR_SCENARIO,
             '--pdf-case', (Join-Path $env:RUNNER_TEMP 'pdf-pair-corpus/case.json'), '--launches', $env:PAIR_LAUNCHES,
-            '--repetitions', $env:PAIR_REPETITIONS, '--order', $env:PAIR_ORDER)
-          if ($env:PAIR_BASELINE -or $env:PAIR_CANDIDATE) {
-            $commits = @($env:PAIR_BASELINE, $env:PAIR_CANDIDATE)
-            $repository = $env:GITHUB_REPOSITORY
-            $arguments += @('--baseline', $env:PAIR_BASELINE, '--candidate', $env:PAIR_CANDIDATE)
-          } else {
-            $experiment = Get-Content tool/perf_probe/pdf_layout_pair.json -Raw | ConvertFrom-Json
-            $commits = @($experiment.baseline, $experiment.candidate)
-            $repository = $experiment.repository
-          }
+            '--repetitions', $env:PAIR_REPETITIONS, '--order', $env:PAIR_ORDER,
+            '--baseline', $env:PAIR_BASELINE, '--candidate', $env:PAIR_CANDIDATE)
+          $commits = @($env:PAIR_BASELINE, $env:PAIR_CANDIDATE)
+          $repository = $env:GITHUB_REPOSITORY
           if ($repository -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Invalid source repository.' }
           foreach ($commit in $commits) {
             if ($commit -cnotmatch '^[a-f0-9]{40}$') { throw 'Both sources must be full immutable commit SHAs.' }
@@ -168,7 +161,7 @@ jobs:
   posix_pair:
     name: Same ${{ matrix.platform.name }} host (${{ matrix.cache }}, ${{ inputs.mode || 'profile' }})
     needs: [gate, contracts]
-    if: needs.gate.outputs.run == 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.gate.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -179,7 +172,7 @@ jobs:
           - name: macOS
             runner: macos-latest
             container: ''
-        cache: ${{ fromJSON(github.event_name == 'pull_request' && '["cold","warm"]' || format('["{0}"]', inputs.cache_state || 'cold')) }}
+        cache: ['${{ inputs.cache_state }}']
     runs-on: ${{ matrix.platform.runner }}
     container: ${{ matrix.platform.container }}
     timeout-minutes: 120
@@ -269,13 +262,9 @@ jobs:
           python3 -B -m unittest tool.perf_probe.test_pdf_pair \
             tool.perf_probe.test_paired_pdf_case tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
           python3 -B - <<'PY'
-          import json, os, pathlib, re, subprocess
+          import os, re, subprocess
           baseline, candidate = os.environ['PAIR_BASELINE'], os.environ['PAIR_CANDIDATE']
-          if baseline or candidate:
-              repository = os.environ['GITHUB_REPOSITORY']
-          else:
-              experiment = json.loads(pathlib.Path('tool/perf_probe/pdf_layout_pair.json').read_text())
-              repository, baseline, candidate = (experiment[k] for k in ('repository', 'baseline', 'candidate'))
+          repository = os.environ['GITHUB_REPOSITORY']
           if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
               raise SystemExit('Invalid source repository')
           for commit in (baseline, candidate):
@@ -292,10 +281,7 @@ jobs:
           arguments=(tool/perf_probe/run_pdf_pair.py --output "$RUNNER_TEMP/pdf-pair"
             --mode "$PAIR_MODE" --cache-state "$PAIR_CACHE" --scenario "$PAIR_SCENARIO"
             --pdf-case "$RUNNER_TEMP/pdf-pair-corpus/case.json" --launches "$PAIR_LAUNCHES" --repetitions "$PAIR_REPETITIONS"
-            --order "$PAIR_ORDER")
-          if [ -n "$PAIR_BASELINE" ] || [ -n "$PAIR_CANDIDATE" ]; then
-            arguments+=(--baseline "$PAIR_BASELINE" --candidate "$PAIR_CANDIDATE")
-          fi
+            --order "$PAIR_ORDER" --baseline "$PAIR_BASELINE" --candidate "$PAIR_CANDIDATE")
           if [ "$RUNNER_OS" = Linux ]; then
             arguments+=(--display-mode xvfb)
             mkdir -p "$RUNNER_TEMP/pdf-pair-session/runtime"

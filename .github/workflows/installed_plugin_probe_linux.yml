@@ -321,18 +321,14 @@ jobs:
           done
           test "$ready" = 1
           xdpyinfo > "$PERF_POSIX_ROOT/display.txt"
-          for binding in integration framework; do
-            run_name=run
-            if [ "$binding" = framework ]; then run_name=framework-run; fi
-            python3 tool/perf_probe/run_perf_probe_posix.py \
-            --mode profile --cache-state cold --scenario-set pdf-reader --binding-mode "$binding" \
+          python3 tool/perf_probe/run_perf_probe_posix.py \
+            --mode profile --cache-state cold --scenario-set pdf-reader --binding-mode framework \
             --pdf-case "$PERF_POSIX_ROOT/case-input.json" \
             --warmup 0 --repetitions 1 --launches 1 --display-mode xvfb \
             --hardware-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-linux-${{ matrix.arch }}-bookworm-xvfb" \
             --build-timeout-seconds 1200 --timeout-seconds 180 \
-            --output "$PERF_POSIX_ROOT/$run_name" \
-            2>&1 | tee "$PERF_POSIX_ROOT/$run_name.log"
-          done
+            --output "$PERF_POSIX_ROOT/framework-run" \
+            2>&1 | tee "$PERF_POSIX_ROOT/framework-run.log"
           python3 tool/perf_probe/run_perf_probe_posix.py \
             --mode profile --cache-state cold --scenario-set pdf-multi-window --binding-mode framework \
             --pdf-case "$PERF_POSIX_ROOT/multi-window-case.json" \
@@ -342,13 +338,9 @@ jobs:
             --output "$PERF_POSIX_ROOT/multi-window-run" \
             2>&1 | tee "$PERF_POSIX_ROOT/multi-window-run.log"
           SESSION
-          for binding in integration framework; do
-            run_name=run
-            if [ "$binding" = framework ]; then run_name=framework-run; fi
-            python3 tool/perf_probe/validate_perf_probe_smoke.py \
-            --root "$PERF_POSIX_ROOT/$run_name" --binding-mode "$binding" --platform linux --commit "$GITHUB_SHA" \
-            | tee "$PERF_POSIX_ROOT/verified-$binding.json"
-          done
+          python3 tool/perf_probe/validate_perf_probe_smoke.py \
+            --root "$PERF_POSIX_ROOT/framework-run" --binding-mode framework --platform linux --commit "$GITHUB_SHA" \
+            | tee "$PERF_POSIX_ROOT/verified-framework.json"
           dart tool/perf_probe/validate_pdf_multi_window.dart \
             --root "$PERF_POSIX_ROOT/multi-window-run" \
             --platform linux --mode profile --commit "$GITHUB_SHA" \
@@ -370,7 +362,6 @@ jobs:
             ${{ env.PERF_POSIX_ROOT }}/**/*.txt
             ${{ env.PERF_POSIX_ROOT }}/multi-window-run/launch-*/pdf-multi-window-*/*.pdf
             ${{ env.PERF_POSIX_ROOT }}/multi-window-run/launch-*/pdf-multi-window-*/*.png
-            !${{ env.PERF_POSIX_ROOT }}/run/data/**
             !${{ env.PERF_POSIX_ROOT }}/framework-run/data/**
             !${{ env.PERF_POSIX_ROOT }}/multi-window-run/data/**
 

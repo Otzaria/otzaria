@@ -77,7 +77,7 @@ def source_identity(repo: Path, commit: str) -> dict:
     }
 
 
-def verify_sources(repo: Path, commits: dict, expected_paths: list[str] | None = None) -> dict:
+def verify_sources(repo: Path, commits: dict) -> dict:
     sources = {role: source_identity(repo, sha) for role, sha in commits.items()}
     before, after = sources["baseline"], sources["candidate"]
     if before["commit"] == after["commit"] or before["tree"] == after["tree"]:
@@ -86,8 +86,6 @@ def verify_sources(repo: Path, commits: dict, expected_paths: list[str] | None =
         if before[field] != after[field]:
             raise ValueError(f"The snapshots have different {field}; they are not comparable.")
     paths = git(repo, "diff", "--name-only", "--no-renames", before["commit"], after["commit"]).splitlines()
-    if expected_paths is not None and sorted(paths) != sorted(expected_paths):
-        raise ValueError("The fixed experiment no longer has its declared source delta.")
     return {"sources": sources, "changedPaths": paths}
 
 
@@ -301,8 +299,7 @@ def run_pair(args: argparse.Namespace) -> None:
     source, output = args.source.resolve(), args.output.resolve()
     if output == source or output.is_relative_to(source):
         raise ValueError("Results and temporary worktrees must be outside the source checkout.")
-    experiment = read_json(args.experiment) if not args.baseline and not args.candidate else None
-    commits = {role: full_sha(getattr(args, role) or experiment[role]) for role in ("baseline", "candidate")}
+    commits = {role: full_sha(getattr(args, role)) for role in ("baseline", "candidate")}
     system = platform.system()
     if system not in ("Windows", "Linux", "Darwin"):
         raise ValueError("Native paired measurements require Windows, Linux or macOS.")
@@ -312,7 +309,7 @@ def run_pair(args: argparse.Namespace) -> None:
         raise ValueError("The patched Windows engine hash cannot validate a POSIX engine.")
     if system != "Linux" and args.display_mode != "desktop":
         raise ValueError("Xvfb display identity is Linux-only.")
-    identities = verify_sources(source, commits, experiment.get("changedPaths") if experiment else None)
+    identities = verify_sources(source, commits)
     flutter, dart = (shutil.which(name) for name in ("flutter", "dart"))
     pwsh = shutil.which("pwsh") if system == "Windows" else None
     if not flutter or not dart or (system == "Windows" and not pwsh):
@@ -335,7 +332,7 @@ def run_pair(args: argparse.Namespace) -> None:
     hardware_id = f"paired-{platform.node()}-{uuid.uuid4().hex}"
     receipt = {
         "schemaVersion": 1, "status": "running", **identities, "settings": settings,
-        "experiment": experiment or {"kind": "operator-selected immutable source pair"},
+        "experiment": {"kind": "operator-selected immutable source pair"},
         "order": order, "hardwareId": hardware_id, "host": platform.node(),
         "startedAtEpochMs": time.time_ns() // 1_000_000,
         "orchestratorCommit": git(source, "rev-parse", "HEAD"),
@@ -430,9 +427,8 @@ def run_pair(args: argparse.Namespace) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[2])
-    parser.add_argument("--experiment", type=Path, default=Path(__file__).with_name("pdf_layout_pair.json"))
-    parser.add_argument("--baseline")
-    parser.add_argument("--candidate")
+    parser.add_argument("--baseline", required=True, type=full_sha)
+    parser.add_argument("--candidate", required=True, type=full_sha)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mode", choices=("profile", "release"), default="profile")
     parser.add_argument("--cache-state", choices=("cold", "warm"), default="cold")
@@ -448,8 +444,6 @@ def main() -> int:
     parser.add_argument("--expected-engine-sha256", default="")
     parser.add_argument("--display-mode", choices=("desktop", "xvfb"), default="desktop")
     args = parser.parse_args()
-    if bool(args.baseline) != bool(args.candidate):
-        parser.error("Provide both --baseline and --candidate, or neither for the fixed experiment.")
     try:
         run_pair(args)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
