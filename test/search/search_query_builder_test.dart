@@ -291,6 +291,26 @@ Future<void> main() async {
       expect(SearchQueryBuilder.globalOptionsFromPerWord(const {}), isNull);
     });
 
+    test(
+      'אפשרויות פר-מילה אינן מתרחבות למילים ללא אפשרויות או למפתחות ישנים',
+      () {
+        const options = {'קידומות דקדוקיות': true};
+        for (final perWord in [
+          {'תורה_0': options},
+          {'תורה_0': options, 'מילה_1': options},
+        ]) {
+          expect(
+            SearchQueryBuilder.globalOptionsFromPerWord(
+              perWord,
+              query: 'תורה ומצוות',
+            ),
+            isNull,
+          );
+        }
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
     test('הופכית ל-expandGlobalOptionsToWords', () {
       const globalOptions = {'קידומות דקדוקיות': true, 'סיומות': false};
       final perWord = {

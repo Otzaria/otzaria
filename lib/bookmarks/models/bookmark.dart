@@ -108,6 +108,23 @@ class Bookmark {
   /// מחסניות החזרה/קדימה של הקורא; נשמרות ברשומת היסטוריה בלבד.
   final Map<String, dynamic>? navigationHistory;
 
+  /// הגדרות השאילתה לשחזור, כולל רשומות שנשמרו לפני שמירת המפה המלאה.
+  SearchConfiguration get restoredSearchConfiguration {
+    final config = searchConfiguration;
+    if (config != null) {
+      // רשומה שנלכדה בזמן עריכה עלולה לשאת טווח מעודכן רק בשדה הייעודי.
+      return SearchConfiguration.fromMap(
+        config,
+      ).copyWith(proximityScope: proximityScope);
+    }
+    final mode = searchMode ?? SearchMode.advanced;
+    return SearchConfiguration(
+      searchMode: mode,
+      distance: distance ?? (mode == SearchMode.fuzzy ? kMaxFuzzyDistance : 0),
+      proximityScope: proximityScope ?? SearchScope.wordDistance,
+    );
+  }
+
   /// זהות מקום קריאה לפי ספר, סוג יעד, slot ושולחן; חיפוש לפי שאילתה וסינון.
   String get historyKey => isSearch
       ? searchHistoryKey(

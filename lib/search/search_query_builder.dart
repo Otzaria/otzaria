@@ -242,15 +242,22 @@ class SearchQueryBuilder {
   }
 
   /// ההופכית של [expandGlobalOptionsToWords]: אפשרויות פר-מילה שכולן זהות
-  /// מקורן במפה גלובלית אחת ומוחזרות אליה. null כשהן נבדלות בין מילים
-  /// (מצב פר-מילה אמיתי) או כשאין אפשרויות כלל.
+  /// מוחזרות כמפה גלובלית. עם [query] נדרש כיסוי של כל מילות השאילתה.
   static Map<String, bool>? globalOptionsFromPerWord(
-    Map<String, Map<String, bool>> perWordOptions,
-  ) {
+    Map<String, Map<String, bool>> perWordOptions, {
+    String? query,
+  }) {
     if (perWordOptions.isEmpty) return null;
     final first = perWordOptions.values.first;
     for (final options in perWordOptions.values.skip(1)) {
       if (!mapEquals(options, first)) return null;
+    }
+    if (query != null) {
+      final words = splitQueryWords(query);
+      if (words.length != perWordOptions.length) return null;
+      for (var i = 0; i < words.length; i++) {
+        if (!perWordOptions.containsKey(buildWordKey(words[i], i))) return null;
+      }
     }
     return Map<String, bool>.from(first);
   }
