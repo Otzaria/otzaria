@@ -1739,6 +1739,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         () => TrackpadPanRecognizer(
                           onPanDelta: _handleTrackpadPanDelta,
                           onPanEnd: _handleTrackpadPanEnd,
+                          onInteractionStart: () =>
+                              _pdfInteractionGeneration++,
                           onPanZoomEvent: (event) {
                             final controller = widget.tab.pdfViewerController;
                             if (controller.isReady) {
@@ -2024,7 +2026,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     _pdfTextSelectionActions.cancel();
                   },
                   onPointerSignal: (_) => _pdfInteractionGeneration++,
-                  onPointerPanZoomStart: (_) => _pdfInteractionGeneration++,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {

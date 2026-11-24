@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 
 /// מנתב pan לנעילת הציר החכמה, ומשאיר pinch במסלול המקורי של pdfrx.
@@ -6,6 +7,7 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
   TrackpadPanRecognizer({
     required this.onPanDelta,
     required this.onPanEnd,
+    this.onInteractionStart,
     this.onPanZoomEvent,
     this.canPanHorizontally,
     super.debugOwner,
@@ -17,6 +19,9 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
   /// סוף מחווה שנתבעה - כאן מאפסים את נעילת הציר. [velocity] היא מהירות
   /// האצבעות בהרמתן (פיקסלים לשנייה), או אפס כשהמחווה לא הסתיימה כגלילה.
   final void Function(Offset velocity) onPanEnd;
+
+  /// מדווח על תחילת מחוות לוח מגע בלי לתבוע אותה בזירה.
+  final VoidCallback? onInteractionStart;
 
   /// מחווה שנתבעה כ-pan והופכת ל-pinch מועברת למסלול הזום המקורי.
   final void Function(PointerEvent event)? onPanZoomEvent;
@@ -45,6 +50,7 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
 
   @override
   void addAllowedPointerPanZoom(PointerPanZoomStartEvent event) {
+    onInteractionStart?.call();
     final previous = _pointer;
     if (previous != null) {
       handleEvent(PointerPanZoomEndEvent(pointer: previous));
