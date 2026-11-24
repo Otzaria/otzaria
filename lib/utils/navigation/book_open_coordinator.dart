@@ -190,7 +190,10 @@ class BookOpenCoordinator {
     final historyCommentators = lastOpened?.commentatorsToShow;
     final resolvedCommentators =
         initialCommentators ??
-        (historyCommentators?.isNotEmpty == true ? historyCommentators : null);
+        (historyCommentators?.isNotEmpty == true ||
+                lastOpened?.hasExplicitCommentators == true
+            ? historyCommentators
+            : null);
 
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane(
       screenWidth: layoutWidth?.call(),
