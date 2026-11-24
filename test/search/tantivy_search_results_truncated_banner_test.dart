@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -48,13 +49,15 @@ SearchResult _result(int i) => SearchResult(
 Future<void> _pumpResults(
   WidgetTester tester, {
   required bool truncated,
+  String query = 'ספר',
 }) async {
   final searchBloc = RecordingSearchBloc(
     SearchState(
-      searchQuery: 'ספר',
+      searchQuery: query,
       totalResults: 2,
       results: [_result(1), _result(2)],
       resultsTruncated: truncated,
+      configuration: const SearchConfiguration(),
     ),
   );
   final settingsBloc = MockSettingsBloc();
@@ -92,7 +95,7 @@ Future<void> _pumpResults(
 }
 
 void main() {
-  testWidgets('באנר "תוצאות חלקיות" מוצג כשהחיפוש חרג מתקציב האיסוף', (
+  testWidgets('באנר "תוצאות חלקיות" מוצג כשהחיפוש נקטע', (
     WidgetTester tester,
   ) async {
     await _pumpResults(tester, truncated: true);
@@ -105,5 +108,22 @@ void main() {
   testWidgets('הבאנר אינו מוצג כשהתוצאות מלאות', (WidgetTester tester) async {
     await _pumpResults(tester, truncated: false);
     expect(find.textContaining(_bannerNeedle), findsNothing);
+  });
+
+  testWidgets('regex truncation gets cause-neutral guidance', (
+    WidgetTester tester,
+  ) async {
+    await _pumpResults(tester, truncated: true, query: '/ספר/');
+    final text = tester
+        .widget<AppInfoBanner>(find.byType(AppInfoBanner))
+        .message;
+    expect(text, contains(_bannerNeedle));
+    expect(
+      text,
+      'ייתכן שהתוצאות חלקיות: החיפוש הגיע למגבלת העיבוד. '
+      'נסו לכבות הרחבות מילים או לפשט את החיפוש.',
+    );
+    expect(text, isNot(contains('צורות')));
+    expect(text, isNot(contains('הספרים שנבחרו')));
   });
 }
