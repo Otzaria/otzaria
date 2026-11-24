@@ -439,7 +439,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final library = _library;
     final tree =
         _treeCache ?? (library == null ? null : ScopeTree.cachedFor(library));
-    return ScopeTree.facetDisplayName(facet, tree);
+    return ScopeTree.facetDisplayName(facet, tree: tree);
   }
 
   /// הסינונים הפעילים ל-chips. בחירת קטגוריות/ספרים ספציפיים
