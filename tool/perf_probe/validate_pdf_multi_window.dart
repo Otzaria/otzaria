@@ -329,11 +329,60 @@ Future<Map<String, Object?>> validatePerfPdfMultiWindowSmoke(
       );
     }
   } else {
+    final identity = _map(manifest['engineIdentity'], 'POSIX engine identity');
+    final binaryName = platform == 'linux'
+        ? 'libflutter_linux_gtk.so'
+        : 'FlutterMacOS';
+    _fields(identity, {
+      'schemaVersion': 1,
+      'platform': platform,
+      'buildMode': buildMode,
+      'binaryName': binaryName,
+    });
     _require(
-      !manifest.containsKey('engineIdentity') &&
+      identity.length == 6 &&
+          identity['bytes'] is int &&
+          (identity['bytes'] as int) > 0 &&
+          identity['bundleSha256'] is String &&
+          RegExp(
+            r'^[a-f0-9]{64}$',
+          ).hasMatch(identity['bundleSha256'] as String) &&
+          _same(metadata['engineIdentity'], identity) &&
           !settings.containsKey('engineBinary'),
-      'A POSIX run must not claim the Windows engine identity.',
+      'The POSIX engine identity is missing, malformed or inconsistent.',
     );
+    final engineEvidence = _map(manifest['engineEvidence'], 'engineEvidence');
+    final canonicalPath = engineEvidence['canonicalPath'];
+    _require(
+      engineEvidence['verifiedAfterRuns'] == true &&
+          canonicalPath is String &&
+          p.posix.isAbsolute(canonicalPath) &&
+          p.posix.basename(canonicalPath) == binaryName &&
+          _same(metadata['engineEvidence'], engineEvidence),
+      'The POSIX runner did not verify the same bundled engine after its runs.',
+    );
+    _fields(process, {
+      'preparationOnly': false,
+      'completedBeforeTermination': true,
+      'engineVerifiedAfterCompletion': true,
+    });
+    final proof = await _readJson(root, p.join(launch.path, 'engine.json'));
+    _fields(proof, {
+      'pid': appPid,
+      'canonicalPath': canonicalPath,
+      'observedAfterCompletion': true,
+      'source': platform == 'linux'
+          ? '/proc/$appPid/maps'
+          : 'lsof -a -p <owned PID> -d txt -Fpcfn0',
+    });
+    // The runner validates the loaded mapping; bind its receipt to this launch.
+    _require(
+      _same(proof['identity'], identity) &&
+          proof['rawObservation'] is String &&
+          (proof['rawObservation'] as String).trim().isNotEmpty,
+      'Missing or inconsistent mapped engine evidence for the owned process.',
+    );
+    engine = identity;
   }
   if (buildMode == 'release') {
     _require(
