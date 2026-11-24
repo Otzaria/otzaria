@@ -24,21 +24,28 @@ class ScopeTree {
   /// לא ישלם בסריקת הספרייה.
   static ScopeTree? cachedFor(Library library) => _cache[library];
 
+  static final _opaqueBookKey = RegExp(r'^(id|uid|db|ext):');
+
   /// שם להצגה של [facet] בלי לבנות את העץ: כותרת הצומת מ-[tree] אם נבנה,
   /// אחרת המקטע האחרון של הנתיב. מפתח ספר אטום ('id:5') אינו שם — null.
-  static String? facetDisplayName(String facet, [ScopeTree? tree]) {
-    final node = tree?.nodesByFacet[facet];
+  static String? facetDisplayName(
+    String facet, {
+    ScopeTree? tree,
+    bool allowLegacyFallback = true,
+  }) {
+    final isDimension = FacetHelper.isDimensionFacet(facet);
+    final node = isDimension ? null : tree?.nodesByFacet[facet];
     if (node != null) return node.title;
 
-    // מפתח ספר מהצורה 'כותרת|קטגוריה|...' נושא את הכותרת לפני ה-'|'.
-    final pipe = facet.indexOf('|');
+    // מפתח ספר ישן ושם קטגוריה יכולים להכיל '|'.
+    final pipe = allowLegacyFallback && !isDimension ? facet.indexOf('|') : -1;
     final head = pipe < 0 ? facet : facet.substring(0, pipe);
     final segment = head
         .split('/')
         .lastWhere((segment) => segment.isNotEmpty, orElse: () => '');
-    if (segment.isEmpty || RegExp(r'^(id|uid|db|ext):').hasMatch(segment)) {
-      return null;
-    }
+    if (segment.isEmpty) return null;
+    if (isDimension) return segment;
+    if (_opaqueBookKey.hasMatch(segment)) return null;
     return Category.displayNameForPathSegment(segment);
   }
 
