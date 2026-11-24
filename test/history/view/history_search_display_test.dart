@@ -121,6 +121,17 @@ void main() {
         (subtitle: 'בקטגוריות: בראשית, שמות', tooltip: null),
       ),
       (
+        _search(scope: ['/מדף/uid:1', '/מדף/db:מקור:2', '/מדף/ext:מזהה']),
+        (
+          subtitle: 'בקטגוריות: ספר, ספר...',
+          tooltip: 'בקטגוריות: ספר, ספר, ספר',
+        ),
+      ),
+      (
+        _search(scope: ['/author/שם|נוסף|של|המחבר']),
+        (subtitle: 'בקטגוריות: שם|נוסף|של|המחבר', tooltip: null),
+      ),
+      (
         _search(scope: ['//מדף//שם///', '/', '']),
         (subtitle: 'בקטגוריות: שם, /...', tooltip: 'בקטגוריות: שם, /, '),
       ),
@@ -334,13 +345,18 @@ void main() {
     tester,
   ) async {
     final genesis = TextBook(id: 5, title: 'בראשית', categoryPath: 'תנ"ך/תורה');
+    final legacyGenesis = TextBook(
+      title: 'בראשית',
+      categoryPath: '/תנ"ך/תורה',
+      filePath: '/books/genesis.txt',
+    );
     final torah = Category(
       title: 'תורה',
       description: '',
       shortDescription: '',
       order: 1,
       subCategories: [],
-      books: [genesis],
+      books: [genesis, legacyGenesis],
       parent: null,
     );
     final tanach = Category(
@@ -368,6 +384,11 @@ void main() {
     );
     expect(bookFacet, endsWith('/id:5'));
     final missingFacet = bookFacet.replaceFirst('id:5', 'id:9');
+    final legacyFacet = FacetHelper.buildBookFacet(
+      FacetHelper.resolveCategoryPath(legacyGenesis),
+      legacyGenesis,
+    );
+    expect(legacyFacet, '/תנ"ך/תורה/בראשית|/תנ"ך/תורה|txt|/books/genesis.txt');
     expect(ScopeTree.cachedFor(library), isNull);
 
     await tester.pumpWidget(
@@ -377,13 +398,94 @@ void main() {
       HistoryLoaded([
         _search(query: 'א', scope: [bookFacet]),
         _search(query: 'ב', scope: [missingFacet]),
-        _search(query: 'ג', scope: ['/תנ"ך/בראשית|תנ"ך|txt|']),
+        _search(query: 'ג', scope: [legacyFacet]),
       ]),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('בקטגוריות: בראשית'), findsNWidgets(2));
+    expect(find.text('בקטגוריות: ספר'), findsOneWidget);
     expect(find.textContaining('id:'), findsNothing);
     expect(find.textContaining('|'), findsNothing);
+  });
+
+  testWidgets('שמות קטגוריות זמינים לפני בניית העץ וההיסטוריה מתעדכנת ברענון', (
+    tester,
+  ) async {
+    const title = 'מדף|נוסח|ספר|מהדורה';
+    final book = TextBook(id: 5, title: 'ספר ראשון', categoryPath: title);
+    final renamedBook = TextBook(
+      id: 5,
+      title: 'ספר מעודכן',
+      categoryPath: title,
+    );
+
+    Library withBooks(List<Book> books) {
+      final category = Category(
+        title: title,
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: [],
+        books: books,
+        parent: null,
+      );
+      final library = Library(categories: [category]);
+      category.parent = library;
+      return library;
+    }
+
+    final firstLibrary = withBooks([
+      book,
+      for (var id = 6; id < 206; id++)
+        TextBook(id: id, title: 'ספר $id', categoryPath: title),
+    ]);
+    final nextLibrary = withBooks([renamedBook]);
+    final libraryBloc = _LibraryBloc();
+    final libraryStates = StreamController<LibraryState>.broadcast();
+    addTearDown(libraryStates.close);
+    whenListen(
+      libraryBloc,
+      libraryStates.stream,
+      initialState: LibraryState(library: firstLibrary),
+    );
+    await tester.pumpWidget(
+      BlocProvider<LibraryBloc>.value(value: libraryBloc, child: buildWidget()),
+    );
+
+    final categoryFacet = FacetHelper.categoryFacet(
+      firstLibrary.subCategories.single,
+    );
+    states.add(
+      HistoryLoaded([
+        _search(scope: [categoryFacet]),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('בקטגוריות: $title'), findsOneWidget);
+    expect(ScopeTree.cachedFor(firstLibrary), isNull);
+
+    final bookFacet = FacetHelper.buildBookFacet(categoryFacet, book);
+    states.add(
+      HistoryLoaded([
+        _search(scope: [bookFacet]),
+      ]),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(ScopeTree.cachedFor(firstLibrary), isNull);
+    expect(find.text('בקטגוריות: ספר'), findsOneWidget);
+    expect(find.textContaining('id:'), findsNothing);
+
+    libraryStates.add(LibraryState(library: nextLibrary));
+    await tester.pump();
+    await tester.pump();
+    expect(ScopeTree.cachedFor(firstLibrary), isNull);
+    await tester.pumpAndSettle();
+    expect(ScopeTree.cachedFor(firstLibrary), isNotNull);
+    expect(ScopeTree.cachedFor(nextLibrary), isNotNull);
+    expect(find.text('בקטגוריות: ספר מעודכן'), findsOneWidget);
+    expect(find.text('בקטגוריות: ספר ראשון'), findsNothing);
+    expect(find.textContaining('id:'), findsNothing);
   });
 }
