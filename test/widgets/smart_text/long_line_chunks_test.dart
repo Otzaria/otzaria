@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
+import 'package:otzaria/widgets/selection/item_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
@@ -127,7 +130,7 @@ void main() {
       }
     });
 
-    test('ספאן מעוצב ארוך אינו נחתך', () {
+    test('ספאן מעוצב ארוך נחתך רק כשאין בחלון רווח רגיל, וכל חלק מעוצב', () {
       const styled = TextStyle(fontWeight: FontWeight.bold);
       final bold = 'מודגש ' * 6000;
       final span = TextSpan(
@@ -139,14 +142,142 @@ void main() {
       );
       final split = splitLongLine(span)!;
 
-      expect(split.chunks.length, greaterThan(1));
+      expect(split.chunks.map((c) => c.toPlainText()).join(), split.text);
+      // בחלון הראשון יש רווח רגיל, ולכן הוא נבחר.
+      expect(split.starts[1], lessThan(20000));
       final styledLeaves = [
         for (final chunk in split.chunks)
           for (final leaf in chunk.children!.cast<TextSpan>())
             if (leaf.style != null) leaf,
       ];
-      expect(styledLeaves, hasLength(1));
-      expect(styledLeaves.single.text, bold);
+      expect(styledLeaves.length, greaterThan(1));
+      for (final leaf in styledLeaves) {
+        expect(leaf.style, same(styled));
+      }
+      expect(styledLeaves.map((leaf) => leaf.text).join(), bold);
+    });
+
+    test('רווח רגיל בחלון עדיף על רווח בתוך ספאן מעוצב', () {
+      final span = TextSpan(
+        children: [
+          TextSpan(text: 'מילה ' * 3000),
+          TextSpan(
+            text: 'מודגש ' * 500,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: 'מילה ' * 12000),
+        ],
+      );
+      expect(splitLongLine(span)!.starts[1], 18000);
+    });
+
+    test('ספאן שנחתך שומר כל שדה של TextSpan במקטעים', () {
+      final recognizer = TapGestureRecognizer();
+      addTearDown(recognizer.dispose);
+      void onEnter(PointerEnterEvent _) {}
+      void onExit(PointerExitEvent _) {}
+      const style = TextStyle(color: Color(0xFF123456));
+      const locale = Locale('he', 'IL');
+      final special = TextSpan(
+        text: 'קישור ' * 8000,
+        style: style,
+        recognizer: recognizer,
+        mouseCursor: SystemMouseCursors.click,
+        onEnter: onEnter,
+        onExit: onExit,
+        semanticsIdentifier: 'id-5906',
+        locale: locale,
+        spellOut: true,
+      );
+      final split = splitLongLine(
+        TextSpan(
+          children: [
+            TextSpan(text: 'מילה ' * 4000),
+            special,
+          ],
+        ),
+      )!;
+
+      final pieces = [
+        for (final chunk in split.chunks)
+          for (final child in chunk.children!.cast<TextSpan>())
+            if (child.recognizer != null) child,
+      ];
+      expect(pieces.length, greaterThan(1));
+      expect(pieces.map((piece) => piece.text).join(), special.text);
+      for (final piece in pieces) {
+        expect(piece.style, same(style));
+        expect(piece.recognizer, same(recognizer));
+        expect(piece.mouseCursor, SystemMouseCursors.click);
+        expect(piece.onEnter, same(onEnter));
+        expect(piece.onExit, same(onExit));
+        expect(piece.semanticsIdentifier, 'id-5906');
+        expect(piece.locale, locale);
+        expect(piece.spellOut, isTrue);
+      }
+      // בחלון הראשון יש רווח מחוץ לקישור, ולכן הוא נבחר.
+      expect(split.starts[1], lessThanOrEqualTo(20000));
+    });
+
+    test('עץ מקונן נחתך עם שרשרת האבות, ו-WidgetSpan נשאר שלם ויחיד', () {
+      const outer = TextStyle(fontSize: 18);
+      const inner = TextStyle(fontWeight: FontWeight.bold);
+      const widget = WidgetSpan(child: SizedBox(width: 4, height: 4));
+      final span = TextSpan(
+        style: outer,
+        children: [
+          TextSpan(
+            style: inner,
+            children: [
+              TextSpan(text: 'מילה ' * 5000),
+              widget,
+              TextSpan(text: 'מילה ' * 5000),
+            ],
+          ),
+        ],
+      );
+      final split = splitLongLine(span)!;
+
+      expect(split.chunks.length, greaterThan(2));
+      expect(split.text, span.toPlainText(includeSemanticsLabels: false));
+      expect(
+        split.chunks
+            .map((c) => c.toPlainText(includeSemanticsLabels: false))
+            .join(),
+        split.text,
+      );
+      var widgets = 0;
+      for (final chunk in split.chunks) {
+        expect(chunk.style, same(outer));
+        expect((chunk.children!.single as TextSpan).style, same(inner));
+        chunk.visitChildren((child) {
+          if (identical(child, widget)) widgets++;
+          return true;
+        });
+      }
+      expect(widgets, 1);
+    });
+
+    test('אין חיתוך בתוך ספאן עם תווית נגישות', () {
+      final split = splitLongLine(
+        TextSpan(
+          children: [
+            TextSpan(text: 'מילה ' * 4000),
+            TextSpan(text: 'מסומן ' * 7000, semanticsLabel: 'תווית'),
+            TextSpan(text: 'מילה ' * 4000),
+          ],
+        ),
+      )!;
+
+      for (final start in split.starts.skip(1)) {
+        expect(start, isNot(inExclusiveRange(20000, 62000)));
+      }
+      final labeled = [
+        for (final chunk in split.chunks)
+          for (final child in chunk.children!.cast<TextSpan>())
+            if (child.semanticsLabel != null) child,
+      ];
+      expect(labeled, hasLength(1));
     });
 
     test('אין חיתוך בתוך בידוד או הטבעה כיווניים', () {
@@ -457,4 +588,179 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('שורה מודגשת כולה מפוצלת במסלול המהיר', (tester) async {
+    final words = 'מודגש ' * 8000;
+    await tester.pumpWidget(
+      _host(SmartTextWidget(text: '<b>$words</b>', settings: _settings)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HtmlWidget), findsNothing);
+    expect(find.byType(LongLineChunks), findsOneWidget);
+    final paragraphs = _paragraphs(tester);
+    expect(paragraphs.length, greaterThan(1));
+    expect(_textOf(tester).trim(), words.trim());
+    for (final paragraph in paragraphs) {
+      TextStyle? leafStyle;
+      paragraph.text.visitChildren((span) {
+        if (span is TextSpan && span.text != null) leafStyle = span.style;
+        return leafStyle == null;
+      });
+      expect(leafStyle?.fontWeight, FontWeight.bold);
+    }
+  });
+
+  testWidgets('כותרת ארוכה מפוצלת ושומרת את סגנון הכותרת', (tester) async {
+    final words = 'כותרת ארוכה ' * 3500;
+    await tester.pumpWidget(
+      _host(SmartTextWidget(text: '<h2>$words</h2>', settings: _settings)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HtmlWidget), findsNothing);
+    expect(find.byType(LongLineChunks), findsOneWidget);
+    final paragraphs = _paragraphs(tester);
+    expect(paragraphs.length, greaterThan(1));
+    expect(_textOf(tester).trim(), words.trim());
+    for (final paragraph in paragraphs) {
+      expect(paragraph.text.style?.fontSize, greaterThan(_settings.fontSize));
+    }
+  });
+
+  testWidgets('קישור שנחתך בין מקטעים פועל בשני חלקיו', (tester) async {
+    final taps = <int>[];
+    final line =
+        '${'מילה ' * 3000}<a href="otzaria://note?line=7">'
+        '${'קישור ' * 6000}</a> ${'מילה ' * 3000}';
+    await tester.pumpWidget(
+      _host(
+        SmartTextWidget(text: line, settings: _settings, onNoteTap: taps.add),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HtmlWidget), findsNothing);
+    final paragraphs = _paragraphs(tester);
+    expect(paragraphs.length, greaterThan(2));
+    Future<Offset> linkWord(RenderParagraph paragraph, {required bool last}) {
+      final text = paragraph.text.toPlainText();
+      final index = last ? text.lastIndexOf('קישור') : text.indexOf('קישור');
+      expect(index, greaterThanOrEqualTo(0));
+      return _reveal(tester, paragraph, index + 2);
+    }
+
+    final first = paragraphs.indexWhere(
+      (p) => p.text.toPlainText().contains('קישור'),
+    );
+    await tester.tapAt(await linkWord(paragraphs[first], last: true));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tapAt(await linkWord(paragraphs[first + 1], last: false));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(taps, [7, 7]);
+  });
+
+  testWidgets('לחיצה משולשת בשורה בלי שבירות בוחרת את כל המקטעים', (
+    tester,
+  ) async {
+    SelectedContent? selection;
+    await tester.pumpWidget(
+      _host(
+        SmartTextWidget(text: _syntheticLine(60000), settings: _settings),
+        onSelectionChanged: (content) => selection = content,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final paragraphs = _paragraphs(tester);
+    expect(paragraphs.length, greaterThan(2));
+
+    await _click(tester, await _reveal(tester, paragraphs[1], 200), 3);
+
+    expect(selection?.plainText, _textOf(tester));
+  });
+
+  for (final inItem in [false, true]) {
+    testWidgets(
+      'לחיצה משולשת בוחרת את הפסקה שחוצה מקטעים, ורק אותה'
+      '${inItem ? ' (פריט קורא)' : ''}',
+      (tester) async {
+        SelectedContent? selection;
+        final line = [
+          for (final (name, count) in [
+            ('ראשונה', 3000),
+            ('שנייה', 4000),
+            ('שלישית', 1000),
+          ])
+            '${'פסקה $name ' * count}סוף',
+        ].join('<br>');
+        final text = SmartTextWidget(text: line, settings: _settings);
+        await tester.pumpWidget(
+          _host(
+            inItem ? ItemSelectionContainer(child: text) : text,
+            onSelectionChanged: (content) => selection = content,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final paragraphs = _paragraphs(tester);
+        final lineText = longLineChunkOf(paragraphs.first)!.lineText;
+        final second = lineText.split('\n')[1];
+        // מקטע שכולו בתוך הפסקה השנייה, שמתחילה במקטע קודם.
+        final inside = paragraphs.indexWhere((paragraph) {
+          final start = longLineChunkOf(paragraph)!.start;
+          final end = start + paragraph.text.toPlainText().length;
+          return lineText.substring(0, start).contains('\n') &&
+              !lineText.substring(start, end).contains('\n');
+        });
+        expect(inside, greaterThan(1));
+
+        await _click(tester, await _reveal(tester, paragraphs[inside], 100), 3);
+
+        expect(selection?.plainText, '$second\n');
+      },
+    );
+  }
+}
+
+/// גולל את התו ב-[offset] אל המסך ומחזיר את מרכזו.
+Future<Offset> _reveal(
+  WidgetTester tester,
+  RenderParagraph paragraph,
+  int offset,
+) async {
+  Offset center() => paragraph.localToGlobal(
+    paragraph
+        .getBoxesForSelection(
+          TextSelection(baseOffset: offset, extentOffset: offset + 1),
+        )
+        .first
+        .toRect()
+        .center,
+  );
+  final position = tester
+      .state<ScrollableState>(
+        find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ),
+      )
+      .position;
+  position.jumpTo(position.pixels + center().dy - 300);
+  await tester.pump();
+  return center();
+}
+
+Future<void> _click(WidgetTester tester, Offset position, int count) async {
+  final gesture = await tester.startGesture(
+    position,
+    kind: PointerDeviceKind.mouse,
+  );
+  for (var i = 0; i < count; i++) {
+    if (i > 0) await gesture.down(position);
+    await tester.pump();
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  await gesture.removePointer();
+  await tester.pump(const Duration(milliseconds: 500));
 }

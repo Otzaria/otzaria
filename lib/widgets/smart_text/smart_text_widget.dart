@@ -17,6 +17,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_text.dart';
+import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
@@ -252,7 +253,6 @@ class SmartTextWidget extends StatelessWidget {
                       style: lineStyle,
                       strutStyle: line.strutStyle,
                       textAlign: textAlign,
-                      splitLongLines: !line.isHeading,
                     )
                   : InlineHtmlText(
                       document: document,
@@ -262,7 +262,6 @@ class SmartTextWidget extends StatelessWidget {
                       // ב-HtmlWidget צבע הקישור עובר ב-CSS כ-hex בלי שקיפות.
                       linkColor: Color(0xFF000000 | linkColor.toARGB32()),
                       primaryColor: colorScheme.primary,
-                      splitLongLines: !line.isHeading,
                       onTapUrl: onTapUrl,
                       onAnchorHover: onAnchorHover,
                       onAnchorHoverExit: onAnchorHoverExit,
@@ -612,17 +611,65 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     if (built is! Builder) {
       return built;
     }
-    final strutStyle = exactLineHeightStrut(resolved.prepareTextStyle(), text);
+    final style = resolved.prepareTextStyle();
+    final strutStyle = exactLineHeightStrut(style, text);
+    Widget paragraph(Widget source) =>
+        withSelectionFillRichText(source, strutStyle: strutStyle);
 
     final richText = Builder(
-      builder: (context) => withSelectionFillRichText(
-        built.builder(context),
-        strutStyle: strutStyle,
-      ),
+      builder: (context) => paragraph(built.builder(context)),
     );
-    return text.visitChildren((span) => span is! WidgetSpan)
+    final single = text.visitChildren((span) => span is! WidgetSpan)
         ? richText
         : ParagraphSelectionContainer(child: richText);
+    final split = _splitLongBlock(tree, resolved, text);
+    if (split == null) return single;
+    return Builder(
+      builder: (context) {
+        final source = built.builder(context);
+        final rich = source is MouseRegion ? source.child : source;
+        // מגבלת שורות, ellipsis ו-nowrap שייכים לפסקה כולה.
+        if (rich is! RichText ||
+            rich.maxLines != null ||
+            rich.overflow != TextOverflow.clip ||
+            !rich.softWrap) {
+          return single;
+        }
+        return LongLineChunks(
+          split: split,
+          style: style,
+          strutStyle: strutStyle,
+          textAlign: rich.textAlign,
+          chunkBuilder: (chunk) {
+            final chunkBuilt = super.buildText(tree, resolved, chunk);
+            return chunkBuilt is Builder
+                ? Builder(
+                    builder: (context) =>
+                        paragraph(chunkBuilt.builder(context)),
+                  )
+                : chunkBuilt ?? const SizedBox.shrink();
+          },
+        );
+      },
+    );
+  }
+
+  /// בלוק ארוך מפוצל למקטעים רק כשהוא אינו בטבלה, ברשימה או ב-`pre`, ורק
+  /// כשנמצא בו מקום לחתוך.
+  LongLineSplit? _splitLongBlock(
+    BuildTree tree,
+    InheritedProperties resolved,
+    InlineSpan text,
+  ) {
+    if (text is! TextSpan ||
+        (resolved.get<CssWhitespace>() ?? CssWhitespace.normal) !=
+            CssWhitespace.normal) {
+      return null;
+    }
+    for (dom.Element? e = tree.element; e != null; e = e.parent) {
+      if (const {'table', 'pre', 'li'}.contains(e.localName)) return null;
+    }
+    return splitLongLine(text);
   }
 
   @override
