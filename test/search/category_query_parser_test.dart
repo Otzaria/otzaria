@@ -820,15 +820,21 @@ void main() {
     });
 
     test('(c) התאמת מחבר בסדר הישיר אינה חוסמת את הסדר ההפוך', () {
+      final byAuthor = TextBook(
+        title: 'כד הקמח',
+        id: 8,
+        author: 'רבינו בחיי',
+        categoryPath: '/מחשבה',
+      );
       final book = TextBook(
-        title: 'מחשבה',
+        title: 'ספר מחשבה',
         id: 9,
         categoryPath: '/רבינו בחיי',
       );
       final parsed = parseCategoryQuery(
         'שלום@מחשבה/רבינו בחיי',
         libraryOf([
-          _category('מחשבה', [kadHakemach]),
+          _category('מחשבה', [byAuthor]),
           _category('רבינו בחיי', [book]),
         ]),
       );
