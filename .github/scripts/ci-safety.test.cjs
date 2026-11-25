@@ -77,10 +77,12 @@ if (args[0] === 'api') {
   } else if (route.includes('/actions/runs?')) value = { workflow_runs: data.workflowRuns };
   else if (route.includes('/check-runs?')) value = { check_runs: data.checks };
   else if (route.endsWith('/status')) value = { total_count: 0, state: 'pending' };
+  else if (route.endsWith('/comments')) value = data.comments ?? [];
   else if (route.includes('/compare/')) value = route.endsWith('...' + data.devHead)
     ? { status: data.devAncestry } : { behind_by: data.behind };
   else throw new Error('Unexpected API route: ' + route);
 } else if (args[0] === 'pr' && args[1] === 'merge') value = 'merged';
+else if (args[0] === 'pr' && args[1] === 'comment') value = 'commented';
 else throw new Error('Unexpected gh command: ' + args.join(' '));
 const queryIndex = args.indexOf('--jq');
 if (queryIndex >= 0) {
@@ -259,14 +261,70 @@ for (const status of ['queued', 'in_progress']) {
 }
 
 for (const conclusion of ['failure', 'timed_out', 'cancelled']) {
-  test(`dev ${conclusion} cannot fall back to an older green run`, t => {
-    const s = fixture(t, { devRuns: [
+  test(`dev ${conclusion} blocks a stale PR even with an older green run`, t => {
+    const s = fixture(t, { behind: 1, devRuns: [
       { head_sha: 'dev-head', status: 'completed', conclusion },
       olderGreen,
     ] });
     s.execute(); assert.equal(s.merged(), false);
   });
 }
+
+test('dev recovery asks a stale PR to update its branch once per head', t => {
+  const devRuns = [{ head_sha: 'dev-head', status: 'completed', conclusion: 'failure' }, olderGreen];
+  const comments = s => s.calls().filter(args => args[0] === 'pr' && args[1] === 'comment');
+  const first = fixture(t, { behind: 1, devRuns });
+  first.execute();
+  assert.equal(comments(first).length, 1);
+  const repeat = fixture(t, { behind: 1, devRuns,
+    comments: [{ body: 'x <!-- automerge-recovery-behind:pr-head --> y' }] });
+  repeat.execute();
+  assert.equal(comments(repeat).length, 0);
+});
+
+for (const conclusion of ['failure', 'timed_out', 'cancelled']) {
+  test(`dev ${conclusion} permits recovery from an up-to-date, fully green PR`, t => {
+    const s = fixture(t, { devRuns: [
+      { head_sha: 'dev-head', status: 'completed', conclusion },
+      olderGreen,
+    ] });
+    s.execute(); assert.equal(s.merged(), true);
+  });
+}
+
+const failedDev = [{ head_sha: 'dev-head', status: 'completed', conclusion: 'failure' }, olderGreen];
+
+for (const conclusion of ['skipped', 'failure', null]) {
+  test(`dev recovery rejects a PR with CI result ${conclusion ?? 'pending'}`, t => {
+    const s = fixture(t, { devRuns: failedDev, checks: [check('CI result', 10, conclusion)] });
+    s.execute(); assert.equal(s.merged(), false);
+  });
+}
+
+test('dev recovery still requires every other check to pass', t => {
+  const s = fixture(t, { devRuns: failedDev, checks: [check('CI result', 10), check('Analyze', 10, 'failure')] });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('dev recovery cannot merge a PR targeting a different base', t => {
+  const s = fixture(t, { devRuns: failedDev, pr: {
+    state: 'open', draft: false, labels: [{ name: 'automerge' }, { name: 'run-ci' }],
+    head: { sha: 'pr-head' }, base: { ref: 'main' },
+  } });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('dev recovery rejects failed CI from unrelated history', t => {
+  const s = fixture(t, { devRuns: [
+    { head_sha: 'unrelated-dev', status: 'completed', conclusion: 'failure' },
+  ], devAncestry: 'diverged' });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('a dev update during recovery checks prevents a stale-base merge', t => {
+  const s = fixture(t, { devRuns: failedDev, devHeads: ['dev-head', 'new-dev'] });
+  s.execute(); assert.equal(s.merged(), false);
+});
 
 test('a newer retry of dev CI blocks merges until it finishes successfully', t => {
   const s = fixture(t, { devRuns: [
@@ -276,8 +334,8 @@ test('a newer retry of dev CI blocks merges until it finishes successfully', t =
   s.execute(); assert.equal(s.merged(), false);
 });
 
-test('a pending first attempt does not hide a newer known dev failure', t => {
-  const s = fixture(t, { devRuns: [
+test('a pending first attempt does not hide a newer known dev failure for a stale PR', t => {
+  const s = fixture(t, { behind: 1, devRuns: [
     { head_sha: 'dev-head', status: 'queued', conclusion: null, run_attempt: 1 },
     { head_sha: 'failed-dev', status: 'completed', conclusion: 'failure' },
     olderGreen,
