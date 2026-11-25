@@ -3,8 +3,7 @@
 
 #include <windows.h>
 
-// מתקן קודי סריקה חסרים של Ctrl/V, הודעות Shift חריגות וחצי המקלדת המספרית
-// בלי NumLock לפני מיפוי ה-engine,
+// מתקן קודי סריקה חסרים של Ctrl/V והודעות Shift חריגות לפני מיפוי ה-engine,
 // כדי שמקשים שונים לא יירשמו כאותו מקש פיזי לא מוכר.
 void InstallShiftKeyNormalizer(HWND flutter_view);
 
