@@ -3452,7 +3452,6 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
   );
 

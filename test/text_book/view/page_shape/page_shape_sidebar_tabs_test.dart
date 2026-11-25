@@ -288,7 +288,6 @@ TextBookLoaded _loadedState(
   removePunctuation: false,
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
   searchMode: SearchMode.exact,
 );

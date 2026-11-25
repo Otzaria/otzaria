@@ -44,7 +44,6 @@ TextBookLoaded _state({int? selectedIndex, List<int> visible = const [0]}) =>
       tableOfContents: const [],
       visibleIndices: visible,
       selectedIndex: selectedIndex,
-      pinLeftPane: false,
       searchText: '',
     );
 

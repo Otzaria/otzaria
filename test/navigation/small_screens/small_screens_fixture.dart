@@ -323,7 +323,6 @@ TextBookLoaded smallScreenBook(TextBook book, {bool commentary = false}) =>
       removePunctuation: false,
       visibleIndices: const [0],
       selectedIndex: null,
-      pinLeftPane: false,
       searchText: '',
       currentTitle: 'בראשית, פרק א',
       searchMode: SearchMode.exact,

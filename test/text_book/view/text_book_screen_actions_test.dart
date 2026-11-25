@@ -1937,7 +1937,6 @@ void main() {
     Future<int> pumpAndToggleLeftPane(
       WidgetTester tester, {
       required Size size,
-      bool pinned = true,
     }) async {
       final book = TextBook(title: 'ספר בדיקה');
       final loaded = _loadedState(book);
@@ -1976,13 +1975,7 @@ void main() {
       await tester.pump();
 
       // פתיחת החלונית (false→true) מפעילה את בדיקת ה-reanchor
-      // הנעיצה נקבעת לפני הפתיחה, כמו אצל משתמש: מצב הפריסה מדווח ב-post-frame.
-      bloc.emitStateForTest(loaded.copyWith(pinLeftPane: pinned));
-      await tester.pump();
-      await tester.pump();
-      bloc.emitStateForTest(
-        loaded.copyWith(showLeftPane: true, pinLeftPane: pinned),
-      );
+      bloc.emitStateForTest(loaded.copyWith(showLeftPane: true));
       await tester.pump();
 
       final dynamic state = tester.state(find.byType(TextBookViewerBloc));
@@ -1997,17 +1990,6 @@ void main() {
       expect(count, greaterThan(0));
     });
 
-    testWidgets('חלונית לא נעוצה מרחפת מעל הטקסט — ה-reanchor מדוכא', (
-      tester,
-    ) async {
-      final count = await pumpAndToggleLeftPane(
-        tester,
-        size: const Size(1600, 900),
-        pinned: false,
-      );
-      expect(count, 0);
-    });
-
     testWidgets('במסך צר (overlay) ה-reanchor מדוכא בפתיחת החלונית', (
       tester,
     ) async {
@@ -2020,12 +2002,11 @@ void main() {
   });
 
   group('סגירת חלונית הניווט אחרי מעבר (DD-26)', () {
-    // נסגרת רק כשהיא מכסה את התוכן (overlay במסך צר, או צפה כשאינה נעוצה);
-    // חלונית שמוצמדת לצד הטקסט נשארת פתוחה, בלי תלות בפלטפורמה.
+    // נסגרת רק כשהיא מכסה את התוכן (overlay במסך צר); חלונית שדוחקת את
+    // הטקסט נשארת פתוחה, בלי תלות בפלטפורמה.
     Future<List<bool>> navigateFromToc(
       WidgetTester tester, {
       required Size size,
-      bool pinned = true,
     }) async {
       final book = TextBook(title: 'ספר בדיקה');
       final loaded = _loadedState(book);
@@ -2060,9 +2041,7 @@ void main() {
         tourCubit: tourCubit,
         isInCombinedView: false,
       );
-      bloc.emitStateForTest(
-        loaded.copyWith(showLeftPane: true, pinLeftPane: pinned),
-      );
+      bloc.emitStateForTest(loaded.copyWith(showLeftPane: true));
       await tester.pump();
       // מצב הפריסה מדווח ב-post-frame.
       await tester.pump();
@@ -2076,7 +2055,7 @@ void main() {
       ];
     }
 
-    testWidgets('מוצמדת לצד הטקסט (מסך רחב) — נשארת פתוחה', (tester) async {
+    testWidgets('דוחקת את הטקסט (מסך רחב) — נשארת פתוחה', (tester) async {
       final toggles = await navigateFromToc(
         tester,
         size: const Size(1600, 900),
@@ -2088,15 +2067,6 @@ void main() {
       final toggles = await navigateFromToc(
         tester,
         size: const Size(780, 900),
-      );
-      expect(toggles, [false]);
-    });
-
-    testWidgets('לא נעוצה, צפה מעל הטקסט — נסגרת', (tester) async {
-      final toggles = await navigateFromToc(
-        tester,
-        size: const Size(1600, 900),
-        pinned: false,
       );
       expect(toggles, [false]);
     });
@@ -3113,7 +3083,6 @@ TextBookLoaded _loadedState(
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,

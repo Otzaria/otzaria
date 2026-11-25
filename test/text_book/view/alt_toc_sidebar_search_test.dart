@@ -219,7 +219,6 @@ TextBookLoaded _loadedState(TextBook book, List<TocEntry> toc) {
     removeNikud: false,
     visibleIndices: const [],
     selectedIndex: null,
-    pinLeftPane: false,
     searchText: '',
   );
 }

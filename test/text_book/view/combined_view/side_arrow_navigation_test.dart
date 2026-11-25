@@ -41,7 +41,6 @@ TextBookLoaded _state() => TextBookLoaded(
   linksByLine: const {},
   tableOfContents: headerToc(_lines),
   visibleIndices: const [0],
-  pinLeftPane: false,
   searchText: '',
 );
 

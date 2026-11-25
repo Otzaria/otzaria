@@ -405,9 +405,7 @@ class TextReadingSnapshot {
     _isPinned = tab.isPinned;
     _dedupeKey = tab.dedupeKey;
     _historySlot = tab.historySlot;
-    // חלונית צפה אינה נשמרת: חלונית שנפתחת עם הספר נעוצה (issue #3212).
-    _showLeftPane =
-        state.showLeftPane && (state is! TextBookLoaded || state.pinLeftPane);
+    _showLeftPane = state.showLeftPane;
     _commentators = tab.commentators;
     _persistedSplitView = tab._lastSplitView;
     _persistedPageShapeView = tab._lastShowPageShapeView;

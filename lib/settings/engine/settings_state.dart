@@ -62,7 +62,6 @@ class SettingsState extends Equatable {
   final bool defaultContinuousReadingMode;
   final bool defaultSidebarOpen;
   final bool defaultCommentaryOpen;
-  final bool pinSidebar;
   final double sidebarWidth;
   final double facetFilteringWidth;
 
@@ -179,7 +178,6 @@ class SettingsState extends Equatable {
     this.defaultContinuousReadingMode = false,
     required this.defaultSidebarOpen,
     required this.defaultCommentaryOpen,
-    required this.pinSidebar,
     required this.sidebarWidth,
     required this.facetFilteringWidth,
     required this.externalResultsFirst,
@@ -254,7 +252,6 @@ class SettingsState extends Equatable {
       defaultContinuousReadingMode: false,
       defaultSidebarOpen: false,
       defaultCommentaryOpen: false,
-      pinSidebar: false,
       sidebarWidth: 300,
       facetFilteringWidth: 235,
       externalResultsFirst: false,
@@ -308,7 +305,6 @@ class SettingsState extends Equatable {
     bool? defaultContinuousReadingMode,
     bool? defaultSidebarOpen,
     bool? defaultCommentaryOpen,
-    bool? pinSidebar,
     double? sidebarWidth,
     double? facetFilteringWidth,
     bool? externalResultsFirst,
@@ -402,7 +398,6 @@ class SettingsState extends Equatable {
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
       defaultCommentaryOpen:
           defaultCommentaryOpen ?? this.defaultCommentaryOpen,
-      pinSidebar: pinSidebar ?? this.pinSidebar,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       facetFilteringWidth: facetFilteringWidth ?? this.facetFilteringWidth,
       externalResultsFirst: externalResultsFirst ?? this.externalResultsFirst,
@@ -509,7 +504,6 @@ class SettingsState extends Equatable {
     defaultContinuousReadingMode,
     defaultSidebarOpen,
     defaultCommentaryOpen,
-    pinSidebar,
     sidebarWidth,
     facetFilteringWidth,
     externalResultsFirst,

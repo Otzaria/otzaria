@@ -114,7 +114,6 @@ import 'pdf_thumbnails_screen.dart';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
@@ -185,7 +184,7 @@ class PdfBookScreen extends StatefulWidget {
 }
 
 /// המקום המינימלי לקורא כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה היא
-/// נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
+/// נפתחת כ-overlay.
 const double _kNavMinMainContentWidth = 200;
 
 class _PdfBookScreenState extends State<PdfBookScreen>
@@ -301,6 +300,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final PdfPaneToggleAnchor _paneToggleAnchor = PdfPaneToggleAnchor();
   final _openingNavPaneSizeDelegate = PdfOpeningNavPaneSizeDelegateProvider();
   bool _leftPaneUsesPushLayout = false;
+  final _navPeek = NavPanelPeekController();
   final _scrollPhysicsProvider = StoppablePdfScrollPhysicsProvider();
   bool _rightPaneUsesPushLayout = false;
   // הרוחב החי מצויר בחלונית עצמה; ה-bloc מתעדכן רק בסוף הגרירה.
@@ -1459,12 +1459,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       ),
       pageAnchor: PdfPageAnchor.top, // עיגון לראש הדף
       getPageRenderingScale: pdfPreviewRenderingScaleFor,
-      onInteractionStart: (_) {
-        if (!(widget.tab.pinLeftPane.value ||
-            (Settings.getValue<bool>('key-pin-sidebar') ?? false))) {
-          _setLeftPaneVisibility(false);
-        }
-      },
       onGeneralTap: (tapContext, _, details) {
         if (_isChoosingPersonalNotePoint &&
             details.type == PdfViewerGeneralTapType.tap) {
@@ -1617,10 +1611,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             );
             if (_leftPaneUsesPushLayout &&
                 _bloc.state is! PdfBookLoaded &&
-                resolveInitialReadingLeftPaneVisibility(
-                  explicitOpen: widget.tab.showLeftPane.value,
-                  screenWidth: readingLayoutWidthOf(context),
-                )) {
+                widget.tab.showLeftPane.value) {
               final readerWidth = context.size?.width;
               final sidebarWidth = Settings.getValue<double>(
                 SettingsRepository.keySidebarWidth,
@@ -1661,7 +1652,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           pdf_events.DocumentReady(
             documentRef: documentRef,
             totalPages: totalPages,
-            screenWidth: mounted ? readingLayoutWidthOf(context) : null,
           ),
         );
 
@@ -1684,14 +1674,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
         }
 
-        final shouldShowLeftPane = resolveInitialReadingLeftPaneVisibility(
-          explicitOpen: widget.tab.showLeftPane.value,
-          screenWidth: mounted ? readingLayoutWidthOf(context) : null,
-        );
         if (currentSession()) {
-          if (shouldShowLeftPane) {
-            // נעוצה: חלונית לא נעוצה הייתה מכסה את הספר בהצללה כבר בפתיחה.
-            widget.tab.pinLeftPane.value = true;
+          if (widget.tab.showLeftPane.value) {
             _setLeftPaneVisibility(true);
           } else {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3829,7 +3813,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           documentRef: documentRef,
           outline: outline,
           totalPages: totalPages,
-          screenWidth: readingLayoutWidthOf(context),
         ),
       );
     } catch (e, stackTrace) {
@@ -3993,6 +3976,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   @override
   void dispose() {
+    _navPeek.dispose();
     _pdfNotesLoadGeneration++;
     _pdfNoteNavigationGeneration++;
     _pdfDocumentSession++;
@@ -4419,14 +4403,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       child: Scaffold(
         body: AppTopBarLayout(
           children: [
-            ListenableBuilder(
-              listenable: Listenable.merge([
-                widget.tab.showLeftPane,
-                widget.tab.pinLeftPane,
-              ]),
-              builder: (context, _) {
-                final showLeftPane = widget.tab.showLeftPane.value;
-                final isPinned = widget.tab.pinLeftPane.value;
+            ValueListenableBuilder<bool>(
+              valueListenable: widget.tab.showLeftPane,
+              builder: (context, showLeftPane, _) {
                 return AppTopBar(
                   minCenterWidth: ReaderNavCenter.minTitleWidth,
                   leadingItems: [
@@ -4436,30 +4415,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             ? TourTargetKeys.of(context).pdfBookNavigation
                             : null,
                         isOpen: showLeftPane,
+                        peek: _navPeek,
                         onToggle: () => _setLeftPaneVisibility(!showLeftPane),
                       ),
                     ),
-                    if (showLeftPane &&
-                        (isPinned ||
-                            NavSidePanel.canPin(
-                              context,
-                              paneWidth: _bloc.state is PdfBookLoaded
-                                  ? (_bloc.state as PdfBookLoaded).sidebarWidth
-                                  : 300.0,
-                              minMainContentWidth: _kNavMinMainContentWidth,
-                            )))
-                      AppTopBarItem(
-                        widget: NavPanelPinButton(
-                          isPinned: isPinned,
-                          isGloballyPinned:
-                              Settings.getValue<bool>(
-                                SettingsRepository.keyPinSidebar,
-                              ) ??
-                              false,
-                          onToggle: () =>
-                              widget.tab.pinLeftPane.value = !isPinned,
-                        ),
-                      ),
                     AppTopBarItem(widget: _buildHistoryBackButton()),
                   ],
                   center: _buildPdfCenter(context),
@@ -4504,110 +4463,108 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       : false;
                   // כל חלונית מנוהלת בנפרד, כמו בספרי טקסט: חלונית הניווט
                   // (NavSidePanel) עוטפת את חלונית המפרשים, שעוטפת את הקורא.
-                  return ValueListenableBuilder<bool>(
-                    valueListenable: widget.tab.pinLeftPane,
-                    builder: (context, isPinned, _) => NavSidePanel(
-                      maintainState:
-                          widget.tab.searchController.text.isNotEmpty,
+                  return NavSidePanel(
+                    peek: _navPeek,
+                    maintainState: widget.tab.searchController.text.isNotEmpty,
+                    isOpen:
+                        showLeftPane &&
+                        (!_isChoosingPersonalNotePoint ||
+                            _leftPaneUsesPushLayout),
+                    alignment: AlignmentDirectional.centerEnd,
+                    paneWidth: leftPaneWidth,
+                    minMainContentWidth: _kNavMinMainContentWidth,
+                    onClose: () => _setLeftPaneVisibility(false),
+                    isResizable: true,
+                    minPaneWidth: 200,
+                    maxPaneWidth: 600,
+                    autoHandleResponsiveVisibility: false,
+                    onLayoutModeChanged: (usesPushLayout) {
+                      if (_isChoosingPersonalNotePoint &&
+                          _leftPaneUsesPushLayout != usesPushLayout) {
+                        setState(
+                          () => _leftPaneUsesPushLayout = usesPushLayout,
+                        );
+                      } else {
+                        _leftPaneUsesPushLayout = usesPushLayout;
+                      }
+                    },
+                    onPaneWidthChanged: (nextWidth) {
+                      _openingNavPaneSizeDelegate.cancel();
+                      _draggedLeftPaneWidth = nextWidth;
+                    },
+                    onPaneResizeEnd: () {
+                      final current = _bloc.state;
+                      final width = _draggedLeftPaneWidth;
+                      _draggedLeftPaneWidth = null;
+                      if (width != null) {
+                        _bloc.add(pdf_events.UpdateSidebarWidth(width));
+                      }
+                      if (current is PdfBookLoaded) {
+                        context.read<SettingsBloc>().add(
+                          UpdateSidebarWidth(width ?? current.sidebarWidth),
+                        );
+                      }
+                    },
+                    paneContent: BlocSelector<TabsBloc, TabsState, bool>(
+                      selector: _isActivePane,
+                      builder: (context, isActivePane) =>
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _navPeek,
+                            builder: (context, peeking, _) {
+                              final visible = showLeftPane || peeking;
+                              return ExcludeFocus(
+                                excluding: !visible || !isActivePane,
+                                child: TickerMode(
+                                  enabled: visible,
+                                  child: _buildLeftPaneContent(visible),
+                                ),
+                              );
+                            },
+                          ),
+                    ),
+                    mainContent: AdaptiveSidePane(
                       isOpen:
-                          showLeftPane &&
+                          showRightPane &&
                           (!_isChoosingPersonalNotePoint ||
-                              _leftPaneUsesPushLayout),
-                      isPinned: isPinned,
-                      isGloballyPinned:
-                          Settings.getValue<bool>(
-                            SettingsRepository.keyPinSidebar,
-                          ) ??
-                          false,
-                      alignment: AlignmentDirectional.centerEnd,
-                      paneWidth: leftPaneWidth,
-                      minMainContentWidth: _kNavMinMainContentWidth,
-                      onClose: () => _setLeftPaneVisibility(false),
+                              _rightPaneUsesPushLayout),
+                      alignment: AlignmentDirectional.centerStart,
+                      paneWidth: rightPaneWidth,
+                      minMainContentWidth: 200,
+                      onClose: () => _setRightPaneVisibility(false),
                       isResizable: true,
-                      minPaneWidth: 200,
+                      minPaneWidth: 250,
                       maxPaneWidth: 600,
                       autoHandleResponsiveVisibility: false,
                       onLayoutModeChanged: (usesPushLayout) {
                         if (_isChoosingPersonalNotePoint &&
-                            _leftPaneUsesPushLayout != usesPushLayout) {
+                            _rightPaneUsesPushLayout != usesPushLayout) {
                           setState(
-                            () => _leftPaneUsesPushLayout = usesPushLayout,
+                            () => _rightPaneUsesPushLayout = usesPushLayout,
                           );
                         } else {
-                          _leftPaneUsesPushLayout = usesPushLayout;
+                          _rightPaneUsesPushLayout = usesPushLayout;
                         }
                       },
                       onPaneWidthChanged: (nextWidth) {
-                        _openingNavPaneSizeDelegate.cancel();
-                        _draggedLeftPaneWidth = nextWidth;
+                        _draggedRightPaneWidth = nextWidth;
                       },
                       onPaneResizeEnd: () {
                         final current = _bloc.state;
-                        final width = _draggedLeftPaneWidth;
-                        _draggedLeftPaneWidth = null;
+                        final width = _draggedRightPaneWidth;
+                        _draggedRightPaneWidth = null;
                         if (width != null) {
-                          _bloc.add(pdf_events.UpdateSidebarWidth(width));
+                          _bloc.add(pdf_events.UpdateRightPaneWidth(width));
                         }
                         if (current is PdfBookLoaded) {
                           context.read<SettingsBloc>().add(
-                            UpdateSidebarWidth(width ?? current.sidebarWidth),
+                            UpdateCommentaryPaneWidth(
+                              width ?? current.rightPaneWidth,
+                            ),
                           );
                         }
                       },
-                      paneContent: BlocSelector<TabsBloc, TabsState, bool>(
-                        selector: _isActivePane,
-                        builder: (context, isActivePane) => ExcludeFocus(
-                          excluding: !showLeftPane || !isActivePane,
-                          child: TickerMode(
-                            enabled: showLeftPane,
-                            child: _buildLeftPaneContent(showLeftPane),
-                          ),
-                        ),
-                      ),
-                      mainContent: AdaptiveSidePane(
-                        isOpen:
-                            showRightPane &&
-                            (!_isChoosingPersonalNotePoint ||
-                                _rightPaneUsesPushLayout),
-                        alignment: AlignmentDirectional.centerStart,
-                        paneWidth: rightPaneWidth,
-                        minMainContentWidth: 200,
-                        onClose: () => _setRightPaneVisibility(false),
-                        isResizable: true,
-                        minPaneWidth: 250,
-                        maxPaneWidth: 600,
-                        autoHandleResponsiveVisibility: false,
-                        onLayoutModeChanged: (usesPushLayout) {
-                          if (_isChoosingPersonalNotePoint &&
-                              _rightPaneUsesPushLayout != usesPushLayout) {
-                            setState(
-                              () => _rightPaneUsesPushLayout = usesPushLayout,
-                            );
-                          } else {
-                            _rightPaneUsesPushLayout = usesPushLayout;
-                          }
-                        },
-                        onPaneWidthChanged: (nextWidth) {
-                          _draggedRightPaneWidth = nextWidth;
-                        },
-                        onPaneResizeEnd: () {
-                          final current = _bloc.state;
-                          final width = _draggedRightPaneWidth;
-                          _draggedRightPaneWidth = null;
-                          if (width != null) {
-                            _bloc.add(pdf_events.UpdateRightPaneWidth(width));
-                          }
-                          if (current is PdfBookLoaded) {
-                            context.read<SettingsBloc>().add(
-                              UpdateCommentaryPaneWidth(
-                                width ?? current.rightPaneWidth,
-                              ),
-                            );
-                          }
-                        },
-                        paneContent: _buildRightPaneContent(),
-                        mainContent: _buildReaderMainContent(),
-                      ),
+                      paneContent: _buildRightPaneContent(),
+                      mainContent: _buildReaderMainContent(),
                     ),
                   );
                 },
@@ -4887,7 +4844,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  Widget _buildLeftPaneContent(bool showLeftPane) {
+  Widget _buildLeftPaneContent(bool isVisible) {
     return NavPanelSearchScope(
       host: _searchHost,
       child: Column(
@@ -4928,7 +4885,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       title: widget.tab.book.title,
                       controller: widget.tab.pdfViewerController,
                       focusNode: _navigationFieldFocusNode,
-                      isPaneOpen: showLeftPane,
+                      isPaneOpen: isVisible,
                       onNavigateToPage: _jumpFromNavPane,
                     ),
                   ),
@@ -4989,7 +4946,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       thumbnailCache: _thumbnailCache,
                       isPaneOpen:
                           _isPdfVisible &&
-                          showLeftPane &&
+                          isVisible &&
                           _currentLeftPaneTabIndex == 2,
                     ),
                   ),
@@ -5090,7 +5047,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return _goToPageWithSpreadLock(pageNumber);
   }
 
-  /// מעבר מחלונית הניווט: חלונית שמכסה את הדף נסגרת, ומוצמדת נשארת (DD-26).
+  /// מעבר מחלונית הניווט: חלונית שמכסה את הדף נסגרת, ודוחקת נשארת (DD-26).
   Future<void> _jumpFromNavPane(int pageNumber) {
     final jump = _jumpToPage(pageNumber);
     if (!_leftPaneUsesPushLayout) _setLeftPaneVisibility(false);

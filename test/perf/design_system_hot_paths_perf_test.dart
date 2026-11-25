@@ -466,7 +466,6 @@ TextBookLoaded _readerState(TextBook book) => TextBookLoaded(
   removePunctuation: false,
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
   currentTitle: 'סימן א',
   searchMode: SearchMode.exact,
@@ -488,7 +487,6 @@ TextBookLoaded _searchState() => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

@@ -129,7 +129,6 @@ void main() {
         removeNikud: false,
         visibleIndices: const [0],
         selectedIndex: null,
-        pinLeftPane: false,
         searchText: '',
       ),
     );

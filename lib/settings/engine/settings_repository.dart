@@ -60,7 +60,6 @@ class SettingsRepository {
   /// חדש שיתווסף ל-DB יופיע מאליו ולא ייחשב כמסונן.
   static const String keySelectedLinkTypes = 'key-selected-link-types';
 
-  static const String keyPinSidebar = 'key-pin-sidebar';
   static const String keySidebarWidth = 'key-sidebar-width';
   static const String keyFacetFilteringWidth = 'key-facet-filtering-width';
   static const String keyExternalResultsFirst = 'key-external-results-first';
@@ -339,7 +338,6 @@ class SettingsRepository {
     keyDefaultSidebarOpen,
     keyDefaultCommentaryOpen,
     keySelectedLinkTypes,
-    keyPinSidebar,
     keySidebarWidth,
     keyFacetFilteringWidth,
     keyExternalResultsFirst,
@@ -452,6 +450,7 @@ class SettingsRepository {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
     await _migrateSearchResultsFontSize();
+    await _migratePinSidebar();
     await removeUnrecognizedShortcuts();
     return readSettings();
   }
@@ -559,10 +558,6 @@ class SettingsRepository {
       ),
       'defaultCommentaryOpen': _settings.getValue<bool>(
         keyDefaultCommentaryOpen,
-        defaultValue: false,
-      ),
-      'pinSidebar': _settings.getValue<bool>(
-        keyPinSidebar,
         defaultValue: false,
       ),
       'sidebarWidth': _settings.getValue<double>(
@@ -961,10 +956,6 @@ class SettingsRepository {
 
   Future<void> updateDefaultCommentaryOpen(bool value) async {
     await _settings.setValue(keyDefaultCommentaryOpen, value);
-  }
-
-  Future<void> updatePinSidebar(bool value) async {
-    await _settings.setValue(keyPinSidebar, value);
   }
 
   Future<void> updateSidebarWidth(double value) async {
@@ -1438,6 +1429,15 @@ class SettingsRepository {
     );
   }
 
+  /// הצמדת החלונית הוסרה; מי שהצמיד ממשיך לקבל אותה פתוחה בפתיחת ספר.
+  Future<void> _migratePinSidebar() async {
+    const legacyKey = 'key-pin-sidebar';
+    final pinned = _settings.getValue<bool?>(legacyKey, defaultValue: null);
+    if (pinned == null) return;
+    if (pinned) await _settings.setValue(keyDefaultSidebarOpen, true);
+    await _settings.remove(legacyKey);
+  }
+
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
@@ -1475,7 +1475,6 @@ class SettingsRepository {
     await _settings.setValue(keyContinuousReadingMode, false);
     await _settings.setValue(keyDefaultSidebarOpen, false);
     await _settings.setValue(keyDefaultCommentaryOpen, false);
-    await _settings.setValue(keyPinSidebar, false);
     await _settings.setValue(keySidebarWidth, 300.0);
     await _settings.setValue(keyFacetFilteringWidth, 235.0);
     await _settings.setValue(keyExternalResultsFirst, false);

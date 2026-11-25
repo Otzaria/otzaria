@@ -48,7 +48,6 @@ TextBookLoaded _state({
   linksByLine: const {},
   tableOfContents: tableOfContents ?? _toc,
   visibleIndices: const [0],
-  pinLeftPane: false,
   searchText: '',
   supportsContinuousReadingMode: true,
   continuousReadingMode: continuous,

@@ -3462,9 +3462,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     book: TextBook(title: widget.bookTitle!),
                     index: primaryLineIndex,
                     openLeftPane:
-                        (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
                         (Settings.getValue<bool>('key-default-sidebar-open') ??
-                            false),
+                        false),
                   ),
                 );
               }

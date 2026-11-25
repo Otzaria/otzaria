@@ -182,7 +182,6 @@ TextBookLoaded _loaded({
     supportsContinuousReadingMode: supports,
     continuousReadingMode: continuous,
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
     searchMode: SearchMode.exact,
   );

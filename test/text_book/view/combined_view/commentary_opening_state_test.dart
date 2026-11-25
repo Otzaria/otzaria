@@ -66,7 +66,6 @@ Future<({_TextBookBloc bloc, TextBookTab tab})> _pumpView(
       removeNikud: false,
       visibleIndices: List.generate(data.length, (i) => i),
       selectedIndex: null,
-      pinLeftPane: false,
       searchText: '',
     ),
   );

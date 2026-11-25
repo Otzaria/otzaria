@@ -393,7 +393,6 @@ TextBookLoaded _bookState(
   tableOfContents: const [],
   visibleIndices: const [1],
   selectedIndex: 1,
-  pinLeftPane: false,
   searchText: '',
   bookNotes: bookNotes,
 );

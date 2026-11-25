@@ -333,7 +333,6 @@ TextBookLoaded _state(TextBook book, List<String> names) => TextBookLoaded(
   tableOfContents: const [],
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

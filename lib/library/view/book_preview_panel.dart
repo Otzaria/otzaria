@@ -40,7 +40,6 @@ import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
@@ -740,7 +739,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                           showSplitView: false,
                           removeNikud: settingsState.defaultRemoveNikud,
                           loadCommentators: false,
-                          screenWidth: readingLayoutWidthOf(context),
                         ),
                       );
                       return _buildSkeletonLoading();

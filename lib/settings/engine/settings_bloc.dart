@@ -73,7 +73,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
     on<UpdateDefaultSidebarOpen>(_onUpdateDefaultSidebarOpen);
     on<UpdateDefaultCommentaryOpen>(_onUpdateDefaultCommentaryOpen);
-    on<UpdatePinSidebar>(_onUpdatePinSidebar);
     on<UpdateSidebarWidth>(_onUpdateSidebarWidth);
     on<UpdateFacetFilteringWidth>(_onUpdateFacetFilteringWidth);
     on<UpdateExternalResultsFirst>(_onUpdateExternalResultsFirst);
@@ -213,7 +212,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           settings['defaultContinuousReadingMode'] ?? false,
       defaultSidebarOpen: settings['defaultSidebarOpen'],
       defaultCommentaryOpen: settings['defaultCommentaryOpen'],
-      pinSidebar: settings['pinSidebar'],
       sidebarWidth: settings['sidebarWidth'],
       facetFilteringWidth: settings['facetFilteringWidth'],
       externalResultsFirst: settings['externalResultsFirst'] ?? false,
@@ -775,14 +773,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateDefaultCommentaryOpen(event.defaultCommentaryOpen);
     emit(state.copyWith(defaultCommentaryOpen: event.defaultCommentaryOpen));
-  }
-
-  Future<void> _onUpdatePinSidebar(
-    UpdatePinSidebar event,
-    Emitter<SettingsState> emit,
-  ) async {
-    await _repository.updatePinSidebar(event.pinSidebar);
-    emit(state.copyWith(pinSidebar: event.pinSidebar));
   }
 
   Future<void> _onUpdateSidebarWidth(

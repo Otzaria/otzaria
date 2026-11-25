@@ -65,7 +65,6 @@ Future<void> _pumpTextReader(WidgetTester tester, List<Link> links) async {
       removeNikud: false,
       visibleIndices: const [0],
       selectedIndex: 0,
-      pinLeftPane: false,
       searchText: '',
     ),
   );

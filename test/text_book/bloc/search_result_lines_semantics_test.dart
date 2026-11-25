@@ -48,7 +48,6 @@ TextBookLoaded _loadedState({Set<int>? searchResultLines}) {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndices: const {},
-    pinLeftPane: false,
     searchText: 'אמר רבי',
     searchResultLines: searchResultLines,
   );

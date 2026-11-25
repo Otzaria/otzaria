@@ -503,7 +503,6 @@ TextBookLoaded _state(String line, Link link, TextDisplayPatch copy) {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     displayPolicy: TextDisplayPolicy.empty.merged(
       TextDisplayBookClass.general,

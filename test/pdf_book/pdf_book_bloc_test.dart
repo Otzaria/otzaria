@@ -116,7 +116,6 @@ PdfBookLoaded _loaded({
   int totalPages = 100,
   bool showLeftPane = false,
   bool showRightPane = false,
-  bool pinLeftPane = false,
   double zoom = 1.0,
   bool showZoomBar = false,
   PdfLayoutMode layoutMode = PdfLayoutMode.regularView,
@@ -127,7 +126,6 @@ PdfBookLoaded _loaded({
   totalPages: totalPages,
   showLeftPane: showLeftPane,
   showRightPane: showRightPane,
-  pinLeftPane: pinLeftPane,
   zoom: zoom,
   showZoomBar: showZoomBar,
   layoutMode: layoutMode,
@@ -322,13 +320,13 @@ void main() {
       );
     }
 
-    // issue #869: בלי סנכרון ה-notifier בטעינה, כפתור הסגירה בסרגל חישב
-    // כיוון הפוך (לפי tab.showLeftPane) והחלונית לא נסגרה.
+    // issue #869: מצב החלונית בטעינה זהה ל-tab.showLeftPane, שלפיו כפתור
+    // הסגירה בסרגל מחשב את הכיוון.
     blocTest<PdfBookBloc, PdfBookState>(
-      'פתיחה אוטומטית של חלונית הניווט מסנכרנת את tab.showLeftPane',
-      setUp: () => Settings.setValue<bool>('key-pin-sidebar', true),
-      tearDown: () => Settings.setValue<bool>('key-pin-sidebar', false),
-      build: () => _makeBloc(_tab()),
+      'חלונית שנפתחה עם הטאב פתוחה גם ב-state אחרי הטעינה',
+      build: () => _makeBloc(
+        PdfBookTab(book: _book(), pageNumber: 1, openLeftPane: true),
+      ),
       seed: () => PdfBookLoading(book: _book()),
       act: (b) =>
           b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 5)),
@@ -699,16 +697,6 @@ void main() {
       build: () => _makeBloc(_tab()),
       act: (b) => b.add(const ToggleLeftPane()),
       expect: () => [],
-    );
-
-    blocTest<PdfBookBloc, PdfBookState>(
-      'TogglePinLeftPane מחליף pin',
-      build: () => _makeBloc(_tab()),
-      seed: () => _loaded(pinLeftPane: false),
-      act: (b) => b.add(const TogglePinLeftPane()),
-      expect: () => [
-        isA<PdfBookLoaded>().having((s) => s.pinLeftPane, 'pinLeftPane', true),
-      ],
     );
 
     blocTest<PdfBookBloc, PdfBookState>(

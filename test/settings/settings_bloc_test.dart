@@ -55,7 +55,6 @@ void main() {
       'defaultContinuousReadingMode': true,
       'defaultSidebarOpen': true,
       'defaultCommentaryOpen': true,
-      'pinSidebar': true,
       'sidebarWidth': 300.0,
       'facetFilteringWidth': 235.0,
       'commentaryPaneWidth': 400.0,
@@ -217,7 +216,6 @@ void main() {
             defaultSidebarOpen: mockSettings['defaultSidebarOpen'] as bool,
             defaultCommentaryOpen:
                 mockSettings['defaultCommentaryOpen'] as bool,
-            pinSidebar: mockSettings['pinSidebar'] as bool,
             sidebarWidth: mockSettings['sidebarWidth'] as double,
             facetFilteringWidth: mockSettings['facetFilteringWidth'] as double,
             externalResultsFirst:

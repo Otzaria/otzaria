@@ -145,7 +145,6 @@ Future<void> main() async {
         removeNikud: false,
         visibleIndices: const [0],
         selectedIndex: null,
-        pinLeftPane: false,
         searchText: '',
       ),
     );
@@ -253,7 +252,8 @@ Future<void> main() async {
     final nextLine = find.descendant(
       of: reader,
       matching: find.byWidgetPredicate(
-        (w) => w is RichText && w.text.toPlainText().contains('second fragment'),
+        (w) =>
+            w is RichText && w.text.toPlainText().contains('second fragment'),
       ),
     );
     final paragraph = tester.renderObject<RenderParagraph>(nextLine.first);

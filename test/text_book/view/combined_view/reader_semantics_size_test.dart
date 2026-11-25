@@ -104,7 +104,6 @@ Future<void> _pumpView(WidgetTester tester, bool continuous) async {
       selectedIndices: const {},
       continuousReadingMode: continuous,
       supportsContinuousReadingMode: true,
-      pinLeftPane: false,
       searchText: '',
     ),
   );
