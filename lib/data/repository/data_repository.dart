@@ -445,7 +445,10 @@ BookSearchEntry buildBookSearchEntry(
   return BookSearchEntry(
     index: index,
     title: book.title,
-    catalogTitle: book is ExternalLibraryBook && book.catalogTitle != book.title
+    catalogTitle:
+        book is ExternalLibraryBook &&
+            book.volume != null &&
+            book.volume != book.catalogTitle
         ? book.catalogTitle
         : null,
     author: book.author ?? '',
