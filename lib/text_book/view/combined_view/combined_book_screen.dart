@@ -326,7 +326,9 @@ final _detailsTag = RegExp(r'<details\b', caseSensitive: false);
 
 /// שוליים משני צדי הפריטים: בימניים מצויר סמן הבחירה והם מרחיקים את הטקסט
 /// מאזור הלחיצה של המסילה; השמאליים שומרים על מרכוז עמודת הטקסט.
-const _selectionGutter = EdgeInsets.symmetric(horizontal: kTextColumnMinMargin);
+const _selectionGutter = EdgeInsets.symmetric(
+  horizontal: kTextColumnMinMargin,
+);
 
 class _ChildBuilder extends StatelessWidget {
   const _ChildBuilder({required this.builder, required this.child});
@@ -1847,7 +1849,9 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// Builds the same protected, formatted text as Ctrl+C without touching the clipboard.
-  SelectedTextDragPreparation? _captureSelectedTextDrag(String capturedText) {
+  SelectedTextDragPreparation? _captureSelectedTextDrag(
+    String capturedText,
+  ) {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded || capturedText.trim().isEmpty) return null;
     final sourceWidget = widget;
