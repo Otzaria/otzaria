@@ -7,9 +7,12 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
@@ -1067,11 +1070,11 @@ void main() {
 
           final books = await repository.getOtzarBooksForOtzariaId(1);
 
-          expect(books.map((b) => b.book.id), [12, 11, 10, 13]);
+          expect(books.map((b) => b.id), [12, 11, 10, 13]);
           expect(books.map((b) => b.volume), ['כרך ג', null, 'כרך א', 'כרך ד']);
-          expect(books.first.book.externalLibraryId, 'oh:12');
+          expect(books.first.externalLibraryId, 'oh:12');
           expect(
-            books.first.book.link,
+            books.first.link,
             'https://tablet.otzar.org/book/book.php?book=12',
           );
           expect(await repository.getOtzarBooksForOtzariaId(5), isEmpty);
@@ -1108,7 +1111,7 @@ void main() {
         );
 
         expect(await updater.updateDatabaseIfNeeded(), isTrue);
-        expect((await mapping).map((b) => b.book.id), [
+        expect((await mapping).map((b) => b.id), [
           for (var id = 1; id <= 20; id++) id,
         ]);
         expect(await updater.getCurrentDatabaseVersion(), 4);
@@ -1130,6 +1133,133 @@ void main() {
       test('בלי קובץ קטלוג מחזיר רשימה ריקה', () async {
         expect(await repository.databaseExists(), isFalse);
         expect(await repository.getOtzarBooksForOtzariaId(1), isEmpty);
+      });
+    });
+
+    group('Otzar volume shown (issue #2091)', () {
+      void createCatalog({required bool withVolume}) {
+        final db = sqlite3.open(repository.databasePath);
+        db.execute(
+          'CREATE TABLE otzar_hahochma (book_id INTEGER PRIMARY KEY, '
+          'title TEXT, authors TEXT, ${withVolume ? 'volume TEXT, ' : ''}'
+          'from_year TEXT, to_year TEXT, places TEXT, subjects TEXT)',
+        );
+        db.execute(
+          withVolume
+              ? "INSERT INTO otzar_hahochma (book_id, title, volume) VALUES "
+                    "(1, 'ערוך השלחן', 'אורח חיים א'), "
+                    "(2, 'ערוך השלחן', 'אורח חיים ב'), "
+                    "(3, 'ערוך השלחן הקצר', NULL), (4, 'ספר אחר', ' '), "
+                    "(5, 'כרך יחיד', 'כרך יחיד')"
+              : "INSERT INTO otzar_hahochma (book_id, title) VALUES "
+                    "(1, 'ערוך השלחן'), (2, 'ערוך השלחן')",
+        );
+        db.close();
+      }
+
+      test('כרכים של אותו ספר מוצגים בשמות נבדלים', () async {
+        createCatalog(withVolume: true);
+
+        final books = await repository.getOtzarBooks();
+
+        expect(
+          {for (final book in books) book.id: book.title},
+          {
+            1: 'ערוך השלחן – אורח חיים א',
+            2: 'ערוך השלחן – אורח חיים ב',
+            3: 'ערוך השלחן הקצר',
+            4: 'ספר אחר',
+            5: 'כרך יחיד',
+          },
+        );
+        expect(
+          books.firstWhere((book) => book.id == 1).externalLibraryId,
+          'oh:1',
+        );
+      });
+
+      test('קטלוג ישן בלי עמודת volume נטען כרגיל', () async {
+        createCatalog(withVolume: false);
+
+        final books = await repository.getOtzarBooks();
+
+        expect(books.map((book) => book.title), ['ערוך השלחן', 'ערוך השלחן']);
+      });
+
+      test('זהות התוסף נשארת שם הספר בקטלוג, בלי הכרך', () async {
+        createCatalog(withVolume: true);
+
+        final books = await repository.getOtzarBooks();
+
+        expect(
+          books
+              .where((book) => book.id! <= 2)
+              .map((book) => PluginBookIdentity.keyOf(book).bookId),
+          ['ערוך השלחן', 'ערוך השלחן'],
+        );
+        final volume = books.firstWhere((book) => book.id == 1);
+        expect(PluginBookIdentity.toJson(volume)['bookId'], 'ערוך השלחן');
+        expect(
+          PluginBookIdentity.matches(volume, id: 1, bookId: 'ערוך השלחן'),
+          isTrue,
+        );
+      });
+
+      test('שמירה ב-JSON וטעינה ממנו אינן מכפילות את הכרך', () async {
+        createCatalog(withVolume: true);
+        final book = (await repository.getOtzarBooks()).firstWhere(
+          (book) => book.id == 1,
+        );
+
+        final restored = ExternalLibraryBook.fromJson(book.toJson());
+
+        expect(restored.title, 'ערוך השלחן – אורח חיים א');
+        expect(PluginBookIdentity.keyOf(restored).bookId, 'ערוך השלחן');
+      });
+
+      test('חיפוש בשם הספר מוצא את הכרך לפי מילות הכרך', () async {
+        createCatalog(withVolume: true);
+        final data = _CatalogDataRepository(repository);
+        addTearDown(data.bookSearchWorkerForTesting.dispose);
+
+        final found = await data.findBooks(
+          'ערוך השלחן אורח חיים ב',
+          Library(categories: []),
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+        );
+
+        expect(found.map((book) => book.id), [2]);
+      });
+
+      test('השם המקורי המדויק קודם לשמות שרק מכילים אותו', () async {
+        createCatalog(withVolume: true);
+        final data = _CatalogDataRepository(repository);
+        addTearDown(data.bookSearchWorkerForTesting.dispose);
+
+        final found = await data.findBooks(
+          'ערוך השלחן',
+          Library(categories: []),
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+        );
+
+        expect(found.map((book) => book.id), [1, 2, 3]);
+      });
+
+      test('הוספת הכרך אינה מורידה את הדירוג בהתאמה חלקית לשם', () async {
+        createCatalog(withVolume: true);
+        final data = _CatalogDataRepository(repository);
+        addTearDown(data.bookSearchWorkerForTesting.dispose);
+
+        final found = await data.findBooks(
+          'ערוך',
+          Library(categories: []),
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+        );
+
+        expect(found.map((book) => book.id), [1, 2, 3]);
       });
     });
 
@@ -1746,4 +1876,13 @@ void _expectCatalogIntegrity(String target) {
   } finally {
     db.close();
   }
+}
+
+class _CatalogDataRepository extends DataRepository {
+  _CatalogDataRepository(this.catalog);
+
+  final ExternalCatalogRepository catalog;
+
+  @override
+  Future<List<ExternalLibraryBook>> getOtzarBooks() => catalog.getOtzarBooks();
 }
