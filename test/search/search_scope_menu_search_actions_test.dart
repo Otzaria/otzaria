@@ -162,6 +162,34 @@ Future<void> main() async {
         expect(textInList('שמות'), findsOneWidget);
       });
 
+      testWidgets('כיסוי מתעדכן בתוך קטגוריה פתוחה', (tester) async {
+        final coverage = ValueNotifier<Set<String>?>(null);
+        addTearDown(coverage.dispose);
+        await pumpMenu(tester, {'/'}, coverage: coverage);
+        await tester.tap(textInList('כל הספרים'));
+        await tester.pumpAndSettle();
+        await tester.tap(textInList('תנ״ך'));
+        await tester.pumpAndSettle();
+        expect(textInList('בראשית'), findsOneWidget);
+        expect(textInList('שמות'), findsOneWidget);
+
+        final book = _buildLibrary().getAllBooks().singleWhere(
+          (book) => book.title == 'שמות',
+        );
+        coverage.value = {BookIdentity.indexedFilePath(book)};
+        await tester.pumpAndSettle();
+
+        expect(find.text('תנ״ך'), findsOneWidget);
+        expect(textInList('בראשית'), findsNothing);
+        expect(textInList('שמות'), findsOneWidget);
+
+        coverage.value = {};
+        await tester.pumpAndSettle();
+
+        expect(find.text('תנ״ך'), findsNothing);
+        expect(textInList('שמות'), findsNothing);
+      });
+
       testWidgets('"נקה הכל" מוצג בתוצאות ומנקה גם היקף ברירת מחדל', (
         tester,
       ) async {

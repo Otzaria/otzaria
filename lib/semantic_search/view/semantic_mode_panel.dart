@@ -334,7 +334,7 @@ class SemanticModePanel extends StatelessWidget {
             children: [
               if (onScopeChanged case final onScopeChanged?)
                 SearchScopeMenuButton(
-                  key: ValueKey((includeLexical, coveredBookFilePaths)),
+                  key: ValueKey(includeLexical),
                   selected: scopeSelection,
                   officialBooksOnly: !includeLexical,
                   coveredFilePaths: coveredBookFilePaths,

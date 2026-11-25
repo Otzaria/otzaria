@@ -772,6 +772,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       _stack.clear();
       _highlight = 0;
     }
+    final tree = widget.tree;
+    if (tree != null && !identical(oldWidget.tree, tree)) {
+      for (var i = 0; i < _stack.length; i++) {
+        final node = tree.nodesByFacet[_stack[i].facet];
+        if (node == null) {
+          _stack.removeRange(i, _stack.length);
+          _highlight = 0;
+          break;
+        }
+        _stack[i] = node;
+      }
+    }
     final incoming = widget.selected;
     if (incoming.length != _selection.length ||
         !incoming.containsAll(_selection)) {
