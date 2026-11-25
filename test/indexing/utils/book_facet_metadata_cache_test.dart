@@ -127,6 +127,25 @@ void main() {
     );
   });
 
+  test('baseBookIds: ספרי היסוד אחרי warmUp, ריק לפני ואחרי clear', () async {
+    final writer = sqlite3.open(dbPath);
+    writer.execute('''
+      INSERT INTO book (id, categoryId, sourceId, title, isBaseBook)
+      VALUES (5, 1, 1, 'בסיס', 1), (6, 1, 1, 'מפרש', 0)
+    ''');
+    writer.close();
+
+    final cache = BookFacetMetadataCache.instance;
+    expect(cache.baseBookIds, isEmpty);
+    await cache.warmUp();
+    expect(cache.baseBookIds, {5});
+    expect(cache.baseUserBookIds, isEmpty);
+    expect(() => cache.baseBookIds.add(7), throwsUnsupportedError);
+
+    cache.clear();
+    expect(cache.baseBookIds, isEmpty);
+  });
+
   for (final variant in [
     SeforimFixtureVariant.minimal,
     SeforimFixtureVariant.missingAuthorTables,
