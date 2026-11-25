@@ -220,6 +220,9 @@ class FakeCommentaryProvider implements LibraryProvider {
   /// מספר הקריאות הבאות שיחזירו טקסט ריק.
   int emptyTexts = 0;
 
+  /// ספר שאינו קיים: הטקסט שלו null.
+  bool missing = false;
+
   @override
   String get displayName => 'Fake';
 
@@ -264,6 +267,7 @@ class FakeCommentaryProvider implements LibraryProvider {
       textFailures--;
       throw StateError('database is locked');
     }
+    if (missing) return null;
     if (titles.contains(title) && emptyTexts > 0) {
       emptyTexts--;
       return '';
