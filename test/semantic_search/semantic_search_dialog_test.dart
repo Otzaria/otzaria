@@ -48,6 +48,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../support/search_engine_test_init.dart';
 import 'semantic_test_support.dart';
 import 'semantic_ui_test_support.dart';
 
@@ -84,6 +85,7 @@ class _FakeRepository extends SemanticSearchRepository {
   int downloads = 0;
   int cancels = 0;
   Completer<void>? coverageGate;
+  Set<String>? coveredFilePaths;
 
   @override
   SemanticAvailability get availability => current;
@@ -109,7 +111,7 @@ class _FakeRepository extends SemanticSearchRepository {
   @override
   Future<Set<String>?> loadCoveredBookFilePaths() async {
     await coverageGate?.future;
-    return null;
+    return coveredFilePaths;
   }
 }
 
@@ -915,6 +917,50 @@ void main() {
 
     const unsupportedMessage =
         'הצמצום המבוקש אינו נתמך במלואו בחיפוש החכם. בחרו צמצום אחר או עברו לחיפוש רגיל.';
+
+    testWidgets('סינון ספרים פתוח מתעדכן בלי לאבד הקלדה כשהכיסוי מגיע', (
+      tester,
+    ) async {
+      expect(await tester.runAsync(tryInitSearchEngine), isTrue);
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        library: scopeLibrary(),
+      );
+      final gate = harness.repository.coverageGate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      harness.repository.coveredFilePaths = {'uid:2', 'db:lib:3'};
+
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+      await tester.pumpAndSettle();
+      final field = find.descendant(
+        of: find.byType(SearchScopeMenuButton),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(field, 'מחברת');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('מחברת פרטית'), findsNothing);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final editable = tester.widget<EditableText>(field);
+      expect(editable.controller.text, 'מחברת');
+      expect(editable.focusNode.hasFocus, isTrue);
+      expect(find.text('מחברת פרטית'), findsOneWidget);
+      await tester.enterText(field, 'ספר');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('ספר מצורף'), findsOneWidget);
+      expect(find.text('ספר רשמי'), findsNothing);
+    });
+
     testWidgets('היקף משולב שומר ספרים אישיים ומצורפים (issue #2538)', (
       tester,
     ) async {
