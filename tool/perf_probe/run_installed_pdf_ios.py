@@ -73,8 +73,15 @@ def create_simulator(campaign):
 
 def boot_simulator(receipt):
     udid = receipt["udid"]
-    simctl("boot", udid)
-    simctl("bootstatus", udid, "-b", timeout=300)
+    try:
+        simctl("boot", udid)
+        simctl("bootstatus", udid, "-b", timeout=300)
+    except subprocess.TimeoutExpired:
+        # A fresh Simulator on a busy CI host sometimes hangs in boot; a clean second boot finishes.
+        print("Simulator boot timed out; shutting down and booting again", file=sys.stderr, flush=True)
+        simctl("shutdown", udid)
+        simctl("boot", udid)
+        simctl("bootstatus", udid, "-b", timeout=300)
     runtime, device = simulator_entry(receipt, json.loads(simctl("list", "-j", "devices"))["devices"])
     require(device.get("state") == "Booted", "Owned Simulator did not boot")
     runtime_root = Path(simctl("getenv", udid, "SIMULATOR_ROOT")).resolve(strict=True)

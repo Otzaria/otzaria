@@ -20,6 +20,9 @@ import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:win32/win32.dart';
 
 const _nativeDeadline = Duration(seconds: 10);
+const _loadDeadline = Duration(seconds: 30);
+// הטעינה הראשונה מפעילה גם את תהליך הדפדפן של WebView2, ובמכונת CI טרייה זה לבד חורג מ-30 שניות.
+const _firstLoadDeadline = Duration(seconds: 90);
 const _probeHtml = '''
 <!DOCTYPE html>
 <html>
@@ -435,9 +438,9 @@ Future<_RenderedProbe> _renderProbe(
       ),
     );
 
+    final loadDeadline = cycle == 1 ? _firstLoadDeadline : _loadDeadline;
     final deadline = Stopwatch()..start();
-    while (!loadedCompleter.isCompleted &&
-        deadline.elapsed < const Duration(seconds: 30)) {
+    while (!loadedCompleter.isCompleted && deadline.elapsed < loadDeadline) {
       await tester.pump(const Duration(milliseconds: 100));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
@@ -445,7 +448,7 @@ Future<_RenderedProbe> _renderProbe(
       loadedCompleter.isCompleted,
       isTrue,
       reason:
-          'הדף לא סיים להיטען תוך 30 שניות — מסך ריק? '
+          'הדף לא סיים להיטען תוך ${loadDeadline.inSeconds} שניות — מסך ריק? '
           'cycle=$cycle, controllerCreated=${controllerCompleter.isCompleted}, '
           'events=$events',
     );

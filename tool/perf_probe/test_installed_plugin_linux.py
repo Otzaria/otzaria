@@ -1,5 +1,6 @@
 """Process and evidence checks; these do not execute Flutter, WPE or X11."""
 
+import io
 import json
 import os
 from pathlib import Path
@@ -9,7 +10,10 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
+import urllib.error
 
+import prepare_installed_plugin_source as store_source
 from run_installed_plugin_linux import (
     observe, require_fresh_reports, require_linux_result, run, run_owned,
 )
@@ -278,6 +282,42 @@ class LinuxSessionTest(unittest.TestCase):
                 path.write_text(json.dumps({"installedPluginProbe": report}))
                 with self.subTest(pdf=pdf), self.assertRaisesRegex(RuntimeError, "PDF runtime"):
                     require_linux_result(root)
+
+
+class StoreSourceFetchTest(unittest.TestCase):
+    def fetch_with(self, failures):
+        calls = []
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        def urlopen(url, timeout):
+            calls.append(url)
+            if len(calls) <= len(failures):
+                raise failures[len(calls) - 1]
+            return Response(b"source")
+
+        with mock.patch.object(store_source.urllib.request, "urlopen", urlopen), \
+                mock.patch.object(store_source.time, "sleep"):
+            return store_source.fetch("https://example.invalid/a"), len(calls)
+
+    @staticmethod
+    def http(code):
+        return urllib.error.HTTPError("https://example.invalid/a", code, "busy", {}, None)
+
+    def test_retries_server_and_network_errors(self):
+        self.assertEqual(self.fetch_with([self.http(503), ConnectionResetError()]),
+                         (b"source", 3))
+
+    def test_client_errors_and_persistent_failures_are_raised(self):
+        with self.assertRaises(urllib.error.HTTPError):
+            self.fetch_with([self.http(404)])
+        with self.assertRaises(urllib.error.HTTPError):
+            self.fetch_with([self.http(503)] * 3)
 
 
 if __name__ == "__main__":

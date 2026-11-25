@@ -1,12 +1,15 @@
 """Negative evidence contracts; synthetic reports here are not native iOS runs."""
 
+import contextlib
 import copy
+import io
 import json
 import os
 from pathlib import Path
 import plistlib
 import re
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -533,6 +536,29 @@ class OwnedSimulatorContracts(unittest.TestCase):
             self.assertEqual(receipt["model"], "iPhone18,1")
             self.assertEqual(receipt["stateBefore"], "Booted")
             self.assertNotIn("architecture", receipt)
+
+    def test_boot_that_hangs_is_shut_down_and_booted_once_more(self):
+        receipt = self.receipt()
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "iOS.simruntime"
+            runtime = bundle / "Contents/Resources/RuntimeRoot"
+            runtime.mkdir(parents=True)
+            receipt["runtimeBundle"] = str(bundle)
+            calls = []
+
+            def native_call(*arguments, **_):
+                calls.append(arguments[0])
+                if arguments[0] == "bootstatus" and calls.count("bootstatus") == 1:
+                    raise subprocess.TimeoutExpired(["xcrun", "simctl", *arguments], 300)
+                if arguments[0] == "list":
+                    return json.dumps({"devices": {receipt["runtimeIdentifier"]: [self.device(receipt)]}})
+                return str(runtime) if arguments[-1] == "SIMULATOR_ROOT" else ""
+
+            with patch.object(runner, "simctl", side_effect=native_call), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                runner.boot_simulator(receipt)
+            self.assertEqual(calls[:5], ["boot", "bootstatus", "shutdown", "boot", "bootstatus"])
+            self.assertEqual(receipt["stateBefore"], "Booted")
 
     def test_cleanup_rejects_another_device_before_any_mutation(self):
         receipt = self.receipt()

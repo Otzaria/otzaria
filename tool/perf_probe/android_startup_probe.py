@@ -511,6 +511,8 @@ class Runner:
         result = self.command(argv, timeout=3600, env=env, check=False)
         (self.output / "build.log").write_bytes(result.stdout + result.stderr)
         if result.returncode:
+            # build.log is only in the artifact; the job log needs the cause too.
+            print((result.stdout + result.stderr).decode(errors="replace")[-8000:], file=sys.stderr)
             raise RuntimeError("Probe APK build failed; see build.log")
         apk = ROOT / "build/app/outputs/flutter-apk" / f"app-direct-{self.args.mode}.apk"
         aapt = shutil.which("aapt2")

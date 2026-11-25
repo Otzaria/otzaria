@@ -332,6 +332,7 @@ jobs:
           # חילוץ קבצי הטסט שכללו לפחות טסט שנכשל.
           # ממפים דרך suiteID→suite.path כי .test.url מצביע על widget_tester.dart
           # כשטסט testWidgets נכשל בתוך קוד async של ה-framework.
+          # כשל אחרי סיום הטסט מגיע כאירוע error בלבד, אחרי testDone מוצלח.
           failed_files=$(jq -rs '
             (map(select(.type == "suite"))
               | map({(.suite.id | tostring): .suite.path})
@@ -340,9 +341,10 @@ jobs:
               | map({(.test.id | tostring): .test})
               | add) as $tests
             | map(select(
-                .type == "testDone"
-                and (.result == "failure" or .result == "error")
-                and (.hidden | not)
+                (.type == "testDone"
+                  and (.result == "failure" or .result == "error")
+                  and (.hidden | not))
+                or .type == "error"
               ))
             | map($suites[($tests[.testID | tostring].suiteID) | tostring] // empty)
             | map(select(. != ""))
