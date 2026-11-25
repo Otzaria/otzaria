@@ -45,7 +45,8 @@ import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/text_book/utils/reading_position.dart';
-import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/text_book/models/content_line_changes.dart';
+import 'package:otzaria/text_book/utils/reading_layout.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
 
@@ -2130,7 +2131,22 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _pendingHighlight = null;
       return;
     }
-    if (!currentState.isContentLineLoaded(request.line)) return;
+    final line = request.line;
+    if (line < 0 ||
+        line >= currentState.content.length ||
+        !currentState.isContentLineLoaded(line)) {
+      return;
+    }
+    final loadedLines = currentState.loadedLineFlags;
+    if (currentState.continuousReadingMode && loadedLines != null) {
+      // פסקה חלקית מוצגת כמציין מקום גם כשהשורה המבוקשת כבר טעונה.
+      final layout = readingLayoutOf(currentState);
+      final item = layout.itemForLine(line);
+      final lastLine = layout.lastLineOf(item);
+      for (var i = layout.firstLineOf(item); i <= lastLine; i++) {
+        if (i >= loadedLines.length || !loadedLines[i]) return;
+      }
+    }
 
     _pendingHighlight = null;
     _activeBookmarkHighlight = request;
