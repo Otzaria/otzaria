@@ -94,9 +94,6 @@ class PluginRegistryRepository {
       await _keepSavedEnabled(plugin),
       permissions,
     );
-    if (permissions[pluginSemanticReadPermission] != true) {
-      _revokeSemanticAccess(plugin.pluginId);
-    }
   }
 
   /// שומר התקנה חדשה רק למזהה פנוי, באותה טרנזקציה של ההרשאות.
@@ -115,17 +112,12 @@ class PluginRegistryRepository {
     Map<String, bool> permissions,
     InstalledPlugin expectedPlugin,
     Map<String, bool> expectedPermissions,
-  ) async {
-    await _db.insertOrUpdatePluginWithPermissions(
-      plugin,
-      permissions,
-      expectedPlugin: expectedPlugin,
-      expectedPermissions: expectedPermissions,
-    );
-    if (permissions[pluginSemanticReadPermission] != true) {
-      _revokeSemanticAccess(plugin.pluginId);
-    }
-  }
+  ) => _db.insertOrUpdatePluginWithPermissions(
+    plugin,
+    permissions,
+    expectedPlugin: expectedPlugin,
+    expectedPermissions: expectedPermissions,
+  );
 
   Future<void> deletePlugin(String pluginId) async {
     final plugin = await getPlugin(pluginId);
@@ -135,7 +127,6 @@ class PluginRegistryRepository {
       );
     }
     await _db.deletePlugin(pluginId);
-    _revokeSemanticAccess(pluginId);
   }
 
   /// מוחק את כל הנתונים שהתוסף אגר (KV, רשומות שפורסמו, לוג) ומשאיר את
@@ -163,9 +154,6 @@ class PluginRegistryRepository {
       await _keepSavedEnabled(plugin),
       permissions,
     );
-    if (permissions[pluginSemanticReadPermission] != true) {
-      _revokeSemanticAccess(plugin.pluginId);
-    }
   }
 
   Future<void> detachDevelopmentPlugin(String pluginId) async {
@@ -176,7 +164,6 @@ class PluginRegistryRepository {
       );
     }
     await _db.deletePlugin(pluginId);
-    _revokeSemanticAccess(pluginId);
   }
 
   Future<void> updateNavRailPinState(
@@ -228,38 +215,6 @@ class PluginRegistryRepository {
     _fileAccessRevocations.remove(pluginId)?.forEach((cancel) => cancel());
   }
 
-  static final _semanticAccessGenerations = <String, int>{};
-  static final _semanticAccessRevocations = <String, Set<void Function()>>{};
-
-  /// מזהה ביטול גם כשבקשה עדיין מחכה לתשובת בדיקת ההרשאה.
-  static int semanticAccessGeneration(String pluginId) =>
-      _semanticAccessGenerations[pluginId] ?? 0;
-
-  /// רושם ביטול לפעולה סמנטית ממתינה של התוסף.
-  static void Function() onSemanticAccessRevoked(
-    String pluginId,
-    void Function() cancel,
-  ) {
-    final callbacks = _semanticAccessRevocations.putIfAbsent(
-      pluginId,
-      () => {},
-    );
-    callbacks.add(cancel);
-    return () {
-      callbacks.remove(cancel);
-      if (callbacks.isEmpty &&
-          identical(_semanticAccessRevocations[pluginId], callbacks)) {
-        _semanticAccessRevocations.remove(pluginId);
-      }
-    };
-  }
-
-  static void _revokeSemanticAccess(String pluginId) {
-    _semanticAccessGenerations[pluginId] =
-        semanticAccessGeneration(pluginId) + 1;
-    _semanticAccessRevocations.remove(pluginId)?.forEach((cancel) => cancel());
-  }
-
   Future<void> setPermission(
     String pluginId,
     String permission,
@@ -267,9 +222,6 @@ class PluginRegistryRepository {
   ) async {
     await _db.setPermission(pluginId, permission, granted);
     if (!granted) revokePendingFileAccess(pluginId);
-    if (!granted && permission == pluginSemanticReadPermission) {
-      _revokeSemanticAccess(pluginId);
-    }
   }
 
   Future<void> clearNewTabPageRegistration(String pluginId) =>

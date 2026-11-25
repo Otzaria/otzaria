@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math' show min;
-import 'dart:typed_data';
 
 import 'package:archive/archive.dart' show ZipDecoder;
 
@@ -44,10 +42,7 @@ import 'package:otzaria/utils/file/zip_entry_io.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
         SemanticHighlightTarget,
-        SemanticNearestInput,
-        SemanticNearestResponse,
         SemanticPassageHighlight,
-        SemanticQueryTokens,
         SemanticRetrievalMode;
 import 'package:path/path.dart' as p;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
@@ -264,8 +259,6 @@ class SemanticSearchRepository {
   bool _coveredValid = false;
   int _coveredEpoch = 0;
   Future<Set<String>?>? _coveredJob;
-  final Set<SemanticBackgroundCall> _backgroundCalls = {};
-  final Set<SemanticCancelHandle> _foregroundSearches = {};
 
   /// המצב האחרון שחושב.
   SemanticAvailability get availability => _availability;
@@ -476,10 +469,6 @@ class SemanticSearchRepository {
   }) async {
     final handle = (session ?? _defaultSession)._next();
     _activeSearches.add(handle);
-    _foregroundSearches.add(handle);
-    for (final call in List.of(_backgroundCalls)) {
-      call.preempt();
-    }
     try {
       await ensureOpen();
       if (handle.isCancelled) return null;
@@ -492,7 +481,6 @@ class SemanticSearchRepository {
       rethrow;
     } finally {
       _activeSearches.remove(handle);
-      _foregroundSearches.remove(handle);
     }
   }
 
@@ -513,91 +501,12 @@ class SemanticSearchRepository {
     }
   }
 
-  /// רושם פעולה סמנטית של תוסף מתחילת הבקשה ועד מסירת התשובה.
-  void Function() registerBackgroundCall(SemanticBackgroundCall call) {
-    _listenToConsent();
-    if (_foregroundSearches.isNotEmpty) {
-      call.preempt();
-    } else if (_moveInProgress || !_isConsentGranted()) {
-      call.cancel();
-    }
-    if (!call.isCancelled) _backgroundCalls.add(call);
-    return () => _backgroundCalls.remove(call);
-  }
-
-  /// בודק שניתן לגשת לנתונים גם לאחר המתנה לטעינת הספרייה או לשיגור.
-  void checkBackgroundCall(SemanticBackgroundCall call) {
-    if (!call.isCancelled && (_moveInProgress || !_isConsentGranted())) {
-      call.cancel();
-    }
-    if (call.isCancelled || !_backgroundCalls.contains(call)) {
-      throw const SemanticFailure(SemanticFailureKind.cancelled);
-    }
-  }
-
-  /// השורות הקרובות לנקודות של [input].
-  Future<SemanticNearestResponse> nearest(
-    SemanticNearestInput input, {
-    required SemanticBackgroundCall call,
-    required Future<void> Function() onSearching,
-  }) async {
-    checkBackgroundCall(call);
-    await ensureOpen();
-    checkBackgroundCall(call);
-    final passageGraph = _modelReleases[_openQuantization]?.passageGraph;
-    if (passageGraph != null && input.points.any((point) => point.asPassage)) {
-      final path = (await _paths()).modelFile(SemanticQuantization.fp32);
-      checkBackgroundCall(call);
-      if (!await _verifyPassageModelFile(path, passageGraph)) {
-        throw const SemanticFailure(SemanticFailureKind.notReady);
-      }
-    }
-    checkBackgroundCall(call);
-    await onSearching();
-    checkBackgroundCall(call);
-    return _backend.nearest(input, cancel: call);
-  }
-
-  /// אורך כל אחד מ-[texts] כשאילתה, בטוקנים.
-  Future<SemanticQueryTokens> queryTokens(
-    List<String> texts, {
-    required SemanticBackgroundCall call,
-  }) async {
-    checkBackgroundCall(call);
-    if (texts.isEmpty) {
-      throw const SemanticFailure(SemanticFailureKind.invalidInput);
-    }
-    await ensureOpen();
-    // הקריאה במנוע אינה מקבלת token לביטול, לכן יש נקודת עצירה בין מנות.
-    final counts = Uint32List(texts.length);
-    SemanticQueryTokens? first;
-    const batchSize = 16;
-    for (var start = 0; start < texts.length; start += batchSize) {
-      checkBackgroundCall(call);
-      final end = min(start + batchSize, texts.length);
-      final result = await _backend.queryTokens(texts.sublist(start, end));
-      first ??= result;
-      counts.setRange(start, end, result.counts);
-    }
-    return SemanticQueryTokens(
-      counts: counts,
-      queryMaxTokens: first!.queryMaxTokens,
-      overheadTokens: first.overheadTokens,
-    );
-  }
-
-  /// חישוב כיסוי עבור תוסף משתמש באותה בדיקת גרסאות ומטמון כמו החיפוש.
-  Future<Set<String>?> loadBackgroundCoveredBooks(SemanticBackgroundCall call) {
-    checkBackgroundCall(call);
-    return _loadCovered(call);
-  }
-
   /// מבטל את החיפוש הרץ של [session] (ברירת המחדל: מי שלא העביר session).
   void cancelSearch({SemanticSearchSession? session}) =>
       (session ?? _defaultSession).cancel();
 
   void _cancelAllSearches() {
-    for (final handle in [..._activeSearches, ..._backgroundCalls]) {
+    for (final handle in List.of(_activeSearches)) {
       handle.cancel();
     }
   }
@@ -607,7 +516,6 @@ class SemanticSearchRepository {
   /// עד [finishLibraryMove] לא מתחילות הורדות והתקנות חדשות.
   Future<void> releaseForLibraryMove() async {
     _moveInProgress = true;
-    _cancelAllSearches();
     _busyRetry?.cancel();
     await _stopPassageModelDownload();
     _jobCancel.cancel();
@@ -654,9 +562,9 @@ class SemanticSearchRepository {
   Future<Set<String>?> loadCoveredBookFilePaths() =>
       _coveredJob ??= _loadCovered().whenComplete(() => _coveredJob = null);
 
-  Future<Set<String>?> _loadCovered([SemanticCancelHandle? request]) async {
-    final cancel = request ?? SemanticCancelHandle();
-    if (request == null) _activeSearches.add(cancel);
+  Future<Set<String>?> _loadCovered() async {
+    final cancel = SemanticCancelHandle();
+    _activeSearches.add(cancel);
     try {
       final current = _availability.isUsable ? _availability : await refresh();
       if (!current.isUsable || _moveInProgress || !_isConsentGranted()) {
@@ -696,14 +604,14 @@ class SemanticSearchRepository {
       }
       return null;
     } catch (error, stackTrace) {
-      if (!cancel.isCancelled) _coveredValid = false;
+      _coveredValid = false;
       if (error is! SemanticFailure ||
           error.kind != SemanticFailureKind.cancelled) {
         _log('coveredBooks', error, stackTrace);
       }
       return null;
     } finally {
-      if (request == null) _activeSearches.remove(cancel);
+      _activeSearches.remove(cancel);
     }
   }
 

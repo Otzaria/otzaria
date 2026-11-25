@@ -100,9 +100,6 @@ class SemanticVectorsSummary extends Equatable {
   final String modelFamilyId;
   final int libraryVersion;
   final String libraryReleaseTag;
-
-  /// הדור החי של הסט; משתנה בכל התקנה ואיחוד, ולכן מזהה אילו וקטורים משרתים.
-  final int generation;
   final List<SemanticSegmentSummary> segments;
   final int bytesOnDisk;
   final bool needsCompaction;
@@ -116,7 +113,6 @@ class SemanticVectorsSummary extends Equatable {
     this.modelFamilyId = '',
     this.libraryVersion = 0,
     this.libraryReleaseTag = '',
-    this.generation = 0,
     this.segments = const [],
     this.bytesOnDisk = 0,
     this.needsCompaction = false,
@@ -135,7 +131,6 @@ class SemanticVectorsSummary extends Equatable {
     modelFamilyId,
     libraryVersion,
     libraryReleaseTag,
-    generation,
     segments,
     bytesOnDisk,
     needsCompaction,
@@ -407,20 +402,5 @@ class SemanticCancelHandle {
     }
     _listeners.add(listener);
     return () => _listeners.remove(listener);
-  }
-}
-
-/// פעולה של כלי שליד הקורא (תוסף) על המרחב הסמנטי. חיפוש של המשתמש קודם לה:
-/// הוא מבטל אותה ומסמן [preempted].
-class SemanticBackgroundCall extends SemanticCancelHandle {
-  bool _preempted = false;
-
-  /// חיפוש של המשתמש ביטל את הפעולה.
-  bool get preempted => _preempted;
-
-  void preempt() {
-    if (isCancelled) return;
-    _preempted = true;
-    cancel();
   }
 }

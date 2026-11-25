@@ -59,9 +59,7 @@ class PluginRpcError {
   }
 
   static bool _isRetryable(String code) =>
-      code == 'error.timeout' ||
-      code == 'error.rate_limited' ||
-      code == 'error.preempted';
+      code == 'error.timeout' || code == 'error.rate_limited';
 
   static String _categoryFor(String code) {
     if (code == 'permission_denied' ||
@@ -70,10 +68,7 @@ class PluginRpcError {
       return 'permission';
     }
     if (code == 'error.timeout') return 'timeout';
-    // חיפוש של המשתמש קדם לפעולה של התוסף; אפשר לנסות שוב.
-    if (code == 'error.conflict' || code == 'error.preempted') {
-      return 'conflict';
-    }
+    if (code == 'error.conflict') return 'conflict';
     if (code == 'error.not_found' || code == 'error.highlight_not_found') {
       return 'not_found';
     }
