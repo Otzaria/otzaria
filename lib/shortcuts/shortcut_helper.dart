@@ -32,10 +32,21 @@ class ShortcutHelper {
     return found;
   }
 
-  /// משאיר תווים ומקשי עריכה לשדה, ומתיר קיצורי modifiers, מקשי F ו-Escape.
-  static bool shouldIgnoreWhileEditing(KeyEvent event) {
+  /// משאיר תווים ומקשי עריכה לשדה. [preserveModifiedText] כולל תווים
+  /// מ-AltGr או Option ומקשי עריכה שמטופלים ב-Cocoa.
+  static bool shouldIgnoreWhileEditing(
+    KeyEvent event, {
+    bool preserveModifiedText = false,
+  }) {
     if (!isEditingText) return false;
     final keyboard = HardwareKeyboard.instance;
+    if (preserveModifiedText &&
+        ((event.character != null &&
+                !isPlainCtrlOrCmdPressed &&
+                !keyboard.isMetaPressed) ||
+            _isMacControlEditingEvent(event, keyboard))) {
+      return true;
+    }
     if (keyboard.isControlPressed ||
         isAltModifierPressed ||
         keyboard.isMetaPressed) {
@@ -45,6 +56,19 @@ class ShortcutHelper {
         !(event.logicalKey.keyId >= LogicalKeyboardKey.f1.keyId &&
             event.logicalKey.keyId <= LogicalKeyboardKey.f12.keyId);
   }
+
+  // Cocoa מממש Ctrl+D/H רק אחרי שה-framework מחזיר ignored.
+  static bool _isMacControlEditingEvent(
+    KeyEvent event,
+    HardwareKeyboard keyboard,
+  ) =>
+      usesMacModifiers &&
+      keyboard.isControlPressed &&
+      !keyboard.isMetaPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed &&
+      (event.logicalKey == LogicalKeyboardKey.keyD ||
+          event.logicalKey == LogicalKeyboardKey.keyH);
 
   // ─── modifiers ────────────────────────────────────────────────────────────────
   static const _modifiers = {'ctrl', 'control', 'shift', 'alt', 'meta'};

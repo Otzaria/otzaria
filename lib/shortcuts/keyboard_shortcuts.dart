@@ -60,6 +60,20 @@ class KeyboardShortcuts extends StatefulWidget {
     this.settingsController,
   });
 
+  /// מפעיל קיצור מוגדר לפני ברירת מחדל של הקורא.
+  static bool handleConfiguredShortcut(BuildContext context, KeyEvent event) {
+    final state = context.findAncestorStateOfType<_KeyboardShortcutsState>();
+    if (state == null || !state._isActiveWindow || !state._isReadingScreen) {
+      return false;
+    }
+    final result = state._handleKeyEvent(
+      event,
+      state.context.read<SettingsBloc>().state.shortcuts,
+      includeFixedShortcuts: false,
+    );
+    return result == KeyEventResult.handled;
+  }
+
   @override
   State<KeyboardShortcuts> createState() => _KeyboardShortcutsState();
 }
@@ -107,33 +121,13 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         !route.isFirst &&
         route.popDisposition == RoutePopDisposition.doNotPop) {
       // תו שמסומן handled לא נכנס לשדה ב-Windows; חוסמים רק קיצורים.
-      return ShortcutHelper.shouldIgnoreWhileEditing(event) ||
-              _typesCharacterWithModifiers(event) ||
-              _isMacControlEditingEvent(event)
-          ? KeyEventResult.ignored
-          : KeyEventResult.handled;
+      final editing = ShortcutHelper.shouldIgnoreWhileEditing(
+        event,
+        preserveModifiedText: true,
+      );
+      return editing ? KeyEventResult.ignored : KeyEventResult.handled;
     }
     return _handleKeyEvent(event, context.read<SettingsBloc>().state.shortcuts);
-  }
-
-  /// AltGr (Ctrl+Alt ב-Windows) או Option במק שמייצרים תו לשדה, כמו ₪ או ניקוד.
-  static bool _typesCharacterWithModifiers(KeyEvent event) =>
-      event.character != null &&
-      ShortcutHelper.isEditingText &&
-      !ShortcutHelper.isPlainCtrlOrCmdPressed &&
-      !HardwareKeyboard.instance.isMetaPressed;
-
-  // Cocoa מממש Ctrl+D/H רק אחרי שה-framework מחזיר ignored.
-  static bool _isMacControlEditingEvent(KeyEvent event) {
-    final keyboard = HardwareKeyboard.instance;
-    return ShortcutHelper.usesMacModifiers &&
-        ShortcutHelper.isEditingText &&
-        keyboard.isControlPressed &&
-        !keyboard.isMetaPressed &&
-        !keyboard.isAltPressed &&
-        !keyboard.isShiftPressed &&
-        (event.logicalKey == LogicalKeyboardKey.keyD ||
-            event.logicalKey == LogicalKeyboardKey.keyH);
   }
 
   /// חץ בלי מקש צירוף, ומקש ששוחרר מאזור הקריאה, נבלעים בהעברת הפוקוס ובאזורי
@@ -250,8 +244,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
   /// מטפל באירועי מקלדת ברמה הגלובלית - עובד גם כשיש TextField עם focus
   KeyEventResult _handleKeyEvent(
     KeyEvent event,
-    Map<String, String> shortcutSettings,
-  ) {
+    Map<String, String> shortcutSettings, {
+    bool includeFixedShortcuts = true,
+  }) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     if (ShortcutHelper.shouldIgnoreWhileEditing(event)) {
@@ -380,7 +375,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     }
 
     // החלפת מצב תצוגה PDF→טקסט. הכיוון ההפוך מטופל במסך ספר הטקסט עצמו,
-    // שה-KeyboardListener שלו עוטף את כל המסך.
+    // שה-Focus שלו עוטף את כל המסך.
     if (isReadingScreen &&
         togglePdfViewShortcut.isNotEmpty &&
         ShortcutHelper.matchesShortcut(event, togglePdfViewShortcut)) {
@@ -672,6 +667,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // קיצור דינמי בעריכת טקסט (מחוץ לה הוא טופל כבר ב-early handler).
     final dynamicResult = _handleDynamicShortcut(event);
     if (dynamicResult != null) return dynamicResult;
+    if (!includeFixedShortcuts) return KeyEventResult.ignored;
 
     // Ctrl+Tab, Ctrl+1..9, F11 ו-Esc מוצגים בהגדרות בכרטיס "קיצורים קבועים"
     // (shortcuts_settings_tab.dart) — שינוי כאן מחייב עדכון גם שם.
