@@ -9,6 +9,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tools/biographies/biographies_screen.dart';
 import 'package:otzaria/tools/biographies/data/biographies_codec.dart';
@@ -18,6 +19,7 @@ import 'package:otzaria/tools/biographies/repository/biographies_repository.dart
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
 
+import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/stub_settings_bloc.dart';
 import 'biographies_codec_test.dart' show encodeBundle, samplePayload;
 
@@ -134,6 +136,7 @@ void main() {
     testWidgets('library refresh discards obsolete work links and requests', (
       tester,
     ) async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
       final libraryBloc = _TestLibraryBloc();
       final settingsBloc = StubSettingsBloc();
       final inbox = ToolQueryInbox()
