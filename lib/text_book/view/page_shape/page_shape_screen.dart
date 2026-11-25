@@ -2539,7 +2539,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         book.title,
         book.categoryId!,
         'txt',
-        throwReadErrors: true,
       );
       bookContent = text ?? '';
     } else {

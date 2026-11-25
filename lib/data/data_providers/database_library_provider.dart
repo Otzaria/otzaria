@@ -3238,14 +3238,12 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     return null;
   }
 
-  /// [throwReadErrors] זורק כשל קריאה במקום null (ספר חסר נשאר null).
   @override
   Future<String?> getBookText(
     String title,
     int categoryId,
     String fileType, {
     BookSource preferSource = BookSource.official,
-    bool throwReadErrors = false,
   }) async {
     final source = _resolveSource(
       title: title,
@@ -3254,12 +3252,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       preferSource: preferSource,
     );
     if (source is AttachedBookSource) {
-      return _readAttachedBookText(
-        title,
-        categoryId,
-        source,
-        throwReadErrors: throwReadErrors,
-      );
+      return _readAttachedBookText(title, categoryId, source);
     }
     // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
     // עצמו אם isFileBacked, אחרת משורות ה-line).
@@ -3287,7 +3280,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           book.totalLines,
         );
       } catch (e) {
-        if (throwReadErrors) rethrow;
         debugPrint('⚠️ Error reading user book text: $e');
         return null;
       }
@@ -3311,14 +3303,11 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             categoryId,
             fileType,
             preferSource,
-            false,
-            throwReadErrors,
           );
         }
       } on DbReadWorkerBusy {
         rethrow;
       } catch (e) {
-        if (throwReadErrors) rethrow;
         debugPrint('⚠️ Error reading external book text: $e');
       }
     }
@@ -3330,9 +3319,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   Future<String?> _readAttachedBookText(
     String title,
     int categoryId,
-    AttachedBookSource source, {
-    bool throwReadErrors = false,
-  }) async {
+    AttachedBookSource source,
+  ) async {
     try {
       final record = await BookDatabaseResolver.resolveBook(
         title: title,
@@ -3351,7 +3339,6 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         title,
       );
     } catch (e) {
-      if (throwReadErrors) rethrow;
       debugPrint('⚠️ Error reading attached book text: $e');
       return null;
     }

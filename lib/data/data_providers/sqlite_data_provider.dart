@@ -461,15 +461,13 @@ class SqliteDataProvider {
     }
   }
 
-  /// טקסט הספר מהמסד; [emptyWhenNoLines] מבדיל ספר קיים שהתרוקן מכשל קריאה,
-  /// ו-[throwReadErrors] זורק את הכשל במקום null.
+  /// טקסט הספר מהמסד; [emptyWhenNoLines] מבדיל ספר קיים שהתרוקן מכשל קריאה.
   Future<String?> getBookTextFromDb(
     String title, [
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
     bool emptyWhenNoLines = false,
-    bool throwReadErrors = false,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -498,7 +496,6 @@ class SqliteDataProvider {
     } on DbReadWorkerBusy {
       rethrow;
     } catch (e, st) {
-      if (throwReadErrors) rethrow;
       debugPrint(
         '[SqliteDataProvider] getBookTextFromDb failed for '
         '"$title": $e\n$st',
