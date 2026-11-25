@@ -249,7 +249,11 @@ class SmartTextWidget extends StatelessWidget {
             SizedBox(
               key: widgetKey,
               width: double.infinity,
-              child: staticSpan != null
+              // שורה ארוכה תמיד ב-InlineHtmlText: הדגשה שמבטלת את הספאן הסטטי לא
+              // תבנה את מקטעיה מאפס.
+              child:
+                  staticSpan != null &&
+                      document.plainText.length <= kLongLineMinChars
                   ? inlineSpanText(
                       staticSpan,
                       plainTextLength: document.plainText.length,
@@ -429,7 +433,17 @@ class SmartTextWidget extends StatelessWidget {
   }
 }
 
-final Listenable _noChanges = ChangeNotifier();
+const Listenable _noChanges = _NoChanges();
+
+class _NoChanges implements Listenable {
+  const _NoChanges();
+
+  @override
+  void addListener(VoidCallback listener) {}
+
+  @override
+  void removeListener(VoidCallback listener) {}
+}
 
 /// ה-HTML העטוף נשמר לפי ה-HTML המעובד (שמוחזר ממטמון processText), כדי
 /// ש-HtmlWidget יקבל בכל build את אותו מופע ולא ישווה מחרוזת חדשה תו אחר תו.
@@ -580,11 +594,27 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     return callback != null && await callback(url);
   }
 
-  /// עוגן במקטע של שורה ארוכה שעוד לא נבנה אין לו context; ממתינים לבנייה.
+  bool _anchorRetry = false;
+
+  /// עוגן במקטע של שורה ארוכה שעוד לא נבנה אין לו context: ממתינים לשורות
+  /// שבגלילה הזו, ומחפשים שוב ברישום העדכני (בנייה מחדש מחליפה אותו).
   @override
   Future<bool> onTapAnchor(String id, EnsureVisible scrollTo) async {
-    if (await scrollTo(id)) return true;
-    return await longLinesBuilt() && await scrollTo(id);
+    final found = await scrollTo(id);
+    if (found || _anchorRetry) return found;
+    final state = _state;
+    final position = state != null && state.mounted
+        ? Scrollable.maybeOf(state.context)?.position
+        : null;
+    if (position == null || !await longLinesBuilt(scrollPosition: position)) {
+      return false;
+    }
+    _anchorRetry = true;
+    try {
+      return await onTapAnchorWrapper(id);
+    } finally {
+      _anchorRetry = false;
+    }
   }
 
   @override
@@ -627,49 +657,32 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     }
     final style = resolved.prepareTextStyle();
     final strutStyle = exactLineHeightStrut(style, text);
-    Widget paragraph(Widget source) =>
-        withSelectionFillRichText(source, strutStyle: strutStyle);
-
-    final richText = Builder(
-      builder: (context) => paragraph(built.builder(context)),
+    Widget paragraph(Builder source) => Builder(
+      builder: (context) => withSelectionFillRichText(
+        source.builder(context),
+        strutStyle: strutStyle,
+      ),
     );
-    final single = text.visitChildren((span) => span is! WidgetSpan)
+
+    final split = _splitLongBlock(tree, resolved, text);
+    if (split != null) {
+      return LongLineChunks(
+        split: split,
+        style: style,
+        strutStyle: strutStyle,
+        textAlign: resolved.get<TextAlign>() ?? TextAlign.start,
+        chunkBuilder: (chunk) =>
+            paragraph(super.buildText(tree, resolved, chunk)! as Builder),
+      );
+    }
+    final richText = paragraph(built);
+    return text.visitChildren((span) => span is! WidgetSpan)
         ? richText
         : ParagraphSelectionContainer(child: richText);
-    final split = _splitLongBlock(tree, resolved, text);
-    if (split == null) return single;
-    return Builder(
-      builder: (context) {
-        final source = built.builder(context);
-        final rich = source is MouseRegion ? source.child : source;
-        // מגבלת שורות, ellipsis ו-nowrap שייכים לפסקה כולה.
-        if (rich is! RichText ||
-            rich.maxLines != null ||
-            rich.overflow != TextOverflow.clip ||
-            !rich.softWrap) {
-          return single;
-        }
-        return LongLineChunks(
-          split: split,
-          style: style,
-          strutStyle: strutStyle,
-          textAlign: rich.textAlign,
-          chunkBuilder: (chunk) {
-            final chunkBuilt = super.buildText(tree, resolved, chunk);
-            return chunkBuilt is Builder
-                ? Builder(
-                    builder: (context) =>
-                        paragraph(chunkBuilt.builder(context)),
-                  )
-                : chunkBuilt ?? const SizedBox.shrink();
-          },
-        );
-      },
-    );
   }
 
-  /// בלוק ארוך מפוצל למקטעים רק כשהוא אינו בטבלה, ברשימה או ב-`pre`, ורק
-  /// כשנמצא בו מקום לחתוך.
+  /// בלוק ארוך מפוצל רק כשהוא עוטף שורות רגילות (בלי מגבלת שורות או ellipsis),
+  /// אינו בטבלה, ברשימה או ב-`pre`, ורק כשנמצא בו מקום לחתוך.
   LongLineSplit? _splitLongBlock(
     BuildTree tree,
     InheritedProperties resolved,
@@ -678,6 +691,12 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     if (text is! TextSpan ||
         (resolved.get<CssWhitespace>() ?? CssWhitespace.normal) !=
             CssWhitespace.normal) {
+      return null;
+    }
+    final css = tree.element.attributes['style'] ?? '';
+    if (css.contains('max-lines') ||
+        css.contains('line-clamp') ||
+        css.contains('text-overflow')) {
       return null;
     }
     for (dom.Element? e = tree.element; e != null; e = e.parent) {

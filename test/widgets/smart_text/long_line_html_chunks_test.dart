@@ -224,70 +224,202 @@ void main() {
     expect(selection?.plainText, expected);
   });
 
-  testWidgets('הדגשה חדשה בשורת HTML מוחלפת מקטע אחד בכל פריים, בלי הסתרה', (
-    tester,
-  ) async {
-    final html = _block(_items(0, 6000, markerAt: 3000));
-    final settings = ValueNotifier(_settings);
-    addTearDown(settings.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Scaffold(
-            body: SelectionArea(
-              child: ListView(
-                children: [
-                  SizedBox(
-                    width: 600,
-                    child: ValueListenableBuilder(
-                      valueListenable: settings,
-                      builder: (context, value, _) =>
-                          SmartTextWidget(text: html, settings: value),
+  group('החלפת מקטעים אחרי שינוי', () {
+    late ValueNotifier<String> html;
+    late ValueNotifier<RenderSettings> settings;
+    late List<int> taps;
+    SelectedContent? selected;
+
+    Future<ScrollPosition> pumpLine(WidgetTester tester, String initial) async {
+      html = ValueNotifier(initial);
+      settings = ValueNotifier(_settings);
+      taps = [];
+      addTearDown(html.dispose);
+      addTearDown(settings.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: SelectionArea(
+                onSelectionChanged: (content) => selected = content,
+                child: ListView(
+                  children: [
+                    SizedBox(
+                      width: 600,
+                      child: ListenableBuilder(
+                        listenable: Listenable.merge([html, settings]),
+                        builder: (context, _) => SmartTextWidget(
+                          text: html.value,
+                          settings: settings.value,
+                          onNoteTap: taps.add,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    // פסקה שה-RichText שלה נבנה מחדש עשויה להיפרס מחדש; האחרות לא.
-    List<Widget> texts() => tester
-        .widgetList(
-          find.descendant(
-            of: find.byType(LongLineChunks),
-            matching: find.byWidgetPredicate((widget) => widget is RichText),
-          ),
-        )
-        .toList();
-    var before = texts();
-    final count = before.length;
-    expect(count, greaterThan(4));
-
-    settings.value = _settings.copyWith(searchText: _marker);
-    var frames = 0;
-    var changedTotal = 0;
-    while (changedTotal < count && frames < count * 3) {
-      await tester.pump();
-      frames++;
-      final now = texts();
-      expect(now, hasLength(count), reason: 'אין מקטע מוסתר באמצע');
-      var changed = 0;
-      for (var i = 0; i < count; i++) {
-        if (!identical(now[i], before[i])) changed++;
-      }
-      expect(changed, lessThanOrEqualTo(kLongLineChunksPerFrame));
-      changedTotal += changed;
-      before = now;
+      );
+      await tester.pumpAndSettle();
+      return tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position;
     }
-    expect(changedTotal, count);
-    expect(
-      _joined(_chunks(tester)),
-      contains(_marker),
+
+    Map<RenderParagraph, Size> sizes(WidgetTester tester) => {
+      for (final chunk in _chunks(tester))
+        _paragraphOf(chunk): _paragraphOf(chunk).size,
+    };
+
+    /// מספר הפסקאות שנפרסו (חדשות, או שגודלן נקבע מחדש) מאז [before].
+    int laidOut(Map<RenderParagraph, Size> before, WidgetTester tester) =>
+        sizes(
+              tester,
+            ).entries
+            .where((entry) => !identical(before[entry.key], entry.value))
+            .length;
+
+    /// מקטע ישן שעוד מוצג: אין בו אף קישור.
+    bool inert(RenderLongLineChunk chunk) {
+      var links = 0;
+      var anchors = 0;
+      _paragraphOf(chunk).text.visitChildren((span) {
+        if (span is TextSpan && span.recognizer != null) links++;
+        if (span is TextSpan && (span.text?.contains('קישור') ?? false)) {
+          anchors++;
+        }
+        return true;
+      });
+      return anchors > 0 && links == 0;
+    }
+
+    String linked(int from, int count) => _items(from, count).replaceAllMapped(
+      RegExp(r'קטע(\d+)0 '),
+      (m) => '<a href="otzaria://note?line=7">קישור${m[1]}</a> ',
     );
+
+    testWidgets('הדגשה חדשה: מקטע אחד נפרס בכל פריים, בלי הסתרה', (
+      tester,
+    ) async {
+      await pumpLine(tester, _block(_items(0, 6000, markerAt: 3000)));
+      final count = _chunks(tester).length;
+      expect(count, greaterThan(4));
+
+      settings.value = _settings.copyWith(searchText: _marker);
+      var frames = 0;
+      while (frames < count * 3) {
+        final before = sizes(tester);
+        await tester.pump();
+        frames++;
+        expect(_chunks(tester), hasLength(count), reason: 'אין מקטע מוסתר');
+        expect(laidOut(before, tester), lessThanOrEqualTo(1));
+        if (!tester.binding.hasScheduledFrame) break;
+      }
+      final chunks = _chunks(tester);
+      expect(
+        chunks.every((c) => identical(c.lineText, chunks[0].lineText)),
+        isTrue,
+      );
+      expect(_joined(chunks), contains(_marker));
+    });
+
+    testWidgets('בזמן ההחלפה בחירת הכול ולחיצה משולשת רואות את כל המקטעים', (
+      tester,
+    ) async {
+      final line = _block(
+        List.filled(300, '${'מילה ' * 60}<br>').join(),
+      );
+      await pumpLine(tester, line);
+      final count = _chunks(tester).length;
+      expect(count, greaterThan(3));
+      final lineText = _chunks(tester).first.lineText;
+
+      settings.value = _settings.copyWith(searchText: 'מילה');
+      await tester.pump();
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue, reason: 'עוד מחליף');
+
+      final region = tester.state<SelectableRegionState>(
+        find.byType(SelectableRegion),
+      );
+      region.selectAll(SelectionChangedCause.keyboard);
+      await tester.pump();
+      expect(selected?.plainText, lineText.replaceAll('\uFFFC', ''));
+    });
+
+    testWidgets('שינוי טקסט בגלילה: בלי קריסה, אותו מיקום, מכסת פריים', (
+      tester,
+    ) async {
+      final position = await pumpLine(tester, _block(_items(0, 8000)));
+      final count = _chunks(tester).length;
+      position.jumpTo(position.maxScrollExtent / 2);
+      await tester.pump();
+      final pixels = position.pixels;
+
+      // הסרת הפריט הראשון מזיזה את כל גבולות המקטעים.
+      html.value = _block(_items(1, 7999));
+      var frames = 0;
+      while (frames < count * 3) {
+        final before = sizes(tester);
+        await tester.pump();
+        frames++;
+        expect(_chunks(tester).length, greaterThanOrEqualTo(count - 1));
+        expect(position.pixels, pixels);
+        expect(laidOut(before, tester), lessThanOrEqualTo(1));
+        if (!tester.binding.hasScheduledFrame) break;
+      }
+      final chunks = _chunks(tester);
+      expect(
+        chunks.every((c) => identical(c.lineText, chunks[0].lineText)),
+        isTrue,
+      );
+      expect(_joined(chunks), isNot(contains('קטע0 ')));
+      _expectItemsInOrder(_joined(chunks), 1, 7999);
+    });
+
+    testWidgets('מקטע ישן בזמן ההחלפה אינו מחזיק קישור משוחרר', (tester) async {
+      final position = await pumpLine(tester, _block(linked(0, 6000)));
+      Future<Offset> linkInLast() async {
+        final paragraph = _paragraphOf(_chunks(tester).last);
+        final index = _plain(paragraph).lastIndexOf('קישור');
+        Offset at() => paragraph.localToGlobal(
+          paragraph
+              .getBoxesForSelection(
+                TextSelection(baseOffset: index, extentOffset: index + 2),
+              )
+              .first
+              .toRect()
+              .center,
+        );
+        position.jumpTo(position.pixels + at().dy - 300);
+        await tester.pump();
+        return at();
+      }
+
+      settings.value = _settings.copyWith(searchText: 'מילה');
+      await tester.pump();
+      // הפריים הזה מחליף מקטע ליד החלון הקודם; האחרון נשאר ישן.
+      final stale = await linkInLast();
+      expect(inert(_chunks(tester).last), isTrue);
+      await tester.tapAt(stale);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.takeException(), isNull);
+      expect(taps, isEmpty);
+
+      await tester.pumpAndSettle();
+      expect(_chunks(tester).where(inert), isEmpty);
+      await tester.tapAt(await linkInLast());
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(taps, [7]);
+    });
   });
 
   testWidgets('קישור #id לעוגן במקטע שעוד לא נבנה ממתין לבנייה וגולל אליו', (

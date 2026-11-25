@@ -58,65 +58,45 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
     if (paragraph == null) return super.handleSelectParagraph(event);
     final chunks = longLineParagraphsOf(paragraph) ?? const [];
     final hit = chunks.indexWhere((c) => identical(c.paragraph, paragraph));
+    if (hit < 0 && _fragmentsOf(paragraph).length < 2) {
+      return super.handleSelectParagraph(event);
+    }
+    handleClearSelection(const ClearSelectionEvent());
     final fragments = <int>{};
     final selected = <int>[];
-    final parts = <({RenderParagraph paragraph, int start})>[];
-    if (hit < 0) {
-      if (_fragmentsOf(paragraph).length < 2) {
-        return super.handleSelectParagraph(event);
-      }
-      handleClearSelection(const ClearSelectionEvent());
-      _selectIn(paragraph, event.globalPosition, fragments, selected);
-      parts.add((paragraph: paragraph, start: 0));
-    } else {
-      handleClearSelection(const ClearSelectionEvent());
-      final range = _selectIn(
-        paragraph,
-        event.globalPosition,
-        fragments,
-        selected,
-      );
-      if (range == null) return super.handleSelectParagraph(event);
-      parts.add((paragraph: paragraph, start: chunks[hit].start));
-      // פסקה שמגיעה לקצה המקטע ממשיכה במקטע הסמוך, אלא אם הם נחתכו בשבירה.
-      var end = range.end;
-      for (var i = hit + 1; i < chunks.length; i++) {
-        if (end < chunks[i - 1].end - chunks[i - 1].start ||
-            chunks[i].skipped.isNotEmpty) {
-          break;
-        }
-        final next = chunks[i].paragraph;
+    final range = _selectIn(
+      paragraph,
+      event.globalPosition,
+      fragments,
+      selected,
+    );
+    if (range == null) return super.handleSelectParagraph(event);
+    final parts = [
+      (paragraph: paragraph, start: hit < 0 ? 0 : chunks[hit].start),
+    ];
+    // פסקה שמגיעה לקצה המקטע ממשיכה במקטע הסמוך, אלא אם הם נחתכו בשבירה.
+    for (final forward in [true, false]) {
+      if (hit < 0) break;
+      var i = hit;
+      var edge = forward ? range.end : range.start;
+      while (edge == (forward ? chunks[i].end - chunks[i].start : 0)) {
+        final j = forward ? i + 1 : i - 1;
+        if (j < 0 || j >= chunks.length) break;
+        if (chunks[forward ? j : i].skipped.isNotEmpty) break;
+        final next = chunks[j].paragraph;
         if (!next.hasSize) break;
         final nextRange = _selectIn(
           next,
-          next.localToGlobal(_corner(next, end: false)),
+          next.localToGlobal(_corner(next, end: !forward)),
           fragments,
           selected,
         );
         if (nextRange == null) break;
-        parts.add((paragraph: next, start: chunks[i].start));
-        end = nextRange.end;
-      }
-      var start = range.start;
-      for (
-        var i = hit - 1;
-        i >= 0 && start == 0 && chunks[i + 1].skipped.isEmpty;
-        i--
-      ) {
-        final previous = chunks[i].paragraph;
-        if (!previous.hasSize) break;
-        final previousRange = _selectIn(
-          previous,
-          previous.localToGlobal(_corner(previous, end: true)),
-          fragments,
-          selected,
-        );
-        if (previousRange == null) break;
-        parts.add((paragraph: previous, start: chunks[i].start));
-        start = previousRange.start;
+        parts.add((paragraph: next, start: chunks[j].start));
+        edge = forward ? nextRange.end : nextRange.start;
+        i = j;
       }
     }
-    if (selected.isEmpty) return super.handleSelectParagraph(event);
     selected.sort();
     for (var i = selected.first + 1; i < selected.last; i++) {
       if (!fragments.contains(i)) {
@@ -186,25 +166,21 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
     final parts = _selectedParagraphs;
     final contents = [
       for (final selectable in selectables)
-        (
-          selectable: selectable,
-          text: selectable.getSelectedContent()?.plainText,
-        ),
-    ].where((content) => content.text?.isNotEmpty ?? false).toList();
-    if (contents.isEmpty) return super.getSelectedContent();
-    final chunks = _chunkParagraphs();
-    if (parts == null && chunks.isEmpty) return super.getSelectedContent();
+        if (selectable.getSelectedContent()?.plainText case final text?)
+          (selectable: selectable, text: text),
+    ];
+    if (contents.isEmpty) return null;
+    final chunks = longLineChunksAttached ? _chunkParagraphs() : const [];
+    if (parts == null && chunks.isEmpty) {
+      return SelectedContent(plainText: contents.map((c) => c.text).join());
+    }
 
     final pieces = <_Piece>[];
-    for (final (index, content) in contents.indexed) {
-      final selectable = content.selectable;
+    for (final (index, (:selectable, :text)) in contents.indexed) {
+      if (text.isEmpty) continue;
       final range = selectable.getSelection();
-      final low = range == null
-          ? 0
-          : math.min(range.startOffset, range.endOffset);
-      final high = range == null
-          ? 0
-          : math.max(range.startOffset, range.endOffset);
+      final low = math.min(range?.startOffset ?? 0, range?.endOffset ?? 0);
+      final high = math.max(range?.startOffset ?? 0, range?.endOffset ?? 0);
       var order = index;
       if (parts != null) {
         // Flutter ממיין קטעים לפי מיקום במסך. ההעתקה צריכה ללכת לפי היסט בטקסט.
@@ -216,7 +192,7 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
       }
       pieces.add((
         order: order,
-        text: content.text!,
+        text: text,
         chunk: chunks
             .where((c) => c.paragraph.selectableBelongsToParagraph(selectable))
             .firstOrNull,
@@ -224,6 +200,7 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
         end: high,
       ));
     }
+    if (pieces.isEmpty) return super.getSelectedContent();
     if (parts != null) pieces.sort((a, b) => a.order.compareTo(b.order));
 
     // שבירה שהושמטה בין מקטעים חוזרת לטקסט כשהבחירה חוצה אותה.
@@ -266,7 +243,7 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
     final chunks = <LongLineParagraph>[];
     void visit(RenderObject node) {
       if (node is RenderParagraph) {
-        final chunk = longLineParagraphOf(node);
+        final chunk = longLineChunkOf(node);
         if (chunk != null) chunks.add(chunk);
         return;
       }

@@ -944,6 +944,69 @@ void main() {
 
     expect(selection?.plainText, lineText);
   });
+  testWidgets('בזמן החלפת מקטעים אחרי הדגשה, לחיצה משולשת חוצה את כולם', (
+    tester,
+  ) async {
+    SelectedContent? selection;
+    final settings = ValueNotifier(_settings);
+    addTearDown(settings.dispose);
+    await tester.pumpWidget(
+      _host(
+        ValueListenableBuilder(
+          valueListenable: settings,
+          builder: (context, value, _) =>
+              SmartTextWidget(text: _syntheticLine(60000), settings: value),
+        ),
+        onSelectionChanged: (content) => selection = content,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final paragraphs = _paragraphs(tester);
+    expect(paragraphs.length, greaterThan(2));
+    final whole = _textOf(tester);
+
+    settings.value = _settings.copyWith(searchText: 'מודגש');
+    await tester.pump();
+    expect(tester.binding.hasScheduledFrame, isTrue, reason: 'עוד מחליף');
+    await _click(tester, await _reveal(tester, _paragraphs(tester)[1], 200), 3);
+
+    expect(selection?.plainText, whole);
+  });
+
+  testWidgets('שורה ארוכה בשורת Row מיושרת לקו בסיס נמדדת בפריסה יבשה', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  const Text('א'),
+                  Expanded(
+                    child: SmartTextWidget(
+                      text: 'מילה ' * 8000,
+                      settings: _settings,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(LongLineChunks), findsOneWidget);
+    final row = tester.renderObject<RenderFlex>(find.byType(Row));
+    final dry = row.getDryLayout(row.constraints);
+    expect(tester.takeException(), isNull);
+    expect(dry.height, moreOrLessEquals(row.size.height));
+  });
 }
 
 /// גולל את התו ב-[offset] אל המסך ומחזיר את מרכזו.
