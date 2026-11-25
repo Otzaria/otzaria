@@ -34,6 +34,9 @@ class ShortcutValidator {
   /// דיווח על טעות בספר — פועל רק כשיש בחירה בטקסט או קטע נבחר.
   static const String reportErrorKey = 'key-shortcut-report-error';
 
+  /// רענון ספר אישי פתוח — סורק מחדש את תיקיית הקובץ שלו.
+  static const String refreshBookKey = 'key-shortcut-refresh-book';
+
   /// דפדוף בין עמודי תיקון קוראים.
   static const String tikkunPrevPageKey = 'key-shortcut-tikkun-prev-page';
   static const String tikkunNextPageKey = 'key-shortcut-tikkun-next-page';
@@ -263,6 +266,7 @@ class ShortcutValidator {
     'key-shortcut-next-toc',
     ...readerShortcutKeys,
     reportErrorKey,
+    refreshBookKey,
     // פתיחת כלים — אופציונלי, ללא ברירת מחדל (ראה openToolShortcutKeys).
     'key-shortcut-open-tool-calendar',
     'key-shortcut-open-tool-shamor-zachor',
@@ -347,6 +351,7 @@ class ShortcutValidator {
     nextTocReaderKey: 'ctrl+arrowleft',
     prevTocReaderKey: 'ctrl+arrowright',
     reportErrorKey: 'ctrl+shift+r',
+    refreshBookKey: 'f5',
     'key-shortcut-open-tool-calendar': '',
     'key-shortcut-open-tool-shamor-zachor': '',
     'key-shortcut-open-tool-measurements': '',
@@ -421,6 +426,7 @@ class ShortcutValidator {
     nextTocReaderKey: 'הדף/פרק הבא (באזור הקריאה)',
     prevTocReaderKey: 'הדף/פרק הקודם (באזור הקריאה)',
     reportErrorKey: 'דווח על טעות בספר',
+    refreshBookKey: 'רענון ספר אישי',
     'key-shortcut-open-tool-calendar': 'פתיחת לוח שנה',
     'key-shortcut-open-tool-shamor-zachor': 'פתיחת שמור וזכור',
     'key-shortcut-open-tool-measurements': 'פתיחת מדות ושיעורים',
@@ -524,6 +530,12 @@ class ShortcutValidator {
     if (normalizedDefaultKey.isEmpty) return false;
     for (final key in shortcutKeys) {
       if (key == settingKey) continue;
+      // ברירת המחדל החדשה של הרענון מפנה מקום ל-F5 של תוסף קיים.
+      if (key == refreshBookKey &&
+          normalizedDefaultKey == _defaultShortcuts[refreshBookKey] &&
+          !Settings.containsKey(refreshBookKey)) {
+        continue;
+      }
       if (_pluginShortcuts.containsKey(key)) {
         final userValue = Settings.getValue<String>(key);
         if (userValue != null &&

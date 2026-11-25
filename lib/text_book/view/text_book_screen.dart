@@ -102,6 +102,8 @@ import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -2685,6 +2687,39 @@ Future<void> _setFontSize(
   return savePerBookDisplaySettings(context, state, fontSize: size);
 }
 
+int _nextRescanRequestId = 0;
+
+/// מחכה לסריקה של ההקשה הזו: סריקה אחרת שרצה במקביל מסתיימת בנפרד.
+Future<void> _rescanPersonalBook(
+  CustomFoldersBloc bloc,
+  TextBook book,
+  AppWindowKeys window,
+) async {
+  // שלילי: המזהים החיוביים של תוספים ושל בקשות האינדוקס מגיעים גם הם
+  // ל-RefreshLibrary.requestIds.
+  final requestId = --_nextRescanRequestId;
+  final done = bloc.stream.cast<CustomFoldersState?>().firstWhere(
+    (state) => state?.completedScan?.requestId == requestId,
+    orElse: () => null,
+  );
+  bloc.add(
+    RescanCustomFolders(folderOfFile: book.filePath, requestId: requestId),
+  );
+  final result = await done;
+  if (result == null || bloc.isClosed) return;
+  final scan = result.completedScan!;
+  if (!scan.isSuccess) {
+    UiSnack.showError(SettingsMessages.customFolderSyncFailed, window: window);
+  } else if (scan.errors.isNotEmpty) {
+    UiSnack.showError(
+      SettingsMessages.customFolderScanErrors(scan.errors),
+      window: window,
+    );
+  } else if (result.message != null) {
+    UiSnack.show(result.message!, window: window);
+  }
+}
+
 bool _handleGlobalKeyEvent(
   KeyEvent event,
   BuildContext context,
@@ -2725,6 +2760,9 @@ bool _handleGlobalKeyEvent(
       '';
   final togglePdfShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.togglePdfViewKey) ??
+      '';
+  final refreshBookShortcut =
+      ShortcutValidator.getShortcutValue(ShortcutValidator.refreshBookKey) ??
       '';
   final copyBookLinkShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.copyBookLinkKey) ??
@@ -2806,6 +2844,22 @@ bool _handleGlobalKeyEvent(
       fontSize: state.fontSize,
       bookTitle: state.book.title,
       savedSelectedIndex: reportLineIndex,
+    );
+    return true;
+  }
+
+  // רענון ספר אישי: הסריקה מעדכנת אותו, ו-_libraryReloadSub טוען את הטאב מחדש.
+  // משתמש שכבר הקצה F5 לפעולה אחרת שומר על הקיצור הקיים שלו.
+  if (refreshBookShortcut.isNotEmpty &&
+      state.book.isUserBook &&
+      ShortcutHelper.matchesShortcut(event, refreshBookShortcut) &&
+      !ShortcutValidator.hasConflict(ShortcutValidator.refreshBookKey)) {
+    unawaited(
+      _rescanPersonalBook(
+        context.read<CustomFoldersBloc>(),
+        state.book,
+        AppWindowKeys.of(context),
+      ),
     );
     return true;
   }
