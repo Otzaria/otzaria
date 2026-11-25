@@ -1,6 +1,6 @@
 const
   // חייב להתאים ל-SemanticPaths.modelDirectory באפליקציה.
-  SemanticModelFolderName = 'meivin-qa491-onnx';
+  SemanticModelFolderName = 'pardesqa491-onnx';
 
 // מעתיק לפני ההחלפה: כשל כתיבה או rename חייב להשאיר גם את המודל הישן שלם.
 function CopySemanticModelDirectory(const SourceDir, TargetDir: String): Boolean;

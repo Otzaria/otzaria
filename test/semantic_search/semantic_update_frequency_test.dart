@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
+import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_update_frequency.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/services/semantic_data_failure_log.dart';
@@ -196,10 +198,17 @@ void main() {
       expect(f.locator.lookups, [31]);
     });
 
-    test('ידני לא חוסם החלפה למשפחת החלונות', () async {
+    test('ידני לא חוסם מעבר ממייבין לפרדס', () async {
       final f = installedBehindLibrary(SemanticUpdateFrequency.manual);
-      f.backend.supportsLongLineWindows = true;
-      f.locator.release = releaseV30(family: SemanticVectorsFamily.windows);
+      final legacyIdentity = SemanticModelIdentity.parse(
+        bundledModelJson(SemanticVectorsFamily.windows),
+      );
+      f.backend.vectors = SemanticVectorsSummary(
+        present: true,
+        modelFamilyId: legacyIdentity.familyId,
+        libraryVersion: installedV30.libraryVersion,
+      );
+      f.locator.release = releaseV30();
       final repository = buildRepository(
         root: root,
         locator: f.locator,
