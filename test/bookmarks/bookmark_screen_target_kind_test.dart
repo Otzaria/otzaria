@@ -306,5 +306,8 @@ void main() {
       [3, 17, null],
     );
     expect(opened.last.tab, isA<PdfBookTab>());
+    final focusRequest = events.last;
+    expect(focusRequest.navigateToPositionIfReused, isFalse);
+    expect((focusRequest.tab as TextBookTab).highlightWhenVisibleLine, 3);
   });
 }

@@ -122,6 +122,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// המיקום הנמדד של הקורא; מקור ה-visibleIndices.
   final ValueListenable<ReadingPosition?>? readingPosition;
 
+  /// מזהה את הניווט הנוכחי כדי לוותר על הדגשה מניווט שהוחלף.
+  final ValueListenable<int>? readingNavigationEpoch;
+
   /// מזהה הקורא לזיכרון הפריסה ([readingLayoutOf]).
   final Object _readerIdentity = Object();
 
@@ -210,10 +213,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   int? get pendingLinkSelectionForTesting => _pendingLinkSelection;
 
   /// שורה שתודגש כשתוצג בפועל בטאב הפעיל (ראו [HighlightLineWhenVisible]).
-  int? _pendingHighlight;
+  HighlightLineWhenVisible? _pendingHighlight;
+  HighlightLineWhenVisible? _activeBookmarkHighlight;
 
   @visibleForTesting
-  int? get pendingHighlightLineForTesting => _pendingHighlight;
+  int? get pendingHighlightLineForTesting => _pendingHighlight?.line;
 
   /// גודל גופן שהגיע (דרך `UpdateFontSize`) לפני שהטעינה הסתיימה. בעליית
   /// התוכנה ההגדרות נטענות מהר יותר מתוכן הספר, כך שעדכון הגופן עלול להגיע
@@ -235,9 +239,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     required TextBookInitial initialState,
     this.readingPosition,
     int? linkSelectedLine,
-    int? highlightLineWhenVisible,
+    this.readingNavigationEpoch,
+    HighlightLineWhenVisible? initialBookmarkHighlight,
   }) : _pendingLinkSelection = linkSelectedLine,
-       _pendingHighlight = highlightLineWhenVisible,
+       _pendingHighlight = initialBookmarkHighlight,
        _quickPreviewLoader =
            quickPreviewLoader ??
            SqliteDataProvider.instance.getBookQuickPreview,
@@ -274,7 +279,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<TextBookSelectionEvent>(_onSelectionEvent);
     on<HighlightLine>(_onHighlightLine);
     on<HighlightLineWhenVisible>((event, emit) {
-      _pendingHighlight = event.line;
+      _pendingHighlight = event;
       _applyPendingHighlight(emit);
     });
     on<ClearHighlightedLine>(_onClearHighlightedLine);
@@ -324,10 +329,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       );
       _warmContentCacheInBackground(currentState.book);
     } else {
-      // הדגשה שרצה בטאב שהוסתר הייתה פגה בלי שנראתה; היא תחזור כשיוצג שוב.
-      if (_highlightTimer?.isActive ?? false) {
-        _highlightTimer!.cancel();
-        _pendingHighlight = currentState.highlightedLine;
+      final active = _activeBookmarkHighlight;
+      if (active != null && (_highlightTimer?.isActive ?? false)) {
+        _highlightTimer?.cancel();
+        _pendingHighlight ??= active;
+        _activeBookmarkHighlight = null;
         emit(currentState.copyWith(clearHighlight: true));
       }
       _releaseContentOutsideWindow(state as TextBookLoaded, emit);
@@ -2084,11 +2090,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     Emitter<TextBookState> emit,
   ) {
     _pendingHighlight = null;
+    _activeBookmarkHighlight = null;
     _startHighlight(event.lineIndex, emit);
   }
 
   void _startHighlight(int line, Emitter<TextBookState> emit) {
-    if (state is! TextBookLoaded) return;
+    if (isClosed || state is! TextBookLoaded) return;
     final currentState = state as TextBookLoaded;
     emit(currentState.copyWith(highlightedLine: line));
 
@@ -2104,17 +2111,25 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// מדגיש את השורה הממתינה כשהטאב פעיל והקורא מדד אותה על המסך. מיקום
   /// שנמדד בלעדיה (המשתמש גלל למקום אחר) מבטל אותה, כדי שלא תודגש מאוחר.
   void _applyPendingHighlight(Emitter<TextBookState> emit) {
-    final line = _pendingHighlight;
+    final request = _pendingHighlight;
+    if (request == null) return;
+    final epoch = request.navigationEpoch;
+    if (epoch != null && epoch != readingNavigationEpoch?.value) {
+      _pendingHighlight = null;
+      return;
+    }
     final position = readingPosition?.value;
-    if (line == null ||
-        state is! TextBookLoaded ||
+    if (state is! TextBookLoaded ||
         !_isTabVisible ||
         position == null ||
         position.isTarget) {
       return;
     }
     _pendingHighlight = null;
-    if (position.visibleLines.contains(line)) _startHighlight(line, emit);
+    if (position.visibleLines.contains(request.line)) {
+      _activeBookmarkHighlight = request;
+      _startHighlight(request.line, emit);
+    }
   }
 
   void _onClearHighlightedLine(
@@ -2128,6 +2143,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         currentState.highlightedLine != event.lineIndex) {
       return;
     }
+    _activeBookmarkHighlight = null;
     emit(currentState.copyWith(clearHighlight: true));
   }
 

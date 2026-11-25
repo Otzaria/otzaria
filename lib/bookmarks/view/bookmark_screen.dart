@@ -186,7 +186,7 @@ class _BookmarkViewState extends State<BookmarkView> {
       final first = group.items.first;
       tabsBloc.add(
         OpenOrFocusTab(
-          tabFromBookmark(first, screenWidth: screenWidth),
+          _tabHighlightingBookmark(first, screenWidth),
           targetTitle: first.ref,
         ),
       );

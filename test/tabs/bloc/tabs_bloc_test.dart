@@ -538,6 +538,13 @@ void main() {
         [12],
       );
       expect(recorder.received.whereType<HighlightLine>(), isEmpty);
+      expect(
+        recorder.received
+            .whereType<HighlightLineWhenVisible>()
+            .single
+            .navigationEpoch,
+        existingTab.lines.navigationEpoch.value,
+      );
       expect(positionAtRequest?.isTarget, isTrue);
       expect(positionAtRequest?.topLine, 12);
 

@@ -120,6 +120,67 @@ void main() {
     expect(_loaded(bloc).highlightedLine, isNull);
   });
 
+  test('הסתרת הטאב בזמן ניווט לסימניה חדשה משאירה את היעד החדש', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position);
+    addTearDown(bloc.close);
+
+    _show(position, [10, 11, 12]);
+    bloc.add(const HighlightLineWhenVisible(10));
+    await _settle();
+    expect(_loaded(bloc).highlightedLine, 10);
+
+    position.value = ReadingPosition.target(30);
+    bloc.add(const HighlightLineWhenVisible(30));
+    bloc.add(const SetTabVisibility(false));
+    await _settle();
+    _show(position, [30, 31, 32]);
+    bloc.add(const SetTabVisibility(true));
+    await _settle();
+
+    expect(_loaded(bloc).highlightedLine, 30);
+  });
+
+  test('מעבר בין טאבים אינו מפעיל מחדש הדגשה מיידית רגילה', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position);
+    addTearDown(bloc.close);
+
+    _show(position, [10, 11, 12]);
+    bloc.add(const HighlightLine(10));
+    await _settle();
+    expect(_loaded(bloc).highlightedLine, 10);
+
+    bloc.add(const SetTabVisibility(false));
+    await Future<void>.delayed(const Duration(milliseconds: 2050));
+    bloc.add(const SetTabVisibility(true));
+    await _settle();
+
+    expect(_loaded(bloc).highlightedLine, isNull);
+  });
+
+  test('ניווט חדש מבטל הדגשת סימניה גם אם היעד הקודם נשאר בחלון', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final navigationEpoch = ValueNotifier<int>(1);
+    final bloc = await _loadedBloc(position, navigationEpoch: navigationEpoch);
+    addTearDown(bloc.close);
+
+    bloc.add(const SetTabVisibility(false));
+    position.value = ReadingPosition.target(30);
+    bloc.add(const HighlightLineWhenVisible(30, navigationEpoch: 1));
+    await _settle();
+    expect(bloc.pendingHighlightLineForTesting, 30);
+
+    navigationEpoch.value++;
+    position.value = ReadingPosition.target(29);
+    _show(position, [29, 30, 31]);
+    bloc.add(const SetTabVisibility(true));
+    await _settle();
+
+    expect(bloc.pendingHighlightLineForTesting, isNull);
+    expect(_loaded(bloc).highlightedLine, isNull);
+  });
+
   test('הטאב מעביר את הבקשה ל-bloc שהוא יוצר', () {
     final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 7);
     addTearDown(tab.dispose);
@@ -141,8 +202,9 @@ Future<void> _settle() =>
     Future<void>.delayed(const Duration(milliseconds: 50));
 
 Future<TextBookBloc> _loadedBloc(
-  ValueNotifier<ReadingPosition?> position,
-) async {
+  ValueNotifier<ReadingPosition?> position, {
+  ValueListenable<int>? navigationEpoch,
+}) async {
   final bloc = TextBookBloc(
     repository: _FortyLineRepository(),
     initialState: TextBookInitial.named(
@@ -154,6 +216,7 @@ Future<TextBookBloc> _loadedBloc(
       showPageShapeView: false,
     ),
     readingPosition: position,
+    readingNavigationEpoch: navigationEpoch,
   );
 
   bloc.add(

@@ -58,7 +58,11 @@ void main() {
         showPageShapeView: false,
       ),
       readingPosition: tab.lines.position,
-      highlightLineWhenVisible: tab.highlightWhenVisibleLine,
+      readingNavigationEpoch: tab.lines.navigationEpoch,
+      initialBookmarkHighlight: HighlightLineWhenVisible(
+        tab.highlightWhenVisibleLine!,
+        navigationEpoch: tab.lines.navigationEpoch.value,
+      ),
     );
     addTearDown(bloc.close);
     bloc.add(
