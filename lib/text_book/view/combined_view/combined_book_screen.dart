@@ -2698,8 +2698,7 @@ class _CombinedViewState extends State<CombinedView> {
         segment != null &&
         !segment.isHeader &&
         segment.sourceLineIndices.length > 1;
-    // גם שורה בודדת: בגובה אפס, קפיצה לאזור שלא נטען בונה אלפי שורות בפריים.
-    if (segment != null && !segment.isLoaded) {
+    if (isMultiLine && !segment.isLoaded) {
       return UnloadedParagraphPlaceholder(
         lineCount: segment.sourceLineIndices.length,
         fontSize: widget.textSize,
@@ -2967,6 +2966,19 @@ class _CombinedViewState extends State<CombinedView> {
                                     notesForLine,
                                   ),
                                 );
+                          // שומרים מקום לטקסט שטרם נטען בלי להסתיר תוכן נלווה.
+                          final text = segment?.isLoaded == false
+                              ? ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight:
+                                        widget.textSize *
+                                        settingsState.lineHeightForBook(
+                                          state.lineHeight,
+                                        ),
+                                  ),
+                                  child: content,
+                                )
+                              : content;
                           // הסמן עוטף את עמודת הטקסט, כדי שיהיה צמוד אליה גם
                           // כשהיא ממורכזת וצרה מהפריט.
                           final column = _withSelectionGutter(
@@ -2978,7 +2990,7 @@ class _CombinedViewState extends State<CombinedView> {
                               padding: const EdgeInsets.symmetric(
                                 vertical: 2.0,
                               ),
-                              child: content,
+                              child: text,
                             ),
                           );
                           return textMaxWidth > 0
