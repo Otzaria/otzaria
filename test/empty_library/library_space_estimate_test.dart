@@ -233,6 +233,50 @@ void main() {
     });
   });
 
+  group('libraryDownloadDir', () {
+    const temp = '/data/user/0/com.otzaria/cache';
+
+    test('ספרייה על כרטיס SD מורדת לכרטיס, לא לאחסון הפנימי (#4645)', () {
+      const sdBooks = '/storage/1234-ABCD/Android/data/com.otzaria/files/books';
+      final dir = libraryDownloadDir(
+        sdBooks,
+        systemTemp: temp,
+        isAndroid: true,
+      );
+      // אותו כרך כמו היעד: המקום הפנוי נמדד, והארכיון נכתב, על הכרטיס.
+      expect(p.isWithin('/storage/1234-ABCD', dir), isTrue);
+      expect(p.isWithin(temp, dir), isFalse);
+      expect(p.isWithin(sdBooks, dir), isFalse);
+    });
+
+    test('אחסון פנימי ומחשב — ללא שינוי, תיקיית ה-temp של המערכת', () {
+      expect(
+        libraryDownloadDir(
+          '/storage/emulated/0/Android/data/com.otzaria/files/books',
+          systemTemp: temp,
+          isAndroid: true,
+        ),
+        temp,
+      );
+      expect(
+        libraryDownloadDir(
+          '/data/user/0/com.otzaria/app_flutter/books',
+          systemTemp: temp,
+          isAndroid: true,
+        ),
+        temp,
+      );
+      expect(
+        libraryDownloadDir(
+          r'D:\otzaria\books',
+          systemTemp: r'C:\Temp',
+          isAndroid: false,
+        ),
+        r'C:\Temp',
+      );
+    });
+  });
+
   group('insufficientSpaceMessage', () {
     test('מאחד מיקומים על אותו כונן ומציג נדרש מול פנוי', () {
       final message = insufficientSpaceMessage([
