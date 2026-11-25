@@ -1276,21 +1276,26 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
     final isOfficialCategory = officialCategoryFilter(library);
-    bool isSupported(String facet) => isSemanticScopeFacetSupported(
-      facet,
-      includeLexical: _semanticIncludeLexical,
-      isOfficialCategory: isOfficialCategory,
-    );
-    // ספרי מחבר שאין להם וקטורים (אישיים/מצורפים) נשמטים ואינם פוסלים הכול.
-    final categoryFacets = parsedCategory.facetsKeepingAuthors(isSupported);
     final selection = parsedCategory.categoryFound
         ? [
-            ...categoryFacets,
+            // ספר מחבר בלי וקטורים (אישי/מצורף) נשמט ואינו פוסל את ההיקף.
+            ...parsedCategory.facetsKeepingAuthors(
+              (facet) => isSemanticScopeFacetSupported(
+                facet,
+                includeLexical: _semanticIncludeLexical,
+                isOfficialCategory: isOfficialCategory,
+              ),
+            ),
             ...FacetHelper.dimensionFacetsOf(_scopeSelection),
           ]
         : _scopeSelection;
-    if ((parsedCategory.categoryFound && categoryFacets.isEmpty) ||
-        !selection.every(isSupported)) {
+    if (!selection.every(
+      (facet) => isSemanticScopeFacetSupported(
+        facet,
+        includeLexical: _semanticIncludeLexical,
+        isOfficialCategory: isOfficialCategory,
+      ),
+    )) {
       UiSnack.showError(SemanticSearchMessages.unsupportedScope);
       return;
     }

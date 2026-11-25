@@ -889,6 +889,8 @@ void main() {
         parsed.facetsKeepingAuthors((facet) => !facet.contains('uid:')),
         [facetOf(kadHakemach)],
       );
+      // אם כולם נדחים — אין צמצום שקט לכל הספרייה; השומר יפסול את ההיקף.
+      expect(parsed.facetsKeepingAuthors((_) => false), parsed.facets);
     });
   });
 

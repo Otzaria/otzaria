@@ -41,11 +41,16 @@ class ParsedCategoryQuery {
   });
 
   /// [facets] בלי ספרי מחבר ש-[keep] דוחה — למשל ספר אישי בחיפוש חכם בלבד,
-  /// שאחרת היה פוסל את כל ההיקף.
-  List<String> facetsKeepingAuthors(bool Function(String facet) keep) => [
-    for (final facet in facets ?? const <String>[])
-      if (!authorFacets.contains(facet) || keep(facet)) facet,
-  ];
+  /// שאחרת היה פוסל את כל ההיקף. אם לא נשאר דבר — [facets] כמות שהם, כדי
+  /// שההיקף לא יתרחב בשקט לכל הספרייה.
+  List<String> facetsKeepingAuthors(bool Function(String facet) keep) {
+    final all = facets ?? const <String>[];
+    final kept = [
+      for (final facet in all)
+        if (!authorFacets.contains(facet) || keep(facet)) facet,
+    ];
+    return kept.isEmpty ? all : kept;
+  }
 
   /// האם הופיע תחביר `@שם` (עם שם אחד לפחות) בשאילתה.
   bool get hasCategoryToken => categoryNames.isNotEmpty;
