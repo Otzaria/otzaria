@@ -13,6 +13,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -79,6 +80,8 @@ void main() {
     WidgetTester tester,
     List<PdfPageFormat> pages, {
     int initialPage = 1,
+    bool openLeftPane = false,
+    void Function(PdfBookTab)? configureTab,
     Future<void>? perBookSettingsBlockedUntil,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1000, 700));
@@ -97,7 +100,9 @@ void main() {
     final tab = PdfBookTab(
       book: PdfBook(title: 'ספר בדיקה', path: file.path),
       pageNumber: initialPage,
+      openLeftPane: openLeftPane,
     );
+    configureTab?.call(tab);
     if (perBookSettingsBlockedUntil != null) {
       unawaited(
         PerBookSettings.runLockedForKey(
@@ -129,7 +134,7 @@ void main() {
         ),
       ),
     );
-    await pumpUntil(tester, () => tab.pdfViewerController.isReady);
+    await pumpUntil(tester, () => tab.documentRef.value != null);
     return tab;
   }
 
@@ -212,6 +217,69 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('פתיחת PDF משוחזר מחזיקה את ראש העמוד בזום השמור', (
+    tester,
+  ) async {
+    const initialPage = 5;
+    const savedZoom = 2.4;
+    final tab = await pumpReader(
+      tester,
+      [
+        for (var index = 0; index < 12; index++)
+          index == 3 ? const PdfPageFormat(700, 780) : PdfPageFormat.a4,
+      ],
+      initialPage: initialPage,
+      configureTab: (tab) => tab.savedZoom = savedZoom,
+    );
+    final controller = tab.pdfViewerController;
+    await pumpUntil(
+      tester,
+      () => (controller.currentZoom - savedZoom).abs() < 0.01,
+    );
+    await settle(tester, 20);
+
+    final targetPage = controller.layout.pageLayouts[initialPage - 1];
+    expect(controller.visibleRect.top, closeTo(targetPage.top, 0.1));
+    expect(tab.pageNumber, initialPage);
+
+    await unmount(tester);
+  });
+
+  testWidgets('פתיחה בעמוד שומרת את ראשו כשחלונית הניווט נפתחת', (
+    tester,
+  ) async {
+    const initialPage = 5;
+    double? widthAtPublication;
+    final tab = await pumpReader(
+      tester,
+      List.filled(12, PdfPageFormat.a4),
+      initialPage: initialPage,
+      openLeftPane: true,
+      configureTab: (tab) {
+        tab.documentRef.addListener(() {
+          if (tab.documentRef.value == null) return;
+          widthAtPublication = tab.pdfViewerController.viewSize.width;
+        });
+      },
+    );
+    await settle(tester, 20);
+    final controller = tab.pdfViewerController;
+    final targetPage = controller.layout.pageLayouts[initialPage - 1];
+    expect(controller.viewSize.width, lessThan(widthAtPublication!));
+    expect(controller.visibleRect.top, closeTo(targetPage.top, 0.1));
+    expect(tab.pageNumber, initialPage);
+
+    final centerBeforeWindowResize = controller.centerPosition.dy;
+    await tester.binding.setSurfaceSize(const Size(1100, 700));
+    await settle(tester, 20);
+    expect(
+      controller.centerPosition.dy,
+      closeTo(centerBeforeWindowResize, 0.1),
+    );
+
+    await unmount(tester);
+  });
+
   testWidgets('ניווט תכנותי אחרי isReady אינו נדרס בתיקון הפתיחה', (
     tester,
   ) async {
@@ -237,6 +305,59 @@ void main() {
     final targetPage = controller.layout.pageLayouts[initialPage - 1];
     expect(controller.visibleRect.contains(targetPage.center), isTrue);
     expect(controller.pageNumber, initialPage);
+
+    await unmount(tester);
+  });
+
+  testWidgets('ניווט מאזין המסמך נשמר בתצוגה ובטאב עם פתיחת חלונית', (
+    tester,
+  ) async {
+    const laterPage = 8;
+    Future<void>? navigation;
+    final tab = await pumpReader(
+      tester,
+      List.filled(12, PdfPageFormat.a4),
+      initialPage: 5,
+      openLeftPane: true,
+      configureTab: (tab) {
+        tab.documentRef.addListener(() {
+          if (tab.documentRef.value == null) return;
+          navigation = tab.pdfViewerController.goToPage(
+            pageNumber: laterPage,
+            anchor: PdfPageAnchor.center,
+            duration: Duration.zero,
+          );
+        });
+      },
+    );
+    await navigation!;
+    await settle(tester, 20);
+
+    final controller = tab.pdfViewerController;
+    final target = controller.layout.pageLayouts[laterPage - 1];
+    expect(controller.visibleRect.center.dy, closeTo(target.center.dy, 0.1));
+    expect(controller.pageNumber, laterPage);
+    expect(tab.pageNumber, laterPage);
+
+    await unmount(tester);
+  });
+
+  testWidgets('פתיחה בתצוגת ספר מציגה את הכפולה של עמוד היעד', (
+    tester,
+  ) async {
+    await Settings.setValue(SettingsRepository.keyPdfBookViewByDefault, true);
+    final tab = await pumpReader(
+      tester,
+      List.filled(12, PdfPageFormat.a4),
+      initialPage: 5,
+    );
+    await settle(tester, 20);
+
+    final controller = tab.pdfViewerController;
+    final pages = controller.layout.pageLayouts;
+    expect(pages[3].top, pages[4].top);
+    expect(controller.visibleRect.overlaps(pages[3]), isTrue);
+    expect(controller.visibleRect.overlaps(pages[4]), isTrue);
 
     await unmount(tester);
   });

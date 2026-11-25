@@ -7,7 +7,6 @@ import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
 void main() {
   late List<Offset> panDeltas;
   late int panEnds;
-  late int interactionStarts;
   late int scaleUpdates;
   late int tabSwipeUpdates;
   late List<PointerEvent> forwardedEvents;
@@ -18,7 +17,6 @@ void main() {
   }) {
     panDeltas = [];
     panEnds = 0;
-    interactionStarts = 0;
     scaleUpdates = 0;
     tabSwipeUpdates = 0;
     forwardedEvents = [];
@@ -56,7 +54,6 @@ void main() {
                         () => TrackpadPanRecognizer(
                           onPanDelta: (delta, position) => panDeltas.add(delta),
                           onPanEnd: (_) => panEnds++,
-                          onInteractionStart: () => interactionStarts++,
                           canPanHorizontally: () => canPanHorizontally,
                           onPanZoomEvent: forwardScaling
                               ? forwardedEvents.add
@@ -146,7 +143,6 @@ void main() {
 
     expect(panDeltas, isEmpty);
     expect(panEnds, 0);
-    expect(interactionStarts, 1);
     expect(scaleUpdates, greaterThan(0));
   });
 
