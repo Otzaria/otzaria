@@ -241,7 +241,6 @@ void main() {
           fontSize: 20,
           showSplitView: false,
           removeNikud: false,
-          screenWidth: 1400,
         ),
       );
     }
@@ -263,7 +262,6 @@ void main() {
       [...ownChoices, savedPerBook],
     );
     expect(results.first.showLeftPane, isTrue);
-    expect(results.first.pinLeftPane, isTrue);
     final restoredPending = TextBookTab.fromJson(pendingSnapshot);
     addTearDown(restoredPending.dispose);
     expect(
@@ -374,10 +372,10 @@ void main() {
     });
   }
 
-  test('חלונית צפה פתוחה נשמרת סגורה, ונעוצה נשמרת פתוחה (issue #3212)', () {
-    for (final pinned in [false, true]) {
+  test('חלונית פתוחה נשמרת פתוחה, וסגורה נשמרת סגורה', () {
+    for (final open in [false, true]) {
       final state = (_state('loaded', null) as TextBookLoaded).copyWith(
-        pinLeftPane: pinned,
+        showLeftPane: open,
       );
       final tab = TextBookTab(
         book: TextBook(title: 'בראשית'),
@@ -388,26 +386,26 @@ void main() {
       final restored = TextBookTab.fromJson(tab.toJson());
       addTearDown(restored.dispose);
 
-      expect(restored.blocState.showLeftPane, pinned, reason: '$pinned');
+      expect(restored.blocState.showLeftPane, open, reason: '$open');
     }
   });
 
-  test('PDF: חלונית צפה פתוחה נשמרת סגורה (issue #3212)', () {
-    for (final pinned in [false, true]) {
+  test('PDF: חלונית פתוחה נשמרת פתוחה, וסגורה נשמרת סגורה', () {
+    for (final open in [false, true]) {
       final tab = PdfBookTab(
         book: PdfBook(title: 'ספר', path: '/a.pdf'),
         pageNumber: 1,
-        openLeftPane: true,
-      )..pinLeftPane.value = pinned;
+        openLeftPane: open,
+      );
       addTearDown(tab.dispose);
       final restored = PdfBookTab.fromJson(tab.toJson());
       addTearDown(restored.dispose);
 
-      expect(restored.showLeftPane.value, pinned, reason: '$pinned');
+      expect(restored.showLeftPane.value, open, reason: '$open');
     }
   });
 
-  test('PDF: חלונית נעוצה נשמרת שוב גם בטאב שלא הוצג', () {
+  test('PDF: חלונית פתוחה נשמרת שוב גם בטאב שלא הוצג', () {
     final restored = PdfBookTab.fromJson({
       'path': '/a.pdf',
       'book': PdfBook(title: 'ספר', path: '/a.pdf').toJson(),
@@ -435,7 +433,6 @@ void main() {
           removeNikud: false,
           loadCommentators: false,
           preserveState: bloc.state is TextBookLoaded,
-          screenWidth: wide,
         ),
       );
       return await bloc.stream.firstWhere(
@@ -459,16 +456,15 @@ void main() {
         DocumentReady(
           documentRef: _DocumentRef(),
           totalPages: 5,
-          screenWidth: wide,
         ),
       );
       return await bloc.stream.firstWhere((s) => s is PdfBookLoaded)
           as PdfBookLoaded;
     }
 
-    test('טקסט: שאילתה שנשארה אינה פותחת ונועצת חלונית שנשמרה סגורה', () async {
+    test('טקסט: שאילתה שנשארה אינה פותחת חלונית שנשמרה סגורה', () async {
       for (final query in ['מקור', '']) {
-        for (final pinned in [false, true]) {
+        for (final open in [false, true]) {
           final saved = TextBookTab(
             book: TextBook(title: 'בראשית'),
             index: 0,
@@ -476,7 +472,7 @@ void main() {
               (_state('loaded', null) as TextBookLoaded).copyWith(
                 searchText: query,
                 searchMode: SearchMode.exact,
-                pinLeftPane: pinned,
+                showLeftPane: open,
               ),
             ),
           );
@@ -494,9 +490,9 @@ void main() {
             final loaded = await loadText(bloc, fontSize);
             expect(loaded.searchText, query);
             expect(
-              [loaded.showLeftPane, loaded.pinLeftPane],
-              [pinned, pinned],
-              reason: 'query="$query" pinned=$pinned fontSize=$fontSize',
+              loaded.showLeftPane,
+              open,
+              reason: 'query="$query" open=$open fontSize=$fontSize',
             );
           }
         }
@@ -511,19 +507,19 @@ void main() {
       );
       addTearDown(bloc.close);
       final opened = await loadText(bloc, 18);
-      expect([opened.showLeftPane, opened.pinLeftPane], [true, true]);
+      expect(opened.showLeftPane, isTrue);
     });
 
     test('PDF: שאילתה שנשארה אינה פותחת חלונית שנשמרה סגורה', () async {
       final book = PdfBook(title: 'ספר', path: '/a.pdf');
       for (final query in ['בדיקה', '']) {
-        for (final pinned in [false, true]) {
+        for (final open in [false, true]) {
           final saved = PdfBookTab(
             book: book,
             pageNumber: 1,
-            openLeftPane: true,
+            openLeftPane: open,
             searchText: query,
-          )..pinLeftPane.value = pinned;
+          );
           addTearDown(saved.dispose);
           final restored = PdfBookTab.fromJson(saved.toJson());
           addTearDown(restored.dispose);
@@ -531,13 +527,9 @@ void main() {
           final loaded = await loadPdf(restored);
           expect(loaded.searchText, query);
           expect(
-            [
-              loaded.showLeftPane,
-              restored.showLeftPane.value,
-              restored.pinLeftPane.value,
-            ],
-            [pinned, pinned, pinned],
-            reason: 'query="$query" pinned=$pinned',
+            [loaded.showLeftPane, restored.showLeftPane.value],
+            [open, open],
+            reason: 'query="$query" open=$open',
           );
         }
       }
@@ -747,7 +739,6 @@ TextBookState _state(String phase, Set<int>? results) {
       removeNikud: false,
       visibleIndices: const [12],
       selectedIndex: 12,
-      pinLeftPane: true,
       searchText: 'מעודכן',
       searchOptions: const {
         'מעודכן_0': {'ראשי תיבות': true},

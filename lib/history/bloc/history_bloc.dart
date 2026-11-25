@@ -291,6 +291,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     required String? workspaceName,
     required String? workspaceId,
     List<String>? scopeFacetsOverride,
+    List<String>? filterFacetsOverride,
     SearchScope? proximityScopeOverride,
   }) async {
     final panes = leafPanes(tab);
@@ -305,6 +306,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         workspaceName: workspaceName,
         workspaceId: workspaceId,
         scopeFacetsOverride: isSplit ? null : scopeFacetsOverride,
+        filterFacetsOverride: isSplit ? null : filterFacetsOverride,
         proximityScopeOverride: isSplit ? null : proximityScopeOverride,
       );
       if (bookmark != null) bookmarks.add(bookmark);
@@ -317,6 +319,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     required String? workspaceName,
     required String? workspaceId,
     List<String>? scopeFacetsOverride,
+    List<String>? filterFacetsOverride,
     SearchScope? proximityScopeOverride,
   }) async {
     // ההיסטוריה משחזרת חיפוש מילולי; חיפוש סמנטי היה חוזר בה כמילולי.
@@ -327,9 +330,22 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       if (text.trim().isEmpty) return null;
 
       final searchState = searchingTab.searchBloc.state;
+      final configuration = proximityScopeOverride == null
+          ? searchState.configuration
+          : searchState.configuration.copyWith(
+              proximityScope: proximityScopeOverride,
+            );
 
       final formattedQuery = _buildFormattedQuery(searchingTab);
       final scopeFacets = scopeFacetsOverride ?? searchState.searchScopeFacets;
+      final filterFacets =
+          filterFacetsOverride ??
+          (scopeFacetsOverride == null
+              ? searchState.currentFacets
+              : scopeFacets);
+      final sameFacets =
+          identical(filterFacets, scopeFacets) ||
+          setEquals(filterFacets.toSet(), scopeFacets.toSet());
       final nonRootScopeFacets = scopeFacets
           .where((facet) => facet != '/')
           .toList();
@@ -355,21 +371,13 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         searchScopeFacets: nonRootScopeFacets.isNotEmpty
             ? nonRootScopeFacets
             : null,
-        searchFilterFacets:
-            scopeFacetsOverride == null &&
-                !setEquals(
-                  searchState.currentFacets.toSet(),
-                  scopeFacets.toSet(),
-                )
-            ? List<String>.of(searchState.currentFacets)
-            : null,
-        searchMode: searchState.configuration.searchMode,
-        distance: searchState.configuration.distance,
+        searchFilterFacets: sameFacets ? null : List<String>.of(filterFacets),
+        searchMode: configuration.searchMode,
+        distance: configuration.distance,
         // ה-configuration המלא נשמר כמפה כדי ששחזור יחזיר גם הגדרות שאין
         // להן שדה ייעודי (מיון, איחוד תוצאות, התאמת מילים, רגקס).
-        searchConfiguration: searchState.configuration.toMap(),
-        proximityScope:
-            proximityScopeOverride ?? searchState.configuration.proximityScope,
+        searchConfiguration: configuration.toMap(),
+        proximityScope: configuration.proximityScope,
       );
     }
 
@@ -455,6 +463,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         workspaceName: _currentWorkspaceName,
         workspaceId: _currentWorkspaceId,
         scopeFacetsOverride: event.scopeFacets,
+        filterFacetsOverride: event.filterFacets,
         proximityScopeOverride: event.proximityScope,
       );
       if (bookmarks.isEmpty) return;

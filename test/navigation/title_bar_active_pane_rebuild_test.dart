@@ -143,7 +143,6 @@ TextBookTab _makeTextTab(String title, {String currentTitle = ''}) {
       removePunctuation: false,
       visibleIndices: const [0],
       selectedIndex: 0,
-      pinLeftPane: false,
       searchText: '',
       currentTitle: currentTitle,
     ),

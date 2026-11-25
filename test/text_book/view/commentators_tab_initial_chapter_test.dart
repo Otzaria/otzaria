@@ -22,7 +22,6 @@ TextBookLoaded _loaded(TextBook book, {int? selectedIndex}) {
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: selectedIndex,
-    pinLeftPane: false,
     searchText: '',
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,

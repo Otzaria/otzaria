@@ -53,6 +53,10 @@ class Bookmark {
   final String ref;
   final Book book;
   final List<String> commentatorsToShow;
+
+  /// [commentatorsToShow] נבחרה במפורש, גם כשהיא ריקה; ברשומה ישנה רשימה ריקה
+  /// טוענת את ברירת המחדל של הספר.
+  final bool hasExplicitCommentators;
   final int index;
   final bool isSearch;
   final Map<String, Map<String, bool>>? searchOptions;
@@ -104,6 +108,23 @@ class Bookmark {
   /// מחסניות החזרה/קדימה של הקורא; נשמרות ברשומת היסטוריה בלבד.
   final Map<String, dynamic>? navigationHistory;
 
+  /// הגדרות השאילתה לשחזור, כולל רשומות שנשמרו לפני שמירת המפה המלאה.
+  SearchConfiguration get restoredSearchConfiguration {
+    final config = searchConfiguration;
+    if (config != null) {
+      // רשומה שנלכדה בזמן עריכה עלולה לשאת טווח מעודכן רק בשדה הייעודי.
+      return SearchConfiguration.fromMap(
+        config,
+      ).copyWith(proximityScope: proximityScope);
+    }
+    final mode = searchMode ?? SearchMode.advanced;
+    return SearchConfiguration(
+      searchMode: mode,
+      distance: distance ?? (mode == SearchMode.fuzzy ? kMaxFuzzyDistance : 0),
+      proximityScope: proximityScope ?? SearchScope.wordDistance,
+    );
+  }
+
   /// זהות מקום קריאה לפי ספר, סוג יעד, slot ושולחן; חיפוש לפי שאילתה וסינון.
   String get historyKey => isSearch
       ? searchHistoryKey(
@@ -135,6 +156,7 @@ class Bookmark {
     required this.book,
     required this.index,
     this.commentatorsToShow = const [],
+    this.hasExplicitCommentators = false,
     this.isSearch = false,
     this.searchOptions,
     this.alternativeWords,
@@ -178,6 +200,7 @@ class Bookmark {
       book: book,
       index: index,
       commentatorsToShow: commentatorsToShow,
+      hasExplicitCommentators: hasExplicitCommentators,
       isSearch: isSearch,
       searchOptions: searchOptions,
       alternativeWords: alternativeWords,
@@ -214,6 +237,7 @@ class Bookmark {
       commentatorsToShow: (rawCommentators ?? [])
           .map((e) => e.toString())
           .toList(),
+      hasExplicitCommentators: json['hasExplicitCommentators'] == true,
       isSearch: json['isSearch'] ?? false,
       searchOptions: json['searchOptions'] != null
           ? castMap(json['searchOptions']).map(
@@ -321,6 +345,7 @@ class Bookmark {
       'index': index,
       if (readingAnchor != null) 'readingAnchor': readingAnchor!.toJson(),
       'commentatorsToShow': commentatorsToShow,
+      if (hasExplicitCommentators) 'hasExplicitCommentators': true,
       'isSearch': isSearch,
       'searchOptions': searchOptions,
       'alternativeWords': alternativeWords?.map(

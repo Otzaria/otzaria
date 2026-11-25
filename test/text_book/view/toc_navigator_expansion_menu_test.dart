@@ -75,7 +75,6 @@ TextBookLoaded _state(List<TocEntry> toc, {required int visible}) =>
       tableOfContents: toc,
       removeNikud: false,
       visibleIndices: [visible],
-      pinLeftPane: false,
       searchText: '',
     );
 

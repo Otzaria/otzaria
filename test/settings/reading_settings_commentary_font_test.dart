@@ -325,7 +325,6 @@ TextBookLoaded _loaded({required bool showPageShapeView}) => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0],
   selectedIndex: null,
-  pinLeftPane: false,
   searchText: '',
 );
 

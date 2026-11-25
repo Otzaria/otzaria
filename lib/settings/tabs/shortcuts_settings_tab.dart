@@ -1007,6 +1007,15 @@ class _ShortcutsSettingsTabState extends State<ShortcutsSettingsTab> {
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
+              settingKey: ShortcutValidator.refreshBookKey,
+              label: context.settingsText('רענון ספר אישי'),
+              subtitle: context.settingsText(
+                'טוען מחדש ספר אישי פתוח אחרי שינוי בקובץ שלו',
+              ),
+              icon: FluentIcons.arrow_sync_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
               settingKey: 'key-shortcut-close-tab',
               label: context.settingsText('סגור ספר נוכחי'),
               icon: FluentIcons.dismiss_circle_24_regular,

@@ -60,7 +60,15 @@ class BiographyWork extends Equatable {
   final String title;
   final String? description;
 
-  const BiographyWork({required this.title, this.description});
+  /// Exact titles of the work's book in the library, as the biographies data
+  /// maps them; several titles are the volumes of one work.
+  final List<String> books;
+
+  const BiographyWork({
+    required this.title,
+    this.description,
+    this.books = const [],
+  });
 
   static BiographyWork? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
@@ -69,13 +77,14 @@ class BiographyWork extends Equatable {
     return BiographyWork(
       title: title,
       description: _string(json['description']),
+      books: _strings(json['books']),
     );
   }
 
   String get display => description == null ? title : '$title - $description';
 
   @override
-  List<Object?> get props => [title, description];
+  List<Object?> get props => [title, description, books];
 }
 
 /// A source page an entry was written from; [credit] keys

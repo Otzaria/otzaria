@@ -46,7 +46,6 @@ TextBookLoaded _loaded(TextBook book, List<TocEntry> toc, int index) =>
       tableOfContents: toc,
       removeNikud: false,
       visibleIndices: [index],
-      pinLeftPane: false,
       searchText: '',
     );
 

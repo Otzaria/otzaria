@@ -77,7 +77,7 @@ void main() {
     expect(RegExp(r'--- Failure \d+ ---').allMatches(report), hasLength(3));
   });
 
-  test('כתיבה מוסיפה את הדוח ל-errors.txt', () {
+  test('כתיבה מוסיפה את הדוח ל-errors.txt ברקע, בלי לחסום את ה-UI', () async {
     final tempDir = Directory.systemTemp.createTempSync(
       'otzaria-indexing-report-',
     );
@@ -95,6 +95,9 @@ void main() {
       platform: ErrorLogPlatform.other,
       tempPath: tempDir.path,
     );
+    // נכתב ברקע: פתיחת errors.txt על דיסק עמוס חוסמת את ה-UI לשניות.
+    expect(file.existsSync(), isFalse);
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
     expect(file.existsSync(), isTrue);
     final contents = file.readAsStringSync();
     expect(contents, contains('Indexing failures'));
@@ -102,7 +105,7 @@ void main() {
     expect(contents, contains('Version: test'));
   });
 
-  test('תוצאה נקייה אינה יוצרת קובץ לוג', () {
+  test('תוצאה נקייה אינה יוצרת קובץ לוג', () async {
     final tempDir = Directory.systemTemp.createTempSync(
       'otzaria-indexing-clean-',
     );
@@ -116,6 +119,7 @@ void main() {
       ),
       tempPath: tempDir.path,
     );
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
 
     expect(
       ErrorLogFile.resolveFile(
@@ -127,7 +131,7 @@ void main() {
     );
   });
 
-  test('ריצה נקייה שחרגה מסף העלייה האיטית נרשמת עם משכה', () {
+  test('ריצה נקייה שחרגה מסף העלייה האיטית נרשמת עם משכה', () async {
     final tempDir = Directory.systemTemp.createTempSync(
       'otzaria-indexing-slow-',
     );
@@ -142,6 +146,7 @@ void main() {
       tempPath: tempDir.path,
       elapsed: const Duration(minutes: 3),
     );
+    await ErrorLogFile.flushPending(timeout: const Duration(seconds: 30));
 
     final contents = ErrorLogFile.resolveFile(
       environment: const {},

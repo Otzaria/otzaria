@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -120,20 +123,23 @@ class _FakeTabsRepository implements TabsRepository {
 }
 
 class _CapturingTabsBloc extends TabsBloc {
-  _CapturingTabsBloc([this._openTabs = const []])
+  _CapturingTabsBloc(this._openTabs, {required this.processEvents})
     : super(repository: _FakeTabsRepository());
 
   final List<TabsEvent> events = [];
   final List<OpenedTab> _openTabs;
+  final bool processEvents;
 
-  /// האירועים נלכדים ואינם מעובדים, ולכן הכרטיסיות הפתוחות קבועות.
   @override
   TabsState get state => _openTabs.isEmpty
       ? super.state
       : TabsState(tabs: _openTabs, currentTabIndex: 0);
 
   @override
-  void add(TabsEvent event) => events.add(event);
+  void add(TabsEvent event) {
+    events.add(event);
+    if (processEvents) super.add(event);
+  }
 
   OpenOrFocusTab get openEvent => events.whereType<OpenOrFocusTab>().single;
 }
@@ -250,6 +256,7 @@ Future<_CapturingTabsBloc> _showDialogWithResults(
   DbCommentatorEntry? commentator,
   _FakeRepository? repository,
   List<OpenedTab> openTabs = const [],
+  bool processTabEvents = false,
 }) async {
   final previousLibrary = DataRepository.instance.cachedLibraryFutureForTesting;
   DataRepository.instance.library = Future.value(library);
@@ -265,7 +272,10 @@ Future<_CapturingTabsBloc> _showDialogWithResults(
     findRefRepository:
         repository ?? _FakeRepository([result], commentators: [?commentator]),
   );
-  final tabsBloc = _CapturingTabsBloc(openTabs);
+  final tabsBloc = _CapturingTabsBloc(
+    openTabs,
+    processEvents: processTabEvents,
+  );
   final navigationBloc = navigation ?? _FakeNavigationBloc();
   late HistoryBloc historyBloc;
   await tester.runAsync(() async {
@@ -313,6 +323,302 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+  });
+
+  group('פתיחת כמה תוצאות', () {
+    const results = [
+      DbReferenceResult(
+        title: 'בראשית',
+        reference: 'בראשית פרק א',
+        segment: 3,
+        bookId: 1,
+      ),
+      DbReferenceResult(
+        title: 'בראשית',
+        reference: 'בראשית פרק ב',
+        segment: 8,
+        bookId: 1,
+      ),
+      DbReferenceResult(
+        title: 'בראשית',
+        reference: 'בראשית פרק ג',
+        segment: 18,
+        bookId: 1,
+      ),
+    ];
+
+    Future<void> modifiedClick(
+      WidgetTester tester,
+      LogicalKeyboardKey modifier,
+      DbReferenceResult result,
+    ) async {
+      final row = find.text(result.reference);
+      await tester.ensureVisible(row);
+      await tester.sendKeyDownEvent(modifier);
+      await tester.tap(row);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+    }
+
+    Future<void> selectFirstTwo(WidgetTester tester) async {
+      await modifiedClick(tester, LogicalKeyboardKey.shiftLeft, results[0]);
+      expect(find.text('ספר אחד נבחר'), findsOneWidget);
+      await modifiedClick(tester, LogicalKeyboardKey.controlLeft, results[1]);
+      expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+    }
+
+    testWidgets('בחירה נשמרת וניתנת לפתיחה מתוצאות שמורות באיתור חוזר', (
+      tester,
+    ) async {
+      final repository = _FakeRepository(results);
+      final navigation = _FakeNavigationBloc();
+      final library = _libraryWith([TextBook(id: 1, title: 'בראשית')]);
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: results.first,
+        library: library,
+        repository: repository,
+        navigation: navigation,
+        processTabEvents: true,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('סגור'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(repository.preferencesCalls, hasLength(1));
+
+      await selectFirstTwo(tester);
+
+      final libraryGate = Completer<Library>();
+      DataRepository.instance.library = libraryGate.future;
+      final submit = tester
+          .widget<TextField>(find.byType(TextField))
+          .onSubmitted!;
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      submit('שאילתה');
+      await tester.pump();
+      expect(tabs.events, isEmpty);
+      libraryGate.complete(library);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FindRefDialog), findsNothing);
+      expect(tabs.state.tabs.whereType<TextBookTab>().map((tab) => tab.index), [
+        3,
+        8,
+      ]);
+      expect(navigation.events.whereType<NavigateToScreen>(), hasLength(1));
+      expect(repository.recordedOpens, hasLength(1));
+    });
+
+    testWidgets('פתיחה מאיתור חדש שומרת שני מיקומים באותו ספר בכרטיסיות', (
+      tester,
+    ) async {
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: results.first,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        repository: _FakeRepository(results),
+        processTabEvents: true,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await selectFirstTwo(tester);
+      await tester.tap(find.text('פתח נבחרים'));
+      await tester.pumpAndSettle();
+
+      expect(tabs.state.tabs.whereType<TextBookTab>().map((tab) => tab.index), [
+        3,
+        8,
+      ]);
+      expect(
+        tabs.state.tabs.whereType<TextBookTab>().map(
+          (tab) => tab.linkSelectedLine,
+        ),
+        [3, 8],
+      );
+    });
+
+    testWidgets('פתיחת כמה תוצאות בבלי בוחרת יעד בכל טאב חלופי', (
+      tester,
+    ) async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyTalmudBavliOpenFormat,
+        'pdf',
+      );
+      addTearDown(
+        () => Settings.setValue<String>(
+          SettingsRepository.keyTalmudBavliOpenFormat,
+          'text',
+        ),
+      );
+      const bavliResults = [
+        DbReferenceResult(
+          title: 'ברכות',
+          reference: 'ברכות דף ב',
+          segment: 3,
+          bookId: 3,
+        ),
+        DbReferenceResult(
+          title: 'ברכות',
+          reference: 'ברכות דף ג',
+          segment: 8,
+          bookId: 3,
+        ),
+      ];
+      final library = Library(categories: []);
+      final bavliRoot = Category(
+        title: 'תלמוד בבלי',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: [],
+        books: [],
+        parent: library,
+      );
+      library.subCategories.add(bavliRoot);
+      final seder = Category(
+        title: 'סדר זרעים',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: [],
+        books: [],
+        parent: bavliRoot,
+      );
+      bavliRoot.subCategories.add(seder);
+      seder.books.add(TextBook(id: 3, title: 'ברכות', category: seder));
+      bavliRoot.books.add(
+        PdfBook(
+          title: 'ברכות',
+          path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+          category: bavliRoot,
+        ),
+      );
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: bavliResults.first,
+        library: library,
+        repository: _FakeRepository(bavliResults),
+        processTabEvents: true,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+      await tester.tap(find.text('פתח נבחרים'));
+      await tester.pumpAndSettle();
+
+      final fallbackTabs = tabs.state.tabs
+          .whereType<ResolvingTab>()
+          .map((tab) => tab.fallbackTab)
+          .whereType<TextBookTab>();
+      expect(fallbackTabs.map((tab) => tab.linkSelectedLine), [3, 8]);
+    });
+
+    testWidgets('סגירת הדיאלוג בזמן פתרון היעד מבטלת את הפתיחה', (
+      tester,
+    ) async {
+      final library = _libraryWith([TextBook(id: 1, title: 'בראשית')]);
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: results.first,
+        library: library,
+        repository: _FakeRepository(results),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await modifiedClick(
+        tester,
+        LogicalKeyboardKey.shiftLeft,
+        results.first,
+      );
+      expect(find.text('ספר אחד נבחר'), findsOneWidget);
+
+      final libraryGate = Completer<Library>();
+      DataRepository.instance.library = libraryGate.future;
+      await tester.tap(find.text('פתח נבחרים'));
+      await tester.tap(find.text('סגור'));
+      libraryGate.complete(library);
+      await tester.pumpAndSettle();
+
+      expect(tabs.events, isEmpty);
+      expect(find.text('open'), findsOneWidget);
+      expect(find.byType(FindRefDialog), findsNothing);
+    });
+
+    testWidgets('החלפת השאילתה מבטלת בחירה גם לפני בניית הפריים', (
+      tester,
+    ) async {
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: results.first,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        repository: _FakeRepository(results),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await modifiedClick(tester, LogicalKeyboardKey.controlLeft, results[1]);
+      final open = find.text('פתח נבחרים');
+      expect(open, findsOneWidget);
+      FocusRepository().findRefSearchController.text = 'שאילתה אחרת';
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+
+      expect(open, findsNothing);
+      expect(tabs.events, isEmpty);
+      expect(find.byType(FindRefDialog), findsOneWidget);
+    });
+
+    testWidgets('בחירה מהמקלדת ו-Esc משאירים את השאילתה בפוקוס', (
+      tester,
+    ) async {
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: results.first,
+        library: _libraryWith([TextBook(id: 1, title: 'בראשית')]),
+        repository: _FakeRepository(results),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(find.text('ספר אחד נבחר'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+      expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+
+      final focus = FocusRepository();
+      expect(focus.findRefSearchFocusNode.hasFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(focus.findRefSearchFocusNode.hasFocus, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FindRefDialog), findsOneWidget);
+      expect(find.text('פתח נבחרים'), findsNothing);
+      expect(tabs.events, isEmpty);
+      expect(focus.findRefSearchController.text, 'שאילתה');
+      expect(focus.findRefSearchFocusNode.hasFocus, isTrue);
+    });
   });
 
   testWidgets('תוצאת כותרת בשורה 0 נפתחת בה ולא במיקום מההיסטוריה', (
@@ -475,6 +781,8 @@ void main() {
     final fallback = (tab as ResolvingTab).fallbackTab as TextBookTab;
     expect(fallback.index, 0);
     expect(fallback.commentators, ['מפרש']);
+    // #5905: גם בטאב הטקסט החלופי היעד נבחר.
+    expect(fallback.linkSelectedLine, 0);
   });
 
   // #2696: Enter שממתין לתוצאות פותח באותו פריים שהרשימה נבנית לראשונה;
@@ -944,6 +1252,104 @@ void main() {
 
       expect(find.text(result.reference), findsOneWidget);
       expect(find.byTooltip(tooltip), findsNothing);
+    });
+  });
+
+  // #5905: היעד נבחר כמו בלחיצה עליו (הפס בצד, המפרשים עוברים אליו).
+  group('פתיחה מאיתור בוחרת את קטע היעד', () {
+    testWidgets('תוצאה עם מיקום בוחרת את הקטע', (tester) async {
+      final book = TextBook(id: 1, title: 'משלי');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        result: const DbReferenceResult(
+          title: 'משלי',
+          reference: 'משלי פרק כד, כו',
+          segment: 30,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, 30);
+    });
+
+    testWidgets('תוצאה בשורה 0 בוחרת אותה', (tester) async {
+      final book = TextBook(id: 1, title: 'בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        history: [Bookmark(ref: 'בראשית', book: book, index: 40)],
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית פרק א',
+          segment: 0,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, 0);
+    });
+
+    testWidgets('תוצאת ספר בלבד אינה בוחרת דבר', (tester) async {
+      final book = TextBook(id: 1, title: 'בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        history: [Bookmark(ref: 'בראשית', book: book, index: 40)],
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית',
+          segment: 0,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).index, 40);
+      expect(tab.linkSelectedLine, isNull);
+    });
+
+    testWidgets('מפרש מהתפריט בוחר את קטע היעד שלו', (tester) async {
+      final source = TextBook(id: 1, title: 'בראשית');
+      final rashi = TextBook(id: 81, title: 'רש"י על בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([source, rashi]),
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית פרק א',
+          segment: 0,
+          bookId: 1,
+        ),
+        commentator: const DbCommentatorEntry(
+          title: 'רש"י על בראשית',
+          bookId: 81,
+          targetSegment: 5,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, 5);
+    });
+
+    testWidgets('מפרש ללא יעד מוגדר אינו בוחר דבר', (tester) async {
+      final source = TextBook(id: 1, title: 'בראשית');
+      final rashi = TextBook(id: 81, title: 'רש"י על בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([source, rashi]),
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית פרק א',
+          segment: 0,
+          bookId: 1,
+        ),
+        commentator: const DbCommentatorEntry(
+          title: 'רש"י על בראשית',
+          bookId: 81,
+          targetSegment: null,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, isNull);
     });
   });
 }

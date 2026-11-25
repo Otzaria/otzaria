@@ -13,6 +13,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/stub_personal_notes_bloc.dart';
@@ -68,7 +69,7 @@ void main() {
         .widget<PdfCommentaryPanel>(find.byType(PdfCommentaryPanel))
         .lineStartOverride;
 
-    await tester.tap(find.byTooltip('הצג ניווט').first);
+    await tester.tap(find.byType(NavPanelToggleButton).first);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(NavTreeTile, 'משנה ז'));
     await tester.pump();

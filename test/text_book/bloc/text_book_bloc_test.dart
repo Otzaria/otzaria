@@ -1806,16 +1806,13 @@ void main() {
     );
 
     test(
-      'LoadContent(preserveState:true) תמיד שומר pinLeftPane ללא קשר לשינוי הגופן',
+      'LoadContent(preserveState:true) שומר חלונית ניווט פתוחה ברענון גופן',
       () async {
         final repository = _FakeTextBookRepository();
         final bloc = _createBloc(
           repository: repository,
           showPageShapeView: false,
         );
-
-        // Settings: pin-sidebar = false
-        await Settings.setValue<bool>('key-pin-sidebar', false);
 
         bloc.add(
           const LoadContent(
@@ -1829,19 +1826,17 @@ void main() {
           () => bloc.state is TextBookLoaded,
           description: 'initial TextBookLoaded',
         );
-        expect((bloc.state as TextBookLoaded).pinLeftPane, isFalse);
 
-        // המשתמש נועץ את החלונית
-        bloc.add(const TogglePinLeftPane(true));
+        bloc.add(const ToggleLeftPane(true));
         await _waitFor(
           () =>
               bloc.state is TextBookLoaded &&
-              (bloc.state as TextBookLoaded).pinLeftPane,
-          description: 'pinned left pane',
+              (bloc.state as TextBookLoaded).showLeftPane,
+          description: 'opened left pane',
         );
-        expect((bloc.state as TextBookLoaded).pinLeftPane, isTrue);
+        expect((bloc.state as TextBookLoaded).showLeftPane, isTrue);
 
-        // רענון בגין שינוי גופן – מצפה שהנעיצה תישמר
+        // רענון בגין שינוי גופן – החלונית נשארת פתוחה
         bloc.add(
           const LoadContent(
             fontSize: 21,
@@ -1860,9 +1855,9 @@ void main() {
         );
 
         expect(
-          (bloc.state as TextBookLoaded).pinLeftPane,
+          (bloc.state as TextBookLoaded).showLeftPane,
           isTrue,
-          reason: 'שינוי גופן לא אמור לבטל את נעיצת חלונית המפרשים',
+          reason: 'שינוי גופן לא אמור לסגור את חלונית הניווט',
         );
 
         await bloc.close();
@@ -1870,15 +1865,13 @@ void main() {
     );
 
     test(
-      'LoadContent(preserveState:true) שומר pinLeftPane גם ברענון הגדרות ניקוד',
+      'LoadContent(preserveState:true) שומר חלונית ניווט פתוחה ברענון ניקוד',
       () async {
         final repository = _FakeTextBookRepository();
         final bloc = _createBloc(
           repository: repository,
           showPageShapeView: false,
         );
-
-        await Settings.setValue<bool>('key-pin-sidebar', false);
 
         bloc.add(
           const LoadContent(
@@ -1893,16 +1886,16 @@ void main() {
           description: 'initial TextBookLoaded',
         );
 
-        bloc.add(const TogglePinLeftPane(true));
+        bloc.add(const ToggleLeftPane(true));
         await _waitFor(
           () =>
               bloc.state is TextBookLoaded &&
-              (bloc.state as TextBookLoaded).pinLeftPane,
-          description: 'pinned left pane',
+              (bloc.state as TextBookLoaded).showLeftPane,
+          description: 'opened left pane',
         );
-        expect((bloc.state as TextBookLoaded).pinLeftPane, isTrue);
+        expect((bloc.state as TextBookLoaded).showLeftPane, isTrue);
 
-        // רענון בגין שינוי הגדרות ניקוד – מצפה שהנעיצה תישמר גם כן
+        // רענון בגין שינוי הגדרות ניקוד – החלונית נשארת פתוחה
         bloc.add(
           const LoadContent(
             fontSize: 21,
@@ -1921,9 +1914,9 @@ void main() {
         );
 
         expect(
-          (bloc.state as TextBookLoaded).pinLeftPane,
+          (bloc.state as TextBookLoaded).showLeftPane,
           isTrue,
-          reason: 'שינוי הגדרות ניקוד לא אמור לבטל את נעיצת חלונית המפרשים',
+          reason: 'שינוי הגדרות ניקוד לא אמור לסגור את חלונית הניווט',
         );
 
         await bloc.close();

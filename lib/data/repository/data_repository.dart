@@ -445,6 +445,12 @@ BookSearchEntry buildBookSearchEntry(
   return BookSearchEntry(
     index: index,
     title: book.title,
+    catalogTitle:
+        book is ExternalLibraryBook &&
+            book.volume != null &&
+            book.volume != book.catalogTitle
+        ? book.catalogTitle
+        : null,
     author: book.author ?? '',
     topics: book.topics,
     acronyms: isExternalCatalog
@@ -464,6 +470,9 @@ BookSearchEntry buildBookSearchEntry(
 class BookSearchEntry {
   final int index;
   final String title;
+
+  /// שם הקטלוג המקורי, כאשר בסוף [title] נוסף שם הכרך.
+  final String? catalogTitle;
   final String author;
   final String topics;
 
@@ -485,6 +494,7 @@ class BookSearchEntry {
   const BookSearchEntry({
     required this.index,
     required this.title,
+    this.catalogTitle,
     required this.author,
     required this.topics,
     this.acronyms = const [],
@@ -500,6 +510,7 @@ class BookSearchEntry {
       eraOrder == other.eraOrder &&
       isExternalCatalog == other.isExternalCatalog &&
       title == other.title &&
+      catalogTitle == other.catalogTitle &&
       author == other.author &&
       topics == other.topics &&
       categoryPath == other.categoryPath &&
@@ -612,6 +623,10 @@ _PreparedBookSearchEntry _prepareEntry(
   return _PreparedBookSearchEntry(
     index: entry.index,
     normalizedTitle: normalizedTitle,
+    normalizedCatalogTitleLength: switch (entry.catalogTitle) {
+      final title? => _normalizeBookSearchText(title).length,
+      null => null,
+    },
     normalizedAuthor: normalizedAuthor,
     searchWords: searchWords,
     categoryWords: categoryWords,
@@ -688,6 +703,18 @@ BookSearchMatches _searchPreparedEntries(
       matchKinds.add(kinds);
       continue;
     }
+    // התאמה שנמצאת כולה בשם הספר שומרת על הדירוג שלה גם כשמוצג כרך.
+    final catalogTitleLength = entry.normalizedCatalogTitleLength;
+    final rankedTitle =
+        catalogTitleLength != null &&
+            catalogTitleLength >= normalizedQuery.length &&
+            entry.normalizedTitle.lastIndexOf(
+                  normalizedQuery,
+                  catalogTitleLength - normalizedQuery.length,
+                ) >=
+                0
+        ? entry.normalizedTitle.substring(0, catalogTitleLength)
+        : entry.normalizedTitle;
     scored.add(
       _ScoredBookSearchEntry(
         index: entry.index,
@@ -696,7 +723,7 @@ BookSearchMatches _searchPreparedEntries(
         // בתוך כל שכבה: דור ואז ratio, כדי שספר יסוד לא ייקבר תחת פירושים.
         tier: viaCategoryOnly
             ? -2
-            : entry.normalizedTitle == normalizedQuery
+            : rankedTitle == normalizedQuery
             ? 4
             : (sameSingleWord
                   ? kinds & BookMatchKind.title.bit != 0
@@ -716,7 +743,7 @@ BookSearchMatches _searchPreparedEntries(
         source: entry.source,
         isExternalCatalog: entry.isExternalCatalog,
         normalizedQuery: normalizedQuery,
-        normalizedTitle: entry.normalizedTitle,
+        normalizedTitle: rankedTitle,
       ),
     );
   }
@@ -789,6 +816,7 @@ bool _titleHasQueryWordsInOrder(
 class _PreparedBookSearchEntry {
   final int index;
   final String normalizedTitle;
+  final int? normalizedCatalogTitleLength;
   final String normalizedAuthor;
 
   /// כל המילים המנורמלות של הכותרת, המחבר והכינויים — מאוחדות לבדיקה אחת.
@@ -812,6 +840,7 @@ class _PreparedBookSearchEntry {
   _PreparedBookSearchEntry({
     required this.index,
     required this.normalizedTitle,
+    required this.normalizedCatalogTitleLength,
     required this.normalizedAuthor,
     required this.searchWords,
     required this.categoryWords,

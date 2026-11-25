@@ -43,7 +43,7 @@ void main() {
   setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
   setUp(() {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     SearchDefaults.saveExactDefaults(const {});
   });
   tearDown(() {
@@ -518,7 +518,6 @@ TextBookLoaded _loaded(TextBook book, String source, bool combined) =>
       removeNikud: false,
       visibleIndices: const [0],
       selectedIndex: null,
-      pinLeftPane: false,
       searchText: '',
     );
 

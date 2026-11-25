@@ -43,6 +43,9 @@ abstract class LibraryMessages {
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 
+  static String advancedDistanceSetAsDefault(int distance) =>
+      'מרווח $distance נקבע כברירת מחדל לחיפוש מתקדם';
+
   static String proximitySetAsDefault(String scope, String wordMatch) =>
       'טווח הקרבה "$scope · $wordMatch" נקבע כברירת מחדל לחיפוש מתקדם';
 
@@ -124,6 +127,10 @@ abstract class LibraryMessages {
   // ===== עדכונים =====
   static const String updateCheckNetworkError =
       'שגיאה בחיבור לרשת במהלך בדיקת עדכונים';
+
+  static const String invalidLibraryReleaseResponse =
+      'לא התקבלו פרטי הורדה תקינים של הספרייה. בדקו את החיבור ונסו שוב, '
+      'או בחרו תיקייה שהוכנה במסייע ההורדה.';
 
   static const String updateCheckError = 'שגיאה בבדיקת עדכונים';
 

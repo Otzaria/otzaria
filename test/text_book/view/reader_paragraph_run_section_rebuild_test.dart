@@ -61,7 +61,6 @@ Widget _paragraphs(int count, {bool isMainText = true}) {
       linksByLine: const {},
       tableOfContents: const [],
       visibleIndices: const [0],
-      pinLeftPane: false,
       searchText: '',
     ),
     lines: lines,

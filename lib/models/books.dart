@@ -338,12 +338,20 @@ class ExternalLibraryBook extends Book {
   /// The online link to access the book in the Otzar HaChochma system.
   final String link;
 
+  /// הכרך כפי שבקטלוג אוצר החכמה. [title] כבר כולל אותו, כדי שכרכים של
+  /// אותו ספר ייבדלו ברשימה, בפרטים ובחיפוש.
+  final String? volume;
+
+  /// שם הספר בקטלוג בלי הכרך: זהות התוסף (`bookId`) נשענת עליו.
+  final String catalogTitle;
+
   /// Creates an [ExternalLibraryBook] instance.
   ///
   /// [title] and [id] are required. Other parameters are optional.
   /// [link] is required for online access to the book.
   ExternalLibraryBook({
-    required super.title,
+    required String title,
+    this.volume,
     required int id,
     super.author,
     super.heCategories,
@@ -363,7 +371,11 @@ class ExternalLibraryBook extends Book {
     super.fileType = 'link',
     super.source,
     super.externalLibraryId,
-  }) : super(id: id);
+  }) : catalogTitle = title,
+       super(
+         id: id,
+         title: volume == null || volume == title ? title : '$title – $volume',
+       );
 
   /// Creates an [ExternalLibraryBook] instance from a JSON map.
   ///
@@ -371,6 +383,7 @@ class ExternalLibraryBook extends Book {
   factory ExternalLibraryBook.fromJson(Map<String, dynamic> json) {
     return ExternalLibraryBook(
       title: json['bookName'] ?? json['title'],
+      volume: json['volume'],
       id: json['id'] ?? json['otzarId'],
       author: json['author'],
       pubPlace: json['pubPlace'],
@@ -390,7 +403,8 @@ class ExternalLibraryBook extends Book {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'title': title,
+      'title': catalogTitle,
+      if (volume != null) 'volume': volume,
       'type': 'ExternalLibraryBook',
       'otzarId': id,
       'author': author,

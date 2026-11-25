@@ -1168,7 +1168,7 @@ void main() {
       await tester.tap(find.text('קבע כברירת מחדל'));
       await tester.pumpAndSettle();
       expect(SearchDefaults.loadSemanticDefault(), isTrue);
-      expect(SearchDefaults.loadDistanceDefault(), 0);
+      expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 0);
     },
   );
 

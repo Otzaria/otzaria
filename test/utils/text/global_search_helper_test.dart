@@ -42,7 +42,7 @@ void main() {
 
   tearDown(() {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     SearchDefaults.saveExactDefaults(const {});
     SearchDefaults.saveSemanticIncludeLexicalDefault(true);
     SearchDefaults.saveSemanticGroupIdenticalDefault(true);
@@ -75,7 +75,7 @@ void main() {
     'חיפוש בכל הספרים מטקסט מסומן מתחיל מברירות המחדל השמורות (issue #3690)',
     (tester) async {
       SearchDefaults.saveModeDefault(SearchMode.exact);
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
       SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
       final tabs = _RecordingTabsBloc();
       final context = await pumpProviders(tester, tabs);
@@ -163,7 +163,7 @@ void main() {
           isTrue,
         );
         SearchDefaults.saveModeDefault(SearchMode.exact);
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
         SearchDefaults.saveSemanticDefault();
         final tabs = _RecordingTabsBloc();

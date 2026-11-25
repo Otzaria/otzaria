@@ -28,6 +28,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -456,6 +457,100 @@ void main() {
       });
     }
 
+    test('פתיחה חוזרת של יעד בבלי בוחרת את השורה בטאב טקסט חלופי', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final recorder = _RecordingTextBookBloc(loaded: true);
+      final book = TextBook(title: 'ברכות', categoryId: 1);
+      const key = 'talmud-bavli-pdf:berakhot.pdf|0';
+      final existing = TextBookTab(
+        book: book,
+        index: 40,
+        dedupeKey: key,
+        blocOverride: recorder,
+      );
+      bloc.add(AddTab(existing));
+      bloc.add(AddTab(_createTextTab('ספר ב', categoryId: 2)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      final fallback = TextBookTab(
+        book: book,
+        index: 0,
+        dedupeKey: key,
+        linkSelectedLine: 0,
+      );
+      bloc.add(
+        OpenOrFocusTab(
+          ResolvingTab(
+            fallbackTab: fallback,
+            dedupeKey: key,
+            resolve: () async => throw StateError('Unexpected resolution'),
+          ),
+        ),
+      );
+      await bloc.stream.firstWhere((s) => identical(s.currentTab, existing));
+
+      expect(existing.index, 0);
+      expect(
+        recorder.received.whereType<SelectLineWhenVisible>().single.line,
+        0,
+      );
+      expect(bloc.state.tabs, hasLength(2));
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('סימניה בטאב פתוח מבקשת הדגשה רק אחרי שפורסם יעד הגלילה, '
+        'וההדגשה ממתינה להופעת השורה (issue #4455)', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final recorder = _RecordingTextBookBloc(loaded: true);
+      final existingTab = TextBookTab(
+        book: TextBook(title: 'ספר א', categoryId: 1),
+        index: 0,
+        blocOverride: recorder,
+      );
+      ReadingPosition? positionAtRequest;
+      recorder.onAdd = (event) {
+        if (event is HighlightLineWhenVisible) {
+          positionAtRequest = existingTab.lines.position.value;
+        }
+      };
+
+      bloc.add(AddTab(existingTab));
+      bloc.add(AddTab(_createTextTab('ספר ב', index: 0, categoryId: 2)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(
+        OpenOrFocusTab(
+          TextBookTab(
+            book: TextBook(title: 'ספר א', categoryId: 1),
+            index: 12,
+          )..highlightLineWhenVisible(12),
+          navigateToPositionIfReused: true,
+        ),
+      );
+      await bloc.stream.firstWhere(
+        (s) => s.tabs.length == 2 && s.currentTabIndex == 0,
+      );
+
+      expect(
+        recorder.received.whereType<HighlightLineWhenVisible>().map(
+          (e) => e.line,
+        ),
+        [12],
+      );
+      expect(recorder.received.whereType<HighlightLine>(), isEmpty);
+      expect(
+        recorder.received
+            .whereType<HighlightLineWhenVisible>()
+            .single
+            .navigationEpoch,
+        existingTab.lines.navigationEpoch.value,
+      );
+      expect(positionAtRequest?.isTarget, isTrue);
+      expect(positionAtRequest?.topLine, 12);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
     test('טאב טקסט שטרם נטען מקבל את החיפוש רק כשהוא מגיע ל-Loaded', () async {
       // טאב ששוחזר ולא נצפה עדיין נשאר ב-TextBookInitial, ושם UpdateSearchText
       // נזרק בשקט — כל התצורה הייתה נעלמת.
@@ -678,6 +773,51 @@ void main() {
       expect(anchor.intraLineFraction, greaterThan(0.4));
 
       await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('פתיחת תוצאת חיפוש בטאב קיים גוללת להתאמה המלאה', () async {
+      if (!await tryInitSearchEngine()) {
+        markTestSkipped(searchEngineSkipReason);
+        return;
+      }
+      const query = 'אלף בית גימל';
+      const line = 'פתיחה בית גימל תוכן נוסף אלף בית גימל סוף';
+      final bloc = _newBloc(_FakeTabsRepository());
+      addTearDown(() => _closeBlocAndAllowDeferredDispose(bloc));
+      final book = TextBook(title: 'ספר א', categoryId: 1);
+      final existingTab = TextBookTab(
+        book: book,
+        index: 0,
+        blocOverride: _RecordingTextBookBloc(
+          loaded: true,
+          content: const ['', line],
+        ),
+      )..currentTitle.value = 'פרק א';
+
+      bloc.add(AddTab(existingTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+      bloc.add(
+        OpenOrFocusTab(
+          TextBookTab(
+            book: book,
+            index: 1,
+            searchText: query,
+            searchOrigin: InBookSearchOrigin.globalResult,
+            initialSearchResultLines: const {1},
+            searchMode: SearchMode.advanced,
+            matchPolicy: const SearchMatchPolicy(
+              proximityScope: SearchScope.sameParagraph,
+            ),
+          ),
+          targetTitle: 'ספר א, פרק א',
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, [existingTab]);
+      final anchor = existingTab.lines.captureAnchor()!;
+      expect(anchor.line, 1);
+      expect(anchor.intraLineFraction, line.indexOf(query) / line.length);
     });
 
     // #2587: סעיף בשו"ע אינו בתוכן העניינים, ולכן כותרת הטאב זהה לכותרת היעד.
@@ -3366,7 +3506,6 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
   );
 
@@ -3375,9 +3514,13 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   final List<TextBookEvent> received = [];
 
+  /// נקרא ברגע שהאירוע נשלח, לבדיקת המצב שסביבו.
+  void Function(TextBookEvent event)? onAdd;
+
   @override
   void add(TextBookEvent event) {
     received.add(event);
+    onAdd?.call(event);
     super.add(event);
   }
 

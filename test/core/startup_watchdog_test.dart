@@ -337,7 +337,7 @@ void main() {
     expect(failureBlock, contains('::CoUninitialize();'));
   });
 
-  test('מחסנית עמוקה: ראש, שורת השמטה שמתחילה ב-"..." ותחתית', () {
+  test('מחסנית עמוקה: ראש, שורת השמטה שמתחילה ב-"...", קצה ה-Dart ותחתית', () {
     // error_log_blocks.dart מחשב את חתימת התקיעה רק מהשורות שלפני "...".
     expect(source, contains('constexpr size_t kTopFrames = 48;'));
     expect(source, contains(r'"  ... (%zu frames omitted%s) ...\n"'));
@@ -345,7 +345,19 @@ void main() {
       source.indexOf('void AppendStackSection('),
       source.indexOf('void AppendBuildIdentitySection('),
     );
-    expect(section, contains('i == kTopFrames'));
-    expect(section, contains('count - kTopFrames - kBottomFrames'));
+    expect(section, contains('i < kTopFrames'));
+    expect(section, contains('i >= bottom_begin'));
+    // בתחתית יש לרוב רק לולאת ההודעות; קצה ה-Dart שמעליה חייב להישמר.
+    expect(section, contains('count > kTopFrames + kBottomFrames'));
+    expect(section, contains('DartImageBase(frames[i - 1]) != 0'));
+    expect(
+      section,
+      contains('outer_begin = i - (std::min)(i, kOuterDartFrames)'),
+    );
+    expect(
+      section,
+      contains('outer_end = (std::min)(count, i + kBelowDartFrames)'),
+    );
+    expect(section, contains('i >= outer_begin && i < outer_end'));
   });
 }

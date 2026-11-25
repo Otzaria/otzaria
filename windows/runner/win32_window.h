@@ -40,28 +40,6 @@ class Win32Window {
   // |Show| is called. Returns true if the window was created successfully.
   bool Create(const std::wstring& title, const Point& origin, const Size& size);
 
-  // רושם שהמשתמש בחר את [window] בלחיצה.
-  static void NoteUserActivation(HWND window);
-
-  // האם יש לחסום הפעלה של [window] כרגע.
-  //
-  // ## ⚠️ למה נדרש שער כזה בכלל
-  //
-  // עם שני מנועי Flutter בתהליך אחד, החלון שמחזיק את המיקוד **אוכף אותו
-  // בחזרה**: המשתמש לוחץ על החלון השני, הוא מופעל (`WA_CLICKACTIVE`),
-  // ותוך ~30ms המנוע של החלון הראשון מפעיל אותו מחדש. נמדד ב-stack:
-  // הקריאה מגיעה מ-`flutter_windows.dll` עם קוד Dart מתחתיה — לא מהקוד
-  // שלנו, לא מפלאגין, וגם לא ב-`WM_ACTIVATE` שלנו (נבדק בנפרד עם
-  // ההצבה מנוטרלת). ההתנהגות סימטרית: מי שמחזיק פוקוס מסרב לוותר.
-  //
-  // אירוע ה-blur מגיע ל-Dart אסינכרונית, ולכן שחרור מיקוד מצד Flutter
-  // מגיע מאוחר מדי. השער כאן הוא המקום היחיד שפועל **סינכרונית**.
-  //
-  // המדיניות: בחירה מפורשת של המשתמש (לחיצה) מוגנת לחצי שנייה מפני
-  // הפעלה תוכניתית של חלון אוצריא **אחר**. הפעלה שהמשתמש יזם, והפעלה של
-  // חלונות שאינם שלנו, אינן נוגעות בשער.
-  static bool ShouldVetoActivation(HWND window);
-
   // Show the current window. Returns true if the window was successfully shown.
   bool Show();
 

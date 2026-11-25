@@ -43,7 +43,6 @@ TextBookLoaded _state({required bool replaceHolyNames}) => TextBookLoaded(
   ],
   removeNikud: false,
   visibleIndices: const [1],
-  pinLeftPane: false,
   searchText: '',
   displayPolicy: _policy(replaceHolyNames: replaceHolyNames),
 );

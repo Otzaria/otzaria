@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/theme/app_density.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/book_common/view/commentary_search_pane.dart';
@@ -40,6 +39,7 @@ import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -153,9 +153,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   static const int _commentatorsTabIndex = 1;
   static const int _searchTabIndex = 2;
 
-  /// האם פאנל הצד פתוח, והאם הוא נעוץ (לא נסגר אוטומטית)
+  /// האם חלונית הניווט פתוחה בלחיצה (דוחקת את התוכן).
   bool _navPaneOpen = false;
-  bool _pinLeftPane = false;
+  final _navPeek = NavPanelPeekController();
 
   /// קבוצות המפרשים ללשונית הבחירה (נטענות מתוך links של ה-sourceTab)
   List<CommentatorGroup> _commentatorGroups = [];
@@ -618,6 +618,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   @override
   void dispose() {
+    _navPeek.dispose();
     _hiddenSelectionSubscription?.cancel();
     _focus.unregisterTabContentFocusRequester(widget.tab);
     widget.tab.sourceTab.currentTitle.removeListener(_syncWithSourceTab);
@@ -746,21 +747,16 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         onNextMajor: _navigateToNextHeading,
       ),
       child: Scaffold(
-        body: Column(
+        body: AppTopBarLayout(
           children: [
             _buildAppTopBar(context),
             Expanded(
               child: NavSidePanel(
-                isOpen: _navPaneOpen || _pinLeftPane,
-                isPinned: _pinLeftPane,
-                isGloballyPinned:
-                    Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
-                    false,
+                isOpen: _navPaneOpen,
+                peek: _navPeek,
                 alignment: AlignmentDirectional.centerEnd,
                 paneWidth: _kNavPaneWidth,
-                onClose: () {
-                  if (!_pinLeftPane) setState(() => _navPaneOpen = false);
-                },
+                onClose: () => setState(() => _navPaneOpen = false),
                 paneContent: NavPanelSearchScope(
                   host: _searchHost,
                   child: _buildSidePane(context),
@@ -837,14 +833,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     setState(() => _navPaneOpen = !_navPaneOpen);
     if (_navPaneOpen && _navTabController.index == 0) {
       _scrollNavToSelectedHeading();
-      if (!_pinLeftPane) _focusNavigationSearch();
+      _focusNavigationSearch();
     }
   }
 
   void _focusNavigationSearch() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          !(_navPaneOpen || _pinLeftPane) ||
+          !_navPaneOpen ||
           _navTabController.index != 0 ||
           !TickerMode.valuesOf(context).enabled ||
           ModalRoute.of(context)?.isCurrent == false ||
@@ -972,13 +968,8 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       prevMajorTooltip: 'הכותרת הקודמת',
       nextMajorTooltip: 'הכותרת הבאה',
       navPaneOpen: _navPaneOpen,
-      navPanePinned: _pinLeftPane,
-      canPinNavPane: NavSidePanel.canPin(context, paneWidth: _kNavPaneWidth),
+      navPeek: _navPeek,
       onToggleNavPane: _toggleNavPane,
-      onTogglePin: () {
-        setState(() => _pinLeftPane = !_pinLeftPane);
-        if (_pinLeftPane && !_navPaneOpen) _focusNavigationSearch();
-      },
       onPrevMajor: _navigateToPrevHeading,
       onPrevMinor: _navigateToPrevParagraph,
       onNextMinor: _navigateToNextParagraph,
@@ -1006,8 +997,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     );
   }
 
-  /// פאנל הצד — סרגל 3 לשוניות זהה לכרטיסיית הטקסט (ניווט / מפרשים / חיפוש)
-  /// עם כפתור נעיצה בפינה.
+  /// פאנל הצד — סרגל 3 לשוניות זהה לכרטיסיית הטקסט (ניווט / מפרשים / חיפוש).
   Widget _buildSidePane(BuildContext context) {
     return CommentatorsSidePane(
       controller: _navTabController,

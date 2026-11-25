@@ -1,9 +1,13 @@
 name: Automerge
 
 # ממזג בשם Otzaria Bot, בקומיט מיזוג, PR עם תווית automerge כשכל הבדיקות עברו על ה-head שלו.
-# ענף שמאחורי הבסיס עובר קודם ריבייס ודחיפה בכוח, וה-CI רץ עליו שוב לפני המיזוג.
+# ענף שמאחורי הבסיס עובר קודם ריבייס ודחיפה בכוח, ומיד אחריהם מתבצע המיזוג, בלי להמתין ל-CI על הקומיט המורבס.
 # אין כאן הרצה של קוד מה-PR: רק git rebase ו-push.
 on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/automerge.yml']
   pull_request_target:
     types: [labeled, ready_for_review]
   workflow_run:
@@ -17,6 +21,8 @@ jobs:
   find:
     name: Find PRs to check
     if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev') ||
+      github.event_name == 'push' ||
       (github.event_name == 'pull_request_target' &&
        contains(github.event.pull_request.labels.*.name, 'automerge')) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
@@ -41,11 +47,11 @@ jobs:
           R=$GITHUB_REPOSITORY
           if [ -n "$PR" ]; then
             prs="[$PR]"
-          elif [ "$RUN_EVENT" = push ]; then
-            prs=$(gh pr list -R "$R" --state open --label automerge --json number --jq 'map(.number)')
+          elif [ "$RUN_EVENT" = push ] || [ "$GITHUB_EVENT_NAME" = push ] || [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            prs=$(gh pr list -R "$R" --state open --label automerge --limit 1000 --json number,isDraft --jq 'map(select(.isDraft == false) | .number)')
           else
-            prs=$(gh pr list -R "$R" --state open --label automerge --search "$SHA" --json number,headRefOid \
-              --jq "map(select(.headRefOid == \"$SHA\") | .number)")
+            prs=$(gh pr list -R "$R" --state open --label automerge --limit 1000 --json number,headRefOid,isDraft \
+              --jq "map(select(.isDraft == false and .headRefOid == \"$SHA\") | .number)")
           fi
           echo "prs=$prs" | tee -a "$GITHUB_OUTPUT"
 
@@ -101,11 +107,27 @@ jobs:
           head=$(jq -r .head.sha <<< "$pr")
           base=$(jq -r .base.ref <<< "$pr")
 
-          # נבדק מתוך תור המיזוגים; ריצה ירוקה של קומיט ישן אינה מעידה על dev הנוכחי.
+          # ה-CI האחרון שהסתיים חייב להיות ירוק. ריצה חדשה על dev אינה חוסמת
+          # PR שכבר עבר CI, אבל כשל ידוע או הרצה חוזרת חדשה יותר כן חוסמים.
+          # הקומיט הירוק חייב להיות אב קדמון של dev הנוכחי (גם אחרי force push).
           dev_head=$(gh api "repos/$R/git/ref/heads/dev" --jq .object.sha)
-          dev_green=$(gh api "repos/$R/actions/workflows/flutter_tests.yml/runs?branch=dev&event=push&head_sha=$dev_head&per_page=1" \
-            --jq '.workflow_runs[0] | .status == "completed" and .conclusion == "success"')
-          [ "$dev_green" = true ] || { echo "Waiting for successful CI on dev at $dev_head"; exit 0; }
+          dev_runs=$(gh api "repos/$R/actions/workflows/flutter_tests.yml/runs?branch=dev&event=push&per_page=100" --jq '.workflow_runs')
+          dev_ci=$(jq -c 'first(.[] | select(.status == "completed")) // empty' <<< "$dev_runs")
+          if [ -z "$dev_ci" ] || [ "$(jq -r .conclusion <<< "$dev_ci")" != success ]; then
+            echo "Waiting for a successful completed CI run on dev"
+            exit 0
+          fi
+          if jq -e '(map(.status == "completed") | index(true)) as $i | any(.[:$i][]; (.run_attempt // 1) > 1)' <<< "$dev_runs" > /dev/null; then
+            echo "Waiting for a newer dev CI retry to finish"
+            exit 0
+          fi
+          green_head=$(jq -r '.head_sha // empty' <<< "$dev_ci")
+          [ -n "$green_head" ] || { echo "No verified green dev commit"; exit 0; }
+          if [ "$green_head" != "$dev_head" ]; then
+            relation=$(gh api "repos/$R/compare/$green_head...$dev_head" --jq .status)
+            [ "$relation" = ahead ] || { echo "Last green dev commit is not an ancestor of current dev"; exit 0; }
+          fi
+          echo "Continuing with green dev baseline $green_head; current dev $dev_head"
           base_head=$dev_head
           if [ "$base" != dev ]; then
             base_head=$(gh api "repos/$R/git/ref/heads/$base" --jq .object.sha)
@@ -181,16 +203,18 @@ jobs:
             fi
             git push -q --force-with-lease="$head_ref:$head" origin "HEAD:$head_ref" \
               || give_up "הדחיפה אחרי הריבייס נכשלה."
-            echo "Rebased and pushed; merge waits for CI on the new head"
-            exit 0
+            head=$(git rev-parse HEAD)
+            echo "Rebased and pushed $head; merging without waiting for CI"
           fi
 
           if [ "$(gh api "repos/$R/git/ref/heads/$base" --jq .object.sha)" != "$base_head" ]; then
-            echo "Base moved during the checks; waiting for CI on the new base"
+            echo "Base moved during the checks; retrying on the next eligible event"
             exit 0
           fi
-          if ! gh pr merge "$PR" -R "$R" --merge --match-head-commit "$head"; then
+          # אחרי דחיפה GitHub עשוי לעדכן את ה-head של ה-PR באיחור קצר.
+          for attempt in 1 2 3; do
+            gh pr merge "$PR" -R "$R" --merge --match-head-commit "$head" && { echo "Merged #$PR"; exit 0; }
             [ "$(gh api "repos/$R/pulls/$PR" --jq .merged)" = true ] && { echo "Already merged"; exit 0; }
-            give_up "המיזוג של הקומיט \`${head:0:7}\` נדחה ב-GitHub."
-          fi
-          echo "Merged #$PR"
+            [ "$attempt" = 3 ] || sleep 5
+          done
+          give_up "המיזוג של הקומיט \`${head:0:7}\` נדחה ב-GitHub."

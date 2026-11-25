@@ -1,11 +1,63 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
-import 'package:otzaria/widgets/misc/animated_pin_button.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+
+/// פתיחה זמנית של חלונית הניווט בריחוף על [NavPanelToggleButton]: החלונית
+/// מרחפת מעל התוכן בלי הצללה, ונסגרת כשהעכבר יוצא ממנה.
+class NavPanelPeekController extends ValueNotifier<bool> {
+  NavPanelPeekController() : super(false);
+
+  static const Duration openDelay = Duration(milliseconds: 120);
+
+  /// זמן להגיע מהכפתור לחלונית. יציאה מהחלונית עצמה סוגרת מיד.
+  static const Duration buttonToPaneGrace = Duration(milliseconds: 150);
+
+  Timer? _timer;
+  Timer? _leftPaneRecently;
+
+  void buttonHoverChanged(bool inside) {
+    _timer?.cancel();
+    if (inside) {
+      if (value) return;
+      // חזרה מהחלונית אל הכפתור פותחת מיד, אחרת החלונית נסגרת ונפתחת שוב.
+      if (_leftPaneRecently?.isActive ?? false) {
+        value = true;
+      } else {
+        _timer = Timer(openDelay, () => value = true);
+      }
+    } else if (value) {
+      _timer = Timer(buttonToPaneGrace, () => value = false);
+    }
+  }
+
+  void paneHoverChanged(bool inside) {
+    _timer?.cancel();
+    if (inside) return;
+    if (value) {
+      _leftPaneRecently?.cancel();
+      _leftPaneRecently = Timer(buttonToPaneGrace, () {});
+    }
+    value = false;
+  }
+
+  void dismiss() {
+    _timer?.cancel();
+    _leftPaneRecently?.cancel();
+    value = false;
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _leftPaneRecently?.cancel();
+    super.dispose();
+  }
+}
 
 /// חלונית הניווט האחידה של האפליקציה — מקור האמת היחיד למראה שלה.
 ///
@@ -13,9 +65,10 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 /// overlay במסך צר) וקובעת בעצמה את כל ההיבטים העיצוביים: הצמדה לסרגל העליון,
 /// צבע הרקע והפינה הקעורה במפגש עם התוכן. מסך צריכה לא מגדיר אותם שוב.
 ///
+/// חלונית פתוחה ([isOpen]) דוחקת את התוכן. [peek] פותח אותה זמנית מעל התוכן.
 /// תוכן החלונית נבנה מ-[NavTreeTile] / [NavTreeHeader] / [NavTreeGroupCard],
 /// והכפתור שפותח אותה הוא [NavPanelToggleButton].
-class NavSidePanel extends StatelessWidget {
+class NavSidePanel extends StatefulWidget {
   final bool isOpen;
   final bool maintainState;
   final Widget mainContent;
@@ -30,14 +83,11 @@ class NavSidePanel extends StatelessWidget {
   final double? maxPaneWidth;
   final ValueChanged<double>? onPaneWidthChanged;
   final VoidCallback? onPaneResizeEnd;
+
+  /// מדווח רק על פריסת החלונית הפתוחה, לא על פתיחה בריחוף.
   final ValueChanged<bool>? onLayoutModeChanged;
   final bool autoHandleResponsiveVisibility;
-
-  /// חלונית לא נעוצה מרחפת מעל התוכן ונסגרת בלחיצה עליו; נעוצה דוחקת אותו.
-  final bool isPinned;
-
-  /// נעיצה גלובלית בהגדרות; גוברת על [isPinned].
-  final bool isGloballyPinned;
+  final NavPanelPeekController? peek;
 
   const NavSidePanel({
     super.key,
@@ -57,57 +107,111 @@ class NavSidePanel extends StatelessWidget {
     this.onPaneResizeEnd,
     this.onLayoutModeChanged,
     this.autoHandleResponsiveVisibility = true,
-    this.isPinned = true,
-    this.isGloballyPinned = false,
+    this.peek,
   });
-
-  /// האם לחלונית יש מקום להידחק ליד התוכן, כלומר האם נעיצה משנה משהו. בחלון
-  /// צר החלונית נפתחת כ-overlay גם כשהיא נעוצה, ולכן כפתור הנעיצה מוצג רק
-  /// כשהתשובה היא true, או לביטול נעיצה קיימת (issue #5202).
-  ///
-  /// המדידה היא של החלונית ([NavPanelPaneWidthScope]) ולא של החלון, כמו
-  /// בפריסה עצמה. [paneWidth] ו-[minMainContentWidth] הם אלה שהמסך מעביר
-  /// ל-[NavSidePanel].
-  static bool canPin(
-    BuildContext context, {
-    required double paneWidth,
-    double minMainContentWidth = LayoutConstraints.mainContentMinWidth,
-  }) => AdaptiveSidePane.fitsSideBySide(
-    availableWidth:
-        NavPanelPaneWidthScope.maybeOf(context) ??
-        MediaQuery.sizeOf(context).width,
-    occupiedByPane: paneWidth,
-    minMainContentWidth: minMainContentWidth,
-  );
 
   /// רקע חלונית הניווט — צבע הסרגל העליון, כדי שהחלונית תיראה כהמשך שלו.
   static Color background(BuildContext context) =>
       AppSurfaces.navPanelBackground(context);
 
   @override
+  State<NavSidePanel> createState() => _NavSidePanelState();
+}
+
+class _NavSidePanelState extends State<NavSidePanel> {
+  // פריסה צפה נשארת עד סוף אנימציית הסגירה, ונבנית סגורה פריים אחד לפני
+  // הפתיחה — אחרת החלונית קופצת במקום להחליק.
+  bool _floating = false;
+  bool _peekShown = false;
+  Timer? _settleTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.peek?.addListener(_onPeekChanged);
+  }
+
+  @override
+  void didUpdateWidget(NavSidePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.peek != widget.peek) {
+      oldWidget.peek?.removeListener(_onPeekChanged);
+      widget.peek?.addListener(_onPeekChanged);
+    }
+    if (widget.isOpen && !oldWidget.isOpen) {
+      _settleTimer?.cancel();
+      _floating = false;
+      _peekShown = false;
+      final peek = widget.peek;
+      if (peek != null && peek.value) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => peek.dismiss());
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _settleTimer?.cancel();
+    widget.peek?.removeListener(_onPeekChanged);
+    super.dispose();
+  }
+
+  void _onPeekChanged() {
+    if (!mounted) return;
+    final peeking = widget.peek!.value && !widget.isOpen;
+    _settleTimer?.cancel();
+    if (peeking) {
+      if (_floating) {
+        setState(() => _peekShown = true);
+        return;
+      }
+      setState(() => _floating = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.peek!.value && !widget.isOpen) {
+          setState(() => _peekShown = true);
+        }
+      });
+      return;
+    }
+    if (_peekShown) setState(() => _peekShown = false);
+    if (_floating) {
+      _settleTimer = Timer(
+        AppMotion.duration(context, AppTokens.animPanelSlide),
+        () {
+          if (mounted) setState(() => _floating = false);
+        },
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final floating = _floating && !widget.isOpen;
+    final peek = widget.peek;
     return AdaptiveSidePane(
-      isOpen: isOpen,
-      maintainState: maintainState,
-      alignment: alignment,
+      isOpen: widget.isOpen || (floating && _peekShown),
+      maintainState: widget.maintainState,
+      alignment: widget.alignment,
       // ההצמדה, הצבע ומרווח פס הגלילה הם העיצוב האחיד — לא פרמטרים של המסך.
       attachToTopEdge: true,
-      floatOverContent: !isPinned && !isGloballyPinned,
-      paneColor: background(context),
+      floatOverContent: floating,
+      showScrim: !floating,
+      onPaneHoverChanged: floating ? peek?.paneHoverChanged : null,
+      paneColor: NavSidePanel.background(context),
       scrollbarTopMargin: 0,
-      mainContent: mainContent,
-      paneContent: paneContent,
-      paneWidth: paneWidth,
-      minMainContentWidth: minMainContentWidth,
-      onClose: onClose,
-      onOpen: onOpen,
-      isResizable: isResizable,
-      minPaneWidth: minPaneWidth,
-      maxPaneWidth: maxPaneWidth,
-      onPaneWidthChanged: onPaneWidthChanged,
-      onPaneResizeEnd: onPaneResizeEnd,
-      onLayoutModeChanged: onLayoutModeChanged,
-      autoHandleResponsiveVisibility: autoHandleResponsiveVisibility,
+      mainContent: widget.mainContent,
+      paneContent: widget.paneContent,
+      paneWidth: widget.paneWidth,
+      minMainContentWidth: widget.minMainContentWidth,
+      onClose: floating && peek != null ? peek.dismiss : widget.onClose,
+      onOpen: widget.onOpen,
+      isResizable: widget.isResizable,
+      minPaneWidth: widget.minPaneWidth,
+      maxPaneWidth: widget.maxPaneWidth,
+      onPaneWidthChanged: widget.onPaneWidthChanged,
+      onPaneResizeEnd: widget.onPaneResizeEnd,
+      onLayoutModeChanged: floating ? null : widget.onLayoutModeChanged,
+      autoHandleResponsiveVisibility: widget.autoHandleResponsiveVisibility,
     );
   }
 }
@@ -115,8 +219,6 @@ class NavSidePanel extends StatelessWidget {
 /// שורת הלשוניות של חלונית הניווט.
 ///
 /// אייקון הלשונית הנבחרת מתחלף ל-filled כשסופק [NavPanelTab.iconFilled].
-/// כפתור הנעיצה אינו כאן — הוא פעולה של החלונית כולה ולכן יושב בסרגל העליון,
-/// ליד [NavPanelToggleButton].
 class NavPanelTabHeader extends StatefulWidget {
   final TabController controller;
   final List<NavPanelTab> tabs;
@@ -194,45 +296,18 @@ class _NavPanelTabHeaderState extends State<NavPanelTabHeader> {
   }
 }
 
-/// כפתור נעיצת חלונית הניווט. נעיצה גלובלית בהגדרות כופה נעוץ ומשביתה אותו.
-class NavPanelPinButton extends StatelessWidget {
-  final bool isPinned;
-  final VoidCallback? onToggle;
-
-  /// נעיצה גלובלית בהגדרות.
-  final bool isGloballyPinned;
-
-  const NavPanelPinButton({
-    super.key,
-    required this.isPinned,
-    required this.onToggle,
-    this.isGloballyPinned = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final effectivePinned = isPinned || isGloballyPinned;
-    return AnimatedPinButton(
-      isPinned: effectivePinned,
-      tooltip: isGloballyPinned
-          ? context.settingsText('החלונית נעוצה לפי ההגדרות')
-          : effectivePinned
-          ? context.settingsText('בטל נעיצה')
-          : context.settingsText('נעץ את החלונית'),
-      onPressed: isGloballyPinned ? null : onToggle,
-    );
-  }
-}
-
-/// הכפתור היחיד לפתיחת/סגירת חלונית הניווט, בכל המסכים.
+/// הכפתור היחיד לפתיחת/סגירת חלונית הניווט, בכל המסכים. עם [peek], ריחוף
+/// על הכפתור פותח את החלונית הסגורה זמנית.
 class NavPanelToggleButton extends StatelessWidget {
   final bool isOpen;
   final VoidCallback onToggle;
+  final NavPanelPeekController? peek;
 
   const NavPanelToggleButton({
     super.key,
     required this.isOpen,
     required this.onToggle,
+    this.peek,
   });
 
   /// האם להציג את הגליף שחץ שלו פונה ימינה (`text_continuous_ltr`), במקום
@@ -253,22 +328,40 @@ class NavPanelToggleButton extends StatelessWidget {
       isOpen: isOpen,
       textDirection: Directionality.of(context),
     );
-    return IconButton(
-      tooltip: isOpen
-          ? context.settingsText('הסתר ניווט')
-          : context.settingsText('הצג ניווט'),
-      onPressed: onToggle,
-      visualDensity: VisualDensity.standard,
-      splashRadius: 22,
-      color: Theme.of(context).colorScheme.onSecondaryContainer,
-      icon: AnimatedSwitcher(
-        duration: AppMotion.duration(context, AppTokens.animFast),
-        child: Icon(
-          key: ValueKey(isOpen),
-          _glyph(isOpen: isOpen, ltr: ltrGlyph),
-          size: 24,
+    final peek = this.peek;
+    final label = isOpen
+        ? context.settingsText('הסתר ניווט')
+        : context.settingsText('הצג ניווט');
+    // החלונית שנפתחת בריחוף תופסת את מקום ה-tooltip.
+    final hidesTooltip = peek != null && !isOpen;
+    final button = Semantics(
+      label: hidesTooltip ? label : null,
+      child: IconButton(
+        tooltip: hidesTooltip ? null : label,
+        onPressed: () {
+          peek?.dismiss();
+          onToggle();
+        },
+        visualDensity: VisualDensity.standard,
+        splashRadius: 22,
+        color: Theme.of(context).colorScheme.onSecondaryContainer,
+        icon: AnimatedSwitcher(
+          duration: AppMotion.duration(context, AppTokens.animFast),
+          child: Icon(
+            key: ValueKey(isOpen),
+            _glyph(isOpen: isOpen, ltr: ltrGlyph),
+            size: 24,
+          ),
         ),
       ),
+    );
+    if (peek == null) return button;
+    return MouseRegion(
+      onEnter: (_) {
+        if (!isOpen) peek.buttonHoverChanged(true);
+      },
+      onExit: (_) => peek.buttonHoverChanged(false),
+      child: button,
     );
   }
 

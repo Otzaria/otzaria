@@ -172,7 +172,6 @@ void _tests(bool combined) {
         visibleIndices: const [0],
         selectedIndex: 0,
         selectedIndices: const {0},
-        pinLeftPane: false,
         searchText: '',
       ),
     );

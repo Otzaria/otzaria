@@ -253,11 +253,22 @@ void main() {
   });
 
   test('missing or malformed reports and phases fail closed', () {
-    for (final value in [null, [], {}, 'passed', {'status': 'passed'}]) {
+    for (final value in [
+      null,
+      [],
+      {},
+      'passed',
+      {'status': 'passed'},
+    ]) {
       expect(perfPdfMultiWindowErrors(value), isNotEmpty);
     }
     for (final name in perfPdfMultiWindowSteps) {
-      for (final value in [null, {}, {'status': 'notRun'}, {'status': 'failed'}]) {
+      for (final value in [
+        null,
+        {},
+        {'status': 'notRun'},
+        {'status': 'failed'},
+      ]) {
         _reject(
           (report) => report['steps'][name] = value,
           reason: '$name $value',
@@ -307,49 +318,55 @@ void main() {
     }
   });
 
-  test('every reader requires real view ownership and final target content', () {
-    for (var i = 0; i < _readers(_fixture()).length; i++) {
-      for (final entry in {
-        'path': '/another.pdf',
-        'targetPage': 99,
-        'visibleRenderState': 'loading',
-        'targetCenterVisible': false,
-        'documentUnchanged': false,
-        'windowVisible': false,
-        'windowMinimized': true,
-        'screenViewId': 99,
-        'nativeHandle': 0,
-        'liveViewIds': <int>[],
-      }.entries) {
+  test(
+    'every reader requires real view ownership and final target content',
+    () {
+      for (var i = 0; i < _readers(_fixture()).length; i++) {
+        for (final entry in {
+          'path': '/another.pdf',
+          'targetPage': 99,
+          'visibleRenderState': 'loading',
+          'targetCenterVisible': false,
+          'documentUnchanged': false,
+          'windowVisible': false,
+          'windowMinimized': true,
+          'screenViewId': 99,
+          'nativeHandle': 0,
+          'liveViewIds': <int>[],
+        }.entries) {
+          _reject(
+            (report) => _readers(report)[i][entry.key] = entry.value,
+            reason: 'reader $i ${entry.key}',
+          );
+        }
+      }
+    },
+  );
+
+  test(
+    'the original windows use distinct native views and independent PDFs',
+    () {
+      for (final field in ['viewId', 'nativeHandle']) {
+        _reject((report) {
+          final open = report['steps']['open'];
+          open['secondary'][field] = open['primary'][field];
+          if (field == 'viewId') {
+            open['secondary']['screenViewId'] = open['secondary']['viewId'];
+          }
+        }, reason: 'duplicate $field');
+      }
+      for (final field in ['separateDocuments', 'separateControllers']) {
         _reject(
-          (report) => _readers(report)[i][entry.key] = entry.value,
-          reason: 'reader $i ${entry.key}',
+          (report) => report['steps']['open'][field] = false,
+          reason: field,
         );
       }
-    }
-  });
-
-  test('the original windows use distinct native views and independent PDFs', () {
-    for (final field in ['viewId', 'nativeHandle']) {
       _reject((report) {
-        final open = report['steps']['open'];
-        open['secondary'][field] = open['primary'][field];
-        if (field == 'viewId') {
-          open['secondary']['screenViewId'] = open['secondary']['viewId'];
-        }
-      }, reason: 'duplicate $field');
-    }
-    for (final field in ['separateDocuments', 'separateControllers']) {
-      _reject(
-        (report) => report['steps']['open'][field] = false,
-        reason: field,
-      );
-    }
-    _reject((report) {
-      report['initialViewIds'] = <int>[];
-      report['steps']['teardown']['finalViewIds'] = <int>[];
-    }, reason: 'primary view must already exist before secondary opens');
-  });
+        report['initialViewIds'] = <int>[];
+        report['steps']['teardown']['finalViewIds'] = <int>[];
+      }, reason: 'primary view must already exist before secondary opens');
+    },
+  );
 
   test('identity is retained across navigation and native transitions', () {
     const locations = [
@@ -408,8 +425,9 @@ void main() {
         {'startUs': 120.5, 'endUs': 300},
       ]) {
         _reject(
-          (report) => report['steps']['concurrentWork']['submittedOperations'][operation] =
-              interval,
+          (report) =>
+              report['steps']['concurrentWork']['submittedOperations'][operation] =
+                  interval,
           reason: '$operation $interval',
         );
       }
@@ -449,8 +467,9 @@ void main() {
       [true, 4],
     ]) {
       _reject(
-        (report) => report['steps']['concurrentWork']['indexing']['verifiedPages'] =
-            pages,
+        (report) =>
+            report['steps']['concurrentWork']['indexing']['verifiedPages'] =
+                pages,
         reason: '$pages',
       );
     }
@@ -504,8 +523,9 @@ void main() {
       [true, 3],
     ]) {
       _reject(
-        (report) => report['steps']['concurrentWork']['printing']['sourcePages'] =
-            pages,
+        (report) =>
+            report['steps']['concurrentWork']['printing']['sourcePages'] =
+                pages,
         reason: '$pages',
       );
     }
@@ -515,7 +535,8 @@ void main() {
     _reject(
       (report) => report['steps']['concurrentWork']['printing']['raster'] =
           _raster('rgba8888'),
-      reason: 'Printing raster must match the actual 480 by 320 sheet at 72 dpi',
+      reason:
+          'Printing raster must match the actual 480 by 320 sheet at 72 dpi',
     );
     for (final name in [
       'printing',
@@ -589,47 +610,67 @@ void main() {
       (report) => report['steps']['reopen']['differentDocument'] = false,
       reason: 'reused document',
     );
-    _reject((report) {
-      report['steps']['reopen']['secondary'] =
-          _reader(_secondaryPath, 0, 1001, 2);
-      report['steps']['closeReopened']['closed'] = _closed(0, 1001)
-        ..['liveViewIdsAfter'] = <int>[];
-    }, reason: 'primary native window cannot stand in for a reopened secondary');
+    _reject(
+      (report) {
+        report['steps']['reopen']['secondary'] = _reader(
+          _secondaryPath,
+          0,
+          1001,
+          2,
+        );
+        report['steps']['closeReopened']['closed'] = _closed(0, 1001)
+          ..['liveViewIdsAfter'] = <int>[];
+      },
+      reason: 'primary native window cannot stand in for a reopened secondary',
+    );
   });
 
-  test('teardown releases native documents and restores the initial view set', () {
-    for (final entry in <String, Object?>{
-      'primaryDocumentEventsClosed': false,
-      'primaryNativeDisposeAwaited': false,
-      'ownedWindowsRemaining': 1,
-      'ownedDocumentsRemaining': 1,
-      'indexingActive': true,
-      'finalViewIds': [0, 1],
-    }.entries) {
-      _reject(
-        (report) => report['steps']['teardown'][entry.key] = entry.value,
-        reason: entry.key,
-      );
-    }
-    for (final value in [null, 1, true, 0.0]) {
-      _reject(
-        (report) => report['steps']['teardown']['pendingOperations'] = value,
-        reason: 'missing or pending original native operations: $value',
-      );
-    }
-    for (final ids in [<int>[], [0, 0], [0.0], [true]]) {
-      _reject(
-        (report) => report['steps']['teardown']['finalViewIds'] = ids,
-        reason: '$ids',
-      );
-    }
-  });
+  test(
+    'teardown releases native documents and restores the initial view set',
+    () {
+      for (final entry in <String, Object?>{
+        'primaryDocumentEventsClosed': false,
+        'primaryNativeDisposeAwaited': false,
+        'ownedWindowsRemaining': 1,
+        'ownedDocumentsRemaining': 1,
+        'indexingActive': true,
+        'finalViewIds': [0, 1],
+      }.entries) {
+        _reject(
+          (report) => report['steps']['teardown'][entry.key] = entry.value,
+          reason: entry.key,
+        );
+      }
+      for (final value in [null, 1, true, 0.0]) {
+        _reject(
+          (report) => report['steps']['teardown']['pendingOperations'] = value,
+          reason: 'missing or pending original native operations: $value',
+        );
+      }
+      for (final ids in [
+        <int>[],
+        [0, 0],
+        [0.0],
+        [true],
+      ]) {
+        _reject(
+          (report) => report['steps']['teardown']['finalViewIds'] = ids,
+          reason: '$ids',
+        );
+      }
+    },
+  );
   _smokeTests();
 }
 
-
 class _SmokeFiles {
-  _SmokeFiles(this.root, this.receipt, this.manifest, this.report, this.records);
+  _SmokeFiles(
+    this.root,
+    this.receipt,
+    this.manifest,
+    this.report,
+    this.records,
+  );
 
   final Directory root;
   final Directory receipt;
@@ -639,16 +680,30 @@ class _SmokeFiles {
   Map<String, dynamic> get evidence => records[1]['details'];
   Map<String, dynamic> get settings => report['metadata']['settings'];
 
+  Future<void> changeLaunchJson(
+    String name,
+    void Function(Map<String, dynamic>) change,
+  ) async {
+    final file = File(p.join(root.path, 'launch-000', name));
+    final value = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    change(value);
+    await file.writeAsString(jsonEncode(value));
+  }
+
   Future<void> save({bool synchronizeReceipt = true}) async {
-    await File(p.join(root.path, 'manifest.json'))
-        .writeAsString(jsonEncode(manifest));
-    await File(p.join(root.path, 'report.json'))
-        .writeAsString(jsonEncode(report));
-    await File(p.join(root.path, 'phases.jsonl'))
-        .writeAsString(records.map(jsonEncode).join('\n'));
+    await File(
+      p.join(root.path, 'manifest.json'),
+    ).writeAsString(jsonEncode(manifest));
+    await File(
+      p.join(root.path, 'report.json'),
+    ).writeAsString(jsonEncode(report));
+    await File(
+      p.join(root.path, 'phases.jsonl'),
+    ).writeAsString(records.map(jsonEncode).join('\n'));
     if (synchronizeReceipt) {
-      await File(p.join(receipt.path, 'report.json'))
-          .writeAsString(jsonEncode(evidence));
+      await File(
+        p.join(receipt.path, 'report.json'),
+      ).writeAsString(jsonEncode(evidence));
     }
   }
 
@@ -702,15 +757,17 @@ Future<_SmokeFiles> _smoke({
   indexing['indexedPath'] = source.path;
   indexing['searchResults'] = _indexedSearches(source.path);
   evidence['steps']['concurrentWork']['printing']['sha256'] = vectorHash;
-  evidence['steps']['concurrentWork']['printing']['pngSha256'] =
-      sha256.convert(pngBytes).toString();
+  evidence['steps']['concurrentWork']['printing']['pngSha256'] = sha256
+      .convert(pngBytes)
+      .toString();
   evidence['steps']['concurrentWork']['printing']['pngBytes'] = pngBytes.length;
   final pdfCase = PerfPdfCase.fromJson({
     'schemaVersion': 1,
     'source': {'kind': 'generated', 'pageCount': 10},
   }, baseDirectory: root.path);
-  await File(p.join(root.path, 'pdf-case.json'))
-      .writeAsString(jsonEncode(pdfCase.toJson()));
+  await File(
+    p.join(root.path, 'pdf-case.json'),
+  ).writeAsString(jsonEncode(pdfCase.toJson()));
   final fixtureId = 'synthetic-v4-pdf-cases:$pdfHash';
   final manifest = <String, dynamic>{
     'schemaVersion': 2,
@@ -748,12 +805,47 @@ Future<_SmokeFiles> _smoke({
       'buildMode': mode,
       'engineRevision': '2' * 40,
       'bundleSha256': _hash,
-      'verification':
-          mode == 'release' ? 'patched-action-sha256' : 'bundle-sha256',
+      'verification': mode == 'release'
+          ? 'patched-action-sha256'
+          : 'bundle-sha256',
       if (mode == 'release') 'expectedSha256': _hash,
     };
     manifest['engineIdentity'] = engine;
     settings['engineBinary'] = engine;
+  } else {
+    final binaryName = platform == 'linux'
+        ? 'libflutter_linux_gtk.so'
+        : 'FlutterMacOS';
+    final engine = {
+      'schemaVersion': 1,
+      'platform': platform,
+      'buildMode': mode,
+      'binaryName': binaryName,
+      'bytes': 1024,
+      'bundleSha256': _hash,
+    };
+    final enginePath = platform == 'linux'
+        ? '/bundle/lib/$binaryName'
+        : '/bundle/Contents/Frameworks/FlutterMacOS.framework/Versions/A/$binaryName';
+    manifest['engineIdentity'] = engine;
+    manifest['engineEvidence'] = {
+      'canonicalPath': enginePath,
+      'verifiedAfterRuns': true,
+    };
+    await File(p.join(root.path, 'launch-000', 'engine.json')).writeAsString(
+      jsonEncode({
+        'source': platform == 'linux'
+            ? '/proc/123/maps'
+            : 'lsof -a -p <owned PID> -d txt -Fpcfn0',
+        'pid': 123,
+        'canonicalPath': enginePath,
+        'identity': engine,
+        'observedAfterCompletion': true,
+        'rawObservation': platform == 'linux'
+            ? '1000-2000 r-xp 0 08:01 123 $enginePath\n'
+            : 'p123\u0000\ncotzaria\u0000\nftxt\u0000n$enginePath\u0000\n',
+      }),
+    );
   }
   final report = <String, dynamic>{
     'complete': true,
@@ -766,7 +858,8 @@ Future<_SmokeFiles> _smoke({
         'launchIndex': 0,
         'frameworkScheduler': {
           'status': 'passed',
-          'source': 'Timer -> SchedulerBinding.scheduleFrame -> postFrameCallback',
+          'source':
+              'Timer -> SchedulerBinding.scheduleFrame -> postFrameCallback',
           'deferredFrameDelivered': true,
           'nativePlatformDispatcher': true,
           'bindingClass': 'WidgetsFlutterBinding',
@@ -818,7 +911,16 @@ Future<_SmokeFiles> _smoke({
     },
   ];
   await File(p.join(root.path, 'launch-000', 'launch.json')).writeAsString(
-    jsonEncode({'launchIndex': 0, 'pid': 123, 'identityStartTicks': '1234'}),
+    jsonEncode({
+      'launchIndex': 0,
+      'pid': 123,
+      'identityStartTicks': '1234',
+      if (platform != 'windows') ...{
+        'preparationOnly': false,
+        'completedBeforeTermination': true,
+        'engineVerifiedAfterCompletion': true,
+      },
+    }),
   );
   await File(p.join(root.path, 'launch-000', 'completion.json')).writeAsString(
     jsonEncode({
@@ -844,120 +946,289 @@ void _smokeTests() {
       await expectLater(files.validate(), throwsFormatException);
     });
 
-    test('accepts all desktop profiles and the verified Windows release', () async {
-      for (final platform in ['linux', 'macos', 'windows']) {
-        final files = await _smoke(platform: platform);
-        expect((await files.validate())['status'], 'passed');
-      }
-      final release = await _smoke(platform: 'windows', mode: 'release');
-      final result = await release.validate();
-      expect(result['buildMode'], 'release');
-      expect(
-        (result['engineIdentity'] as Map)['verification'],
-        'patched-action-sha256',
-      );
-    });
-
-    test('dirty or missing source evidence never becomes a verified run', () async {
-      for (final stage in ['beforeBuild', 'afterBuild', 'afterRuns']) {
-        for (final field in ['statusPorcelain', 'trackedDiffSummary']) {
-          final files = await _smoke();
-          files.manifest['sourceProvenance'][stage][field] = ['changed'];
-          await files.save();
-          await expectLater(files.validate(), throwsFormatException);
+    test(
+      'accepts all desktop profiles and the verified Windows release',
+      () async {
+        for (final platform in ['linux', 'macos', 'windows']) {
+          final files = await _smoke(platform: platform);
+          final result = await files.validate();
+          expect(result['status'], 'passed');
+          expect(result['engineIdentity'], files.manifest['engineIdentity']);
         }
-      }
-      final files = await _smoke();
-      files.manifest['dirty'] = true;
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
-      files.manifest['dirty'] = false;
-      files.manifest['sourceProvenance'].remove('afterRuns');
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
-    });
+        final release = await _smoke(platform: 'windows', mode: 'release');
+        final result = await release.validate();
+        expect(result['buildMode'], 'release');
+        expect(
+          (result['engineIdentity'] as Map)['verification'],
+          'patched-action-sha256',
+        );
+      },
+    );
 
-    test('rejects foreign HEAD, protocol, fixture and scheduler identities', () async {
-      for (final field in ['commit', 'protocolVersion', 'bindingMode', 'fixtureId']) {
+    test(
+      'POSIX rejects missing, foreign or malformed engine identities',
+      () async {
+        for (final platform in ['linux', 'macos']) {
+          for (final invalid in <MapEntry<String, Object?>>[
+            const MapEntry('schemaVersion', 1.0),
+            const MapEntry('platform', 'windows'),
+            const MapEntry('buildMode', 'release'),
+            const MapEntry('binaryName', 'flutter_windows.dll'),
+            const MapEntry('bytes', 0),
+            const MapEntry('bytes', -1),
+            const MapEntry('bytes', 1024.0),
+            MapEntry('bundleSha256', 'A' * 64),
+            MapEntry('bundleSha256', 'a' * 63),
+            const MapEntry('verification', 'bundle-sha256'),
+          ]) {
+            final files = await _smoke(platform: platform);
+            final identity = files.manifest['engineIdentity'] as Map;
+            identity[invalid.key] = invalid.value;
+            await files.changeLaunchJson('engine.json', (proof) {
+              proof['identity'] = identity;
+            });
+            await files.save();
+            await expectLater(files.validate(), throwsFormatException);
+          }
+          final missing = await _smoke(platform: platform);
+          missing.manifest.remove('engineIdentity');
+          missing.report['metadata'].remove('engineIdentity');
+          await missing.save();
+          await expectLater(missing.validate(), throwsFormatException);
+        }
+      },
+    );
+
+    test('POSIX engine identity and evidence must match the report', () async {
+      for (final field in ['engineIdentity', 'engineEvidence']) {
         final files = await _smoke();
-        files.report['metadata'][field] = 'wrong';
+        files.report['metadata'][field] = <String, Object?>{};
         await files.save();
         await expectLater(files.validate(), throwsFormatException);
       }
-      final files = await _smoke();
-      files.report['notes'][0]['frameworkScheduler']['nativePlatformDispatcher'] =
-          false;
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
-      files.report['notes'][0]['frameworkScheduler']['nativePlatformDispatcher'] =
-          true;
-      files.settings['pdfMultiWindowProtocol'] = {'version': 1};
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
+      final windows = await _smoke();
+      windows.settings['engineBinary'] = windows.manifest['engineIdentity'];
+      await windows.save();
+      await expectLater(windows.validate(), throwsFormatException);
     });
 
-    test('changed source, independent copy and vector or raster artifacts fail', () async {
-      for (final relative in [
-        'data/cold-0/pdf/reader-mixed.pdf',
-        'launch-000/pdf-multi-window-owned/secondary.pdf',
-        'launch-000/pdf-multi-window-owned/two-up.pdf',
-        'launch-000/pdf-multi-window-owned/two-up.png',
-      ]) {
+    test(
+      'POSIX requires the verified absolute path and completed launch',
+      () async {
+        for (final platform in ['linux', 'macos']) {
+          for (final invalid in [null, false]) {
+            final files = await _smoke(platform: platform);
+            final evidence = files.manifest['engineEvidence'] as Map;
+            if (invalid == null) {
+              evidence.remove('verifiedAfterRuns');
+            } else {
+              evidence['verifiedAfterRuns'] = invalid;
+            }
+            await files.save();
+            await expectLater(files.validate(), throwsFormatException);
+          }
+          for (final path in [
+            'lib/FlutterMacOS',
+            r'C:\bundle\FlutterMacOS',
+            '/bundle/foreign',
+          ]) {
+            final files = await _smoke(platform: platform);
+            files.manifest['engineEvidence']['canonicalPath'] = path;
+            await files.changeLaunchJson('engine.json', (proof) {
+              proof['canonicalPath'] = path;
+            });
+            await files.save();
+            await expectLater(files.validate(), throwsFormatException);
+          }
+          for (final field in [
+            'preparationOnly',
+            'completedBeforeTermination',
+            'engineVerifiedAfterCompletion',
+          ]) {
+            for (final missing in [false, true]) {
+              final files = await _smoke(platform: platform);
+              await files.changeLaunchJson('launch.json', (launch) {
+                if (missing) {
+                  launch.remove(field);
+                } else {
+                  launch[field] = field == 'preparationOnly';
+                }
+              });
+              await expectLater(files.validate(), throwsFormatException);
+            }
+          }
+        }
+      },
+    );
+
+    test(
+      'POSIX requires mapped engine proof for the same owned process',
+      () async {
+        for (final platform in ['linux', 'macos']) {
+          for (final invalid in <MapEntry<String, Object?>>[
+            const MapEntry('pid', 0),
+            const MapEntry('pid', 456),
+            const MapEntry('pid', 123.0),
+            const MapEntry('source', '/proc/456/maps'),
+            const MapEntry('canonicalPath', '/foreign/FlutterMacOS'),
+            const MapEntry('observedAfterCompletion', false),
+            const MapEntry('identity', <String, Object?>{}),
+            const MapEntry('rawObservation', ''),
+            const MapEntry('rawObservation', ' \n'),
+          ]) {
+            for (final missing in [false, true]) {
+              final files = await _smoke(platform: platform);
+              await files.changeLaunchJson('engine.json', (proof) {
+                if (missing) {
+                  proof.remove(invalid.key);
+                } else {
+                  proof[invalid.key] = invalid.value;
+                }
+              });
+              await expectLater(files.validate(), throwsFormatException);
+            }
+          }
+          final absent = await _smoke(platform: platform);
+          await File(
+            p.join(absent.root.path, 'launch-000', 'engine.json'),
+          ).delete();
+          await expectLater(absent.validate(), throwsFormatException);
+        }
+      },
+    );
+
+    test(
+      'dirty or missing source evidence never becomes a verified run',
+      () async {
+        for (final stage in ['beforeBuild', 'afterBuild', 'afterRuns']) {
+          for (final field in ['statusPorcelain', 'trackedDiffSummary']) {
+            final files = await _smoke();
+            files.manifest['sourceProvenance'][stage][field] = ['changed'];
+            await files.save();
+            await expectLater(files.validate(), throwsFormatException);
+          }
+        }
         final files = await _smoke();
-        await File(p.join(files.root.path, relative)).writeAsString('changed');
+        files.manifest['dirty'] = true;
+        await files.save();
         await expectLater(files.validate(), throwsFormatException);
-      }
-    });
+        files.manifest['dirty'] = false;
+        files.manifest['sourceProvenance'].remove('afterRuns');
+        await files.save();
+        await expectLater(files.validate(), throwsFormatException);
+      },
+    );
 
-    test('PNG bytes are bound to the native writer even when signature survives', () async {
-      for (final tail in [<int>[], [9, 9, 9, 9]]) {
+    test(
+      'rejects foreign HEAD, protocol, fixture and scheduler identities',
+      () async {
+        for (final field in [
+          'commit',
+          'protocolVersion',
+          'bindingMode',
+          'fixtureId',
+        ]) {
+          final files = await _smoke();
+          files.report['metadata'][field] = 'wrong';
+          await files.save();
+          await expectLater(files.validate(), throwsFormatException);
+        }
         final files = await _smoke();
-        await File(p.join(files.receipt.path, 'two-up.png')).writeAsBytes(
-          [137, 80, 78, 71, 13, 10, 26, 10, ...tail],
+        files.report['notes'][0]['frameworkScheduler']['nativePlatformDispatcher'] =
+            false;
+        await files.save();
+        await expectLater(files.validate(), throwsFormatException);
+        files.report['notes'][0]['frameworkScheduler']['nativePlatformDispatcher'] =
+            true;
+        files.settings['pdfMultiWindowProtocol'] = {'version': 1};
+        await files.save();
+        await expectLater(files.validate(), throwsFormatException);
+      },
+    );
+
+    test(
+      'changed source, independent copy and vector or raster artifacts fail',
+      () async {
+        for (final relative in [
+          'data/cold-0/pdf/reader-mixed.pdf',
+          'launch-000/pdf-multi-window-owned/secondary.pdf',
+          'launch-000/pdf-multi-window-owned/two-up.pdf',
+          'launch-000/pdf-multi-window-owned/two-up.png',
+        ]) {
+          final files = await _smoke();
+          await File(
+            p.join(files.root.path, relative),
+          ).writeAsString('changed');
+          await expectLater(files.validate(), throwsFormatException);
+        }
+      },
+    );
+
+    test(
+      'PNG bytes are bound to the native writer even when signature survives',
+      () async {
+        for (final tail in [
+          <int>[],
+          [9, 9, 9, 9],
+        ]) {
+          final files = await _smoke();
+          await File(p.join(files.receipt.path, 'two-up.png')).writeAsBytes(
+            [137, 80, 78, 71, 13, 10, 26, 10, ...tail],
+          );
+          await expectLater(files.validate(), throwsFormatException);
+        }
+      },
+    );
+
+    test(
+      'a successful summary cannot replace native receipts or cleanup',
+      () async {
+        final files = await _smoke();
+        files.evidence['steps']['teardown']['pendingOperations'] = 1;
+        await files.save();
+        await expectLater(files.validate(), throwsFormatException);
+        files.evidence['steps']['teardown']['pendingOperations'] = 0;
+        await files.save(synchronizeReceipt: false);
+        await expectLater(files.validate(), throwsFormatException);
+        await files.save();
+        files.records.add({...files.records[1]});
+        await files.save();
+        await expectLater(files.validate(), throwsFormatException);
+      },
+    );
+
+    test(
+      'the actual case and completion must match the measured launch',
+      () async {
+        final files = await _smoke();
+        await File(p.join(files.root.path, 'pdf-case.json')).writeAsString(
+          '{"schemaVersion":1,"source":{"kind":"generated","pageCount":100}}',
         );
         await expectLater(files.validate(), throwsFormatException);
-      }
-    });
+        final incomplete = await _smoke();
+        await File(
+          p.join(incomplete.root.path, 'launch-000', 'completion.json'),
+        ).writeAsString('{"status":"passed"}');
+        await expectLater(incomplete.validate(), throwsFormatException);
+      },
+    );
 
-    test('a successful summary cannot replace native receipts or cleanup', () async {
-      final files = await _smoke();
-      files.evidence['steps']['teardown']['pendingOperations'] = 1;
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
-      files.evidence['steps']['teardown']['pendingOperations'] = 0;
-      await files.save(synchronizeReceipt: false);
-      await expectLater(files.validate(), throwsFormatException);
-      await files.save();
-      files.records.add({...files.records[1]});
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
-    });
-
-    test('the actual case and completion must match the measured launch', () async {
-      final files = await _smoke();
-      await File(p.join(files.root.path, 'pdf-case.json')).writeAsString(
-        '{"schemaVersion":1,"source":{"kind":"generated","pageCount":100}}',
-      );
-      await expectLater(files.validate(), throwsFormatException);
-      final incomplete = await _smoke();
-      await File(p.join(incomplete.root.path, 'launch-000', 'completion.json'))
-          .writeAsString('{"status":"passed"}');
-      await expectLater(incomplete.validate(), throwsFormatException);
-    });
-
-    test('patched release proof needs the actual matching action hash', () async {
-      final files = await _smoke(platform: 'windows', mode: 'release');
-      files.manifest['engineIdentity'] = {
-        ...files.manifest['engineIdentity'],
-        'bundleSha256': 'f' * 64,
-      };
-      await files.save();
-      await expectLater(files.validate(), throwsFormatException);
-      final profile = await _smoke(platform: 'windows');
-      profile.settings['engineBinary'] = null;
-      await profile.save();
-      await expectLater(profile.validate(), throwsFormatException);
-    });
+    test(
+      'patched release proof needs the actual matching action hash',
+      () async {
+        final files = await _smoke(platform: 'windows', mode: 'release');
+        files.manifest['engineIdentity'] = {
+          ...files.manifest['engineIdentity'],
+          'bundleSha256': 'f' * 64,
+        };
+        await files.save();
+        await expectLater(files.validate(), throwsFormatException);
+        final profile = await _smoke(platform: 'windows');
+        profile.settings['engineBinary'] = null;
+        await profile.save();
+        await expectLater(profile.validate(), throwsFormatException);
+      },
+    );
 
     test('release heap absence cannot be turned into a numeric zero', () async {
       final files = await _smoke(platform: 'windows', mode: 'release');

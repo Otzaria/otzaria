@@ -237,7 +237,6 @@ TextBookLoaded _state(int line) => TextBookLoaded(
   visibleIndices: const [0],
   selectedIndex: line,
   selectedIndices: {line},
-  pinLeftPane: false,
   searchText: '',
 );
 

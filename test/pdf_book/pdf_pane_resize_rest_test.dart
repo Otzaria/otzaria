@@ -97,6 +97,9 @@ void main() {
           localizationsDelegates: const [
             mui.DefaultMaterialLocalizations.delegate,
           ],
+          // כמו באפליקציה; פריסת הדחיקה מניחה RTL.
+          builder: (context, child) =>
+              Directionality(textDirection: TextDirection.rtl, child: child!),
           home: MultiBlocProvider(
             providers: [
               BlocProvider<SettingsBloc>.value(value: settings),
@@ -122,7 +125,10 @@ void main() {
       }
 
       expect(width(), 300);
-      final handle = find.byType(ResizableDragHandle).hitTestable();
+      // רק קצה הידית שבתוך החלונית קולט פגיעות כשהחלונית דוחקת את התוכן.
+      final handle = find
+          .byType(ResizableDragHandle)
+          .hitTestable(at: Alignment(rightPane ? -0.9 : 0.9, 0));
       expect(handle, findsOneWidget);
 
       ResizableDragHandle handleWidget() =>

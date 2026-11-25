@@ -145,7 +145,6 @@ void main() {
         tableOfContents: const [],
         visibleIndices: const [0],
         selectedIndex: 7,
-        pinLeftPane: false,
         searchText: '',
         bookNotes: _notes(),
       ),

@@ -314,7 +314,11 @@ class CompanionAssetsService {
       try {
         await _recoverDirectory(d);
         final dir = Directory(d);
-        if (await dir.exists() && await dir.list().any((e) => e is File)) {
+        if (await dir.exists() &&
+            await dir.list().any(
+              (e) =>
+                  e is File && p.extension(e.path).toLowerCase() == '.pdf',
+            )) {
           existingDir = d;
           break;
         }

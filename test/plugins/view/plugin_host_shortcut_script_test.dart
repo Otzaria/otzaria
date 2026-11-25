@@ -255,6 +255,45 @@ void main() {
   setUp(() => PluginHostShortcuts.isMacForTesting = false);
   tearDown(() => PluginHostShortcuts.isMacForTesting = null);
 
+  test('F9 נשאר בדף התוסף בחלון רגיל', () async {
+    final out = await runStub(PluginHostShortcuts.build({}), [
+      {'code': 'F9', 'key': 'F9'},
+    ]);
+    if (out == null) {
+      markTestSkipped('node אינו מותקן');
+      return;
+    }
+    expect(out['calls'], isEmpty);
+    final result = (out['results'] as List).single as Map<String, dynamic>;
+    expect(result['prevented'], isFalse);
+    expect(result['stopped'], isFalse);
+  });
+
+  test('F9 במסך מלא מועבר וקיצור מותאם נשמר בשני המצבים', () async {
+    const id = 'key-shortcut-open-library-browser';
+    const keyEvent = {'code': 'F9', 'key': 'F9'};
+    for (final (fullscreen, settings, expected) in [
+      (true, const <String, String>{}, 'fixed:f9'),
+      (true, const {id: 'f9'}, id),
+      (false, const {id: 'f9'}, id),
+    ]) {
+      final out = await runStub(
+        PluginHostShortcuts.build(
+          settings,
+          includeFullscreenToolbarShortcut: fullscreen,
+        ),
+        [keyEvent],
+      );
+      if (out == null) {
+        markTestSkipped('node אינו מותקן');
+        return;
+      }
+      expect(out['calls'], [
+        {'name': 'otzaria_host_shortcut', 'arg': expected},
+      ]);
+    }
+  });
+
   test(
     'קיצור ניווט מוגדר נתפס, נחסם מהדף ומועבר ל-Flutter לפי המזהה',
     () async {

@@ -166,6 +166,11 @@ void main() {
       )
       .position;
 
+  testWidgets('כפתור מה חדש זמין גם כשאין הערות עדכון שמורות', (tester) async {
+    await pumpTab(tester);
+    expect(find.text('מה חדש בגרסת הספרייה'), findsOneWidget);
+  });
+
   testWidgets('בקשת גיבוי שבוטלה לפני הפתיחה משאירה את האזור מקופל', (
     tester,
   ) async {

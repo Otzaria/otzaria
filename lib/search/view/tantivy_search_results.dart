@@ -832,11 +832,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             if (!state.resultsTruncated || state.results.isEmpty) {
               return scrollView;
             }
-            // תוצאות חלקיות: השאילתה חרגה מתקציב איסוף-הטרמים במנוע, כך שרק
-            // ההרחבות בעדיפות הגבוהה הוגשו. מציגים באנר קבוע מעל הרשימה.
+            // תוצאות חלקיות: מציגים באנר קבוע מעל הרשימה.
             return Column(
               children: [
-                _buildTruncatedBanner(context),
+                _buildTruncatedBanner(),
                 Expanded(child: scrollView),
               ],
             );
@@ -1208,7 +1207,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     );
   }
 
-  Widget _buildTruncatedBanner(BuildContext context) {
+  Widget _buildTruncatedBanner() {
     return const Padding(
       padding: EdgeInsets.fromLTRB(
         AppTokens.spaceSM,
@@ -1219,8 +1218,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       child: AppInfoBanner(
         tone: AppInfoBannerTone.warning,
         message:
-            'ייתכן שהתוצאות חלקיות: החיפוש רחב מדי ולכן הוצגו רק חלק '
-            'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
+            'ייתכן שהתוצאות חלקיות: החיפוש הגיע למגבלת העיבוד. '
+            'נסו לכבות הרחבות מילים או לפשט את החיפוש.',
       ),
     );
   }

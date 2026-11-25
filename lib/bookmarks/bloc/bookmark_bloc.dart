@@ -188,6 +188,7 @@ class BookmarkBloc extends Cubit<BookmarkState> {
       book: book,
       index: index,
       commentatorsToShow: commentatorsToShow ?? [],
+      hasExplicitCommentators: commentatorsToShow != null,
       targetKind: targetKind,
       label: label,
       pdfCommentatorsHeading: pdfCommentatorsHeading,

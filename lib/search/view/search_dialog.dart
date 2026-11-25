@@ -222,6 +222,7 @@ class _SearchDialogState extends State<SearchDialog> {
   /// בחירת היקף החיפוש המאוחדת — facets קטגוריאליים (עץ/ספרים) וממדיים
   /// (תקופה/מחבר/ספרי יסוד) יחד. נשלט ע"י [SearchScopeMenuButton].
   Set<String> _scopeSelection = {'/'};
+  List<String>? _historyResultFilter;
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   final MenuController _defaultsMenuController = MenuController();
@@ -271,6 +272,10 @@ class _SearchDialogState extends State<SearchDialog> {
       widget.onSearch != null ||
       widget.returnResultOnSubmit ||
       widget.editTab != null;
+
+  // גם חיפוש חדש שמגיע עם שאילתה מהספרייה או מאיתור משתמש בסשן.
+  bool get _usesDistanceSession =>
+      widget.editTab == null && (_ownsSearchTab || !_usesStagedSubmit);
 
   /// תרומות סטטיות מיועדות לחיפוש הספרייה, שבו בחירתן נשמרת עם טאב התוצאות.
   /// בחיפוש בתוך ספר ה-callback הקיים אינו נושא את הבחירות הלאה.
@@ -638,7 +643,7 @@ class _SearchDialogState extends State<SearchDialog> {
         SearchDefaults.saveDefaults(options);
         SearchDefaults.saveMatchPolicyDefault(state.configuration.matchPolicy);
       }
-      SearchDefaults.saveDistanceDefault(state.distance);
+      SearchDefaults.saveDistanceDefault(state.distance, mode: mode!);
       SearchDefaults.saveAnyOrderDefault(state.anyOrder);
     }
     UiSnack.show(
@@ -699,7 +704,7 @@ class _SearchDialogState extends State<SearchDialog> {
       });
       _searchTab.searchOptionsChanged.value++;
       final bloc = _searchTab.searchBloc;
-      final savedDistance = SearchDefaults.loadDistanceDefault();
+      final savedDistance = SearchDefaults.loadDistanceDefault(mode);
       final savedPolicy = SearchDefaults.loadMatchPolicyDefault();
       // הכל בשקט, וחיפוש אחד בסוף — כמו בבורר הטווח.
       bloc.add(UpdateDistanceWithoutSearch(savedDistance));
@@ -771,10 +776,17 @@ class _SearchDialogState extends State<SearchDialog> {
                 closeOnActivate: false,
                 onPressed: () {
                   setState(() {
-                    SearchDefaults.saveDistanceDefault(state.distance);
+                    SearchDefaults.saveDistanceDefault(
+                      state.distance,
+                      mode: mode,
+                    );
                   });
                   UiSnack.show(
-                    LibraryMessages.distanceSetAsDefault(state.distance),
+                    isExact
+                        ? LibraryMessages.distanceSetAsDefault(state.distance)
+                        : LibraryMessages.advancedDistanceSetAsDefault(
+                            state.distance,
+                          ),
                   );
                 },
                 child: Text(
@@ -860,36 +872,77 @@ class _SearchDialogState extends State<SearchDialog> {
           onSelect: (bookmark) {
             _searchTab.queryController.text = bookmark.book.title;
 
+            // תחום של חיפוש מילולי עשוי לכלול ספר שאינו נתמך בחיפוש חכם.
+            final restoreLibrarySearch =
+                _supportsSemanticMode && !_isSemanticActive;
+            final configuration = restoreLibrarySearch
+                ? bookmark.restoredSearchConfiguration
+                : null;
             // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
-            if (bookmark.searchOptions != null) {
+            final options = bookmark.searchOptions;
+            if (options != null || restoreLibrarySearch) {
+              final exactOptions = configuration?.searchMode == SearchMode.exact
+                  ? SearchQueryBuilder.globalOptionsFromPerWord(
+                      options ?? const {},
+                      query: bookmark.book.title,
+                    )
+                  : null;
               _searchTab.searchOptions
                 ..clear()
-                ..addAll(bookmark.searchOptions!);
-              _searchTab.globalSearchOptions.clear();
-              _searchTab.useGlobalSearchOptions.value = false;
+                ..addAll(exactOptions == null ? options ?? const {} : const {});
+              _searchTab.globalSearchOptions
+                ..clear()
+                ..addAll(exactOptions ?? const {});
+              _searchTab.useGlobalSearchOptions.value = exactOptions != null;
             }
-            if (bookmark.alternativeWords != null) {
+            if (bookmark.alternativeWords != null || restoreLibrarySearch) {
               _searchTab.alternativeWords
                 ..clear()
-                ..addAll(bookmark.alternativeWords!);
+                ..addAll(bookmark.alternativeWords ?? const {});
             }
-            if (bookmark.spacingValues != null) {
+            if (bookmark.spacingValues != null || restoreLibrarySearch) {
               _searchTab.spacingValues
                 ..clear()
-                ..addAll(bookmark.spacingValues!);
+                ..addAll(bookmark.spacingValues ?? const {});
             }
-            // רשומות ההיסטוריה של החיפוש הן מילוליות. חיפוש חכם עשוי שלא
-            // לתמוך בהיקף השמור, למשל כשהוא מוגבל לספר אישי.
-            if (widget.bookTitle == null &&
-                widget.onSearch == null &&
-                !widget.returnResultOnSubmit &&
-                !_isSemanticActive) {
+            _historyResultFilter = null;
+            if (configuration != null) {
               final scope = bookmark.searchScopeFacets;
-              setState(
-                () => _scopeSelection = scope == null || scope.isEmpty
+              setState(() {
+                _scopeSelection = scope == null || scope.isEmpty
                     ? {'/'}
-                    : scope.toSet(),
-              );
+                    : scope.toSet();
+                _historyResultFilter = bookmark.searchFilterFacets;
+              });
+              _searchTab.useSavedAlternatives = false;
+              _searchTab.negativeQueryController.text =
+                  bookmark.negativeSearchText ?? '';
+              _searchTab.negativeSearchOptions
+                ..clear()
+                ..addAll(bookmark.negativeSearchOptions ?? {});
+              _searchTab.negativeGlobalSearchOptions.clear();
+              _searchTab.useGlobalNegativeSearchOptions.value = false;
+              _searchTab.negativeAlternativeWords
+                ..clear()
+                ..addAll(bookmark.negativeAlternativeWords ?? {});
+              _searchTab.negativeSpacingValues
+                ..clear()
+                ..addAll(bookmark.negativeSpacingValues ?? {});
+              _searchTab.searchBloc
+                ..add(SetSearchModeWithoutSearch(configuration.searchMode))
+                ..add(UpdateDistanceWithoutSearch(configuration.distance))
+                ..add(
+                  UpdateProximityScopeWithoutSearch(
+                    configuration.proximityScope,
+                  ),
+                )
+                ..add(
+                  UpdateWordMatchModeWithoutSearch(
+                    configuration.wordMatchMode,
+                    count: configuration.wordMatchCount,
+                  ),
+                )
+                ..add(UpdateWordOrderWithoutSearch(configuration.anyOrder));
             }
 
             _historyMenuController.close();
@@ -907,16 +960,21 @@ class _SearchDialogState extends State<SearchDialog> {
     _searchTab.queryController.removeListener(_queryListener);
     _advancedControlsHasFocus.dispose();
     _semanticBloc?.close();
+    final config = _searchTab.searchBloc.state.configuration;
+    if (_usesDistanceSession && config.searchMode != SearchMode.fuzzy) {
+      SearchDefaults.rememberSessionDistance(
+        config.distance,
+        config.searchMode,
+      );
+    }
     _disposeHandedOffExistingTab();
     if (_ownsSearchTab) {
       if (widget.editTab == null) {
         // מצב החיפוש והפרמטרים (אפשרויות לפי מצב + מרווח) נשמרים לסשן
         // הנוכחי; בהפעלה הבאה חוזרים לברירת המחדל (חיפוש רגיל).
-        final config = _searchTab.searchBloc.state.configuration;
         _rememberSessionOptionsForMode(config.searchMode);
         SearchDefaults.rememberSessionMode(config.searchMode);
         if (config.searchMode != SearchMode.fuzzy) {
-          SearchDefaults.rememberSessionDistance(config.distance);
           SearchDefaults.rememberSessionAnyOrder(config.anyOrder);
         }
         if (config.searchMode == SearchMode.advanced) {
@@ -951,13 +1009,26 @@ class _SearchDialogState extends State<SearchDialog> {
     }
   }
 
-  /// מעבר מצב בדיאלוג של חיפוש חדש: האפשרויות הגלובליות של המצב הישן
-  /// נשמרות לסשן שלו, ואלו של המצב החדש נטענות במקומן — כך שלכל מצב
-  /// סט אפשרויות עצמאי. בעריכת טאב קיים האפשרויות שייכות לטאב ולא מוחלפות.
-  void _swapGlobalOptionsForModeChange(SearchMode oldMode, SearchMode newMode) {
-    if (!_ownsSearchTab || widget.editTab != null || oldMode == newMode) {
-      return;
+  /// משמר את העדפות הסשן לפי המצב ומחיל את הערכים של המצב החדש.
+  void _swapPreferencesForModeChange(
+    SearchConfiguration oldConfig,
+    SearchMode newMode,
+  ) {
+    final oldMode = oldConfig.searchMode;
+    if (oldMode == newMode) return;
+    if (_usesDistanceSession) {
+      if (oldMode != SearchMode.fuzzy) {
+        SearchDefaults.rememberSessionDistance(oldConfig.distance, oldMode);
+      }
+      if (newMode != SearchMode.fuzzy) {
+        _searchTab.searchBloc.add(
+          UpdateDistanceWithoutSearch(
+            SearchDefaults.initialDistanceForNewSearch(newMode),
+          ),
+        );
+      }
     }
+    if (!_ownsSearchTab || widget.editTab != null) return;
     _rememberSessionOptionsForMode(oldMode);
     if (newMode == SearchMode.fuzzy) {
       return; // אין אפשרויות מילה במקורב; המפה תוחלף בכניסה למצב הבא
@@ -1078,6 +1149,10 @@ class _SearchDialogState extends State<SearchDialog> {
       parsedCategory,
       _scopeSelection,
     );
+    final historyFilter = parsedCategory.categoryFound
+        ? null
+        : _historyResultFilter;
+    final currentFacets = historyFilter ?? facetsToSearch;
     final distance = _searchTab.searchBloc.state.distance;
     final configuration = currentState.configuration;
     final proximityScope = configuration.proximityScope;
@@ -1088,7 +1163,7 @@ class _SearchDialogState extends State<SearchDialog> {
       mode: currentMode,
       distance: distance,
       proximityScope: proximityScope,
-      facets: facetsToSearch,
+      facets: currentFacets,
       normalizedParameters: normalizedParameters,
       normalizedNegativeParameters: normalizedNegativeParameters,
     )) {
@@ -1105,6 +1180,7 @@ class _SearchDialogState extends State<SearchDialog> {
         distance: distance,
         configuration: configuration,
         facetsToSearch: facetsToSearch,
+        historyFilter: historyFilter,
         effectiveAlternatives: effectiveAlternatives,
         normalizedParameters: normalizedParameters,
         normalizedNegativeParameters: normalizedNegativeParameters,
@@ -1126,7 +1202,7 @@ class _SearchDialogState extends State<SearchDialog> {
           wordMatchMode: configuration.wordMatchMode,
           wordMatchCount: configuration.wordMatchCount,
           anyOrder: configuration.anyOrder,
-          currentFacets: facetsToSearch,
+          currentFacets: currentFacets,
           searchScopeFacets: facetsToSearch,
           pluginSearchSelections: _allPluginSearchSelections(),
         ),
@@ -1140,11 +1216,7 @@ class _SearchDialogState extends State<SearchDialog> {
       effectiveAlternatives: effectiveAlternatives,
     );
 
-    // מעבירים את ה-scope במפורש להיסטוריה — SetFacetsWithoutSearch מעדכן את
-    // state אסינכרונית, ובלי זה החיפוש היה נשמר בלי ה-scope שנבחר.
-    context.read<HistoryBloc>().add(
-      AddHistory(newSearchTab, scopeFacets: facetsToSearch),
-    );
+    context.read<HistoryBloc>().add(AddHistory(newSearchTab));
 
     // ביצוע החיפוש בטאב החדש
     newSearchTab.searchBloc.add(
@@ -1350,6 +1422,7 @@ class _SearchDialogState extends State<SearchDialog> {
     required int distance,
     required SearchConfiguration configuration,
     required List<String> facetsToSearch,
+    required List<String>? historyFilter,
     required Map<int, List<String>> effectiveAlternatives,
     required SearchModeScopedParameters normalizedParameters,
     required SearchModeScopedParameters normalizedNegativeParameters,
@@ -1381,10 +1454,16 @@ class _SearchDialogState extends State<SearchDialog> {
     // facetsToSearch כבר כולל את ממדי הסינון שנבחרו בדיאלוג (הם אותחלו
     // מה-state של טאב היעד וניתנים לעריכה בדיאלוג עצמו).
     target.searchBloc.add(SetFacetsWithoutSearch(facetsToSearch));
+    if (historyFilter != null) {
+      target.searchBloc.add(
+        SetFacetsWithoutSearch(historyFilter, keepScope: true),
+      );
+    }
     context.read<HistoryBloc>().add(
       AddHistory(
         target,
         scopeFacets: facetsToSearch,
+        filterFacets: historyFilter,
         proximityScope: configuration.proximityScope,
       ),
     );
@@ -1411,7 +1490,10 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   void _onScopeChanged(Set<String> selection) {
-    setState(() => _scopeSelection = selection);
+    setState(() {
+      _scopeSelection = selection;
+      _historyResultFilter = null;
+    });
     final categories = FacetHelper.categoryFacetsOf(selection).toSet();
     final dimensions = FacetHelper.dimensionFacetsOf(selection).toSet();
     final isAll = categories.isEmpty || categories.contains('/');
@@ -1486,13 +1568,13 @@ class _SearchDialogState extends State<SearchDialog> {
       setState(() => _semanticSelected = true);
     } else {
       _semanticSelected = false;
-      final oldMode = _searchTab.searchBloc.state.configuration.searchMode;
+      final oldConfig = _searchTab.searchBloc.state.configuration;
       _searchTab.searchBloc.add(
         !_usesStagedSubmit
             ? SetSearchMode(mode)
             : SetSearchModeWithoutSearch(mode),
       );
-      _swapGlobalOptionsForModeChange(oldMode, mode);
+      _swapPreferencesForModeChange(oldConfig, mode);
       setState(() => _moreOptionsExpanded = null);
     }
     _searchTab.searchFieldFocusNode.requestFocus();

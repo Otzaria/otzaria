@@ -159,7 +159,6 @@ void main() {
     });
     await settle(tester, 30);
     expect(tab.showLeftPane.value, initiallyOpen);
-    expect(tab.pinLeftPane.value, initiallyOpen);
     return tab;
   }
 

@@ -114,47 +114,6 @@ void WindowClassRegistrar::UnregisterWindowClass() {
   class_registered_ = false;
 }
 
-namespace {
-
-// החלון שהמשתמש בחר לאחרונה בלחיצה, והרגע שבו.
-//
-// ⚠️ הבסיס ל-[Win32Window::ShouldVetoActivation] — ראו שם.
-HWND g_user_activated = nullptr;
-ULONGLONG g_user_activated_at = 0;
-
-// כמה זמן בחירת המשתמש "מוגנת" מפני הפעלה תוכניתית של חלון אחר שלנו.
-//
-// חלון בסדר גודל של חצי שנייה: ארוך מספיק כדי לכסות את ההפעלה החוזרת
-// שהמנוע מייצר (נמדדה תוך ~30ms), וקצר מספיק שלא יחסום העלאה לגיטימית
-// (כרטיסיה שהועברה, `otzaria://`) שמגיעה אחרי אינטראקציה אמיתית.
-constexpr ULONGLONG kUserChoiceGraceMs = 500;
-
-bool IsOtzariaWindow(HWND window) {
-  if (!window) return false;
-  wchar_t name[64] = {0};
-  ::GetClassNameW(window, name, sizeof(name) / sizeof(name[0]));
-  return ::wcscmp(name, kWindowClassName) == 0;
-}
-
-}  // namespace
-
-void Win32Window::NoteUserActivation(HWND window) {
-  g_user_activated = window;
-  g_user_activated_at = ::GetTickCount64();
-}
-
-bool Win32Window::ShouldVetoActivation(HWND window) {
-  if (g_user_activated == nullptr) return false;
-  if (window == g_user_activated) return false;
-  if (!IsOtzariaWindow(window) || !IsOtzariaWindow(g_user_activated)) {
-    return false;
-  }
-  if (!::IsWindow(g_user_activated) || !::IsWindowVisible(g_user_activated)) {
-    return false;
-  }
-  return ::GetTickCount64() - g_user_activated_at < kUserChoiceGraceMs;
-}
-
 Win32Window::Win32Window() {
   ++g_active_window_count;
 }
@@ -263,11 +222,6 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
     }
-
-    case WM_MOUSEACTIVATE:
-      // בחירה מפורשת של המשתמש — ראו [ShouldVetoActivation].
-      NoteUserActivation(hwnd);
-      break;
 
     case WM_ACTIVATE:
       // ⚠️ **רק בהפעלה, לא בביטול הפעלה.** זו שורה מקוד ה-runner

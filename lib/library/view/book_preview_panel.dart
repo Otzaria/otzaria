@@ -26,6 +26,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart'
+    show matchFractionInLine;
 import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -37,7 +40,6 @@ import 'package:otzaria/pdf_book/utils/pdf_image_budget.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
@@ -268,9 +270,36 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             : const {},
       ),
     );
+    final query = widget.searchText ?? '';
+    final revealMatch = widget.initialTextIsSearchResult && query.isNotEmpty;
+    double? resolveMatch(int line) {
+      final loaded = tab.bloc.state;
+      if (loaded is! TextBookLoaded ||
+          line >= loaded.content.length ||
+          !loaded.isContentLineLoaded(line)) {
+        return null;
+      }
+      if (widget.initialTextContinuesToNextLine) return 1.0;
+      return matchFractionInLine(
+        loaded.content[line],
+        query,
+        wholeWord: loaded.searchWholeWord,
+        searchOptions: loaded.searchOptions,
+        alternativeWords: loaded.alternativeWords,
+        spacingValues: loaded.spacingValues,
+        isFuzzy: loaded.searchMode == SearchMode.fuzzy,
+        searchDistance: loaded.searchDistance,
+        matchPolicy: loaded.matchPolicy,
+      );
+    }
+
     unawaited(
       tab.lines.scrollToLine(
         index,
+        alignment: revealMatch
+            ? kSearchResultAnchorAlignment
+            : kReadingAnchorAlignment,
+        resolveFraction: revealMatch ? resolveMatch : null,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
       ),
@@ -710,7 +739,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                           showSplitView: false,
                           removeNikud: settingsState.defaultRemoveNikud,
                           loadCommentators: false,
-                          screenWidth: readingLayoutWidthOf(context),
                         ),
                       );
                       return _buildSkeletonLoading();

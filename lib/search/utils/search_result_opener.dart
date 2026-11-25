@@ -58,7 +58,6 @@ Future<OpenedTab?> openSearchResultInReader(
 }) async {
   final tabsBloc = context.read<TabsBloc>();
   final openLeftPane =
-      (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
       (Settings.getValue<bool>('key-default-sidebar-open') ?? false) ||
       shouldAutoOpenReadingLeftPane(
         screenWidth: readingLayoutWidthOf(context),

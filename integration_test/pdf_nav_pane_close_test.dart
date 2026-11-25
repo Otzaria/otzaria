@@ -125,17 +125,6 @@ void main() {
         navTo: null,
         closeVia: 'notifier',
       );
-      await _scenario(
-        tester,
-        tabsBloc,
-        ctx,
-        pdfBook,
-        name: 'S4 settled, nav 81->97, wheel with pane pinned (no close)',
-        startPage: 81,
-        navTo: 97,
-        closeVia: 'wheel',
-        pin: true,
-      );
       tabsBloc.add(CloseAllTabs());
       await _pumpFor(tester, const Duration(seconds: 1));
       _write({'log': _log, 'debug': _debugLines});
@@ -153,7 +142,6 @@ Future<void> _scenario(
   required int startPage,
   required int? navTo,
   required String closeVia,
-  bool pin = false,
   Duration settle = const Duration(seconds: 10),
 }) async {
   _note('=== $name ===');
@@ -173,7 +161,6 @@ Future<void> _scenario(
       'left=${tab.showLeftPane.value} spin=${_spinnerCount()}';
   await _pumpFor(tester, settle);
   _note('settled ${st()}');
-  if (pin) tab.pinLeftPane.value = true;
 
   tab.toggleNavPaneNotifier.value++;
   await _pumpFor(tester, const Duration(milliseconds: 800));

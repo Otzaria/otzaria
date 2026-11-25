@@ -1308,7 +1308,6 @@ TextBookLoaded _loadedState({List<int> visibleIndices = const [0]}) {
     removeNikud: false,
     visibleIndices: visibleIndices,
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

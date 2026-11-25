@@ -148,7 +148,7 @@ class ErrorLogFile {
   static Future<void>? _drain;
 
   /// כמו [append], בלי לחסום את ה-UI כשהדיסק עמוס. רשומה שעוד בתור אובדת
-  /// בקריסה, ולכן מסלולי קריסה, יציאה ואינדוקס נשארים ב-[append].
+  /// בקריסה, ולכן מסלולי קריסה ויציאה נשארים ב-[append].
   static void appendInBackground({
     required String title,
     required Object error,
@@ -160,13 +160,8 @@ class ErrorLogFile {
     ErrorLogPlatform? platform,
     String? tempPath,
   }) {
-    _queued.add((
-      file: resolveFile(
-        environment: environment,
-        platform: platform,
-        tempPath: tempPath,
-      ),
-      text: formatEntry(
+    appendTextInBackground(
+      formatEntry(
         title: title,
         error: error,
         stackTrace: stackTrace,
@@ -174,6 +169,26 @@ class ErrorLogFile {
         details: details,
         version: version,
       ),
+      environment: environment,
+      platform: platform,
+      tempPath: tempPath,
+    );
+  }
+
+  /// כמו [appendText], בתור הרקע של [appendInBackground].
+  static void appendTextInBackground(
+    String formattedMessage, {
+    Map<String, String>? environment,
+    ErrorLogPlatform? platform,
+    String? tempPath,
+  }) {
+    _queued.add((
+      file: resolveFile(
+        environment: environment,
+        platform: platform,
+        tempPath: tempPath,
+      ),
+      text: formattedMessage,
     ));
     _drain ??= Future<void>(_drainQueue);
   }

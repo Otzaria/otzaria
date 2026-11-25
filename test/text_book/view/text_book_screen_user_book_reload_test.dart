@@ -1,19 +1,26 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -25,6 +32,8 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -77,16 +86,15 @@ void main() {
   );
   final officialBook = TextBook(id: 5, title: 'ספר רשמי');
 
-  Future<List<TabsEvent>> reloadLibrary(
-    WidgetTester tester, {
-    required TextBook openBook,
-    List<Book>? changedBooks,
-    bool userContentChanged = false,
+  Future<_TestTabsBloc> pumpReader(
+    WidgetTester tester,
+    TextBook openBook, {
+    required _TestLibraryBloc libraryBloc,
+    CustomFoldersBloc? customFoldersBloc,
   }) async {
     final bloc = _TestTextBookBloc(_loadedState(openBook));
     final tab = TextBookTab(book: openBook, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
-    final libraryBloc = _TestLibraryBloc();
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final bookmarkBloc = _TestBookmarkBloc();
     final tourCubit = TourCubit();
@@ -101,6 +109,7 @@ void main() {
         bloc,
         tabsBloc,
         libraryBloc,
+        ?customFoldersBloc,
         settingsBloc,
         bookmarkBloc,
         tourCubit,
@@ -137,6 +146,8 @@ void main() {
             BlocProvider<TextBookBloc>.value(value: bloc),
             BlocProvider<TabsBloc>.value(value: tabsBloc),
             BlocProvider<LibraryBloc>.value(value: libraryBloc),
+            if (customFoldersBloc != null)
+              BlocProvider<CustomFoldersBloc>.value(value: customFoldersBloc),
             BlocProvider<SettingsBloc>.value(value: settingsBloc),
             BlocProvider<BookmarkBloc>.value(value: bookmarkBloc),
             BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
@@ -145,6 +156,7 @@ void main() {
             BlocProvider<NavigationBloc>.value(value: navigationBloc),
           ],
           child: MaterialApp(
+            navigatorKey: navigatorKey,
             home: TextBookViewerBloc(
               tab: tab,
               isInCombinedView: false,
@@ -156,6 +168,21 @@ void main() {
     );
     await _settleRealAsync(tester);
     tabsBloc.events.clear();
+    return tabsBloc;
+  }
+
+  Future<List<TabsEvent>> reloadLibrary(
+    WidgetTester tester, {
+    required TextBook openBook,
+    List<Book>? changedBooks,
+    bool userContentChanged = false,
+  }) async {
+    final libraryBloc = _TestLibraryBloc();
+    final tabsBloc = await pumpReader(
+      tester,
+      openBook,
+      libraryBloc: libraryBloc,
+    );
 
     final library = Library(categories: const []);
     libraryBloc.emitForTest(LibraryState(library: library, isLoading: true));
@@ -219,6 +246,124 @@ void main() {
 
     expect(events.whereType<ReplaceTab>(), isEmpty);
   });
+
+  group('F5 מרענן ספר אישי פתוח (issue #5296)', () {
+    final folder = p.join('ספרים', 'אישיים');
+    late List<String?> scannedFolders;
+    late List<RefreshLibrary> refreshes;
+
+    /// ההודעה נשארת עם טיימר; מסתירים לפני פירוק העץ.
+    Future<void> hideSnack(WidgetTester tester) async {
+      UiSnack.hide();
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    Future<void> pressF5(WidgetTester tester, TextBook openBook) async {
+      scannedFolders = [];
+      refreshes = [];
+      final customFolders = CustomFoldersBloc(
+        addLibraryEvent: (event) => refreshes.add(event as RefreshLibrary),
+        loadFolders: () => [
+          CustomFolder(path: folder, addedAt: DateTime(2026)),
+        ],
+        syncFolders: (folders, {String? onlyFolderPath}) async {
+          scannedFolders.add(onlyFolderPath);
+          return const FileSyncResult(updatedBooks: 1, updatedBookIds: [5]);
+        },
+      );
+      await pumpReader(
+        tester,
+        openBook,
+        libraryBloc: _TestLibraryBloc(),
+        customFoldersBloc: customFolders,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+      await _settleRealAsync(tester);
+    }
+
+    testWidgets('סורק את תיקיית הספר, והרענון מסמן את הספר כשהשתנה', (
+      tester,
+    ) async {
+      await pressF5(
+        tester,
+        TextBook(
+          id: 5,
+          title: 'ספר אישי',
+          source: BookSource.user,
+          filePath: p.join(folder, 'משנה', 'ספר אישי.docx'),
+        ),
+      );
+
+      expect(scannedFolders, [folder]);
+      expect(refreshes.single.changedBookKeys, {
+        BookIdentity.keyOf(userBook),
+      });
+      await hideSnack(tester);
+    });
+
+    testWidgets('מציג את תוצאת הסריקה של F5 ולא של סריקה שכבר רצה', (
+      tester,
+    ) async {
+      final background = Completer<FileSyncResult>();
+      final targeted = Completer<FileSyncResult>();
+      final customFolders = CustomFoldersBloc(
+        addLibraryEvent: (_) {},
+        loadFolders: () => [
+          CustomFolder(path: folder, addedAt: DateTime(2026)),
+        ],
+        syncFolders: (folders, {String? onlyFolderPath}) =>
+            onlyFolderPath == null ? background.future : targeted.future,
+      );
+      await pumpReader(
+        tester,
+        TextBook(
+          id: 5,
+          title: 'ספר אישי',
+          source: BookSource.user,
+          filePath: p.join(folder, 'ספר אישי.docx'),
+        ),
+        libraryBloc: _TestLibraryBloc(),
+        customFoldersBloc: customFolders,
+      );
+      // סריקת רקע שעדיין רצה בזמן ההקשה.
+      customFolders.add(const RescanCustomFolders());
+      await _settleRealAsync(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+      await _settleRealAsync(tester);
+
+      background.complete(
+        const FileSyncResult(addedBooks: 3, updatedBookIds: []),
+      );
+      await _settleRealAsync(tester);
+      targeted.completeError(const FileSystemException('locked'));
+      await _settleRealAsync(tester);
+
+      expect(
+        find.text(SettingsMessages.customFolderScanDone(3, 0)),
+        findsNothing,
+      );
+      expect(
+        find.text(SettingsMessages.customFolderSyncFailed),
+        findsOneWidget,
+      );
+      await hideSnack(tester);
+    });
+
+    testWidgets('ספר מהספרייה הרשמית אינו נסרק', (tester) async {
+      await pressF5(tester, officialBook);
+
+      expect(scannedFolders, isEmpty);
+    });
+
+    testWidgets('F5 שכבר הוגדר לפתיחת הספרייה אינו סורק ספר אישי', (
+      tester,
+    ) async {
+      await Settings.setValue('key-shortcut-open-library-browser', 'f5');
+      await pressF5(tester, userBook);
+
+      expect(scannedFolders, isEmpty);
+    });
+  });
 }
 
 Future<void> _settleRealAsync(WidgetTester tester) async {
@@ -248,7 +393,6 @@ TextBookLoaded _loadedState(TextBook book) {
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     currentTitle: 'פרק',
     searchMode: SearchMode.exact,

@@ -139,7 +139,7 @@ AppWindowListener? _appWindowListener;
 const ExternalActivationQueue _externalActivationQueue =
     ExternalActivationQueue();
 
-// מושלם כשהחלון הראשי נחשף ([presentMainWindow]). חימומי המטמון ממתינים לו
+// מושלם כשהחלון הראשי נחשף אחרי אתחול מוצלח. חימומי המטמון ממתינים לו
 // כדי שלא יתחרו בטעינת תוכן הספר הפעיל על ה-main isolate ועל seforim.db.
 final _mainWindowRevealedCompleter = Completer<void>();
 
@@ -152,8 +152,8 @@ void _markCrashScanDone() {
   if (!_crashScanCompleter.isCompleted) _crashScanCompleter.complete();
 }
 
-void _markMainWindowRevealed() {
-  if (!_mainWindowRevealedCompleter.isCompleted) {
+void _markMainWindowRevealed({required bool bootstrapFailed}) {
+  if (!bootstrapFailed && !_mainWindowRevealedCompleter.isCompleted) {
     _mainWindowRevealedCompleter.complete();
   }
   StartupTimeline.instance.finishAtReveal();
@@ -652,11 +652,11 @@ Future<void> _closeNativeSplash() async {
 /// חשיפת החלון הראשי: מציג את החלון המוסתר (שכבר בגבולותיו הסופיים, עם
 /// התוכן שצויר), ממקסם אם נדרש, וסוגר את ה-splash הנייטיב באותו רגע — כך החלון
 /// מופיע בבת אחת עם תוכן והסמל הצף מתפוגג, ללא קפיצה וללא פער. נקרא אחרי שהתוכן
-/// נחשף ונצבע.
-Future<void> presentMainWindow() async {
+/// נחשף ונצבע. חשיפת מסך שגיאת אתחול משאירה את שער עבודות הרקע סגור.
+Future<void> presentMainWindow({bool bootstrapFailed = false}) async {
   StartupTimeline.instance.markOnce('presentMainWindow');
   if (kIsWeb || !(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    _markMainWindowRevealed();
+    _markMainWindowRevealed(bootstrapFailed: bootstrapFailed);
     return;
   }
   try {
@@ -684,8 +684,8 @@ Future<void> presentMainWindow() async {
     // הסגירה מבצעת בצד הנייטיבי את ה-uncloak; חייבת לרוץ גם אם שלב הצגה
     // נכשל — אחרת החלון נשאר cloaked (בלתי-נראה) לתמיד.
     await _closeNativeSplash();
-    // משחרר את חימומי המטמון הדחויים גם אם אחת מפעולות החלון נכשלה.
-    _markMainWindowRevealed();
+    // אחרי אתחול מוצלח, משחרר עבודות רקע גם אם פעולת חלון נכשלה.
+    _markMainWindowRevealed(bootstrapFailed: bootstrapFailed);
   }
 }
 
@@ -1659,6 +1659,11 @@ class _AppBootstrapState extends State<AppBootstrap> {
           setState(() {
             _error = error;
             _ready = true;
+          });
+          // בלי זה החלון נשאר מוסתר וה-splash לא נסגר, ומסך השגיאה לא נראה.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            unawaited(presentMainWindow(bootstrapFailed: true));
           });
         });
   }

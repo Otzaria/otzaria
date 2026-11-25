@@ -29,10 +29,12 @@ constexpr DWORD kCaptureIntervalMs = 5000;
 constexpr int kMaxCaptures = 6;
 constexpr DWORD kHeartbeatIntervalMs = 250;
 constexpr ULONGLONG kMaxLifetimeMs = 300000;
-// מגבלת הפרישה. בדוח נכתבים רק הראש, שממנו נגזרת החתימה (error_log_blocks.dart),
-// והתחתית, שבה מי שהתחיל את העבודה.
+// מגבלת הפרישה. בדוח נכתבים הראש, שממנו נגזרת החתימה (error_log_blocks.dart),
+// קצה ה-Dart החיצוני עם כניסת המנוע שמתחתיו, והתחתית.
 constexpr size_t kMaxFrames = 8192;
 constexpr size_t kTopFrames = 48;
+constexpr size_t kOuterDartFrames = 96;
+constexpr size_t kBelowDartFrames = 16;
 constexpr size_t kBottomFrames = 32;
 // כל מחסנית ה-thread הראשי (1MB, ברירת המחדל של ה-linker); מועתק רק החלק שבשימוש.
 constexpr size_t kMaxStackCopyBytes = 1024 * 1024;
@@ -126,6 +128,13 @@ ULONG_PTR DartImageBase(ULONG_PTR address) {
     return 0;
   }
   const auto base = reinterpret_cast<ULONG_PTR>(info.AllocationBase);
+  // הקריאה מדף שמור (PAGE_GUARD) מבטלת את ההגנה גם אם החריגה נתפסת.
+  MEMORY_BASIC_INFORMATION header = {};
+  if (::VirtualQuery(reinterpret_cast<LPCVOID>(base), &header,
+                     sizeof(header)) == 0 || header.State != MEM_COMMIT ||
+      (header.Protect & (PAGE_NOACCESS | PAGE_EXECUTE | PAGE_GUARD)) != 0) {
+    return 0;
+  }
   unsigned char magic[4] = {};
   if (!ReadBytes(base, magic, sizeof(magic))) return 0;
   return memcmp(magic, "\x7f" "ELF", sizeof(magic)) == 0 ? base : 0;
@@ -415,19 +424,39 @@ void AppendStackSection(const std::vector<ULONG_PTR>& frames,
   }
   *report += "Stack (module+RVA):\n";
   const size_t count = frames.size();
-  const size_t omitted = count > kTopFrames + kBottomFrames
-                             ? count - kTopFrames - kBottomFrames
-                             : 0;
-  for (size_t i = 0; i < count; ++i) {
-    if (omitted != 0 && i == kTopFrames) {
-      char marker[96];
-      snprintf(marker, sizeof(marker), "  ... (%zu frames omitted%s) ...\n",
-               omitted, count >= kMaxFrames ? ", unwind limit reached" : "");
-      *report += marker;
-      i += omitted;
+  // בתחתית יש לרוב רק לולאת ההודעות; מי שהתחיל את העבודה הוא קצה ה-Dart שמעליה.
+  size_t outer_begin = 0;
+  size_t outer_end = 0;
+  if (count > kTopFrames + kBottomFrames) {
+    for (size_t i = count; i > kTopFrames - kBelowDartFrames; --i) {
+      if (DartImageBase(frames[i - 1]) != 0) {
+        outer_begin = i - (std::min)(i, kOuterDartFrames);
+        outer_end = (std::min)(count, i + kBelowDartFrames);
+        break;
+      }
     }
-    const ULONG_PTR frame = frames[i];
-    *report += "  " + DescribeAddress(frame) + "\n";
+  }
+  const size_t bottom_begin = count > kBottomFrames ? count - kBottomFrames : 0;
+  auto kept = [&](size_t i) {
+    return i < kTopFrames || (i >= outer_begin && i < outer_end) ||
+           i >= bottom_begin;
+  };
+  bool first_gap = true;
+  for (size_t i = 0; i < count;) {
+    if (kept(i)) {
+      const ULONG_PTR frame = frames[i++];
+      *report += "  " + DescribeAddress(frame) + "\n";
+      continue;
+    }
+    size_t end = i;
+    while (end < count && !kept(end)) ++end;
+    char marker[96];
+    snprintf(marker, sizeof(marker), "  ... (%zu frames omitted%s) ...\n",
+             end - i,
+             first_gap && count >= kMaxFrames ? ", unwind limit reached" : "");
+    *report += marker;
+    first_gap = false;
+    i = end;
   }
 }
 
