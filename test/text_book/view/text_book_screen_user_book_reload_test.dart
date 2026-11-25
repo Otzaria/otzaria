@@ -354,6 +354,15 @@ void main() {
 
       expect(scannedFolders, isEmpty);
     });
+
+    testWidgets('F5 שכבר הוגדר לפתיחת הספרייה אינו סורק ספר אישי', (
+      tester,
+    ) async {
+      await Settings.setValue('key-shortcut-open-library-browser', 'f5');
+      await pressF5(tester, userBook);
+
+      expect(scannedFolders, isEmpty);
+    });
   });
 }
 
