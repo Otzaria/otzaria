@@ -11,15 +11,15 @@ import 'package:otzaria/theme/app_fonts.dart';
 /// הסוגריים שבהם נתונה האות המודפסת בסמן — ההבדל הראשון שהעין תופסת בין
 /// שני מפרשים על אותו דף, לפני הבדלי המשקל והנטייה.
 enum LinkAnchorDelimiter {
-  parentheses('(', ')'),
-  brackets('[', ']'),
-  braces('{', '}'),
-
   /// לוכסנים — ממד הבחנה שאינו תלוי בגופן: גופן הקריאה עצמו עשוי להיות כתב
   /// רש"י, ואז [LinkAnchorVariant.rashiScript] אינו משנה דבר. תו ASCII שקיים
   /// בכל הגופנים המובנים, בטוח ב-HTML ואינו מושפע מכיווניות; לא `|` — זה פסק
   /// בטקסט המקרא, ו-removeVolwels הופך אותו לרווח.
-  slashes('/', '/');
+  slashes('/', '/'),
+
+  parentheses('(', ')'),
+  brackets('[', ']'),
+  braces('{', '}');
 
   const LinkAnchorDelimiter(this.open, this.close);
 
