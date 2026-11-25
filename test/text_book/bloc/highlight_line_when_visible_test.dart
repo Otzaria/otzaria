@@ -11,6 +11,8 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
@@ -214,6 +216,55 @@ void main() {
     expect(position.value, same(measured));
   });
 
+  test('שורת סימנייה טעונה בפסקה חלקית ממתינה לכל שורות הפסקה', () async {
+    await Settings.setValue<bool>('key-continuous-reading-mode', true);
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position);
+    addTearDown(bloc.close);
+    const target = 60;
+    final title = _loaded(bloc).book.title;
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: title,
+        startLine: target,
+        totalLines: 61,
+        lines: const ['שורה 60'],
+      ),
+    );
+    await _waitFor(() => _loaded(bloc).content.length == 61);
+
+    final partial = _loaded(bloc);
+    expect(partial.continuousReadingMode, isTrue);
+    expect(partial.isContentLineLoaded(target), isTrue);
+    final segments = readingSegmentsOf(partial);
+    final item = segments.layout.itemForLine(target);
+    expect(segments[item].isLoaded, isFalse);
+    // הקורא מדווח מיקום משוער של שורות בתוך מציין מקום רב-שורתי.
+    final measured = readingPositionFromItems(segments, [
+      ItemPosition(index: item, itemLeadingEdge: -5, itemTrailingEdge: 0.05),
+    ]);
+    expect(measured?.isTarget, isFalse);
+    expect(measured?.visibleLines, contains(target));
+    position.value = measured;
+
+    bloc.add(const HighlightLineWhenVisible(target));
+    await Future<void>.delayed(Duration.zero);
+    expect(_loaded(bloc).highlightedLine, isNull);
+    expect(bloc.pendingHighlightLineForTesting, target);
+
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: title,
+        startLine: 40,
+        totalLines: 61,
+        lines: List.generate(20, (offset) => 'שורה ${40 + offset}'),
+      ),
+    );
+    await _waitFor(() => _loaded(bloc).highlightedLine == target);
+    expect(readingSegmentsOf(_loaded(bloc))[item].isLoaded, isTrue);
+    expect(position.value, same(measured));
+  });
+
   test('הטאב מעביר את הבקשה ל-bloc שהוא יוצר', () {
     final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 7);
     addTearDown(tab.dispose);
@@ -281,6 +332,9 @@ Future<void> _waitFor(
 
 class _FortyLineRepository extends TextBookRepository {
   _FortyLineRepository() : super(fileSystem: FileSystemData.instance);
+
+  @override
+  Future<bool> supportsContinuousReadingMode(TextBook book) async => true;
 
   static final _lines = List.generate(40, (i) => 'שורה $i');
 
