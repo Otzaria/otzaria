@@ -394,11 +394,15 @@ Future<_RenderedProbe> _renderProbe(
   final loadedCompleter = Completer<void>();
   final webViewKey = UniqueKey();
   final events = <String>[];
+  final elapsed = Stopwatch();
+  var loadDeadline = cycle == 1 ? _firstLoadDeadline : _loadDeadline;
+  var creationFailed = false;
   var loadCount = 0;
   final creationFailures = WindowsWebViewCreationFailures.stream.listen((
     failure,
   ) {
     if (failure.creationKey == webViewKey) {
+      creationFailed = true;
       events.add('creation failed: ${failure.error}');
     }
   });
@@ -412,6 +416,11 @@ Future<_RenderedProbe> _renderProbe(
             webViewEnvironment: environment,
             initialData: InAppWebViewInitialData(data: _probeHtml),
             onWebViewCreated: (controller) {
+              // ההארכה מיועדת ליצירה הקרה; לניווט אחריה נשארות עד 30 שניות.
+              final navigationDeadline = elapsed.elapsed + _loadDeadline;
+              if (navigationDeadline < loadDeadline) {
+                loadDeadline = navigationDeadline;
+              }
               onCreated();
               controllerCompleter.complete(controller);
             },
@@ -438,12 +447,14 @@ Future<_RenderedProbe> _renderProbe(
       ),
     );
 
-    final loadDeadline = cycle == 1 ? _firstLoadDeadline : _loadDeadline;
-    final deadline = Stopwatch()..start();
-    while (!loadedCompleter.isCompleted && deadline.elapsed < loadDeadline) {
+    elapsed.start();
+    while (!loadedCompleter.isCompleted &&
+        !creationFailed &&
+        elapsed.elapsed < loadDeadline) {
       await tester.pump(const Duration(milliseconds: 100));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
+    expect(creationFailed, isFalse, reason: 'cycle=$cycle, events=$events');
     expect(
       loadedCompleter.isCompleted,
       isTrue,

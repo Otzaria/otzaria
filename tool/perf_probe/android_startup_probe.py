@@ -511,15 +511,20 @@ class Runner:
                 f"--dart-define=OTZARIA_PROBE_FLUTTER_VERSION={version['frameworkVersion']}"]
         for attempt in range(1, 4):
             result = self.command(argv, timeout=3600, env=env, check=False)
-            (self.output / "build.log").write_bytes(result.stdout + result.stderr)
-            # Maven Central answers CI bursts with 429; Flutter's own retry waits only 100 ms.
-            if attempt == 3 or not result.returncode or GRADLE_NETWORK_ERROR not in result.stdout + result.stderr:
+            output = result.stdout + result.stderr
+            (self.output / "build.log").write_bytes(output)
+            if attempt == 3 or not result.returncode:
                 break
-            print(f"Gradle download failed; retrying the APK build ({attempt}/2)", file=sys.stderr, flush=True)
+            # Flutter logs earlier Gradle attempts too. Check only the last failure for HTTP 429.
+            failure = result.stderr.rpartition(b"FAILURE: Build ")[2]
+            if (not failure.startswith(b"failed with an exception.") or
+                    GRADLE_NETWORK_ERROR not in failure or b"Received status code 429 from server:" not in failure):
+                break
+            print(f"Gradle download was rate-limited; retrying the APK build ({attempt}/2)", file=sys.stderr, flush=True)
             time.sleep(60 * attempt)
         if result.returncode:
             # build.log is only in the artifact; the job log needs the cause too.
-            print((result.stdout + result.stderr).decode(errors="replace")[-8000:], file=sys.stderr)
+            print(output.decode(errors="replace")[-8000:], file=sys.stderr)
             raise RuntimeError("Probe APK build failed; see build.log")
         apk = ROOT / "build/app/outputs/flutter-apk" / f"app-direct-{self.args.mode}.apk"
         aapt = shutil.which("aapt2")

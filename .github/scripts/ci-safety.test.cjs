@@ -25,6 +25,8 @@ function scripts(file) {
 const mergeScript = scripts('automerge.yml')[1];
 const revertScript = scripts('dev_health.yml')[0];
 const gateScript = scripts('ci_gate.yml')[0];
+const flutterRetryScript = scripts('flutter_tests.yml')
+  .find(script => script.includes('first_exit=$?')).replace(/\$\{\{[^}]+\}\}/g, '1');
 
 function check(name, suite, conclusion = 'success', id = suite * 10) {
   return { id, name, check_suite: { id: suite }, app: { slug: 'github-actions' },
@@ -143,6 +145,54 @@ gh() {
 ${gateScript}`, { ACTION: 'opened', GITHUB_OUTPUT: output });
   assert.equal(readFileSync(output, 'utf8'), 'run=false\n');
 });
+
+const lateFlutterError = [
+  { type: 'suite', suite: { id: 1, path: 'test/watcher_test.dart' } },
+  { type: 'testStart', test: { id: 2, suiteID: 1, name: 'watcher closes' } },
+  { type: 'testDone', testID: 2, result: 'success', hidden: false },
+  { type: 'error', testID: 2, error: 'asynchronous watcher failure' },
+];
+const failedFlutterRun = { type: 'done', success: false };
+const unmappedFlutterError = { type: 'error', testID: 3, error: 'unmapped engine failure' };
+
+for (const [description, first, retry, expected] of [
+  ['retries a late failure in a completed Flutter shard', [...lateFlutterError, failedFlutterRun], null, 0],
+  ['keeps a truncated Flutter shard failed', lateFlutterError, null, 1],
+  ['keeps a Flutter shard with an unmapped error failed', [...lateFlutterError, unmappedFlutterError, failedFlutterRun], null, 1],
+  ['reports both late and unmapped errors on a failed Flutter retry', [...lateFlutterError, failedFlutterRun],
+    [...lateFlutterError, unmappedFlutterError, failedFlutterRun], 2],
+]) {
+  test(description, t => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'otzaria-flutter-retry-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(path.join(dir, 'test'));
+    writeFileSync(path.join(dir, 'first.json'), first.map(event => JSON.stringify(event)).join('\n'));
+    if (retry) writeFileSync(path.join(dir, 'second.json'), retry.map(event => JSON.stringify(event)).join('\n'));
+    const result = spawnSync('bash', ['-c', `
+dart() { printf '%s\\n' test/watcher_test.dart test/passing_test.dart; }
+flutter() {
+  if [[ " $* " == *" json:test-results.json "* ]]; then
+    cp first.json test-results.json
+    return 1
+  fi
+  printf '%s\\n' "$@" > retry-args
+  if [[ -f second.json ]]; then
+    cp second.json retry-results.json
+    return 2
+  fi
+}
+${flutterRetryScript}`], { cwd: dir, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: 'summary' } });
+    assert.equal(result.status, expected, result.stdout + result.stderr);
+    const retryArgs = path.join(dir, 'retry-args');
+    if (expected === 1) assert.equal(existsSync(retryArgs), false);
+    else assert.equal(readFileSync(retryArgs, 'utf8'), 'test\n--file-reporter\njson:retry-results.json\ntest/watcher_test.dart\n');
+    if (retry) {
+      const summary = readFileSync(path.join(dir, 'summary'), 'utf8');
+      assert.match(summary, /test\/watcher_test\.dart :: watcher closes/);
+      assert.match(summary, /unmapped engine failure/);
+    }
+  });
+}
 
 for (const conclusion of ['failure', null]) {
   test(`a same-name check from another workflow cannot hide ${conclusion ?? 'pending'} work`, t => {

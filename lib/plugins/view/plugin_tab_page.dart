@@ -743,11 +743,12 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         identical(_crashGuardOwner, crashGuardOwner);
 
     if (_creationWatchdog == null && webViewController == null) {
-      // ה-WebView הראשון מפעיל את תהליך הדפדפן; במכונה איטית זה לבד יכול לקחת עשרות שניות.
-      _creationWatchdog = Timer(const Duration(seconds: 60), () {
+      // יצירה ראשונה של WebView2 יכולה לכלול הפעלה קרה של תהליך הדפדפן.
+      final timeout = Duration(seconds: Platform.isWindows ? 60 : 20);
+      _creationWatchdog = Timer(timeout, () {
         logPluginWebViewFailure(
           'Plugin WebView never created (silent blank)',
-          'onWebViewCreated did not fire within 60s',
+          'onWebViewCreated did not fire within ${timeout.inSeconds}s',
           details: {'Plugin': widget.plugin.pluginId},
         );
       });
