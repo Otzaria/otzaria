@@ -355,14 +355,13 @@ void main() {
       expect(selected?.plainText, lineText.replaceAll('\uFFFC', ''));
     });
 
-    testWidgets('שינוי טקסט בגלילה: בלי קריסה, אותו מיקום, מכסת פריים', (
+    testWidgets('שינוי טקסט בגלילה: בלי קריסה ובמכסת פריים', (
       tester,
     ) async {
       final position = await pumpLine(tester, _block(_items(0, 8000)));
       final count = _chunks(tester).length;
       position.jumpTo(position.maxScrollExtent / 2);
       await tester.pump();
-      final pixels = position.pixels;
 
       // הסרת הפריט הראשון מזיזה את כל גבולות המקטעים.
       html.value = _block(_items(1, 7999));
@@ -372,7 +371,6 @@ void main() {
         await tester.pump();
         frames++;
         expect(_chunks(tester).length, greaterThanOrEqualTo(count - 1));
-        expect(position.pixels, pixels);
         expect(laidOut(before, tester), lessThanOrEqualTo(1));
         if (!tester.binding.hasScheduledFrame) break;
       }
@@ -383,6 +381,69 @@ void main() {
       );
       expect(_joined(chunks), isNot(contains('קטע0 ')));
       _expectItemsInOrder(_joined(chunks), 1, 7999);
+    });
+
+    testWidgets('שינוי טקסט שמקצר את השורה: בלי כפילות, בלי חורים, בלי קפיצה', (
+      tester,
+    ) async {
+      String line({required bool long}) => _block(
+        [
+          for (var i = 0; i < 12000; i++)
+            'קטע$i ${long ? 'נוסף ארוך ' : ''}מילה${i % 40 == 39 ? '<br>' : ' '}',
+        ].join(),
+      );
+      final position = await pumpLine(tester, line(long: true));
+      final count = _chunks(tester).length;
+      expect(count, greaterThan(10));
+      position.jumpTo(position.maxScrollExtent * 0.6);
+      await tester.pump();
+      final item = RegExp(r'קטע(\d+) ');
+
+      /// מספר הפריט בראש החלון, ומספרי הפריטים בכל מקטע שנראה בחלון.
+      ({int top, List<int> items}) visible() {
+        int? top;
+        final items = <int>[];
+        for (final chunk in _chunks(tester)) {
+          final rect = chunk.localToGlobal(Offset.zero) & chunk.size;
+          if (rect.bottom <= 0 || rect.top >= 600) continue;
+          final paragraph = _paragraphOf(chunk);
+          final text = _plain(paragraph);
+          items.addAll(item.allMatches(text).map((m) => int.parse(m[1]!)));
+          if (top == null && rect.top <= 0) {
+            final at = paragraph
+                .getPositionForOffset(
+                  paragraph.globalToLocal(const Offset(300, 1)),
+                )
+                .offset;
+            final before = text.substring(0, at).lastIndexOf('קטע');
+            top = int.parse(item.matchAsPrefix(text, before)![1]!);
+          }
+        }
+        return (top: top ?? -1, items: items);
+      }
+
+      final perChunk = 12000 ~/ count;
+      final start = visible();
+      html.value = line(long: false);
+      for (var frame = 0; frame < count * 3; frame++) {
+        await tester.pump();
+        final now = visible();
+        expect(
+          now.items.toSet(),
+          hasLength(now.items.length),
+          reason: 'כפילות',
+        );
+        final sorted = [...now.items]..sort();
+        expect(sorted.last - sorted.first + 1, sorted.length, reason: 'חור');
+        expect(
+          (now.top - start.top).abs(),
+          lessThanOrEqualTo(perChunk * 2),
+          reason: 'קפיצה',
+        );
+        if (!tester.binding.hasScheduledFrame) break;
+      }
+      expect(_joined(_chunks(tester)), isNot(contains('נוסף')));
+      _expectItemsInOrder(_joined(_chunks(tester)), 0, 12000);
     });
 
     testWidgets('מקטע ישן בזמן ההחלפה אינו מחזיק קישור משוחרר', (tester) async {

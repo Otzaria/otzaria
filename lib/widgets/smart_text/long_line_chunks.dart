@@ -398,12 +398,15 @@ final class _Slicer {
 bool _opensDirectional(int c) =>
     (c >= 0x202A && c <= 0x202E && c != 0x202C) || (c >= 0x2066 && c <= 0x2068);
 
-/// מונה קריאות ל-[_startsWithMark], לבדיקות בלבד.
+/// מונה קריאות ל-[_startsWithMark], לבדיקות בלבד (נספר רק ב-debug).
 @visibleForTesting
 int debugMarkChecks = 0;
 
 bool _startsWithMark(String text, int at) {
-  debugMarkChecks++;
+  assert(() {
+    debugMarkChecks++;
+    return true;
+  }());
   return _mark.matchAsPrefix(text, at) != null;
 }
 
@@ -516,6 +519,7 @@ RenderParagraph? _firstParagraph(RenderObject node) {
 
 class _LongLineChunk extends SingleChildRenderObjectWidget {
   const _LongLineChunk({
+    super.key,
     required this.lineText,
     required this.start,
     required this.end,
@@ -604,13 +608,21 @@ class LongLineChunks extends StatefulWidget {
 
 class _LongLineChunksState extends State<LongLineChunks> {
   late LongLineSplit _current = widget.split;
+  late _Paragraph _paragraph = _paragraphOf(widget);
 
-  /// מקטעים שכבר נבנו נשמרים כאותו מופע, כדי שהוספת מקטע לא תעדכן את כולם.
-  final List<Widget> _built = [];
-  final List<_Source> _sources = [];
+  /// מקטעים מגרסה קודמת שעוד מוצגים, בסדר הטקסט וכבר בלי קישורים.
+  List<_Entry> _old = const [];
 
-  /// מקטעים שמוצגים עדיין מהגרסה הקודמת, עד שיוחלפו.
-  final Set<int> _stale = {};
+  /// מקטעי הגרסה הנוכחית שנבנו: הטווח `[_lo, _hi)`, שגדל מהמקטע הנראה.
+  final Map<int, _Entry> _fresh = {};
+  int _lo = 0;
+  int _hi = 0;
+  bool _growDown = true;
+
+  /// המקטעים המוצגים, לפי הסדר.
+  List<_Entry> _shown = const [];
+  ({_Entry entry, double y, int generation})? _anchor;
+  int _anchors = 0;
   bool _scheduled = false;
   ScrollPosition? _scrollPosition;
   int _generation = 0;
@@ -638,7 +650,7 @@ class _LongLineChunksState extends State<LongLineChunks> {
   @override
   void initState() {
     super.initState();
-    _addChunks();
+    _grow();
   }
 
   @override
@@ -650,14 +662,26 @@ class _LongLineChunksState extends State<LongLineChunks> {
         widget.textAlign == oldWidget.textAlign) {
       return;
     }
+    // המקטעים הקודמים נשארים מוצגים (בלי קישורים, ש-fwfh כבר שחרר), והחדשים
+    // מחליפים אותם לפי מקומם בטקסט, מהנראה החוצה — בלי כפילות ובלי קריסה.
+    final visible = _visibleIndex();
+    final top = visible == null ? null : _offsetOf(visible);
+    _old = [for (final entry in _shown) entry.inert()];
     _current = _sameBoundaries(widget.split, _current) ?? widget.split;
-    // המקטעים הקודמים נשארים מוצגים (בלי קישורים, ש-fwfh כבר שחרר) ומוחלפים
-    // בהדרגה, הנראים קודם, כך שגובה השורה ומיקום הגלילה נשמרים.
-    for (var i = 0; i < _built.length; i++) {
-      _built[i] = _widgetFor(_sources[i], inert: true);
-      _stale.add(i);
+    _paragraph = _paragraphOf(widget);
+    _fresh.clear();
+    final split = _current;
+    var first = 0;
+    if (visible != null) {
+      final at = _old[visible].mapped(_old[visible].start, split);
+      while (first < split.chunks.length - 1 && split.ends[first] <= at) {
+        first++;
+      }
     }
-    _replaceStale();
+    _lo = _hi = first;
+    _growDown = true;
+    _grow();
+    _hold(_fresh[first]!, top);
   }
 
   /// טקסט זהה (הדגשה חדשה): אותם גבולות ואותו מופע טקסט, כדי שמקטעים ישנים
@@ -683,104 +707,91 @@ class _LongLineChunksState extends State<LongLineChunks> {
     return _split(split.source, keep: previous);
   }
 
-  _Source _source(int index) {
+  static _Paragraph _paragraphOf(LongLineChunks widget) {
     final style = widget.style;
     final strutStyle = widget.strutStyle;
     final textAlign = widget.textAlign;
-    return (
-      split: _current,
-      index: index,
-      paragraph:
-          widget.chunkBuilder ??
-          (span) => SelectionFillText.rich(
-            span,
-            style: style,
-            strutStyle: strutStyle,
-            textAlign: textAlign,
-          ),
-    );
+    return widget.chunkBuilder ??
+        (span) => SelectionFillText.rich(
+          span,
+          style: style,
+          strutStyle: strutStyle,
+          textAlign: textAlign,
+        );
   }
 
-  static Widget _widgetFor(_Source source, {bool inert = false}) {
-    final (:split, :index, :paragraph) = source;
-    final span = split.chunks[index];
-    return _LongLineChunk(
-      lineText: split.text,
-      start: split.starts[index],
-      end: split.ends[index],
-      skipped: index == 0
-          ? ''
-          : split.text.substring(split.ends[index - 1], split.starts[index]),
-      child: paragraph(inert ? _inert(span) as TextSpan : span),
-    );
-  }
-
-  void _show(int index) {
-    final source = _source(index);
-    final shown = _widgetFor(source);
-    if (index < _built.length) {
-      _built[index] = shown;
-      _sources[index] = source;
-    } else {
-      _built.add(shown);
-      _sources.add(source);
-    }
-  }
-
-  void _addChunks() {
-    final end = math.min(
-      _built.length + kLongLineChunksPerFrame,
-      _current.chunks.length,
-    );
-    for (var i = _built.length; i < end; i++) {
-      _show(i);
-    }
-    _scheduleMore();
-  }
-
-  /// מחליף מקטעים ישנים, הקרובים לחלון קודם, עד המכסה של פריים. מקטעים עודפים
-  /// מהגרסה הקודמת יורדים רק כשכל השאר כבר הוחלפו.
-  void _replaceStale() {
-    final count = _current.chunks.length;
-    final order = _stale.where((i) => i < count).toList()..sort();
-    final distances = _distancesFromView();
-    if (distances != null) {
-      order.sort((a, b) => distances[a].compareTo(distances[b]));
-    }
-    for (final i in order.take(kLongLineChunksPerFrame)) {
-      _stale.remove(i);
-      _show(i);
-    }
-    if (_stale.every((i) => i >= count)) {
-      _stale.clear();
-      if (_built.length > count) {
-        _built.removeRange(count, _built.length);
-        _sources.removeRange(count, _sources.length);
+  /// מוסיף מקטע חדש, מתחת לטווח שנבנה ומעליו לסירוגין, עד המכסה של פריים.
+  void _grow() {
+    _anchor = null;
+    final split = _current;
+    final count = split.chunks.length;
+    for (var n = 0; n < kLongLineChunksPerFrame; n++) {
+      final int index;
+      if (_hi < count && (_growDown || _lo == 0)) {
+        index = _hi++;
+      } else if (_lo > 0) {
+        final visible = _visibleIndex();
+        if (visible != null) _hold(_shown[visible], _offsetOf(visible));
+        index = --_lo;
+      } else {
+        break;
       }
+      _fresh[index] = _Entry(split, index, _paragraph);
+      _growDown = !_growDown;
     }
+    if (_lo == 0 && _hi == count) _old = const [];
+    final blockStart = split.starts[_lo];
+    final blockEnd = split.ends[_hi - 1];
+    _shown = [
+      for (final entry in _old)
+        if (entry.mapped(entry.end, split) <= blockStart) entry,
+      for (var i = _lo; i < _hi; i++) _fresh[i]!,
+      for (final entry in _old)
+        if (entry.mapped(entry.start, split) >= blockEnd) entry,
+    ];
     _scheduleMore();
   }
 
-  /// מרחק כל מקטע בנוי מהחלון הנראה, או null כשאין עדיין פריסה.
-  List<double>? _distancesFromView() {
+  /// [entry] נשאר בגובה [y] בעמודה, גם כשהמקטעים שמעליו מוחלפים: העמודה מוסיפה
+  /// רווח בראשה, והוא מומר לתיקון גלילה כשההחלפה מסתיימת ([_release]).
+  void _hold(_Entry entry, double? y) {
+    if (y != null) _anchor = (entry: entry, y: y, generation: ++_anchors);
+  }
+
+  double? _offsetOf(int index) {
+    final column = context.findRenderObject();
+    if (column is! _RenderChunkColumn) return null;
+    var i = 0;
+    double? offset;
+    column.visitChildren((child) {
+      if (i++ == index) {
+        offset = (child.parentData! as _ChunkParentData).offset.dy;
+      }
+    });
+    return offset;
+  }
+
+  void _release() {
+    final column = context.findRenderObject();
+    if (column is _RenderChunkColumn) column.release(_scrollPosition);
+  }
+
+  /// המקטע המוצג הראשון שנמצא בחלון, או null כשאין עדיין פריסה.
+  int? _visibleIndex() {
     final column = context.findRenderObject();
     final view = View.maybeOf(context);
     if (column is! RenderBox || !column.hasSize || view == null) return null;
     final height = view.physicalSize.height / view.devicePixelRatio;
-    final distances = <double>[];
+    int? found;
+    var index = 0;
     column.visitChildren((child) {
-      if (child is! RenderBox || !child.hasSize) return;
-      final top = child.localToGlobal(Offset.zero).dy;
-      final bottom = top + child.size.height;
-      distances.add(
-        bottom < 0
-            ? -bottom
-            : top > height
-            ? top - height
-            : 0,
-      );
+      if (found == null && child is RenderBox && child.hasSize) {
+        final top = child.localToGlobal(Offset.zero).dy;
+        if (top + child.size.height > 0 && top < height) found = index;
+      }
+      index++;
     });
-    return distances.length == _built.length ? distances : null;
+    return found != null && found! < _shown.length ? found : null;
   }
 
   void _scheduleMore() {
@@ -791,14 +802,11 @@ class _LongLineChunksState extends State<LongLineChunks> {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       _scheduled = false;
       if (!mounted) return;
-      if (_stale.isNotEmpty) {
-        setState(_replaceStale);
+      if (_lo > 0 || _hi < _current.chunks.length) {
+        setState(_grow);
         return;
       }
-      if (_built.length < _current.chunks.length) {
-        setState(_addChunks);
-        return;
-      }
+      _release();
       // הרשימה מפרסמת את המיקומים אחרי הפריסה; הניווט ממשיך בפריים הבא.
       SchedulerBinding.instance
         ..addPostFrameCallback((_) {
@@ -809,16 +817,58 @@ class _LongLineChunksState extends State<LongLineChunks> {
   }
 
   @override
-  Widget build(BuildContext context) => ParagraphSelectionContainer(
-    child: _ChunkColumn(children: List.of(_built)),
-  );
+  Widget build(BuildContext context) {
+    final anchor = _anchor;
+    return ParagraphSelectionContainer(
+      child: _ChunkColumn(
+        anchor: anchor == null
+            ? null
+            : (
+                index: _shown.indexOf(anchor.entry),
+                y: anchor.y,
+                generation: anchor.generation,
+              ),
+        children: [for (final e in _shown) e.widget],
+      ),
+    );
+  }
 }
 
-typedef _Source = ({
-  LongLineSplit split,
-  int index,
-  Widget Function(TextSpan chunk) paragraph,
-});
+typedef _Paragraph = Widget Function(TextSpan chunk);
+
+/// מקטע מוצג: המקטע ה-[index] של [split], בפסקה שבונה [paragraph].
+final class _Entry {
+  _Entry(this.split, this.index, this.paragraph, {bool inert = false})
+    : widget = _LongLineChunk(
+        key: ObjectKey(split.chunks[index]),
+        lineText: split.text,
+        start: split.starts[index],
+        end: split.ends[index],
+        skipped: index == 0
+            ? ''
+            : split.text.substring(split.ends[index - 1], split.starts[index]),
+        child: paragraph(
+          inert ? _inert(split.chunks[index]) as TextSpan : split.chunks[index],
+        ),
+      ),
+      _isInert = inert;
+
+  final LongLineSplit split;
+  final int index;
+  final _Paragraph paragraph;
+  final Widget widget;
+  final bool _isInert;
+
+  int get start => split.starts[index];
+  int get end => split.ends[index];
+
+  _Entry inert() =>
+      _isInert ? this : _Entry(split, index, paragraph, inert: true);
+
+  /// היסט בטקסט של [other], ביחס לאורך: שינוי טקסט משמר בערך את המבנה.
+  double mapped(int offset, LongLineSplit other) =>
+      offset * other.text.length / split.text.length;
+}
 
 /// עותק של [span] בלי קישורים וריחוף, באותו מראה: מקטע ישן שעוד מוצג.
 InlineSpan _inert(InlineSpan span) => span is! TextSpan
@@ -836,20 +886,27 @@ InlineSpan _inert(InlineSpan span) => span is! TextSpan
 /// עמודת המקטעים: כל מקטע ברוחב המלא, זה מתחת לזה; ברוחב לא חסום — ברוחבו
 /// הטבעי. תומכת במידות פנימיות, בפריסה יבשה ובקו בסיס יבש.
 class _ChunkColumn extends MultiChildRenderObjectWidget {
-  const _ChunkColumn({required super.children});
+  const _ChunkColumn({required this.anchor, required super.children});
+
+  final _Anchor? anchor;
 
   @override
   _RenderChunkColumn createRenderObject(BuildContext context) =>
-      _RenderChunkColumn(Directionality.of(context));
+      _RenderChunkColumn(Directionality.of(context))..anchor = anchor;
 
   @override
   void updateRenderObject(
     BuildContext context,
     _RenderChunkColumn renderObject,
   ) {
-    renderObject.textDirection = Directionality.of(context);
+    renderObject
+      ..textDirection = Directionality.of(context)
+      ..anchor = anchor;
   }
 }
+
+/// הילד ה-[index] צריך לעמוד בגובה [y]; כל [generation] חל פעם אחת.
+typedef _Anchor = ({int index, double y, int generation});
 
 class _ChunkParentData extends ContainerBoxParentData<RenderBox> {}
 
@@ -864,6 +921,27 @@ class _RenderChunkColumn extends RenderBox
     if (value == _textDirection) return;
     _textDirection = value;
     markNeedsLayout();
+  }
+
+  _Anchor? _anchor;
+  int _appliedAnchor = 0;
+  set anchor(_Anchor? value) {
+    if (value == null || value.generation == _appliedAnchor) return;
+    _anchor = value;
+    markNeedsLayout();
+  }
+
+  /// רווח בראש העמודה שמשאיר מקטע נראה במקומו בזמן החלפה.
+  double _gap = 0;
+
+  /// מסיר את הרווח ומתקן את [position] באותו פריים, כך שהתוכן לא זז.
+  void release(ScrollPosition? position) {
+    if (_gap == 0) return;
+    if (position != null && position.hasPixels) position.correctBy(-_gap);
+    _gap = 0;
+    markNeedsLayout();
+    final viewport = RenderAbstractViewport.maybeOf(this);
+    if (viewport is RenderObject) (viewport as RenderObject).markNeedsLayout();
   }
 
   @override
@@ -905,11 +983,31 @@ class _RenderChunkColumn extends RenderBox
 
   @override
   void performLayout() {
-    size = _stack(constraints, (child, c) {
+    final natural = _stack(constraints.loosen(), (child, c) {
       child.layout(c, parentUsesSize: true);
       return child.size;
     });
-    var y = 0.0;
+    final anchor = _anchor;
+    if (anchor != null) {
+      _anchor = null;
+      _appliedAnchor = anchor.generation;
+      var top = 0.0;
+      var i = 0;
+      for (var child = firstChild; child != null; child = childAfter(child)) {
+        if (i++ == anchor.index) {
+          _gap = math.max(0, anchor.y - top);
+          break;
+        }
+        top += child.size.height;
+      }
+    }
+    size = constraints.constrain(
+      Size(
+        constraints.hasBoundedWidth ? constraints.maxWidth : natural.width,
+        natural.height + _gap,
+      ),
+    );
+    var y = _gap;
     for (var child = firstChild; child != null; child = childAfter(child)) {
       final x = _textDirection == TextDirection.rtl
           ? size.width - child.size.width

@@ -968,7 +968,27 @@ void main() {
     settings.value = _settings.copyWith(searchText: 'מודגש');
     await tester.pump();
     expect(tester.binding.hasScheduledFrame, isTrue, reason: 'עוד מחליף');
-    await _click(tester, await _reveal(tester, _paragraphs(tester)[1], 200), 3);
+    // החלפה מחליפה את הפסקה עצמה, ולכן המיקום נמדד אחרי הגלילה.
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position;
+    position.jumpTo(
+      position.pixels + _paragraphs(tester)[1].localToGlobal(Offset.zero).dy,
+    );
+    await tester.pump();
+    final paragraph = _paragraphs(tester)[1];
+    final box = paragraph
+        .getBoxesForSelection(
+          const TextSelection(baseOffset: 200, extentOffset: 201),
+        )
+        .first
+        .toRect();
+    await _click(tester, paragraph.localToGlobal(box.center), 3);
 
     expect(selection?.plainText, whole);
   });
