@@ -5,6 +5,8 @@ on:
     branches: [dev]
     paths:
       - '.github/scripts/**'
+      - '.github/otzaria-engine/**'
+      - '.github/actions/patched-flutter-engine/**'
       - '.github/workflows/auto-draft-failed-ci.yml'
       - '.github/workflows/automerge.yml'
       - '.github/workflows/dev_health.yml'
@@ -13,6 +15,8 @@ on:
   pull_request:
     paths:
       - '.github/scripts/**'
+      - '.github/otzaria-engine/**'
+      - '.github/actions/patched-flutter-engine/**'
       - '.github/workflows/auto-draft-failed-ci.yml'
       - '.github/workflows/automerge.yml'
       - '.github/workflows/dev_health.yml'

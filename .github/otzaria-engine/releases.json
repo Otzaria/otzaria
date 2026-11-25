@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "engineRevision": "deb287481e3ce9468f3434937ced4240a70539ca",
+  "patchSha256": {
+    "windows-numpad.patch": "544bd5c5799b8227636c3e4b53f36ff184f334003cf09b2552f8a54ff88b4a57",
+    "skia-style.patch": "f62f946e95820e1e52f680a8d517ea5c6a2617c7c85889f39157485404df3407"
+  },
+  "releases": [
+    {
+      "patches": [],
+      "url": "https://github.com/palmoni5/flutter/releases/download/otzaria-3.47.7-a11y.1",
+      "sha256": {
+        "x64": "cc04e8c75d7b8740b3b2705e87a9f9d6839366518ad1eb842e33c6efd2048818",
+        "arm64": "ed7d43bbc77af371cb44303d9484503417761c2ba36480982bc467552c888eab"
+      }
+    }
+  ]
+}

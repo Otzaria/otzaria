@@ -7,6 +7,8 @@ on:
       - dev
     paths:
       - ".github/actions/patched-flutter-engine/**"
+      - ".github/otzaria-engine/**"
+      - ".github/scripts/patched-engine-release*"
       - ".github/workflows/build-and-announce.yml"
       - ".github/workflows/patched_flutter_engine_release_smoke.yml"
   workflow_dispatch:
