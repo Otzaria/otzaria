@@ -124,7 +124,6 @@ class _FakeEngine implements SearchEngine {
     required bool matchNikud,
     required bool matchTaamim,
     SemanticRankingOptions? ranking,
-    String? paginationSessionId,
     List<SemanticVote>? votes,
     String? paginationSessionId,
     required SemanticCancellationToken cancellation,
