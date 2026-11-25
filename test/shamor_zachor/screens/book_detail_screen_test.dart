@@ -827,4 +827,89 @@ void main() {
       );
     }
   }
+
+  group('פתיחה בעמוד מתצוגה שטוחה (issue #4345)', () {
+    Future<List<int>> pumpAndOpen(
+      WidgetTester tester,
+      BookDetails book,
+      String rowLabel,
+    ) async {
+      final progress = ShamorZachorProgressProvider(
+        progressService: _MemoryProgressService(),
+      );
+      addTearDown(progress.dispose);
+      await progress.ensureLoaded();
+      final opened = <int>[];
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ShamorZachorDataProvider>(
+              create: (_) => _ReadyDataProvider(book),
+            ),
+            ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+              value: progress,
+            ),
+          ],
+          child: MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                body: BookDetailScreen(
+                  topLevelCategoryKey: 'הלכה',
+                  bookName: 'ספר',
+                  bookId: book.id,
+                  bookDetails: book,
+                  onOpenLine: opened.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(rowLabel));
+      await tester.pump();
+      expect(progress.getProgressForBookById(book.id!), isEmpty);
+      return opened;
+    }
+
+    testWidgets('PDF בלי תוכן עניינים: שורת עמוד פותחת את העמוד', (
+      tester,
+    ) async {
+      final book = BookDetails(
+        id: -1,
+        contentType: 'pdf',
+        parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 3)],
+      );
+
+      expect(
+        await pumpAndOpen(tester, book, HebrewUtils.intToGematria(2)),
+        [2],
+      );
+    });
+
+    testWidgets('תוכן עניינים שטוח: שורת הפרק פותחת בעמוד תחילתו', (
+      tester,
+    ) async {
+      BookSection leaf(String id, String title, int start, int end) =>
+          BookSection(
+            id: id,
+            title: title,
+            level: 1,
+            startPage: start,
+            endPage: end,
+          );
+      final book = BookDetails(
+        id: -1,
+        contentType: 'pdf',
+        parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 6)],
+        sections: [leaf('a', 'פרק א', 1, 3), leaf('b', 'פרק ב', 4, 6)],
+      );
+
+      expect(
+        await pumpAndOpen(tester, book, HebrewUtils.intToGematria(4)),
+        [4],
+      );
+    });
+  });
 }

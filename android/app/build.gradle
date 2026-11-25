@@ -25,6 +25,10 @@ if (flutterVersionName == null) {
 
 def keystoreProperties = new Properties()
 def androidStartupProbe = providers.gradleProperty('otzariaStartupProbe').orNull == 'true'
+def androidPdfExportProbe = providers.gradleProperty('otzariaPdfExportProbe').orNull == 'true'
+if (androidPdfExportProbe && (androidStartupProbe || providers.gradleProperty('otzariaInstalledProbe').orNull == 'true')) {
+    throw new GradleException('The PDF export probe requires its own application ID')
+}
 def keystorePropertiesFile = rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withReader('UTF-8') { reader ->
@@ -58,11 +62,22 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
+        if (androidPdfExportProbe) {
+            debug.java.srcDirs += 'src/pdfExportProbe/kotlin'
+            debug.manifest.srcFile 'src/pdfExportProbe/AndroidManifest.xml'
+            androidTest.java.srcDirs += 'src/pdfExportAndroidTest/kotlin'
+            androidTest.manifest.srcFile 'src/pdfExportAndroidTest/AndroidManifest.xml'
+        }
     }
 
     defaultConfig {
         // The opt-in probe must never install over the user's application.
-        applicationId = androidStartupProbe ? "org.otzaria.otzaria.startupprobe" : "org.otzaria.otzaria"
+        applicationId = androidPdfExportProbe ? "org.otzaria.otzaria.pdfexportprobe" :
+            (androidStartupProbe ? "org.otzaria.otzaria.startupprobe" : "org.otzaria.otzaria")
+        if (androidPdfExportProbe) {
+            testApplicationId 'org.otzaria.otzaria.pdfexportprobe.test'
+            testInstrumentationRunner 'org.otzaria.otzaria.PdfExportInstrumentation'
+        }
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdkVersion flutter.minSdkVersion

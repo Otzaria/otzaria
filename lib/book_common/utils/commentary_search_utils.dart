@@ -32,6 +32,7 @@ TargetRectResolver? commentarySearchMatchTarget({
   required String query,
   required TextDisplayProfile displayProfile,
   required int matchIndex,
+  bool partialWordMatch = true,
   RenderObject? Function()? renderedBody,
 }) {
   if (content == null || matchIndex < 0) return null;
@@ -39,7 +40,7 @@ TargetRectResolver? commentarySearchMatchTarget({
     content: content,
     query: query,
     displayProfile: displayProfile,
-    partialWordMatch: true,
+    partialWordMatch: partialWordMatch,
   );
   if (matchIndex >= count) return null;
   return (_, box) {
@@ -73,7 +74,7 @@ TargetRectResolver? commentarySearchMatchTarget({
       rendered,
       query,
       matchIndex,
-      partialWordMatch: true,
+      partialWordMatch: partialWordMatch,
       punctuationHidden: displayProfile.removePunctuation,
     );
     // תוכן מוסתר או WidgetSpan עשויים לשנות את הספירה; אין לנחש אז מיקום.
@@ -108,6 +109,7 @@ String buildCommentarySearchSnippet({
   required String content,
   required String query,
   required TextDisplayProfile displayProfile,
+  bool partialWordMatch = false,
 }) {
   var text = utils.removeMarks(
     content,
@@ -121,6 +123,7 @@ String buildCommentarySearchSnippet({
     fullText: utils.stripHtmlIfNeeded(text),
     query: query,
     maxChars: 220,
+    wholeWord: !partialWordMatch,
   );
 }
 
@@ -132,10 +135,12 @@ class CommentarySearchSnippet {
   final String path;
   final String snippet;
   final int globalIndex;
+  final bool partialWordMatch;
 
   const CommentarySearchSnippet({
     required this.path,
     required this.snippet,
     required this.globalIndex,
+    this.partialWordMatch = false,
   });
 }

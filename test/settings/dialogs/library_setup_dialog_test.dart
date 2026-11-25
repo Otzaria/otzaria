@@ -12,6 +12,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/attached_libraries/repository/update/official_offline_package.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/dialog_owner.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -311,7 +312,16 @@ void main() {
         ),
       );
       expect(tile.leading, isNotNull);
-      expect(find.byType(Checkbox), findsNothing);
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('הורדת הספרייה'),
+            matching: find.byType(ListTile),
+          ),
+          matching: find.byType(Checkbox),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('כפתור "אישור" פעיל בהורדה כשיש יעד ברירת מחדל', (
@@ -325,6 +335,58 @@ void main() {
     testWidgets('כפתור "אישור" מושבת כשאין יעד', (tester) async {
       await _openSetup(tester, defaultTargetPath: '');
       expect(_actionOnPressed(tester, 'אישור'), isNull);
+    });
+  });
+
+  group('"הורד גם את מחברי זמננו"', () {
+    late _RecordingDownloadBloc bloc;
+    final requested = <String>[];
+
+    setUp(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+      requested.clear();
+      debugCreateLibrarySetupBloc = () => bloc = _RecordingDownloadBloc();
+      debugDownloadOfficial = (entry) async => requested.add(entry.libraryId);
+    });
+    tearDown(() {
+      debugCreateLibrarySetupBloc = null;
+      debugDownloadOfficial = null;
+    });
+
+    Future<void> confirm(WidgetTester tester) async {
+      _actionOnPressed(tester, 'אישור')!();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('לא מסומנת כברירת מחדל, ובלי סימון אין הורדה', (tester) async {
+      await _openSetup(tester);
+      expect(find.text('הורד גם את מחברי זמננו'), findsOneWidget);
+      expect(
+        tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        isFalse,
+      );
+      await confirm(tester);
+      expect(bloc.targets, [p.join('/default/library', 'books')]);
+      expect(requested, isEmpty);
+    });
+
+    testWidgets('מסומנת: המסד מורד אחרי שהספרייה הותקנה', (tester) async {
+      await _openSetup(tester);
+      await tester.ensureVisible(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      expect(requested, isEmpty);
+      await confirm(tester);
+      expect(bloc.targets, hasLength(1));
+      expect(requested, ['otzaria.zmanenu']);
+    });
+
+    testWidgets('מוצגת רק ליד הורדת הספרייה', (tester) async {
+      await _openSetup(tester);
+      await tester.tap(find.text('בחירת תיקייה מהמחשב'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CheckboxListTile), findsNothing);
     });
   });
 
@@ -978,16 +1040,24 @@ void main() {
         }
       }
 
-      await pickFolder(
-        tester,
-        _MemoryFolder('x', {
-          DatabaseConstants.databaseFileName: utf8.encode('db'),
-          DatabaseConstants.lexicalDatabaseFileName: utf8.encode('lex'),
-        }),
-      );
+      const packageName = 'zmanenu-offline.tar.zst';
+      final folder = _MemoryFolder('x', {
+        DatabaseConstants.databaseFileName: utf8.encode('db'),
+        DatabaseConstants.lexicalDatabaseFileName: utf8.encode('lex'),
+        '$packageName.part-000': [1],
+        '$packageName.part-001': [2],
+      });
+      final imported = <(PackageFolder, String)>[];
+      debugImportOfficialPackage = (source, name) async {
+        imported.add((source, name));
+        return OfficialPackageResult.installed;
+      };
+      addTearDown(() => debugImportOfficialPackage = null);
+      await pickFolder(tester, folder);
       await tester.tap(find.text('אישור'));
       await pumpUntil(() => find.text('הספרייה הותקנה').evaluate().isNotEmpty);
 
+      expect(imported, [(folder, packageName)]);
       expect(find.text('הספרייה הותקנה'), findsOneWidget);
       expect(find.text('הותקנו'), findsOneWidget);
       expect(find.text('חסרים'), findsOneWidget);
@@ -1007,6 +1077,8 @@ void main() {
       await tester.tap(find.text('סגור'));
       await tester.pumpAndSettle();
       expect(find.text('הספרייה הותקנה'), findsNothing);
+      await tester.pump(const Duration(seconds: 7));
+      await tester.pumpAndSettle();
     });
 
     for (final exit in ['Escape', 'X']) {

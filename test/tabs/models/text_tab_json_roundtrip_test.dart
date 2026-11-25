@@ -197,7 +197,6 @@ TextBookLoaded _loadedState({
   removeNikud: false,
   visibleIndices: const [12],
   selectedIndex: 12,
-  pinLeftPane: false,
   searchText: '',
   highlightText: highlightText,
   permanentHighlightLine: permanentHighlightLine,

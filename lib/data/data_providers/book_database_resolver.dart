@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/data/official_book_title_renames.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/models/book_source.dart';
@@ -128,6 +130,7 @@ class BookDatabaseResolver {
     int? categoryId,
     String? fileType,
     String? filePath,
+    bool allowLegacyOfficialTitle = true,
   }) async {
     final normalizedFileType = fileType?.trim().toLowerCase();
     final normalizedFilePath = filePath?.trim();
@@ -188,6 +191,32 @@ class BookDatabaseResolver {
       }
     }
 
+    return allowLegacyOfficialTitle &&
+            (normalizedFilePath == null || normalizedFilePath.isEmpty)
+        ? resolveLegacyOfficialBook(title, candidates, fileType: fileType)
+        : null;
+  }
+
+  /// פותר שם קודם של ספר רשמי לאחר שכל ההתאמות המדויקות מוצו.
+  static Future<ResolvedDbBookRecord?> resolveLegacyOfficialBook(
+    String title,
+    List<ResolvedBookRepositoryCandidate> candidates, {
+    String? fileType,
+  }) async {
+    if (BookCompositeKey.normalizeFileType(fileType) != 'txt') return null;
+    final rename = officialBookTitleRenames[title];
+    if (rename == null) return null;
+    for (final candidate in candidates) {
+      if (!candidate.source.isOfficial) continue;
+      final book = await candidate.repository.getBook(rename.id);
+      if (book != null && book.title == rename.title) {
+        return ResolvedDbBookRecord(
+          book: book,
+          repository: candidate.repository,
+          source: candidate.source,
+        );
+      }
+    }
     return null;
   }
 

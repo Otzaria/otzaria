@@ -114,6 +114,7 @@ void main() {
         'hasBookBanners': caps.hasBookBanners,
         'hasBookProtection': caps.hasBookProtection,
         'hasExternalLinks': caps.hasExternalLinks,
+        'hasExternalDefaultCommentators': caps.hasExternalDefaultCommentators,
       };
       expect(caps.hasBookNotes, isTrue);
       expect(caps.hasBookBanners, isTrue);
@@ -123,6 +124,33 @@ void main() {
       expect(report.capabilities, expected);
       expect(report.impostors, {'connection_type'});
     });
+  });
+
+  test('library_folder named like an official top-level category warns '
+      'only when the official library is given', () {
+    final official = build('seforim.db', '''
+      CREATE TABLE category(id INTEGER PRIMARY KEY, parentId INTEGER, title TEXT);
+      INSERT INTO category VALUES (1, NULL, 'שו"ת'), (2, 1, 'מחברי זמננו');
+    ''');
+    String personal(String folder) => build('p${folder.hashCode}.db', '''
+      CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT);
+      INSERT INTO schema_meta VALUES ('library_folder', '$folder');
+      CREATE TABLE book(id INTEGER PRIMARY KEY, title TEXT NOT NULL);
+      INSERT INTO book VALUES (1, 'Book A');
+    ''');
+    const code = 'library_folder_matches_official';
+    final same = personal('שו״ת');
+    expect(codes(validatePersonalDb(same, officialLibrary: official)), {
+      ...codes(validatePersonalDb(same)),
+      code,
+    });
+    expect(codes(validatePersonalDb(same)), isNot(contains(code)));
+    expect(
+      codes(
+        validatePersonalDb(personal('מחברי זמננו'), officialLibrary: official),
+      ),
+      isNot(contains(code)),
+    );
   });
 
   test('minimal database passes and takes its slug from library_id', () {
@@ -291,5 +319,68 @@ void main() {
     expect(codes(report), contains('external_link_no_index'));
     expect(codes(report), contains('external_link_invalid_rows'));
     expect(report.hasErrors, isFalse);
+  });
+
+  group('external_default_commentator', () {
+    const schema = '''
+      CREATE TABLE book(id INTEGER PRIMARY KEY, title TEXT);
+      INSERT INTO book VALUES (1, 'A'), (2, 'B');
+      CREATE TABLE external_default_commentator (targetSource TEXT,
+        targetTitle TEXT NOT NULL, commentatorBookId INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'commentator', position INTEGER NOT NULL,
+        PRIMARY KEY (targetSource, targetTitle, commentatorBookId, kind));
+    ''';
+
+    test('a linked row passes; bad rows and unlinked ones are reported', () {
+      final path = build('edc.db', '''
+        $schema
+        CREATE TABLE external_link(sourceBookId INTEGER,
+          sourceLineIndex INTEGER, targetSource TEXT, targetTitle TEXT,
+          connectionType TEXT);
+        CREATE INDEX idx_el ON external_link(sourceBookId, sourceLineIndex);
+        INSERT INTO external_link VALUES (1, 0, 'official', 'T', 'SOURCE');
+        INSERT INTO external_default_commentator VALUES
+          ('official', 'T', 1, 'commentator', 0),
+          (NULL, 'T', 1, 'targum', 1),
+          ('official', 'T', 9, 'commentator', 2),
+          ('official', 'T', 1, 'gloss', 3),
+          ('official', 'U', 2, 'commentator', 0),
+          ('!!', 'T', 1, 'commentator', 4);
+      ''');
+      final report = validatePersonalDb(path);
+      expect(report.capabilities['hasExternalDefaultCommentators'], isTrue);
+      expect(
+        codes(report),
+        containsAll([
+          'external_default_commentator_invalid_rows',
+          'external_default_commentator_unlinked',
+          'external_default_commentator_bad_target_source',
+        ]),
+      );
+      expect(report.hasErrors, isFalse);
+    });
+
+    test('without external_link it has no effect', () {
+      final path = build('edc_nolinks.db', '''
+        $schema
+        INSERT INTO external_default_commentator VALUES
+          ('official', 'T', 1, 'commentator', 0);
+      ''');
+      expect(
+        codes(validatePersonalDb(path)),
+        contains('external_default_commentator_without_links'),
+      );
+    });
+
+    test('a table without kind is ignored as incomplete', () {
+      final path = build('edc_partial.db', '''
+        CREATE TABLE book(id INTEGER PRIMARY KEY, title TEXT);
+        CREATE TABLE external_default_commentator (targetSource TEXT,
+          targetTitle TEXT, commentatorBookId INTEGER, position INTEGER);
+      ''');
+      final report = validatePersonalDb(path);
+      expect(report.capabilities['hasExternalDefaultCommentators'], isFalse);
+      expect(codes(report), contains('incomplete_group'));
+    });
   });
 }

@@ -301,18 +301,6 @@ class MockSettingsRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> updatePinSidebar(bool? value) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #updatePinSidebar,
-              [value],
-            ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
-          )
-          as _i3.Future<void>);
-
-  @override
   _i3.Future<void> updateSidebarWidth(double? value) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -557,6 +545,18 @@ class MockSettingsRepository extends _i1.Mock
       (super.noSuchMethod(
             Invocation.method(
               #updateCompactMenuMode,
+              [value],
+            ),
+            returnValue: _i3.Future<void>.value(),
+            returnValueForMissingStub: _i3.Future<void>.value(),
+          )
+          as _i3.Future<void>);
+
+  @override
+  _i3.Future<void> updateFullscreenAutoHideToolbar(bool? value) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #updateFullscreenAutoHideToolbar,
               [value],
             ),
             returnValue: _i3.Future<void>.value(),

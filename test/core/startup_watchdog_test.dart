@@ -50,7 +50,9 @@ void main() {
 
     expect(
       source,
-      contains('return CaptureSuspendedStack(g_main_thread, frames);'),
+      contains(
+        'return CaptureSuspendedStack(g_main_thread, frames, kMaxFrames);',
+      ),
     );
     // בזמן ההשהיה רק syscalls ו-memcpy; פרישה ותרגום נוטלים נעילות.
     final captureStart = source.indexOf('bool CaptureSuspendedStack(HANDLE');
@@ -130,8 +132,11 @@ void main() {
       source.indexOf('std::string DescribeAddress('),
     );
     expect(pdbLines, contains('"Module PDB: "'));
-    expect(pdbLines, contains('GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT'));
-    expect(pdbLines, contains('DartImageBase(frame) != 0'));
+    expect(pdbLines, contains('::VirtualQuery('));
+    expect(pdbLines, contains('info.Type != MEM_IMAGE'));
+    expect(pdbLines, contains('::GetMappedFileNameW('));
+    expect(pdbLines, isNot(contains('::GetModuleHandle')));
+    expect(pdbLines, isNot(contains('::GetModuleFileNameW(')));
     final stall = source.substring(source.indexOf('void ReportStall('));
     expect(
       stall.indexOf('AppendBuildIdentitySection(frames, &report);'),
@@ -227,7 +232,8 @@ void main() {
       expect(
         watcher,
         contains(
-          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake);',
+          'ReportHang(CaptureFrames(), reports == 1, hang_started_at, awake,'
+          '\n               &thread_bytes_left);',
         ),
       );
       expect(
@@ -331,7 +337,7 @@ void main() {
     expect(failureBlock, contains('::CoUninitialize();'));
   });
 
-  test('מחסנית עמוקה: ראש, שורת השמטה שמתחילה ב-"..." ותחתית', () {
+  test('מחסנית עמוקה: ראש, שורת השמטה שמתחילה ב-"...", קצה ה-Dart ותחתית', () {
     // error_log_blocks.dart מחשב את חתימת התקיעה רק מהשורות שלפני "...".
     expect(source, contains('constexpr size_t kTopFrames = 48;'));
     expect(source, contains(r'"  ... (%zu frames omitted%s) ...\n"'));
@@ -339,7 +345,19 @@ void main() {
       source.indexOf('void AppendStackSection('),
       source.indexOf('void AppendBuildIdentitySection('),
     );
-    expect(section, contains('i == kTopFrames'));
-    expect(section, contains('count - kTopFrames - kBottomFrames'));
+    expect(section, contains('i < kTopFrames'));
+    expect(section, contains('i >= bottom_begin'));
+    // בתחתית יש לרוב רק לולאת ההודעות; קצה ה-Dart שמעליה חייב להישמר.
+    expect(section, contains('count > kTopFrames + kBottomFrames'));
+    expect(section, contains('DartImageBase(frames[i - 1]) != 0'));
+    expect(
+      section,
+      contains('outer_begin = i - (std::min)(i, kOuterDartFrames)'),
+    );
+    expect(
+      section,
+      contains('outer_end = (std::min)(count, i + kBelowDartFrames)'),
+    );
+    expect(section, contains('i >= outer_begin && i < outer_end'));
   });
 }

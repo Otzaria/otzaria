@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
@@ -241,6 +242,7 @@ void main() {
       find.byType(PageShapeSettingsPanel),
     );
     expect(panel.superCommentatorParents, isEmpty);
+    await _finishDbReads(tester);
   });
 
   for (final column in ['left', 'bottom', 'bottomRight']) {
@@ -345,6 +347,7 @@ void main() {
           );
           expect(viewer.bookTitle, 'שער הציון');
           expect(viewer.highlightedIndices, contains(1));
+          await _finishDbReads(tester);
         },
       );
     }
@@ -359,6 +362,20 @@ Future<void> _pumpUntil(WidgetTester tester, bool Function() done) async {
     );
     await tester.pump(const Duration(milliseconds: 50));
   }
+}
+
+/// קריאת ה-worker רצה ב-isolate אמיתי, אבל ה-timeout שלה הוא טיימר מזויף;
+/// בלי להמתין לה, הטיימר נשאר תלוי בסוף הבדיקה כשה-CI איטי.
+Future<void> _finishDbReads(WidgetTester tester) async {
+  final deadline = Stopwatch()..start();
+  while (DbReadWorker.hasPendingReads &&
+      deadline.elapsed < const Duration(seconds: 10)) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+  }
+  expect(DbReadWorker.hasPendingReads, isFalse);
 }
 
 Link _link(String title, int line) => Link(
@@ -399,7 +416,6 @@ TextBookLoaded _state(
   tableOfContents: const [],
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

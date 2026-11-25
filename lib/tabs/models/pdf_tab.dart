@@ -9,11 +9,11 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/pdf_book/models/pdf_reading_location.dart';
-import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/personal_notes/models/pdf_note_anchor.dart';
+import 'package:otzaria/pdf_book/models/pdf_page_highlight_anchor.dart';
 
 /// כרטיסיית קורא PDF עם מצב המשתמש ובקר התצוגה שלה.
 class PdfBookTab extends OpenedTab {
@@ -96,6 +96,7 @@ class PdfBookTab extends OpenedTab {
   SearchMatchPolicy matchPolicy;
 
   int? pdfSearchCurrentMatchIndex;
+  PdfPageHighlightAnchor? pdfSearchPageHighlight;
 
   int? _centerSearchMatchPage;
 
@@ -118,9 +119,6 @@ class PdfBookTab extends OpenedTab {
 
   ///a flag that tells if the left pane should be shown
   late final ValueNotifier<bool> showLeftPane;
-
-  ///a flag that tells if the left pane should be pinned on scrolling
-  final pinLeftPane = ValueNotifier<bool>(false);
 
   /// counter שמתגלגל עם כל בקשה לטוגל חלונית הניווט (השמאלית) מקיצור מקלדת
   /// גלובלי. המאזין הוא [PdfBookScreen] בלבד; כל הגדלה = toggle יחיד.
@@ -205,9 +203,6 @@ class PdfBookTab extends OpenedTab {
     );
     showLeftPane = ValueNotifier<bool>(openLeftPane);
     searchController.text = searchText;
-    // כמו בטקסט: חלונית שנפתחת עם הספר נעוצה, גם לפני שהמסך נבנה.
-    pinLeftPane.value =
-        (Settings.getValue<bool>('key-pin-sidebar') ?? false) || openLeftPane;
   }
 
   @override
@@ -218,6 +213,7 @@ class PdfBookTab extends OpenedTab {
     ReadingTabSearchState configuration, {
     int? centerMatchPage,
   }) {
+    pdfSearchPageHighlight = null;
     _centerSearchMatchPage = centerMatchPage;
     searchText = configuration.searchText;
     searchOrigin = configuration.searchOrigin;
@@ -296,7 +292,6 @@ class PdfBookTab extends OpenedTab {
     _pageNumber.dispose();
     linksLoadingNotifier.dispose();
     showLeftPane.dispose();
-    pinLeftPane.dispose();
     toggleNavPaneNotifier.dispose();
     toggleCommentatorsPaneNotifier.dispose();
     toggleTextViewNotifier.dispose();
@@ -315,8 +310,7 @@ class PdfReadingSnapshot {
     : _book = tab.book,
       _pageNumber = tab.pageNumber,
       _persistedPageNumber = tab.pageNumber,
-      // חלונית צפה אינה נשמרת: חלונית שנפתחת עם הספר נעוצה (issue #3212).
-      _showLeftPane = tab.showLeftPane.value && tab.pinLeftPane.value,
+      _showLeftPane = tab.showLeftPane.value,
       _isPinned = tab.isPinned,
       _dedupeKey = tab.dedupeKey,
       _historySlot = tab.historySlot,

@@ -5,7 +5,7 @@ import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 
 /// מדוע כל החלונות נסגרים; לרישום בלבד.
-enum AppQuitReason { update }
+enum AppQuitReason { update, user }
 
 /// נקודת הכניסה היחידה ליציאה מכל החלונות ולבנייתם מחדש. סגירת הראשי לבדה
 /// רק מסתירה אותו כשחלונות Dart פתוחים, ולכן היציאה עוברת במסלול משלה.

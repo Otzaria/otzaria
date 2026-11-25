@@ -5,6 +5,8 @@ labels: באג
 
 ---
 
+> **Plugins | תוספים:** report a plugin bug to the plugin's developer, through the plugin itself — not here. | כאן מדווחים על התוכנה ועל הכלים המובנים בה. על תקלה בתוסף (רכיב שהותקן בנפרד ופותח על ידי אחרים) יש לדווח למפתח התוסף, דרך התוסף עצמו.
+
 ## Describe the bug | תיאור הבאג
 A clear and concise description of what the bug is.
 תיאור מפורט וברור שמגדיר מהו הבאג

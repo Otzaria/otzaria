@@ -39,6 +39,9 @@ public struct PreparationPlan: Equatable {
     public let keptSplitAssets: [String]
     /// ההסברים לעמוד הסיום (plannedOutputNotes).
     public var outputNotes: [String] = []
+    /// מחברי זמננו, כשסומנו. zmanenuDirectory nil — בתיקיית הפלט, לצד שאר הקבצים.
+    public var zmanenu: ZmanenuOffer?
+    public var zmanenuDirectory: URL?
 
     public var totalDownloadSize: Int64 { downloads.reduce(0) { $0 + $1.size } }
 
@@ -46,7 +49,8 @@ public struct PreparationPlan: Equatable {
     /// של החוזה (ממשק באנגלית, כמו ב-Windows); הקבצים עצמם אינם משתנים.
     public static func make(
         manifest: ReleaseManifest, selectedIds: [String], target: AssistantTarget,
-        english: Bool = false, subfolderName: String? = nil
+        english: Bool = false, subfolderName: String? = nil,
+        zmanenu: ZmanenuOffer? = nil, zmanenuDirectory: URL? = nil
     ) throws -> PreparationPlan {
         let selected = Set(selectedIds)
         var downloads: [DownloadItem] = []
@@ -92,7 +96,11 @@ public struct PreparationPlan: Equatable {
             }
         }
 
-        let files = plannedOutputFiles(manifest, selectedIds, target)
+        let offer = zmanenu.flatMap { Zmanenu.isOffered(target) ? $0 : nil }
+        offer?.downloads.forEach(add)
+        // למחשב אחר הקבצים לצד הבחירה, ולכן נספרים בכלל תת-התיקייה (plannedOutputFilesWithZmanenu).
+        var files = plannedOutputFiles(manifest, selectedIds, target)
+        if let offer = offer, zmanenuDirectory == nil { files += offer.outputFiles }
         return PreparationPlan(
             downloads: downloads,
             actions: actions,
@@ -100,7 +108,9 @@ public struct PreparationPlan: Equatable {
             outputSubfolder: subfolderName.map { files.count > 1 ? $0 : "" }
                 ?? plannedOutputSubfolder(files, target.platform),
             keptSplitAssets: kept,
-            outputNotes: plannedOutputNotes(manifest, selectedIds, english: english)
+            outputNotes: plannedOutputNotes(manifest, selectedIds, english: english),
+            zmanenu: offer,
+            zmanenuDirectory: offer == nil ? nil : zmanenuDirectory
         )
     }
 }
@@ -146,6 +156,9 @@ public func spaceNeeded(
         case .assemble(_, let size, _, _, let parts, _):
             outputBytes += sameVolume ? (parts.map { $0.size }.max() ?? 0) : size
         }
+    }
+    if let offer = plan.zmanenu, !sameVolume || plan.zmanenuDirectory != nil {
+        outputBytes += offer.downloadSize
     }
     return SpaceNeed(cacheBytes: cacheBytes, outputBytes: outputBytes)
 }

@@ -1,0 +1,54 @@
+name: Setup Flutter
+description: >
+  subosito/flutter-action with its SDK and pub caches, except that a pull request
+  only restores them. A PR cache is scoped to that PR, and each one (up to 2.8 GB)
+  pushes dev's warm caches (warm_flutter_cache.yml) out of the repository quota.
+
+inputs:
+  flutter-version:
+    description: Flutter version on the stable channel.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Flutter (cached)
+      if: github.event_name != 'pull_request'
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version: ${{ inputs.flutter-version }}
+        cache: true
+
+    - name: Resolve Flutter cache keys
+      id: keys
+      if: github.event_name == 'pull_request'
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version: ${{ inputs.flutter-version }}
+        dry-run: true
+
+    # Same paths and keys as subosito/flutter-action, so dev's caches match.
+    - name: Restore Flutter SDK
+      if: github.event_name == 'pull_request'
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.keys.outputs.CACHE-PATH }}
+        key: ${{ steps.keys.outputs.CACHE-KEY }}
+
+    - name: Restore pub cache
+      if: github.event_name == 'pull_request'
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.keys.outputs.PUB-CACHE-PATH }}
+        key: ${{ steps.keys.outputs.PUB-CACHE-KEY }}-${{ hashFiles('**/pubspec.lock') }}
+        restore-keys: ${{ steps.keys.outputs.PUB-CACHE-KEY }}-
+
+    # Downloads the SDK only when the restore missed.
+    - name: Setup Flutter (restored)
+      if: github.event_name == 'pull_request'
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version: ${{ inputs.flutter-version }}

@@ -153,6 +153,22 @@ void main() {
     expect((await store.readFetchQueue()).keys, ['v34']);
   });
 
+  test('היסטוריה ריקה מוצגת בבקשה מפורשת בלבד גם במצב מנותק', () async {
+    final shown = <List<LibraryChangesNote>>[];
+    final context = _Context();
+    final notes = LibraryChangesNotes(
+      store: store,
+      contextProvider: () => context,
+      isOffline: () => true,
+      showDialog: (_, list) async => shown.add(list),
+    );
+    await notes.onStartup();
+    expect(shown, isEmpty);
+    await notes.showAll(context);
+    expect(shown, [isEmpty]);
+    expect(root.listSync(), isEmpty);
+  });
+
   test('הורדה בזמן היסטוריה פתוחה מוצגת לאחר סגירתה ואחרי הסיור', () async {
     await store.writePending('v33', '# ספרים ישנים');
     await store.markSeen(await store.readPending());

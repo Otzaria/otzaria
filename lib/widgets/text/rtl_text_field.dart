@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
@@ -104,11 +103,15 @@ class _RtlTextFieldState extends State<RtlTextField> {
     _boundController.addListener(_restartCursorBlink);
     _effectiveFocusNode.addListener(_handleFocusChange);
 
-    // גם FocusNode שכבר בפוקוס: Flutter פותח מקלדת רק בשינוי פוקוס.
-    if (_effectiveFocusNode.hasPrimaryFocus ||
-        (widget.autofocus && widget.focusNode != null && Platform.isAndroid)) {
+    final focusNode = _effectiveFocusNode;
+    final alreadyFocused = focusNode.hasPrimaryFocus;
+    if (alreadyFocused || _usesAndroidAutofocus) {
+      // פתיחת מקלדת לשדה שכבר בפוקוס לא צריכה להחזיר פוקוס שאבד.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _editable?.requestKeyboard();
+        if (!mounted || !identical(_effectiveFocusNode, focusNode)) return;
+        if (!alreadyFocused || focusNode.hasPrimaryFocus) {
+          _editable?.requestKeyboard();
+        }
       });
     }
   }
@@ -332,15 +335,21 @@ class _RtlTextFieldState extends State<RtlTextField> {
     setState(() => _cursorVisible = visible);
   }
 
+  bool get _usesAndroidAutofocus =>
+      widget.autofocus &&
+      widget.focusNode != null &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+
   PointerDeviceKind? _lastPointerKind;
+  final _verticalCaret = _DefaultVerticalCaretAction();
 
   @override
   Widget build(BuildContext context) {
     final bool isRtl = Directionality.of(context) == TextDirection.rtl;
 
     // באנדרואיד, לא משתמשים ב-autofocus ישירות אלא דרך requestFocus ב-initState
-    final shouldUseAutofocus =
-        widget.autofocus && (widget.focusNode == null || !Platform.isAndroid);
+    final shouldUseAutofocus = widget.autofocus && !_usesAndroidAutofocus;
 
     Widget textField = TextField(
       controller: _boundController,
@@ -396,6 +405,13 @@ class _RtlTextFieldState extends State<RtlTextField> {
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
       // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.
       selectionWidthStyle: ui.BoxWidthStyle.tight,
+    );
+
+    // SelectionArea מעל השדה קורס בחץ למעלה/למטה (#5868); עוקפים אותו.
+    // TODO(flutter/flutter#196172): להסיר כשהתיקון ייכלל ב-Flutter.
+    textField = Actions(
+      actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _verticalCaret},
+      child: textField,
     );
 
     // עטיפה בתיקון חיצים אם RTL
@@ -964,8 +980,18 @@ class _HardBreakController extends TextEditingController {
   @override
   set value(TextEditingValue value) {
     restoredClean = value is HardBreakValue ? value.clean : null;
+    var raw = value is HardBreakValue ? value.plain : value;
+    // לחיצה בסוף שורה נוחתת בין \r ל-\n, ושם הסמן מצויר ומקליד בשורה הבאה.
+    final selection = raw.selection;
+    final base = snapOffsetOutOfCrlf(raw.text, selection.baseOffset);
+    final extent = snapOffsetOutOfCrlf(raw.text, selection.extentOffset);
+    if (base != selection.baseOffset || extent != selection.extentOffset) {
+      raw = raw.copyWith(
+        selection: selection.copyWith(baseOffset: base, extentOffset: extent),
+      );
+    }
     try {
-      super.value = value is HardBreakValue ? value.plain : value;
+      super.value = raw;
     } finally {
       restoredClean = null;
     }
@@ -1022,4 +1048,20 @@ class _HardBreakController extends TextEditingController {
       style: span.style,
     );
   }
+}
+
+/// מפעיל את פעולת ברירת המחדל של השדה בלי לעבור ב-override של SelectableRegion.
+class _DefaultVerticalCaretAction
+    extends Action<DirectionalCaretMovementIntent> {
+  @override
+  bool isEnabled(DirectionalCaretMovementIntent intent) =>
+      callingAction?.isEnabled(intent) ?? false;
+
+  @override
+  bool consumesKey(DirectionalCaretMovementIntent intent) =>
+      callingAction?.consumesKey(intent) ?? false;
+
+  @override
+  Object? invoke(DirectionalCaretMovementIntent intent) =>
+      callingAction?.invoke(intent);
 }

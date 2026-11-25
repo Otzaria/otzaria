@@ -1,5 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -101,7 +103,7 @@ Future<void> main() async {
   Future<void> drillIntoAllBooks(WidgetTester tester) async {
     await tester.tap(
       find.descendant(
-        of: find.byType(ListView),
+        of: find.byType(SuperListView),
         matching: find.text('כל הספרים'),
       ),
     );

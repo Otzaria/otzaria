@@ -4,6 +4,8 @@ import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperSliverList;
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -830,11 +832,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             if (!state.resultsTruncated || state.results.isEmpty) {
               return scrollView;
             }
-            // תוצאות חלקיות: השאילתה חרגה מתקציב איסוף-הטרמים במנוע, כך שרק
-            // ההרחבות בעדיפות הגבוהה הוגשו. מציגים באנר קבוע מעל הרשימה.
+            // תוצאות חלקיות: מציגים באנר קבוע מעל הרשימה.
             return Column(
               children: [
-                _buildTruncatedBanner(context),
+                _buildTruncatedBanner(),
                 Expanded(child: scrollView),
               ],
             );
@@ -968,7 +969,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
 
     return SliverPadding(
       padding: const EdgeInsets.all(16),
-      sliver: SliverList.builder(
+      // SliverList בונה בקפיצה בפס הגלילה כל כרטיס שבדרך (#4766).
+      sliver: SuperSliverList.builder(
         itemCount:
             state.results.length +
             ((showInlineLoadingIndicator || showLoadMoreButton) ? 1 : 0),
@@ -1205,7 +1207,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     );
   }
 
-  Widget _buildTruncatedBanner(BuildContext context) {
+  Widget _buildTruncatedBanner() {
     return const Padding(
       padding: EdgeInsets.fromLTRB(
         AppTokens.spaceSM,
@@ -1216,8 +1218,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       child: AppInfoBanner(
         tone: AppInfoBannerTone.warning,
         message:
-            'ייתכן שהתוצאות חלקיות: החיפוש רחב מדי ולכן הוצגו רק חלק '
-            'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
+            'ייתכן שהתוצאות חלקיות: החיפוש הגיע למגבלת העיבוד. '
+            'נסו לכבות הרחבות מילים או לפשט את החיפוש.',
       ),
     );
   }

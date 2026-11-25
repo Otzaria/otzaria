@@ -165,7 +165,6 @@ TextBookLoaded _loadedState(TextBook book) {
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,

@@ -405,7 +405,6 @@ TextBookLoaded _state(
   tableOfContents: const [],
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

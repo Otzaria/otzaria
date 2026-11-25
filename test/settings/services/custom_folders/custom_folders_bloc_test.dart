@@ -8,6 +8,7 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../test_helpers/memory_cache_provider.dart';
 
@@ -110,6 +111,37 @@ void main() {
         expect(scopedPaths, ['C:/personal-books']);
 
         await bloc.close();
+      },
+    );
+
+    test(
+      'RescanCustomFolders סורק את שני המקורות של ספר בתיקייה מקוננת',
+      () async {
+        final parent = _folder('parent');
+        final child = _folder(p.join(parent.path, 'child'));
+        final scopedPaths = <String?>[];
+        final bloc = CustomFoldersBloc(
+          addLibraryEvent: (_) {},
+          loadFolders: () => [parent, child],
+          syncFolders: (folders, {String? onlyFolderPath}) async {
+            scopedPaths.add(onlyFolderPath);
+            return const FileSyncResult();
+          },
+        );
+        addTearDown(bloc.close);
+
+        final done = bloc.stream.firstWhere(
+          (state) => state.completedScan != null,
+        );
+        bloc.add(
+          RescanCustomFolders(
+            folderOfFile: p.join(child.path, 'book.txt'),
+            requestId: 1,
+          ),
+        );
+        await done;
+
+        expect(scopedPaths, [null]);
       },
     );
 

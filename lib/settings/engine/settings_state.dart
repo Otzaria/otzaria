@@ -62,7 +62,6 @@ class SettingsState extends Equatable {
   final bool defaultContinuousReadingMode;
   final bool defaultSidebarOpen;
   final bool defaultCommentaryOpen;
-  final bool pinSidebar;
   final double sidebarWidth;
   final double facetFilteringWidth;
 
@@ -99,6 +98,9 @@ class SettingsState extends Equatable {
 
   /// האם המשתמש בחר "צפיפות ממשק" (יש ערך שמור, גם "רגיל").
   final bool compactMenuModeIsSet;
+
+  /// במסך מלא בדסקטופ סרגל הקורא מוסתר ומוצג בריחוף בראש החלונית.
+  final bool fullscreenAutoHideToolbar;
   final bool autoSync;
 
   /// `UpdateCheckFrequency.storageValue`; ריק = ברירת המחדל.
@@ -176,7 +178,6 @@ class SettingsState extends Equatable {
     this.defaultContinuousReadingMode = false,
     required this.defaultSidebarOpen,
     required this.defaultCommentaryOpen,
-    required this.pinSidebar,
     required this.sidebarWidth,
     required this.facetFilteringWidth,
     required this.externalResultsFirst,
@@ -199,6 +200,7 @@ class SettingsState extends Equatable {
     this.protectedModePasswordSet = false,
     this.compactMenuMode = false,
     this.compactMenuModeIsSet = false,
+    this.fullscreenAutoHideToolbar = true,
     this.autoSync = true,
     this.updateCheckFrequency = '',
     this.restoreAllWindows = false,
@@ -222,6 +224,14 @@ class SettingsState extends Equatable {
   }) : textDisplayPolicy = textDisplayPolicy ?? TextDisplayPolicy.empty,
        searchResultsFontSize = searchResultsFontSize ?? fontSize;
 
+  /// מרווח השורות בפועל, לפי מצב השמירה לכל ספר.
+  double lineHeightForBook(double? bookValue) =>
+      (enablePerBookSettings ? bookValue : null) ?? lineHeight;
+
+  /// גודל גופן המפרשים בפועל, לפי מצב השמירה לכל ספר.
+  double commentatorsFontSizeForBook(double? bookValue) =>
+      (enablePerBookSettings ? bookValue : null) ?? commentatorsFontSize;
+
   factory SettingsState.initial() {
     return SettingsState(
       isDarkMode: false,
@@ -242,7 +252,6 @@ class SettingsState extends Equatable {
       defaultContinuousReadingMode: false,
       defaultSidebarOpen: false,
       defaultCommentaryOpen: false,
-      pinSidebar: false,
       sidebarWidth: 300,
       facetFilteringWidth: 235,
       externalResultsFirst: false,
@@ -296,7 +305,6 @@ class SettingsState extends Equatable {
     bool? defaultContinuousReadingMode,
     bool? defaultSidebarOpen,
     bool? defaultCommentaryOpen,
-    bool? pinSidebar,
     double? sidebarWidth,
     double? facetFilteringWidth,
     bool? externalResultsFirst,
@@ -319,6 +327,7 @@ class SettingsState extends Equatable {
     bool? protectedModePasswordSet,
     bool? compactMenuMode,
     bool? compactMenuModeIsSet,
+    bool? fullscreenAutoHideToolbar,
     bool? autoSync,
     String? updateCheckFrequency,
     bool? restoreAllWindows,
@@ -389,7 +398,6 @@ class SettingsState extends Equatable {
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
       defaultCommentaryOpen:
           defaultCommentaryOpen ?? this.defaultCommentaryOpen,
-      pinSidebar: pinSidebar ?? this.pinSidebar,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       facetFilteringWidth: facetFilteringWidth ?? this.facetFilteringWidth,
       externalResultsFirst: externalResultsFirst ?? this.externalResultsFirst,
@@ -418,6 +426,8 @@ class SettingsState extends Equatable {
           protectedModePasswordSet ?? this.protectedModePasswordSet,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
       compactMenuModeIsSet: compactMenuModeIsSet ?? this.compactMenuModeIsSet,
+      fullscreenAutoHideToolbar:
+          fullscreenAutoHideToolbar ?? this.fullscreenAutoHideToolbar,
       autoSync: autoSync ?? this.autoSync,
       updateCheckFrequency: updateCheckFrequency ?? this.updateCheckFrequency,
       restoreAllWindows: restoreAllWindows ?? this.restoreAllWindows,
@@ -494,7 +504,6 @@ class SettingsState extends Equatable {
     defaultContinuousReadingMode,
     defaultSidebarOpen,
     defaultCommentaryOpen,
-    pinSidebar,
     sidebarWidth,
     facetFilteringWidth,
     externalResultsFirst,
@@ -517,6 +526,7 @@ class SettingsState extends Equatable {
     protectedModePasswordSet,
     compactMenuMode,
     compactMenuModeIsSet,
+    fullscreenAutoHideToolbar,
     autoSync,
     updateCheckFrequency,
     restoreAllWindows,

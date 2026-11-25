@@ -126,7 +126,6 @@ void main() {
       removeNikud: false,
       visibleIndices: List<int>.generate(_content.length, (index) => index),
       selectedIndex: null,
-      pinLeftPane: false,
       searchText: '',
     );
     final textBookBloc = _TestTextBookBloc(state);

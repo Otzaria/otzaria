@@ -7,6 +7,7 @@ import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
   late Directory tmp;
   late String path;
 
@@ -95,6 +96,16 @@ void main() {
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{"pid": 1, "context"');
     expect(await SessionContextSnapshot(path: path).previous, isNull);
+  });
+
+  test('צילום ההפעלה שומר את מצב הנגישות שהיה פעיל בה', () async {
+    final handle = binding.ensureSemantics();
+    try {
+      await SessionContextSnapshot(path: path).record();
+    } finally {
+      handle.dispose();
+    }
+    expect(readSaved()['accessibility'], {'semanticsEnabled': true});
   });
 
   test('נכתב מחדש רק כשהתוכן השתנה', () async {

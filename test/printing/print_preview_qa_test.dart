@@ -102,10 +102,19 @@ class _Page extends Fake implements PdfPage {
 }
 
 class _Document extends Fake implements PdfDocument {
-  _Document(this.pages, {required this.failClose});
+  _Document(
+    this.pages,
+    this.measuredPages, {
+    required this.failClose,
+    this.enteredMetadata,
+    this.resumeMetadata,
+  });
   @override
   final List<_Page> pages;
   final bool failClose;
+  final List<int> measuredPages;
+  final Completer<void>? enteredMetadata;
+  final Completer<void>? resumeMetadata;
   int disposals = 0;
   final reloadedPages = <List<int>>[];
 
@@ -115,6 +124,9 @@ class _Document extends Fake implements PdfDocument {
         pageNumbersToReload ??
         List.generate(pages.length, (index) => index + 1);
     reloadedPages.add(List.of(numbers));
+    if (enteredMetadata?.isCompleted == false) enteredMetadata!.complete();
+    await resumeMetadata?.future;
+    measuredPages.addAll(numbers);
     for (final number in numbers) {
       pages[number - 1].isLoaded = true;
     }
@@ -133,10 +145,13 @@ class _Source extends PrintPdfSource {
   }
   late final List<_Page> pages;
   final rendered = <int>[];
+  final measuredPages = <int>[];
   final documents = <_Document>[];
   final progressiveOpens = <bool>[];
   Completer<void>? enteredOpen;
   Completer<void>? resumeOpen;
+  Completer<void>? enteredMetadata;
+  Completer<void>? resumeMetadata;
   bool failNextClose = false;
 
   @override
@@ -149,8 +164,15 @@ class _Source extends PrintPdfSource {
     progressiveOpens.add(useProgressiveLoading);
     for (var index = 0; index < pages.length; index++) {
       pages[index].isLoaded = !useProgressiveLoading || index == 0;
+      if (pages[index].isLoaded) measuredPages.add(index + 1);
     }
-    final document = _Document(pages, failClose: failNextClose);
+    final document = _Document(
+      pages,
+      measuredPages,
+      failClose: failNextClose,
+      enteredMetadata: enteredMetadata,
+      resumeMetadata: resumeMetadata,
+    );
     failNextClose = false;
     documents.add(document);
     if (enteredOpen?.isCompleted == false) enteredOpen!.complete();
@@ -170,6 +192,160 @@ Future<void> _load(PrintPreviewController preview, _Source source) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final endPage in <int?>[null, 10000]) {
+    test(
+      '10,000-page preview measures only its window (end=$endPage)',
+      () async {
+        final queue = _Serial();
+        final source = _Source(10000);
+        final preview = PrintPreviewController(serialize: queue.run);
+        addTearDown(preview.dispose);
+        preview.reset(pagesPerSheet: 1);
+        int? measuredBeforeFirstImage;
+        preview.addListener(() {
+          if (preview.image(0) != null) {
+            measuredBeforeFirstImage ??= source.measuredPages.length;
+          }
+        });
+
+        await preview.load(
+          source,
+          startPage: 1,
+          endPage: endPage,
+          isStale: () => false,
+          onPageCount: (count) => expect(count, 10000),
+        );
+
+        expect(measuredBeforeFirstImage, 2);
+        expect(source.progressiveOpens, [true]);
+        expect(source.measuredPages, [1, 2]);
+        expect(source.rendered, [1, 2]);
+        expect(preview.pageCount, 10000);
+        expect(source.documents.single.disposals, 1);
+      },
+    );
+  }
+
+  test(
+    'five pages from a 10,000-page book leave the rest unmeasured',
+    () async {
+      final queue = _Serial();
+      final source = _Source(10000);
+      final preview = PrintPreviewController(serialize: queue.run);
+      addTearDown(preview.dispose);
+      preview.reset(pagesPerSheet: 4);
+
+      await preview.load(
+        source,
+        startPage: 9996,
+        endPage: 10000,
+        isStale: () => false,
+        onPageCount: (_) {},
+      );
+
+      expect(preview.pageCount, 5);
+      expect(source.measuredPages, [1, 9996, 9997, 9998, 9999, 10000]);
+      expect(source.rendered, [9996, 9997, 9998, 9999, 10000]);
+      expect(source.documents.single.disposals, 1);
+    },
+  );
+
+  test('stale metadata cannot publish sizes or images after reset', () async {
+    final queue = _Serial();
+    final source = _Source(10000)
+      ..enteredMetadata = Completer<void>()
+      ..resumeMetadata = Completer<void>();
+    final preview = PrintPreviewController(serialize: queue.run);
+    addTearDown(preview.dispose);
+    preview.reset(pagesPerSheet: 1);
+    final pending = _load(preview, source);
+    await source.enteredMetadata!.future;
+    preview.reset(pagesPerSheet: 4);
+    source.resumeMetadata!.complete();
+    await pending;
+
+    expect(preview.pageCount, 0);
+    expect(source.rendered, isEmpty);
+    expect(source.documents.single.disposals, 1);
+    expect(preview.cachedImageCount, 0);
+    expect(preview.failed, isFalse);
+  });
+
+  test('reset from a size notification stops the old render window', () async {
+    final queue = _Serial();
+    final source = _Source(10);
+    source.pages[4].actualWidth = 333;
+    final preview = PrintPreviewController(serialize: queue.run);
+    addTearDown(preview.dispose);
+    preview.reset(pagesPerSheet: 1);
+    preview.addListener(() {
+      if (preview.pageCount > 0 && preview.pageSize(0).width == 333) {
+        preview.reset(pagesPerSheet: 4);
+      }
+    });
+
+    await preview.load(
+      source,
+      startPage: 5,
+      endPage: 7,
+      isStale: () => false,
+      onPageCount: (_) {},
+    );
+
+    expect(preview.pageCount, 0);
+    expect(source.rendered, isEmpty);
+    expect(source.documents.single.disposals, 1);
+    expect(preview.failed, isFalse);
+  });
+
+  test(
+    'thumbnail and N-up requests load mixed sizes before publishing images',
+    () async {
+      final queue = _Serial();
+      final source = _Source(10000);
+      for (final index in [499, 500, 501, 502]) {
+        source.pages[index]
+          ..actualWidth = 100 + index.toDouble()
+          ..actualHeight = 200;
+      }
+      final preview = PrintPreviewController(serialize: queue.run);
+      addTearDown(preview.dispose);
+      preview.reset(pagesPerSheet: 1);
+      await _load(preview, source);
+      preview.addListener(() {
+        for (final index in [499, 500, 501, 502]) {
+          if (preview.image(index) != null ||
+              preview.image(index, thumbnail: true) != null) {
+            expect(
+              preview.pageSize(index).width,
+              source.pages[index].actualWidth,
+            );
+            expect(
+              preview.pageSize(index).height,
+              source.pages[index].actualHeight,
+            );
+          }
+        }
+      });
+
+      preview.showSheets({500}, thumbnails: true);
+      await queue.idle;
+      expect(preview.image(500, thumbnail: true), isNotNull);
+      expect(source.documents.last.reloadedPages.single, [501, 2]);
+      preview.setPagesPerSheet(4);
+      preview.showSheets({125});
+      await queue.idle;
+      for (var index = 500; index < 504; index++) {
+        expect(preview.image(index), isNotNull);
+      }
+      expect(source.pages[600].isLoaded, isFalse);
+      expect(
+        source.documents.every((document) => document.disposals == 1),
+        isTrue,
+      );
+    },
+  );
 
   test('eight small thumbnails preserve full main-page resolution', () async {
     final queue = _Serial();
@@ -309,7 +485,7 @@ void main() {
 
       expect(source.progressiveOpens, [true]);
       expect(source.documents.single.reloadedPages, [
-        [250, 251, 252],
+        [250, 251],
       ]);
       expect(preview.pageCount, 3);
       expect(
@@ -320,10 +496,7 @@ void main() {
         (preview.pageSize(1).width, preview.pageSize(1).height),
         (640, 480),
       );
-      expect(
-        (preview.pageSize(2).width, preview.pageSize(2).height),
-        (210, 350),
-      );
+      expect(source.pages[251].isLoaded, isFalse);
       expect(source.rendered, [250, 251]);
 
       preview.showSheets({2});
@@ -335,6 +508,10 @@ void main() {
       );
       final image = preview.image(2)!;
       expect((image.width, image.height), (315, 525));
+      expect(
+        (preview.pageSize(2).width, preview.pageSize(2).height),
+        (210, 350),
+      );
     },
   );
 

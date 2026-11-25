@@ -29,10 +29,12 @@ constexpr DWORD kCaptureIntervalMs = 5000;
 constexpr int kMaxCaptures = 6;
 constexpr DWORD kHeartbeatIntervalMs = 250;
 constexpr ULONGLONG kMaxLifetimeMs = 300000;
-// מגבלת הפרישה. בדוח נכתבים רק הראש, שממנו נגזרת החתימה (error_log_blocks.dart),
-// והתחתית, שבה מי שהתחיל את העבודה.
+// מגבלת הפרישה. בדוח נכתבים הראש, שממנו נגזרת החתימה (error_log_blocks.dart),
+// קצה ה-Dart החיצוני עם כניסת המנוע שמתחתיו, והתחתית.
 constexpr size_t kMaxFrames = 8192;
 constexpr size_t kTopFrames = 48;
+constexpr size_t kOuterDartFrames = 96;
+constexpr size_t kBelowDartFrames = 16;
 constexpr size_t kBottomFrames = 32;
 // כל מחסנית ה-thread הראשי (1MB, ברירת המחדל של ה-linker); מועתק רק החלק שבשימוש.
 constexpr size_t kMaxStackCopyBytes = 1024 * 1024;
@@ -126,6 +128,13 @@ ULONG_PTR DartImageBase(ULONG_PTR address) {
     return 0;
   }
   const auto base = reinterpret_cast<ULONG_PTR>(info.AllocationBase);
+  // הקריאה מדף שמור (PAGE_GUARD) מבטלת את ההגנה גם אם החריגה נתפסת.
+  MEMORY_BASIC_INFORMATION header = {};
+  if (::VirtualQuery(reinterpret_cast<LPCVOID>(base), &header,
+                     sizeof(header)) == 0 || header.State != MEM_COMMIT ||
+      (header.Protect & (PAGE_NOACCESS | PAGE_EXECUTE | PAGE_GUARD)) != 0) {
+    return 0;
+  }
   unsigned char magic[4] = {};
   if (!ReadBytes(base, magic, sizeof(magic))) return 0;
   return memcmp(magic, "\x7f" "ELF", sizeof(magic)) == 0 ? base : 0;
@@ -134,22 +143,21 @@ ULONG_PTR DartImageBase(ULONG_PTR address) {
 // שורת "Module PDB:" לכל מודול PE שמופיע בפריימים; app.so אינו PE.
 void AppendModulePdbLines(const std::vector<ULONG_PTR>& frames,
                           std::string* report) {
-  std::vector<HMODULE> seen;
+  std::vector<ULONG_PTR> seen;
   for (const ULONG_PTR frame : frames) {
-    if (DartImageBase(frame) != 0) continue;
-    HMODULE module = nullptr;
-    if (!::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                              reinterpret_cast<LPCWSTR>(frame), &module) ||
-        std::find(seen.begin(), seen.end(), module) != seen.end()) {
+    MEMORY_BASIC_INFORMATION info = {};
+    if (::VirtualQuery(reinterpret_cast<LPCVOID>(frame), &info,
+                       sizeof(info)) == 0 || info.Type != MEM_IMAGE) {
       continue;
     }
-    seen.push_back(module);
-    const std::string key = image_identity::ModulePdbKey(
-        ReadBytes, reinterpret_cast<ULONG_PTR>(module));
+    const auto base = reinterpret_cast<ULONG_PTR>(info.AllocationBase);
+    if (std::find(seen.begin(), seen.end(), base) != seen.end()) continue;
+    seen.push_back(base);
+    const std::string key = image_identity::ModulePdbKey(ReadBytes, base);
     if (key.empty()) continue;
-    wchar_t path[MAX_PATH] = {0};
-    const DWORD length = ::GetModuleFileNameW(module, path, MAX_PATH);
+    wchar_t path[MAX_PATH] = {};
+    const DWORD length = ::GetMappedFileNameW(
+        ::GetCurrentProcess(), reinterpret_cast<LPVOID>(frame), path, MAX_PATH);
     if (length == 0 || length >= MAX_PATH) continue;
     *report += "Module PDB: " + NarrowPathTail(path) + " " + key + "\n";
   }
@@ -236,8 +244,9 @@ bool UnwindFrame(CONTEXT* context, bool* has_function) {
 // פורשת מחסנית שהועתקה; RtlLookupFunctionEntry נוטלת נעילות של ה-loader, ולכן
 // רצה רק אחרי שה-thread חודש.
 void UnwindCopiedStack(CONTEXT* context, ULONG_PTR stack_begin,
-                       ULONG_PTR stack_end, std::vector<ULONG_PTR>* frames) {
-  while (frames->size() < kMaxFrames) {
+                       ULONG_PTR stack_end, size_t frame_limit,
+                       std::vector<ULONG_PTR>* frames) {
+  while (frames->size() < frame_limit) {
     const ULONG_PTR pc = static_cast<ULONG_PTR>(WD_PC(*context));
     if (pc == 0) break;
     frames->push_back(pc);
@@ -281,8 +290,9 @@ void Relocate(ULONG_PTR* value, ULONG_PTR from, size_t size, ULONG_PTR to) {
 
 // בזמן ההשהיה רק syscalls ו-memcpy: thread מושהה שמחזיק נעילה שה-watcher
 // צריך היה נשאר מושהה לתמיד.
-bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
-  if (thread == nullptr) return false;
+bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames,
+                           size_t frame_limit) {
+  if (thread == nullptr || frame_limit == 0) return false;
   std::vector<ULONG_PTR> copy(
       (kMaxStackCopyBytes + kStackCopyPaddingBytes) / sizeof(ULONG_PTR));
   if (::SuspendThread(thread) == static_cast<DWORD>(-1)) return false;
@@ -326,18 +336,20 @@ bool CaptureSuspendedStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
   Relocate(reinterpret_cast<ULONG_PTR*>(&context.Fp), sp, copied, to);
 #endif
   WD_SP(context) = to;
-  UnwindCopiedStack(&context, to, to + copied, frames);
+  UnwindCopiedStack(&context, to, to + copied, frame_limit, frames);
   return true;
 }
 
 #else  // ארכיטקטורה בלי פרישת מחסנית מבוססת-טבלאות (x86)
 
-bool CaptureSuspendedStack(HANDLE, std::vector<ULONG_PTR>*) { return false; }
+bool CaptureSuspendedStack(HANDLE, std::vector<ULONG_PTR>*, size_t) {
+  return false;
+}
 
 #endif
 
 bool CaptureMainThreadStack(std::vector<ULONG_PTR>* frames) {
-  return CaptureSuspendedStack(g_main_thread, frames);
+  return CaptureSuspendedStack(g_main_thread, frames, kMaxFrames);
 }
 
 std::wstring ResolveLogPath() {
@@ -412,19 +424,39 @@ void AppendStackSection(const std::vector<ULONG_PTR>& frames,
   }
   *report += "Stack (module+RVA):\n";
   const size_t count = frames.size();
-  const size_t omitted = count > kTopFrames + kBottomFrames
-                             ? count - kTopFrames - kBottomFrames
-                             : 0;
-  for (size_t i = 0; i < count; ++i) {
-    if (omitted != 0 && i == kTopFrames) {
-      char marker[96];
-      snprintf(marker, sizeof(marker), "  ... (%zu frames omitted%s) ...\n",
-               omitted, count >= kMaxFrames ? ", unwind limit reached" : "");
-      *report += marker;
-      i += omitted;
+  // בתחתית יש לרוב רק לולאת ההודעות; מי שהתחיל את העבודה הוא קצה ה-Dart שמעליה.
+  size_t outer_begin = 0;
+  size_t outer_end = 0;
+  if (count > kTopFrames + kBottomFrames) {
+    for (size_t i = count; i > kTopFrames - kBelowDartFrames; --i) {
+      if (DartImageBase(frames[i - 1]) != 0) {
+        outer_begin = i - (std::min)(i, kOuterDartFrames);
+        outer_end = (std::min)(count, i + kBelowDartFrames);
+        break;
+      }
     }
-    const ULONG_PTR frame = frames[i];
-    *report += "  " + DescribeAddress(frame) + "\n";
+  }
+  const size_t bottom_begin = count > kBottomFrames ? count - kBottomFrames : 0;
+  auto kept = [&](size_t i) {
+    return i < kTopFrames || (i >= outer_begin && i < outer_end) ||
+           i >= bottom_begin;
+  };
+  bool first_gap = true;
+  for (size_t i = 0; i < count;) {
+    if (kept(i)) {
+      const ULONG_PTR frame = frames[i++];
+      *report += "  " + DescribeAddress(frame) + "\n";
+      continue;
+    }
+    size_t end = i;
+    while (end < count && !kept(end)) ++end;
+    char marker[96];
+    snprintf(marker, sizeof(marker), "  ... (%zu frames omitted%s) ...\n",
+             end - i,
+             first_gap && count >= kMaxFrames ? ", unwind limit reached" : "");
+    *report += marker;
+    first_gap = false;
+    i = end;
   }
 }
 
@@ -497,8 +529,9 @@ bool CaptureMainStack(std::vector<ULONG_PTR>* frames) {
   return CaptureMainThreadStack(frames);
 }
 
-bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames) {
-  return CaptureSuspendedStack(thread, frames);
+bool CaptureThreadStack(HANDLE thread, std::vector<ULONG_PTR>* frames,
+                        size_t frame_limit) {
+  return CaptureSuspendedStack(thread, frames, frame_limit);
 }
 
 bool IsDartFrame(ULONG_PTR address) { return DartImageBase(address) != 0; }

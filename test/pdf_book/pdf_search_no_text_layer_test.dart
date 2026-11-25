@@ -68,6 +68,9 @@ class _FakeTextSearcher extends PdfTextSearchSession {
   bool get isSearching => false;
 
   @override
+  double get searchProgress => 1;
+
+  @override
   Future<PdfPageText?> loadText({required int pageNumber}) async {
     requestedPages.add(pageNumber);
     return PdfPageText(

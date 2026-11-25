@@ -6,10 +6,12 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "crash_wer_context.h"
+#include "incident_context.h"
 #include "startup_watchdog.h"
 
 namespace crash_record {
@@ -149,6 +151,7 @@ bool WriteRecord() {
   }
   report += g_crash_thread_id == g_main_thread_id ? "Thread: main\n"
                                                   : "Thread: other\n";
+  AppendDiagnosticContext(&report);
   startup_watchdog::AppendBuildIdentity(frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   return startup_watchdog::AppendReport(report);
@@ -245,6 +248,11 @@ LONG WINAPI OnUnhandledException(EXCEPTION_POINTERS* info) {
 
 }  // namespace
 
+void AppendDiagnosticContext(std::string* report) {
+  const LONG state = ::InterlockedCompareExchange(&g_wer.diagnostic_context, 0, 0);
+  AppendIncidentContext(static_cast<uint32_t>(state), report);
+}
+
 void Install() {
   if (g_crash_event != nullptr) return;
   g_started_at = TimestampMs();
@@ -273,3 +281,8 @@ void BeginSession() {
 }
 
 }  // namespace crash_record
+
+extern "C" __declspec(dllexport) void OtzariaSetIncidentContext(uint32_t state) {
+  ::InterlockedExchange(&crash_record::g_wer.diagnostic_context,
+                        static_cast<LONG>(state));
+}

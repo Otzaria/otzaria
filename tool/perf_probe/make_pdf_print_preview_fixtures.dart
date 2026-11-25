@@ -18,84 +18,101 @@ Future<void> main(List<String> arguments) async {
     (name: 'scanned', pages: 120, scanned: true, mixed: true),
   ]) {
     final file = File('${output.path}/${fixture.name}.pdf');
-    final writer = _FixtureWriter(await file.open(mode: FileMode.write));
-    final stride = fixture.scanned ? 3 : 2;
-    final pageIds = List.generate(fixture.pages, (index) => 4 + index * stride);
-    try {
-      await writer.text('%PDF-1.7\n');
-      await writer.object(1, '<< /Type /Catalog /Pages 2 0 R >>');
-      await writer.object(
-        2,
-        '<< /Type /Pages /Count ${fixture.pages} /Kids '
-        '[${pageIds.map((id) => '$id 0 R').join(' ')}] >>',
-      );
-      await writer.object(
-        3,
-        '<< /Type /Font /Subtype /Type1 '
-        '/BaseFont /Helvetica >>',
-      );
-      for (var index = 0; index < fixture.pages; index++) {
-        final size = !fixture.mixed
-            ? (width: 595.28, height: 841.89)
-            : switch (index % 4) {
-                0 => (width: 595.28, height: 841.89),
-                1 => (width: 419.53, height: 595.28),
-                2 => (width: 841.89, height: 1190.55),
-                _ => (width: 841.89, height: 595.28),
-              };
-        final pageId = pageIds[index];
-        final imageResource = fixture.scanned
-            ? '/XObject << /Im0 ${pageId + 2} 0 R >>'
-            : '';
-        await writer.object(
-          pageId,
-          '<< /Type /Page /Parent 2 0 R '
-          '/MediaBox [0 0 ${size.width} ${size.height}] '
-          '/Resources << /Font << /F1 3 0 R >> $imageResource >> '
-          '/Contents ${pageId + 1} 0 R >>',
-        );
-        final content = StringBuffer(
-          'BT /F1 14 Tf 18 ${size.height - 30} Td '
-          '(PDF preview fixture - page ${index + 1}) Tj ET\n',
-        );
-        if (fixture.scanned) {
-          content.write(
-            'q ${size.width - 36} 0 0 ${size.height - 60} '
-            '18 18 cm /Im0 Do Q\n',
-          );
-        } else {
-          for (var line = 0; line < 18; line++) {
-            content.write(
-              'BT /F1 10 Tf 18 ${size.height - 55 - line * 18} Td '
-              '(Sample ${line + 1}: 0123456789 ABCDEFG) Tj ET\n',
-            );
-          }
-        }
-        await writer.stream(pageId + 1, '', ascii.encode(content.toString()));
-        if (fixture.scanned) {
-          const width = 512;
-          const height = 768;
-          final random = Random(index + 1);
-          final pixels = Uint8List(width * height);
-          for (var pixel = 0; pixel < pixels.length; pixel++) {
-            pixels[pixel] = random.nextInt(256);
-          }
-          await writer.stream(
-            pageId + 2,
-            '/Type /XObject /Subtype /Image /Width $width /Height $height '
-            '/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode',
-            zlib.encode(pixels),
-          );
-        }
-      }
-      await writer.finish();
-    } finally {
-      await writer.file.close();
-    }
+    await writePdfProbeFixture(
+      file,
+      pageCount: fixture.pages,
+      scanned: fixture.scanned,
+      mixed: fixture.mixed,
+    );
     stdout.writeln(
       '${file.path}: ${file.lengthSync()} bytes, '
       '${fixture.pages} pages',
     );
+  }
+}
+
+/// קלט PDF קבוע משותף למדידות הקורא והתצוגה המקדימה.
+/// יש ליצור אותו בשלב הכנת הקורפוס, מחוץ לחלון המדידה.
+Future<void> writePdfProbeFixture(
+  File file, {
+  required int pageCount,
+  bool scanned = false,
+  bool mixed = false,
+}) async {
+  if (pageCount < 1) throw ArgumentError.value(pageCount, 'pageCount');
+  final writer = _FixtureWriter(await file.open(mode: FileMode.write));
+  final stride = scanned ? 3 : 2;
+  final pageIds = List.generate(pageCount, (index) => 4 + index * stride);
+  try {
+    await writer.text('%PDF-1.7\n');
+    await writer.object(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    await writer.object(
+      2,
+      '<< /Type /Pages /Count $pageCount /Kids '
+      '[${pageIds.map((id) => '$id 0 R').join(' ')}] >>',
+    );
+    await writer.object(
+      3,
+      '<< /Type /Font /Subtype /Type1 '
+      '/BaseFont /Helvetica >>',
+    );
+    for (var index = 0; index < pageCount; index++) {
+      final size = !mixed
+          ? (width: 595.28, height: 841.89)
+          : switch (index % 4) {
+              0 => (width: 595.28, height: 841.89),
+              1 => (width: 419.53, height: 595.28),
+              2 => (width: 841.89, height: 1190.55),
+              _ => (width: 841.89, height: 595.28),
+            };
+      final pageId = pageIds[index];
+      final imageResource = scanned
+          ? '/XObject << /Im0 ${pageId + 2} 0 R >>'
+          : '';
+      await writer.object(
+        pageId,
+        '<< /Type /Page /Parent 2 0 R '
+        '/MediaBox [0 0 ${size.width} ${size.height}] '
+        '/Resources << /Font << /F1 3 0 R >> $imageResource >> '
+        '/Contents ${pageId + 1} 0 R >>',
+      );
+      final content = StringBuffer(
+        'BT /F1 14 Tf 18 ${size.height - 30} Td '
+        '(PDF preview fixture - page ${index + 1}) Tj ET\n',
+      );
+      if (scanned) {
+        content.write(
+          'q ${size.width - 36} 0 0 ${size.height - 60} '
+          '18 18 cm /Im0 Do Q\n',
+        );
+      } else {
+        for (var line = 0; line < 18; line++) {
+          content.write(
+            'BT /F1 10 Tf 18 ${size.height - 55 - line * 18} Td '
+            '(Sample ${line + 1}: 0123456789 ABCDEFG) Tj ET\n',
+          );
+        }
+      }
+      await writer.stream(pageId + 1, '', ascii.encode(content.toString()));
+      if (scanned) {
+        const width = 512;
+        const height = 768;
+        final random = Random(index + 1);
+        final pixels = Uint8List(width * height);
+        for (var pixel = 0; pixel < pixels.length; pixel++) {
+          pixels[pixel] = random.nextInt(256);
+        }
+        await writer.stream(
+          pageId + 2,
+          '/Type /XObject /Subtype /Image /Width $width /Height $height '
+          '/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode',
+          zlib.encode(pixels),
+        );
+      }
+    }
+    await writer.finish();
+  } finally {
+    await writer.file.close();
   }
 }
 

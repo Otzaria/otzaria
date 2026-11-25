@@ -55,7 +55,6 @@ void main() {
       'defaultContinuousReadingMode': true,
       'defaultSidebarOpen': true,
       'defaultCommentaryOpen': true,
-      'pinSidebar': true,
       'sidebarWidth': 300.0,
       'facetFilteringWidth': 235.0,
       'commentaryPaneWidth': 400.0,
@@ -217,7 +216,6 @@ void main() {
             defaultSidebarOpen: mockSettings['defaultSidebarOpen'] as bool,
             defaultCommentaryOpen:
                 mockSettings['defaultCommentaryOpen'] as bool,
-            pinSidebar: mockSettings['pinSidebar'] as bool,
             sidebarWidth: mockSettings['sidebarWidth'] as double,
             facetFilteringWidth: mockSettings['facetFilteringWidth'] as double,
             externalResultsFirst:
@@ -377,6 +375,20 @@ void main() {
           verify(mockRepository.updateCompactMenuMode(null)).called(1);
           expect(bloc.state.compactMenuModeFor(isSmallWindow: true), isTrue);
           expect(bloc.state.compactMenuModeFor(isSmallWindow: false), isFalse);
+        },
+      );
+
+      blocTest<SettingsBloc, SettingsState>(
+        'כיבוי הסתרת הסרגל במסך מלא נשמר (#5199)',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateFullscreenAutoHideToolbar(false)),
+        expect: () => [
+          settingsBloc.state.copyWith(fullscreenAutoHideToolbar: false),
+        ],
+        verify: (_) {
+          verify(
+            mockRepository.updateFullscreenAutoHideToolbar(false),
+          ).called(1);
         },
       );
     });

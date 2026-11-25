@@ -1337,5 +1337,31 @@ void main() {
       expect(cubit.state.activeLiveTipId, isNull);
       await cubit.close();
     });
+
+    test('הדגשה שנעלמה בזמן הסיור אינה מציגה טיפ אחריו', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final cubit = TourCubit();
+      cubit.start(libraryLoaded: true);
+
+      // ההדגשה הופיעה בזמן הסיור ונוקתה בחיפוש חדש או במעבר טאב — בלי Esc.
+      await cubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightShown),
+      );
+      await cubit.complete();
+      await cubit.recordInteraction(
+        TourInteraction(
+          type: TourInteractionType.currentTabChanged,
+          primaryValue: 'בראשית',
+        ),
+      );
+
+      expect(cubit.state.activeLiveTipId, isNull);
+      expect(
+        cubit.state.resolvedTips,
+        isNot(contains(LiveTipId.linkHighlightHint)),
+      );
+      await cubit.close();
+    });
   });
 }

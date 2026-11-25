@@ -73,6 +73,7 @@ import 'package:otzaria/text_book/view/text_correction_editor.dart'
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/widgets/misc/navigation_key_tracker.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
@@ -1100,7 +1101,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     _activeCommentarySlot = AppWindowKeys.of(context)._activeCommentary;
     _focus = FocusRepository.of(context);
     _configureScrollControllers();
-    _selectionFocusNode = FocusNode(debugLabel: 'SelectionAreaFocus');
+    _selectionFocusNode = KeepSelectionOnWindowBlurFocusNode(
+      debugLabel: 'SelectionAreaFocus',
+    );
     _resolvedKeyboardFocusNode;
     _navigationKeys = NavigationKeyTracker(
       hasNavigationFocus: () =>
@@ -1570,7 +1573,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               : settingsState.commentatorsFontBold)
           ? FontWeight.bold
           : null,
-      lineHeight: settingsState.lineHeight,
+      lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     );
   }
 
@@ -2860,35 +2863,44 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     try {
       final textBookState = context.read<TextBookBloc>().state;
       if (textBookState is! TextBookLoaded) return;
+      final selectedIndex = _savedSelectedIndex;
+      final lineStart = _selectionLineStart;
+      final lineEnd = _selectionLineEnd;
+      final sourceWidget = widget;
+      final source = _sourceSelection;
+      final headerIndex = _sourceIndex(selectedIndex);
+      final copyTarget = _textTarget;
       final protection = await _textProtection(textBookState);
       if (!mounted) return;
       final settingsState = context.read<SettingsBloc>().state;
 
       await copySelectedTextForBook(
         plainText: plainText,
-        selectedIndex: _savedSelectedIndex,
-        sourceContent: widget.content,
+        selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
+        sourceContent: sourceWidget.content,
         textBookState: textBookState,
         protection: protection,
         segmentCount: selectionSegmentCount(
-          start: _selectionLineStart,
-          end: _selectionLineEnd,
+          start: lineStart,
+          end: lineEnd,
           text: plainText,
         ),
         settingsState: settingsState,
-        fontFamily: widget.fontFamily ?? settingsState.fontFamily,
-        fontSize: widget.fontSize,
-        headerBookOverride: widget.reportBook,
-        headerIndexOverride: _sourceIndex(_savedSelectedIndex),
-        headerContentOverride: widget.isBookNotesColumn
+        fontFamily: sourceWidget.fontFamily ?? settingsState.fontFamily,
+        fontSize: sourceWidget.fontSize,
+        headerBookOverride: sourceWidget.reportBook,
+        headerIndexOverride: headerIndex,
+        headerContentOverride: sourceWidget.isBookNotesColumn
             ? textBookState.content
-            : widget.reportBook != null
-            ? widget.content
+            : sourceWidget.reportBook != null
+            ? sourceWidget.content
             : null,
         removeNikud: removeNikud,
         copyProfile: profile,
-        copyTarget: _textTarget,
-        source: _sourceSelection,
+        copyTarget: copyTarget,
+        source: source,
         plainTextOnly: plainTextOnly,
       );
     } catch (e) {
@@ -2899,21 +2911,21 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// Prepares native drag content under the same protection as regular copy.
-  SelectedTextDragPreparation? _captureSelectedTextDrag(
-    String capturedText,
-  ) {
+  SelectedTextDragPreparation? _captureSelectedTextDrag(String capturedText) {
     if (capturedText.trim().isEmpty) return null;
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return null;
     final sourceWidget = widget;
     final settings = context.read<SettingsBloc>().state;
     final selectedIndex = _savedSelectedIndex;
+    final lineStart = _selectionLineStart;
+    final lineEnd = _selectionLineEnd;
     final source = _sourceSelection;
     final copyTarget = _textTarget;
     final headerIndex = _sourceIndex(selectedIndex);
     final segmentCount = selectionSegmentCount(
-      start: _selectionLineStart,
-      end: _selectionLineEnd,
+      start: lineStart,
+      end: lineEnd,
       text: capturedText,
     );
     return () async {
@@ -2925,6 +2937,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final content = await buildSelectedTextCopy(
         plainText: capturedText,
         selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
         sourceContent: sourceWidget.content,
         textBookState: state,
         settingsState: settings,
@@ -3172,7 +3186,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     bool continuous,
   ) {
     final currentAnchor = _lines?.captureAnchor();
-    final anchor = currentAnchor ?? _initialAnchor;
+    final tab = widget.tab;
+    final anchor =
+        currentAnchor ??
+        (widget.isMainText && tab is TextBookTab && tab.markerReference != null
+            ? tab.openingReadingAnchor(state)
+            : _initialAnchor);
     TargetRectResolver? initialResolver;
     if (segments != null &&
         anchor != null &&
@@ -3245,7 +3264,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             family,
             weight ?? FontWeight.normal,
           ),
-          lineHeight: settings.lineHeight,
+          lineHeight: settings.lineHeightForBook(state.lineHeight),
           textWidth: (width) => width > 8 ? width - 8 : width,
           crossAxisPadding: _readerListPadding.horizontal,
           builder: buildList,
@@ -3298,10 +3317,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         segment != null &&
         !segment.isHeader &&
         segment.sourceLineIndices.length > 1;
-    if (isMultiLine && !segment.isLoaded) {
+    // גם שורה בודדת: בגובה אפס, קפיצה לאזור שלא נטען בונה אלפי שורות בפריים.
+    if (segment != null && !segment.isLoaded) {
       return UnloadedParagraphPlaceholder(
         lineCount: segment.sourceLineIndices.length,
         fontSize: widget.fontSize,
+        lineHeight: state.lineHeight,
       );
     }
     final itemLines = segment?.sourceLineIndices ?? [primaryLineIndex];
@@ -3441,9 +3462,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     book: TextBook(title: widget.bookTitle!),
                     index: primaryLineIndex,
                     openLeftPane:
-                        (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
                         (Settings.getValue<bool>('key-default-sidebar-open') ??
-                            false),
+                        false),
                   ),
                 );
               }
@@ -3619,7 +3639,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             fontSize: widget.fontSize,
             fontFamily: widget.fontFamily ?? settingsState.fontFamily,
             fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-            lineHeight: settingsState.lineHeight,
+            lineHeight: settingsState.lineHeightForBook(state.lineHeight),
           ),
         ),
       );
@@ -3641,7 +3661,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             : settingsState.commentatorsFontBold)
         ? FontWeight.bold
         : null,
-    lineHeight: settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
     sectionHeadings: _sectionHeadingsByLine,
     isRelated: widget.isMainText
         ? null

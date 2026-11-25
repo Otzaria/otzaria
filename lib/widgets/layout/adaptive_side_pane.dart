@@ -68,9 +68,15 @@ class AdaptiveSidePane extends StatefulWidget {
   /// לדחוק אותו — כך פתיחה וסגירה אינן משנות את שבירת השורות.
   final bool floatOverContent;
 
+  /// הצללה מעל התוכן כשהחלונית מכסה אותו; לחיצה עליה סוגרת.
+  final bool showScrim;
+
+  /// נכנס/יצא העכבר מהחלונית כשהיא מכסה את התוכן (לא בזמן גרירת רוחב).
+  final ValueChanged<bool>? onPaneHoverChanged;
+
   /// האם ב-[availableWidth] נשאר לתוכן לפחות [minMainContentWidth] אחרי
   /// ש[occupiedByPane] נתפס לחלונית. זה התנאי היחיד שמכריע בין דחיקת התוכן
-  /// ל-overlay, ולכן גם אם נעיצה משנה משהו (`NavSidePanel.canPin`).
+  /// ל-overlay.
   static bool fitsSideBySide({
     required double availableWidth,
     required double occupiedByPane,
@@ -102,6 +108,8 @@ class AdaptiveSidePane extends StatefulWidget {
     this.scrollbarTopMargin,
     this.attachToTopEdge = false,
     this.floatOverContent = false,
+    this.showScrim = true,
+    this.onPaneHoverChanged,
   });
 
   @override
@@ -125,7 +133,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   bool _paneEverOpened = false;
 
   // שלוש הפריסות בונות עצים שונים; המפתח מעביר את התוכן ביניהן בלי לבנות אותו
-  // מחדש — אחרת נעיצה/ביטול נעיצה מאפסים את מיקום הקריאה.
+  // מחדש — אחרת מעבר בין פתיחה בריחוף לפתיחה קבועה מאפס את מיקום הקריאה.
   final GlobalKey _mainContentKey = GlobalKey();
   final GlobalKey _paneContentKey = GlobalKey();
   final FocusNode _paneFocusNode = FocusNode(
@@ -133,7 +141,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     skipTraversal: true,
   );
 
-  /// תוכן החלונית עם מפתח קבוע — נעיצה מעבירה אותו בין הפריסות בלי לבנות מחדש
+  /// תוכן החלונית עם מפתח קבוע — מעבר בין הפריסות לא בונה אותו מחדש
   /// (גלילה, ענפים פתוחים ושדה חיפוש פתוח נשמרים).
   Widget get _paneContent => KeyedSubtree(
     key: _paneContentKey,
@@ -329,6 +337,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       _isDragging = false;
       _dragStartedInWideMode = null;
     });
+    _resolvePendingPaneExit();
   }
 
   Widget _buildResizeHandle(bool paneOnRight, bool currentlyWide) {
@@ -595,6 +604,46 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     );
   }
 
+  // גרירה, או תפריט/דיאלוג שנפתח מתוך החלונית, מוציאים ממנה את העכבר בלי
+  // שעזב אותה. היציאה נדחית עד סוף הגרירה או עד ריחוף על התוכן.
+  bool _paneExitPending = false;
+
+  bool get _routeIsCurrent => ModalRoute.of(context)?.isCurrent ?? true;
+
+  void _resolvePendingPaneExit() {
+    if (!_paneExitPending || _isDragging || !_routeIsCurrent) return;
+    _paneExitPending = false;
+    widget.onPaneHoverChanged?.call(false);
+  }
+
+  // בלי opaque: false — MouseRegion כזה מחזיר false מ-hitTest, ולחיצה בחלונית
+  // הצפה עוברת גם לתוכן שמתחתיה (שלוקח את הפוקוס משדה החיפוש).
+  Widget _mainHoverRegion() => MouseRegion(
+    hitTestBehavior: HitTestBehavior.deferToChild,
+    onHover: (_) => _resolvePendingPaneExit(),
+    child: _mainContent,
+  );
+
+  Widget _paneHoverRegion(Widget child) {
+    final onHover = widget.onPaneHoverChanged;
+    if (onHover == null) return child;
+    return MouseRegion(
+      hitTestBehavior: HitTestBehavior.deferToChild,
+      onEnter: (_) {
+        _paneExitPending = false;
+        onHover(true);
+      },
+      onExit: (_) {
+        if (_isDragging || !_routeIsCurrent) {
+          _paneExitPending = true;
+        } else {
+          onHover(false);
+        }
+      },
+      child: child,
+    );
+  }
+
   Widget _buildFloatingWideLayout(
     BuildContext context, {
     required bool paneOnRight,
@@ -616,52 +665,54 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ClipRect(
       child: Stack(
         children: [
-          Positioned.fill(child: _mainContent),
+          Positioned.fill(child: _mainHoverRegion()),
           IgnorePointer(
             ignoring: !widget.isOpen,
             child: Stack(
               children: [
-                _buildScrim(context),
-                ValueListenableBuilder<double>(
-                  valueListenable: _livePaneWidth,
-                  builder: (context, liveWidth, _) {
-                    final width = liveWidth.clamp(0.0, areaWidth);
-                    final slide = AnimatedSlide(
-                      duration: AppMotion.duration(
-                        context,
-                        AppTokens.animPanelSlide,
-                      ),
-                      curve: Curves.easeInOut,
-                      offset: widget.isOpen ? Offset.zero : closedOffset,
-                      child: pane,
-                    );
-                    return Stack(
-                      children: [
-                        // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-                        Positioned(
-                          top: 0,
-                          bottom: 0,
-                          right: paneOnRight ? 0 : null,
-                          left: paneOnRight ? null : 0,
-                          width: width,
-                          child: slide,
+                if (widget.showScrim) _buildScrim(context),
+                _paneHoverRegion(
+                  ValueListenableBuilder<double>(
+                    valueListenable: _livePaneWidth,
+                    builder: (context, liveWidth, _) {
+                      final width = liveWidth.clamp(0.0, areaWidth);
+                      final slide = AnimatedSlide(
+                        duration: AppMotion.duration(
+                          context,
+                          AppTokens.animPanelSlide,
                         ),
-                        if (showHandle && widget.isOpen)
+                        curve: Curves.easeInOut,
+                        offset: widget.isOpen ? Offset.zero : closedOffset,
+                        child: pane,
+                      );
+                      return Stack(
+                        children: [
                           // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                           Positioned(
                             top: 0,
                             bottom: 0,
-                            left: paneOnRight
-                                ? areaWidth - width - outreach
-                                : null,
-                            right: paneOnRight
-                                ? null
-                                : areaWidth - width - outreach,
-                            child: _buildResizeHandle(paneOnRight, true),
+                            right: paneOnRight ? 0 : null,
+                            left: paneOnRight ? null : 0,
+                            width: width,
+                            child: slide,
                           ),
-                      ],
-                    );
-                  },
+                          if (showHandle && widget.isOpen)
+                            // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                            Positioned(
+                              top: 0,
+                              bottom: 0,
+                              left: paneOnRight
+                                  ? areaWidth - width - outreach
+                                  : null,
+                              right: paneOnRight
+                                  ? null
+                                  : areaWidth - width - outreach,
+                              child: _buildResizeHandle(paneOnRight, true),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -699,57 +750,30 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     return Stack(
       children: [
-        Positioned.fill(child: _mainContent),
+        Positioned.fill(child: _mainHoverRegion()),
         IgnorePointer(
           ignoring: !widget.isOpen,
           child: Stack(
             children: [
-              _buildScrim(context),
-              ValueListenableBuilder<double>(
-                valueListenable: _livePaneWidth,
-                builder: (context, liveWidth, _) {
-                  final currentWidth = liveWidth > maxPaneWidth
-                      ? maxPaneWidth
-                      : liveWidth;
-                  final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
+              if (widget.showScrim) _buildScrim(context),
+              _paneHoverRegion(
+                ValueListenableBuilder<double>(
+                  valueListenable: _livePaneWidth,
+                  builder: (context, liveWidth, _) {
+                    final currentWidth = liveWidth > maxPaneWidth
+                        ? maxPaneWidth
+                        : liveWidth;
+                    final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
 
-                  return Stack(
-                    children: [
-                      // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
-                      Positioned(
-                        top: _kNarrowTopGap,
-                        bottom: _kNarrowBottomGap,
-                        right: paneOnRight ? _kNarrowSideGap : null,
-                        left: paneOnRight ? null : _kNarrowSideGap,
-                        width: currentWidth,
-                        child: AnimatedOpacity(
-                          duration: AppMotion.duration(
-                            context,
-                            AppTokens.animPanelOpacity,
-                          ),
-                          opacity: widget.isOpen ? 1.0 : 0.0,
-                          child: AnimatedSlide(
-                            duration: AppMotion.duration(
-                              context,
-                              AppTokens.animPanelSlide,
-                            ),
-                            curve: Curves.easeInOut,
-                            offset: widget.isOpen ? Offset.zero : closedOffset,
-                            child: narrowPane,
-                          ),
-                        ),
-                      ),
-                      if (showHandle)
+                    return Stack(
+                      children: [
                         // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
                         Positioned(
                           top: _kNarrowTopGap,
                           bottom: _kNarrowBottomGap,
-                          right: paneOnRight
-                              ? _kNarrowSideGap + currentWidth - overhang
-                              : null,
-                          left: paneOnRight
-                              ? null
-                              : _kNarrowSideGap + currentWidth - overhang,
+                          right: paneOnRight ? _kNarrowSideGap : null,
+                          left: paneOnRight ? null : _kNarrowSideGap,
+                          width: currentWidth,
                           child: AnimatedOpacity(
                             duration: AppMotion.duration(
                               context,
@@ -765,13 +789,44 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                               offset: widget.isOpen
                                   ? Offset.zero
                                   : closedOffset,
-                              child: _buildResizeHandle(paneOnRight, false),
+                              child: narrowPane,
                             ),
                           ),
                         ),
-                    ],
-                  );
-                },
+                        if (showHandle)
+                          // ui-lint: allow UIL-021 — צד פיזי בכוונה: alignment של החלונית מתורגם לשמאל או לימין קבוע (_isPaneOnRight), לא לפי הכיוון (q10 Q17 A)
+                          Positioned(
+                            top: _kNarrowTopGap,
+                            bottom: _kNarrowBottomGap,
+                            right: paneOnRight
+                                ? _kNarrowSideGap + currentWidth - overhang
+                                : null,
+                            left: paneOnRight
+                                ? null
+                                : _kNarrowSideGap + currentWidth - overhang,
+                            child: AnimatedOpacity(
+                              duration: AppMotion.duration(
+                                context,
+                                AppTokens.animPanelOpacity,
+                              ),
+                              opacity: widget.isOpen ? 1.0 : 0.0,
+                              child: AnimatedSlide(
+                                duration: AppMotion.duration(
+                                  context,
+                                  AppTokens.animPanelSlide,
+                                ),
+                                curve: Curves.easeInOut,
+                                offset: widget.isOpen
+                                    ? Offset.zero
+                                    : closedOffset,
+                                child: _buildResizeHandle(paneOnRight, false),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ],
           ),

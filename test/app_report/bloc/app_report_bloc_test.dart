@@ -318,18 +318,28 @@ void main() {
           as AppReportEditing;
     }
 
-    test('ה-dump נטען ומצורף כברירת מחדל; החרגה מסירה אותו', () async {
+    test('ה-dump נטען אך אינו מצורף עד שבוחרים לצרף אותו', () async {
+      const crashSignature = CrashSignature(
+        exceptionType: 'EXCEPTION_ACCESS_VIOLATION',
+        frames: ['flutter_windows.dll+0x1234'],
+      );
       final bloc = build(
         trigger: AppReportTrigger.crashPrompt,
         minidumpFile: dumpFile,
+        signature: crashSignature,
       );
       final form = await collected(bloc);
       expect(form.minidump, isNotNull);
-      expect(form.includeMinidump, isTrue);
-      expect(bloc.buildReport(form).minidump!.fileName, 'c.dmp');
+      expect(form.includeMinidump, isFalse);
+      final report = bloc.buildReport(form);
+      expect(report.minidump, isNull);
+      expect(report.signature, crashSignature);
       expect(
-        bloc.buildReport(form.copyWith(includeMinidump: false)).minidump,
-        isNull,
+        bloc
+            .buildReport(form.copyWith(includeMinidump: true))
+            .minidump!
+            .fileName,
+        'c.dmp',
       );
       await bloc.close();
     });

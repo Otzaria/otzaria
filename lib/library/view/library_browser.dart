@@ -24,6 +24,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart' show bookIdentity;
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/models/library_match_filter.dart';
@@ -39,9 +40,13 @@ import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_blo
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
+import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -345,7 +350,7 @@ String categoryParentPath(Category category) {
 String pluginCategoryPath(Category? category, {required Category? root}) =>
     category == null || identical(category, root)
     ? ''
-    : category.path.substring(1).replaceAll('/', ', ');
+    : category.displayPath.substring(1).replaceAll('/', ', ');
 
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
@@ -1909,10 +1914,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       controller: _categoryGridController,
     );
     // לחיצה על רקע ריק (בין כרטיסים או מתחתם): כרטיס שנלחץ מנצח בזירת המחוות.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _returnPreviewToCurrent,
-      child: grid,
+    // הפוקוס עובר לרקע, אחרת הכרטיס נשאר צבוע בשכבת הפוקוס (#5607).
+    return Focus(
+      skipTraversal: true,
+      child: Builder(
+        builder: (context) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            Focus.of(context).requestFocus();
+            _returnPreviewToCurrent();
+          },
+          child: grid,
+        ),
+      ),
     );
   }
 
@@ -3106,7 +3120,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return AppContextMenuRegion(
       // בלי isSelected: אייקון מוביל יחד עם סימון-נבחר מאפס את תקציב הרוחב
       // של הלייבל, וה-Spacer שבשורת הפריט נופל על רוחב לא-חסום.
-      menuBuilder: (_, _) => [
+      menuBuilder: (menuContext, _) => [
         AppContextMenuEntry(
           label: context.settingsText(
             _selection.contains(book) ? 'הסר מהבחירה' : 'הוסף לבחירה',
@@ -3128,6 +3142,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             onTap: () => _openBookInReader(book, index, forcePdf: true),
           ),
         ],
+        // ספר מספק חיצוני אינו מקבל פריטי תוספים (#4466).
+        if (book is! ExternalLibraryBook)
+          ...buildPluginContextMenuSection(
+            context: 'library-book',
+            selection: {
+              ...PluginBookIdentity.toJsonWithUid(book),
+              'bookTitle': book.title,
+              'categoryPath': FacetHelper.resolveCategoryPath(book),
+              'text': '',
+            },
+            menuContext: menuContext,
+          ),
       ],
       child: Semantics(selected: _selection.contains(book), child: child),
     );
@@ -3340,7 +3366,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       customContent: SizedBox(
         width: 600,
         height: 400,
-        child: ListView.builder(
+        // ListView בונה בקפיצה בפס הגלילה כל שורה שבדרך (#4766).
+        child: SuperListView.builder(
           itemCount: books.length,
           itemBuilder: (context, i) => _buildListBookItem(books[i], 0),
         ),
@@ -3743,8 +3770,7 @@ class _BookPointerActivationState extends State<_BookPointerActivation> {
 }
 
 /// קישורים בשורת ספר (מחבר, תיקיות הנתיב): לחיצה, Enter או רווח מפעילים
-/// אותם ולא את השורה. מחוץ למסלול הפוקוס, כמו תפריט השורה — חיצים ו-Tab
-/// עוצרים רק על השורות.
+/// אותם ולא את השורה. Tab מהשורה מגיע אליהם — זו הדרך היחידה אליהם במקלדת.
 class _RowLinks extends StatelessWidget {
   const _RowLinks({
     required this.links,
@@ -3790,8 +3816,6 @@ class _RowLinks extends StatelessWidget {
         ),
       );
     }
-    return ExcludeFocusTraversal(
-      child: Row(mainAxisSize: MainAxisSize.min, children: children),
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
   }
 }

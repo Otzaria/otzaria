@@ -118,7 +118,6 @@ void main() {
         removeNikud: false,
         visibleIndices: List.generate(lines.length, (i) => i),
         selectedIndex: null,
-        pinLeftPane: false,
         searchText: searchText,
         protection: protection,
       ),
@@ -730,7 +729,6 @@ TextBookLoaded _loadedBook(TextBook book, List<String> content) =>
       removeNikud: false,
       visibleIndices: List.generate(content.length, (i) => i),
       selectedIndex: null,
-      pinLeftPane: false,
     );
 
 class _TextBookBloc extends Bloc<TextBookEvent, TextBookState>

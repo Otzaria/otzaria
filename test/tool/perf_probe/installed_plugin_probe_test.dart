@@ -114,6 +114,19 @@ void main() {
     });
   });
   group('restoration evidence contract', () {
+    for (final platform in ['linux', 'windows', 'android']) {
+      test('a $platform plugin pass also requires the actual PDF runtime', () {
+        final report = completeReport()..['platform'] = platform;
+        expect(
+          installedReportErrors(report),
+          contains('Missing actual-bundle PDF runtime report'),
+        );
+        report['pdfRuntime'] = {'status': 'notRun'};
+        expect(installedReportErrors(report), isNotEmpty);
+        report['platform'] = 'ios';
+        expect(installedReportErrors(report), isEmpty);
+      });
+    }
     test(
       'accepts observed identity changes and the four complete scenarios',
       () {

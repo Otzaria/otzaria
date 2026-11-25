@@ -1,0 +1,351 @@
+name: Paired PDF measurements
+
+on:
+  pull_request:
+    paths:
+      - 'tool/perf_probe/run_pdf_pair.py'
+      - 'tool/perf_probe/test_pdf_pair.py'
+      - 'tool/perf_probe/paired_pdf_case.py'
+      - 'tool/perf_probe/test_paired_pdf_case.py'
+      - 'tool/perf_probe/prepare_pair_ci_case.dart'
+      - 'tool/perf_probe/pdf_layout_pair.json'
+      - 'tool/perf_probe/posix_engine.py'
+      - 'tool/perf_probe/test_posix_engine.py'
+      - 'tool/perf_probe/run_perf_probe_posix.py'
+      - 'tool/perf_probe/test_perf_probe_posix.py'
+      - '.github/workflows/perf_probe_paired.yml'
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Full immutable baseline commit SHA (same harness and lockfile)
+        required: true
+        type: string
+      candidate:
+        description: Full immutable candidate commit SHA
+        required: true
+        type: string
+      mode:
+        description: Build mode
+        type: choice
+        options: [profile, release]
+        default: profile
+      cache_state:
+        description: Application data state (OS caches are not flushed)
+        type: choice
+        options: [cold, warm]
+        default: cold
+      scenario:
+        description: PDF workload with ordinary Flutter scheduling
+        type: choice
+        options: [pdf-book-view, pdf-reader]
+        default: pdf-book-view
+      pages:
+        description: Generated mixed-size PDF page count
+        type: choice
+        options: ['10', '100', '600', '1000', '10000']
+        default: '1000'
+      launches:
+        description: Measured process launches per snapshot
+        type: number
+        default: 3
+      repetitions:
+        description: Measured action repetitions per launch (one warmup is excluded)
+        type: number
+        default: 5
+      order:
+        description: Execution order (recorded in the pair receipt)
+        type: choice
+        options: [baseline-first, candidate-first]
+        default: baseline-first
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  contracts:
+    name: Immutable source and comparison contracts
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: python3 -B -m unittest tool.perf_probe.test_pdf_pair tool.perf_probe.test_paired_pdf_case tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
+
+  pair:
+    name: Same Windows host (${{ matrix.cache }}, ${{ inputs.mode || 'profile' }})
+    needs: [gate, contracts]
+    if: needs.gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        cache: ${{ fromJSON(github.event_name == 'pull_request' && '["cold","warm"]' || format('["{0}"]', inputs.cache_state || 'cold')) }}
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install the existing verified release engine
+        if: inputs.mode == 'release'
+        uses: ./.github/actions/patched-flutter-engine
+        with:
+          arch: x64
+      - name: Measure both immutable snapshots in this job
+        shell: pwsh
+        env:
+          PAIR_BASELINE: ${{ inputs.baseline }}
+          PAIR_CANDIDATE: ${{ inputs.candidate }}
+          PAIR_MODE: ${{ inputs.mode || 'profile' }}
+          PAIR_CACHE: ${{ matrix.cache }}
+          PAIR_SCENARIO: ${{ inputs.scenario || 'pdf-book-view' }}
+          PAIR_PAGES: ${{ inputs.pages || '1000' }}
+          PAIR_LAUNCHES: ${{ inputs.launches || 3 }}
+          PAIR_REPETITIONS: ${{ inputs.repetitions || 5 }}
+          PAIR_ORDER: ${{ inputs.order || 'baseline-first' }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          git config --global core.longpaths true
+          python -B -m unittest tool.perf_probe.test_pdf_pair tool.perf_probe.test_paired_pdf_case -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dart tool/perf_probe/prepare_pair_ci_case.dart (Join-Path $env:RUNNER_TEMP 'pdf-pair-corpus') $env:PAIR_PAGES
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $arguments = @('tool/perf_probe/run_pdf_pair.py', '--output', (Join-Path $env:RUNNER_TEMP 'pdf-pair'),
+            '--mode', $env:PAIR_MODE, '--cache-state', $env:PAIR_CACHE, '--scenario', $env:PAIR_SCENARIO,
+            '--pdf-case', (Join-Path $env:RUNNER_TEMP 'pdf-pair-corpus/case.json'), '--launches', $env:PAIR_LAUNCHES,
+            '--repetitions', $env:PAIR_REPETITIONS, '--order', $env:PAIR_ORDER)
+          if ($env:PAIR_BASELINE -or $env:PAIR_CANDIDATE) {
+            $commits = @($env:PAIR_BASELINE, $env:PAIR_CANDIDATE)
+            $repository = $env:GITHUB_REPOSITORY
+            $arguments += @('--baseline', $env:PAIR_BASELINE, '--candidate', $env:PAIR_CANDIDATE)
+          } else {
+            $experiment = Get-Content tool/perf_probe/pdf_layout_pair.json -Raw | ConvertFrom-Json
+            $commits = @($experiment.baseline, $experiment.candidate)
+            $repository = $experiment.repository
+          }
+          if ($repository -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Invalid source repository.' }
+          foreach ($commit in $commits) {
+            if ($commit -cnotmatch '^[a-f0-9]{40}$') { throw 'Both sources must be full immutable commit SHAs.' }
+            git fetch --no-tags "https://github.com/$repository.git" $commit
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch the requested immutable source.' }
+          }
+          if ($env:PAIR_MODE -eq 'release') {
+            if ($env:PATCHED_FLUTTER_DLL_SHA256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Missing verified release engine hash.' }
+            $arguments += @('--expected-engine-sha256', $env:PATCHED_FLUTTER_DLL_SHA256)
+          }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve raw measurements and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-pair-${{ matrix.cache }}-${{ inputs.mode || 'profile' }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/pdf-pair/pair.json
+            ${{ runner.temp }}/pdf-pair/pdf-case.json
+            ${{ runner.temp }}/pdf-pair/logs/*.log
+            ${{ runner.temp }}/pdf-pair/results/**/*.json
+            ${{ runner.temp }}/pdf-pair/results/**/*.jsonl
+            ${{ runner.temp }}/pdf-pair/results/**/*.csv
+            ${{ runner.temp }}/pdf-pair/results/**/*.md
+            ${{ runner.temp }}/pdf-pair/results/**/*.log
+
+  posix_pair:
+    name: Same ${{ matrix.platform.name }} host (${{ matrix.cache }}, ${{ inputs.mode || 'profile' }})
+    needs: [gate, contracts]
+    if: needs.gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Linux
+            runner: ubuntu-26.04
+            container: debian:bookworm-slim
+          - name: macOS
+            runner: macos-latest
+            container: ''
+        cache: ${{ fromJSON(github.event_name == 'pull_request' && '["cold","warm"]' || format('["{0}"]', inputs.cache_state || 'cold')) }}
+    runs-on: ${{ matrix.platform.runner }}
+    container: ${{ matrix.platform.container }}
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      CARGO_BUILD_JOBS: '2'
+      PAIR_BASELINE: ${{ inputs.baseline }}
+      PAIR_CANDIDATE: ${{ inputs.candidate }}
+      PAIR_MODE: ${{ inputs.mode || 'profile' }}
+      PAIR_CACHE: ${{ matrix.cache }}
+      PAIR_SCENARIO: ${{ inputs.scenario || 'pdf-book-view' }}
+      PAIR_PAGES: ${{ inputs.pages || '1000' }}
+      PAIR_LAUNCHES: ${{ inputs.launches || 3 }}
+      PAIR_REPETITIONS: ${{ inputs.repetitions || 5 }}
+      PAIR_ORDER: ${{ inputs.order || 'baseline-first' }}
+    steps:
+      - name: Prepare the supported Linux build container
+        if: matrix.platform.name == 'Linux'
+        run: |
+          set -euo pipefail
+          apt-get update -y
+          apt-get install -y ca-certificates curl git jq unzip xz-utils zstd python3 nodejs \
+            build-essential clang-14 cmake libblkid1 libcurl4-openssl-dev libglib2.0-dev \
+            libgtk-3-dev liblzma5 liblzma-dev libsecret-1-dev libsoup-3.0-dev \
+            libwebkit2gtk-4.1-dev libxkbcommon-dev ninja-build openjdk-17-jdk-headless \
+            pkg-config xvfb xauth binutils dbus dbus-x11 openbox wmctrl x11-utils \
+            x11-xserver-utils libgl1-mesa-dri libegl1 libglx-mesa0 mesa-utils
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
+          git config --global --add safe.directory '*'
+          {
+            echo "RUSTUP_HOME=$RUNNER_TEMP/pdf-pair-rustup"
+            echo "CARGO_HOME=$RUNNER_TEMP/pdf-pair-cargo"
+            echo 'JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64'
+            echo 'WPE_SDK=/opt/wpe-sdk'
+            echo 'PKG_CONFIG_PATH=/opt/wpe-sdk/lib/pkgconfig'
+            echo 'LD_LIBRARY_PATH=/opt/wpe-sdk/lib'
+            echo 'LIBRARY_PATH=/opt/wpe-sdk/lib'
+            echo 'CC=clang'
+            echo 'CXX=clang++'
+            echo 'CFLAGS=-Wno-error=unknown-warning-option'
+            echo 'CXXFLAGS=-Wno-error=unknown-warning-option'
+            echo 'LIBGL_ALWAYS_SOFTWARE=1'
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7.1.0
+        if: matrix.platform.name == 'macOS'
+        with:
+          # waitid/WNOWAIT is available starting with Python 3.13 on macOS.
+          python-version: '3.15'
+
+      - name: Install the existing pinned Linux WPE runtime
+        if: matrix.platform.name == 'Linux'
+        env:
+          WPE_RUNTIME_SHA256: ca7e706c0ec2f66623fede2c369e3e13339448843e125f2ccd1553f4a3c4bcaf
+        run: |
+          set -euo pipefail
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          asset=wpe-runtime-2.48.7-linux-x86_64.tar.zst
+          base=https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/wpe-2.48.7-print-to-pdf
+          curl -fSL --retry 3 --retry-delay 5 --max-time 300 \
+            -o "$RUNNER_TEMP/$asset" "$base/$asset"
+          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "$RUNNER_TEMP/$asset" | sha256sum -c -
+          tar -C /opt -I zstd -xf "$RUNNER_TEMP/$asset"
+          pkg-config --print-errors --exists \
+            wpe-webkit-2.0 wpe-platform-2.0 wpe-platform-headless-2.0 wpe-1.0
+
+      - name: Verify POSIX contracts and fetch only immutable source revisions
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest tool.perf_probe.test_pdf_pair \
+            tool.perf_probe.test_paired_pdf_case tool.perf_probe.test_posix_engine tool.perf_probe.test_perf_probe_posix -v
+          python3 -B - <<'PY'
+          import json, os, pathlib, re, subprocess
+          baseline, candidate = os.environ['PAIR_BASELINE'], os.environ['PAIR_CANDIDATE']
+          if baseline or candidate:
+              repository = os.environ['GITHUB_REPOSITORY']
+          else:
+              experiment = json.loads(pathlib.Path('tool/perf_probe/pdf_layout_pair.json').read_text())
+              repository, baseline, candidate = (experiment[k] for k in ('repository', 'baseline', 'candidate'))
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+              raise SystemExit('Invalid source repository')
+          for commit in (baseline, candidate):
+              if not re.fullmatch(r'[0-9a-f]{40}', commit):
+                  raise SystemExit('Both sources must be full immutable commit SHAs')
+              subprocess.run(['git', 'fetch', '--no-tags', f'https://github.com/{repository}.git', commit], check=True)
+          PY
+
+      - name: Measure both snapshots in this one POSIX host session
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart tool/perf_probe/prepare_pair_ci_case.dart "$RUNNER_TEMP/pdf-pair-corpus" "$PAIR_PAGES"
+          arguments=(tool/perf_probe/run_pdf_pair.py --output "$RUNNER_TEMP/pdf-pair"
+            --mode "$PAIR_MODE" --cache-state "$PAIR_CACHE" --scenario "$PAIR_SCENARIO"
+            --pdf-case "$RUNNER_TEMP/pdf-pair-corpus/case.json" --launches "$PAIR_LAUNCHES" --repetitions "$PAIR_REPETITIONS"
+            --order "$PAIR_ORDER")
+          if [ -n "$PAIR_BASELINE" ] || [ -n "$PAIR_CANDIDATE" ]; then
+            arguments+=(--baseline "$PAIR_BASELINE" --candidate "$PAIR_CANDIDATE")
+          fi
+          if [ "$RUNNER_OS" = Linux ]; then
+            arguments+=(--display-mode xvfb)
+            mkdir -p "$RUNNER_TEMP/pdf-pair-session/runtime"
+            chmod 700 "$RUNNER_TEMP/pdf-pair-session/runtime"
+            export XDG_RUNTIME_DIR="$RUNNER_TEMP/pdf-pair-session/runtime"
+            export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11
+            xvfb-run --auto-servernum --error-file="$RUNNER_TEMP/pdf-pair-session/xvfb.log" \
+              --server-args='-screen 0 1440x1000x24 -dpi 96 -nolisten tcp' \
+              dbus-run-session -- bash -s -- "${arguments[@]}" <<'SESSION'
+          set -euo pipefail
+          openbox --sm-disable > "$RUNNER_TEMP/pdf-pair-session/openbox.log" 2>&1 &
+          wm=$!
+          trap 'kill "$wm" 2>/dev/null || true; wait "$wm" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..100}; do
+            if wmctrl -m > "$RUNNER_TEMP/pdf-pair-session/window-manager.txt" 2>&1 &&
+               grep -q 'Name: Openbox' "$RUNNER_TEMP/pdf-pair-session/window-manager.txt"; then
+              ready=1
+              break
+            fi
+            kill -0 "$wm"
+            sleep 0.1
+          done
+          test "$ready" = 1
+          xdpyinfo > "$RUNNER_TEMP/pdf-pair-session/display.txt"
+          python3 -B "$@"
+          SESSION
+          else
+            python3 -B "${arguments[@]}"
+          fi
+
+      - name: Locate evidence inside the active runner environment
+        if: always()
+        id: evidence-root
+        run: echo "root=$RUNNER_TEMP" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve raw measurements, engine evidence and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-pair-${{ matrix.platform.name }}-${{ matrix.cache }}-${{ inputs.mode || 'profile' }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/pair.json
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/pdf-case.json
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/logs/*.log
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.json
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.jsonl
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.csv
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.md
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair/results/**/*.log
+            ${{ steps.evidence-root.outputs.root }}/pdf-pair-session/**

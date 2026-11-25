@@ -18,6 +18,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
@@ -258,6 +259,14 @@ class _AppReportDialogState extends State<AppReportDialog> {
           _buildDraftNotice(context, enabled: enabled),
           const SizedBox(height: AppTokens.spaceMD),
         ],
+        AppInfoBanner(
+          message: context.settingsText(
+            'כאן מדווחים על התוכנה ועל הכלים המובנים בה (למשל לוח השנה '
+            'והגימטריה). תוספים הם רכיבים שהותקנו בנפרד ופותחו על ידי '
+            'אחרים — על תקלה בתוסף יש לדווח למפתח התוסף, דרך התוסף עצמו.',
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceMD),
         _fieldLabel(context, FluentIcons.tag_24_regular, 'סוג הדיווח'),
         AppSegmentedControl<AppReportType>(
           options: [

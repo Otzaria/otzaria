@@ -442,7 +442,6 @@ TextBookLoaded _loadedState(
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     currentTitle: currentTitle,
     searchMode: SearchMode.exact,

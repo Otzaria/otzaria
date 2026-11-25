@@ -409,6 +409,8 @@ class PerBookSettings {
 /// הגדרות פר-ספר לספרי טקסט
 class TextBookPerBookSettings {
   final double? fontSize;
+  final double? commentatorsFontSize;
+  final double? lineHeight;
   final bool? commentatorsBelow; // true = מתחת, false = בצד
   final bool? removeNikud;
   final bool? removePunctuation;
@@ -427,6 +429,10 @@ class TextBookPerBookSettings {
   /// שבחירת המשתמש תיטען בכל פתיחה. רשימה ריקה = המשתמש ביטל את כל הבחירה.
   final List<String>? activeCommentators;
 
+  /// בחירת המפרשים האחרונה בכרטיסיית מפרשים של ספר זה, נפרדת מ-
+  /// [activeCommentators] של החלונית הצדדית. כרטיסיית מפרשים חדשה נפתחת ממנה.
+  final List<String>? commentatorsTabSelection;
+
   // רוחב/גודל הטורים בצורת הדף (נשמר רק אם המשתמש שינה אותם בתצוגה זו)
   final double? pageShapeLeftWidth; // רוחב טור המפרש השמאלי
   final double? pageShapeRightWidth; // רוחב טור המפרש הימני
@@ -435,6 +441,8 @@ class TextBookPerBookSettings {
 
   TextBookPerBookSettings({
     this.fontSize,
+    this.commentatorsFontSize,
+    this.lineHeight,
     this.commentatorsBelow,
     this.removeNikud,
     this.removePunctuation,
@@ -442,6 +450,7 @@ class TextBookPerBookSettings {
     this.displayLayer,
     this.continuousReadingMode,
     this.activeCommentators,
+    this.commentatorsTabSelection,
     this.pageShapeLeftWidth,
     this.pageShapeRightWidth,
     this.pageShapeBottomHeight,
@@ -450,6 +459,9 @@ class TextBookPerBookSettings {
 
   Map<String, dynamic> toJson() => {
     if (fontSize != null) 'fontSize': fontSize,
+    if (commentatorsFontSize != null)
+      'commentatorsFontSize': commentatorsFontSize,
+    if (lineHeight != null) 'lineHeight': lineHeight,
     if (commentatorsBelow != null) 'commentatorsBelow': commentatorsBelow,
     if (removeNikud != null) 'removeNikud': removeNikud,
     if (removePunctuation != null) 'removePunctuation': removePunctuation,
@@ -459,6 +471,8 @@ class TextBookPerBookSettings {
     if (continuousReadingMode != null)
       'continuousReadingMode': continuousReadingMode,
     if (activeCommentators != null) 'activeCommentators': activeCommentators,
+    if (commentatorsTabSelection != null)
+      'commentatorsTabSelection': commentatorsTabSelection,
     if (pageShapeLeftWidth != null) 'pageShapeLeftWidth': pageShapeLeftWidth,
     if (pageShapeRightWidth != null) 'pageShapeRightWidth': pageShapeRightWidth,
     if (pageShapeBottomHeight != null)
@@ -470,6 +484,8 @@ class TextBookPerBookSettings {
   factory TextBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return TextBookPerBookSettings(
       fontSize: json['fontSize'] as double?,
+      commentatorsFontSize: (json['commentatorsFontSize'] as num?)?.toDouble(),
+      lineHeight: (json['lineHeight'] as num?)?.toDouble(),
       commentatorsBelow: json['commentatorsBelow'] as bool?,
       removeNikud: json['removeNikud'] as bool?,
       removePunctuation: json['removePunctuation'] as bool?,
@@ -482,6 +498,8 @@ class TextBookPerBookSettings {
       continuousReadingMode: json['continuousReadingMode'] as bool?,
       activeCommentators: (json['activeCommentators'] as List<dynamic>?)
           ?.cast<String>(),
+      commentatorsTabSelection:
+          (json['commentatorsTabSelection'] as List<dynamic>?)?.cast<String>(),
       pageShapeLeftWidth: (json['pageShapeLeftWidth'] as num?)?.toDouble(),
       pageShapeRightWidth: (json['pageShapeRightWidth'] as num?)?.toDouble(),
       pageShapeBottomHeight: (json['pageShapeBottomHeight'] as num?)
@@ -501,13 +519,17 @@ class TextBookPerBookSettings {
 
   TextBookPerBookSettings copyWith({
     double? fontSize,
+    double? commentatorsFontSize,
+    double? lineHeight,
     bool? commentatorsBelow,
     bool? removeNikud,
     bool? removePunctuation,
     TextDisplayLayer? displayLayer,
     bool? continuousReadingMode,
     List<String>? activeCommentators,
+    List<String>? commentatorsTabSelection,
     bool clearActiveCommentators = false,
+    bool clearCommentatorsTabSelection = false,
     double? pageShapeLeftWidth,
     double? pageShapeRightWidth,
     double? pageShapeBottomHeight,
@@ -515,6 +537,8 @@ class TextBookPerBookSettings {
   }) {
     return TextBookPerBookSettings(
       fontSize: fontSize ?? this.fontSize,
+      commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
+      lineHeight: lineHeight ?? this.lineHeight,
       commentatorsBelow: commentatorsBelow ?? this.commentatorsBelow,
       removeNikud: removeNikud ?? this.removeNikud,
       removePunctuation: removePunctuation ?? this.removePunctuation,
@@ -525,6 +549,9 @@ class TextBookPerBookSettings {
       activeCommentators: clearActiveCommentators
           ? null
           : activeCommentators ?? this.activeCommentators,
+      commentatorsTabSelection: clearCommentatorsTabSelection
+          ? null
+          : commentatorsTabSelection ?? this.commentatorsTabSelection,
       pageShapeLeftWidth: pageShapeLeftWidth ?? this.pageShapeLeftWidth,
       pageShapeRightWidth: pageShapeRightWidth ?? this.pageShapeRightWidth,
       pageShapeBottomHeight:
@@ -563,11 +590,38 @@ class TextBookPerBookSettings {
     });
   }
 
-  /// ניקוי בחירת המפרשים הפר-ספרית בלבד (שאר ההגדרות נשמרות). משמש אחרי
-  /// קביעת מפרשים לקטגוריה, כדי שהקביעה תחול גם על הספר הנוכחי.
-  static Future<void> clearActiveCommentators(Book book) => mutate(
+  /// שומר את בחירת המפרשים של כרטיסיית מפרשים לספר (issue #5810).
+  static Future<void> saveCommentatorsTabSelection(
+    Book book,
+    List<String> commentators,
+  ) => mutate(
     book,
-    (existing) => existing?.copyWith(clearActiveCommentators: true),
+    (existing) => (existing ?? TextBookPerBookSettings()).copyWith(
+      commentatorsTabSelection: List<String>.from(commentators),
+    ),
+  );
+
+  /// מחיל את ברירת המחדל לקטגוריה על החלונית אם הבחירה עודנה אותה בחירה.
+  static Future<void> clearActiveCommentators(
+    Book book, {
+    List<String>? expected,
+  }) => mutate(
+    book,
+    (existing) =>
+        expected == null || listEquals(existing?.activeCommentators, expected)
+        ? existing?.copyWith(clearActiveCommentators: true)
+        : existing,
+  );
+
+  /// מחיל ברירת מחדל לכרטיסייה בלי לדרוס בחירה ששונתה בזמן השמירה.
+  static Future<void> clearCommentatorsTabSelection(
+    Book book,
+    List<String> expected,
+  ) => mutate(
+    book,
+    (existing) => listEquals(existing?.commentatorsTabSelection, expected)
+        ? existing?.copyWith(clearCommentatorsTabSelection: true)
+        : existing,
   );
 
   /// טעינת הגדרות
@@ -609,22 +663,27 @@ extension PdfLayoutModeX on PdfLayoutMode {
 class PdfBookPerBookSettings {
   final double? zoom;
   final List<String>? activeCommentators;
+  final List<String>? commentatorsTabSelection;
   final PdfLayoutMode? layoutMode;
 
   PdfBookPerBookSettings({
     this.zoom,
     this.activeCommentators,
+    this.commentatorsTabSelection,
     this.layoutMode,
   });
 
   PdfBookPerBookSettings copyWith({
     double? zoom,
     List<String>? activeCommentators,
+    List<String>? commentatorsTabSelection,
     PdfLayoutMode? layoutMode,
   }) {
     return PdfBookPerBookSettings(
       zoom: zoom ?? this.zoom,
       activeCommentators: activeCommentators ?? this.activeCommentators,
+      commentatorsTabSelection:
+          commentatorsTabSelection ?? this.commentatorsTabSelection,
       layoutMode: layoutMode ?? this.layoutMode,
     );
   }
@@ -638,6 +697,7 @@ class PdfBookPerBookSettings {
     if (zoom != null) 'zoom': zoom,
     if (zoom != null) 'zoomLayoutVersion': _zoomLayoutVersion,
     if (activeCommentators != null) 'activeCommentators': activeCommentators,
+    'commentatorsTabSelection': ?commentatorsTabSelection,
     if (layoutMode != null) 'layoutMode': layoutMode!.name,
   };
 
@@ -661,6 +721,8 @@ class PdfBookPerBookSettings {
           : rawZoom,
       activeCommentators: (json['activeCommentators'] as List<dynamic>?)
           ?.cast<String>(),
+      commentatorsTabSelection:
+          (json['commentatorsTabSelection'] as List<dynamic>?)?.cast<String>(),
       layoutMode: layoutMode,
     );
   }
@@ -678,6 +740,7 @@ class PdfBookPerBookSettings {
           existingSettings?.copyWith(
             zoom: zoom,
             activeCommentators: activeCommentators,
+            commentatorsTabSelection: commentatorsTabSelection,
             layoutMode: layoutMode,
           ) ??
           this;
@@ -688,16 +751,40 @@ class PdfBookPerBookSettings {
 
   /// ניקוי בחירת המפרשים הפר-ספרית בלבד (זום ופריסה נשמרים). משמש אחרי
   /// קביעת מפרשים לקטגוריה, כדי שהקביעה תחול גם על הספר הנוכחי.
-  static Future<void> clearActiveCommentators(Book book) async {
+  static Future<void> clearActiveCommentators(
+    Book book, {
+    List<String>? expected,
+  }) => _clearSelection(book, expected: expected, tab: false);
+
+  static Future<void> clearCommentatorsTabSelection(
+    Book book,
+    List<String> expected,
+  ) => _clearSelection(book, expected: expected, tab: true);
+
+  static Future<void> _clearSelection(
+    Book book, {
+    required List<String>? expected,
+    required bool tab,
+  }) async {
     final key = PerBookSettings.bookKey(book);
     await PerBookSettings.runLockedForKey(key, () async {
       await PerBookSettings._migrateLegacyFile(key, book.title);
       final json = await PerBookSettings.loadSettings(key);
       if (json == null) return;
       final existing = PdfBookPerBookSettings.fromJson(json);
-      if (existing.activeCommentators == null) return;
+      final current = tab
+          ? existing.commentatorsTabSelection
+          : existing.activeCommentators;
+      if (current == null ||
+          (expected != null && !listEquals(current, expected))) {
+        return;
+      }
       final updated = PdfBookPerBookSettings(
         zoom: existing.zoom,
+        activeCommentators: tab ? existing.activeCommentators : null,
+        commentatorsTabSelection: tab
+            ? null
+            : existing.commentatorsTabSelection,
         layoutMode: existing.layoutMode,
       );
       if (updated.toJson().isEmpty) {

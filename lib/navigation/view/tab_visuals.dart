@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/search/bloc/search_bloc.dart';
+import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -15,6 +18,7 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// אייקון הראש של כרטיסיות שתוכנן מזוהה בו — תוצאות חיפוש ומסמכי Word,
@@ -55,6 +59,9 @@ Widget? buildTabTypeIcon(
   Color? color,
 }) {
   final resolved = color ?? Theme.of(context).colorScheme.onSurface;
+  if (tab is SearchingTab) {
+    return SearchTabLeading(tab: tab, size: size, color: resolved);
+  }
   final contentIcon = tabContentIconData(tab);
   if (contentIcon != null) {
     return Icon(contentIcon, size: size, color: resolved);
@@ -81,6 +88,58 @@ Widget? buildTabTypeIcon(
     );
   }
   return null;
+}
+
+/// אייקון הראש של כרטיסיית חיפוש, וספינר במקומו כל עוד החיפוש רץ — כך
+/// רואים מכרטיסיה אחרת אם החיפוש הסתיים (#5766).
+///
+/// ⚠️ כרטיסיית חיפוש חכם יוצרת את ה-BLoC שלה רק בהצגה הראשונה, ולכן לא
+/// נוצר כאן; מאזינים ליצירתו.
+class SearchTabLeading extends StatelessWidget {
+  final SearchingTab tab;
+  final double size;
+  final Color color;
+
+  const SearchTabLeading({
+    super.key,
+    required this.tab,
+    required this.size,
+    required this.color,
+  });
+
+  Widget _build(bool running) => running
+      ? Tooltip(
+          message: 'מחפש…',
+          child: LoadingIndicator(
+            size: size,
+            strokeWidth: LoadingIndicator.inlineStrokeWidth,
+            color: color,
+          ),
+        )
+      : Icon(OtzariaIcons.search_24_regular, size: size, color: color);
+
+  @override
+  Widget build(BuildContext context) {
+    final tab = this.tab;
+    if (tab is SemanticSearchTab) {
+      return ValueListenableBuilder<SemanticResultsBloc?>(
+        valueListenable: tab.createdResultsBlocListenable,
+        builder: (context, bloc, _) => bloc == null
+            ? _build(false)
+            : BlocSelector<SemanticResultsBloc, SemanticResultsState, bool>(
+                bloc: bloc,
+                selector: (state) =>
+                    state.status == SemanticResultsStatus.loading,
+                builder: (context, running) => _build(running),
+              ),
+      );
+    }
+    return BlocSelector<SearchBloc, SearchState, bool>(
+      bloc: tab.searchBloc,
+      selector: (state) => state.isLoading || state.isCounting,
+      builder: (context, running) => _build(running),
+    );
+  }
 }
 
 /// אותו אייקון כ-[buildTabTypeIcon], כ-[IconData] ולא כווידג'ט.

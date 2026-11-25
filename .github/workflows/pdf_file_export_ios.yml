@@ -1,0 +1,86 @@
+name: PDF file export (iOS UIKit and Files)
+
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'lib/utils/file/mobile_pdf_export_*.dart'
+      - 'integration_test/pdf_file_export_ios_app.dart'
+      - 'tool/pdf_file_export/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/pdf_file_export_ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-file-export-ios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  contracts:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: python3 -m unittest discover -s tool/pdf_file_export -p 'test_*.py' -v
+
+  ios-export:
+    name: Real UIKit lifecycle and Files / iOS Simulator
+    needs: [gate, contracts]
+    if: needs.gate.outputs.run == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      CI: 'true'
+      BOT: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Build Runner and execute all native and real Files tests
+        timeout-minutes: 80
+        run: >-
+          python3 tool/pdf_file_export/ios_export_runner.py
+          --root "$RUNNER_TEMP/pdf-file-export-ios"
+          --source "$GITHUB_WORKSPACE"
+          --commit "$GITHUB_SHA"
+      - name: Cleanup only the owned Simulator if the runner was interrupted
+        if: always()
+        run: >-
+          python3 tool/pdf_file_export/ios_export_runner.py
+          --root "$RUNNER_TEMP/pdf-file-export-ios" --cleanup-only
+      - name: Preserve raw XCTest, source, SDK and Files evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-file-export-ios
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/pdf-file-export-ios/*.json
+            ${{ runner.temp }}/pdf-file-export-ios/*.txt
+            ${{ runner.temp }}/pdf-file-export-ios/*.diff
+            ${{ runner.temp }}/pdf-file-export-ios/*.log
+            ${{ runner.temp }}/pdf-file-export-ios/probe/
+            ${{ runner.temp }}/pdf-file-export-ios/native.xcresult/

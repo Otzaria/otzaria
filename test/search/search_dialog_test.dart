@@ -1736,6 +1736,213 @@ Future<void> main() async {
     expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
   });
 
+  group(
+    'קביעת מצב ברירת מחדל שומרת גם את האפשרויות הנוכחיות (issue #5185)',
+    () {
+      late SearchingTab tab;
+
+      Future<void> pumpWithTab(WidgetTester tester, SearchMode mode) async {
+        final historyBloc = MockHistoryBloc();
+        final indexingBloc = MockIndexingBloc();
+        final navigationBloc = MockNavigationBloc();
+        whenListen(
+          historyBloc,
+          const Stream<HistoryState>.empty(),
+          initialState: HistoryLoaded([]),
+        );
+        whenListen(
+          indexingBloc,
+          const Stream<IndexingState>.empty(),
+          initialState: IndexingInitial(),
+        );
+        whenListen(
+          navigationBloc,
+          const Stream<NavigationState>.empty(),
+          initialState: const NavigationState(currentScreen: Screen.search),
+        );
+        tab = SearchingTab.newSearch('חיפוש', '', mode: mode);
+        addTearDown(() async {
+          await tester.binding.setSurfaceSize(null);
+          // השמירה מעדכנת גם את הסשן — בלי איפוס היא מזליגה לטסטים הבאים.
+          SearchDefaults.rememberSessionMode(SearchMode.exact);
+          SearchDefaults.rememberSessionExactOptions(const {});
+          SearchDefaults.rememberSessionOptions(const {});
+          SearchDefaults.rememberSessionDistance(0, SearchMode.exact);
+          SearchDefaults.rememberSessionDistance(0, SearchMode.advanced);
+          SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
+          SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
+          SearchDefaults.rememberSessionAnyOrder(false);
+          SearchDefaults.rememberSessionMatchPolicy(SearchMatchPolicy.standard);
+          tab.dispose();
+          await historyBloc.close();
+          await indexingBloc.close();
+          await navigationBloc.close();
+        });
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.pumpWidget(
+          _buildDialogHarness(
+            theme: ThemeData(useMaterial3: true),
+            historyBloc: historyBloc,
+            indexingBloc: indexingBloc,
+            navigationBloc: navigationBloc,
+            dialog: SearchDialog(existingTab: tab),
+          ),
+        );
+        await tester.pumpAndSettle();
+        // מה שהמשתמש סימן בחלונית: קידומות וסיומות, מרווח 5, בכל סדר.
+        tab.globalSearchOptions
+          ..clear()
+          ..addAll({'קידומות דקדוקיות': true, 'סיומות דקדוקיות': true});
+        tab.searchBloc
+          ..add(UpdateDistanceWithoutSearch(5))
+          ..add(UpdateWordOrderWithoutSearch(true));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> openDefaultMode(WidgetTester tester) async {
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-defaults-menu')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-default-mode')),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      final includeOptions = find.text('כולל האפשרויות הנוכחיות');
+
+      testWidgets('חיפוש רגיל: אישור שומר את המצב, האפשרויות, המרווח והסדר', (
+        tester,
+      ) async {
+        await pumpWithTab(tester, SearchMode.exact);
+        await openDefaultMode(tester);
+        expect(includeOptions, findsOneWidget);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
+        expect(SearchDefaults.loadExactDefaults(), {
+          'קידומות דקדוקיות': true,
+          'סיומות דקדוקיות': true,
+        });
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 5);
+        expect(SearchDefaults.loadAnyOrderDefault(), isTrue);
+      });
+
+      testWidgets('חיפוש מתקדם: נשמר גם טווח הקרבה', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        tab.searchBloc.add(
+          UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+        );
+        await tester.pumpAndSettle();
+        await openDefaultMode(tester);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
+        expect(SearchDefaults.loadDefaults(), {
+          'קידומות דקדוקיות': true,
+          'סיומות דקדוקיות': true,
+        });
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 5);
+        expect(
+          SearchDefaults.loadMatchPolicyDefault().proximityScope,
+          SearchScope.sameParagraph,
+        );
+      });
+
+      testWidgets('מתקדם פר-מילה: ברירת המחדל של האפשרויות אינה נדרסת', (
+        tester,
+      ) async {
+        SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+        await pumpWithTab(tester, SearchMode.advanced);
+        // "זהה לכל המילים" כבוי (כמו אחרי שחזור מההיסטוריה): המפה הגלובלית
+        // אינה מה שמוצג בחלונית.
+        tab.useGlobalSearchOptions.value = false;
+        tab.globalSearchOptions.clear();
+        await openDefaultMode(tester);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadDefaults(), {'קידומות דקדוקיות': true});
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 5);
+      });
+
+      testWidgets(
+        'מתקדם פר-מילה: האישור אינו מבטיח את האפשרויות שאינן נשמרות',
+        (
+          tester,
+        ) async {
+          SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+          await pumpWithTab(tester, SearchMode.advanced);
+          tab.useGlobalSearchOptions.value = false;
+          tab.globalSearchOptions.clear();
+          tab.searchBloc.add(
+            UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+          );
+          await tester.pumpAndSettle();
+          await openDefaultMode(tester);
+
+          expect(includeOptions, findsNothing);
+          expect(find.text('כולל המרווח וסדר המילים הנוכחיים'), findsOneWidget);
+          await tester.tap(find.text('קבע כברירת מחדל'));
+          await tester.pumpAndSettle();
+
+          // חיפוש חדש: האפשרויות הן ברירת המחדל הקודמת, המרווח והסדר מהחלונית.
+          final next = SearchingTab.newSearch('חיפוש', '');
+          addTearDown(next.dispose);
+          expect(
+            next.searchBloc.state.configuration.searchMode,
+            SearchMode.advanced,
+          );
+          expect(next.globalSearchOptions, {'קידומות דקדוקיות': true});
+          expect(next.searchBloc.state.distance, 5);
+          expect(next.searchBloc.state.anyOrder, isTrue);
+          expect(
+            next.searchBloc.state.configuration.matchPolicy.proximityScope,
+            SearchScope.wordDistance,
+          );
+        },
+      );
+
+      testWidgets('בלי הסימון נשמר המצב בלבד', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        await openDefaultMode(tester);
+        await tester.tap(includeOptions);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
+        expect(SearchDefaults.loadDefaults(), isEmpty);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 0);
+        expect(SearchDefaults.loadAnyOrderDefault(), isFalse);
+      });
+
+      testWidgets('ביטול אינו שומר דבר', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        await openDefaultMode(tester);
+        await tester.tap(find.text('ביטול'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
+        expect(SearchDefaults.loadDefaults(), isEmpty);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 0);
+      });
+
+      testWidgets('במקורב אין אפשרויות מילה — אין סימון', (tester) async {
+        await pumpWithTab(tester, SearchMode.fuzzy);
+        await openDefaultMode(tester);
+        expect(includeOptions, findsNothing);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+        expect(SearchDefaults.loadModeDefault(), SearchMode.fuzzy);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 0);
+      });
+    },
+  );
+
   testWidgets('תפריט ברירות המחדל של המתקדם שומר ומחזיר את המרווח (#2360)', (
     WidgetTester tester,
   ) async {
@@ -1759,15 +1966,15 @@ Future<void> main() async {
     );
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       SearchDefaults.rememberSessionMode(SearchMode.exact);
       await historyBloc.close();
       await indexingBloc.close();
       await navigationBloc.close();
     });
 
-    SearchDefaults.saveDistanceDefault(2);
-    SearchDefaults.rememberSessionDistance(4);
+    SearchDefaults.saveDistanceDefault(2, mode: SearchMode.advanced);
+    SearchDefaults.rememberSessionDistance(4, SearchMode.advanced);
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     await tester.pumpWidget(
       _buildDialogHarness(
@@ -1798,11 +2005,136 @@ Future<void> main() async {
     final saveDistance = find.text('קבע את המרווח הנוכחי (2) כברירת מחדל');
     expect(saveDistance, findsOneWidget);
 
-    Settings.setValue<int>('key-search-default-distance', 5);
+    Settings.setValue<int>('key-search-default-distance-advanced', 5);
     await tester.tap(saveDistance);
     await tester.pumpAndSettle();
-    expect(SearchDefaults.loadDistanceDefault(), 2);
+    expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 2);
   });
+
+  testWidgets(
+    'מרווח ברירת מחדל נפרד לחיפוש הרגיל ולמתקדם, גם במעבר מצב (issue #5758)',
+    (WidgetTester tester) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+      Settings.setValue<int>('key-search-default-distance', 0);
+      SearchDefaults.rememberSessionMode(SearchMode.exact);
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        // סגירת הדיאלוג שומרת לסשן — מאפסים אחריה כדי לא להזליג לטסטים הבאים.
+        await tester.pumpWidget(const SizedBox());
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
+        SearchDefaults.rememberSessionMode(SearchMode.exact);
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+      });
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: const SearchDialog(initialSearchMode: SearchMode.advanced),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final bloc = BlocProvider.of<SearchBloc>(
+        tester.element(find.text('מדויק')),
+        listen: false,
+      );
+
+      Future<void> saveDistance(String submenu, int distance) async {
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-defaults-menu')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(submenu));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text('קבע את המרווח הנוכחי ($distance) כברירת מחדל'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tapAt(Offset.zero);
+        await tester.pumpAndSettle();
+      }
+
+      // מתקדם: מרווח 3 נשמר כברירת מחדל.
+      bloc.add(UpdateDistanceWithoutSearch(3));
+      await tester.pumpAndSettle();
+      await saveDistance('קביעת ברירת מחדל לחיפוש מתקדם', 3);
+
+      // מעבר לרגיל טוען את המרווח שלו, ולא גורר את המרווח של המתקדם.
+      await tester.tap(find.text('מדויק'));
+      await tester.pumpAndSettle();
+      expect(bloc.state.distance, 0);
+      await saveDistance('קביעת ברירת מחדל לחיפוש רגיל', 0);
+
+      // וחזרה למתקדם מחזירה את המרווח שלו.
+      await tester.tap(find.text('מתקדם'));
+      await tester.pumpAndSettle();
+      expect(bloc.state.distance, 3);
+
+      // חיפוש חדש בכל מצב נפתח עם ברירת המחדל שלו.
+      final advanced = SearchingTab.newSearch(
+        'חיפוש',
+        '',
+        mode: SearchMode.advanced,
+      );
+      final exact = SearchingTab.newSearch(
+        'חיפוש',
+        'בראשית',
+        mode: SearchMode.exact,
+      );
+      addTearDown(advanced.dispose);
+      addTearDown(exact.dispose);
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+      expect(advanced.searchBloc.state.distance, 3);
+      expect(exact.searchBloc.state.distance, 0);
+
+      // חיפוש מהספרייה או מאיתור נפתח עם טאב זמני שנושא את השאילתה.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: SearchDialog(existingTab: exact),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('מתקדם'));
+      await tester.pumpAndSettle();
+      expect(exact.searchBloc.state.distance, 3);
+
+      exact.searchBloc.add(UpdateDistanceWithoutSearch(4));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      expect(
+        SearchDefaults.initialDistanceForNewSearch(SearchMode.advanced),
+        4,
+      );
+      expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 3);
+    },
+  );
 
   testWidgets('חיפוש רגיל מציג רק קידומות/סיומות דקדוקיות', (
     WidgetTester tester,

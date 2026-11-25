@@ -20,6 +20,8 @@ class ThumbnailsView extends StatefulWidget {
   });
 
   final PdfDocumentRef? documentRef;
+
+  /// כשיש בקר, המציג שלו אחראי לטעינת המטא־דאטה של המסמך.
   final PdfViewerController? controller;
 
   /// ניווט של המסך (שומר זום ונעילת זוגות); בלעדיו goToPage מאפס את הזום.
@@ -154,9 +156,27 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
   Widget build(BuildContext context) {
     super.build(context);
     if (widget.documentRef == null) return const SizedBox.shrink();
-    return PdfDocumentViewBuilder(
-      documentRef: widget.documentRef!,
-      builder: (context, document) => NotificationListener<ScrollNotification>(
+    if (widget.controller == null) {
+      return PdfDocumentViewBuilder(
+        documentRef: widget.documentRef!,
+        builder: _buildThumbnails,
+      );
+    }
+    final listenable = widget.documentRef!.resolveListenable();
+    return ListenableBuilder(
+      listenable: listenable,
+      builder: (context, _) {
+        final document = listenable.document;
+        return StreamBuilder<PdfDocumentEvent>(
+          stream: document?.events,
+          builder: (context, _) => _buildThumbnails(context, document),
+        );
+      },
+    );
+  }
+
+  Widget _buildThumbnails(BuildContext context, PdfDocument? document) =>
+      NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification is ScrollStartNotification &&
               notification.dragDetails != null) {
@@ -221,9 +241,7 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
             );
           },
         ),
-      ),
-    );
-  }
+      );
 }
 
 /// עמוד שנמדד מחדש הוא אובייקט [PdfPage] חדש, ולכן תמונה ישנה לא תוחזר עבורו.

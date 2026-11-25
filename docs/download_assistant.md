@@ -287,6 +287,41 @@ ComponentSpec(
 סוג חדש אחר אינו דורש שינוי בצרכן — הבדיקה `a future component type round-trips
 with no consumer change` שומרת על כך; הוא נכנס להצעות המלאות רק כשהוא ב-`kOfflineDataTypes`.
 
+## מחברי זמננו — "הורד גם את מחברי זמננו"
+
+מסד ספרים רשמי נוסף, שאינו במניפסט של אוצריא: המקור הוא ה-release האחרון של
+`Otzaria/zmanenu-library`. ההגדרה המדויקת היא החלק "מחברי זמננו" ב-
+`tool/release/download_assistant_selection.dart`, וקובצי הייחוס הם `zmanenu-*.json` ו-
+`expected-zmanenu.json` (קובץ שלם, חלקים, חלקים בלי API, קובץ שלם בלי sha256 עם API ובלעדיו,
+ושני מצבים בלי הצעה).
+
+* **מקור ואימות.** `releases/latest` של ה-API. `zmanenu-offline.tar.zst` שלם מוצע רק עם
+  `digest` (`sha256:<hex>`) של הנכס; אחרת חלקים `zmanenu-offline.tar.zst.part-NNN` לפי
+  `zmanenu-offline.tar.zst.manifest.json` (הצורה של `split_release_asset.sh`), וכל חלק חייב
+  להיות נכס באותו גודל. כשה-API אינו עונה (403/429) — מניפסט החלקים מ-
+  `releases/latest/download/`, כמו הנסיגה של הספרייה. כשאין מניפסט חלקים, הקובץ השלם מוצע
+  **בלי sha256**: מה-API בגודל שלו, ובלי API מ-`releases/latest/download/` בגודל לא ידוע
+  (0, ואין בקשת HEAD). קובץ כזה אינו נלקח מהמטמון, אינו ממשיך הורדה חלקית ואינו נבדק מול
+  hash; גודל לא ידוע נלקח מ-Content-Length או ממה שירד. זה בטוח, כי האפליקציה מאמתת חתימה
+  ו-sha256 בכל ייבוא. ה-API מחזיר 404 (אין מאגר או אין release) — האפשרות אינה מוצגת,
+  והמסייע ממשיך כרגיל. המסייע אינו פורס ואינו בודק את החתימה: האפליקציה עושה זאת בייבוא.
+* **ממשק.** תיבת סימון בעמוד ההצעות, **לא מסומנת**, עם גודל ההורדה, רק ביעד Windows, macOS
+  או Linux (ב-Android בחירת התיקייה עוברת דרך SAF ואינה מוסרת נתיב). ב-Inno היא שורת
+  `AddCheckBox` אחרי כפתורי הרדיו של `PresetPage`.
+* **למחשב הזה** — לתיקיית האיסוף `<data root>/מסדים אישיים/להתקנה/`
+  (`kZmanenuDropFolder`): Windows `%APPDATA%\otzaria` (וכשהמסייע יושב ליד
+  `portable.marker` — `otzaria_data` שלידו), macOS `~/Library/Application Support/otzaria`,
+  Linux `$HOME/.local/share/otzaria`. האפליקציה מתקינה משם אחרי reveal. ב-Linux עם פורמט
+  `portable` תיקיית הנתונים יושבת ליד התוכנה במקום שהמסייע אינו מכיר, ולכן הקבצים נשמרים
+  כמו "למחשב אחר".
+* **למחשב אחר** — לצד קובצי הבחירה באותה תיקייה, ולכן הם נספרים בכלל "יותר מקובץ אחד →
+  תת-תיקייה" (`plannedOutputFilesWithZmanenu`). בהגדרת הספרייה מתיקייה האפליקציה מתקינה
+  אותם אחרי הספרייה. ב-Windows המתקינים (`otzaria.iss`, `otzaria_full.iss`) מעתיקים
+  `zmanenu-offline.tar.zst*` שלידם לתיקיית האיסוף (`GetOfficialDropDir`, גם בהתקנה ניידת).
+* **כתיבה.** כל הקבצים נכתבים קודם בשם זמני (`<שם>.tmp`), ואז משנים שם בזה אחר זה,
+  ומניפסט החלקים אחרון: גם בלי מניפסט האפליקציה מקבלת חלקים מהתיקייה. כשל או ביטול מוחקים
+  את קובצי ה-`.tmp`.
+
 ## חוזה משותף לכל המסייעים (Windows, macOS, Linux)
 
 שלושה מימושים, חוזה אחד: `installer/download_assistant.iss` (Inno),

@@ -69,8 +69,12 @@ class PluginBookIdentity {
   /// מזהה ספר משותף לחיפוש ולתוספים, יציב בין עדכוני ספרייה והעברתה.
   static String uidOf(Book book) => BookIdentity.keyOf(book);
 
+  /// `bookId` שבחוזה התוספים: בספר חיצוני שם הספר בקטלוג, בלי הכרך.
+  static String bookIdOf(Book book) =>
+      book is ExternalLibraryBook ? book.catalogTitle : book.title;
+
   static PluginBookIdentityKey keyOf(Book book) => (
-    bookId: book.title,
+    bookId: bookIdOf(book),
     id: book.id,
     type: typeOf(book),
     source: sourceOf(book),
@@ -95,7 +99,7 @@ class PluginBookIdentity {
   static Map<String, dynamic> toJson(Book book) => {
     'id': book.id,
     'type': typeOf(book),
-    'bookId': book.title,
+    'bookId': bookIdOf(book),
     'source': sourceOf(book),
     if (externalOf(book) case final external?)
       'external': {'provider': external.provider, 'id': external.id},
@@ -120,7 +124,7 @@ class PluginBookIdentity {
       return uidOf(book) == bookUid.trim();
     }
     if (id != null && book.id != id) return false;
-    if (bookId != null && book.title != bookId) return false;
+    if (bookId != null && bookIdOf(book) != bookId) return false;
     if (type != null && typeOf(book) != type.trim().toLowerCase()) {
       return false;
     }

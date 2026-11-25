@@ -12,12 +12,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:otzaria/app.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/diagnostics/process_tree_sampler.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/startup_timeline.dart';
-import 'package:otzaria/main.dart' as app;
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -45,11 +43,14 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../tool/perf_probe/src/installed_pdf_runtime_contract.dart';
 import '../tool/perf_probe/src/installed_plugin_contract.dart';
 import 'support/installed_plugin_android_control.dart';
 import 'support/installed_plugin_catalog.dart';
 import 'support/installed_plugin_completion.dart';
 import 'support/installed_plugin_fixture.dart';
+import 'support/installed_plugin_pdf_runtime.dart';
+import 'support/installed_plugin_app.dart';
 import 'support/perf_recorder.dart';
 import 'support/webview_probe_metrics.dart';
 import 'support/webview_probe_window.dart';
@@ -91,7 +92,7 @@ void main() {
     ),
     'physicalDeviceAcceptance': false,
     'acceptanceScope':
-        'Controlled installed-plugin integration; no resource-saving threshold or default-policy tuning.',
+        'Controlled installed-plugin integration and PDF runtime; no resource-saving threshold or default-policy tuning.',
     'cacheState':
         'fresh isolated app data; OS, engine and filesystem caches are not cleared',
     'platformMatrix': <String, Object?>{
@@ -120,6 +121,11 @@ void main() {
     'boundaries': <Map<String, Object?>>[],
     'errors': <String>[],
     'policyRestored': false,
+    'pdfRuntime': <String, Object?>{
+      'status': 'notRun',
+      'reason':
+          'PDF runtime is enabled only on supported installed-app scenarios.',
+    },
   };
   binding.reportData = {'installedPluginProbe': report};
   File? reportFile;
@@ -392,17 +398,9 @@ void main() {
       );
       captureErrors();
       await active.phase('startup', () async {
-        app.main(const []);
-        await active.wait(
-          () {
-            captureErrors();
-            return find.byType(App).evaluate().isNotEmpty &&
-                StartupTimeline.instance.toJson()['revealMs'] != null;
-          },
-          'actual app first content',
-          timeout: const Duration(minutes: 3),
+        active.attach(
+          await startInstalledProbeApp(tester, onPoll: captureErrors),
         );
-        active.attach(tester.element(find.byType(App)));
         report['startupTimeline'] = StartupTimeline.instance.toJson();
         report['window'] = await prepareWebViewProbeWindow(
           platform: Platform.operatingSystem,
@@ -438,6 +436,17 @@ void main() {
             'Production lifecycle, discard and background timers are not disabled.',
       };
       await active.run();
+      if (installedPluginPdfRuntimePlatforms.contains(
+        Platform.operatingSystem,
+      )) {
+        await runInstalledPdfRuntime(
+          tester: tester,
+          context: active.context,
+          output: output,
+          report: report['pdfRuntime']! as Map<String, Object?>,
+          checkpoint: active.checkpoint,
+        );
+      }
       final errorsAfter = await errorsFile.exists()
           ? await errorsFile.readAsString()
           : '';
@@ -499,7 +508,7 @@ void main() {
     );
     expect(contractErrors, isEmpty);
     expect(errors, isEmpty);
-  }, timeout: const Timeout(Duration(minutes: 18)));
+  }, timeout: const Timeout(Duration(minutes: 20)));
 }
 
 class _Scenario {

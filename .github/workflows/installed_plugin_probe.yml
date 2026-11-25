@@ -10,14 +10,25 @@ on:
       - 'integration_test/support/webview_probe_window.dart'
       - 'test_driver/installed_plugin_resource_probe.dart'
       - 'test/tool/perf_probe/installed_plugin_probe_test.dart'
+      - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
+      - 'test/tool/perf_probe/fixtures/installed_pdf_*.json'
       - 'test/tool/perf_probe/installed_plugin_completion_test.dart'
       - 'test/tool/perf_probe/perf_fixture_startup_settings_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_runtime_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_desktop_contract.dart'
+      - 'tool/perf_probe/installed_pdf_*.py'
+      - 'tool/perf_probe/test_installed_pdf_desktop.py'
+      - 'tool/perf_probe/test_installed_pdf_architecture.py'
+      - 'lib/pdf_book/**'
+      - 'lib/indexing/**'
+      - 'lib/printing/**'
       - 'lib/plugins/**'
       - 'lib/core/diagnostics/**'
       - 'lib/core/window_listener.dart'
       - 'test/core/window_listener_native_visibility_test.dart'
+      - 'windows/**'
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - '.github/workflows/installed_plugin_probe.yml'
@@ -38,7 +49,7 @@ jobs:
       pull-requests: read
 
   installed:
-    name: Actual app / ${{ matrix.platform }} / profile
+    name: Actual app / ${{ matrix.platform }} ${{ matrix.arch }} / profile
     needs: gate
     if: needs.gate.outputs.run == 'true'
     strategy:
@@ -46,7 +57,11 @@ jobs:
       matrix:
         include:
           - platform: windows
+            arch: x64
             runner: windows-2025
+          - platform: windows
+            arch: arm64
+            runner: windows-11-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -64,6 +79,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Set probe paths on the runner
         run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/installed-plugin-probe" | Out-Null
           @(
             "INSTALLED_PROBE_DATA=$env:RUNNER_TEMP/installed-plugin-probe/data"
             "INSTALLED_PROBE_OUTPUT=$env:RUNNER_TEMP/installed-plugin-probe/device"
@@ -71,10 +87,29 @@ jobs:
             "INSTALLED_PROBE_STORE_SOURCE=$env:RUNNER_TEMP/installed-plugin-source"
           ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: subosito/flutter-action@v2
+        if: matrix.arch == 'x64'
         with:
           channel: stable
           flutter-version: 3.47.7
           cache: false
+      - name: Bootstrap the locked native ARM64 Flutter SDK
+        if: matrix.arch == 'arm64'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Require the native host and Dart architecture
+        run: |
+          $expected = '${{ matrix.arch }}'
+          $hostArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+          if ($hostArchitecture -cne $expected) { throw "Expected native $expected runner, got $hostArchitecture" }
+          $dartVersion = (& dart --version 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($dartVersion -notmatch "windows_$expected") { throw "Wrong Dart SDK architecture: $dartVersion" }
+          $dartVersion | Set-Content '${{ runner.temp }}/installed-plugin-probe/dart.txt'
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v7.1.0
         with:
@@ -98,7 +133,11 @@ jobs:
         run: |
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs tool/perf_probe/test_installed_plugin_store.mjs 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/fixture-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_completion_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          flutter test --no-pub --concurrency=1 --reporter expanded test/tool/perf_probe/installed_plugin_probe_test.dart test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart test/tool/perf_probe/installed_plugin_completion_test.dart test/tool/perf_probe/perf_fixture_startup_settings_test.dart test/core/window_listener_native_visibility_test.dart 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/contract-tests.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate PDF desktop evidence contracts
+        run: |
+          python -m unittest tool.perf_probe.test_installed_pdf_desktop tool.perf_probe.test_installed_pdf_architecture -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate passive Windows process exit evidence
         if: matrix.platform == 'windows'
@@ -109,15 +148,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./tool/perf_probe/test_installed_plugin_windows_exit.ps1 -NativeControlReportPath '${{ runner.temp }}/installed-plugin-probe/native-exit-control.json' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/native-exit-contract-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run actual installed plugin hosts and dispatcher
+      - name: Run installed plugin and PDF runtime in the actual bundle
         run: |
-          & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7'
+          & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7' -Architecture '${{ matrix.arch }}'
           exit $LASTEXITCODE
+      - name: Validate native PDF desktop recovery and repeated closes
+        run: |
+          python tool/perf_probe/installed_pdf_desktop.py --reports "$env:INSTALLED_PROBE_REPORTS" --platform windows 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/pdf-desktop-validation.log'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify the native executable and mapped PDF module architecture
+        run: |
+          python tool/perf_probe/installed_pdf_architecture.py --reports "$env:INSTALLED_PROBE_REPORTS" --platform windows --architecture '${{ matrix.arch }}' --commit '${{ github.sha }}' --executable 'build/windows/${{ matrix.arch }}/runner/Profile/otzaria.exe' 2>&1 | Tee-Object '${{ runner.temp }}/installed-plugin-probe/pdf-architecture.json'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve raw results and partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: installed-plugin-${{ matrix.platform }}-profile
+          name: installed-plugin-${{ matrix.platform }}-${{ matrix.arch }}-profile
           if-no-files-found: warn
           path: |
             ${{ runner.temp }}/installed-plugin-probe/*.log

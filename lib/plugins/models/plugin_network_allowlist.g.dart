@@ -60,4 +60,5 @@ const List<String> pluginNetworkAllowlist = <String>[
   'http://hiruv.com',
   'https://oraysa-media.s3.amazonaws.com',
   'https://moodle.oraysa.org',
+  'https://script.google.com/macros/s/AKfycbwx2wWr6B6lCxUVP1dz8xLmtZqn18BkN7nquov-huM4kivLMc_Eu9XUELNzIDpTGMbDpw/exec',
 ];

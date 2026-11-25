@@ -121,7 +121,8 @@ public final class TransferSink {
         guard let handle = handle else {
             throw AssistantError(AssistantError.fileUnavailable, technical: "write before begin")
         }
-        guard written + Int64(data.count) <= expectedSize else {
+        // expectedSize 0 — גודל לא ידוע (קובץ שלם בלי API).
+        guard expectedSize == 0 || written + Int64(data.count) <= expectedSize else {
             throw AssistantError(
                 AssistantError.downloadDamaged,
                 technical: "\(url.lastPathComponent): more bytes than the expected \(expectedSize)"
@@ -140,8 +141,8 @@ public final class TransferSink {
     /// גודל ו-sha256 מול המניפסט, מה-hash שנצבר — בלי קריאה נוספת של הקובץ.
     public func finishAndVerify() -> Bool {
         close()
-        guard written == expectedSize else { return false }
-        return hexString(hasher.finalize()) == expectedSha256
+        guard expectedSize == 0 || written == expectedSize else { return false }
+        return expectedSha256.isEmpty || hexString(hasher.finalize()) == expectedSha256
     }
 
     public func discard() {

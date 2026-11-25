@@ -29,18 +29,37 @@ class Category {
   /// Defaults to 999 if no order is specified for this category.
   int order;
 
-  /// returns the path of this category e.g תנך/ראשונים/רשי/תורה
-  String get path {
-    if (title == 'ספריית אוצריא') {
-      return '/';
-    }
-    // Walk to the root once, then join once: repeated string prepending
-    // copies the accumulated path at every depth.
-    final segments = <String>[title];
-    Category? ancestor = parent;
-    while (ancestor != null && ancestor.title != 'ספריית אוצריא') {
-      segments.add(ancestor.title);
-      ancestor = ancestor.parent;
+  /// מזהה נתיב אופציונלי כשהכותרת אינה ייחודית בין קטגוריות אחיות.
+  final String? pathSegment;
+
+  static const _attachedRootPrefix = '@attached:';
+
+  static String attachedRootPathSegment(String normalizedTitle) =>
+      '$_attachedRootPrefix${Uri.encodeComponent(normalizedTitle)}';
+
+  /// מחזיר כותרת קריאה כשמוצג מקטע נתיב בלי אובייקט הקטגוריה.
+  static String displayNameForPathSegment(String segment) {
+    if (!segment.startsWith(_attachedRootPrefix)) return segment;
+    final encoded = segment.substring(_attachedRootPrefix.length);
+    return Uri.tryParse('/$encoded')?.pathSegments.firstOrNull ?? segment;
+  }
+
+  /// נתיב יציב לניווט, להסתרה ולחיפוש.
+  String get path => _path(useTitles: false);
+
+  /// נתיב קריא שמורכב מכותרות הקטגוריות.
+  String get displayPath => _path(useTitles: true);
+
+  String _path({required bool useTitles}) {
+    final segments = <String>[];
+    Category? category = this;
+    while (category != null &&
+        (category.title != 'ספריית אוצריא' || category.pathSegment != null)) {
+      segments.add(
+        useTitles ? category.title : category.pathSegment ?? category.title,
+      );
+      final parent = category.parent;
+      category = identical(parent, category) ? null : parent;
     }
     return '/${segments.reversed.join('/')}';
   }
@@ -108,6 +127,7 @@ class Category {
   /// in this category, and [parent] is the parent category.
   Category({
     required this.title,
+    this.pathSegment,
     required this.description,
     required this.shortDescription,
     required this.order,

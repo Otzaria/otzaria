@@ -32,6 +32,10 @@ class CommentatorsTab extends OpenedTab {
   /// נשמר ב-toJson — בלעדיו הבחירה אבדה בסגירת התוכנה ושוחזרו "כל המפרשים".
   List<String>? selectedCommentators;
 
+  /// כרטיסייה חדשה נפתחת מהבחירה האחרונה שנשמרה לספר בכרטיסיית מפרשים
+  /// (issue #5810). כרטיסייה משוחזרת, משוכפלת או מסימנייה שומרת על שלה.
+  bool applyBookSelection = true;
+
   /// בחירת השורות מהקורא עד לפעולת הבחירה הראשונה בכרטיסייה.
   List<int>? openingSelection;
 
@@ -100,11 +104,14 @@ class CommentatorsTab extends OpenedTab {
             commentators: const [],
           );
 
-    final tab = CommentatorsTab(
-      sourceTab: sourceTab,
-      disposeSourceTabOnDispose: true,
-      startIndex: json['initialIndex'] as int?,
-    )..isPinned = json['isPinned'] ?? false;
+    final tab =
+        CommentatorsTab(
+            sourceTab: sourceTab,
+            disposeSourceTabOnDispose: true,
+            startIndex: json['initialIndex'] as int?,
+          )
+          ..isPinned = json['isPinned'] ?? false
+          ..applyBookSelection = false;
     if (json.containsKey('selectedCommentators')) {
       final saved = json['selectedCommentators'];
       tab.selectedCommentators = saved is List
@@ -136,6 +143,7 @@ class CommentatorsTab extends OpenedTab {
           startIndex: currentIndex,
         )
         ..isPinned = isPinned
+        ..applyBookSelection = false
         ..selectedCommentators = selectedCommentators == null
             ? null
             : List<String>.from(selectedCommentators!);

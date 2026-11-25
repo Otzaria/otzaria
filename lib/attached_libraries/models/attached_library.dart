@@ -99,6 +99,53 @@ class AttachedLibraryFingerprint extends Equatable {
   List<Object?> get props => [size, modifiedMs, dbVersion];
 }
 
+/// עותק של מסד רשמי שהתוכנה הורידה ואימתה: הגרסה וה-sha256 שהותקנו.
+/// [verified] כבוי כשהקובץ השתנה בדיסק שלא דרך ההתקנה.
+class AttachedOfficialInstall extends Equatable {
+  final String libraryId;
+  final int dbVersion;
+  final String sha256;
+  final bool verified;
+
+  const AttachedOfficialInstall({
+    required this.libraryId,
+    required this.dbVersion,
+    required this.sha256,
+    this.verified = true,
+  });
+
+  AttachedOfficialInstall get unverified => AttachedOfficialInstall(
+    libraryId: libraryId,
+    dbVersion: dbVersion,
+    sha256: sha256,
+    verified: false,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'libraryId': libraryId,
+    'dbVersion': dbVersion,
+    'sha256': sha256,
+    if (!verified) 'unverified': true,
+  };
+
+  static AttachedOfficialInstall? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['libraryId'];
+    final version = json['dbVersion'];
+    final digest = json['sha256'];
+    if (id is! String || version is! int || digest is! String) return null;
+    return AttachedOfficialInstall(
+      libraryId: id,
+      dbVersion: version,
+      sha256: digest,
+      verified: json['unverified'] != true,
+    );
+  }
+
+  @override
+  List<Object?> get props => [libraryId, dbVersion, sha256, verified];
+}
+
 /// מסד ספרים מצורף בפורמט seforim.db.
 ///
 /// הזהות ברשימה היא [path]; [slug] הוא זהות הספרים (`BookSource.attached`)
@@ -112,6 +159,10 @@ class AttachedLibrary extends Equatable {
   final String? folderPath;
   final AttachedLibraryMode mode;
   final AttachedLibraryPlacement placement;
+
+  /// תיקייה ברמה העליונה של העץ שהמסד מצהיר עליה (`schema_meta.library_folder`).
+  /// כשקיימת היא גוברת על [placement].
+  final String? rootFolder;
   final bool hidden;
 
   /// סדר ההצגה: קטן יותר מוצג קודם.
@@ -135,6 +186,12 @@ class AttachedLibrary extends Equatable {
   /// נבדק כבר עם קריאת שדות העדכון — מסד שצורף לפני כן נבדק שוב פעם אחת.
   final bool updateSourceProbed;
 
+  /// נבדק כבר עם קריאת [rootFolder]; כמו [updateSourceProbed].
+  final bool rootFolderProbed;
+
+  /// עותק רשמי שהתוכנה הורידה. נקבע רק במסלול ההורדה, לא מתוכן הקובץ.
+  final AttachedOfficialInstall? official;
+
   const AttachedLibrary({
     required this.slug,
     required this.displayName,
@@ -142,6 +199,7 @@ class AttachedLibrary extends Equatable {
     this.folderPath,
     this.mode = AttachedLibraryMode.link,
     this.placement = AttachedLibraryPlacement.separateRoot,
+    this.rootFolder,
     this.hidden = false,
     this.priority = 0,
     this.immutable = false,
@@ -154,7 +212,13 @@ class AttachedLibrary extends Equatable {
     this.updateSource,
     this.updateSourceMismatch = false,
     this.updateSourceProbed = false,
+    this.rootFolderProbed = false,
+    this.official,
   });
+
+  /// עותק רשמי מאומת: תגית "רשמי" ועדכון אוטומטי. עותק שהשתנה בדיסק נשאר
+  /// עם [official] אך אינו מאומת עד הורדה מלאה או אימוץ לפי sha256.
+  bool get isOfficial => official?.verified ?? false;
 
   bool get isImported => folderPath == null;
   bool get isOk => status == AttachedLibraryStatus.ok;
@@ -172,13 +236,15 @@ class AttachedLibrary extends Equatable {
       : null;
 
   /// [clearProblem] מאפס את [problem] — `problem: null` לבדו פירושו "אל תשנה";
-  /// כך גם [clearUpdateSource].
+  /// כך גם [clearUpdateSource], [clearRootFolder] ו-[clearOfficial].
   AttachedLibrary copyWith({
     String? slug,
     String? displayName,
     String? path,
     AttachedLibraryMode? mode,
     AttachedLibraryPlacement? placement,
+    String? rootFolder,
+    bool clearRootFolder = false,
     bool? hidden,
     int? priority,
     bool? immutable,
@@ -192,6 +258,9 @@ class AttachedLibrary extends Equatable {
     bool clearUpdateSource = false,
     bool? updateSourceMismatch,
     bool? updateSourceProbed,
+    bool? rootFolderProbed,
+    AttachedOfficialInstall? official,
+    bool clearOfficial = false,
   }) {
     return AttachedLibrary(
       slug: slug ?? this.slug,
@@ -200,6 +269,7 @@ class AttachedLibrary extends Equatable {
       folderPath: folderPath,
       mode: mode ?? this.mode,
       placement: placement ?? this.placement,
+      rootFolder: clearRootFolder ? null : (rootFolder ?? this.rootFolder),
       hidden: hidden ?? this.hidden,
       priority: priority ?? this.priority,
       immutable: immutable ?? this.immutable,
@@ -214,6 +284,8 @@ class AttachedLibrary extends Equatable {
           : (updateSource ?? this.updateSource),
       updateSourceMismatch: updateSourceMismatch ?? this.updateSourceMismatch,
       updateSourceProbed: updateSourceProbed ?? this.updateSourceProbed,
+      rootFolderProbed: rootFolderProbed ?? this.rootFolderProbed,
+      official: clearOfficial ? null : (official ?? this.official),
     );
   }
 
@@ -224,6 +296,7 @@ class AttachedLibrary extends Equatable {
     'origin': originKey,
     'mode': mode.name,
     'placement': placement.name,
+    if (rootFolder != null) 'rootFolder': rootFolder,
     if (hidden) 'hidden': true,
     'priority': priority,
     if (immutable) 'immutable': true,
@@ -236,6 +309,8 @@ class AttachedLibrary extends Equatable {
     if (updateSource != null) 'updateSource': updateSource!.toJson(),
     if (updateSourceMismatch) 'updateSourceMismatch': true,
     if (updateSourceProbed) 'updateSourceProbed': true,
+    if (rootFolderProbed) 'rootFolderProbed': true,
+    if (official != null) 'official': official!.toJson(),
   };
 
   /// זורק על רשומה בלי השדות ההכרחיים; ערך לא מוכר בשדה אחר נופל לברירת מחדל.
@@ -252,6 +327,7 @@ class AttachedLibrary extends Equatable {
       placement:
           _byName(AttachedLibraryPlacement.values, json['placement']) ??
           AttachedLibraryPlacement.separateRoot,
+      rootFolder: json['rootFolder'] as String?,
       hidden: json['hidden'] == true,
       priority: (json['priority'] as num?)?.toInt() ?? 0,
       immutable: json['immutable'] == true,
@@ -271,6 +347,8 @@ class AttachedLibrary extends Equatable {
       updateSource: AttachedLibraryUpdateSource.fromJson(json['updateSource']),
       updateSourceMismatch: json['updateSourceMismatch'] == true,
       updateSourceProbed: json['updateSourceProbed'] == true,
+      rootFolderProbed: json['rootFolderProbed'] == true,
+      official: AttachedOfficialInstall.fromJson(json['official']),
     );
   }
 
@@ -285,6 +363,7 @@ class AttachedLibrary extends Equatable {
     folderPath,
     mode,
     placement,
+    rootFolder,
     hidden,
     priority,
     immutable,
@@ -296,5 +375,7 @@ class AttachedLibrary extends Equatable {
     updateSource,
     updateSourceMismatch,
     updateSourceProbed,
+    rootFolderProbed,
+    official,
   ];
 }

@@ -5,7 +5,8 @@ import 'dart:isolate';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show listEquals, mapEquals, visibleForTesting;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -16,6 +17,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -30,6 +32,10 @@ import 'package:otzaria/printing/serial_latest_runner.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/pdf_sheet_composer.dart';
 import 'package:otzaria/printing/print_pdf_source.dart';
+import 'package:otzaria/printing/pdf_file_stream.dart';
+import 'package:otzaria/printing/pdf_file_cleanup.dart';
+import 'package:otzaria/printing/print_pdf_file_cache.dart';
+import 'package:otzaria/printing/pdf_export_cancellation.dart';
 import 'package:otzaria/printing/print_preview_controller.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
@@ -45,6 +51,9 @@ import 'package:otzaria/printing/safer_print_service.dart';
 import 'package:otzaria/printing/view/slow_preview_hint.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
+import 'package:otzaria/utils/file/desktop_save_target.dart';
+import 'package:otzaria/utils/file/atomic_file_publication.dart';
+import 'package:otzaria/utils/file/mobile_pdf_export_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -65,6 +74,29 @@ import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
 enum _AnchorKind { header, altHeader, line }
 
+/// A source borrowed by one preview or output operation. Generated files stay
+/// alive until their final borrower has closed all native documents.
+class _PrintBaseLease {
+  const _PrintBaseLease(this.source, [this._release]);
+
+  final PrintPdfSource source;
+  final Future<void> Function()? _release;
+
+  Future<void> dispose() => _release?.call() ?? Future<void>.value();
+}
+
+/// Captured before opening the target chooser; preview metadata arriving later
+/// must not change the requested range or sheet arrangement.
+typedef _PdfFileExport = ({
+  PdfPageFormat format,
+  PdfPageFormat sheetFormat,
+  int pagesPerSheet,
+  int startPage,
+  int? endPage,
+  bool hasPageRange,
+  String signature,
+});
+
 /// פריסת מסך ההדפסה: התצוגה המקדימה, ולצידה חלונית ההגדרות ברוחב קבוע עם
 /// שורת הפעולות. במסך צר החלונית היא החצי התחתון, כדי שהתצוגה לא תתכווץ.
 class _PrintLayout extends StatelessWidget {
@@ -73,12 +105,14 @@ class _PrintLayout extends StatelessWidget {
     required this.preview,
     required this.settings,
     required this.footer,
+    required this.settingsEnabled,
   });
 
   final bool narrow;
   final Widget preview;
   final List<Widget> settings;
   final Widget footer;
+  final bool settingsEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -86,11 +120,17 @@ class _PrintLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: settings,
+          child: IgnorePointer(
+            ignoring: !settingsEnabled,
+            child: ExcludeFocus(
+              excluding: !settingsEnabled,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: settings,
+                ),
+              ),
             ),
           ),
         ),
@@ -131,6 +171,7 @@ class PrintingScreen extends StatefulWidget {
 
   /// קובץ קיים נפתח ישירות; בתים מלאים נקראים רק כשיעד הפלט דורש אותם.
   final String? pdfFilePath;
+  final MobilePdfExportService? mobileExportService;
   final String bookId;
   final TextBook? book;
   final List<Link> links;
@@ -174,6 +215,7 @@ class PrintingScreen extends StatefulWidget {
     required this.data,
     this.createPdfOverride,
     this.pdfFilePath,
+    this.mobileExportService,
     required this.bookId,
     this.book,
     this.links = const [],
@@ -202,8 +244,12 @@ class PrintingScreen extends StatefulWidget {
   /// Completes after currently queued native printing work, including disposal.
   /// Widget tests must unmount their screens before awaiting this barrier.
   @visibleForTesting
-  static Future<void> get debugRasterIdle =>
-      _PrintingScreenState._rasterLock ?? Future<void>.value();
+  static Future<void> get debugRasterIdle async {
+    await Future.wait<void>([
+      ?_PrintingScreenState._rasterLock,
+      ..._PrintingScreenState._fileCleanups,
+    ]);
+  }
 
   @override
   State<PrintingScreen> createState() => _PrintingScreenState();
@@ -255,6 +301,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
   int _renderGeneration = 0; // מונה שביטול renders ישנים
   // נעילה סדרתית של פעולות pdfrx: שני openData במקביל תוקעים את הספרייה.
   static Future<void>? _rasterLock;
+  static final _fileCleanups = <Future<void>>{};
+  final _basePdfFiles = PrintPdfFileCache();
+  _PrintBaseLease? _previewBaseLease;
   // הסדרת התצוגות המקדימות: render כבד אחד בכל רגע, ודילוג על render שהתיישן
   // בזמן ההמתנה בתור, כדי ששינויי פרמטרים עוקבים לא יריצו במקביל מספר יצירות
   // base PDF / רסטור ניקוד / isolate שמציפים את המעבד.
@@ -276,6 +325,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// עבודת הדפסה בתהליך: ציור והעברה למדפסת יכולים לקחת דקות.
   String? _printProgress;
   bool get _isPrinting => _printProgress != null;
+  bool _destinationActionPending = false;
+  PdfExportCancellationToken? _exportCancellation;
+  MobilePdfExportOperation? _mobileExport;
+  MobilePdfExportService get _mobileExports =>
+      widget.mobileExportService ?? MobilePdfExportService.instance;
   Timer? _previewRefreshTimer;
 
   // נקודות הקצה של טווח ההדפסה — כל אחת עצמאית בסוגה (כותרת/כותרת משנה/שורה).
@@ -476,16 +530,26 @@ class _PrintingScreenState extends State<PrintingScreen> {
   @override
   void didUpdateWidget(covariant PrintingScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.activeCommentators != widget.activeCommentators) {
+    final commentatorsChanged = !listEquals(
+      oldWidget.activeCommentators,
+      widget.activeCommentators,
+    );
+    if (commentatorsChanged) {
       _selectedCommentators = List.of(widget.activeCommentators);
     }
     if (oldWidget.pdfFilePath != widget.pdfFilePath ||
         oldWidget.createPdfOverride != widget.createPdfOverride ||
         (!_isPdfSource && oldWidget.data != widget.data) ||
-        oldWidget.prebuiltBlocks != widget.prebuiltBlocks) {
+        oldWidget.prebuiltBlocks != widget.prebuiltBlocks ||
+        oldWidget.bookId != widget.bookId ||
+        oldWidget.documentTitle != widget.documentTitle ||
+        commentatorsChanged) {
       _dataFuture = widget.data;
       _cachedBasePdf = null;
       _cachedBaseKey = null;
+      _pendingBasePdfs.clear();
+      _basePdfFiles.invalidate();
+      _cancelFileExport();
       _anchorEntries = null;
       _totalPdfPages = 0;
       if (_isPdfSource) {
@@ -497,6 +561,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       } else {
         _renderGeneration++;
         _preview.reset(pagesPerSheet: _pagesPerSheet);
+        _releasePreviewBase();
         _initPreviewRange();
       }
     }
@@ -650,8 +715,45 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _onThumbnailScroll,
     );
     _preview.dispose();
+    _releasePreviewBase();
+    _cancelFileExport();
+    _exportCancellation?.dispose();
+    _trackFileCleanup(_basePdfFiles.dispose());
     _cachedBasePdf = null;
+    _pendingBasePdfs.clear();
     super.dispose();
+  }
+
+  static void _trackFileCleanup(Future<void> cleanup) {
+    _fileCleanups.add(cleanup);
+    unawaited(
+      cleanup.then<void>(
+        (_) {
+          _fileCleanups.remove(cleanup);
+        },
+        onError: (Object error, StackTrace stack) {
+          _fileCleanups.remove(cleanup);
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stack,
+              library: 'printing',
+              context: ErrorDescription('while releasing a temporary PDF'),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _releasePreviewBase() {
+    final previous = _previewBaseLease;
+    _previewBaseLease = null;
+    if (previous != null) {
+      // stop/reset has already removed the source from the controller. Work
+      // queued earlier must finish closing PDFium before its file is removed.
+      _trackFileCleanup(_withRasterLock(previous.dispose, 'source-release'));
+    }
   }
 
   Set<int> _visibleSheets(ItemPositionsListener listener) => listener
@@ -703,8 +805,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   void _refreshPreview({bool immediate = false}) {
     if (!mounted || _preview.isStopped) return;
+    // A text generator reads settings while preparing asynchronous content.
+    // Even A -> B -> A must start a new owner generation after a real edit;
+    // callers requesting the same unchanged settings still share one producer.
+    if (!_isPdfSource) _basePdfFiles.invalidate();
     _renderGeneration++;
     _preview.reset(pagesPerSheet: _pagesPerSheet);
+    _releasePreviewBase();
     _previewRefreshTimer?.cancel();
     if (immediate) {
       _renderPreview();
@@ -720,6 +827,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final generation = ++_renderGeneration;
     _currentPreviewItem = 0;
     _preview.reset(pagesPerSheet: _pagesPerSheet);
+    _releasePreviewBase();
     _previewRunner.run(
       isStale: () => !mounted || generation != _renderGeneration,
       task: () => _renderPreviewTask(generation),
@@ -732,9 +840,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (stale()) return false;
     try {
       final base = await _createBasePdf(format);
-      if (stale()) return false;
+      if (stale()) {
+        await base.dispose();
+        return false;
+      }
+      _previewBaseLease = base;
       await _preview.load(
-        base,
+        base.source,
         startPage: _isPdfSource ? _pdfStartPage : 1,
         endPage: computePdfPrintEndPage(
           isPdfMode: _isPdfSource,
@@ -789,29 +901,127 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
 
     final base = await _createBasePdf(format);
-    if (pagesPerSheet <= 1 && !hasPageRange) {
-      return base.readBytes();
-    }
+    return withPdfFileCleanup(() async {
+      if (pagesPerSheet <= 1 && !hasPageRange) {
+        return base.source.readBytes();
+      }
+      try {
+        return await _createNUpPdf(
+          base.source,
+          sheetFormat: sheetFormat,
+          pagesPerSheet: pagesPerSheet,
+          startPage: startPage,
+          endPage: endPage,
+        );
+      } catch (e, st) {
+        debugPrint('[PRINT] N-up failed: $e\n$st');
+        if (mounted) {
+          UiSnack.showError(
+            hasPageRange
+                ? PdfMessages.pageRangeRenderFailed
+                : PdfMessages.multiPageSheetRenderFailed,
+          );
+        }
+        rethrow;
+      }
+    }, base.dispose);
+  }
 
-    try {
-      return await _createNUpPdf(
-        base,
-        sheetFormat: sheetFormat,
-        pagesPerSheet: pagesPerSheet,
+  String _exportSignature(PdfPageFormat format) =>
+      '${widget.pdfFilePath}|${_baseCacheKey(format)}';
+
+  _PdfFileExport _captureFileExport() {
+    final isPdfMode = _isPdfSource;
+    final startPage = isPdfMode ? _pdfStartPage : 1;
+    final endPage = computePdfPrintEndPage(
+      isPdfMode: isPdfMode,
+      pdfEndPage: _pdfEndPage,
+      totalPdfPages: _totalPdfPages,
+    );
+    return (
+      format: format,
+      sheetFormat: _effectivePageFormat(format),
+      pagesPerSheet: _pagesPerSheet,
+      startPage: startPage,
+      endPage: endPage,
+      hasPageRange: hasPdfPageRange(
         startPage: startPage,
         endPage: endPage,
-      );
-    } catch (e, st) {
-      debugPrint('[PRINT] N-up failed: $e\n$st');
-      if (mounted) {
-        UiSnack.showError(
-          hasPageRange
-              ? PdfMessages.pageRangeRenderFailed
-              : PdfMessages.multiPageSheetRenderFailed,
-        );
-      }
-      rethrow;
+        totalPages: _totalPdfPages,
+      ),
+      signature: _exportSignature(format),
+    );
+  }
+
+  bool _fileExportCancelled(
+    _PdfFileExport plan,
+    PdfExportCancellationToken cancellation,
+  ) =>
+      !mounted ||
+      cancellation.isCancelled ||
+      _exportSignature(plan.format) != plan.signature;
+
+  void _checkFileExport(
+    _PdfFileExport plan,
+    PdfExportCancellationToken cancellation,
+  ) {
+    if (_fileExportCancelled(plan, cancellation)) {
+      throw const PdfExportCancelledException();
     }
+  }
+
+  Future<void> _writeOutputPdfToFile(
+    _PdfFileExport plan,
+    PdfExportCancellationToken cancellation,
+    String stagingPath,
+  ) async {
+    _checkFileExport(plan, cancellation);
+    final base = await _createBasePdf(plan.format);
+    await withPdfFileCleanup(() async {
+      _checkFileExport(plan, cancellation);
+      if (plan.pagesPerSheet <= 1 && !plan.hasPageRange) {
+        final lease = cancellation.acquire();
+        try {
+          await base.source.writeToFile(
+            stagingPath,
+            cancellationAddress: lease.address,
+          );
+        } finally {
+          lease.dispose();
+        }
+      } else {
+        await _withRasterLock(() async {
+          _checkFileExport(plan, cancellation);
+          final doc = await base.source.open(useProgressiveLoading: true);
+          await withPdfFileCleanup(() async {
+            _checkFileExport(plan, cancellation);
+            final pageCount = doc.pages.length;
+            final firstIndex = max(0, min(plan.startPage - 1, pageCount - 1));
+            final lastIndex = max(
+              firstIndex,
+              min((plan.endPage ?? pageCount) - 1, pageCount - 1),
+            );
+            final (rows, cols) = switch (plan.pagesPerSheet) {
+              2 => (1, 2),
+              4 => (2, 2),
+              _ => (1, 1),
+            };
+            await composePdfSheetsToFile(
+              doc,
+              outputPath: stagingPath,
+              firstIndex: firstIndex,
+              lastIndex: lastIndex,
+              rows: rows,
+              cols: cols,
+              sheetWidth: plan.sheetFormat.width,
+              sheetHeight: plan.sheetFormat.height,
+              cancellationToken: cancellation,
+            );
+          }, doc.dispose);
+        }, 'export-file');
+      }
+      _checkFileExport(plan, cancellation);
+    }, base.dispose);
   }
 
   PdfPageFormat _effectivePageFormat(PdfPageFormat format) {
@@ -831,6 +1041,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // באותו כיוון עמוד, טווח עמודים ב-PDF חיצוני) רק מרסטר את המסמך שוב.
   Uint8List? _cachedBasePdf;
   String? _cachedBaseKey;
+  final _pendingBasePdfs = <String, Future<Uint8List>>{};
 
   /// חתימת כל הפרמטרים שמשפיעים על תוכן ה-base PDF. מספר העמודים בגיליון
   /// נכלל רק דרך גודל עמוד הטקסט, וטווח עמודים ב-PDF חיצוני בכוונה אינו נכלל.
@@ -846,6 +1057,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return [
       identityHashCode(_dataFuture),
       identityHashCode(widget.prebuiltBlocks),
+      widget.bookId,
+      widget.documentTitle,
       source.width,
       source.height,
       pageMargin,
@@ -869,32 +1082,47 @@ class _PrintingScreenState extends State<PrintingScreen> {
     ].join('|');
   }
 
-  Future<PrintPdfSource> _createBasePdf(PdfPageFormat format) async {
+  Future<_PrintBaseLease> _createBasePdf(PdfPageFormat format) async {
     final path = widget.pdfFilePath;
-    if (path != null) return PrintPdfSource.file(path);
+    if (path != null) return _PrintBaseLease(PrintPdfSource.file(path));
     // כיוון עמוד המקור חייב להתאים למשימה גם כשההגדרות משתנות בזמן הטעינה.
     final sourceFormat = _sourcePageFormat(format);
     await _divineNamesReady;
     final key = _baseCacheKey(format, sourceFormat: sourceFormat);
+    final override = widget.createPdfOverride;
+    if (override == null) {
+      final lease = await _basePdfFiles.acquire(key, (path) async {
+        await _createTextPdf(
+          format,
+          sourceFormat: sourceFormat,
+          outputPath: path,
+        );
+      });
+      return _PrintBaseLease(lease.source, lease.dispose);
+    }
+    final effectiveFormat = _effectivePageFormat(format);
     final cached = _cachedBasePdf;
     if (cached != null && _cachedBaseKey == key) {
-      return PrintPdfSource.data(cached);
+      return _PrintBaseLease(PrintPdfSource.data(cached));
     }
-    final override = widget.createPdfOverride;
-    final Uint8List bytes;
-    if (override != null) {
-      final effectiveFormat = orientation == pw.PageOrientation.landscape
-          ? format.landscape
-          : format;
-      bytes = await override(effectiveFormat);
-    } else {
-      bytes = await createPdf(format, sourceFormat: sourceFormat);
+    final pending = _pendingBasePdfs.putIfAbsent(key, () async {
+      return override(effectiveFormat);
+    });
+    try {
+      final bytes = await pending;
+      if (mounted &&
+          !_preview.isStopped &&
+          identical(_pendingBasePdfs[key], pending) &&
+          _baseCacheKey(format) == key) {
+        _cachedBasePdf = bytes;
+        _cachedBaseKey = key;
+      }
+      return _PrintBaseLease(PrintPdfSource.data(bytes));
+    } finally {
+      if (identical(_pendingBasePdfs[key], pending)) {
+        _pendingBasePdfs.remove(key);
+      }
     }
-    if (mounted && !_preview.isStopped && _baseCacheKey(format) == key) {
-      _cachedBasePdf = bytes;
-      _cachedBaseKey = key;
-    }
-    return PrintPdfSource.data(bytes);
   }
 
   Future<Uint8List> _createNUpPdf(
@@ -956,7 +1184,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final hasRange = startPage > 1 || endPage != null;
     if (rows == 1 && cols == 1 && !hasRange) return sourcePdf.readBytes();
 
-    final doc = await sourcePdf.open();
+    final doc = await sourcePdf.open(useProgressiveLoading: true);
     try {
       final pageCount = doc.pages.length;
       if (_totalPdfPages == 0 && _isPdfSource && mounted) {
@@ -991,10 +1219,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
   Future<Uint8List> createPdf(
     PdfPageFormat format, {
     PdfPageFormat? sourceFormat,
+  }) async => (await _createTextPdf(format, sourceFormat: sourceFormat))!;
+
+  Future<Uint8List?> _createTextPdf(
+    PdfPageFormat format, {
+    PdfPageFormat? sourceFormat,
+    String? outputPath,
   }) async {
     format = sourceFormat ?? _sourcePageFormat(format);
     if (widget.prebuiltBlocks != null) {
-      return _createPrebuiltPdf(format);
+      return _createPrebuiltPdf(format, outputPath: outputPath);
     }
     String dataString = await _dataFuture;
 
@@ -1033,11 +1267,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
       bookName: bookName,
       pageMargin: pageMargin,
       fontSize: fontSize,
+      outputPath: outputPath,
     );
   }
 
   /// יוצר PDF מבלוקים מוכנים מראש (כרטיסיית מפרשים).
-  Future<Uint8List> _createPrebuiltPdf(PdfPageFormat format) async {
+  Future<Uint8List?> _createPrebuiltPdf(
+    PdfPageFormat format, {
+    String? outputPath,
+  }) async {
     final bookName = widget.documentTitle ?? widget.bookId;
     final blocks = _mapPrebuiltBlocks(widget.prebuiltBlocks ?? const []);
     return _renderBlocksToPdf(
@@ -1046,6 +1284,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       bookName: bookName,
       pageMargin: pageMargin,
       fontSize: fontSize,
+      outputPath: outputPath,
     );
   }
 
@@ -1183,12 +1422,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// מרנדר רשימת בלוקים (ייצוג פנימי) ל-PDF — משותף למצב הרגיל ולמצב הבלוקים
   /// המוכנים מראש.
-  Future<Uint8List> _renderBlocksToPdf({
+  Future<Uint8List?> _renderBlocksToPdf({
     required List<Map<String, String>> blocks,
     required PdfPageFormat format,
     required String bookName,
     required double pageMargin,
     required double fontSize,
+    String? outputPath,
   }) async {
     final primaryBytes = await _loadPrintFont(fontName);
     final fallbackBytes = (await rootBundle.load(
@@ -1367,6 +1607,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
             ),
           );
 
+          if (outputPath != null) {
+            await writePdfDocumentToFile(pdfData, outputPath);
+            return null;
+          }
           return await pdfData.save();
         },
       ),
@@ -1707,19 +1951,43 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// מבצע את הפעולה לפי היעד הנבחר: הדפסה למדפסת, או שמירה ל-PDF/Word.
   Future<void> _performDestinationAction(BuildContext context) async {
+    // Guard before the first await, including the protection/password dialogs.
+    if (_destinationActionPending) return;
+    final requested = _destination;
+    final route = ModalRoute.of(context);
+    if (route != null) dismissAnchoredAppMenus(route);
+    final cancellation = requested == _PrintDestination.printer
+        ? null
+        : PdfExportCancellationToken();
+    setState(() {
+      _destinationActionPending = true;
+      _exportCancellation = cancellation;
+    });
+    try {
+      await _performDestinationActionChecked(context, requested);
+    } finally {
+      cancellation?.dispose();
+      _exportCancellation = null;
+      if (mounted) setState(() => _destinationActionPending = false);
+    }
+  }
+
+  Future<void> _performDestinationActionChecked(
+    BuildContext context,
+    _PrintDestination requested,
+  ) async {
     try {
       await _protectionReady;
     } catch (error) {
       debugPrint('Print protection lookup failed: $error');
     }
-    if (!mounted || !context.mounted) return;
-    final requested = _destination;
+    if (!mounted || !context.mounted || _preview.isStopped) return;
     if (_includeCommentaries && widget.prebuiltBlocks == null) {
       await _loadCommentaryProtection(
         await _loadLinksForPrintRange(startLine, endLine),
       );
     }
-    if (!mounted || !context.mounted) return;
+    if (!mounted || !context.mounted || _preview.isStopped) return;
     setState(_syncDestinationWithProtection);
     // יעד שנחסם אחרי הבחירה — הרשימה התעדכנה, והמשתמש יבחר שוב.
     if (_destination != requested) {
@@ -1800,10 +2068,43 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }
 
   Future<bool> _saveToFile(_ExportFormat selectedFormat) async {
+    final cancellation = _exportCancellation!;
+    if (!mounted || cancellation.isCancelled) return false;
     if (!await verifySaferModePassword(context)) return false;
-    if (!mounted) return false;
+    if (!mounted || cancellation.isCancelled) return false;
     try {
       final selectedExtension = selectedFormat.extension;
+      final fileName = '${_sanitizeFileName(widget.bookId)}.$selectedExtension';
+      if (selectedFormat == _ExportFormat.pdf) {
+        await _divineNamesReady;
+        if (!mounted || cancellation.isCancelled) return false;
+        final plan = _captureFileExport();
+        final mobile = _mobileExports;
+        if (mobile.isSupported) {
+          return await _saveMobilePdf(mobile, plan, cancellation, fileName);
+        }
+        if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+          final target = await chooseDesktopSaveTarget(
+            context: context,
+            dialogTitle: 'ייצוא קובץ',
+            fileName: fileName,
+            extension: selectedExtension,
+            isCancelled: () => _fileExportCancelled(plan, cancellation),
+          );
+          if (target == null || _fileExportCancelled(plan, cancellation)) {
+            return false;
+          }
+          final saved = await publishFileAtomically(
+            target: target,
+            isCancelled: () => _fileExportCancelled(plan, cancellation),
+            producer: (path) => _writeOutputPdfToFile(plan, cancellation, path),
+          );
+          if (saved && mounted) UiSnack.showSuccess(PdfMessages.pdfFileSaved);
+          return saved;
+        }
+      }
+
+      // The remaining output contracts still require complete bytes.
       final Uint8List bytes;
       final String successMessage;
       if (selectedFormat == _ExportFormat.word) {
@@ -1822,18 +2123,21 @@ class _PrintingScreenState extends State<PrintingScreen> {
         bytes = await _createOutputPdf(format);
         successMessage = PdfMessages.pdfFileSaved;
       }
-      if (!mounted) return false;
+      if (!mounted || cancellation.isCancelled) return false;
       final path = await saveFileWithExtension(
         context: context,
         dialogTitle: 'ייצוא קובץ',
-        fileName: '${_sanitizeFileName(widget.bookId)}.$selectedExtension',
+        fileName: fileName,
         extension: selectedExtension,
         bytes: bytes,
       );
       if (path == null) return false;
-      UiSnack.showSuccess(successMessage);
+      if (mounted) UiSnack.showSuccess(successMessage);
       return true;
+    } on PdfExportCancelledException {
+      return false;
     } on FileSystemException catch (e) {
+      if (!mounted || cancellation.isCancelled) return false;
       if (_isLockedFileException(e)) {
         UiSnack.showError(PdfMessages.fileLockedByAnotherApp);
         return false;
@@ -1841,8 +2145,85 @@ class _PrintingScreenState extends State<PrintingScreen> {
       UiSnack.showError(PdfMessages.fileExportFailed(e.message));
       return false;
     } catch (e) {
+      if (!mounted || cancellation.isCancelled) return false;
       UiSnack.showError(PdfMessages.fileExportFailed(e));
       return false;
+    }
+  }
+
+  void _cancelFileExport() {
+    _exportCancellation?.cancel();
+    final operation = _mobileExport;
+    if (operation != null) unawaited(_cancelMobileExport(operation));
+  }
+
+  Future<void> _cancelMobileExport(MobilePdfExportOperation operation) async {
+    try {
+      await operation.cancel();
+    } catch (error, stack) {
+      debugPrint('Mobile PDF cancellation request failed: $error\n$stack');
+    }
+  }
+
+  Future<bool> _saveMobilePdf(
+    MobilePdfExportService service,
+    _PdfFileExport plan,
+    PdfExportCancellationToken cancellation,
+    String fileName,
+  ) async {
+    final window = AppWindowKeys.of(context);
+    MobilePdfExportOperation? operation;
+    try {
+      operation = service.start(
+        fileName: fileName,
+        producer: (path) => _writeOutputPdfToFile(plan, cancellation, path),
+        onCancelRequested: cancellation.cancel,
+      );
+      _mobileExport = operation;
+      final pending = operation.result;
+      // Only the original result releases staging; cancel merely requests it.
+      // The idle barrier observes completion; the await below reports errors.
+      _trackFileCleanup(
+        pending.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+      );
+      final result = await pending;
+      if (result.cleanupError != null) {
+        debugPrint('Mobile PDF export cleanup: ${result.cleanupError}');
+      }
+      if (result.residualDocument != null) {
+        UiSnack.showWarning(
+          PdfMessages.mobilePdfExportResidual(result.residualDisplayName),
+          window: window,
+        );
+        return false;
+      }
+      if (result.status == MobilePdfExportStatus.saved) {
+        final name = result.displayName;
+        UiSnack.showSuccess(
+          name != null && name != fileName
+              ? PdfMessages.pdfFileSavedAs(name)
+              : PdfMessages.pdfFileSaved,
+          window: window,
+        );
+        return !_fileExportCancelled(plan, cancellation);
+      }
+      if (result.status == MobilePdfExportStatus.failed) {
+        debugPrint(
+          'Mobile PDF export failed: ${result.errorCode}: ${result.errorMessage}',
+        );
+        if (mounted && !cancellation.isCancelled) {
+          UiSnack.showError(PdfMessages.mobilePdfSaveFailed, window: window);
+        }
+      }
+      return false;
+    } catch (error, stack) {
+      debugPrint('Mobile PDF export failed: $error\n$stack');
+      if (mounted && !cancellation.isCancelled) {
+        UiSnack.showError(PdfMessages.mobilePdfSaveFailed, window: window);
+      }
+      return false;
+    } finally {
+      if (identical(_mobileExport, operation)) _mobileExport = null;
     }
   }
 
@@ -2090,6 +2471,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                   if (isCustomPdfMode) {
                     return _PrintLayout(
                       narrow: _isNarrowLayout(context),
+                      settingsEnabled: _exportCancellation == null,
                       preview: _buildImagePreview(colorScheme),
                       settings: _buildCustomPdfSettings(colorScheme),
                       footer: _buildPrintExportFooter(context),
@@ -2100,6 +2482,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                     final totalLines = _lineCounts.of(snapshot.data!);
                     return _PrintLayout(
                       narrow: _isNarrowLayout(context),
+                      settingsEnabled: _exportCancellation == null,
                       preview: _buildImagePreview(colorScheme),
                       settings: _buildTextSettings(
                         colorScheme,
@@ -2126,6 +2509,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
         _renderGeneration++;
         _previewRefreshTimer?.cancel();
         _preview.stop();
+        _releasePreviewBase();
+        _cancelFileExport();
       },
       child: dialog,
     );

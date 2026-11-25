@@ -20,7 +20,6 @@ bool _partialHighlight(String searchText, {bool wholeWord = false}) {
     linksByLine: const {},
     tableOfContents: const [],
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: searchText,
     searchWholeWord: wholeWord,
   );

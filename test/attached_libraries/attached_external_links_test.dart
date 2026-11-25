@@ -21,6 +21,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -590,6 +591,152 @@ void main() {
         SeforimFixtureIds.bereshitTitle,
       );
       expect(await externalIn(official), isEmpty);
+    });
+  });
+
+  group('מפרש ממסד מצורף כמפרש ברירת מחדל של ספר רשמי', () {
+    const bereshit = SeforimFixtureIds.bereshitTitle;
+
+    /// מסד ששני ספריו ([_commentaryTitle] = 2, [baseTitle] = 1) מקושרים
+    /// לבראשית הרשמי, אלא אם [linked] מצמצם.
+    String commentatorsDb(
+      String name, {
+      String baseTitle = _baseTitle,
+      Set<int> linked = const {
+        SeforimFixtureIds.rashiId,
+        SeforimFixtureIds.bereshitId,
+      },
+      required List<(String?, String, int, String, int)> defaults,
+    }) {
+      final path = attachedDb(name);
+      final db = sqlite3.sqlite3.open(path);
+      db.execute('UPDATE book SET title = ? WHERE id = ?', [
+        baseTitle,
+        SeforimFixtureIds.bereshitId,
+      ]);
+      db.close();
+      SeforimFixtureDb.addExternalLinks(path, [
+        for (final id in linked)
+          (
+            sourceBookId: id,
+            sourceLineIndex: 0,
+            targetSource: 'official',
+            targetTitle: bereshit,
+            targetRef: null,
+            targetLineIndex: 1,
+            connectionType: 'SOURCE',
+          ),
+      ]);
+      SeforimFixtureDb.addExternalDefaultCommentators(path, defaults);
+      return path;
+    }
+
+    Future<
+      ({
+        List<({String title, int position})> commentators,
+        List<String> targums,
+      })
+    >
+    officialDefaults() async {
+      await links.sync();
+      return DefaultCommentators.fetchDefaults(
+        await bookOf(BookSource.official, bereshit),
+      );
+    }
+
+    test('אחרי מפרשי הספר עצמו, לפי עדיפות המסד ואז position', () async {
+      await attach(
+        commentatorsDb(
+          'first',
+          defaults: [
+            ('official', bereshit, SeforimFixtureIds.rashiId, 'commentator', 5),
+            (
+              'official',
+              bereshit,
+              SeforimFixtureIds.bereshitId,
+              'commentator',
+              1,
+            ),
+          ],
+        ),
+      );
+      final second = commentatorsDb(
+        'second',
+        baseTitle: 'ספר ג',
+        linked: const {SeforimFixtureIds.bereshitId},
+        defaults: [
+          (
+            'official',
+            bereshit,
+            SeforimFixtureIds.bereshitId,
+            'commentator',
+            0,
+          ),
+        ],
+      );
+      final db = sqlite3.sqlite3.open(second);
+      db.execute('UPDATE book SET title = ? WHERE id = ?', [
+        'ספר ד',
+        SeforimFixtureIds.rashiId,
+      ]);
+      db.close();
+      await attach(second);
+
+      final defaults = await officialDefaults();
+      expect(defaults.commentators, [
+        (title: SeforimFixtureIds.rashiTitle, position: 1),
+        (title: _baseTitle, position: 2),
+        (title: _commentaryTitle, position: 3),
+        (title: 'ספר ג', position: 4),
+      ]);
+      expect(defaults.targums, isEmpty);
+    });
+
+    test('ספר שאינו מקושר לספר היעד — מתעלמים בשקט', () async {
+      await attach(
+        commentatorsDb(
+          'partial',
+          linked: const {SeforimFixtureIds.rashiId},
+          defaults: [
+            (
+              'official',
+              bereshit,
+              SeforimFixtureIds.bereshitId,
+              'commentator',
+              0,
+            ),
+            ('official', bereshit, SeforimFixtureIds.rashiId, 'commentator', 1),
+          ],
+        ),
+      );
+      final defaults = await officialDefaults();
+      expect(defaults.commentators.map((c) => c.title), [
+        SeforimFixtureIds.rashiTitle,
+        _commentaryTitle,
+      ]);
+    });
+
+    test('targum, targetSource ריק ומקור יעד אחר', () async {
+      await attach(
+        commentatorsDb(
+          'targums',
+          defaults: [
+            (null, bereshit, SeforimFixtureIds.rashiId, 'targum', 0),
+            ('other.db', bereshit, SeforimFixtureIds.bereshitId, 'targum', 1),
+          ],
+        ),
+      );
+      final defaults = await officialDefaults();
+      expect(defaults.commentators.map((c) => c.title), [
+        SeforimFixtureIds.rashiTitle,
+      ]);
+      expect(defaults.targums, [_commentaryTitle]);
+      expect(
+        await DefaultCommentators.getBaseCommentators(
+          await bookOf(BookSource.official, bereshit),
+        ),
+        [SeforimFixtureIds.rashiTitle, _commentaryTitle],
+      );
     });
   });
 

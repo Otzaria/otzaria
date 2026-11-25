@@ -53,6 +53,10 @@ class Bookmark {
   final String ref;
   final Book book;
   final List<String> commentatorsToShow;
+
+  /// [commentatorsToShow] נבחרה במפורש, גם כשהיא ריקה; ברשומה ישנה רשימה ריקה
+  /// טוענת את ברירת המחדל של הספר.
+  final bool hasExplicitCommentators;
   final int index;
   final bool isSearch;
   final Map<String, Map<String, bool>>? searchOptions;
@@ -86,6 +90,9 @@ class Bookmark {
   final Map<String, dynamic>? searchConfiguration;
   final BookmarkTargetKind targetKind;
 
+  /// כותרת בכרטיסיית מפרשי PDF, מדויקת יותר ממספר העמוד.
+  final String? pdfCommentatorsHeading;
+
   /// טקסט תיאור שהמשתמש רואה ויכול לערוך. בעת יצירה מאותחל למילים הראשונות
   /// של הקטע המסומן. null = להציג את מיקום ברירת המחדל (ref).
   final String? label;
@@ -100,6 +107,23 @@ class Bookmark {
 
   /// מחסניות החזרה/קדימה של הקורא; נשמרות ברשומת היסטוריה בלבד.
   final Map<String, dynamic>? navigationHistory;
+
+  /// הגדרות השאילתה לשחזור, כולל רשומות שנשמרו לפני שמירת המפה המלאה.
+  SearchConfiguration get restoredSearchConfiguration {
+    final config = searchConfiguration;
+    if (config != null) {
+      // רשומה שנלכדה בזמן עריכה עלולה לשאת טווח מעודכן רק בשדה הייעודי.
+      return SearchConfiguration.fromMap(
+        config,
+      ).copyWith(proximityScope: proximityScope);
+    }
+    final mode = searchMode ?? SearchMode.advanced;
+    return SearchConfiguration(
+      searchMode: mode,
+      distance: distance ?? (mode == SearchMode.fuzzy ? kMaxFuzzyDistance : 0),
+      proximityScope: proximityScope ?? SearchScope.wordDistance,
+    );
+  }
 
   /// זהות מקום קריאה לפי ספר, סוג יעד, slot ושולחן; חיפוש לפי שאילתה וסינון.
   String get historyKey => isSearch
@@ -132,6 +156,7 @@ class Bookmark {
     required this.book,
     required this.index,
     this.commentatorsToShow = const [],
+    this.hasExplicitCommentators = false,
     this.isSearch = false,
     this.searchOptions,
     this.alternativeWords,
@@ -149,6 +174,7 @@ class Bookmark {
     this.proximityScope,
     Map<String, dynamic>? searchConfiguration,
     this.targetKind = BookmarkTargetKind.book,
+    this.pdfCommentatorsHeading,
     this.label,
     this.createdAt,
     this.readingAnchor,
@@ -174,6 +200,7 @@ class Bookmark {
       book: book,
       index: index,
       commentatorsToShow: commentatorsToShow,
+      hasExplicitCommentators: hasExplicitCommentators,
       isSearch: isSearch,
       searchOptions: searchOptions,
       alternativeWords: alternativeWords,
@@ -191,6 +218,7 @@ class Bookmark {
       proximityScope: proximityScope,
       searchConfiguration: searchConfiguration,
       targetKind: targetKind,
+      pdfCommentatorsHeading: pdfCommentatorsHeading,
       label: clearLabel ? null : (label ?? this.label),
       createdAt: createdAt,
       readingAnchor: readingAnchor,
@@ -209,6 +237,7 @@ class Bookmark {
       commentatorsToShow: (rawCommentators ?? [])
           .map((e) => e.toString())
           .toList(),
+      hasExplicitCommentators: json['hasExplicitCommentators'] == true,
       isSearch: json['isSearch'] ?? false,
       searchOptions: json['searchOptions'] != null
           ? castMap(json['searchOptions']).map(
@@ -277,6 +306,7 @@ class Bookmark {
               orElse: () => BookmarkTargetKind.book,
             )
           : BookmarkTargetKind.book,
+      pdfCommentatorsHeading: json['pdfCommentatorsHeading'] as String?,
       label: json['label'] as String?,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
@@ -315,6 +345,7 @@ class Bookmark {
       'index': index,
       if (readingAnchor != null) 'readingAnchor': readingAnchor!.toJson(),
       'commentatorsToShow': commentatorsToShow,
+      if (hasExplicitCommentators) 'hasExplicitCommentators': true,
       'isSearch': isSearch,
       'searchOptions': searchOptions,
       'alternativeWords': alternativeWords?.map(
@@ -336,6 +367,7 @@ class Bookmark {
       'searchConfiguration': searchConfiguration,
       'proximityScope': proximityScope?.name,
       'targetKind': targetKind.name,
+      'pdfCommentatorsHeading': ?pdfCommentatorsHeading,
       'label': label,
       'createdAt': createdAt?.toIso8601String(),
       'historySlot': ?historySlot,

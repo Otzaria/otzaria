@@ -11,6 +11,9 @@ import UIKit
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: PdfFileExportPlugin.pluginKey) {
+      PdfFileExportPlugin.register(with: registrar)
+    }
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
   }
 }

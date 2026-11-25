@@ -119,6 +119,44 @@ void main() {
     );
   });
 
+  testWidgets('כותרת כרטיסיית מפרשי PDF מציינת את הכותרת הנוכחית '
+      '(issue #5794)', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'PDF בדיקה': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'PDF בדיקה';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה'), findsOneWidget);
+
+    sourceTab.currentTitle.value = 'פרק ב';
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה, פרק ב'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    sourceTab.pdfHeadings = null;
+    sourceTab.currentTitle.value = '';
+    sourceTab.pageNumber = 7;
+    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
+    await tester.pump();
+
+    expect(find.text('מפרשים על PDF בדיקה, עמוד 7'), findsOneWidget);
+  });
+
   testWidgets('כרטסיית מפרשי PDF מסתנכרנת עם currentTitle של sourceTab', (
     tester,
   ) async {
@@ -491,6 +529,85 @@ void main() {
     }
   });
 
+  testWidgets('קיצורי הזום והכותרות פועלים בכרטיסיית מפרשי PDF '
+      '(issue #5796)', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 1,
+    );
+    addTearDown(sourceTab.dispose);
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {'פרק א': 1, 'פרק ב': 10},
+    );
+    sourceTab.currentTitle.value = 'פרק א';
+    final settingsBloc = _FakeSettingsBloc();
+    addTearDown(settingsBloc.close);
+    await tester.pumpWidget(
+      _wrap(
+        PdfCommentatorsTabScreen(tab: PdfCommentatorsTab(sourceTab: sourceTab)),
+        settingsBloc: settingsBloc,
+      ),
+    );
+    await tester.pump();
+    int? lineStart() => tester
+        .widget<PdfCommentaryPanel>(find.byType(PdfCommentaryPanel))
+        .lineStartOverride;
+    expect(lineStart(), 1);
+
+    Future<void> press(
+      LogicalKeyboardKey modifier,
+      LogicalKeyboardKey key,
+    ) async {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+    }
+
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageDown);
+    expect(lineStart(), 10);
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageUp);
+    expect(lineStart(), 1);
+
+    final ctrl = ShortcutHelper.usesMacModifiers
+        ? LogicalKeyboardKey.metaLeft
+        : LogicalKeyboardKey.controlLeft;
+    await press(ctrl, LogicalKeyboardKey.equal);
+    await press(ctrl, LogicalKeyboardKey.minus);
+    expect(
+      settingsBloc.events.whereType<AdjustCommentatorsFontSize>().map(
+        (event) => event.delta,
+      ),
+      [2.0, -2.0],
+    );
+
+    // קיצור בלי modifier אינו פועל בזמן הקלדה בשדה החיפוש.
+    final previousShortcut = Settings.getValue<String>(
+      'key-shortcut-next-toc',
+    );
+    addTearDown(
+      () => Settings.setValue<String?>(
+        'key-shortcut-next-toc',
+        previousShortcut,
+      ),
+    );
+    await Settings.setValue<String>('key-shortcut-next-toc', 'n');
+    await press(ctrl, LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
+    expect(ShortcutHelper.isEditingText, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN, character: 'n');
+    await tester.pump();
+    expect(lineStart(), 1);
+
+    await Settings.setValue<String>('key-shortcut-next-toc', 'alt+pagedown');
+    await press(LogicalKeyboardKey.altLeft, LogicalKeyboardKey.pageDown);
+    expect(lineStart(), 1);
+  });
+
   testWidgets('חלונית הניווט בעיצוב האחיד: NavSidePanel, כותרת ועץ כרטיסים', (
     tester,
   ) async {
@@ -520,39 +637,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(NavPanelTabHeader), findsOneWidget);
-    expect(find.byType(NavPanelPinButton), findsOneWidget);
     // שורות העץ בעיצוב הספרייה: כרטיס מקובץ + שורת ניווט.
     expect(find.byType(NavTreeGroupCard), findsWidgets);
     expect(find.widgetWithText(NavTreeTile, 'פרק א'), findsOneWidget);
-  });
-
-  testWidgets('חלון צר: לחלונית הניווט אין מקום ליד התוכן, ואין כפתור נעיצה '
-      '(issue #5202)', (tester) async {
-    // 320 (החלונית) + 500 (מינימום לתוכן) = 820 נדרשים לדחיקת התוכן.
-    tester.view.physicalSize = const Size(700, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final sourceTab = PdfBookTab(
-      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
-      pageNumber: 1,
-    );
-    addTearDown(sourceTab.dispose);
-    sourceTab.pdfHeadings = PdfHeadings(
-      bookTitle: 'PDF בדיקה',
-      headingsMap: {'פרק א': 1, 'פרק ב': 10},
-    );
-    sourceTab.currentTitle.value = 'פרק א';
-
-    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
-    await tester.pumpWidget(_wrap(PdfCommentatorsTabScreen(tab: tab)));
-    await tester.pump();
-    await tester.tap(find.byType(NavPanelToggleButton));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(NavPanelTabHeader), findsOneWidget);
-    expect(find.byType(NavPanelPinButton), findsNothing);
   });
 
   testWidgets('בחירת כותרת בעץ הניווט שומרת את החיפוש במפרשים', (
@@ -673,53 +760,58 @@ void main() {
       return tab;
     }
 
-    testWidgets('חלונית לא נעוצה: גלילה אינה סוגרת, לחיצה על התוכן סוגרת', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1600, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final source = sourceTab();
-      addTearDown(source.dispose);
+    testWidgets(
+      'חלונית מעל התוכן במסך צר: גלילה אינה סוגרת, לחיצה על התוכן סוגרת',
+      (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(700, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final source = sourceTab();
+        addTearDown(source.dispose);
 
-      await tester.pumpWidget(
-        _wrap(
-          PdfCommentatorsTabScreen(tab: PdfCommentatorsTab(sourceTab: source)),
-        ),
-      );
-      await tester.pump();
+        await tester.pumpWidget(
+          _wrap(
+            PdfCommentatorsTabScreen(
+              tab: PdfCommentatorsTab(sourceTab: source),
+            ),
+          ),
+        );
+        await tester.pump();
 
-      await tester.tap(find.byType(NavPanelToggleButton));
-      await tester.pumpAndSettle();
-      NavSidePanel panel() =>
-          tester.widget<NavSidePanel>(find.byType(NavSidePanel));
-      expect(panel().isOpen, isTrue);
+        await tester.tap(find.byType(NavPanelToggleButton));
+        await tester.pumpAndSettle();
+        NavSidePanel panel() =>
+            tester.widget<NavSidePanel>(find.byType(NavSidePanel));
+        expect(panel().isOpen, isTrue);
 
-      // גלילת המשתמש ברשימת המפרשים, כפי שהיא עולה מהרשימה אל המסך.
-      final context = tester.element(find.byType(PdfCommentaryPanel));
-      UserScrollNotification(
-        metrics: FixedScrollMetrics(
-          minScrollExtent: 0,
-          maxScrollExtent: 1000,
-          pixels: 100,
-          viewportDimension: 500,
-          axisDirection: AxisDirection.down,
-          devicePixelRatio: 1,
-        ),
-        context: context,
-        direction: ScrollDirection.forward,
-      ).dispatch(context);
-      await tester.pumpAndSettle();
+        // גלילת המשתמש ברשימת המפרשים, כפי שהיא עולה מהרשימה אל המסך.
+        final context = tester.element(find.byType(PdfCommentaryPanel));
+        UserScrollNotification(
+          metrics: FixedScrollMetrics(
+            minScrollExtent: 0,
+            maxScrollExtent: 1000,
+            pixels: 100,
+            viewportDimension: 500,
+            axisDirection: AxisDirection.down,
+            devicePixelRatio: 1,
+          ),
+          context: context,
+          direction: ScrollDirection.forward,
+        ).dispatch(context);
+        await tester.pumpAndSettle();
 
-      expect(panel().isOpen, isTrue, reason: 'גלילה אינה סגירה מפורשת');
+        expect(panel().isOpen, isTrue, reason: 'גלילה אינה סגירה מפורשת');
 
-      // ההצללה מכסה את המפרשים; לחיצה עליה סוגרת את החלונית.
-      await tester.tapAt(const Offset(100, 450));
-      await tester.pumpAndSettle();
+        // ההצללה מכסה את המפרשים; לחיצה עליה סוגרת את החלונית.
+        await tester.tapAt(const Offset(100, 450));
+        await tester.pumpAndSettle();
 
-      expect(panel().isOpen, isFalse);
-    });
+        expect(panel().isOpen, isFalse);
+      },
+    );
 
     testWidgets('הגדרת רוחב הטקסט חלה על רשימת המפרשים', (tester) async {
       tester.view.physicalSize = const Size(1600, 900);
@@ -763,7 +855,7 @@ void main() {
       expect(scrollbarRect.right, panelRect.right);
     });
   });
-  testWidgets('אפשר לבטל נעיצה ולסגור מפרשי PDF אחרי הקטנת החלון', (
+  testWidgets('אפשר לסגור את חלונית הניווט במפרשי PDF אחרי הקטנת החלון', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1100, 900);
@@ -784,21 +876,22 @@ void main() {
     await tester.pump();
     await tester.tap(find.byType(NavPanelToggleButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('נעץ את החלונית'));
-    await tester.pumpAndSettle();
     tester.view.physicalSize = const Size(700, 900);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
-    await tester.tap(find.byTooltip('בטל נעיצה'));
+    // מסך צר סוגר את החלונית; הכפתור פותח אותה מעל התוכן וסוגר שוב.
+    expect(
+      tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen,
+      isFalse,
+    );
+    await tester.tap(find.byType(NavPanelToggleButton));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('נעץ את החלונית'), findsNothing);
+    expect(
+      tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen,
+      isTrue,
+    );
     await tester.tap(find.byType(NavPanelToggleButton));
     await tester.pumpAndSettle();
     final panel = tester.widget<NavSidePanel>(find.byType(NavSidePanel));
-    expect(
-      panel.isOpen,
-      isFalse,
-      reason: 'החלונית הצפה חייבת להיסגר לאחר ביטול נעיצה',
-    );
+    expect(panel.isOpen, isFalse);
   });
 }

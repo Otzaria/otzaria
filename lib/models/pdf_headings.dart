@@ -7,13 +7,14 @@ import 'package:otzaria/models/book_source.dart';
 /// מודל לניהול קבצי headings של PDF
 /// מקשר בין כותרות ב-PDF למספרי שורות בקובץ הטקסט
 class PdfHeadings {
+  /// צילום בלתי ניתן לשינוי: הרשימה הממוינת נבנית ממנו פעם אחת.
   final Map<String, int> headingsMap;
   final String bookTitle;
 
   PdfHeadings({
-    required this.headingsMap,
+    required Map<String, int> headingsMap,
     required this.bookTitle,
-  });
+  }) : headingsMap = Map.unmodifiable(headingsMap);
 
   /// טוען headings עבור ספר PDF מתוך ה-DB (טבלת tocEntry).
   ///

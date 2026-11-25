@@ -138,6 +138,7 @@ void main() {
         plan,
         onDbReplaced: () {
           expect(DbReadWorker.corruptDatabaseDetected.value, isFalse);
+          expect(File('$dbPath.applying').existsSync(), isFalse);
           DbReadWorker.corruptDatabaseDetected.value = true;
         },
       );
@@ -645,6 +646,74 @@ void main() {
       expect(File('$dbPath.backup').existsSync(), isFalse);
     },
   );
+
+  test('המסד נפתח מחדש לפני סיום ניקוי הגיבוי', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    final recovery = _GatedBackupCleanupRecovery();
+    final gate = LibraryAccessGate(
+      renameProbe: false,
+      selfAccess: LibraryAccessRoutine(
+        suspend: () async {},
+        resume: (dbReplaced) async {
+          expect(dbReplaced, isTrue);
+          expect(_readMarker(dbPath), 'new');
+        },
+      ),
+    );
+    final repository = _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      recovery: recovery,
+      accessGate: gate,
+    );
+    var replacementReported = false;
+    final update = repository.applyFullDownload(
+      _localFullDownloadPlan(),
+      onDbReplaced: () {
+        replacementReported = true;
+        throw StateError('replacement listener failed');
+      },
+    );
+    try {
+      await recovery.cleanupStarted.future;
+      await _waitUntil(() => !gate.isSuspending);
+      expect(replacementReported, isTrue);
+      expect(File('$dbPath.applying').existsSync(), isFalse);
+      expect(File('$dbPath.backup').existsSync(), isTrue);
+      expect(DatabaseLibraryProvider.operationQueue.busyCount.value, 1);
+    } finally {
+      recovery.releaseCleanup.complete();
+      await update;
+    }
+    expect(File('$dbPath.backup').existsSync(), isFalse);
+  });
+
+  test('כשל בניקוי הגיבוי אחרי commit משאיר את המסד החדש', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    final recovery = _GatedBackupCleanupRecovery();
+    final repository = _localFullDownloadRepository(
+      tmp: tmp,
+      dbPath: dbPath,
+      recovery: recovery,
+    );
+    var replacementReported = false;
+    final update = repository.applyFullDownload(
+      _localFullDownloadPlan(),
+      onDbReplaced: () => replacementReported = true,
+    );
+    final result = expectLater(update, throwsStateError);
+
+    await recovery.cleanupStarted.future;
+    recovery.releaseCleanup.completeError(StateError('cleanup failed'));
+    await result;
+
+    expect(replacementReported, isTrue);
+    expect(_readMarker(dbPath), 'new');
+    expect(File('$dbPath.applying').existsSync(), isFalse);
+    expect(File('$dbPath.backup').existsSync(), isTrue);
+  });
 
   test('rollback אחרי החלפה משמר את סימון הפגימה של המסד הישן', () async {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
@@ -2648,6 +2717,10 @@ void main() {
         ).existsSync(),
         isFalse,
       );
+      final totalHint = File(
+        p.join(tmp.path, 'library_update_cache', 'verify_total_bytes.txt'),
+      ).readAsStringSync();
+      expect(int.parse(totalHint), greaterThan(0));
     },
     timeout: const Timeout(Duration(seconds: 60)),
   );
@@ -2856,6 +2929,7 @@ LibraryUpdateRepository _localFullDownloadRepository({
   LibraryDbRecoveryService recovery = const LibraryDbRecoveryService(),
   LibraryRuntimeRefreshService refreshService =
       const LibraryRuntimeRefreshService(),
+  LibraryAccessGate? accessGate,
   FullDbExtractor? fullDbExtractor,
   int maxFullDbBytes = kDefaultMaxExtractedBytes,
 }) => LibraryUpdateRepository(
@@ -2872,6 +2946,7 @@ LibraryUpdateRepository _localFullDownloadRepository({
     decompress: (bytes) async => bytes,
   ),
   recovery: recovery,
+  accessGate: accessGate,
   refreshService: refreshService,
   dbPathProvider: () => dbPath,
   dataRootProvider: () async => tmp.path,
@@ -2925,9 +3000,22 @@ class _GatedAfterBeginRecovery extends LibraryDbRecoveryService {
   }
 }
 
+class _GatedBackupCleanupRecovery extends LibraryDbRecoveryService {
+  final cleanupStarted = Completer<void>();
+  final releaseCleanup = Completer<void>();
+
+  @override
+  Future<void> finishSuccessAsync(String dbPath) {
+    File(markerPathFor(dbPath)).deleteSync();
+    cleanupStarted.complete();
+    return releaseCleanup.future.then((_) => super.finishSuccessAsync(dbPath));
+  }
+}
+
 class _FailingFinishRecovery extends LibraryDbRecoveryService {
   @override
-  void finishSuccess(String dbPath) => throw StateError('commit failed');
+  Future<void> finishSuccessAsync(String dbPath) =>
+      throw StateError('commit failed');
 }
 
 class _ThrowingRefreshService extends LibraryRuntimeRefreshService {

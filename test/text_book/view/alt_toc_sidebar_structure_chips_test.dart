@@ -418,7 +418,6 @@ TextBookLoaded _loadedState(TextBook book) {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

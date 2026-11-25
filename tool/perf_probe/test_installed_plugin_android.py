@@ -21,6 +21,9 @@ import unittest
 from unittest.mock import patch
 
 from tool.perf_probe import run_installed_plugin_android as probe
+from tool.perf_probe.test_installed_pdf_android import (
+    APK_PATH, MODULE_PATH, apk_bytes, apk_evidence, host_maps, pdf_maps, pdf_report,
+)
 
 
 CAMPAIGN = "campaign-" + "a" * 32
@@ -128,6 +131,7 @@ def report_fixture(evidence):
     return {"schemaVersion": 1, "status": "passed", "platform": "android", "buildMode": "debug",
             "pid": 123, "runId": "123-456", "commit": COMMIT, "physicalDeviceAcceptance": False,
             "policyRestored": True, "frameworkPassed": True, "testFailures": [], "errors": [], "contractErrors": [],
+            "pdfRuntime": pdf_report(),
             "pinnedStore": {"commit": probe.STORE_COMMIT},
             "androidControl": {**{key: BOOTSTRAP[key] for key in probe.IDENTITY_KEYS}, "physicalProfileRelease": "notRun"},
             "platformMatrix": {os_name: {"status": "passed" if os_name == "android" else "notRun"}
@@ -289,14 +293,26 @@ class ProtocolTests(unittest.TestCase):
 class ReportTests(unittest.TestCase):
     def setUp(self):
         self.evidence = {"home": {"fixture": "home"}, "hostQuiet": {"fixture": "quiet"}, "resume": {"fixture": "resume"}}
+        self.evidence["pdfRuntime"] = host_maps()
         self.report = report_fixture(self.evidence)
 
     def validate(self, report=None, **overrides):
         raw = json.dumps(self.report if report is None else report).encode()
-        return probe.verify_report(raw, {**completion(raw), **overrides}, BOOTSTRAP, self.evidence, COMMIT)
+        return probe.verify_report(raw, {**completion(raw), **overrides}, BOOTSTRAP, self.evidence, COMMIT,
+                                   apk=apk_evidence())
 
     def test_complete_controlled_report_is_accepted(self):
         self.assertEqual(self.validate()["status"], "passed")
+
+    def test_android_pdf_runtime_cannot_be_missing_or_skipped(self):
+        for pdf in (None, {}, {"status": "notRun"}, {"status": "unsupported"}):
+            report = copy.deepcopy(self.report)
+            if pdf is None:
+                report.pop("pdfRuntime", None)
+            else:
+                report["pdfRuntime"] = pdf
+            with self.subTest(pdf=pdf), self.assertRaisesRegex(ValueError, "PDF runtime"):
+                self.validate(report)
 
     def test_desktop_visibility_requires_explicit_unsupported_with_a_reason(self):
         for name in ("minimize", "hide"):
@@ -381,6 +397,7 @@ class RunnerTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="android-installed-host-test-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
+        (self.directory / "pdf-maps.txt").write_text(pdf_maps())
         self.fake_adb = self.directory / "adb"
         self.fake_adb.write_text(f"#!{sys.executable}\n" + textwrap.dedent('''
             import json
@@ -406,6 +423,8 @@ class RunnerTests(unittest.TestCase):
                     print(state.get('resolvedHome', home))
             elif args == ['shell', '-T', 'run-as', package, 'cat', '/proc/123/stat']:
                 print('123 (probe) S ' + ' '.join(['0'] * 18 + ['1000'] + ['0'] * 10))
+            elif args == ['shell', '-T', 'run-as', package, 'cat', '/proc/123/maps']:
+                print((root / 'pdf-maps.txt').read_text())
             elif args == ['shell', 'dumpsys', 'activity', 'activities']:
                 target = 'ActivityRecord{' + state['token'] + ' u0 ' + component + ' t42}'
                 launcher = 'ActivityRecord{def u0 ' + state.get('actualHome', home) + ' t1}'
@@ -448,6 +467,7 @@ class RunnerTests(unittest.TestCase):
         self.runner.campaign = CAMPAIGN
         self.runner.launcher = LAUNCHER
         self.runner.result["sourceCommit"] = COMMIT
+        self.runner.result["apk"] = apk_evidence()
         self.runner.original = self.runner.wait_native(foreground=True)
 
     def test_build_verifies_and_installs_the_direct_flavor_output(self):
@@ -464,12 +484,16 @@ class RunnerTests(unittest.TestCase):
         apk.parent.mkdir(parents=True)
         stale = apk.with_name("app-debug.apk")
         stale.write_bytes(b"stale unflavored APK")
-        payload = b"new direct installed-probe APK"
+        payload = apk_bytes()
         badging = (f"package: name='{probe.PACKAGE}'\n"
                    f"launchable-activity: name='{probe.ACTIVITY}'\napplication-debuggable\n").encode()
         device = {("get-state",): "device", ("shell", "getprop", "ro.kernel.qemu"): "1",
                   ("shell", "am", "get-current-user"): "0",
-                  ("shell", "getprop", "ro.product.cpu.abi"): "x86_64"}
+                  ("shell", "getprop", "ro.product.cpu.abi"): "x86_64",
+                  ("shell", "pm", "path", "--user", "0", probe.PACKAGE): "package:" + APK_PATH,
+                  ("shell", "readlink", "-f", MODULE_PATH): MODULE_PATH,
+                  ("shell", "sha256sum", APK_PATH): hashlib.sha256(payload).hexdigest() + "  " + APK_PATH,
+                  ("shell", "sha256sum", MODULE_PATH): apk_evidence()["pdfium"]["sha256"] + "  " + MODULE_PATH}
         calls = []
 
         def command(argv, **kwargs):
@@ -517,6 +541,8 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(self.runner.result["apk"], {
             "package": probe.PACKAGE, "activity": probe.ACTIVITY, "debuggable": True,
             "sha256": hashlib.sha256(payload).hexdigest(), "bytes": len(payload),
+            "pdfium": apk_evidence()["pdfium"],
+            "installed": {**apk_evidence()["installed"], "apkSha256": hashlib.sha256(payload).hexdigest()},
         })
         self.assertEqual(stale.read_bytes(), b"stale unflavored APK")
         install.assert_called_once_with(apk)
@@ -595,6 +621,37 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue((self.runner.output / "installed-plugin-report.json").exists())
         self.assertTrue((self.runner.output / "preliminary-installed-plugin-report.json").exists())
         self.assertTrue(self.runner.result["completionReceipt"]["controlClosed"])
+        self.assertTrue(self.runner.result["pdfRuntimeVerified"])
+        self.assertTrue((self.runner.output / "bundle-runtime-host-maps.txt").exists())
+        self.assertIn(MODULE_PATH, self.runner.evidence["pdfRuntime"]["executableModulePaths"])
+
+    def test_report_cannot_complete_when_native_process_lacks_app_pdfium(self):
+        (self.directory / "pdf-maps.txt").write_text(pdf_maps(["/system/lib64/libpdfium.so"]))
+        replies = self.replies()
+        with self.assertRaisesRegex(ValueError, "executable mapping"):
+            self.runner.serve(self.event_stream())
+        self.assertNotEqual(self.runner.result["status"], "passed")
+        self.assertEqual(replies[-1]["action"], "complete")
+        self.assertFalse(replies[-1]["ok"])
+
+    def test_process_reuse_during_pdf_maps_capture_fails(self):
+        original = self.runner.original["process"]
+        with patch.object(self.runner, "read_process", side_effect=[original, {**original, "startTicks": 2000}]), \
+                self.assertRaisesRegex(ValueError, "process changed"):
+            self.runner.capture_pdf_maps()
+        self.assertNotIn("pdfRuntime", self.runner.evidence)
+
+    def test_installed_pdfium_mismatch_fails_before_launch(self):
+        replies = {
+            ("shell", "pm", "path", "--user", "0", probe.PACKAGE): "package:" + APK_PATH,
+            ("shell", "readlink", "-f", MODULE_PATH): MODULE_PATH,
+            ("shell", "sha256sum", APK_PATH): "a" * 64 + "  " + APK_PATH,
+            ("shell", "sha256sum", MODULE_PATH): "b" * 64 + "  " + MODULE_PATH,
+        }
+        with patch.object(self.runner, "text", side_effect=lambda *args: replies[args]), \
+                self.assertRaisesRegex(ValueError, "bytes differ"):
+            self.runner.verify_pdf_installation()
+        self.assertNotEqual(self.runner.result["status"], "passed")
 
     def test_complete_ack_does_not_hide_a_later_device_close_failure(self):
         replies = self.replies()

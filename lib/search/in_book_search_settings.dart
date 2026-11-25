@@ -39,7 +39,7 @@ class InBookSearchSettings {
       searchMode: mode,
       distance: mode == SearchMode.fuzzy
           ? kMaxFuzzyDistance
-          : SearchDefaults.loadDistanceDefault(),
+          : SearchDefaults.loadDistanceDefault(mode),
       matchPolicy: SearchConfiguration(
         searchMode: mode,
         proximityScope: policy.proximityScope,

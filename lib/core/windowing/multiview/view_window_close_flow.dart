@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
-import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_opener.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
@@ -23,16 +22,13 @@ class ViewWindowCloseFlow {
     required this.entry,
     ViewWindowCloseConfirm? confirm,
     Future<void> Function()? flush,
-    Future<void> Function(int slot)? discardSession,
     this._opener,
   }) : _confirm = confirm ?? _confirmUnsavedTabs,
-       _flush = flush ?? PreCloseRegistry.runAll,
-       _discardSession = discardSession ?? WindowSessionStore.instance.delete;
+       _flush = flush ?? PreCloseRegistry.runAll;
 
   final ViewWindowEntry entry;
   final ViewWindowCloseConfirm _confirm;
   final Future<void> Function() _flush;
-  final Future<void> Function(int slot) _discardSession;
   final ViewWindowOpener? _opener;
   bool _running = false;
   final Completer<bool> _abandoned = Completer<bool>();
@@ -103,16 +99,9 @@ class ViewWindowCloseFlow {
           debugPrint('view window close: flush failed: $e');
         }
         if (_abandoned.isCompleted) return false;
-        // מכאן הסגירה שאושרה מושלמת גם אם העץ נבנה מחדש.
-        await opener.rememberClosed(entry.slot, keptRow: staysInDock);
-        // סגירה מכוונת מוחקת את הסשן; קודם endSession, ששמירה באמצע לא תחזיר אותו.
+        // הסשן מפסיק להיכתב לפני שמחליפים את השורה ברשומת שחזור.
         entry.endSession();
-        try {
-          if (!staysInDock) await _discardSession(entry.slot);
-        } catch (e) {
-          // השורה תאומץ בהפעלה הבאה; החלון נסגר בכל מקרה.
-          debugPrint('view window close: discard failed: $e');
-        }
+        await opener.rememberClosed(entry.slot, keptRow: staysInDock);
         endWindowCorrectionSessions(tabs);
         entry.handle.destroy();
         destroyed = true;

@@ -41,14 +41,19 @@ void main() {
   Future<_EchoTextBookBloc> pumpSearchView(
     WidgetTester tester, {
     required String existingQuery,
+    Duration echoDelay = Duration.zero,
   }) async {
-    final textBookBloc = _EchoTextBookBloc(_loadedState(existingQuery));
+    final textBookBloc = _EchoTextBookBloc(
+      _loadedState(existingQuery),
+      echoDelay: echoDelay,
+    );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
+      // הדים מושהים שעוד בדרך חייבים להסתיים לפני סגירת ה-BLoC.
+      await tester.pump(echoDelay);
       await textBookBloc.close();
       await settingsBloc.close();
       focusNode.dispose();
@@ -69,6 +74,7 @@ void main() {
                 focusNode: focusNode,
                 closeLeftPaneCallback: () {},
                 initialQuery: (state as TextBookLoaded).searchText,
+                initialQuerySource: state.searchTextSource,
                 simpleSearchRunner: (content, query) async => const [],
               ),
             ),
@@ -129,6 +135,113 @@ void main() {
       expect(fieldText(tester), 'שלום');
     });
   });
+  // issue #5711: הקשה שנוחתת אחרי שהדיבאונס שלח את השאילתה ולפני שההד חזר
+  // לחלונית — ההד הישן נחשב לשינוי חיצוני ודרס את האות החדשה.
+  group('הקלדה מהירה בחיפוש בספר אינה מאבדת אותיות (issue #5711)', () {
+    const echoDelay = Duration(milliseconds: 30);
+
+    testWidgets('אות שהוקלדה לפני שהד ה-BLoC חזר נשארת בשדה', (tester) async {
+      final bloc = await pumpSearchView(
+        tester,
+        existingQuery: '',
+        echoDelay: echoDelay,
+      );
+
+      await tester.enterText(find.byType(TextField), 'אב');
+      await tester.pump(kSearchFieldDebounce);
+      await tester.enterText(find.byType(TextField), 'אבג');
+      await tester.pump(echoDelay);
+      await tester.pump();
+
+      expect(fieldText(tester), 'אבג');
+
+      await tester.pump(kSearchFieldDebounce);
+      await tester.pump(echoDelay);
+      await tester.pump();
+      expect(fieldText(tester), 'אבג');
+      expect((bloc.state as TextBookLoaded).searchText, 'אבג');
+    });
+
+    testWidgets('הקשות רצופות שכל אחת מקדימה את ההד הקודם נשמרות כולן', (
+      tester,
+    ) async {
+      final bloc = await pumpSearchView(
+        tester,
+        existingQuery: '',
+        echoDelay: echoDelay,
+      );
+
+      // כל הקשה נוחתת אחרי שהדיבאונס שלח את הקודמת ולפני שההד שלה חזר.
+      for (final typed in ['אב', 'אבג', 'אבגד', 'אבגד ה', 'אבגד הו']) {
+        await tester.enterText(find.byType(TextField), typed);
+        await tester.pump(kSearchFieldDebounce);
+        expect(fieldText(tester), typed);
+      }
+      await tester.pump(echoDelay);
+      await tester.pump();
+
+      expect(fieldText(tester), 'אבגד הו');
+      expect((bloc.state as TextBookLoaded).searchText, 'אבגד הו');
+    });
+
+    testWidgets('שינוי חיצוני אחרי הקלדה עדיין מסונכרן לשדה', (tester) async {
+      final bloc = await pumpSearchView(
+        tester,
+        existingQuery: '',
+        echoDelay: echoDelay,
+      );
+      await tester.enterText(find.byType(TextField), 'אב');
+      await tester.pump(kSearchFieldDebounce);
+      await tester.pump(echoDelay);
+      await tester.pump();
+
+      bloc.add(const UpdateSearchText('שלום'));
+      await tester.pump(echoDelay);
+      await tester.pump();
+      expect(fieldText(tester), 'שלום');
+
+      // הסנכרון שולח את השאילתה שוב; ממתינים להד שלה.
+      await tester.pump(echoDelay);
+    });
+
+    testWidgets('חיפוש חיצוני יכול לבחור מחדש את השאילתה הקיימת', (
+      tester,
+    ) async {
+      final bloc = await pumpSearchView(tester, existingQuery: 'אב');
+      await tester.enterText(find.byType(TextField), 'אבג');
+      bloc.add(const UpdateSearchText('אב'));
+      await tester.pump();
+      expect(fieldText(tester), 'אב');
+    });
+
+    testWidgets(
+      'שינוי חיצוני אחרי כמה הדים שאוגדו לפריים אחד עם שאילתה חוזרת מגיע לשדה',
+      (tester) async {
+        // ההדים חוזרים רק אחרי שלוש השליחות, ולכן נבנים בפריים אחד.
+        const slowEcho = Duration(milliseconds: 600);
+        final bloc = await pumpSearchView(
+          tester,
+          existingQuery: '',
+          echoDelay: slowEcho,
+        );
+        for (final typed in ['אב', 'אבג', 'אב']) {
+          await tester.enterText(find.byType(TextField), typed);
+          await tester.pump(kSearchFieldDebounce);
+        }
+        await tester.pump(slowEcho);
+        await tester.pump();
+        expect(fieldText(tester), 'אב');
+        expect((bloc.state as TextBookLoaded).searchText, 'אב');
+
+        bloc.add(const UpdateSearchText('אבג'));
+        await tester.pump(slowEcho);
+        await tester.pump();
+        expect(fieldText(tester), 'אבג');
+
+        await tester.pump(slowEcho);
+      },
+    );
+  });
 }
 
 TextBookLoaded _loadedState(String searchText) {
@@ -148,7 +261,6 @@ TextBookLoaded _loadedState(String searchText) {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: searchText,
   );
 }
@@ -156,10 +268,18 @@ TextBookLoaded _loadedState(String searchText) {
 /// BLoC שמהדהד את טקסט החיפוש חזרה ל-state, כמו TextBookBloc האמיתי.
 class _EchoTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
-  _EchoTextBookBloc(super.initialState) {
-    on<UpdateSearchText>((event, emit) {
+  _EchoTextBookBloc(super.initialState, {Duration echoDelay = Duration.zero}) {
+    on<UpdateSearchText>((event, emit) async {
+      // ההד של ה-BLoC האמיתי מגיע לחלונית רק בפריים הבא; השהיה מדמה הקשה
+      // שנוחתת בינתיים.
+      if (echoDelay > Duration.zero) await Future<void>.delayed(echoDelay);
       final current = state as TextBookLoaded;
-      emit(current.copyWith(searchText: event.text));
+      emit(
+        current.copyWith(
+          searchText: event.text,
+          searchTextSource: event.textSource,
+        ),
+      );
     });
     on<TextBookEvent>((event, emit) {});
   }

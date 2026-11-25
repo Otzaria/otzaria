@@ -13,10 +13,18 @@ class SearchRefRequested extends FindRefEvent {
   /// null = לפי ההגדרה השמורה של מתג הדיאלוג (הבלוק מכריע).
   final bool? includePersonalBooks;
 
-  const SearchRefRequested(this.refText, {this.includePersonalBooks});
+  /// true רק מדיאלוג האיתור: הדירוג משתמש בהעדפות האישיות. קישור וסיור
+  /// נשארים בסדר שאינו תלוי במשתמש.
+  final bool personalized;
+
+  const SearchRefRequested(
+    this.refText, {
+    this.includePersonalBooks,
+    this.personalized = false,
+  });
 
   @override
-  List<Object> get props => [refText, ?includePersonalBooks];
+  List<Object> get props => [refText, ?includePersonalBooks, personalized];
 }
 
 class ClearSearchRequested extends FindRefEvent {}

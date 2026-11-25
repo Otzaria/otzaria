@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/plugins/services/plugin_settings_access_policy.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
@@ -35,6 +36,7 @@ void main() {
       'key-current-workspace-id',
       'key-saved-alternative-words',
       'key-plugin-search-selections',
+      FindRefPreferenceStore.scoresKey,
       'sz:tracked_books',
       'sz:progress_by_id',
       SettingsRepository.keyCalendarEvents,
@@ -84,6 +86,7 @@ void main() {
 
   group('קריא', () {
     const readable = [
+      FindRefPreferenceStore.enabledKey,
       SettingsRepository.keyDarkMode,
       SettingsRepository.keyFollowSystemTheme,
       SettingsRepository.keySwatchColor,

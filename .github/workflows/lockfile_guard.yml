@@ -48,8 +48,20 @@ jobs:
           DEPENDENCIES_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') }}
         run: |
           set -euo pipefail
-          files=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
-            --jq '.[] | .status + " " + (if .previous_filename == "pubspec.lock" then .previous_filename else .filename end)')
+          # A transient API error (504, timeout) must not fail the guard. Each
+          # attempt replaces $files, so a failed page never leaves partial lines.
+          read_files() {
+            local out
+            out=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
+              --jq '.[] | .status + " " + (if .previous_filename == "pubspec.lock" then .previous_filename else .filename end)') || return 1
+            files=$out
+          }
+          files=""
+          for attempt in 1 2 3; do
+            read_files && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep $((attempt * 10))
+          done
 
           lock_status=$(awk '$2 == "pubspec.lock" { print $1 }' <<<"$files")
           if [ -z "$lock_status" ]; then

@@ -376,6 +376,16 @@ begin
   Result := ExtractFileDir(GetSelectedBooksPath('')) + '\semantic-import';
 end;
 
+// מיקום האיסוף של מסדים רשמיים באפליקציה (defaultDropDirectory), תחת שורש הנתונים.
+function GetOfficialDropDir(Param: String): String;
+begin
+  if PortableMode then
+    Result := ExpandConstant('{app}') + '\otzaria_data'
+  else
+    Result := ExpandConstant('{userappdata}\otzaria');
+  Result := Result + '\מסדים אישיים\להתקנה';
+end;
+
 // חותך רכיב מספרי מתחילת S ומקדם אותה הלאה. תו שאינו ספרה או '.'
 // (כמו '+' של מספר build) מסיים את הפירוק.
 function NextVersionComponent(var S: String): Integer;
@@ -1554,15 +1564,15 @@ begin
 end;
 
 // שאלה בתחילת ההסרה: האם למחוק גם את הנתונים והספרים?
-// בהסרה שקטה (כולל עדכון שמריץ unins000.exe /SILENT) MsgBox מחזיר אוטומטית
-// את ברירת המחדל; MB_DEFBUTTON2 דואג שברירת המחדל היא "לא" כך שנתוני
-// המשתמש נשמרים אם הוא לא בחר במפורש למחוק.
+// MsgBox מוצג גם תחת /SUPPRESSMSGBOXES — הסרה שקטה מדלגת ושומרת את הנתונים.
 function InitializeUninstall(): Boolean;
 var
   CustomPath, Msg: String;
 begin
   Result := True;
   DeleteUserDataOnUninstall := False;
+  if UninstallSilent then
+    exit;
 
   CustomPath := GetCustomLibraryPath();
 
@@ -1893,6 +1903,9 @@ Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldIns
 ; האפליקציה מעבירה ממנה את הקבצים כשהחיפוש החכם מופעל, אחרי ההסכמה.
 Source: "{src}\semantic-import\*"; DestDir: "{code:GetSemanticImportDir}"; \
   Flags: external recursesubdirs createallsubdirs skipifsourcedoesntexist ignoreversion uninsneveruninstall
+; חבילת מחברי זמננו שמסייע ההורדה מניח לצד המתקין, אל מיקום האיסוף של האפליקציה.
+Source: "{src}\zmanenu-offline.tar.zst*"; DestDir: "{code:GetOfficialDropDir}"; \
+  Flags: external skipifsourcedoesntexist ignoreversion uninsneveruninstall
 
 ; MicrosoftEdgeWebview2Setup.exe — bootstrapper קטן (~2MB) שמוריד ומתקין WebView2
 ; נדרש על ידי flutter_inappwebview_windows; ב-Win10/11 עם Edge עדכני — כבר קיים

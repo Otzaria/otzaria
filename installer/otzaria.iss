@@ -214,6 +214,9 @@ Source: "bundled_plugins\{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPlugin
 ; נתוני החיפוש החכם שמסייע ההורדה מכין לצד המתקין, אל ליד תיקיית הספרייה.
 Source: "{src}\semantic-import\*"; DestDir: "{code:GetSemanticImportDir}"; \
   Flags: external recursesubdirs createallsubdirs skipifsourcedoesntexist ignoreversion uninsneveruninstall
+; חבילת מחברי זמננו שמסייע ההורדה מניח לצד המתקין, אל מיקום האיסוף של האפליקציה.
+Source: "{src}\zmanenu-offline.tar.zst*"; DestDir: "{code:GetOfficialDropDir}"; \
+  Flags: external skipifsourcedoesntexist ignoreversion uninsneveruninstall
 
 [INI]
 Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode and not IsPortableInstall
@@ -1525,6 +1528,16 @@ begin
   Result := ExtractFileDir(GetLibraryBooksPath()) + '\semantic-import';
 end;
 
+// מיקום האיסוף של מסדים רשמיים באפליקציה (defaultDropDirectory), תחת שורש הנתונים.
+function GetOfficialDropDir(Param: String): String;
+begin
+  if PortableMode then
+    Result := ExpandConstant('{app}') + '\otzaria_data'
+  else
+    Result := ExpandConstant('{userappdata}\otzaria');
+  Result := Result + '\מסדים אישיים\להתקנה';
+end;
+
 // מוחק את כל הנתונים והספרים של אוצריא: ספריית הספרים המותאמת אישית
 // (רק אם היא מזוהה כתיקיית אוצריא — ראה IsOtzariaBooksFolder), כל תיקיות
 // הנתונים הסטנדרטיות וגם נתיבי legacy. קוראים את הנתיב המותאם מה-prefs
@@ -1565,15 +1578,15 @@ begin
 end;
 
 // שאלה בתחילת ההסרה: האם למחוק גם את הנתונים והספרים?
-// בהסרה שקטה (כולל עדכון שמריץ unins000.exe /SILENT) MsgBox מחזיר אוטומטית
-// את ברירת המחדל; MB_DEFBUTTON2 דואג שברירת המחדל היא "לא" כך שנתוני
-// המשתמש נשמרים אם הוא לא בחר במפורש למחוק.
+// MsgBox מוצג גם תחת /SUPPRESSMSGBOXES — הסרה שקטה מדלגת ושומרת את הנתונים.
 function InitializeUninstall(): Boolean;
 var
   CustomPath, Msg: String;
 begin
   Result := True;
   DeleteUserDataOnUninstall := False;
+  if UninstallSilent then
+    exit;
 
   CustomPath := GetCustomLibraryPath();
 

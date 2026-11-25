@@ -126,6 +126,24 @@ void main() {
     expect(results[2].altToc, isEmpty);
   });
 
+  test('נסיגת תוכן העניינים מכבדת את הבקשה לדלג על AltToc', () async {
+    await seedDb(1);
+    final isolate = await FindRefDbIsolate.instance();
+    addTearDown(isolate.disposeForTesting);
+
+    final results = await isolate.getTocForBooks([
+      (
+        bookId: 1,
+        bookTitle: 'ספר 1',
+        queryTokens: ['פרק', 'לאקיים'],
+        fallbackTokens: ['נח'],
+        altTocTokens: null,
+      ),
+    ]);
+
+    expect(results.single.altToc, isEmpty);
+  });
+
   test('ביטול באמצע האצווה עוצר אותה לפני הספרים הבאים', () async {
     const bookCount = 20;
     const perBook = Duration(milliseconds: 100);

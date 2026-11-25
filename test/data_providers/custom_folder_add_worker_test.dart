@@ -37,8 +37,8 @@ void main() {
       final repo = await UserBooksDatabaseHolder.instance.repository;
       final bloc = CustomFoldersBloc(addLibraryEvent: (_) {});
       addTearDown(bloc.close);
-      for (final root in ['a/books', 'b/books']) {
-        final dir = Directory(p.join(temp.path, root))
+      for (final root in ['a', 'b']) {
+        final dir = Directory(p.join(temp.path, root, 'books'))
           ..createSync(recursive: true);
         File(
           p.join(dir.path, 'same.txt'),
@@ -58,8 +58,8 @@ void main() {
       expect(
         books.map((b) => b.filePath),
         unorderedEquals([
-          p.join(temp.path, 'a/books/same.txt'),
-          p.join(temp.path, 'b/books/same.txt'),
+          p.join(temp.path, 'a', 'books', 'same.txt'),
+          p.join(temp.path, 'b', 'books', 'same.txt'),
         ]),
       );
       for (final book in books) {

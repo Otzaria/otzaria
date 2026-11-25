@@ -57,7 +57,10 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
           onTypeChipsChanged: widget.onTypeChipsChanged,
           heCategories: bookCategoriesSource(state.book),
           onCategoryDefaultsSaved: () =>
-              TextBookPerBookSettings.clearActiveCommentators(state.book),
+              TextBookPerBookSettings.clearActiveCommentators(
+                state.book,
+                expected: state.activeCommentators,
+              ),
         );
       },
     );

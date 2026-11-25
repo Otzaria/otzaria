@@ -3,6 +3,8 @@
 
 #include <windows.h>
 
+#include <cstddef>
+
 // זיכרון בתהליך האפליקציה שמודול ה-WER קורא ב-ReadProcessMemory בזמן קריסה.
 struct CrashWerContext {
   static constexpr DWORD kMagic = 0x4f545a57;  // "OTZW"
@@ -15,7 +17,12 @@ struct CrashWerContext {
   wchar_t log_path[1024];
   char version[64];
   char build_commit[64];
+  // עדכון וקריאה בתוך התהליך באמצעות Interlocked.
+  volatile LONG diagnostic_context;
 };
+
+inline constexpr size_t kLegacyCrashWerContextSize =
+    offsetof(CrashWerContext, diagnostic_context);
 
 // שם ה-DLL ליד otzaria.exe.
 #define OTZARIA_CRASH_WER_DLL L"otzaria_crash_wer.dll"

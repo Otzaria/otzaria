@@ -6,6 +6,7 @@
 library;
 
 import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 
 const Set<String> _inlineTags = {
   'span',
@@ -45,6 +46,23 @@ bool _isNameChar(int c) =>
 
 bool _isSpace(int c) =>
     c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0C || c == 0x0D;
+
+// תג התמונה שהממירים מפיקים. התאמה מתחילת התג הראשון מונעת
+// זיהוי של טקסט בתוך הערה או ערך של מאפיין כתמונה.
+final _embeddedImage = RegExp(
+  r'<img src="data:image/[^"]*"(?: [a-z]+="[^"]*")* */?>',
+);
+
+/// null כאשר השורה דורשת HtmlWidget ואפשר לחסוך את בניית העץ הזמני.
+List<dom.Node>? parseInlineHtmlNodes(String html) {
+  final firstTag = html.indexOf('<');
+  if (firstTag == -1 && !html.contains('&')) return [dom.Text(html)];
+  if (firstTag >= 0 && _embeddedImage.matchAsPrefix(html, firstTag) != null) {
+    return null;
+  }
+  return parseWellFormedInlineHtml(html) ??
+      html_parser.parseFragment(html).nodes;
+}
 
 /// הצמתים של [html], או null כשנדרש הפרסר המלא.
 List<dom.Node>? parseWellFormedInlineHtml(String html) {

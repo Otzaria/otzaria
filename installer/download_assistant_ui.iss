@@ -165,6 +165,8 @@ function UiAdapterCardSelected(I: Integer): Boolean;
 begin
   if UiCardsPage.ID = CustomPage.ID then
     Result := UiCardsPage.Values[I]
+  else if (UiCardsPage.ID = PresetPage.ID) and (I = ZmanenuIndex) then
+    Result := UiCardsPage.Values[I]
   else
     Result := UiCardsPage.SelectedValueIndex = I;
 end;
@@ -183,6 +185,12 @@ begin
       UiCardsPage.Values[I] := True;
     UiCardsPage.CheckListBox.ItemIndex := I;
     CustomChoiceClicked(UiCardsPage.CheckListBox);
+  end
+  else if (UiCardsPage.ID = PresetPage.ID) and (I = ZmanenuIndex) then
+  begin
+    UiCardsPage.Values[I] := not UiCardsPage.Values[I];
+    UiCardsPage.CheckListBox.ItemIndex := I;
+    ZmanenuChecked := UiCardsPage.Values[I];
   end
   else
     UiCardsPage.SelectedValueIndex := I;
@@ -231,7 +239,14 @@ begin
     end
     else if PageID = PresetPage.ID then
     begin
-      if I <> CustomPresetIndex then
+      if I = ZmanenuIndex then
+      begin
+        Card.Title := CustomMessage('ZmanenuTitle');
+        Card.Desc := ZmanenuDescription();
+        Card.Side := HumanSize(ZmanenuDownloadSize());
+        Card.Check := True;
+      end
+      else if I <> CustomPresetIndex then
       begin
         Card.Title := PresetLabel[I];
         Card.Desc := PresetDesc[I];
@@ -309,6 +324,9 @@ begin
   UiAddRow(UiOptionIcon(PresetPage.ID, PresetPage.SelectedValueIndex),
     CustomMessage('RowWhat'), UiSummaryWhat(), False);
   UiAddRow(TargetIcon, CustomMessage('RowFor'), UiSummaryTarget(), False);
+  if ZmanenuSelected() then
+    UiAddRow('component', CustomMessage('ZmanenuName'), HumanSize(ZmanenuSelectedSize()),
+      False);
   UiAddRow('folder', CustomMessage('RowSavedIn'), FolderPage.Values[0], True);
   UiSetContentHeight(UiPlaceSummary(0));
 end;

@@ -47,6 +47,7 @@ const Set<String> kKnownSeforimTables = {
   'schema_meta',
   'db_meta',
   'external_link',
+  'external_default_commentator',
   // מסכמה 7; מסד בסכמה 6, מצורף או אישי עשוי שלא להכיל אותן.
   'banner',
   'book_banner',
@@ -231,6 +232,15 @@ class DbCapabilities {
       hasColumn('external_link', 'sourceBookId') &&
       hasColumn('external_link', 'sourceLineIndex') &&
       hasColumn('external_link', 'targetTitle');
+
+  /// מפרשי ברירת מחדל שמסד מצורף מציע לספרים במסד אחר.
+  bool get hasExternalDefaultCommentators =>
+      hasBooks &&
+      hasColumn('external_default_commentator', 'targetSource') &&
+      hasColumn('external_default_commentator', 'targetTitle') &&
+      hasColumn('external_default_commentator', 'commentatorBookId') &&
+      hasColumn('external_default_commentator', 'kind') &&
+      hasColumn('external_default_commentator', 'position');
 
   /// בודק את [db] מחדש: שתי שאילתות סכמה, בלי קריאת נתונים.
   static DbCapabilities probe(sqlite3.Database db) {

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../tool/perf_probe/src/pdf_image_budget.dart';
+import '../../../tool/perf_probe/src/probe_binding.dart';
 import '../../../tool/perf_probe/src/report.dart';
 
 Map<String, dynamic> metadata({Map<String, dynamic> changes = const {}}) => {
@@ -333,6 +335,597 @@ void main() {
       expect(row['frames']['buildMs'], isNull);
       expect(row['frames']['legacySummaries'].single['buildP95Ms'], 12);
       expect(row['resources']['sampledCpuSeconds'], isNull);
+    });
+  });
+
+  group('PDF readiness checkpoints', () {
+    Map<String, dynamic> opening({
+      double controller = 3,
+      double? image = 8,
+      int iteration = 0,
+      bool warmup = false,
+      String status = 'passed',
+    }) => phase(
+      name: 'pdf.reader.open',
+      iteration: iteration,
+      warmup: warmup,
+      status: status,
+      extra: {
+        'details': {
+          'checkpointsMs': {
+            'controller_ready': controller,
+            'final_image_ready': ?image,
+          },
+        },
+      },
+    );
+
+    test('same-origin checkpoints exclude warmup and failed opens', () {
+      final value = report([
+        opening(controller: 9, image: 10, warmup: true),
+        opening(),
+        opening(controller: 4, image: 9, iteration: 1),
+        opening(controller: 1, image: null, iteration: 2, status: 'failed'),
+      ]);
+      final points = scenario(value, 'pdf.reader.open')['checkpointsMs'];
+      expect(points['controller_ready']['count'], 2);
+      expect(points['controller_ready']['p50'], 3);
+      expect(points['final_image_ready']['p95'], 9);
+      final markdown = renderProbeMarkdown(value);
+      expect(markdown, contains('controller_ready | 2 | 3.000'));
+      expect(markdown, contains('final_image_ready | 2 | 8.000'));
+    });
+
+    test(
+      'missing checkpoint stays unavailable instead of biasing the sample',
+      () {
+        final value = report([opening(), opening(image: null, iteration: 1)]);
+        final points = scenario(value, 'pdf.reader.open')['checkpointsMs'];
+        expect(points['controller_ready']['count'], 2);
+        expect(points['final_image_ready'], isNull);
+        expect(renderProbeMarkdown(value), contains('final_image_ready | —'));
+      },
+    );
+
+    test('checkpoint outside action interval is rejected', () {
+      for (final value in [-1.0, 11.0, double.nan]) {
+        expect(() => report([opening(image: value)]), throwsFormatException);
+      }
+    });
+
+    test('comparison retains both independently observed endpoints', () {
+      final comparison = compareProbeReports(
+        report([opening()]),
+        report([opening(controller: 4, image: 6)]),
+      );
+      final metrics = comparison['scenarios'].single['metrics'];
+      expect(metrics['checkpointsMs.controller_ready.p50']['delta'], 1);
+      expect(metrics['checkpointsMs.final_image_ready.p50']['delta'], -2);
+      expect(
+        metrics['checkpointsMs.final_image_ready.p50']['deltaPercent'],
+        -25,
+      );
+    });
+
+    test('conflicting runner and journal workloads block comparison', () {
+      final value = report(
+        [],
+        changes: {'scenarioSet': 'pdf-reader'},
+        records: [
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'all'},
+          opening(),
+          {'type': 'done'},
+        ],
+      );
+      expect(
+        value['comparisonEligibility'],
+        contains('conflicting_metadata:scenarioSet'),
+      );
+    });
+
+    test('null runner workload retains the journal workload', () {
+      final value = report(
+        [],
+        changes: {'scenarioSet': null},
+        records: [
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'pdf-reader'},
+          opening(),
+          {'type': 'done'},
+        ],
+      );
+      expect(value['metadata']['scenarioSet'], 'pdf-reader');
+      expect(value['comparisonEligibility'], isEmpty);
+      final comparison = compareProbeReports(
+        report([opening()], changes: {'scenarioSet': 'all'}),
+        value,
+      );
+      expect(comparison['comparable'], isFalse);
+      expect(comparison['reasons'], contains('metadata:scenarioSet'));
+    });
+
+    test('null runner workload still detects conflicting journals', () {
+      final value = report(
+        [],
+        changes: {'scenarioSet': null},
+        records: [
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'pdf-reader'},
+          {'type': 'meta', 'schemaVersion': 2, 'scenarioSet': 'all'},
+          opening(),
+          {'type': 'done'},
+        ],
+      );
+      expect(
+        value['comparisonEligibility'],
+        contains('conflicting_metadata:scenarioSet'),
+      );
+      expect(value['metadata']['scenarioSet'], 'pdf-reader');
+      expect(compareProbeReports(value, value)['comparable'], isFalse);
+    });
+
+    test(
+      'top-level workloads block comparison even without nested settings',
+      () {
+        Map<String, dynamic> workload(String value) =>
+            report([opening()], changes: {'scenarioSet': value});
+
+        final comparison = compareProbeReports(
+          workload('all'),
+          workload('pdf-reader'),
+        );
+        expect(comparison['comparable'], isFalse);
+        expect(comparison['reasons'], contains('metadata:scenarioSet'));
+      },
+    );
+
+    test('thumbnail checkpoints compare apart from the full phase', () {
+      const name = 'pdf.book_view.thumbnails_first_image';
+      Map<String, dynamic> withThumbnail(double atMs) => report([
+        phase(
+          name: name,
+          extra: {
+            'details': {
+              'checkpointsMs': {'first_visible_thumbnail_observed': atMs},
+            },
+          },
+        ),
+      ]);
+
+      final baseline = withThumbnail(3);
+      final candidate = withThumbnail(5);
+      final points = scenario(candidate, name)['checkpointsMs'];
+      expect(points['first_visible_thumbnail_observed']['p50'], 5);
+      final comparison = compareProbeReports(baseline, candidate);
+      final metrics = comparison['scenarios'].single['metrics'];
+      expect(metrics['latencyMs.p50']['delta'], 0);
+      expect(
+        metrics['checkpointsMs.first_visible_thumbnail_observed.p50']['delta'],
+        2,
+      );
+    });
+
+    test('framework and integration schedulers have distinct comparison identity', () {
+      Map<String, dynamic> workload(PerfBindingMode mode) => report(
+        [opening()],
+        changes: {
+          'settings': {
+            'scenarioSet': 'pdf-reader',
+            ...mode.toComparisonJson(),
+          },
+        },
+      );
+      final framework = workload(PerfBindingMode.framework);
+      expect(compareProbeReports(framework, framework)['comparable'], isTrue);
+      final comparison = compareProbeReports(
+        workload(PerfBindingMode.integration),
+        framework,
+      );
+      expect(comparison['comparable'], isFalse);
+      expect(comparison['reasons'], contains('metadata:settings'));
+    });
+
+    test('reader smoke and full workload are not comparable', () {
+      Map<String, dynamic> workload(String value) => report(
+        [opening()],
+        changes: {
+          'settings': {'scenarioSet': value},
+        },
+      );
+      final comparison = compareProbeReports(
+        workload('all'),
+        workload('pdf-reader'),
+      );
+      expect(comparison['comparable'], isFalse);
+      expect(comparison['reasons'], contains('metadata:settings'));
+    });
+  });
+
+  group('PDF image budget observations', () {
+    Map<String, dynamic> budget({
+      int retained = 40,
+      int pending = 30,
+      int speculative = 20,
+      int peak = 90,
+    }) => {
+      ...pdfImageBudgetObservationIdentity,
+      'maximumBytes': 100,
+      'retainedBytes': retained,
+      'pendingBytes': pending,
+      'speculativePendingBytes': speculative,
+      'estimatedBytes': retained + pending,
+      'processPeakEstimatedBytes': peak,
+    };
+    const settings = {
+      'framePolicy': 'fullyLive',
+      'resourceObservationVersion': perfResourceObservationVersion,
+      'pdfImageBudgetMaximumBytes': 100,
+      'pdfPostCloseIdleMs': 3000,
+    };
+    Map<String, dynamic> observedReport(
+      List<Map<String, dynamic>> phases, {
+      Map<String, dynamic> changes = const {},
+      List<ProcessSample> samples = const [],
+      List<Map<String, dynamic>>? records,
+    }) => report(
+      phases,
+      changes: {'settings': settings, ...changes},
+      samples: samples,
+      records: records,
+    );
+
+    test('estimates and the cumulative peak remain separate from RSS/heap', () {
+      final result = observedReport([
+        phase(
+          extra: {
+            'imageBudgetBefore': budget(),
+            'imageBudgetAfter': budget(retained: 0, pending: 0, speculative: 0),
+            'rssEndBytes': 500,
+            'heapAfter': {'heapUsage': 200},
+          },
+        ),
+      ]);
+      final row = scenario(result);
+      expect(row['imageBudget']['before']['estimatedBytes']['p50'], 70);
+      expect(row['imageBudget']['after']['retainedBytes']['p50'], 0);
+      expect(
+        row['imageBudget']['after']['processPeakEstimatedBytes']['max'],
+        90,
+      );
+      expect(row['imageBudget']['peakScope'], 'since-budget-construction');
+      expect(row['memory']['rssEndBytes']['p50'], 500);
+      expect(row['heap']['after']['heapUsage']['p50'], 200);
+      final markdown = renderProbeMarkdown(result);
+      expect(markdown, contains('אינו שיא השלב ואינו מאופס'));
+      expect(markdown, contains('אינם RSS או מדידות הקצאות native/GPU'));
+      expect(markdown, contains('| before | 1/1 |'));
+    });
+
+    test('partial boundary coverage does not produce biased distributions', () {
+      final result = observedReport([
+        phase(
+          extra: {'imageBudgetBefore': budget(), 'imageBudgetAfter': budget()},
+        ),
+        phase(iteration: 1, extra: {'imageBudgetBefore': budget()}),
+      ]);
+      final row = scenario(result);
+      expect(row['imageBudget']['before']['complete'], isTrue);
+      expect(row['imageBudget']['after']['sampleCount'], 1);
+      expect(row['imageBudget']['after']['expectedCount'], 2);
+      expect(row['imageBudget']['after']['complete'], isFalse);
+      expect(row['imageBudget']['after']['estimatedBytes'], isNull);
+      expect(row['imageBudget']['after']['unavailableReason'], isNotEmpty);
+      final comparison = compareProbeReports(result, result);
+      expect(comparison['comparable'], isTrue);
+      final metrics = (comparison['scenarios'] as List).single['metrics'];
+      expect(
+        metrics['imageBudget.after.estimatedBytes.p50']['available'],
+        isFalse,
+      );
+      expect(metrics['imageBudget.after.estimatedBytes.p50']['delta'], isNull);
+      expect(metrics['latencyMs.p50']['available'], isTrue);
+      expect(renderProbeMarkdown(result), contains('| after | 1/2 | — |'));
+    });
+
+    test('warmup/failed samples are excluded without resetting their peak', () {
+      final row = scenario(
+        observedReport([
+          phase(
+            warmup: true,
+            extra: {
+              'imageBudgetAfter': budget(
+                retained: 700,
+                pending: 0,
+                speculative: 0,
+                peak: 900,
+              ),
+            },
+          ),
+          phase(extra: {'imageBudgetAfter': budget(peak: 900)}),
+          phase(
+            iteration: 1,
+            status: 'failed',
+            extra: {
+              'imageBudgetAfter': budget(
+                retained: 800,
+                pending: 0,
+                speculative: 0,
+                peak: 900,
+              ),
+            },
+          ),
+        ]),
+      );
+      expect(row['imageBudget']['after']['sampleCount'], 1);
+      expect(row['imageBudget']['after']['retainedBytes']['p50'], 40);
+      expect(
+        row['imageBudget']['after']['processPeakEstimatedBytes']['max'],
+        900,
+      );
+    });
+
+    test('a process peak cannot decrease within or between phases', () {
+      final empty = budget(retained: 0, pending: 0, speculative: 0, peak: 0);
+      expect(
+        () => observedReport([
+          phase(
+            extra: {'imageBudgetBefore': budget(), 'imageBudgetAfter': empty},
+          ),
+        ]),
+        throwsFormatException,
+      );
+      expect(
+        () => observedReport([
+          phase(extra: {'imageBudgetAfter': budget()}),
+          phase(name: 'close', extra: {'imageBudgetBefore': empty}),
+        ]),
+        throwsFormatException,
+      );
+    });
+
+    test(
+      'a new launch owns a new budget and can have a lower lifetime peak',
+      () {
+        final result = observedReport(
+          [],
+          changes: {'launchCount': 2},
+          records: [
+            {'type': 'meta', 'schemaVersion': 2, 'launchIndex': 0},
+            phase(extra: {'imageBudgetAfter': budget()}),
+            {'type': 'done', 'launchIndex': 0},
+            {'type': 'meta', 'schemaVersion': 2, 'launchIndex': 1},
+            phase(
+              launch: 1,
+              extra: {
+                'imageBudgetAfter': budget(
+                  retained: 0,
+                  pending: 0,
+                  speculative: 0,
+                  peak: 10,
+                ),
+              },
+            ),
+            {'type': 'done', 'launchIndex': 1},
+          ],
+        );
+        expect(result['successful'], isTrue);
+        expect(
+          scenario(
+            result,
+          )['imageBudget']['after']['processPeakEstimatedBytes']['min'],
+          10,
+        );
+      },
+    );
+
+    test('snapshot settings must carry the same version and maximum', () {
+      for (final invalid in [
+        <String, dynamic>{},
+        {...settings, 'resourceObservationVersion': 2},
+        {...settings, 'resourceObservationVersion': 1.0},
+        {...settings, 'pdfImageBudgetMaximumBytes': 99},
+      ]) {
+        expect(
+          () => observedReport(
+            [
+              phase(extra: {'imageBudgetAfter': budget()}),
+            ],
+            changes: {'settings': invalid},
+          ),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test(
+      'a startup failure before settings are available remains diagnosable',
+      () {
+        final result = observedReport(
+          [
+            phase(status: 'failed', extra: {'imageBudgetAfter': budget()}),
+          ],
+          changes: {'settings': null, 'status': 'failed'},
+        );
+        expect(result['successful'], isFalse);
+        expect(
+          result['comparisonEligibility'],
+          contains('missing_metadata:settings'),
+        );
+        expect(
+          scenario(
+            result,
+          )['samples'].single['imageBudgetAfter']['pendingBytes'],
+          30,
+        );
+        expect(renderProbeMarkdown(result), contains('failed'));
+      },
+    );
+
+    test(
+      'resource observations retain CPU/frames while omitting action latency',
+      () {
+        final result = observedReport(
+          [
+            phase(
+              name: 'pdf.reader.idle_after_close',
+              duration: 3001,
+              end: 3001,
+              frames: [2],
+              extra: {
+                'measurementKind': 'resource-observation',
+                'observationWindowMs': 3000,
+                'imageBudgetBefore': budget(),
+                'imageBudgetAfter': budget(
+                  retained: 0,
+                  pending: 0,
+                  speculative: 0,
+                ),
+                'countersAfter': {'openTabs': 0, 'activeWork': 0},
+              },
+            ),
+          ],
+          samples: [sample(0, 0), sample(1500, .03), sample(3000, .06)],
+        );
+        final row = scenario(result, 'pdf.reader.idle_after_close');
+        expect(row['latencyMs'], isNull);
+        expect(row['observationDurationMs']['p50'], 3001);
+        expect(row['resources']['cpuAverageCorePercent'], closeTo(2, 1e-9));
+        expect(row['resources']['cpuIntervalCount'], 2);
+        expect(row['frames']['count'], 1);
+        expect(row['counters']['after']['openTabs']['max'], 0);
+        final metrics =
+            (compareProbeReports(result, result)['scenarios'] as List)
+                .single['metrics'];
+        expect(metrics['latencyMs.p50']['available'], isFalse);
+        expect(
+          metrics['imageBudget.after.estimatedBytes.p50']['available'],
+          isTrue,
+        );
+        expect(
+          renderProbeMarkdown(result),
+          contains('משכו אינו latency של פעולה'),
+        );
+      },
+    );
+
+    test('shortened, unlabelled and inconsistent observation windows fail', () {
+      for (final extra in [
+        {
+          'measurementKind': 'resource-observation',
+          'observationWindowMs': 3000,
+        },
+        {'measurementKind': 'resource-observation', 'observationWindowMs': 0},
+        {'measurementKind': 'resource-observation', 'observationWindowMs': 3.0},
+        {'measurementKind': 'resource-observation'},
+        {'observationWindowMs': 3},
+        {'measurementKind': 'unknown'},
+      ]) {
+        expect(
+          () => observedReport([phase(extra: extra)]),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => observedReport([
+          phase(),
+          phase(
+            iteration: 1,
+            extra: {
+              'measurementKind': 'resource-observation',
+              'observationWindowMs': 3,
+            },
+          ),
+        ]),
+        throwsFormatException,
+      );
+      expect(
+        () => observedReport([
+          phase(
+            extra: {
+              'measurementKind': 'resource-observation',
+              'observationWindowMs': 3,
+            },
+          ),
+          phase(
+            iteration: 1,
+            extra: {
+              'measurementKind': 'resource-observation',
+              'observationWindowMs': 4,
+            },
+          ),
+        ]),
+        throwsFormatException,
+      );
+    });
+
+    test('different or missing frame policies cannot be compared', () {
+      final current = observedReport([phase()]);
+      expect(compareProbeReports(current, current)['comparable'], isTrue);
+      for (final incompatibleSettings in [
+        {...settings, 'framePolicy': 'benchmarkLive'},
+        {...settings}..remove('framePolicy'),
+      ]) {
+        final incompatible = observedReport(
+          [phase()],
+          changes: {'settings': incompatibleSettings},
+        );
+        final comparison = compareProbeReports(current, incompatible);
+        expect(comparison['comparable'], isFalse);
+        expect(comparison['reasons'], contains('metadata:settings'));
+      }
+    });
+
+    test('older or differently configured observations cannot be compared', () {
+      final current = observedReport([phase()]);
+      for (final incompatible in [
+        report([phase()]),
+        observedReport(
+          [phase()],
+          changes: {
+            'settings': {...settings, 'resourceObservationVersion': 2},
+          },
+        ),
+        observedReport(
+          [phase()],
+          changes: {
+            'settings': {...settings, 'pdfPostCloseIdleMs': 4000},
+          },
+        ),
+        observedReport(
+          [phase()],
+          changes: {
+            'settings': {...settings, 'pdfImageBudgetMaximumBytes': 200},
+          },
+        ),
+      ]) {
+        final comparison = compareProbeReports(current, incompatible);
+        expect(comparison['comparable'], isFalse);
+        expect(comparison['reasons'], contains('metadata:settings'));
+      }
+      final observation = observedReport([
+        phase(
+          extra: {
+            'measurementKind': 'resource-observation',
+            'observationWindowMs': 3,
+          },
+        ),
+      ]);
+      final comparison = compareProbeReports(current, observation);
+      expect(
+        (comparison['scenarios'] as List).single['status'],
+        'different_measurement_kind',
+      );
+      final differentWindow = observedReport([
+        phase(
+          extra: {
+            'measurementKind': 'resource-observation',
+            'observationWindowMs': 4,
+          },
+        ),
+      ]);
+      expect(
+        (compareProbeReports(observation, differentWindow)['scenarios'] as List)
+            .single['status'],
+        'different_observation_window',
+      );
     });
   });
 

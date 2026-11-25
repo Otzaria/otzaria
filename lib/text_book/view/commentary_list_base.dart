@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/utils/book_note_report.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show buildCorrectionTemplate;
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
@@ -372,6 +373,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   ); // ה-link האחרון שנוגעו בו (לכותרות בהעתקה)
   final Object _selectionOwner = Object(); // מזהה ייחודי לבעלות על הבחירה
   final GlobalKey<SelectionAreaState> _selectionAreaKey = GlobalKey();
+  final _selectionAreaFocusNode = KeepSelectionOnWindowBlurFocusNode();
   bool _showCommentatorsFilter = false; // האם להציג את מסך בחירת המפרשים
   bool _filterWasAutoOpened = false; // האם מסך הסינון נפתח אוטומטית (לא ידנית)
   // הבקשה אינה בונה מחדש, ולכן זוכרים שנשלחה עד שנבחרו מפרשים,
@@ -409,9 +411,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (state is! TextBookLoaded) return null;
     return buildCommentaryCopyGuard(
       links,
-      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
-        _itemKeys[_getLinkKey(link)]!,
-      ),
+      selectionOf: (link) =>
+          CommentarySelectionTracker.selectionIn(_itemKeys[_getLinkKey(link)]!),
       renderSettings: RenderSettings.fromProfile(
         state.commentaryDisplayProfile,
       ),
@@ -426,6 +427,10 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   // סדר הקישורים המוצגים, שעליו מבוססים היסטי החיפוש.
   List<Link> _orderedLinks = [];
+
+  /// ההערות המוצגות מעל המפרשים — תוצאות החיפוש שלהן קודמות למפרשים.
+  List<String> _searchNotes = const [];
+  final List<GlobalKey> _noteKeys = [];
   Map<String, int>? _searchResultOffsets;
 
   /// היעד שממתין לגלילה: שם המפרש, ואופציונלית מפתח הקטע המדויק.
@@ -656,9 +661,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
   }
 
-  Future<CommentaryNotesByLine> _personalNotesForGroup(
-    CommentaryGroup group,
-  ) {
+  Future<CommentaryNotesByLine> _personalNotesForGroup(CommentaryGroup group) {
     // המפתח כמו בשמירה מתפריט המפרש: לפי מקור ספר היעד.
     final key = personalNotesBookKeyFor(
       group.bookTitle,
@@ -716,16 +719,18 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     ];
   }
 
-  int _getItemSearchIndex(Link link) {
-    final linkKey = _getLinkKey(link);
-    if ((_searchResultsPerLink[linkKey] ?? 0) == 0) return -1;
+  int _getItemSearchIndex(Link link) => _searchIndexOf(_getLinkKey(link));
+
+  int _searchIndexOf(String key) {
+    if ((_searchResultsPerLink[key] ?? 0) == 0) return -1;
     return commentarySearchRelativeIndex(
-      key: linkKey,
+      key: key,
       currentIndex: _currentSearchIndexNotifier.value,
-      offsets: _searchResultOffsets ??= commentarySearchOffsets(
-        _orderedLinks.map(_getLinkKey),
-        _searchResultsPerLink,
-      ),
+      offsets: _searchResultOffsets ??= commentarySearchOffsets([
+        for (var i = 0; i < _searchNotes.length; i++)
+          commentaryNoteSearchKey(i),
+        ..._orderedLinks.map(_getLinkKey),
+      ], _searchResultsPerLink),
       countsByKey: _searchResultsPerLink,
     );
   }
@@ -1428,17 +1433,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   void deactivate() {
     if (widget.shrinkWrap && _inlineStorageIdentifier != null) {
       // ה-sliver עשוי לנתק את הפריט מאבותיו לפני deactivate.
-      _inlineStorage?.writeState(
-        context,
-        (_allExpanded, Map<String, bool>.of(_expansionStates)),
-        identifier: _inlineStorageIdentifier,
-      );
+      _inlineStorage?.writeState(context, (
+        _allExpanded,
+        Map<String, bool>.of(_expansionStates),
+      ), identifier: _inlineStorageIdentifier);
     }
     super.deactivate();
   }
 
   @override
   void dispose() {
+    _selectionAreaFocusNode.dispose();
     unawaited(_searchSubscription?.cancel());
     unawaited(_searchBloc.close());
 
@@ -1496,8 +1501,19 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     final generation = ++_searchScrollGeneration;
     _commentatorScrollGeneration++;
     _pendingScrollTarget = null;
-    if (_totalSearchResultsNotifier.value == 0 || _orderedLinks.isEmpty) return;
+    if (_totalSearchResultsNotifier.value == 0) return;
     var cumulativeIndex = 0;
+    for (var i = 0; i < _searchNotes.length; i++) {
+      final results = _searchResultsPerLink[commentaryNoteSearchKey(i)] ?? 0;
+      if (_currentSearchIndexNotifier.value < cumulativeIndex + results) {
+        _scrollToNoteMatch(
+          i,
+          _currentSearchIndexNotifier.value - cumulativeIndex,
+        );
+        return;
+      }
+      cumulativeIndex += results;
+    }
     Link? targetLink;
     for (final link in _orderedLinks) {
       final results = _searchResultsPerLink[_getLinkKey(link)] ?? 0;
@@ -1550,6 +1566,35 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
   }
 
+  /// מביא לתצוגה את ההתאמה [matchIndex] שבהערה [noteIndex], ובלי מיפוי אמין
+  /// — את ראש ההערה.
+  void _scrollToNoteMatch(int noteIndex, int matchIndex) {
+    final note = _noteKeys[noteIndex].currentContext;
+    final box = note?.findRenderObject();
+    if (note == null || box is! RenderBox) return;
+    final blocState = context.read<TextBookBloc>().state;
+    final top = blocState is! TextBookLoaded
+        ? null
+        : commentarySearchMatchTarget(
+            content: _searchNotes[noteIndex],
+            query: _activeSearchQuery,
+            displayProfile: blocState.commentaryDisplayProfile,
+            matchIndex: matchIndex,
+            partialWordMatch: _notesPartialWordMatch(),
+          )?.call(0, box)?.top;
+    if (top == null) {
+      Scrollable.ensureVisible(note, alignment: 0.1);
+      return;
+    }
+    final position = Scrollable.of(note).position;
+    final reveal = RenderAbstractViewport.of(
+      box,
+    ).getOffsetToReveal(box, 0.1, rect: Rect.fromLTWH(0, top, 0, 0));
+    position.jumpTo(
+      reveal.offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
+  }
+
   void _cancelSearchNavigation() {
     _cancelHeaderAnchor();
     _searchScrollGeneration++;
@@ -1572,6 +1617,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   /// מצב הספר כשהמונח הפעיל הוא מונח החיפוש בספר — הערות הספר מודגשות בו
   /// כמו טקסט הספר. null כשהמונח בא משדה החיפוש של המפרשים.
   TextBookLoaded? _bookSearchState(BuildContext context) {
+    if (widget.showSearch && _searchQueryNotifier.value.isNotEmpty) return null;
     final state = context.read<TextBookBloc>().state;
     final query = _activeSearchQuery;
     return state is TextBookLoaded &&
@@ -1579,6 +1625,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             query == state.searchText
         ? state
         : null;
+  }
+
+  /// כמו `partialWordHighlight` של `_NotesCommentaryWidget._renderSettings`:
+  /// ההערות נספרות באותה התאמה שבה הן מודגשות.
+  bool _notesPartialWordMatch() {
+    final book = _bookSearchState(context);
+    return book == null ||
+        literalPartialWordMatch(
+          _activeSearchQuery,
+          wholeWord: book.searchWholeWord,
+        );
   }
 
   void _scheduleSearchCompute() {
@@ -1591,6 +1648,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             ? blocState.commentaryDisplayProfile
             : TextDisplayProfile.defaults,
         includeSnippets: widget.externalSearchSnippetsNotifier != null,
+        notes: _searchNotes,
+        notesPartialWordMatch: _notesPartialWordMatch(),
       ),
     );
   }
@@ -1714,6 +1773,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       link: link,
       previousLink: previousLink,
       fontSize: widget.fontSize,
+      lineHeight: state.lineHeight,
       openBookCallback: widget.openBookCallback,
       displayProfile: state.commentaryDisplayProfile,
       copyDisplayProfile: _commentaryCopyProfile(state),
@@ -1823,6 +1883,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
             previous.selectedIndex != current.selectedIndex ||
             !setEquals(previous.selectedIndices, current.selectedIndices) ||
             previous.fontSize != current.fontSize ||
+            previous.lineHeight != current.lineHeight ||
             previous.bodyDisplayProfile != current.bodyDisplayProfile ||
             previous.commentaryDisplayProfile !=
                 current.commentaryDisplayProfile ||
@@ -1923,6 +1984,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               final currentIndexes = _currentIndexes(state);
 
               Widget? notesWidget;
+              _searchNotes = const [];
               if (notesIsActive) {
                 final relevantNotes = inline_notes.notesForLines(
                   state.content,
@@ -1931,14 +1993,23 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   decorateBody: (line, note, body) =>
                       noteBodyWithAnchors(state, line, note, body),
                 );
+                _searchNotes = relevantNotes;
+                while (_noteKeys.length < relevantNotes.length) {
+                  _noteKeys.add(GlobalKey());
+                }
                 if (relevantNotes.isNotEmpty) {
                   notesWidget = ListenableBuilder(
                     listenable: Listenable.merge([
                       _searchQueryNotifier,
                       widget.highlightQueryListenable,
+                      _currentSearchIndexNotifier,
+                      _totalSearchResultsNotifier,
                     ]),
                     builder: (context, _) => _NotesCommentaryWidget(
                       notes: relevantNotes,
+                      noteKeys: _noteKeys,
+                      noteSearchIndex: (i) =>
+                          _searchIndexOf(commentaryNoteSearchKey(i)),
                       searchQuery: _activeSearchQuery,
                       searchedBook: _bookSearchState(context),
                       fontSize: widget.fontSize,
@@ -2153,49 +2224,48 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             _schedulePendingCommentatorScroll();
                           }
 
-                          Widget buildList(
-                            ScrollPhysics physics,
-                          ) => ScrollablePositionedList.builder(
-                            itemScrollController: _itemScrollController,
-                            itemPositionsListener: _itemPositionsListener,
-                            listController: _listController,
-                            restorePosition: widget.shrinkWrap,
-                            findChildIndexCallback: (key) =>
-                                _flatIndexByKey[key],
-                            initialScrollIndex: flatItems.isEmpty
-                                ? 0
-                                : _lastScrollIndex.clamp(
-                                    0,
-                                    flatItems.length - 1,
-                                  ),
-                            physics: physics,
-                            shrinkWrap: widget.shrinkWrap,
-                            itemCount: flatItems.length,
-                            itemBuilder: (context, index) {
-                              final item = flatItems[index];
-                              final link = item.link;
-                              final child = link == null
-                                  ? _buildGroupHeader(item.group)
-                                  : _buildLinkItem(
-                                      item.group,
-                                      link,
-                                      item.previousVisibleLink,
-                                      state,
-                                    );
-                              return KeyedSubtree(
-                                key: _flatItemKey(item),
-                                child: item.showDivider
-                                    ? Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          child,
-                                          const Divider(height: 1),
-                                        ],
-                                      )
-                                    : child,
+                          Widget buildList(ScrollPhysics physics) =>
+                              ScrollablePositionedList.builder(
+                                itemScrollController: _itemScrollController,
+                                itemPositionsListener: _itemPositionsListener,
+                                listController: _listController,
+                                restorePosition: widget.shrinkWrap,
+                                findChildIndexCallback: (key) =>
+                                    _flatIndexByKey[key],
+                                initialScrollIndex: flatItems.isEmpty
+                                    ? 0
+                                    : _lastScrollIndex.clamp(
+                                        0,
+                                        flatItems.length - 1,
+                                      ),
+                                physics: physics,
+                                shrinkWrap: widget.shrinkWrap,
+                                itemCount: flatItems.length,
+                                itemBuilder: (context, index) {
+                                  final item = flatItems[index];
+                                  final link = item.link;
+                                  final child = link == null
+                                      ? _buildGroupHeader(item.group)
+                                      : _buildLinkItem(
+                                          item.group,
+                                          link,
+                                          item.previousVisibleLink,
+                                          state,
+                                        );
+                                  return KeyedSubtree(
+                                    key: _flatItemKey(item),
+                                    child: item.showDivider
+                                        ? Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              child,
+                                              const Divider(height: 1),
+                                            ],
+                                          )
+                                        : child,
+                                  );
+                                },
                               );
-                            },
-                          );
                           final listView = widget.handOffEdgeDragsToParent
                               ? EdgeDragHandoff(
                                   builder: (_, physics) => buildList(physics),
@@ -2210,9 +2280,6 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             autofocus: widget.autofocus,
                             scrollController: _itemScrollController,
                             onNavigationStart: _cancelPendingNavigation,
-                            maxSpeed: 10000.0,
-                            curve: 10.0,
-                            accelerationFactor: 312.5,
                             onKeyEvent: (_, event) =>
                                 ContextMenuUtils.reportCommentaryErrorShortcut(
                                   context,
@@ -2226,6 +2293,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             child: RtlSelectionShortcuts(
                               child: SelectionArea(
                                 key: _selectionAreaKey,
+                                focusNode: _selectionAreaFocusNode,
                                 contextMenuBuilder: (context, _) =>
                                     const SizedBox.shrink(),
                                 onSelectionChanged: (selection) =>

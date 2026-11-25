@@ -699,6 +699,19 @@ class SeforimRepository {
     };
   }
 
+  /// כל טבלת `book_base_text` עם כותרת ספר הבסיס; ריק במסד שאין בו הטבלה.
+  Future<List<Map<String, dynamic>>> loadBookBaseTexts() async {
+    if (!(await _capabilities).has('book_base_text')) return const [];
+    final db = await _database.database;
+    return db
+        .select(
+          'SELECT bt.bookId AS bookId, bt.baseBookId AS baseBookId, '
+          'b.title AS baseTitle FROM book_base_text bt '
+          'JOIN book b ON b.id = bt.baseBookId',
+        )
+        .toMapList();
+  }
+
   // Insert an author and return its ID
   Future<int> insertAuthor(String name) async {
     // Check if author already exists
@@ -1274,6 +1287,15 @@ class SeforimRepository {
   }
 
   // --- Lines ---
+
+  /// Checks for embedded text without reading the book or relying on totalLines.
+  Future<bool> hasStoredLines(int bookId) async {
+    if (!(await _capabilities).hasLines) return false;
+    final db = await _database.database;
+    return db.select('SELECT 1 FROM line WHERE bookId = ? LIMIT 1', [
+      bookId,
+    ]).isNotEmpty;
+  }
 
   Future<Line?> getLineByIndex(int bookId, int lineIndex) async {
     return await _database.lineDao.selectByBookIdAndIndex(bookId, lineIndex);
@@ -2232,6 +2254,20 @@ extension BookAcronymRepository on SeforimRepository {
     // חיפוש היררכי: יורד רמה-אחר-רמה עם תמיכה בטרנספוזיציית אותיות.
     final (:matches, :complete) = _searchTocHierarchically(cache, queryTokens);
     if (matches.isNotEmpty) {
+      // כותרת שם הספר תואמת מילה שחוזרת על השם ("חזוא טהרות טהרות").
+      if (complete &&
+          matches.length == 1 &&
+          cache.titleHeadingChildren.isNotEmpty &&
+          identical(
+            cache.childrenByParentId[matches.single.id],
+            cache.titleHeadingChildren,
+          )) {
+        final under = [
+          for (final e in _searchUnderTitleHeading(cache, queryTokens))
+            if (!e.ownTokens.every(cache.titleHeadingTokens.contains)) e,
+        ];
+        if (under.isNotEmpty) return [for (final e in under) e.toMap()];
+      }
       return [
         for (final e in matches)
           if (complete) e.toMap() else {...e.toMap(), 'partialMatch': true},
@@ -2840,6 +2876,18 @@ extension BookAcronymRepository on SeforimRepository {
             .toList();
       }
 
+      // "פ"ב" ← "פרק ב" כשאין "פרק פב" ("תהלים פ"ב" נשאר מזמור 82).
+      if (found.isEmpty && token.length == 2 && token.startsWith('פ')) {
+        found = searchScope
+            .where(
+              (e) =>
+                  e.ownTokens.length >= 2 &&
+                  e.ownTokens[0] == 'פרק' &&
+                  e.ownTokens[1] == token[1],
+            )
+            .toList();
+      }
+
       // "סימן מז" מול "שאלה מז", "כלל לה" מול "שער לה": רק בכותרת שבה גם
       // המספר שאחריו.
       if (found.isEmpty && isStructureWord(token) && i + 1 < tokens.length) {
@@ -3000,6 +3048,12 @@ extension BookAcronymRepository on SeforimRepository {
         ownTokensOf: index._ownTokensOf,
         pathTokensOf: index.refTokensOf,
         refMaskOf: (i) => index.refMasks[i],
+        rootOwnTokensOf: (i) {
+          while (index.parentOf(i) >= 0) {
+            i = index.parentOf(i);
+          }
+          return index._ownTokensOf(i);
+        },
       ).toList();
       return index
           ._orderedMatches(bookId, entries, matches)
@@ -3015,6 +3069,12 @@ extension BookAcronymRepository on SeforimRepository {
       queryTokens,
       ownTokensOf: (entry) => entry.ownTokens,
       pathTokensOf: (entry) => entry.pathTokens,
+      rootOwnTokensOf: (entry) {
+        while (entry.parent != null) {
+          entry = entry.parent!;
+        }
+        return entry.ownTokens;
+      },
     );
     return matches.map((e) => e.toTocMap()).toList();
   }
@@ -3076,6 +3136,7 @@ extension BookAcronymRepository on SeforimRepository {
     required List<String> Function(T) ownTokensOf,
     required List<String> Function(T) pathTokensOf,
     int Function(T)? refMaskOf,
+    List<String> Function(T)? rootOwnTokensOf,
     bool structureAliases = false,
   }) {
     if (tokens.isEmpty) return const [];
@@ -3092,6 +3153,9 @@ extension BookAcronymRepository on SeforimRepository {
       for (final token in tokens) hebrewTokenAlternatives(token),
     ];
     final lastAlts = alternatives.last;
+    final repeatsLastNumeral =
+        isHebrewNumeral(tokens.last) &&
+        tokens.take(tokens.length - 1).contains(tokens.last);
     // ציון דף עשוי להתאים גם בלי טוקן העמוד בעלה או בנתיב.
     final lastMask = cite == null && refMaskOf != null
         ? altTocTokenMask(lastAlts)
@@ -3126,8 +3190,21 @@ extension BookAcronymRepository on SeforimRepository {
       if (tokens.length == 1) return true;
       // כל טוקני השאילתה חייבים להופיע בנתיב המלא (בכל סדר).
       final pathTokens = checkedPath ?? pathTokensOf(e);
+      // ב"סימן א סעיף א" המספר צריך להופיע גם בסימן שמעל הסעיף.
+      if (repeatsLastNumeral &&
+          (ownTokens.first == 'סימן' || ownTokens.first == 'סעיף') &&
+          pathTokens.where(lastAlts.contains).take(2).length < 2) {
+        return false;
+      }
       for (var i = 0; i < tokens.length; i++) {
         if (alternatives[i].any(pathTokens.contains)) continue;
+        // "אוח" ← "אורח חיים": ראשי תיבות של כותרת השורש, כמו בתוכן העניינים.
+        if (i == 0 &&
+            rootOwnTokensOf != null &&
+            !isHebrewNumeral(tokens[0]) &&
+            hebrewAbbreviationMatchesWords(tokens[0], rootOwnTokensOf(e))) {
+          continue;
+        }
         // כמו ב-[_searchTocFlat]: שם חלופי רק בכותרת העלה עצמה.
         if (structureAliases &&
             matchesOtherStructureWord(tokens[i], ownTokens)) {
@@ -3148,6 +3225,7 @@ extension BookAcronymRepository on SeforimRepository {
       ownTokensOf: ownTokensOf,
       pathTokensOf: pathTokensOf,
       refMaskOf: refMaskOf,
+      rootOwnTokensOf: rootOwnTokensOf,
       structureAliases: true,
     );
   }

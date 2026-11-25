@@ -60,6 +60,9 @@ class ReadingTabStrip extends StatefulWidget {
   /// האם הרצועה עצמה נגללת. ברצועה האופקית הרוחבים מחושבים כך שהכל נכנס.
   final bool scrollable;
 
+  /// הכרטיסיה הפעילה. ברצועה נגללת היא מובאת לתצוגה בכל פעם שהיא מתחלפת.
+  final int? selectedIndex;
+
   /// לחיצה ארוכה לגרירה בנייד; בדסקטופ הגרירה מתחילה בתנועה.
   final bool requireLongPressToDrag;
 
@@ -139,6 +142,7 @@ class ReadingTabStrip extends StatefulWidget {
     this.axis = Axis.horizontal,
     this.crossExtent,
     this.scrollable = false,
+    this.selectedIndex,
   });
 
   bool get isVertical => axis == Axis.vertical;
@@ -171,6 +175,42 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
   void initState() {
     super.initState();
     _geometry = _TabStripGeometry.fromWidths(widget.widths);
+    _revealSelected(animate: false);
+  }
+
+  /// גולל את הרצועה במידה המינימלית שהכרטיסיה הפעילה תיראה במלואה.
+  ///
+  /// רק החלפת הכרטיסיה הפעילה מפעילה את זה, ולכן גלילה ידנית אינה נלחמת
+  /// בה. בזמן גרירה מעל הרצועה גלילת הקצה היא שמזיזה אותה.
+  void _revealSelected({required bool animate}) {
+    if (!widget.scrollable || widget.selectedIndex == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final index = widget.selectedIndex;
+      if (!mounted || index == null || !_scrollController.hasClients) return;
+      if (index >= widget.tabs.length || _insertIndex.value != null) return;
+
+      final position = _scrollController.position;
+      final start = _geometry.edgeAt(index);
+      final end = _geometry.edgeAt(index + 1);
+      var target = position.pixels;
+      if (start < target) {
+        target = start;
+      } else if (end > target + position.viewportDimension) {
+        target = end - position.viewportDimension;
+      }
+      target = target.clamp(position.minScrollExtent, position.maxScrollExtent);
+      if (target == position.pixels) return;
+
+      if (animate) {
+        position.animateTo(
+          target,
+          duration: AppTokens.animFast,
+          curve: Curves.easeOut,
+        );
+      } else {
+        position.jumpTo(target);
+      }
+    });
   }
 
   /// מצב הגרירה החיצונית של החלון שהרצועה יושבת בו.
@@ -218,11 +258,23 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
     _insertIndex.value = next;
   }
 
+  static OpenedTab? _selectedTab(ReadingTabStrip strip) {
+    final index = strip.selectedIndex;
+    return index != null && index < strip.tabs.length
+        ? strip.tabs[index]
+        : null;
+  }
+
   @override
   void didUpdateWidget(covariant ReadingTabStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!listEquals(_geometry.widths, widget.widths)) {
       _geometry = _TabStripGeometry.fromWidths(widget.widths);
+    }
+    // סגירת הפעילה יכולה להשאיר את האינדקס ולהחליף את הכרטיסיה שבו.
+    if (widget.selectedIndex != oldWidget.selectedIndex ||
+        _selectedTab(widget) != _selectedTab(oldWidget)) {
+      _revealSelected(animate: true);
     }
   }
 

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path/path.dart' as p;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
@@ -331,6 +332,9 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     Emitter<CustomFoldersState> emit,
   ) async {
     final currentFolders = _loadFolders();
+    final onlyFolderPath =
+        event.onlyFolderPath ??
+        _folderContaining(currentFolders, event.folderOfFile);
     emit(
       state.copyWith(
         folders: currentFolders,
@@ -347,7 +351,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           ? const FileSyncResult()
           : await _syncCustomFolders(
               currentFolders,
-              onlyFolderPath: event.onlyFolderPath,
+              onlyFolderPath: onlyFolderPath,
             );
       final hasChanges = result.addedBooks > 0 || result.updatedBooks > 0;
       final hasErrors = result.errors.isNotEmpty;
@@ -367,7 +371,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         },
         // כשל חלקי לא מסומן כהשלמה — סנכרון הרקע יקבל הזדמנות לנסות שוב.
         coversAllFolders:
-            !skipSync && event.onlyFolderPath == null && result.errors.isEmpty,
+            !skipSync && onlyFolderPath == null && result.errors.isEmpty,
         requestIds: event.requestId == null ? const {} : {event.requestId!},
       );
       emit(
@@ -601,6 +605,23 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
   ) {
     if (imp.errors.isEmpty) return null;
     return 'שגיאות בייבוא הקבצים:\n${SettingsMessages.errorLines(imp.errors)}';
+  }
+
+  static String? _folderContaining(List<CustomFolder> folders, String? file) {
+    if (file == null) return null;
+    final normalizedFile = CustomFolderSource.normalizePath(file);
+    final matches = folders
+        .map((folder) => folder.path)
+        .where(
+          (folder) => p.isWithin(
+            CustomFolderSource.normalizePath(folder),
+            normalizedFile,
+          ),
+        )
+        .take(2)
+        .toList();
+    // תיקיות מקוננות יכולות לייצר רשומות שונות לאותו קובץ.
+    return matches.length == 1 ? matches.single : null;
   }
 
   List<CustomFolder> _loadFolders() {

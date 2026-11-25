@@ -4,6 +4,7 @@ import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/search/view/search_history_menu.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
@@ -12,6 +13,8 @@ import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_from_tab.dart';
 import 'package:otzaria/bookmarks/utils/bookmark_location.dart';
@@ -26,7 +29,6 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
@@ -93,6 +95,8 @@ class _HistoryViewState extends State<HistoryView> {
   static const _searchDisplayCapacity = 24;
   var _searchDisplayKeys = Expando<Object>();
   final _searchDisplays = <Object, ({String? subtitle, String? tooltip})>{};
+  Library? _library;
+  Library? _scopeTreeRequestedFor;
   String? _selectedWorkspace;
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -195,6 +199,13 @@ class _HistoryViewState extends State<HistoryView> {
 
   @override
   Widget build(BuildContext context) {
+    final library = context.select<LibraryBloc?, Library?>(
+      (bloc) => bloc?.state.library,
+    );
+    if (!identical(library, _library)) {
+      _library = library;
+      _scopeTreeRequestedFor = null;
+    }
     return BlocBuilder<HistoryBloc, HistoryState>(
       builder: (context, state) {
         // רשימות ומפות בתוך Bookmark ניתנות לשינוי גם בלי להחליף את הרשומה.
@@ -270,37 +281,22 @@ class _HistoryViewState extends State<HistoryView> {
                 onItemTap: (ctx, item, originalIndex) {
                   if (item.isSearch) {
                     final tabsBloc = ctx.read<TabsBloc>();
-                    final searchMode = item.searchMode ?? SearchMode.advanced;
                     final scopeFacets =
                         (item.searchScopeFacets != null &&
                             item.searchScopeFacets!.isNotEmpty)
                         ? List<String>.from(item.searchScopeFacets!)
                         : const ['/'];
-                    // ה-configuration המלא משוחזר מהמפה השמורה; פריטים ישנים
-                    // (ללא מפה) נופלים לשדות הבודדים. ה-facets תמיד מגיעים
-                    // מהשדות הייעודיים כאן, לא מהמפה.
-                    final savedConfig = item.searchConfiguration;
-                    final baseConfig = savedConfig != null
-                        ? SearchConfiguration.fromMap(savedConfig)
-                        : SearchConfiguration(
-                            searchMode: searchMode,
-                            distance:
-                                item.distance ??
-                                (searchMode == SearchMode.fuzzy
-                                    ? kMaxFuzzyDistance
-                                    : 0),
-                            proximityScope:
-                                item.proximityScope ?? SearchScope.wordDistance,
-                          );
                     // ה-configuration מוזרקת בבנייה ולא דרך events אחרי AddTab,
                     // אחרת snapshot השמירה מצלם advanced והמצב אובד בהפעלה הבאה.
                     final searchTab = SearchingTab(
                       'חיפוש',
                       null,
-                      initialConfiguration: baseConfig.copyWith(
-                        currentFacets: item.searchFilterFacets ?? scopeFacets,
-                        searchScopeFacets: scopeFacets,
-                      ),
+                      initialConfiguration: item.restoredSearchConfiguration
+                          .copyWith(
+                            currentFacets:
+                                item.searchFilterFacets ?? scopeFacets,
+                            searchScopeFacets: scopeFacets,
+                          ),
                     );
 
                     // Restore search query and options
@@ -456,11 +452,30 @@ class _HistoryViewState extends State<HistoryView> {
     return display;
   }
 
-  static List<String> _facetDisplayNames(List<String> facets) {
+  /// שמות היקף החיפוש להצגה. מפתח ספר ('id:5') נפתר לכותרת מעץ ההיקף; אם
+  /// העץ טרם נבנה, הוא נבנה במנות והרשימה מתרעננת כשהוא מוכן.
+  List<String> _facetDisplayNames(List<String> facets) {
+    final library = _library;
+    final tree = library == null ? null : ScopeTree.cachedFor(library);
     return facets.map((facet) {
-      final segments = facet.split('/').where((segment) => segment.isNotEmpty);
-      return segments.isNotEmpty ? segments.last : facet;
+      final name = ScopeTree.facetDisplayName(
+        facet,
+        tree: tree,
+        allowLegacyFallback: false,
+      );
+      if (name != null) return name;
+      if (!facet.split('/').any((segment) => segment.isNotEmpty)) return facet;
+      if (tree == null && library != null) _requestScopeTree(library);
+      return 'ספר';
     }).toList();
+  }
+
+  void _requestScopeTree(Library library) {
+    if (identical(_scopeTreeRequestedFor, library)) return;
+    _scopeTreeRequestedFor = library;
+    ScopeTree.fromLibraryAsync(library).then((_) {
+      if (mounted && identical(library, _library)) setState(() {});
+    });
   }
 
   /// קיבוץ לפי ריצות רציפות של אותו שולחן עבודה (run-length encoding).

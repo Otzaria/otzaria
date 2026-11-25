@@ -628,7 +628,6 @@ Future<_Harness> _pump(
     tableOfContents: toc,
     removeNikud: false,
     visibleIndices: List.generate(data.length, (i) => i),
-    pinLeftPane: false,
     searchText: '',
     continuousReadingMode: true,
   );

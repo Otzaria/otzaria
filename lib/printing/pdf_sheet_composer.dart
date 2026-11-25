@@ -1,11 +1,8 @@
-/// Places the pages of a PDF several to a sheet, keeping them vector.
-///
-/// PDFium does the composition (`FPDF_ImportNPagesToOne`): each page becomes a
-/// form object scaled into its cell, so text stays text at any print
-/// resolution and the output is no larger than the source.
+/// סידור עמודי PDF בגיליונות באמצעות PDFium, תוך שימור טקסט וגרפיקה וקטורית.
 library;
 
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -13,12 +10,9 @@ import 'package:flutter/foundation.dart';
 import 'package:pdfium_dart/pdfium_dart.dart' as pdfium_bindings;
 import 'package:pdfrx/pdfrx.dart';
 
-/// Source page index for each slot, in the order PDFium fills a sheet: rows
-/// top to bottom, cells left to right. Null is a blank slot.
-///
-/// Right-to-left sheets put the first page of each row on the right, as a
-/// Hebrew book is read. Blank slots appear only where a later page needs its
-/// place kept, so the last sheet is not padded with empty pages.
+import 'pdf_export_cancellation.dart';
+
+/// סדר עמודי המקור בתאי הגיליון; null שומר תא ריק רק לפני עמוד מאוחר יותר.
 @visibleForTesting
 List<int?> sheetSlotOrder({
   required int firstIndex,
@@ -45,11 +39,8 @@ List<int?> sheetSlotOrder({
   return slots;
 }
 
-/// Composes the pages `firstIndex`..`lastIndex` (zero-based) of `document`
-/// onto sheets of `sheetWidth` x `sheetHeight` points, `rows` x `cols` each.
-///
-/// A single cell copies the pages at their own size, which is how a page range
-/// alone is printed. `document` must stay open until this completes.
+/// מסדר טווח עמודים (אינדקס מאפס) בגיליונות; תא יחיד משמר את גודל העמוד.
+/// [document] נשאר בבעלות הקורא וחייב להישאר פתוח עד ההשלמה.
 Future<Uint8List> composePdfSheets(
   PdfDocument document, {
   required int firstIndex,
@@ -60,10 +51,91 @@ Future<Uint8List> composePdfSheets(
   required double sheetHeight,
   bool rightToLeft = true,
 }) async {
+  final request = await _composeRequest(
+    document,
+    firstIndex: firstIndex,
+    lastIndex: lastIndex,
+    rows: rows,
+    cols: cols,
+    sheetWidth: sheetWidth,
+    sheetHeight: sheetHeight,
+    rightToLeft: rightToLeft,
+  );
+  final result = await PdfrxEntryFunctions.instance.compute(_compose, request);
+  return result.bytes!;
+}
+
+/// כותב ישירות לקובץ ביניים בבעלות הקורא ומחזיר את מספר הבתים שנכתבו.
+/// אינו מפרסם או מוחק את הקובץ; [document] חייב להישאר פתוח עד ההשלמה.
+Future<int> composePdfSheetsToFile(
+  PdfDocument document, {
+  required String outputPath,
+  required int firstIndex,
+  required int lastIndex,
+  required int rows,
+  required int cols,
+  required double sheetWidth,
+  required double sheetHeight,
+  bool rightToLeft = true,
+  PdfExportCancellationToken? cancellationToken,
+}) async {
+  final lease = cancellationToken?.acquire();
+  try {
+    final request = await _composeRequest(
+      document,
+      firstIndex: firstIndex,
+      lastIndex: lastIndex,
+      rows: rows,
+      cols: cols,
+      sheetWidth: sheetWidth,
+      sheetHeight: sheetHeight,
+      rightToLeft: rightToLeft,
+      outputPath: outputPath,
+      cancellationAddress: lease?.address ?? 0,
+    );
+    // All PDFium calls stay on its worker; synchronous file writes also stay off UI.
+    final result = await PdfrxEntryFunctions.instance.compute(
+      _composeToFile,
+      request,
+    );
+    if (result is _FileComposeFailure) {
+      Error.throwWithStackTrace(
+        result.error,
+        StackTrace.fromString(result.stack),
+      );
+    }
+    PdfExportCancellationToken.throwIfCancelledAt(lease?.address ?? 0);
+    return result as int;
+  } finally {
+    lease?.dispose();
+  }
+}
+
+Future<_ComposeRequest> _composeRequest(
+  PdfDocument document, {
+  required int firstIndex,
+  required int lastIndex,
+  required int rows,
+  required int cols,
+  required double sheetWidth,
+  required double sheetHeight,
+  required bool rightToLeft,
+  String? outputPath,
+  int cancellationAddress = 0,
+}) async {
+  if (firstIndex < 0 ||
+      lastIndex < firstIndex ||
+      rows <= 0 ||
+      cols <= 0 ||
+      !sheetWidth.isFinite ||
+      sheetWidth <= 0 ||
+      !sheetHeight.isFinite ||
+      sheetHeight <= 0) {
+    throw ArgumentError('Invalid PDF sheet range or dimensions.');
+  }
+  PdfExportCancellationToken.throwIfCancelledAt(cancellationAddress);
   final handle = await document.useNativeDocumentHandle((handle) => handle);
-  // Runs on PDFium's own worker isolate, where every other PDFium call runs,
-  // so it neither races them nor blocks the UI while a long book is composed.
-  return PdfrxEntryFunctions.instance.compute(_compose, (
+  return (
     document: handle,
     modulePath: Pdfrx.pdfiumModulePath,
     slots: sheetSlotOrder(
@@ -78,7 +150,9 @@ Future<Uint8List> composePdfSheets(
     sheetWidth: sheetWidth,
     sheetHeight: sheetHeight,
     rightToLeft: rightToLeft,
-  ));
+    outputPath: outputPath,
+    cancellationAddress: cancellationAddress,
+  );
 }
 
 typedef _ComposeRequest = ({
@@ -90,26 +164,61 @@ typedef _ComposeRequest = ({
   double sheetWidth,
   double sheetHeight,
   bool rightToLeft,
+  String? outputPath,
+  int cancellationAddress,
 });
 
-typedef _WriteBlock =
-    Int Function(
-      Pointer<pdfium_bindings.FPDF_FILEWRITE>,
-      Pointer<Void>,
-      UnsignedLong,
+typedef _ComposeResult = ({Uint8List? bytes, int length});
+
+class _FileComposeFailure {
+  const _FileComposeFailure(this.error, this.stack);
+  final Object error;
+  final String stack;
+}
+
+// compute stringifies thrown errors; preserve these sendable errors for callers.
+Object _composeToFile(_ComposeRequest request) {
+  try {
+    return _compose(request).length;
+  } on PdfExportCancelledException catch (error, stack) {
+    return _FileComposeFailure(error, stack.toString());
+  } on FileSystemException catch (error, stack) {
+    final osError = error.osError;
+    return _FileComposeFailure(
+      FileSystemException(
+        error.message,
+        error.path,
+        osError == null ? null : OSError(osError.message, osError.errorCode),
+      ),
+      stack.toString(),
     );
+  }
+}
+
+typedef _WriteBlock = Int Function(
+  Pointer<pdfium_bindings.FPDF_FILEWRITE>,
+  Pointer<Void>,
+  UnsignedLong,
+);
 
 /// `FPDF_SaveAsCopy` flag: write the whole file rather than an update.
 const int _noIncremental = 2;
 
-Uint8List _compose(_ComposeRequest request) {
+_ComposeResult _compose(_ComposeRequest request) {
+  PdfExportCancellationToken.throwIfCancelledAt(request.cancellationAddress);
   final pdfium = pdfium_bindings.getPdfium(modulePath: request.modulePath);
   final source = pdfium_bindings.FPDF_DOCUMENT.fromAddress(request.document);
   return using((arena) {
     final arranged = pdfium.FPDF_CreateNewDocument();
+    if (arranged.address == 0) {
+      throw StateError('PDFium could not create the sheet document.');
+    }
     pdfium_bindings.FPDF_DOCUMENT? sheets;
     try {
-      _arrange(pdfium, source, arranged, request.slots, arena);
+      _arrange(pdfium, source, arranged, request, arena);
+      PdfExportCancellationToken.throwIfCancelledAt(
+        request.cancellationAddress,
+      );
       final single = request.rows * request.cols == 1;
       final output = single
           ? arranged
@@ -126,7 +235,7 @@ Uint8List _compose(_ComposeRequest request) {
       if (!single && request.rightToLeft) {
         _putCellsInReadingOrder(pdfium, output, request, arena);
       }
-      return _save(pdfium, output, arena);
+      return _save(pdfium, output, request, arena);
     } finally {
       if (sheets != null && sheets.address != 0) {
         pdfium.FPDF_CloseDocument(sheets);
@@ -136,15 +245,15 @@ Uint8List _compose(_ComposeRequest request) {
   });
 }
 
-/// Copies the source pages into `target` in slot order, with a blank page of
-/// the first page's size wherever a slot is empty.
+/// מעתיק לפי סדר התאים; תא ריק מקבל את גודל עמוד המקור הראשון.
 void _arrange(
   pdfium_bindings.PDFium pdfium,
   pdfium_bindings.FPDF_DOCUMENT source,
   pdfium_bindings.FPDF_DOCUMENT target,
-  List<int?> slots,
+  _ComposeRequest request,
   Arena arena,
 ) {
+  final slots = request.slots;
   final firstPage = slots.firstWhere((slot) => slot != null)!;
   final width = arena<Double>();
   final height = arena<Double>();
@@ -153,6 +262,7 @@ void _arrange(
   final indices = arena<Int>(slots.length);
   var start = 0;
   while (start < slots.length) {
+    PdfExportCancellationToken.throwIfCancelledAt(request.cancellationAddress);
     if (slots[start] == null) {
       final page = pdfium.FPDFPage_New(
         target,
@@ -212,6 +322,7 @@ void _putCellsInReadingOrder(
   }
 
   for (var index = 0; index < pdfium.FPDF_GetPageCount(sheets); index++) {
+    PdfExportCancellationToken.throwIfCancelledAt(request.cancellationAddress);
     final page = pdfium.FPDF_LoadPage(sheets, index);
     if (page.address == 0) {
       throw StateError('PDFium could not reopen sheet ${index + 1}.');
@@ -241,36 +352,76 @@ void _putCellsInReadingOrder(
   }
 }
 
-Uint8List _save(
+_ComposeResult _save(
   pdfium_bindings.PDFium pdfium,
   pdfium_bindings.FPDF_DOCUMENT document,
+  _ComposeRequest request,
   Arena arena,
 ) {
-  final output = BytesBuilder();
+  PdfExportCancellationToken.throwIfCancelledAt(request.cancellationAddress);
+  final path = request.outputPath;
+  final file = path == null ? null : File(path).openSync(mode: FileMode.write);
+  final output = file == null ? BytesBuilder() : null;
+  var written = 0;
+  Object? writeError;
+  StackTrace? writeStack;
   int write(
     Pointer<pdfium_bindings.FPDF_FILEWRITE> _,
     Pointer<Void> data,
     int size,
   ) {
-    // The buffer is PDFium's and is reused after this returns, so it is copied.
-    output.add(data.cast<Uint8>().asTypedList(size));
-    return 1;
+    if (writeError != null) return 0;
+    try {
+      PdfExportCancellationToken.throwIfCancelledAt(
+        request.cancellationAddress,
+      );
+      // The native buffer is reused after return; finish the write while it is valid.
+      final bytes = data.cast<Uint8>().asTypedList(size);
+      if (file != null) {
+        file.writeFromSync(bytes);
+      } else {
+        output!.add(bytes);
+      }
+      written += size;
+      return 1;
+    } catch (error, stack) {
+      writeError = error;
+      writeStack = stack;
+      return 0;
+    }
   }
 
-  final callback = NativeCallable<_WriteBlock>.isolateLocal(
-    write,
-    exceptionalReturn: 0,
-  );
+  NativeCallable<_WriteBlock>? callback;
+  Object? primaryError;
   try {
+    callback = NativeCallable<_WriteBlock>.isolateLocal(
+      write,
+      exceptionalReturn: 0,
+    );
     final fileWrite = arena<pdfium_bindings.FPDF_FILEWRITE>();
     fileWrite.ref
       ..version = 1
       ..WriteBlock = callback.nativeFunction;
-    if (pdfium.FPDF_SaveAsCopy(document, fileWrite, _noIncremental) == 0) {
+    final saved = pdfium.FPDF_SaveAsCopy(document, fileWrite, _noIncremental);
+    if (writeError != null) {
+      Error.throwWithStackTrace(writeError!, writeStack!);
+    }
+    if (saved == 0) {
       throw StateError('PDFium could not write the sheets.');
     }
-    return output.takeBytes();
+    PdfExportCancellationToken.throwIfCancelledAt(request.cancellationAddress);
+    file?.flushSync();
+    return (bytes: output?.takeBytes(), length: written);
+  } catch (error) {
+    primaryError = error;
+    rethrow;
   } finally {
-    callback.close();
+    callback?.close();
+    try {
+      file?.closeSync();
+    } catch (_) {
+      // Cleanup must not hide the write failure or turn cancellation into an error.
+      if (primaryError == null) rethrow;
+    }
   }
 }

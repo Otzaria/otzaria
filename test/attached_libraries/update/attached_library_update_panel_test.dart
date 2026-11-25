@@ -10,6 +10,7 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_source.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_status.dart';
 import 'package:otzaria/attached_libraries/models/attached_update_manifest.dart';
+import 'package:otzaria/attached_libraries/models/official_attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_library_update_service.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
@@ -72,11 +73,33 @@ class _FakeUpdates extends AttachedLibraryUpdateService {
   }
 
   @override
-  Future<void> install(AttachedLibrary requested) async =>
-      installed.add(requested.slug);
+  Future<void> install(
+    AttachedLibrary requested, {
+    bool forceFull = false,
+  }) async => installed.add(requested.slug);
 
   @override
   void cancel(AttachedLibrary library) => cancelled.add(library.slug);
+
+  final declined = <String>{};
+  final installedOfficial = <String>[];
+
+  @override
+  Future<void> checkOfficialOffers() async {}
+
+  @override
+  Future<void> installOfficial(OfficialAttachedLibrary entry) async =>
+      installedOfficial.add(entry.libraryId);
+
+  @override
+  Set<String> declinedOfficial() => {...declined};
+
+  @override
+  Future<void> setOfficialDeclined(
+    String libraryId, {
+    required bool declined,
+  }) async =>
+      declined ? this.declined.add(libraryId) : this.declined.remove(libraryId);
 }
 
 AttachedLibrary _library(
@@ -179,6 +202,86 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     return (bloc, updates);
   }
+
+  group('official database', () {
+    const entry = OfficialAttachedLibrary(
+      libraryId: 'lib-a',
+      displayName: 'מחברי זמננו',
+      manifestUrl: 'https://updates.example.org/a/manifest.json',
+      publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    );
+    final offerKey = AttachedLibraryUpdateService.officialKey('lib-a');
+    setUp(() => OfficialAttachedLibraries.catalogForTesting = [entry]);
+    tearDown(() => OfficialAttachedLibraries.catalogForTesting = null);
+
+    AttachedLibrary official({bool mismatch = false}) =>
+        _library('lib-a', source: _source, mismatch: mismatch).copyWith(
+          official: const AttachedOfficialInstall(
+            libraryId: 'lib-a',
+            dbVersion: 1,
+            sha256: '',
+          ),
+        );
+
+    testWidgets('badge instead of the pinned-source chip, no offer', (
+      tester,
+    ) async {
+      await pumpPanel(tester, [official(mismatch: true)]);
+      expect(find.text('רשמי'), findsOneWidget);
+      expect(find.text('חתום · updates.example.org'), findsNothing);
+      expect(find.text('מקור העדכון השתנה — לא יעודכן'), findsNothing);
+      expect(find.text('בדוק עדכונים'), findsOneWidget);
+      expect(find.widgetWithText(ActionButton, 'הורד'), findsNothing);
+    });
+
+    testWidgets('a full download is offered for a modified copy', (
+      tester,
+    ) async {
+      final library = official();
+      final (_, updates) = await pumpPanel(
+        tester,
+        [library],
+        statuses: {
+          library.path: AttachedUpdateFailed(
+            AttachedUpdateError.integrityMismatch,
+            offer: _offer(),
+          ),
+        },
+      );
+      expect(
+        find.text('הקובץ שונה מהגרסה הרשמית — נדרשת הורדה מלאה'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(ActionButton, 'הורדה מלאה'));
+      await tester.pumpAndSettle();
+      expect(find.text('גודל ההורדה: 2.0 MB'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ActionButton, 'עדכן').last);
+      await tester.pumpAndSettle();
+      expect(updates.installed, ['lib-a']);
+    });
+
+    testWidgets('not installed: name, size and a download button', (
+      tester,
+    ) async {
+      final (_, updates) = await pumpPanel(
+        tester,
+        [],
+        statuses: {offerKey: AttachedUpdateAvailable(_offer())},
+      );
+      expect(find.text('מחברי זמננו'), findsOneWidget);
+      expect(find.text('2.0 MB'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ActionButton, 'הורד'));
+      await tester.pump();
+      expect(updates.installedOfficial, ['lib-a']);
+
+      await tester.tap(find.widgetWithText(ActionButton, 'לא תודה'));
+      await tester.pump();
+      await tester.pump();
+      expect(updates.declined, {'lib-a'});
+      expect(find.widgetWithText(ActionButton, 'הורד'), findsNothing);
+      expect(find.text('מסדים רשמיים'), findsOneWidget);
+    });
+  });
 
   testWidgets('no source: chip only, nothing to check', (tester) async {
     await pumpPanel(tester, [_library('a')]);

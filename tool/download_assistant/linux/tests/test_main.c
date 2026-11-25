@@ -20,6 +20,7 @@
 #include "release.h"
 #include "selection.h"
 #include "texts.h"
+#include "zmanenu.h"
 
 /* ------------------------------------------------------------- helpers */
 
@@ -656,6 +657,10 @@ static void test_marker(void) {
 
   g_unlink(marker);
   g_assert_false(otz_marker_matches(file, sha, 5));
+  /* A file without a sha256 (Contemporary Authors) is never taken as cached. */
+  g_assert_true(otz_marker_write(file, "", &error));
+  g_assert_false(otz_marker_matches(file, "", 5));
+  g_unlink(marker);
   g_unlink(file);
   g_rmdir(dir);
 }
@@ -1112,6 +1117,236 @@ static void test_job_subfolder_name(void) {
                                          f.out, "Otzaria setup for Linux", &error);
   g_assert_no_error(error);
   g_assert_cmpstr(otz_job_output_dir(single), ==, f.out);
+  job_fixture_clear(&f);
+}
+
+/* ------------------------------------------------------------- zmanenu */
+
+static OtzJson *read_json_fixture(const char *name) {
+  gsize length;
+  g_autofree char *text = read_fixture(name, &length);
+  g_autoptr(GError) error = NULL;
+  OtzJson *json = otz_json_parse(text, length, &error);
+  g_assert_no_error(error);
+  return json;
+}
+
+static OtzTarget json_target(const OtzJson *value) {
+  OtzTarget target = {otz_json_get_string(value, "platform"),
+                      otz_json_get_string(value, "architecture"),
+                      otz_json_get_string(value, "packageFormat")};
+  return target;
+}
+
+/* The offer of a case in expected-zmanenu.json: release "" = the API did not
+ * answer; partsManifest "" = nothing at its URL. */
+static OtzZmanenuOffer *case_offer(const OtzJson *entry, OtzJson **release_out) {
+  const char *release_name = otz_json_get_string(entry, "release");
+  const char *manifest_name = otz_json_get_string(entry, "partsManifest");
+  OtzJson *release = *release_name != '\0' ? read_json_fixture(release_name) : NULL;
+  g_autoptr(GBytes) manifest = NULL;
+  if (*manifest_name != '\0') {
+    gsize length;
+    char *text = read_fixture(manifest_name, &length);
+    manifest = g_bytes_new_take(text, length);
+  }
+  OtzZmanenuOffer *offer = otz_zmanenu_offer(release, manifest);
+  *release_out = release;
+  return offer;
+}
+
+static void test_zmanenu_fixtures(void) {
+  g_autoptr(OtzJson) expected = read_json_fixture("expected-zmanenu.json");
+  g_assert_cmpstr(otz_json_get_string(expected, "archive"), ==, OTZ_ZMANENU_ARCHIVE);
+  g_assert_cmpstr(otz_json_get_string(expected, "partsManifestName"), ==,
+                  OTZ_ZMANENU_PARTS_MANIFEST);
+  g_assert_cmpstr(otz_json_get_string(expected, "dropFolder"), ==, OTZ_ZMANENU_DROP_FOLDER);
+
+  const OtzJson *targets = otz_json_get(expected, "offeredTargets");
+  g_assert_cmpuint(otz_json_array_length(targets), >, 0);
+  for (guint i = 0; i < otz_json_array_length(targets); i++) {
+    const OtzJson *entry = otz_json_array_get(targets, i);
+    OtzTarget target = json_target(otz_json_get(entry, "target"));
+    g_assert_cmpint(otz_zmanenu_is_offered(&target), ==,
+                    otz_json_get(entry, "offered")->boolean);
+  }
+
+  const OtzJson *cases = otz_json_get(expected, "cases");
+  g_assert_cmpuint(otz_json_array_length(cases), >, 0);
+  for (guint i = 0; i < otz_json_array_length(cases); i++) {
+    const OtzJson *entry = otz_json_array_get(cases, i);
+    g_test_message("case %s", otz_json_get_string(entry, "id"));
+    g_autoptr(OtzJson) release = NULL;
+    g_autoptr(OtzZmanenuOffer) offer = case_offer(entry, &release);
+    g_autofree char *url = otz_zmanenu_parts_manifest_url(release);
+    g_assert_cmpstr(url, ==, otz_json_get_string(entry, "partsManifestUrl"));
+    const OtzJson *want = otz_json_get(entry, "offer");
+    if (want == NULL || want->type == OTZ_JSON_NULL) {
+      g_assert_null(offer);
+      continue;
+    }
+    g_assert_nonnull(offer);
+    g_assert_cmpstr(offer->tag, ==, otz_json_get_string(want, "tag"));
+    g_assert_cmpint(offer->parts_manifest != NULL, ==, otz_json_get(want, "split")->boolean);
+    gint64 size;
+    g_assert_true(otz_json_get_int(want, "downloadSize", &size));
+    g_assert_cmpint(otz_zmanenu_download_size(offer), ==, size);
+    g_autoptr(GPtrArray) files = otz_zmanenu_output_files(offer);
+    assert_strings(files, otz_json_get(want, "outputFiles"), "zmanenu outputFiles");
+    const OtzJson *downloads = otz_json_get(want, "downloads");
+    g_assert_cmpuint(offer->downloads->len, ==, otz_json_array_length(downloads));
+    for (guint d = 0; d < offer->downloads->len; d++) {
+      const OtzZmanenuFile *file = g_ptr_array_index(offer->downloads, d);
+      const OtzJson *item = otz_json_array_get(downloads, d);
+      g_assert_cmpstr(file->name, ==, otz_json_get_string(item, "name"));
+      g_assert_cmpstr(file->sha256, ==, otz_json_get_string(item, "sha256"));
+      g_assert_cmpstr(file->url, ==, otz_json_get_string(item, "url"));
+      g_assert_true(otz_json_get_int(item, "size", &size));
+      g_assert_cmpint(file->size, ==, size);
+      g_assert_true(otz_http_check_url(file->url, NULL));
+    }
+  }
+}
+
+/* For another computer the files go beside the selection and count in the
+ * subfolder rule, as expected-zmanenu.json says. */
+static void test_zmanenu_other_computer(void) {
+  g_autoptr(OtzJson) expected = read_json_fixture("expected-zmanenu.json");
+  gsize length;
+  g_autofree char *text = read_fixture("release-manifest.json", &length);
+  g_autoptr(GError) error = NULL;
+  g_autoptr(OtzManifest) manifest = otz_manifest_parse(text, length, &error);
+  g_assert_no_error(error);
+  g_autofree char *root = temp_dir();
+  const OtzJson *cases = otz_json_get(expected, "cases");
+  const OtzJson *entries = otz_json_get(expected, "otherComputer");
+  g_assert_cmpuint(otz_json_array_length(entries), >, 0);
+  for (guint i = 0; i < otz_json_array_length(entries); i++) {
+    const OtzJson *entry = otz_json_array_get(entries, i);
+    const OtzJson *case_entry = NULL;
+    for (guint c = 0; c < otz_json_array_length(cases); c++)
+      if (g_strcmp0(otz_json_get_string(otz_json_array_get(cases, c), "id"),
+                    otz_json_get_string(entry, "case")) == 0)
+        case_entry = otz_json_array_get(cases, c);
+    g_assert_nonnull(case_entry);
+    g_autoptr(OtzJson) release = NULL;
+    g_autoptr(OtzZmanenuOffer) offer = case_offer(case_entry, &release);
+    OtzTarget target = json_target(otz_json_get(entry, "target"));
+    g_autoptr(GPtrArray) presets = otz_build_presets(manifest, &target);
+    const OtzPreset *preset = NULL;
+    for (guint p = 0; p < presets->len; p++)
+      if (strcmp(((OtzPreset *)g_ptr_array_index(presets, p))->id,
+                 otz_json_get_string(entry, "preset")) == 0)
+        preset = g_ptr_array_index(presets, p);
+    g_assert_nonnull(preset);
+    g_autoptr(OtzJob) job = otz_job_new_with_zmanenu(
+        manifest, preset->members, &target, root, root, NULL, offer, NULL, &error);
+    g_assert_no_error(error);
+    assert_strings(otz_job_output_files(job), otz_json_get(entry, "outputFiles"),
+                   "otherComputer outputFiles");
+    const char *subfolder = otz_json_get_string(entry, "outputSubfolder");
+    g_autofree char *dir = *subfolder != '\0' ? g_build_filename(root, subfolder, NULL)
+                                              : g_strdup(root);
+    g_assert_cmpstr(otz_job_output_dir(job), ==, dir);
+  }
+  g_rmdir(root);
+}
+
+/* On this computer: the drop folder gets the parts and then the manifest, and
+ * the output folder keeps only the selection. */
+static void test_zmanenu_job_drop_folder(void) {
+  static const char *const ids[] = {"hello", NULL};
+  JobFixture f;
+  job_fixture_init(&f, ids);
+  otz_set_allowed_owner("SomeoneElse");
+  static const char manifest_json[] =
+      "{\"archive\":\"" OTZ_ZMANENU_ARCHIVE "\",\"size\":5,\"parts\":["
+      "{\"name\":\"" OTZ_ZMANENU_ARCHIVE ".part-000\",\"size\":5,\"sha256\":\"" HELLO_SHA
+      "\"}]}";
+  g_autoptr(GBytes) bytes = g_bytes_new_static(manifest_json, strlen(manifest_json));
+  g_autoptr(OtzZmanenuOffer) offer = otz_zmanenu_offer(NULL, bytes);
+  g_assert_nonnull(offer);
+  g_autofree char *part_download = g_build_filename(
+      f.cache, OTZ_ZMANENU_ARCHIVE ".part-000.2cf24dba5fb0.download", NULL);
+  write_file(part_download, "hello", 5);
+  g_autofree char *hello_download =
+      g_build_filename(f.cache, "hello.bin.2cf24dba5fb0.download", NULL);
+  write_file(hello_download, "hello", 5);
+  g_autofree char *drop = g_build_filename(f.root, "data", OTZ_ZMANENU_DROP_FOLDER, NULL);
+
+  OtzTarget target = {"linux", "x64", "deb"};
+  g_autoptr(GError) error = NULL;
+  g_autoptr(OtzJob) job = otz_job_new_with_zmanenu(f.manifest, f.ids, &target, f.cache,
+                                                   f.out, NULL, offer, drop, &error);
+  g_assert_no_error(error);
+  g_assert_true(otz_job_run(job, NULL, &error));
+  g_assert_no_error(error);
+
+  GPtrArray *files = otz_job_output_files(job);
+  g_assert_cmpuint(files->len, ==, 1);
+  g_assert_cmpstr(otz_job_output_dir(job), ==, f.out);
+  g_autofree char *part = g_build_filename(drop, OTZ_ZMANENU_ARCHIVE ".part-000", NULL);
+  g_autofree char *placed_manifest = g_build_filename(drop, OTZ_ZMANENU_PARTS_MANIFEST, NULL);
+  g_assert_true(g_file_test(part, G_FILE_TEST_EXISTS));
+  g_autofree char *content = NULL;
+  gsize length;
+  g_assert_true(g_file_get_contents(placed_manifest, &content, &length, NULL));
+  g_assert_cmpstr(content, ==, manifest_json);
+  GDir *listing = g_dir_open(drop, 0, NULL);
+  g_assert_nonnull(listing);
+  guint count = 0;
+  while (g_dir_read_name(listing) != NULL) count++;
+  g_dir_close(listing);
+  g_assert_cmpuint(count, ==, 2);
+  /* Android gets no zmanenu at all. */
+  OtzTarget android = {"android", "", ""};
+  g_autoptr(OtzJob) none = otz_job_new_with_zmanenu(f.manifest, f.ids, &android, f.cache,
+                                                    f.out, NULL, offer, NULL, &error);
+  g_assert_no_error(error);
+  g_assert_cmpuint(otz_job_output_files(none)->len, ==, 1);
+
+  job_fixture_clear(&f);
+}
+
+/* A run that fails while placing leaves no <name>.tmp in the drop folder. */
+static void test_zmanenu_failure_removes_tmp(void) {
+  static const char *const ids[] = {"hello", NULL};
+  JobFixture f;
+  job_fixture_init(&f, ids);
+  otz_set_allowed_owner("SomeoneElse");
+  static const char manifest_json[] =
+      "{\"archive\":\"" OTZ_ZMANENU_ARCHIVE "\",\"size\":5,\"parts\":["
+      "{\"name\":\"" OTZ_ZMANENU_ARCHIVE ".part-000\",\"size\":5,\"sha256\":\"" HELLO_SHA
+      "\"}]}";
+  g_autoptr(GBytes) bytes = g_bytes_new_static(manifest_json, strlen(manifest_json));
+  g_autoptr(OtzZmanenuOffer) offer = otz_zmanenu_offer(NULL, bytes);
+  g_assert_nonnull(offer);
+  g_autofree char *part_download = g_build_filename(
+      f.cache, OTZ_ZMANENU_ARCHIVE ".part-000.2cf24dba5fb0.download", NULL);
+  write_file(part_download, "hello", 5);
+  g_autofree char *hello_download =
+      g_build_filename(f.cache, "hello.bin.2cf24dba5fb0.download", NULL);
+  write_file(hello_download, "hello", 5);
+  g_autofree char *drop = g_build_filename(f.root, "data", OTZ_ZMANENU_DROP_FOLDER, NULL);
+  /* The manifest's final name is taken by a folder, so its rename fails. */
+  g_autofree char *blocker = g_build_filename(drop, OTZ_ZMANENU_PARTS_MANIFEST, "x", NULL);
+  g_assert_cmpint(g_mkdir_with_parents(blocker, 0755), ==, 0);
+
+  OtzTarget target = {"linux", "x64", "deb"};
+  g_autoptr(GError) error = NULL;
+  g_autoptr(OtzJob) job = otz_job_new_with_zmanenu(f.manifest, f.ids, &target, f.cache,
+                                                   f.out, NULL, offer, drop, &error);
+  g_assert_no_error(error);
+  g_assert_false(otz_job_run(job, NULL, &error));
+  g_assert_nonnull(error);
+  GDir *listing = g_dir_open(drop, 0, NULL);
+  g_assert_nonnull(listing);
+  const char *name;
+  while ((name = g_dir_read_name(listing)) != NULL)
+    g_assert_false(g_str_has_suffix(name, ".tmp"));
+  g_dir_close(listing);
+  g_rmdir(blocker);
+
   job_fixture_clear(&f);
 }
 
@@ -1965,6 +2200,10 @@ int main(int argc, char **argv) {
   g_test_add_func("/job/subfolder-name", test_job_subfolder_name);
   g_test_add_func("/manifest/english-text", test_manifest_english_text);
   g_test_add_func("/release/offline-errors", test_offline_errors);
+  g_test_add_func("/zmanenu/fixtures", test_zmanenu_fixtures);
+  g_test_add_func("/zmanenu/other-computer", test_zmanenu_other_computer);
+  g_test_add_func("/zmanenu/job-drop-folder", test_zmanenu_job_drop_folder);
+  g_test_add_func("/zmanenu/failure-removes-tmp", test_zmanenu_failure_removes_tmp);
   g_test_add_func("/texts/complete", test_texts_complete);
   g_test_add_func("/texts/format", test_texts_format);
   g_test_add_func("/eta/work-rates", test_eta_work_rates);

@@ -10,6 +10,11 @@ abstract class PdfMessages {
   static const String textLocationNotFound = 'לא נמצא מיקום תואם בטקסט';
   static const String noTextLayer =
       'ספר זה הוא סריקה בלבד ואינו מכיל טקסט, ולכן לא ניתן לחפש בתוכו';
+  static const String searchIncomplete = 'החיפוש לא הושלם';
+  static String partialSearchResultCount(int count) =>
+      'נמצאו עד כה $count תוצאות';
+  static String currentPartialSearchResult(int current, int count) =>
+      'תוצאה $current מתוך $count שנמצאו עד כה';
   static const String advancedSearchUnavailableInTalmudPdf =
       'חיפוש מתקדם אינו זמין במהדורת ה-PDF של התלמוד הבבלי. '
       'ניתן לחפש בגרסת הטקסט של המסכת, ולפתוח משם את התוצאה.';
@@ -22,8 +27,16 @@ abstract class PdfMessages {
   static const String pageRangeRenderFailed = 'עיבוד טווח העמודים שנבחר נכשל';
   static const String multiPageSheetRenderFailed =
       'עיבוד עמודים מרובים בגיליון נכשל';
+  static String pdfFileSavedAs(String fileName) =>
+      'קובץ PDF נשמר בשם "$fileName"';
   static const String wordFileSaved = 'קובץ Word נשמר בהצלחה';
   static const String pdfFileSaved = 'קובץ PDF נשמר בהצלחה';
+  static const String mobilePdfSaveFailed =
+      'לא ניתן לשמור את קובץ ה-PDF. אפשר לנסות שוב.';
+  static String mobilePdfExportResidual(String? fileName) => fileName == null
+      ? 'הייצוא לא הושלם. בתיקייה שנבחרה נשאר קובץ שייתכן שאינו שלם.'
+      : 'הייצוא לא הושלם. בתיקייה שנבחרה נשאר "$fileName". '
+            'ייתכן שהקובץ אינו שלם.';
   static const String fileLockedByAnotherApp =
       'לא ניתן לשמור את הקובץ כי הוא פתוח בתוכנה אחרת. יש לסגור אותו ולנסות שוב.';
 

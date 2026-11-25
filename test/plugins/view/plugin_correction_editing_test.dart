@@ -70,6 +70,23 @@ Future<void> _pumpEditor(
   }
 }
 
+double _textStartX(WidgetTester tester) {
+  final render = tester
+      .state<EditableTextState>(find.byType(EditableText))
+      .renderEditable;
+  final caret = render.getLocalRectForCaret(const TextPosition(offset: 0));
+  return render.localToGlobal(Offset(caret.right, 0)).dx;
+}
+
+/// לחיצה כפולה בתוך העורך: יציאה ממצב עריכה בפסקה שלא תוקנה.
+Future<void> _doubleTapEditor(WidgetTester tester) async {
+  final point = tester.getCenter(find.byType(EditableText));
+  await tester.tapAt(point);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.tapAt(point);
+  await tester.pumpAndSettle();
+}
+
 EditableText _editor(WidgetTester tester) =>
     tester.widget<EditableText>(find.byType(EditableText));
 
@@ -608,7 +625,7 @@ void main() {
     expect(_editor(tester).controller.text, '  אב  גד  ');
     expect(_renderedSpan(tester).toPlainText(), '  אב  גד  ');
     expect(
-      tester.getTopRight(find.byType(EditableText)).dx,
+      _textStartX(tester),
       tester.getTopRight(find.byType(PluginCorrectionParagraph)).dx,
     );
     await tester.showKeyboard(find.byType(EditableText));
@@ -622,13 +639,13 @@ void main() {
     expect(_renderedSpan(tester).toPlainText(), '  אם  גד  ');
     expect(service.editableText('tab', 0, source), '   אם  גד   ');
     expect(
-      tester.getTopRight(find.byType(EditableText)).dx,
+      _textStartX(tester),
       tester.getTopRight(find.byType(PluginCorrectionParagraph)).dx,
     );
     await _finish(tester, service);
   });
 
-  testWidgets('המקור נשמר לפני עריכה וחוזר אחרי יציאה ממיקוד ואיפוס', (
+  testWidgets('המקור נשמר לפני עריכה וחוזר בלחיצה כפולה, גם אחרי איפוס', (
     tester,
   ) async {
     const source = '<span style="color: red">אב</span>';
@@ -639,8 +656,7 @@ void main() {
     await activateCorrectionParagraph(tester, find.text('קריאה'));
     await tester.pump();
     await tester.showKeyboard(find.byType(EditableText));
-    _editor(tester).focusNode.unfocus();
-    await tester.pumpAndSettle();
+    await _doubleTapEditor(tester);
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(EditableText), findsNothing);
     expect(service.isCorrected('tab', 0, source), isFalse);
@@ -659,8 +675,7 @@ void main() {
     await tester.pump();
     expect(service.isCorrected('tab', 0, source), isFalse);
     expect(_editor(tester).controller.text, 'אב');
-    _editor(tester).focusNode.unfocus();
-    await tester.pumpAndSettle();
+    await _doubleTapEditor(tester);
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(EditableText), findsNothing);
     await _finish(tester, service);

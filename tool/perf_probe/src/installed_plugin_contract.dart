@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'installed_pdf_runtime_contract.dart';
+
 /// ערך null מה־WebView אינו תצפית מוכנות של מסמך התוסף.
 Map<String, Object?> decodeInstalledPluginSnapshot(Object? value) {
   final decoded = value is String ? jsonDecode(value) : value;
@@ -160,6 +162,15 @@ List<String> installedReportErrors(Map<String, Object?> report) {
   }
   if (report['policyRestored'] != true) {
     errors.add('Dispatcher policy override was not restored');
+  }
+  final platform = report['platform'];
+  if (installedPluginPdfRuntimePlatforms.contains(platform)) {
+    errors.addAll(
+      installedPdfRuntimeErrors(
+        report['pdfRuntime'],
+        platform: platform as String,
+      ),
+    );
   }
   return errors;
 }

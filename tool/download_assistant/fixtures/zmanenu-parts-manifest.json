@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "archive": "zmanenu-offline.tar.zst",
+  "size": 3230,
+  "sha256": "31916c8e031b280e9166f4e3c10c5d93394c79ace3bc73c80d14b0942f782446",
+  "partSizeLimit": 1500,
+  "githubAssetLimit": 2147483648,
+  "parts": [
+    {
+      "name": "zmanenu-offline.tar.zst.part-000",
+      "size": 1500,
+      "sha256": "574a9b24ef47f69b01b83164b4afd5f475cf6325937e35bdcf8e3092bbe71f67"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst.part-001",
+      "size": 1500,
+      "sha256": "97b71de83e67032938736ed4f8678f7f8ca11fd2ec0e3b4b5319a90192d73c41"
+    },
+    {
+      "name": "zmanenu-offline.tar.zst.part-002",
+      "size": 230,
+      "sha256": "18fac9978c544ef7f34d736f857479d8e943f2797af153a4999c90c1525d7364"
+    }
+  ]
+}

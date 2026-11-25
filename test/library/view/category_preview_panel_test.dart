@@ -11,6 +11,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 
 import '../../helpers/memory_settings_cache.dart';
 
@@ -110,6 +112,30 @@ void main() {
     expect(find.text('תיקייה אחת · ספר אחד'), findsOneWidget);
     expect(find.text('תורה'), findsOneWidget);
     expect(find.textContaining('רש״י על בראשית'), findsOneWidget);
+  });
+
+  testWidgets('קפיצה לסוף קטגוריה עם אלפי ספרים בונה רק את שורות היעד '
+      '(issue #4766)', (tester) async {
+    await _pump(
+      tester,
+      category: _category('גדולה'),
+      books: [for (var i = 0; i < 3000; i++) TextBook(title: 'ספר $i')],
+    );
+
+    var rowBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget is NavTreeTile) rowBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(find.text('ספר 2999'), findsOneWidget);
+    expect(rowBuilds, lessThan(200));
   });
 
   testWidgets('מציג את התיאור כשקיים ב-DB', (tester) async {
@@ -272,7 +298,7 @@ void main() {
     expect(initialReads, lessThan(25));
     expect(find.byType(NavTreeTile).evaluate().length, lessThan(25));
     final initialIndices = Set<int>.of(books.indices);
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(SuperListView), const Offset(0, -700));
     await tester.pumpAndSettle();
     final scrollReads = books.reads;
     expect(books.indices.difference(initialIndices), isNotEmpty);

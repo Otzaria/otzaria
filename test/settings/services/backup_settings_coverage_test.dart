@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -231,6 +232,19 @@ void main() {
       );
     });
 
+    test('גיבוי הגדרות כולל את מתג האיתור בלי נתוני הלמידה', () async {
+      await Settings.setValue<bool>(FindRefPreferenceStore.enabledKey, false);
+      await Settings.setValue<String>(
+        FindRefPreferenceStore.scoresKey,
+        '{"books":{"f|/library/private.pdf":[3,"ספר אישי"]}}',
+      );
+
+      final settings = await backupSettingsSection();
+
+      expect(settings[FindRefPreferenceStore.enabledKey], isFalse);
+      expect(settings, isNot(contains(FindRefPreferenceStore.scoresKey)));
+    });
+
     test('מגבה את שאר הגדרות יומן Google למרות חסימת האסימון', () async {
       await Settings.setValue<bool>(
         SettingsRepository.keyGoogleCalendarEnabled,
@@ -421,6 +435,29 @@ void main() {
         Settings.getValue<String>(SettingsRepository.keyCustomFolders),
       );
       expect(restored.map((f) => f.path), [missingPath]);
+    });
+
+    test('שחזור הגדרות אינו דורס את נתוני הלמידה המקומיים', () async {
+      AppPaths.debugOverrideDataRootPath(tempDir.path);
+      await Settings.setValue<String>(
+        FindRefPreferenceStore.scoresKey,
+        'local',
+      );
+      final backup = await writeBackup({
+        FindRefPreferenceStore.enabledKey: false,
+        FindRefPreferenceStore.scoresKey: 'from-backup',
+      });
+
+      await BackupService.restoreFromBackup(backup.path);
+
+      expect(
+        Settings.getValue<bool>(FindRefPreferenceStore.enabledKey),
+        isFalse,
+      );
+      expect(
+        Settings.getValue<String>(FindRefPreferenceStore.scoresKey),
+        'local',
+      );
     });
 
     test('גיבוי בלי סעיף הגדרות אינו מדווח על תיקיות', () async {

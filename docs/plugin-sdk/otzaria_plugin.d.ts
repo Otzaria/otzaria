@@ -1655,7 +1655,12 @@ export type ContextMenuContext =
    * `ReaderSelection.pageNumber`. From 0.9.98.1. */
   | 'reader-pdf'
   /** Like `reader-pdf`, with selected text on the page. From 0.9.98.1. */
-  | 'reader-pdf-selection';
+  | 'reader-pdf-selection'
+  /** Right-click on a book in the library (tree row, grid card or search
+   * result). Opt-in. The selection carries the book identity and
+   * `categoryPath`, with no text or position. Not shown for external
+   * provider books. From 0.9.99. */
+  | 'library-book';
 
 export interface ContextMenuColor {
   id: string;
@@ -1737,25 +1742,52 @@ export interface UpdateContextMenuItemArgs {
   patch: Partial<Omit<ContextMenuItem, 'id'>>;
 }
 
-export interface ContextMenuItemClickedEvent {
+/** The book targeted by a `library-book` menu item. From 0.9.99. */
+export interface LibraryBookSelection {
+  id: number | null;
+  bookId: string;
+  bookUid: string;
+  bookTitle: string;
+  type: Exclude<BookType, 'external'>;
+  source: 'library' | 'user' | 'attached';
+  external?: BookMeta['external'];
+  /** The category path as returned by `library.getTree`. */
+  categoryPath: string | null;
+  text: '';
+}
+
+interface ContextMenuItemClickedEventBase {
   itemId: string;
-  selection: ReaderSelection;
-  /** Legacy fields retained for existing plugins. `selectedText` follows the
-   * user's divine-names setting unless the item set `rawDivineNames`. */
-  selectedText: string;
-  currentRef: string | null;
   currentBook: string;
   currentBookId: string;
-  currentIndex: number;
   /** The `param` value passed to `reader.addContextMenuItem`, or null. */
   param: unknown;
 }
+
+export interface ReaderContextMenuItemClickedEvent extends ContextMenuItemClickedEventBase {
+  selection: ReaderSelection;
+  /** Follows the user's divine-names setting unless the item set `rawDivineNames`. */
+  selectedText: string;
+  currentRef: string | null;
+  currentIndex: number;
+}
+
+export interface LibraryBookContextMenuItemClickedEvent extends ContextMenuItemClickedEventBase {
+  selection: LibraryBookSelection;
+  selectedText: '';
+  currentRef: null;
+  currentIndex: null;
+}
+
+export type ContextMenuItemClickedEvent =
+  | ReaderContextMenuItemClickedEvent
+  | LibraryBookContextMenuItemClickedEvent;
 
 export interface ContextMenuColorClickedEvent {
   itemId: string;
   colorId: string;
   color: string;
-  selection: ReaderSelection;
+  selection: ReaderSelection | LibraryBookSelection;
 }
 
 export type ToolbarContext = 'reader-text' | 'reader-pdf';
@@ -1925,16 +1957,7 @@ export interface OtzariaEventMap {
    */
   'app.command': PluginCommandPayload;
   /** User clicked a plugin-registered context menu item. Sent only to the registering plugin. */
-  'reader.context_menu_item_clicked': {
-    itemId: string;
-    selectedText: string;
-    currentRef: string;
-    currentBook: string;
-    currentBookId: string;
-    currentIndex: number;
-    /** The `param` value passed to `reader.addContextMenuItem`, or null. */
-    param: unknown;
-  };
+  'reader.context_menu_item_clicked': ContextMenuItemClickedEvent;
   /**
    * The plugin page was opened via `plugin.openSelf`, or by another plugin via
    * `plugin.openOther` — in which case `openedBy` holds that plugin's id.
