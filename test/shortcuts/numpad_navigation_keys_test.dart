@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/shortcuts/numpad_navigation_keys.dart';
+import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 /// שולח אירוע כמו ה-engine של Windows: KeyData דרך PlatformDispatcher.onKeyData
 /// ואחריו הודעת ה-raw שמשחררת את התור של KeyEventManager.
@@ -372,6 +374,60 @@ void main() {
     );
     expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
     expect(HardwareKeyboard.instance.logicalKeysPressed, isEmpty);
+  }, variant: windows);
+
+  testWidgets('NumLock כבוי: החזקת ספרון 2/8 בקורא גוללת ברצף כמו החצים '
+      'ונעצרת בשחרור', (tester) async {
+    install();
+    final item = ItemScrollController();
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProgressiveScroll(
+          focusNode: focus,
+          scrollController: item,
+          child: ScrollablePositionedList.builder(
+            itemScrollController: item,
+            itemCount: 10000,
+            estimateExtent: (_, width) => 100,
+            itemBuilder: (_, index) =>
+                SizedBox(height: 100, child: Text('שורה $index')),
+          ),
+        ),
+      ),
+    );
+    focus.requestFocus();
+    await tester.pump();
+
+    Future<double> hold(
+      PhysicalKeyboardKey physical,
+      LogicalKeyboardKey key,
+    ) async {
+      await _send(tester, ui.KeyEventType.down, physical, key);
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await _send(tester, ui.KeyEventType.up, physical, key);
+      await tester.pumpAndSettle();
+      final released = item.scrollController!.offset;
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(item.scrollController!.offset, released);
+      return released;
+    }
+
+    // צעד בודד הוא 100; החזקה של חצי שנייה גוללת ברצף מעבר לו.
+    final down = await hold(
+      PhysicalKeyboardKey.numpad2,
+      LogicalKeyboardKey.numpad2,
+    );
+    expect(down, greaterThan(200));
+    final up = await hold(
+      PhysicalKeyboardKey.numpad8,
+      LogicalKeyboardKey.numpad8,
+    );
+    expect(up, lessThan(down - 100));
+    expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
   }, variant: windows);
 
   testWidgets('מחוץ ל-Windows אין מיפוי', (tester) async {
