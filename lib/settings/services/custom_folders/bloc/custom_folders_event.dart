@@ -72,8 +72,8 @@ class RescanCustomFolders extends CustomFoldersEvent {
   /// ממילא לא השתנו.
   final String? onlyFolderPath;
 
-  /// כמו [onlyFolderPath], לתיקייה שמכילה את הקובץ (רענון ספר פתוח). קובץ
-  /// שאינו באף תיקייה — נסרקות כולן.
+  /// כמו [onlyFolderPath], לתיקייה שמכילה את הקובץ (רענון ספר פתוח).
+  /// אם אין תיקייה יחידה שמכילה את הקובץ, נסרקות כל התיקיות.
   final String? folderOfFile;
 
   /// מזהה בקשה שידווח ב-[CustomFoldersState.completedScan] בסיום הסריקה,
