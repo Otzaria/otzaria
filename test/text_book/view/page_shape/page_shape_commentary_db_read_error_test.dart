@@ -37,6 +37,11 @@ void main() {
     await pumpUntil(tester, () => false);
     expect(find.text('לא ניתן לטעון את $_commentator'), findsOneWidget);
     expect(find.text(_retry), findsOneWidget);
+    // שאר הקוראים של שכבת הנתונים מקבלים null כמקודם.
+    final text = await tester.runAsync(
+      () => SqliteDataProvider.instance.getBookTextFromDb(_commentator, 703),
+    );
+    expect(text, isNull);
   });
 
   testWidgets('מפרש שאינו קיים עדיין מוסתר בלי הודעה', (tester) async {

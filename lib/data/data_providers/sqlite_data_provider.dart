@@ -412,6 +412,8 @@ class SqliteDataProvider {
     }
   }
 
+  /// [throwReadErrors] זורק כשל קריאה במקום null, כדי שהקורא יבחין בין ספר
+  /// חסר לקריאה שנכשלה.
   Future<({int startLine, int endLine, int totalLines, String text})?>
   getBookTextRangeFromDb(
     String title, {
@@ -420,6 +422,7 @@ class SqliteDataProvider {
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
+    bool throwReadErrors = false,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -449,6 +452,7 @@ class SqliteDataProvider {
     } on DbReadWorkerBusy {
       rethrow;
     } catch (e, st) {
+      if (throwReadErrors) rethrow;
       debugPrint(
         '[SqliteDataProvider] getBookTextRangeFromDb failed for '
         '"$title": $e\n$st',
@@ -457,13 +461,15 @@ class SqliteDataProvider {
     }
   }
 
-  /// טקסט הספר מהמסד; [emptyWhenNoLines] מבדיל ספר קיים שהתרוקן מכשל קריאה.
+  /// טקסט הספר מהמסד; [emptyWhenNoLines] מבדיל ספר קיים שהתרוקן מכשל קריאה,
+  /// ו-[throwReadErrors] זורק את הכשל במקום null.
   Future<String?> getBookTextFromDb(
     String title, [
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
     bool emptyWhenNoLines = false,
+    bool throwReadErrors = false,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -492,6 +498,7 @@ class SqliteDataProvider {
     } on DbReadWorkerBusy {
       rethrow;
     } catch (e, st) {
+      if (throwReadErrors) rethrow;
       debugPrint(
         '[SqliteDataProvider] getBookTextFromDb failed for '
         '"$title": $e\n$st',

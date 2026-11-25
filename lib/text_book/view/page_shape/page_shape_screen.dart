@@ -2130,12 +2130,14 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     int targetIndex,
     String requestedCommentatorName,
   ) async {
+    // כשל קריאה נזרק ומוצג עם "נסה שוב"; רק ספר שאינו במסד מחזיר null.
     final range = await SqliteDataProvider.instance.getBookTextRangeFromDb(
       book.title,
       startLine: targetIndex - _windowLookBehindLines,
       endLine: targetIndex + _windowLookAheadLines,
       categoryId: book.categoryId,
       fileType: book.fileType,
+      throwReadErrors: true,
     );
     if (!mounted || widget.commentatorName != requestedCommentatorName) {
       return true; // הבקשה התיישנה — אין טעם גם בטעינה מלאה
@@ -2537,6 +2539,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         book.title,
         book.categoryId!,
         'txt',
+        throwReadErrors: true,
       );
       bookContent = text ?? '';
     } else {
