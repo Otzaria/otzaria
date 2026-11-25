@@ -1246,6 +1246,21 @@ void main() {
 
         expect(found.map((book) => book.id), [1, 2, 3]);
       });
+
+      test('הוספת הכרך אינה מורידה את הדירוג בהתאמה חלקית לשם', () async {
+        createCatalog(withVolume: true);
+        final data = _CatalogDataRepository(repository);
+        addTearDown(data.bookSearchWorkerForTesting.dispose);
+
+        final found = await data.findBooks(
+          'ערוך',
+          Library(categories: []),
+          includeOtzar: true,
+          includeLocalHebrewBooks: false,
+        );
+
+        expect(found.map((book) => book.id), [1, 2, 3]);
+      });
     });
 
     test('שאילתת מיפוי איטית לא חוסמת את ה-isolate הראשי', () async {
