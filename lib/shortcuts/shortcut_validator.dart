@@ -530,6 +530,12 @@ class ShortcutValidator {
     if (normalizedDefaultKey.isEmpty) return false;
     for (final key in shortcutKeys) {
       if (key == settingKey) continue;
+      // ברירת המחדל החדשה של הרענון מפנה מקום ל-F5 של תוסף קיים.
+      if (key == refreshBookKey &&
+          normalizedDefaultKey == _defaultShortcuts[refreshBookKey] &&
+          !Settings.containsKey(refreshBookKey)) {
+        continue;
+      }
       if (_pluginShortcuts.containsKey(key)) {
         final userValue = Settings.getValue<String>(key);
         if (userValue != null &&
