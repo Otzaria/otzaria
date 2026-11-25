@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -18,16 +20,17 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
+import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/stub_personal_notes_bloc.dart';
 import '../../../test_helpers/stub_settings_bloc.dart';
 
 const _target = 30;
-final _content = [
-  for (var i = 0; i < 80; i++)
-    'פסוק $i: דברי הברית אשר צוה לכרת את בני ישראל בארץ מואב',
-];
+const _farTarget = 3500;
+String _lineText(int i) =>
+    'פסוק $i: דברי הברית אשר צוה לכרת את בני ישראל בארץ מואב';
+final _content = List.generate(80, _lineText);
 
 /// הקורא האמיתי: הטאב נפתח מסימניה, והקורא נפרס רק אחרי 2.2 שניות. עד אז
 /// היעד לא נמדד ואסור שזמן ההדגשה יתחיל (סיבת הסגירה של #5692).
@@ -100,6 +103,97 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect((bloc.state as TextBookLoaded).highlightedLine, isNull);
   });
+
+  testWidgets('לחיצה בזמן טעינת יעד רחוק אינה מתחילה את זמן ההדגשה', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 320);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _Repository(blockFarTarget: true);
+    final book = TextBook(title: 'ספר רחוק', filePath: '/books/far.txt');
+    final tab = TextBookTab(book: book, index: 0);
+    addTearDown(tab.dispose);
+    final bloc = TextBookBloc(
+      repository: repository,
+      initialState: TextBookInitial.named(
+        book,
+        0,
+        false,
+        const [],
+        searchMode: SearchMode.exact,
+        showPageShapeView: false,
+      ),
+      readingPosition: tab.lines.position,
+      readingNavigationEpoch: tab.lines.navigationEpoch,
+    );
+    addTearDown(bloc.close);
+    addTearDown(() {
+      if (!repository.farTargetLoaded.isCompleted) {
+        repository.farTargetLoaded.complete();
+      }
+    });
+    bloc.add(const SetTabVisibility(true, allowBackgroundWarming: false));
+    bloc.add(
+      const LoadContent(
+        fontSize: 18,
+        showSplitView: false,
+        removeNikud: false,
+        loadCommentators: false,
+      ),
+    );
+    for (var i = 0; i < 50 && bloc.state is! TextBookLoaded; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+    }
+    expect(bloc.state, isA<TextBookLoaded>());
+    await _pumpReader(tester, tab, bloc);
+
+    final navigation = tab.lines.scrollToLine(
+      _farTarget,
+      alignment: 0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    final epoch = tab.lines.navigationEpoch.value;
+    bloc.add(HighlightLineWhenVisible(_farTarget, navigationEpoch: epoch));
+    await tester.pumpAndSettle();
+    await navigation;
+    TextBookLoaded loaded() => bloc.state as TextBookLoaded;
+    expect(tab.lines.position.value?.isTarget, isTrue);
+    expect(loaded().isContentLineLoaded(_farTarget), isFalse);
+    expect(loaded().highlightedLine, isNull);
+
+    final row = find.byWidgetPredicate(
+      (widget) => widget is ReaderLineBlock && widget.lineIndex == _farTarget,
+    );
+    expect(row, findsOneWidget);
+    final pointer = await tester.startGesture(tester.getCenter(row));
+    await pointer.up();
+    await tester.pump();
+    expect(tab.lines.navigationEpoch.value, epoch);
+    expect(tab.lines.position.value?.isTarget, isFalse);
+    expect(tab.lines.position.value?.visibleLines, contains(_farTarget));
+    expect(loaded().isContentLineLoaded(_farTarget), isFalse);
+    final highlightBeforeLoad = loaded().highlightedLine;
+    await tester.pump(const Duration(milliseconds: 2200));
+    expect(loaded().highlightedLine, isNull);
+
+    repository.farTargetLoaded.complete();
+    await tester.pumpAndSettle();
+    expect(loaded().isContentLineLoaded(_farTarget), isTrue);
+    expect(tab.lines.position.value?.visibleLines, contains(_farTarget));
+    expect(
+      [highlightBeforeLoad, loaded().highlightedLine],
+      [null, _farTarget],
+      reason: 'הטיימר צריך להתחיל אחרי טעינת השורה ולא כשהוצג מציין מקום',
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(loaded().highlightedLine, isNull);
+  });
 }
 
 Future<void> _pumpReader(
@@ -123,13 +217,15 @@ Future<void> _pumpReader(
           BlocProvider<SettingsBloc>.value(value: settings),
         ],
         child: Scaffold(
-          body: CombinedView(
-            data: _content,
-            openBookCallback: (_) {},
-            openLeftPaneTab: (_, {searchText}) {},
-            textSize: 18,
-            showCommentaryAsExpansionTiles: false,
-            tab: tab,
+          body: BlocBuilder<TextBookBloc, TextBookState>(
+            builder: (_, state) => CombinedView(
+              data: (state as TextBookLoaded).content,
+              openBookCallback: (_) {},
+              openLeftPaneTab: (_, {searchText}) {},
+              textSize: 18,
+              showCommentaryAsExpansionTiles: false,
+              tab: tab,
+            ),
           ),
         ),
       ),
@@ -141,10 +237,16 @@ Future<void> _pumpReader(
 }
 
 class _Repository extends TextBookRepository {
-  _Repository() : super(fileSystem: FileSystemData.instance);
+  _Repository({this.blockFarTarget = false})
+    : _lines = blockFarTarget ? List.generate(5000, _lineText) : _content,
+      super(fileSystem: FileSystemData.instance);
+
+  final List<String> _lines;
+  final bool blockFarTarget;
+  final farTargetLoaded = Completer<void>();
 
   @override
-  Future<String> getBookContent(TextBook book) async => _content.join('\n');
+  Future<String> getBookContent(TextBook book) async => _lines.join('\n');
 
   @override
   Future<BookContentRange?> getBookContentRange(
@@ -154,13 +256,16 @@ class _Repository extends TextBookRepository {
     int? maxChars,
     bool budgetFromEnd = false,
   }) async {
-    final start = startLine.clamp(0, _content.length - 1);
-    final end = endLine.clamp(start, _content.length - 1);
+    final start = startLine.clamp(0, _lines.length - 1);
+    final end = endLine.clamp(start, _lines.length - 1);
+    if (blockFarTarget && start <= _farTarget && _farTarget <= end) {
+      await farTargetLoaded.future;
+    }
     return BookContentRange(
       startLine: start,
       endLine: end,
-      totalLines: _content.length,
-      lines: _content.sublist(start, end + 1),
+      totalLines: _lines.length,
+      lines: _lines.sublist(start, end + 1),
     );
   }
 

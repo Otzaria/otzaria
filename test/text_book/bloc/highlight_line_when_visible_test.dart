@@ -181,6 +181,39 @@ void main() {
     expect(_loaded(bloc).highlightedLine, isNull);
   });
 
+  test('טעינת תוכן מלא מתחילה הדגשה בלי פרסום חוזר של המיקום', () async {
+    final position = ValueNotifier<ReadingPosition?>(null);
+    final bloc = await _loadedBloc(position);
+    addTearDown(bloc.close);
+    final title = _loaded(bloc).book.title;
+    bloc.add(
+      ApplyBookContentRange(
+        bookTitle: title,
+        startLine: 60,
+        totalLines: 61,
+        lines: const ['שורה 60'],
+      ),
+    );
+    await _waitFor(() => _loaded(bloc).content.length == 61);
+    expect(_loaded(bloc).isContentLineLoaded(50), isFalse);
+
+    _show(position, [50, 51, 52]);
+    final measured = position.value;
+    bloc.add(const HighlightLineWhenVisible(50));
+    await _settle();
+    expect(_loaded(bloc).highlightedLine, isNull);
+    expect(bloc.pendingHighlightLineForTesting, 50);
+
+    bloc.add(
+      ApplyFullBookContent(
+        bookTitle: title,
+        content: List.generate(61, (line) => 'שורה $line'),
+      ),
+    );
+    await _waitFor(() => _loaded(bloc).highlightedLine == 50);
+    expect(position.value, same(measured));
+  });
+
   test('הטאב מעביר את הבקשה ל-bloc שהוא יוצר', () {
     final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 7);
     addTearDown(tab.dispose);

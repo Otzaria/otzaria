@@ -2119,17 +2119,22 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     }
     final position = readingPosition?.value;
-    if (state is! TextBookLoaded ||
+    final currentState = state;
+    if (currentState is! TextBookLoaded ||
         !_isTabVisible ||
         position == null ||
         position.isTarget) {
       return;
     }
-    _pendingHighlight = null;
-    if (position.visibleLines.contains(request.line)) {
-      _activeBookmarkHighlight = request;
-      _startHighlight(request.line, emit);
+    if (!position.visibleLines.contains(request.line)) {
+      _pendingHighlight = null;
+      return;
     }
+    if (!currentState.isContentLineLoaded(request.line)) return;
+
+    _pendingHighlight = null;
+    _activeBookmarkHighlight = request;
+    _startHighlight(request.line, emit);
   }
 
   void _onClearHighlightedLine(
@@ -2297,6 +2302,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       event.content.isEmpty ? 0 : event.content.length - 1,
       totalLines: event.content.length,
     );
+    _applyPendingHighlight(emit);
   }
 
   void _onApplyBookContentRange(
@@ -2466,6 +2472,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         scanOnly: [for (final range in applicable) ...range.lines],
       ),
     );
+    _applyPendingHighlight(emit);
   }
 
   /// בודק אם בתוכן העדכני יש הערות inline. אם כן ועדיין לא הוסף המפרש
