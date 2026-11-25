@@ -1,7 +1,9 @@
+import contextlib
 import copy
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+import io
 import socket
 import threading
 import importlib.util
@@ -164,6 +166,33 @@ class AndroidStartupContracts(unittest.TestCase):
             self.assertIn(["aapt2", "dump", "badging", str(apk)], calls)
             self.assertIn(["adb", "install", "-r", str(apk)], calls)
             self.assertEqual(runner.apk_hash, probe.hashlib.sha256(apk.read_bytes()).hexdigest())
+
+    def run_build_with_results(self, results):
+        builds = []
+
+        class FakeRunner(probe.Runner):
+            def command(self, argv, **kwargs):
+                if argv[1:3] == ["--version", "--machine"]:
+                    return probe.subprocess.CompletedProcess(argv, 0, b'{"frameworkVersion":"3.47.7"}', b"")
+                if argv[1:3] == ["build", "apk"]:
+                    builds.append(argv)
+                    code, out = results[len(builds) - 1]
+                    return probe.subprocess.CompletedProcess(argv, code, out, b"")
+                return probe.subprocess.CompletedProcess(argv, 0, b"", b"")
+
+        with tempfile.TemporaryDirectory() as directory:
+            args = probe.argparse.Namespace(output=Path(directory), flutter="flutter", mode="debug")
+            runner = FakeRunner(args)
+            runner.target = "android-x64"
+            with patch.object(probe.time, "sleep"), contextlib.redirect_stderr(io.StringIO()), \
+                    self.assertRaisesRegex(RuntimeError, "Probe APK build failed"):
+                runner.build()
+        return len(builds)
+
+    def test_gradle_network_failures_are_retried_and_other_build_failures_are_not(self):
+        network = (1, b"Received status code 429\n[!] " + probe.GRADLE_NETWORK_ERROR + b".\n")
+        self.assertEqual(self.run_build_with_results([network] * 3), 3)
+        self.assertEqual(self.run_build_with_results([(1, b"e: compilation error\n")]), 1)
 
     def test_host_pss_requires_exact_process_and_preserves_measured_zero(self):
         raw = f"** MEMINFO in pid 123 [{probe.PACKAGE}] **\nTOTAL PSS: 0 TOTAL RSS: 8192\n"
