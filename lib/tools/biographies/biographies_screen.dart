@@ -1,8 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
@@ -44,6 +48,9 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   BiographiesBundle? _bundle;
   Map<String, Biography> _byId = const {};
   Map<String, Book> _libraryBooks = const {};
+  Object? _libraryIdentity;
+  Future<Map<String, Book>>? _libraryBooksRequest;
+  bool _hasMappedWorks = false;
   List<Biography> _filteredResults = [];
   String? _era;
   bool _isLoading = true;
@@ -111,11 +118,10 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       });
       // השדה גלוי גם בטעינה, ומה שהוקלד בה מסנן עכשיו את הרשימה הטעונה.
       _performSearch(_searchController.text);
-      if (bundle.entries.any(
+      _hasMappedWorks = bundle.entries.any(
         (bio) => bio.works.any((w) => w.books.isNotEmpty),
-      )) {
-        _loadLibraryBooks();
-      }
+      );
+      _refreshLibraryBooks(context.read<LibraryBloc?>()?.state);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -127,13 +133,47 @@ class _BiographiesScreenState extends State<BiographiesScreen>
     consumeToolQuery();
   }
 
-  /// Mapped works become links to their books once the library has loaded.
-  Future<void> _loadLibraryBooks() async {
+  Future<void> _refreshLibraryBooks(LibraryState? state) async {
+    if (!_hasMappedWorks) return;
+    final repository = DataRepository.instance;
+    final available = state?.isLoading != true && state?.error == null;
+    if (available &&
+        _libraryBooksRequest != null &&
+        identical(_libraryIdentity, repository.libraryCacheIdentity)) {
+      return;
+    }
+    _libraryBooksRequest = null;
+    if (_libraryBooks.isNotEmpty) {
+      setState(() => _libraryBooks = const {});
+    }
+    if (!available) return;
+
+    final request = _repository.libraryBooksByTitle();
+    final identity = repository.libraryCacheIdentity;
+    _libraryBooksRequest = request;
+    _libraryIdentity = identity;
     try {
-      final books = await _repository.libraryBooksByTitle();
-      if (mounted) setState(() => _libraryBooks = books);
+      final books = await request;
+      if (mounted &&
+          identical(_libraryBooksRequest, request) &&
+          identical(identity, repository.libraryCacheIdentity)) {
+        setState(() => _libraryBooks = books);
+      }
     } catch (e) {
+      if (identical(_libraryBooksRequest, request)) _libraryBooksRequest = null;
       debugPrint('[Biographies] library books unavailable: $e');
+    }
+  }
+
+  void _openLibraryBook(Book book) {
+    final repository = DataRepository.instance;
+    // חלון אחר יכול להחליף את הקטלוג לפני שמצב הספרייה המקומי מתעדכן.
+    if (!identical(_libraryIdentity, repository.libraryCacheIdentity)) {
+      _refreshLibraryBooks(context.read<LibraryBloc?>()?.state);
+      return;
+    }
+    if (identical(_libraryBooks[book.title], book)) {
+      openBook(context, book, null, '');
     }
   }
 
@@ -145,7 +185,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         onOpen: _openEntry,
         bookForWork: (work) =>
             BiographiesRepository.bookForWork(work, _libraryBooks),
-        onOpenBook: (book) => openBook(context, book, null, ''),
+        onOpenBook: _openLibraryBook,
         initiallyExpanded: expanded,
       );
 
@@ -181,7 +221,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   Widget build(BuildContext context) {
     final bundle = _bundle;
     final hasEntries = bundle != null && bundle.entries.isNotEmpty;
-    return ToolScaffold(
+    final scaffold = ToolScaffold(
       onSearchShortcut: _searchFocusNode.requestFocus,
       searchShortcut: currentWindowSearchActivator(context),
       loading: _isLoading,
@@ -223,6 +263,14 @@ class _BiographiesScreenState extends State<BiographiesScreen>
           ),
         ],
       ),
+    );
+    final libraryBloc = context.read<LibraryBloc?>();
+    if (libraryBloc == null) return scaffold;
+    return BlocListener<LibraryBloc, LibraryState>(
+      bloc: libraryBloc,
+      listenWhen: LibraryState.catalogChanged,
+      listener: (_, state) => _refreshLibraryBooks(state),
+      child: scaffold,
     );
   }
 
