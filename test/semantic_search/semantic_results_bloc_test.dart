@@ -12,7 +12,11 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling, SemanticPassageHighlight, SemanticResultSource;
+    show
+        MergedSibling,
+        SemanticPassageHighlight,
+        SemanticResultSource,
+        SemanticVote;
 
 import 'semantic_ui_test_support.dart';
 
@@ -71,24 +75,80 @@ void main() {
     });
   });
 
+  test('רק הצבעות פעילות על תוצאות ציבוריות משפיעות על ההמשך', () async {
+    final source = FakeResultsSource(total: 100);
+    final recorder = RecordingRecorder();
+    final bloc = buildResultsBloc(
+      source: source,
+      recorder: recorder,
+      userBookPaths: {'id:4'},
+    );
+    addTearDown(bloc.close);
+    bloc.add(const SemanticSearchSubmitted(_options));
+    await _settle(bloc);
+    final firstPage = bloc.state.items;
+
+    bloc
+      ..add(const SemanticVoteToggled(0, SearchFeedbackVote.like))
+      ..add(const SemanticVoteToggled(1, SearchFeedbackVote.dislike))
+      ..add(const SemanticVoteToggled(2, SearchFeedbackVote.like))
+      ..add(const SemanticVoteToggled(2, SearchFeedbackVote.like))
+      ..add(const SemanticVoteToggled(3, SearchFeedbackVote.like))
+      ..add(const SemanticMoreResultsRequested());
+    await _settle(bloc);
+
+    expect(bloc.state.votes[3], SearchFeedbackVote.like);
+    expect(
+      recorder.votes.map((entry) => entry.result.title),
+      isNot(contains('ספר 4')),
+    );
+    expect(bloc.state.items.take(firstPage.length), firstPage);
+    expect(source.requestedVotes, [
+      isEmpty,
+      [
+        SemanticVote(filePath: 'id:1', id: BigInt.one, relevant: true),
+        SemanticVote(filePath: 'id:2', id: BigInt.two, relevant: false),
+      ],
+    ]);
+
+    bloc
+      ..add(const SemanticVoteToggled(0, SearchFeedbackVote.like))
+      ..add(const SemanticVoteToggled(1, SearchFeedbackVote.dislike))
+      ..add(const SemanticMoreResultsRequested());
+    await _settle(bloc);
+    expect(source.requestedVotes.last, isEmpty);
+  });
+
   group('דפדוף שאיבד את הסשן', () {
-    test('מחזיר עמוד ראשון חדש, מאפס הצבעות וסימונים ומשוב', () async {
+    test('רענון בעקבות פקיעה שומר הצבעות ציבוריות לפי זהות התוצאה', () async {
       final items = [for (var i = 1; i <= 60; i++) resultItem(i)];
       final source = FakeResultsSource(items: items);
       final recorder = RecordingRecorder();
-      final bloc = buildResultsBloc(source: source, recorder: recorder);
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: recorder,
+        userBookPaths: {'id:2'},
+      );
       addTearDown(bloc.close);
       bloc.add(const SemanticSearchSubmitted(_options));
       await _settle(bloc);
       final oldId = bloc.state.searchId;
       final oldContext = bloc.searchContext;
-      bloc.add(const SemanticVoteToggled(0, SearchFeedbackVote.like));
+      bloc
+        ..add(const SemanticVoteToggled(0, SearchFeedbackVote.like))
+        ..add(const SemanticVoteToggled(1, SearchFeedbackVote.dislike));
       await _settle(bloc);
-      expect(bloc.state.votes, isNotEmpty);
+      expect(bloc.state.votes, hasLength(2));
+      final votes = [
+        SemanticVote(filePath: 'id:1', id: BigInt.one, relevant: true),
+      ];
 
       items
         ..clear()
-        ..addAll([for (var i = 101; i <= 160; i++) resultItem(i)]);
+        ..addAll([for (var i = 101; i <= 160; i++) resultItem(i)])
+        ..[5] = resultItem(1, filePath: 'other-book')
+        ..[37] = resultItem(1)
+        ..[38] = resultItem(2);
       source.restartContinuation = true;
       bloc.add(const SemanticMoreResultsRequested());
       await _settle(bloc);
@@ -102,13 +162,24 @@ void main() {
       expect(recorder.searches, hasLength(2));
       expect(recorder.shown.map((page) => page.offset), [0, 0]);
       expect(source.fetches.map((page) => page.offset), [0, 30, 0]);
+      expect(source.requestedVotes, [isEmpty, votes, votes]);
       expect(bloc.state.message, SemanticSearchMessages.resultsRefreshed);
 
       source.restartContinuation = false;
       bloc.add(const SemanticMoreResultsRequested());
       await _settle(bloc);
       expect(bloc.state.items, hasLength(60));
-      expect(bloc.state.items.map((item) => item.id).toSet(), hasLength(60));
+      expect(bloc.state.items.toSet(), hasLength(60));
+      expect(bloc.state.votes, {37: SearchFeedbackVote.like});
+      expect(source.requestedVotes.last, votes);
+      expect(recorder.votes, hasLength(1));
+
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+      expect(bloc.state.votes, isEmpty);
+      expect(source.requestedVotes.skip(4), [isEmpty, isEmpty]);
     });
 
     test('מעבר למצב fallback אינו מצרף סדר אחר', () async {
@@ -343,7 +414,20 @@ void main() {
         ),
         isTrue,
       );
-      expect(semanticResultIsPrivate(TextBook(title: 'א')), isFalse);
+      expect(semanticResultIsPrivate(TextBook(title: 'א', id: 1)), isFalse);
+      expect(
+        semanticResultIsPrivate(
+          TextBook(title: 'א', id: 1, filePath: '/personal/book.txt'),
+        ),
+        isTrue,
+      );
+
+      final legacyPdf = PdfBook.fromJson({
+        'title': 'קובץ אישי',
+        'path': '/personal/book.pdf',
+      });
+      expect(legacyPdf.source, BookSource.official);
+      expect(semanticResultIsPrivate(legacyPdf), isTrue);
     });
   });
 

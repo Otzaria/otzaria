@@ -86,6 +86,15 @@ abstract class Book {
       ((externalLibraryId ?? '').isEmpty ||
           DatabaseConstants.isBundledLibrarySource(externalLibraryId));
 
+  /// האם לספר יש זהות רשמית לשימוש בחיפוש הסמנטי.
+  bool get hasOfficialSemanticIdentity =>
+      isOfficialLibraryBook &&
+      ((this is TextBook && id != null && (filePath?.isEmpty ?? true)) ||
+          (this is PdfBook &&
+              DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
+                externalLibraryId,
+              )));
+
   /// External library ID (e.g., Sefaria ref) for books from external sources
   final String? externalLibraryId;
 
