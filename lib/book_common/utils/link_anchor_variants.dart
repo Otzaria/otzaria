@@ -13,7 +13,13 @@ import 'package:otzaria/theme/app_fonts.dart';
 enum LinkAnchorDelimiter {
   parentheses('(', ')'),
   brackets('[', ']'),
-  braces('{', '}');
+  braces('{', '}'),
+
+  /// לוכסנים — ממד הבחנה שאינו תלוי בגופן: גופן הקריאה עצמו עשוי להיות כתב
+  /// רש"י, ואז [LinkAnchorVariant.rashiScript] אינו משנה דבר. תו ASCII שקיים
+  /// בכל הגופנים המובנים, בטוח ב-HTML ואינו מושפע מכיווניות; לא `|` — זה פסק
+  /// בטקסט המקרא, ו-removeVolwels הופך אותו לרווח.
+  slashes('/', '/');
 
   const LinkAnchorDelimiter(this.open, this.close);
 
@@ -47,15 +53,16 @@ class LinkAnchorVariant {
   });
 }
 
-/// הווריאנטים לפי האינדקס במחלקה `link-anchor-<index>`: מכפלת שלושת סוגי
-/// הסוגריים בארבע ההדגשות, כדי שמפרשים על אותו דף יתנגשו לעתים רחוקות.
+/// הווריאנטים לפי האינדקס במחלקה `link-anchor-<index>`: מכפלת סוגי הסוגריים
+/// בהדגשות, כדי שמפרשים על אותו דף יתנגשו לעתים רחוקות. האינדקסים קבועים —
+/// הם השיבוץ של המפרשים.
 const List<LinkAnchorVariant> kLinkAnchorVariants = [
   LinkAnchorVariant(bold: true),
   LinkAnchorVariant(italic: true),
   LinkAnchorVariant(bold: true, italic: true),
   LinkAnchorVariant(rashiScript: true),
   LinkAnchorVariant(rashiScript: true, bold: true),
-  LinkAnchorVariant(rashiScript: true, italic: true),
+  LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.slashes),
   LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(italic: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(
