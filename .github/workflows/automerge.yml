@@ -107,8 +107,7 @@ jobs:
           head=$(jq -r .head.sha <<< "$pr")
           base=$(jq -r .base.ref <<< "$pr")
 
-          # בדרך כלל דורשים בסיס ירוק; כש-dev שבור, PR שמכיל את dev הנוכחי
-          # ועבר CI מלא יכול להחזיר אותו לירוק, בלי ריבייס של קוד שלא נבדק.
+          # כש-dev שבור ממוזג רק PR שמכיל את dev הנוכחי ועבר CI מלא, בלי ריבייס שלא נבדק.
           # גם ריצה שנכשלה חייבת להשתייך להיסטוריה הנוכחית של dev.
           dev_recovery=false
           dev_head=$(gh api "repos/$R/git/ref/heads/dev" --jq .object.sha)
@@ -191,6 +190,11 @@ jobs:
           behind=$(gh api "repos/$R/compare/$base_head...$head" --jq .behind_by)
           if [ "$dev_recovery" = true ] && [ "$behind" != 0 ]; then
             echo "Dev recovery requires an up-to-date PR with successful CI; no automatic rebase"
+            marker="<!-- automerge-recovery-behind:$head -->"
+            posted=$(gh api --paginate "repos/$R/issues/$PR/comments" --jq '.[].body')
+            if [[ "$posted" != *"$marker"* ]]; then
+              comment "⏳ המיזוג האוטומטי ממתין לעדכון הענף" "ה-CI של \`dev\` נכשל, ולכן ממוזג כעת רק ענף שמכיל את \`dev\` העדכני ועבר עליו CI מלא. עדכנו את הענף מול \`dev\` והוסיפו שוב את התווית \`automerge\`, או המתינו ש-\`dev\` יחזור לירוק, ואז הריבייס יתבצע אוטומטית."$'\n\n'"$marker"
+            fi
             exit 0
           fi
           if [ "$behind" -gt 0 ]; then

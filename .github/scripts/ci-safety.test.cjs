@@ -77,10 +77,12 @@ if (args[0] === 'api') {
   } else if (route.includes('/actions/runs?')) value = { workflow_runs: data.workflowRuns };
   else if (route.includes('/check-runs?')) value = { check_runs: data.checks };
   else if (route.endsWith('/status')) value = { total_count: 0, state: 'pending' };
+  else if (route.endsWith('/comments')) value = data.comments ?? [];
   else if (route.includes('/compare/')) value = route.endsWith('...' + data.devHead)
     ? { status: data.devAncestry } : { behind_by: data.behind };
   else throw new Error('Unexpected API route: ' + route);
 } else if (args[0] === 'pr' && args[1] === 'merge') value = 'merged';
+else if (args[0] === 'pr' && args[1] === 'comment') value = 'commented';
 else throw new Error('Unexpected gh command: ' + args.join(' '));
 const queryIndex = args.indexOf('--jq');
 if (queryIndex >= 0) {
@@ -267,6 +269,18 @@ for (const conclusion of ['failure', 'timed_out', 'cancelled']) {
     s.execute(); assert.equal(s.merged(), false);
   });
 }
+
+test('dev recovery asks a stale PR to update its branch once per head', t => {
+  const devRuns = [{ head_sha: 'dev-head', status: 'completed', conclusion: 'failure' }, olderGreen];
+  const comments = s => s.calls().filter(args => args[0] === 'pr' && args[1] === 'comment');
+  const first = fixture(t, { behind: 1, devRuns });
+  first.execute();
+  assert.equal(comments(first).length, 1);
+  const repeat = fixture(t, { behind: 1, devRuns,
+    comments: [{ body: 'x <!-- automerge-recovery-behind:pr-head --> y' }] });
+  repeat.execute();
+  assert.equal(comments(repeat).length, 0);
+});
 
 for (const conclusion of ['failure', 'timed_out', 'cancelled']) {
   test(`dev ${conclusion} permits recovery from an up-to-date, fully green PR`, t => {
