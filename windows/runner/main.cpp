@@ -20,6 +20,7 @@
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
 #include "utils.h"
+#include "webview_backend.h"
 
 static const wchar_t* kSingleInstanceMutexName = L"OtzariaAppSingleInstance";
 static const wchar_t* kFlutterWindowClassName = L"FLUTTER_RUNNER_WIN32_WINDOW";
@@ -88,6 +89,21 @@ static std::wstring DataRootOfWindowProcess(HWND hwnd) {
   if (!ok) return std::wstring();
   std::wstring dir(image, size);
   return DataRootForExeDir(dir.substr(0, dir.find_last_of(L"\\/")));
+}
+
+// מספר הבנייה האמיתי של Windows, או 0 אם לא ידוע. GetVersionEx כפופה
+// למניפסט ומסומנת deprecated; RtlGetVersion מחזירה את הגרסה בפועל.
+static unsigned long WindowsBuildNumber() {
+  using RtlGetVersionFn = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
+  const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+  const auto rtl_get_version =
+      ntdll ? reinterpret_cast<RtlGetVersionFn>(
+                  ::GetProcAddress(ntdll, "RtlGetVersion"))
+            : nullptr;
+  RTL_OSVERSIONINFOW info{};
+  info.dwOSVersionInfoSize = sizeof(info);
+  if (!rtl_get_version || rtl_get_version(&info) != 0) return 0;
+  return info.dwBuildNumber;
 }
 
 static bool SameDataRoot(const std::wstring& a, const std::wstring& b) {
@@ -408,8 +424,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   flutter::DartProject project(L"data");
-  // ב-RDP שיתוף ה-D3D surface של ה-composition נכשל (מסך ריק בתוספים); כופים HWND.
-  if (::GetSystemMetrics(SM_REMOTESESSION) &&
+  // מתי כופים HWND על WebView של התוספים — ראו webview_backend.h.
+  if (otzaria::ShouldForceHwndWebView(::GetSystemMetrics(SM_REMOTESESSION) != 0,
+                                      WindowsBuildNumber()) &&
       ::GetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND",
                                 nullptr, 0) == 0) {
     ::SetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND", L"1");

@@ -116,6 +116,12 @@ jobs:
             test/windows/window_centering_test.cpp -o "$RUNNER_TEMP/window_centering_test"
           "$RUNNER_TEMP/window_centering_test"
 
+      - name: Test WebView backend choice
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/webview_backend_test.cpp -o "$RUNNER_TEMP/webview_backend_test"
+          "$RUNNER_TEMP/webview_backend_test"
+
       - name: Test native exception records
         run: |
           c++ -std=c++17 -Wall -Wextra -Werror -pthread -I windows/runner \
