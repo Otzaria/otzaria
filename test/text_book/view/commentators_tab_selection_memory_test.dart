@@ -54,7 +54,6 @@ TextBookLoaded _loaded(TextBook book) => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

@@ -63,7 +63,6 @@ TextBookLoaded _loaded(TextBook book) => TextBookLoaded(
   removeNikud: false,
   removePunctuation: false,
   visibleIndices: const [0],
-  pinLeftPane: false,
   continuousReadingMode: true,
   searchText: '',
 );
