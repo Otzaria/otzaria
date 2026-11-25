@@ -19,6 +19,7 @@ import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/widgets/unloaded_paragraph_placeholder.dart';
+import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/stub_personal_notes_bloc.dart';
@@ -171,5 +172,20 @@ void main() {
       ),
     );
     expect(empty.height, lessThan(10));
+  });
+
+  testWidgets('בלוק לעזי רש"י נשמר גם כשהשורה שלו טרם נטענה', (tester) async {
+    final state = _state(
+      _loaded([(0, 0), (2, 1500)]),
+    ).copyWith(book: TextBook(title: 'רש"י על כתובות'));
+    await _mount(tester, state);
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is LaazCommentarySubBlock && widget.rashiLineIndex == 2,
+      ),
+      findsOneWidget,
+    );
   });
 }
