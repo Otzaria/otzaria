@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart'
     show Listenable, debugDefaultTargetPlatformOverride, TargetPlatform;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -237,6 +238,98 @@ void main() {
         },
       );
     }
+
+    group('שחזור בתוך שטח העבודה (#2457)', () {
+      // מסך 1920x1080 ושורת משימות של 40px בתחתיתו; מסך שני מימין.
+      const workArea = Rect.fromLTWH(0, 0, 1920, 1040);
+      const rightWorkArea = Rect.fromLTWH(1920, 0, 1920, 1040);
+      const channel = MethodChannel('dev.leanflutter.plugins/screen_retriever');
+
+      setUp(() {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method != 'getAllDisplays') return null;
+              return {
+                'displays': [
+                  for (final (i, area) in [workArea, rightWorkArea].indexed)
+                    {
+                      'id': '$i',
+                      'size': {'width': 1920.0, 'height': 1080.0},
+                      'visiblePosition': {'dx': area.left, 'dy': area.top},
+                      'visibleSize': {
+                        'width': area.width,
+                        'height': area.height,
+                      },
+                      'scaleFactor': 1.0,
+                    },
+                ],
+              };
+            });
+      });
+
+      tearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      Future<Rect?> restore(Rect saved) async {
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        await Settings.setValue(SettingsRepository.keyLibraryPath, tmp.path);
+        await sessions.saveBounds(
+          1,
+          WindowBounds(
+            left: saved.left,
+            top: saved.top,
+            width: saved.width,
+            height: saved.height,
+            dpr: 1,
+          ).encode(),
+        );
+        final window = _RecordingWindow(visible: false);
+        final persistence = WindowPersistenceBinding(
+          controller: window,
+          geometry: window,
+          slot: () => 1,
+          sessions: sessions,
+          devicePixelRatio: () => 1,
+        );
+        bindings.add(persistence);
+        await persistence.restoreIfAny();
+        await persistence.applyRestoredBounds();
+        return window.appliedBounds;
+      }
+
+      test('חלון בגודל המסך כולו לא מכסה את שורת המשימות', () async {
+        expect(
+          await restore(const Rect.fromLTWH(0, 0, 1920, 1080)),
+          workArea,
+        );
+      });
+
+      test('חלון שתחתיתו על שורת המשימות עולה מעליה בלי לשנות גודל', () async {
+        expect(
+          await restore(const Rect.fromLTWH(100, 700, 800, 400)),
+          const Rect.fromLTWH(100, 640, 800, 400),
+        );
+      });
+
+      test('חלון בתוך שטח העבודה נשאר במקומו', () async {
+        const bounds = Rect.fromLTWH(100, 100, 800, 600);
+        expect(await restore(bounds), bounds);
+      });
+
+      test('גבולות בלתי נראים של Windows (7px) אינם מזיזים חלון', () async {
+        const bounds = Rect.fromLTWH(-7, 0, 974, 1047);
+        expect(await restore(bounds), bounds);
+      });
+
+      test('חלון שנפרש בכוונה על שני מסכים נשאר במקומו', () async {
+        const bounds = Rect.fromLTWH(1500, 100, 800, 600);
+        expect(await restore(bounds), bounds);
+      });
+    });
 
     test('כל חלון שומר את הגבולות שלו לשורה שלו', () async {
       const a = Rect.fromLTWH(10, 20, 800, 600);
