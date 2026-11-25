@@ -78,10 +78,13 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
       );
       if (range == null) return super.handleSelectParagraph(event);
       parts.add((paragraph: paragraph, start: chunks[hit].start));
-      // פסקה שמגיעה לקצה המקטע ממשיכה במקטע הסמוך.
+      // פסקה שמגיעה לקצה המקטע ממשיכה במקטע הסמוך, אלא אם הם נחתכו בשבירה.
       var end = range.end;
       for (var i = hit + 1; i < chunks.length; i++) {
-        if (end < chunks[i - 1].end - chunks[i - 1].start) break;
+        if (end < chunks[i - 1].end - chunks[i - 1].start ||
+            chunks[i].skipped.isNotEmpty) {
+          break;
+        }
         final next = chunks[i].paragraph;
         if (!next.hasSize) break;
         final nextRange = _selectIn(
@@ -95,7 +98,11 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
         end = nextRange.end;
       }
       var start = range.start;
-      for (var i = hit - 1; i >= 0 && start == 0; i--) {
+      for (
+        var i = hit - 1;
+        i >= 0 && start == 0 && chunks[i + 1].skipped.isEmpty;
+        i--
+      ) {
         final previous = chunks[i].paragraph;
         if (!previous.hasSize) break;
         final previousRange = _selectIn(
@@ -177,25 +184,97 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
   @override
   SelectedContent? getSelectedContent() {
     final parts = _selectedParagraphs;
-    if (parts == null) return super.getSelectedContent();
+    final contents = [
+      for (final selectable in selectables)
+        (
+          selectable: selectable,
+          text: selectable.getSelectedContent()?.plainText,
+        ),
+    ].where((content) => content.text?.isNotEmpty ?? false).toList();
+    if (contents.isEmpty) return super.getSelectedContent();
+    final chunks = _chunkParagraphs();
+    if (parts == null && chunks.isEmpty) return super.getSelectedContent();
 
-    // Flutter ממיין קטעים לפי מיקום במסך. ההעתקה צריכה ללכת לפי היסט בטקסט.
-    final fragments = <({int offset, String text})>[];
-    for (final selectable in selectables) {
-      final text = selectable.getSelectedContent()?.plainText;
-      if (text == null || text.isEmpty) continue;
-      final part = parts
-          .where((p) => p.paragraph.selectableBelongsToParagraph(selectable))
-          .firstOrNull;
-      if (part == null) return super.getSelectedContent();
-      final range = selectable.getSelection()!;
-      fragments.add((offset: part.start + range.startOffset, text: text));
+    final pieces = <_Piece>[];
+    for (final (index, content) in contents.indexed) {
+      final selectable = content.selectable;
+      final range = selectable.getSelection();
+      final low = range == null
+          ? 0
+          : math.min(range.startOffset, range.endOffset);
+      final high = range == null
+          ? 0
+          : math.max(range.startOffset, range.endOffset);
+      var order = index;
+      if (parts != null) {
+        // Flutter ממיין קטעים לפי מיקום במסך. ההעתקה צריכה ללכת לפי היסט בטקסט.
+        final part = parts
+            .where((p) => p.paragraph.selectableBelongsToParagraph(selectable))
+            .firstOrNull;
+        if (part == null) return super.getSelectedContent();
+        order = part.start + low;
+      }
+      pieces.add((
+        order: order,
+        text: content.text!,
+        chunk: chunks
+            .where((c) => c.paragraph.selectableBelongsToParagraph(selectable))
+            .firstOrNull,
+        start: low,
+        end: high,
+      ));
     }
-    if (fragments.isEmpty) return super.getSelectedContent();
-    fragments.sort((a, b) => a.offset.compareTo(b.offset));
-    return SelectedContent(
-      plainText: fragments.map((part) => part.text).join(),
-    );
+    if (parts != null) pieces.sort((a, b) => a.order.compareTo(b.order));
+
+    // שבירה שהושמטה בין מקטעים חוזרת לטקסט כשהבחירה חוצה אותה.
+    final out = StringBuffer();
+    for (var i = 0; i < pieces.length; i++) {
+      final piece = pieces[i];
+      if (i > 0 && _continues(pieces[i - 1], piece)) {
+        out.write(piece.chunk!.skipped);
+      }
+      out.write(piece.text);
+    }
+    final last = pieces.last.chunk;
+    if (parts != null &&
+        last != null &&
+        pieces.last.end == last.end - last.start &&
+        _breakAfter(last)) {
+      out.writeln();
+    }
+    return SelectedContent(plainText: out.toString());
+  }
+
+  bool _continues(_Piece previous, _Piece next) {
+    final a = previous.chunk;
+    final b = next.chunk;
+    return a != null &&
+        b != null &&
+        identical(a.lineText, b.lineText) &&
+        previous.end == a.end - a.start &&
+        next.start == 0 &&
+        b.start - b.skipped.length == a.end;
+  }
+
+  /// מקטע שנחתך בשבירה קשיחה: פסקה שמסתיימת בו כוללת אותה, כמו בפסקה אחת.
+  bool _breakAfter(LongLineParagraph chunk) =>
+      chunk.end < chunk.lineText.length &&
+      chunk.lineText.codeUnitAt(chunk.end) == 0x0A;
+
+  List<LongLineParagraph> _chunkParagraphs() {
+    final root = _root();
+    final chunks = <LongLineParagraph>[];
+    void visit(RenderObject node) {
+      if (node is RenderParagraph) {
+        final chunk = longLineParagraphOf(node);
+        if (chunk != null) chunks.add(chunk);
+        return;
+      }
+      node.visitChildren(visit);
+    }
+
+    if (root != null) visit(root);
+    return chunks;
   }
 
   RenderParagraph? _paragraphAt(Offset globalPosition) {
@@ -209,3 +288,11 @@ class ParagraphSelectionDelegate extends StaticSelectionContainerDelegate {
         .firstOrNull;
   }
 }
+
+typedef _Piece = ({
+  int order,
+  String text,
+  LongLineParagraph? chunk,
+  int start,
+  int end,
+});

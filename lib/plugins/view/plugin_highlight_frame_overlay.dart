@@ -1,6 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
+import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
 import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 
 @visibleForTesting
@@ -59,6 +60,9 @@ class RenderPluginHighlightFrameOverlay extends RenderProxyBox {
     void visit(RenderObject object) {
       if (object is RenderParagraph) {
         debugPluginHighlightParagraphScans++;
+        // שבירה שהושמטה בין מקטעי שורה ארוכה נספרת כמו בפסקה אחת.
+        graphemeCursor +=
+            longLineChunkOf(object)?.skipped.characters.length ?? 0;
         final text = object.text.toPlainText();
         // utf16Offsets[i] = היסט ה-UTF-16 של תחילת הגרפמה ה-i.
         final utf16Offsets = <int>[0];

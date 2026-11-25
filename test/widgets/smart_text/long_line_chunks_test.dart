@@ -71,46 +71,53 @@ void main() {
       expect(splitLongLine(const TextSpan(text: 'שורה קצרה')), isNull);
     });
 
-    test('המקטעים מחוברים לטקסט המקורי ונחתכים רק ברווח שאינו מעוצב', () {
-      final leaves = <TextSpan>[];
-      for (var i = 0; i < 400; i++) {
-        leaves
-          ..add(TextSpan(text: '${'מילה ' * 20}סוף משפט. '))
-          ..add(
-            const TextSpan(
-              text: 'מודגש ארוך עם רווחים',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          )
-          ..add(const TextSpan(text: '\n'));
-      }
-      final span = TextSpan(children: leaves);
-      final split = splitLongLine(span)!;
+    test(
+      'המקטעים מחוברים לטקסט המקורי ונחתכים בשבירה או ברווח שאינו מעוצב',
+      () {
+        final leaves = <TextSpan>[];
+        for (var i = 0; i < 400; i++) {
+          leaves
+            ..add(TextSpan(text: '${'מילה ' * 20}סוף משפט. '))
+            ..add(
+              const TextSpan(
+                text: 'מודגש ארוך עם רווחים',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            )
+            ..add(const TextSpan(text: '\n'));
+        }
+        final span = TextSpan(children: leaves);
+        final split = splitLongLine(span)!;
 
-      expect(split.chunks.length, greaterThan(2));
-      expect(
-        split.chunks.map((c) => c.toPlainText()).join(),
-        span.toPlainText(),
-      );
-      expect(split.text, span.toPlainText());
-      for (var i = 0; i < split.chunks.length; i++) {
-        final chunk = split.chunks[i];
-        expect(
-          split.starts[i],
-          split.chunks
-              .take(i)
-              .fold<int>(0, (n, c) => n + c.toPlainText().length),
-        );
-        if (i < split.chunks.length - 1) {
-          expect(chunk.toPlainText(), endsWith(' '));
-          // החיתוך בטקסט רגיל, ולכן הספאן האחרון של המקטע אינו מעוצב.
-          expect((chunk.children!.last as TextSpan).style, isNull);
+        expect(split.chunks.length, greaterThan(2));
+        expect(_rejoin(split), span.toPlainText());
+        expect(split.text, span.toPlainText());
+        for (var i = 0; i < split.chunks.length; i++) {
+          final chunk = split.chunks[i];
+          expect(
+            split.ends[i] - split.starts[i],
+            chunk.toPlainText().length,
+          );
+          if (i < split.chunks.length - 1) {
+            // שבירה קשיחה מושמטת בין המקטעים; אחרת החיתוך אחרי רווח רגיל.
+            final skipped = split.text.substring(
+              split.ends[i],
+              split.starts[i + 1],
+            );
+            if (skipped.isEmpty) {
+              expect(chunk.toPlainText(), endsWith(' '));
+              expect((chunk.children!.last as TextSpan).style, isNull);
+            } else {
+              expect(skipped, '\n');
+            }
+            expect(split.chunks[i + 1].toPlainText(), isNot(startsWith('\n')));
+          }
+          for (final leaf in chunk.children!.cast<TextSpan>()) {
+            if (leaf.style != null) expect(leaf.text, 'מודגש ארוך עם רווחים');
+          }
         }
-        for (final leaf in chunk.children!.cast<TextSpan>()) {
-          if (leaf.style != null) expect(leaf.text, 'מודגש ארוך עם רווחים');
-        }
-      }
-    });
+      },
+    );
 
     List<String> texts(LongLineSplit split) => [
       for (final chunk in split.chunks) chunk.toPlainText(),
@@ -130,7 +137,7 @@ void main() {
       }
     });
 
-    test('ספאן מעוצב ארוך נחתך רק כשאין בחלון רווח רגיל, וכל חלק מעוצב', () {
+    test('ספאן מעוצב ארוך אינו נחתך', () {
       const styled = TextStyle(fontWeight: FontWeight.bold);
       final bold = 'מודגש ' * 6000;
       final span = TextSpan(
@@ -142,142 +149,14 @@ void main() {
       );
       final split = splitLongLine(span)!;
 
-      expect(split.chunks.map((c) => c.toPlainText()).join(), split.text);
-      // בחלון הראשון יש רווח רגיל, ולכן הוא נבחר.
-      expect(split.starts[1], lessThan(20000));
+      expect(split.chunks.length, greaterThan(1));
       final styledLeaves = [
         for (final chunk in split.chunks)
           for (final leaf in chunk.children!.cast<TextSpan>())
             if (leaf.style != null) leaf,
       ];
-      expect(styledLeaves.length, greaterThan(1));
-      for (final leaf in styledLeaves) {
-        expect(leaf.style, same(styled));
-      }
-      expect(styledLeaves.map((leaf) => leaf.text).join(), bold);
-    });
-
-    test('רווח רגיל בחלון עדיף על רווח בתוך ספאן מעוצב', () {
-      final span = TextSpan(
-        children: [
-          TextSpan(text: 'מילה ' * 3000),
-          TextSpan(
-            text: 'מודגש ' * 500,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          TextSpan(text: 'מילה ' * 12000),
-        ],
-      );
-      expect(splitLongLine(span)!.starts[1], 18000);
-    });
-
-    test('ספאן שנחתך שומר כל שדה של TextSpan במקטעים', () {
-      final recognizer = TapGestureRecognizer();
-      addTearDown(recognizer.dispose);
-      void onEnter(PointerEnterEvent _) {}
-      void onExit(PointerExitEvent _) {}
-      const style = TextStyle(color: Color(0xFF123456));
-      const locale = Locale('he', 'IL');
-      final special = TextSpan(
-        text: 'קישור ' * 8000,
-        style: style,
-        recognizer: recognizer,
-        mouseCursor: SystemMouseCursors.click,
-        onEnter: onEnter,
-        onExit: onExit,
-        semanticsIdentifier: 'id-5906',
-        locale: locale,
-        spellOut: true,
-      );
-      final split = splitLongLine(
-        TextSpan(
-          children: [
-            TextSpan(text: 'מילה ' * 4000),
-            special,
-          ],
-        ),
-      )!;
-
-      final pieces = [
-        for (final chunk in split.chunks)
-          for (final child in chunk.children!.cast<TextSpan>())
-            if (child.recognizer != null) child,
-      ];
-      expect(pieces.length, greaterThan(1));
-      expect(pieces.map((piece) => piece.text).join(), special.text);
-      for (final piece in pieces) {
-        expect(piece.style, same(style));
-        expect(piece.recognizer, same(recognizer));
-        expect(piece.mouseCursor, SystemMouseCursors.click);
-        expect(piece.onEnter, same(onEnter));
-        expect(piece.onExit, same(onExit));
-        expect(piece.semanticsIdentifier, 'id-5906');
-        expect(piece.locale, locale);
-        expect(piece.spellOut, isTrue);
-      }
-      // בחלון הראשון יש רווח מחוץ לקישור, ולכן הוא נבחר.
-      expect(split.starts[1], lessThanOrEqualTo(20000));
-    });
-
-    test('עץ מקונן נחתך עם שרשרת האבות, ו-WidgetSpan נשאר שלם ויחיד', () {
-      const outer = TextStyle(fontSize: 18);
-      const inner = TextStyle(fontWeight: FontWeight.bold);
-      const widget = WidgetSpan(child: SizedBox(width: 4, height: 4));
-      final span = TextSpan(
-        style: outer,
-        children: [
-          TextSpan(
-            style: inner,
-            children: [
-              TextSpan(text: 'מילה ' * 5000),
-              widget,
-              TextSpan(text: 'מילה ' * 5000),
-            ],
-          ),
-        ],
-      );
-      final split = splitLongLine(span)!;
-
-      expect(split.chunks.length, greaterThan(2));
-      expect(split.text, span.toPlainText(includeSemanticsLabels: false));
-      expect(
-        split.chunks
-            .map((c) => c.toPlainText(includeSemanticsLabels: false))
-            .join(),
-        split.text,
-      );
-      var widgets = 0;
-      for (final chunk in split.chunks) {
-        expect(chunk.style, same(outer));
-        expect((chunk.children!.single as TextSpan).style, same(inner));
-        chunk.visitChildren((child) {
-          if (identical(child, widget)) widgets++;
-          return true;
-        });
-      }
-      expect(widgets, 1);
-    });
-
-    test('אין חיתוך בתוך ספאן עם תווית נגישות', () {
-      final split = splitLongLine(
-        TextSpan(
-          children: [
-            TextSpan(text: 'מילה ' * 4000),
-            TextSpan(text: 'מסומן ' * 7000, semanticsLabel: 'תווית'),
-            TextSpan(text: 'מילה ' * 4000),
-          ],
-        ),
-      )!;
-
-      for (final start in split.starts.skip(1)) {
-        expect(start, isNot(inExclusiveRange(20000, 62000)));
-      }
-      final labeled = [
-        for (final chunk in split.chunks)
-          for (final child in chunk.children!.cast<TextSpan>())
-            if (child.semanticsLabel != null) child,
-      ];
-      expect(labeled, hasLength(1));
+      expect(styledLeaves, hasLength(1));
+      expect(styledLeaves.single.text, bold);
     });
 
     test('אין חיתוך בתוך בידוד או הטבעה כיווניים', () {
@@ -588,47 +467,319 @@ void main() {
       isFalse,
     );
   });
+  group('splitLongLine בעץ ספאנים', () {
+    test('רווח רגיל בחלון עדיף על רווח בתוך ספאן מעוצב', () {
+      final span = TextSpan(
+        children: [
+          TextSpan(text: 'מילה ' * 3000),
+          TextSpan(
+            text: 'מודגש ' * 500,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: 'מילה ' * 12000),
+        ],
+      );
+      expect(splitLongLine(span)!.starts[1], 18000);
+    });
 
-  testWidgets('שורה מודגשת כולה מפוצלת במסלול המהיר', (tester) async {
-    final words = 'מודגש ' * 8000;
+    test('שבירה קשיחה קודמת לרווח, ונחתכת גם בתוך ספאן מעוצב', () {
+      const styled = TextStyle(fontWeight: FontWeight.bold);
+      final span = TextSpan(
+        children: [
+          TextSpan(text: 'מילה ' * 4000),
+          TextSpan(text: '${'מודגש ' * 50}\n' * 120, style: styled),
+          TextSpan(text: 'מילה ' * 4000),
+        ],
+      );
+      final split = splitLongLine(span)!;
+
+      expect(_rejoin(split), split.text);
+      final hard = [
+        for (var i = 1; i < split.starts.length; i++)
+          if (split.starts[i] != split.ends[i - 1]) i,
+      ];
+      expect(hard, isNotEmpty);
+      for (final i in hard) {
+        expect(split.text[split.ends[i - 1]], '\n');
+        expect(split.starts[i], split.ends[i - 1] + 1);
+      }
+      for (final chunk in split.chunks) {
+        expect(chunk.toPlainText(), isNot(startsWith('\n')));
+        expect(chunk.toPlainText(), isNot(endsWith('\n')));
+        for (final leaf in chunk.children!.cast<TextSpan>()) {
+          if (leaf.text!.startsWith('מודגש')) {
+            expect(leaf.style, same(styled));
+          }
+        }
+      }
+    });
+
+    test('ספאן שנחתך בשבירה שומר כל שדה של TextSpan', () {
+      const style = TextStyle(color: Color(0xFF123456));
+      const locale = Locale('he', 'IL');
+      final special = TextSpan(
+        text: '${'מסומן ' * 50}\n' * 200,
+        style: style,
+        semanticsIdentifier: 'id-5906',
+        locale: locale,
+        spellOut: true,
+      );
+      final split = splitLongLine(
+        TextSpan(
+          children: [
+            TextSpan(text: 'מילה ' * 4000),
+            special,
+          ],
+        ),
+      )!;
+
+      final pieces = [
+        for (final chunk in split.chunks)
+          for (final child in chunk.children!.cast<TextSpan>())
+            if (child.style != null) child,
+      ];
+      expect(pieces.length, greaterThan(1));
+      for (final piece in pieces) {
+        expect(piece.style, same(style));
+        expect(piece.semanticsIdentifier, 'id-5906');
+        expect(piece.locale, locale);
+        expect(piece.spellOut, isTrue);
+      }
+    });
+
+    test('קישור, ריחוף ותווית נגישות אינם נחתכים, גם לא בשבירה', () {
+      final recognizer = TapGestureRecognizer();
+      addTearDown(recognizer.dispose);
+      final body = '${'מילה ' * 50}\n' * 140;
+      for (final locked in [
+        TextSpan(text: body, recognizer: recognizer),
+        TextSpan(text: body, onEnter: (_) {}),
+        TextSpan(text: body, mouseCursor: SystemMouseCursors.click),
+        TextSpan(text: body, semanticsLabel: 'תווית'),
+      ]) {
+        final split = splitLongLine(
+          TextSpan(
+            children: [
+              TextSpan(text: 'מילה ' * 4000),
+              locked,
+              TextSpan(text: 'מילה ' * 4000),
+            ],
+          ),
+        )!;
+        final from = 20000;
+        final to = from + body.length;
+        for (final end in split.ends.take(split.ends.length - 1)) {
+          expect(end, isNot(inExclusiveRange(from, to)));
+        }
+        expect(_rejoin(split), split.text);
+      }
+    });
+
+    test('עץ מקונן נחתך עם שרשרת האבות, ו-WidgetSpan נשאר שלם ויחיד', () {
+      const outer = TextStyle(fontSize: 18);
+      const inner = TextStyle(fontWeight: FontWeight.bold);
+      const widget = WidgetSpan(child: SizedBox(width: 4, height: 4));
+      final span = TextSpan(
+        style: outer,
+        children: [
+          TextSpan(
+            style: inner,
+            children: [
+              TextSpan(text: '${'מילה ' * 40}\n' * 120),
+              widget,
+              TextSpan(text: '${'מילה ' * 40}\n' * 120),
+            ],
+          ),
+        ],
+      );
+      final split = splitLongLine(span)!;
+
+      expect(split.chunks.length, greaterThan(2));
+      expect(split.text, span.toPlainText(includeSemanticsLabels: false));
+      expect(_rejoin(split), split.text);
+      var widgets = 0;
+      for (final chunk in split.chunks) {
+        expect(chunk.style, same(outer));
+        expect((chunk.children!.single as TextSpan).style, same(inner));
+        chunk.visitChildren((child) {
+          if (identical(child, widget)) widgets++;
+          return true;
+        });
+      }
+      expect(widgets, 1);
+    });
+
+    test('מקטע אינו מתחיל ב-ZWJ, ב-ZWNJ או במשנה גוון', () {
+      for (final joiner in ['\u200D', '\u200C', '\u{1F3FD}']) {
+        final span = TextSpan(text: '${'אב $joinerג' * 50}גד ' * 400);
+        final split = splitLongLine(span)!;
+        expect(split.chunks.length, greaterThan(1));
+        for (final chunk in split.chunks.skip(1)) {
+          expect(chunk.toPlainText(), isNot(startsWith(joiner)));
+        }
+      }
+    });
+  });
+
+  testWidgets(
+    'חיתוך בשבירות: אותן שורות, אותו יישור ואותן תיבות כמו בפסקה אחת',
+    (
+      tester,
+    ) async {
+      const root = TextStyle(fontSize: 14, height: 1.5);
+      const bold = TextStyle(
+        fontSize: 14,
+        height: 1.5,
+        fontWeight: FontWeight.bold,
+      );
+      const mark = TextStyle(
+        fontSize: 14,
+        height: 1.5,
+        color: Color(0xFFFF0000),
+      );
+      final random = Random(3);
+      final children = <InlineSpan>[];
+      for (var i = 0; i < 600; i++) {
+        final words = 3 + random.nextInt(40);
+        children
+          ..add(TextSpan(text: 'מילה אחרת ' * words, style: root))
+          ..add(TextSpan(text: 'מודגש $i ', style: bold))
+          ..add(TextSpan(text: 'סימון', style: mark))
+          ..add(TextSpan(text: ' סוף.${i % 5 == 0 ? ' ' : ''}\n', style: root));
+      }
+      final span = TextSpan(style: root, children: children);
+      final split = splitLongLine(span)!;
+      expect(split.chunks.length, greaterThan(2));
+      for (var i = 1; i < split.starts.length; i++) {
+        expect(split.text[split.ends[i - 1]], '\n');
+      }
+
+      List<LineMetrics> lines(InlineSpan text) {
+        final painter = TextPainter(
+          text: text,
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.justify,
+        )..layout(maxWidth: 420);
+        final metrics = painter.computeLineMetrics();
+        painter.dispose();
+        return metrics;
+      }
+
+      final whole = lines(span);
+      final parts = [for (final chunk in split.chunks) ...lines(chunk)];
+      expect(parts.length, whole.length);
+      for (var i = 0; i < whole.length; i++) {
+        expect(parts[i].left, moreOrLessEquals(whole[i].left), reason: '$i');
+        expect(parts[i].width, moreOrLessEquals(whole[i].width), reason: '$i');
+        expect(
+          parts[i].height,
+          moreOrLessEquals(whole[i].height),
+          reason: '$i',
+        );
+      }
+    },
+  );
+
+  testWidgets('שורה מודגשת כולה בלי שבירות נשארת פסקה אחת, כמו קודם', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      _host(SmartTextWidget(text: '<b>$words</b>', settings: _settings)),
+      _host(
+        SmartTextWidget(
+          text: '<b>${'מודגש ' * 8000}</b>',
+          settings: _settings,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
+    expect(find.byType(LongLineChunks), findsNothing);
+    expect(_paragraphs(tester), hasLength(1));
+  });
 
+  testWidgets('שורה מודגשת עם שבירות נחתכת בשבירות, בלי שורות ריקות', (
+    tester,
+  ) async {
+    final html = '<b>${List.filled(300, 'מודגש ' * 30).join('<br>')}</b>';
+    await tester.pumpWidget(
+      _host(SmartTextWidget(text: html, settings: _settings)),
+    );
+    await tester.pumpAndSettle();
     expect(find.byType(HtmlWidget), findsNothing);
-    expect(find.byType(LongLineChunks), findsOneWidget);
     final paragraphs = _paragraphs(tester);
     expect(paragraphs.length, greaterThan(1));
-    expect(_textOf(tester).trim(), words.trim());
     for (final paragraph in paragraphs) {
-      TextStyle? leafStyle;
-      paragraph.text.visitChildren((span) {
-        if (span is TextSpan && span.text != null) leafStyle = span.style;
-        return leafStyle == null;
-      });
-      expect(leafStyle?.fontWeight, FontWeight.bold);
+      final text = paragraph.text.toPlainText();
+      expect(text, isNot(startsWith('\n')));
+      expect(text.trimRight(), isNot(endsWith('\n')));
     }
   });
 
-  testWidgets('כותרת ארוכה מפוצלת ושומרת את סגנון הכותרת', (tester) async {
-    final words = 'כותרת ארוכה ' * 3500;
+  testWidgets('שורה ארוכה בתוך IntrinsicHeight נפרסת בלי חריגות', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      _host(SmartTextWidget(text: '<h2>$words</h2>', settings: _settings)),
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: IntrinsicHeight(
+                child: SmartTextWidget(
+                  text: 'מילה ' * 8000,
+                  settings: _settings,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
-
-    expect(find.byType(HtmlWidget), findsNothing);
+    expect(tester.takeException(), isNull);
     expect(find.byType(LongLineChunks), findsOneWidget);
-    final paragraphs = _paragraphs(tester);
-    expect(paragraphs.length, greaterThan(1));
-    expect(_textOf(tester).trim(), words.trim());
-    for (final paragraph in paragraphs) {
-      expect(paragraph.text.style?.fontSize, greaterThan(_settings.fontSize));
-    }
+    expect(
+      tester.getSize(find.byType(IntrinsicHeight)).height,
+      greaterThan(1000),
+    );
   });
 
-  testWidgets('קישור שנחתך בין מקטעים פועל בשני חלקיו', (tester) async {
+  testWidgets('פסקה של מקטע מזוהה בדיוק: פסקה בתוך ווידג׳ט משובץ אינה מקטע', (
+    tester,
+  ) async {
+    final split = splitLongLine(
+      TextSpan(
+        children: [
+          TextSpan(text: 'מילה ' * 2000),
+          const WidgetSpan(child: Text('פנימי')),
+          TextSpan(text: 'מילה ' * 8000),
+        ],
+      ),
+    )!;
+    await tester.pumpWidget(
+      _host(
+        LongLineChunks(
+          split: split,
+          style: const TextStyle(fontSize: 16),
+          textAlign: TextAlign.right,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final paragraphs = tester.allRenderObjects.whereType<RenderParagraph>();
+    final inner = paragraphs.where((p) => p.text.toPlainText() == 'פנימי');
+    expect(inner, isNotEmpty);
+    for (final paragraph in inner) {
+      expect(longLineChunkOf(paragraph), isNull);
+    }
+    final outer = paragraphs.firstWhere(
+      (p) => p.text.toPlainText().contains('\uFFFC'),
+    );
+    expect(longLineChunkOf(outer)?.start, 0);
+  });
+
+  testWidgets('קישור לעולם אינו נחתך, והלחיצה פועלת בשני קצותיו', (
+    tester,
+  ) async {
     final taps = <int>[];
     final line =
         '${'מילה ' * 3000}<a href="otzaria://note?line=7">'
@@ -642,20 +793,19 @@ void main() {
 
     expect(find.byType(HtmlWidget), findsNothing);
     final paragraphs = _paragraphs(tester);
-    expect(paragraphs.length, greaterThan(2));
-    Future<Offset> linkWord(RenderParagraph paragraph, {required bool last}) {
-      final text = paragraph.text.toPlainText();
-      final index = last ? text.lastIndexOf('קישור') : text.indexOf('קישור');
-      expect(index, greaterThanOrEqualTo(0));
-      return _reveal(tester, paragraph, index + 2);
-    }
-
-    final first = paragraphs.indexWhere(
-      (p) => p.text.toPlainText().contains('קישור'),
+    final withLink = paragraphs
+        .where((p) => p.text.toPlainText().contains('קישור'))
+        .toList();
+    expect(withLink, hasLength(1));
+    final paragraph = withLink.single;
+    final text = paragraph.text.toPlainText();
+    await tester.tapAt(
+      await _reveal(tester, paragraph, text.indexOf('קישור') + 2),
     );
-    await tester.tapAt(await linkWord(paragraphs[first], last: true));
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tapAt(await linkWord(paragraphs[first + 1], last: false));
+    await tester.tapAt(
+      await _reveal(tester, paragraph, text.lastIndexOf('קישור') + 2),
+    );
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(taps, [7, 7]);
@@ -682,7 +832,7 @@ void main() {
 
   for (final inItem in [false, true]) {
     testWidgets(
-      'לחיצה משולשת בוחרת את הפסקה שחוצה מקטעים, ורק אותה'
+      'לחיצה משולשת בוחרת את הפסקה שחוצה מקטעים עם השבירה שבסופה'
       '${inItem ? ' (פריט קורא)' : ''}',
       (tester) async {
         SelectedContent? selection;
@@ -713,6 +863,15 @@ void main() {
               !lineText.substring(start, end).contains('\n');
         });
         expect(inside, greaterThan(1));
+        // הפסקה השנייה מסתיימת בשבירה שבה נחתך מקטע.
+        expect(
+          paragraphs.any(
+            (p) =>
+                longLineChunkOf(p)!.start ==
+                lineText.indexOf(second) + second.length + 1,
+          ),
+          isTrue,
+        );
 
         await _click(tester, await _reveal(tester, paragraphs[inside], 100), 3);
 
@@ -720,6 +879,71 @@ void main() {
       },
     );
   }
+
+  testWidgets('גרירה מעבר לגבול שבירה מעתיקה את השבירה', (tester) async {
+    SelectedContent? selection;
+    final line = List.filled(400, 'מילה ' * 30).join('<br>');
+    await tester.pumpWidget(
+      _host(
+        SmartTextWidget(text: line, settings: _settings),
+        onSelectionChanged: (content) => selection = content,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final paragraphs = _paragraphs(tester);
+    final second = longLineChunkOf(paragraphs[1])!;
+    expect(second.skipped, '\n');
+    final lineText = second.lineText;
+
+    final firstText = paragraphs[0].text.toPlainText();
+    final from = await _reveal(tester, paragraphs[0], firstText.length - 20);
+    final to = paragraphs[1].localToGlobal(
+      paragraphs[1]
+          .getBoxesForSelection(
+            const TextSelection(baseOffset: 20, extentOffset: 21),
+          )
+          .first
+          .toRect()
+          .center,
+    );
+    final gesture = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await gesture.moveTo(to);
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    final selected = selection?.plainText ?? '';
+    expect(selected, contains('\n'));
+    expect(lineText, contains(selected));
+  });
+
+  testWidgets('בחירת הכול בשורה עם שבירות מעתיקה את טקסט השורה המדויק', (
+    tester,
+  ) async {
+    SelectedContent? selection;
+    final line = List.filled(400, 'מילה ' * 30).join('<br>');
+    await tester.pumpWidget(
+      _host(
+        SmartTextWidget(text: line, settings: _settings),
+        onSelectionChanged: (content) => selection = content,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final paragraphs = _paragraphs(tester);
+    expect(paragraphs.length, greaterThan(2));
+    final lineText = longLineChunkOf(paragraphs.first)!.lineText;
+
+    tester
+        .state<SelectableRegionState>(find.byType(SelectableRegion))
+        .selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+
+    expect(selection?.plainText, lineText);
+  });
 }
 
 /// גולל את התו ב-[offset] אל המסך ומחזיר את מרכזו.
@@ -764,3 +988,11 @@ Future<void> _click(WidgetTester tester, Offset position, int count) async {
   await gesture.removePointer();
   await tester.pump(const Duration(milliseconds: 500));
 }
+
+/// טקסט המקטעים עם מה שהושמט ביניהם — טקסט השורה כולה.
+String _rejoin(LongLineSplit split) => [
+  for (var i = 0; i < split.chunks.length; i++) ...[
+    if (i > 0) split.text.substring(split.ends[i - 1], split.starts[i]),
+    split.chunks[i].toPlainText(includeSemanticsLabels: false),
+  ],
+].join();

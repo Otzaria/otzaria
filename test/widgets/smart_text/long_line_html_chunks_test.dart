@@ -76,6 +76,11 @@ RenderParagraph _paragraphOf(RenderLongLineChunk chunk) {
 String _plain(RenderParagraph paragraph) =>
     paragraph.text.toPlainText(includeSemanticsLabels: false);
 
+/// טקסט המקטעים עם השבירות שהושמטו ביניהם.
+String _joined(List<RenderLongLineChunk> chunks) => [
+  for (final chunk in chunks) chunk.skipped + _plain(_paragraphOf(chunk)),
+].join();
+
 /// כל פריט מופיע פעם אחת ובסדר.
 void _expectItemsInOrder(String text, int from, int count) {
   var at = 0;
@@ -114,16 +119,22 @@ void main() {
       final texts = [for (final chunk in chunks) _plain(_paragraphOf(chunk))];
       for (final text in texts) {
         expect(text.length, lessThan(kLongLineChunkChars * 2));
+        expect(text, isNot(startsWith('\n')));
+        expect(text, isNot(endsWith('\n')));
       }
-      final joined = texts.join();
+      final joined = _joined(chunks);
       expect(joined.length, greaterThan(60000));
       expect(joined, chunks.first.lineText);
+      // כל חיתוך כאן בשבירה קשיחה, ששוחזרה בין המקטעים.
+      for (final chunk in chunks.skip(1)) {
+        expect(chunk.skipped, '\n');
+      }
       _expectItemsInOrder(joined, 0, count);
       expect('מודגש באמצע'.allMatches(joined), hasLength(count ~/ 97 + 1));
 
       // העוגן הוא WidgetSpan עם GlobalKey בתחילת המקטע הראשון.
-      expect(joined.indexOf('￼'), 0);
-      expect('￼'.allMatches(joined), hasLength(1));
+      expect(joined.indexOf('\uFFFC'), 0);
+      expect('\uFFFC'.allMatches(joined), hasLength(1));
 
       final withMarker = chunks.indexWhere(
         (c) => _plain(_paragraphOf(c)).contains(_marker),
@@ -160,12 +171,10 @@ void main() {
       hasLength(1),
     );
 
-    final joined = _chunks(
-      tester,
-    ).map((chunk) => _plain(_paragraphOf(chunk))).join();
+    final joined = _joined(_chunks(tester));
     _expectItemsInOrder(joined, 0, 4400);
     expect(
-      '￼'.allMatches(joined),
+      '\uFFFC'.allMatches(joined),
       hasLength(2),
       reason: 'עוגן ותמונה',
     );
@@ -205,7 +214,7 @@ void main() {
     await tester.pumpAndSettle();
     final chunks = _chunks(tester);
     expect(chunks.length, greaterThan(2));
-    final expected = chunks.first.lineText.replaceAll('￼', '');
+    final expected = chunks.first.lineText.replaceAll('\uFFFC', '');
 
     tester
         .state<SelectableRegionState>(find.byType(SelectableRegion))
@@ -213,5 +222,139 @@ void main() {
     await tester.pump();
 
     expect(selection?.plainText, expected);
+  });
+
+  testWidgets('הדגשה חדשה בשורת HTML מוחלפת מקטע אחד בכל פריים, בלי הסתרה', (
+    tester,
+  ) async {
+    final html = _block(_items(0, 6000, markerAt: 3000));
+    final settings = ValueNotifier(_settings);
+    addTearDown(settings.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SelectionArea(
+              child: ListView(
+                children: [
+                  SizedBox(
+                    width: 600,
+                    child: ValueListenableBuilder(
+                      valueListenable: settings,
+                      builder: (context, value, _) =>
+                          SmartTextWidget(text: html, settings: value),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // פסקה שה-RichText שלה נבנה מחדש עשויה להיפרס מחדש; האחרות לא.
+    List<Widget> texts() => tester
+        .widgetList(
+          find.descendant(
+            of: find.byType(LongLineChunks),
+            matching: find.byWidgetPredicate((widget) => widget is RichText),
+          ),
+        )
+        .toList();
+    var before = texts();
+    final count = before.length;
+    expect(count, greaterThan(4));
+
+    settings.value = _settings.copyWith(searchText: _marker);
+    var frames = 0;
+    var changedTotal = 0;
+    while (changedTotal < count && frames < count * 3) {
+      await tester.pump();
+      frames++;
+      final now = texts();
+      expect(now, hasLength(count), reason: 'אין מקטע מוסתר באמצע');
+      var changed = 0;
+      for (var i = 0; i < count; i++) {
+        if (!identical(now[i], before[i])) changed++;
+      }
+      expect(changed, lessThanOrEqualTo(kLongLineChunksPerFrame));
+      changedTotal += changed;
+      before = now;
+    }
+    expect(changedTotal, count);
+    expect(
+      _joined(_chunks(tester)),
+      contains(_marker),
+    );
+  });
+
+  testWidgets('קישור #id לעוגן במקטע שעוד לא נבנה ממתין לבנייה וגולל אליו', (
+    tester,
+  ) async {
+    final html =
+        '<div style="text-align: justify"><a href="#late">לסוף</a> '
+        '${_items(0, 6000)}<a id="late"></a>סוף השורה</div>';
+    await tester.pumpWidget(_host(html));
+    expect(_chunks(tester), hasLength(1));
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    expect(scrollable.position.pixels, 0);
+
+    final link = _chunks(tester).first;
+    final paragraph = _paragraphOf(link);
+    final box = paragraph
+        .getBoxesForSelection(
+          const TextSelection(baseOffset: 1, extentOffset: 3),
+        )
+        .first
+        .toRect();
+    await tester.tapAt(paragraph.localToGlobal(box.center));
+    await tester.pumpAndSettle();
+
+    expect(_chunks(tester).length, greaterThan(4));
+    expect(scrollable.position.pixels, greaterThan(1000));
+  });
+
+  testWidgets('חיתוך בשבירה אחרי רווח אינו מוסיף שורה ריקה לאף מקטע', (
+    tester,
+  ) async {
+    // fwfh משאיר רווח לפני <br>, ולכן " \n" נפוץ בגבול.
+    final html =
+        '<div style="text-align: justify">${'מילה ' * 3200}<br>'
+        '${'מילה ' * 5000}</div>';
+    await tester.pumpWidget(_host(html));
+    await tester.pumpAndSettle();
+    final chunks = _chunks(tester);
+    expect(chunks.length, greaterThanOrEqualTo(2));
+    expect(chunks[1].skipped, '\n');
+    final first = _paragraphOf(chunks[0]);
+    final second = _paragraphOf(chunks[1]);
+    expect(_plain(second), isNot(startsWith('\n')));
+    expect(_plain(first), isNot(endsWith('\n')));
+
+    final whole = TextPainter(
+      text: TextSpan(
+        children: [
+          first.text,
+          TextSpan(text: '\n', style: first.text.style),
+          second.text,
+        ],
+      ),
+      textDirection: first.textDirection,
+      textAlign: first.textAlign,
+      strutStyle: first.strutStyle,
+      textScaler: first.textScaler,
+    )..layout(maxWidth: first.size.width);
+    addTearDown(whole.dispose);
+    expect(
+      first.size.height + second.size.height,
+      moreOrLessEquals(whole.height),
+    );
   });
 }

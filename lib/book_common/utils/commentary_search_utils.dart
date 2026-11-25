@@ -60,8 +60,11 @@ TargetRectResolver? commentarySearchMatchTarget({
     final starts = <int>[];
     final lengths = <int>[];
     for (final paragraph in paragraphs) {
-      // מקטעי שורה רצופים כבר מכילים את הרווח המקורי; בלוקים נפרדים דורשים גבול.
-      if (text.isNotEmpty && (longLineChunkOf(paragraph)?.start ?? 0) == 0) {
+      // בין מקטעי שורה חוזר רק מה שהושמט ביניהם; בלוקים נפרדים דורשים גבול.
+      final chunk = longLineChunkOf(paragraph);
+      if (chunk != null && chunk.start > 0) {
+        text.write(chunk.skipped);
+      } else if (text.isNotEmpty) {
         text.writeln();
       }
       starts.add(text.length);

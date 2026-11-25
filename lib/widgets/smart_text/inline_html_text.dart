@@ -26,7 +26,11 @@ class InlineHtmlText extends StatefulWidget {
     this.onAnchorHover,
     this.onAnchorHoverExit,
     this.onMiddleClickUrl,
+    this.splitLongLines = true,
   });
+
+  /// שורה ארוכה מאוד מוצגת במקטעים ([LongLineChunks]).
+  final bool splitLongLines;
 
   final InlineHtmlDocument document;
   final TextStyle style;
@@ -184,6 +188,7 @@ class _InlineHtmlTextState extends State<InlineHtmlText> {
     style: widget.style,
     strutStyle: widget.strutStyle,
     textAlign: widget.textAlign,
+    splitLongLines: widget.splitLongLines,
   );
 }
 
@@ -195,8 +200,9 @@ Widget inlineSpanText(
   required TextStyle style,
   StrutStyle? strutStyle,
   required TextAlign textAlign,
+  bool splitLongLines = true,
 }) {
-  final longLine = plainTextLength > kLongLineMinChars
+  final longLine = splitLongLines && plainTextLength > kLongLineMinChars
       ? splitLongLine(span)
       : null;
   if (longLine != null) {

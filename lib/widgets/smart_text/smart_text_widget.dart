@@ -145,11 +145,14 @@ class SmartTextWidget extends StatelessWidget {
             )
           : const [],
     );
-    if (listenables.isEmpty) return buildResolved();
+    // מבנה קבוע: חיפוש שמתחיל או מסתיים לא בונה את השורה מאפס (שורה ארוכה
+    // מחליפה אז את מקטעיה בהדרגה).
     return ListenableBuilder(
-      listenable: listenables.length == 1
-          ? listenables.single
-          : Listenable.merge(listenables),
+      listenable: switch (listenables) {
+        [] => _noChanges,
+        [final single] => single,
+        _ => Listenable.merge(listenables),
+      },
       builder: (context, _) => buildResolved(),
     );
   }
@@ -253,6 +256,7 @@ class SmartTextWidget extends StatelessWidget {
                       style: lineStyle,
                       strutStyle: line.strutStyle,
                       textAlign: textAlign,
+                      splitLongLines: !line.isHeading,
                     )
                   : InlineHtmlText(
                       document: document,
@@ -262,6 +266,7 @@ class SmartTextWidget extends StatelessWidget {
                       // ב-HtmlWidget צבע הקישור עובר ב-CSS כ-hex בלי שקיפות.
                       linkColor: Color(0xFF000000 | linkColor.toARGB32()),
                       primaryColor: colorScheme.primary,
+                      splitLongLines: !line.isHeading,
                       onTapUrl: onTapUrl,
                       onAnchorHover: onAnchorHover,
                       onAnchorHoverExit: onAnchorHoverExit,
@@ -424,6 +429,8 @@ class SmartTextWidget extends StatelessWidget {
   }
 }
 
+final Listenable _noChanges = ChangeNotifier();
+
 /// ה-HTML העטוף נשמר לפי ה-HTML המעובד (שמוחזר ממטמון processText), כדי
 /// ש-HtmlWidget יקבל בכל build את אותו מופע ולא ישווה מחרוזת חדשה תו אחר תו.
 final LinkedHashMap<(String, bool), String> _rtlDivCache = LinkedHashMap();
@@ -571,6 +578,13 @@ class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
     final widget = state != null && state.mounted ? state.widget : null;
     final callback = widget is HtmlWidget ? widget.onTapUrl : null;
     return callback != null && await callback(url);
+  }
+
+  /// עוגן במקטע של שורה ארוכה שעוד לא נבנה אין לו context; ממתינים לבנייה.
+  @override
+  Future<bool> onTapAnchor(String id, EnsureVisible scrollTo) async {
+    if (await scrollTo(id)) return true;
+    return await longLinesBuilt() && await scrollTo(id);
   }
 
   @override
