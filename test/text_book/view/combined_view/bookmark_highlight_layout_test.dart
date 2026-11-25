@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -18,6 +19,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
@@ -39,6 +41,10 @@ void main() {
 
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // מטמון הספרייה שומר Future מהשעון המדומה של הבדיקה שיצרה אותו.
+    final original = FileSystemData.instance;
+    FileSystemData.instance = _FileSystem();
+    addTearDown(() => FileSystemData.instance = original);
   });
 
   testWidgets('שורת הסימניה מודגשת רק כשהקורא פרס ומדד אותה, '
@@ -52,6 +58,8 @@ void main() {
     addTearDown(tab.dispose);
     final bloc = TextBookBloc(
       repository: _Repository(),
+      protectionLoader: (_) async => BookProtection.none,
+      bookNotesLoader: (_) async => BookNotes.empty,
       initialState: TextBookInitial.named(
         book,
         _target,
@@ -76,12 +84,7 @@ void main() {
         loadCommentators: false,
       ),
     );
-    for (var i = 0; i < 50 && bloc.state is! TextBookLoaded; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      await tester.pump();
-    }
+    await tester.pump();
     expect(bloc.state, isA<TextBookLoaded>());
 
     // הספר נטען, אבל הקורא עוד לא נפרס: 2.2 שניות בלי מדידה.
@@ -117,6 +120,8 @@ void main() {
     addTearDown(tab.dispose);
     final bloc = TextBookBloc(
       repository: repository,
+      protectionLoader: (_) async => BookProtection.none,
+      bookNotesLoader: (_) async => BookNotes.empty,
       initialState: TextBookInitial.named(
         book,
         0,
@@ -143,12 +148,7 @@ void main() {
         loadCommentators: false,
       ),
     );
-    for (var i = 0; i < 50 && bloc.state is! TextBookLoaded; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      await tester.pump();
-    }
+    await tester.pump();
     expect(bloc.state, isA<TextBookLoaded>());
     await _pumpReader(tester, tab, bloc);
 
@@ -234,6 +234,31 @@ Future<void> _pumpReader(
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 30));
   }
+}
+
+class _FileSystem implements FileSystemData {
+  @override
+  Future<bool> isTanachBook(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async => false;
+
+  @override
+  Future<bool> supportsContinuousReadingMode(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async => false;
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> get metadata async => const {};
+
+  @override
+  Future<Map<String, String>> get titleToPath async => const {};
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _Repository extends TextBookRepository {
