@@ -1,12 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/tools/biographies/biographies_screen.dart';
 import 'package:otzaria/tools/biographies/data/biographies_codec.dart';
+import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
+import 'package:otzaria/tools/tool_query.dart';
 
+import '../test_helpers/stub_settings_bloc.dart';
 import 'biographies_codec_test.dart' show encodeBundle, samplePayload;
 
 /// Library books of the official catalog (version 39) behind the failures
@@ -27,10 +39,23 @@ const _priChadash = BiographyWork(
   title: 'פרי חדש',
   description: 'חיבור הלכה על השולחן ערוך, בעיקר אורח חיים ויורה דעה',
 );
-const _chovot = BiographyWork(
-  title: 'חובות הלבבות',
-  books: ['חובות הלבבות'],
-);
+const _chovot = BiographyWork(title: 'חובות הלבבות', books: ['חובות הלבבות']);
+
+class _WorkRepository extends BiographiesRepository {
+  _WorkRepository({required super.libraryBooks});
+
+  @override
+  Future<BiographiesBundle> loadBundle() async => const BiographiesBundle(
+    eras: [],
+    entries: [
+      Biography(id: 'Q762229', name: 'רבינו בחיי אבן פקודה', works: [_chovot]),
+    ],
+  );
+}
+
+class _TestLibraryBloc extends LibraryBloc {
+  void update(LibraryState state) => emit(state);
+}
 
 void main() {
   group('biography works link to library books (issue #5203)', () {
@@ -56,10 +81,7 @@ void main() {
       final repo = BiographiesRepository(
         libraryBooks: () async => [
           _yesodeiHatorah,
-          _book(
-            'פרי חדש על משנה תורה, הלכות דעות',
-            'חזקיה די סילוה',
-          ),
+          _book('פרי חדש על משנה תורה, הלכות דעות', 'חזקיה די סילוה'),
         ],
       );
       final books = await repo.libraryBooksByTitle();
@@ -109,6 +131,94 @@ void main() {
       );
     });
 
+    testWidgets('library refresh discards obsolete work links and requests', (
+      tester,
+    ) async {
+      final libraryBloc = _TestLibraryBloc();
+      final settingsBloc = StubSettingsBloc();
+      final inbox = ToolQueryInbox()
+        ..post(const ToolQuery.biography('Q762229'));
+      final data = DataRepository.instance;
+      final previousCatalog = data.cachedLibraryFutureForTesting;
+      addTearDown(libraryBloc.close);
+      addTearDown(settingsBloc.close);
+      addTearDown(inbox.dispose);
+      addTearDown(() {
+        if (previousCatalog == null) {
+          data.invalidateLibraryCache();
+        } else {
+          data.library = previousCatalog;
+        }
+      });
+      final requests = <Completer<List<Book>>>[];
+      final repository = _WorkRepository(
+        libraryBooks: () {
+          final request = Completer<List<Book>>();
+          requests.add(request);
+          return request.future;
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<LibraryBloc>.value(value: libraryBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: BiographiesScreen(
+                repository: repository,
+                queryInbox: inbox,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+      BiographyCard card() => tester.widget(find.byType(BiographyCard));
+
+      libraryBloc.update(const LibraryState(isLoading: true));
+      final current = Library(categories: []);
+      libraryBloc.update(LibraryState(library: current));
+      await tester.pump();
+      expect(requests, hasLength(2));
+      requests.first.complete([_chovotHalevavot]);
+      await tester.pump();
+      expect(card().bookForWork(_chovot), isNull);
+
+      final moved = _book('חובות הלבבות', 'בחיי אבן פקודה');
+      requests.last.complete([moved]);
+      await tester.pumpAndSettle();
+      final oldCallback = card().onOpenBook!;
+      expect(card().bookForWork(_chovot), same(moved));
+
+      libraryBloc.update(LibraryState(library: current, isLoading: true));
+      await tester.pump();
+      expect(card().bookForWork(_chovot), isNull);
+      expect(() => oldCallback(moved), returnsNormally);
+      libraryBloc.update(LibraryState(library: current, error: 'לא זמין'));
+      await tester.pump();
+      expect(requests, hasLength(2));
+      expect(card().bookForWork(_chovot), isNull);
+
+      libraryBloc.update(LibraryState(library: Library(categories: [])));
+      await tester.pump();
+      expect(requests, hasLength(3));
+      requests.last.complete([_chovotHalevavot]);
+      await tester.pumpAndSettle();
+      expect(card().bookForWork(_chovot), same(_chovotHalevavot));
+
+      data.library = Future.value(Library(categories: []));
+      expect(() => card().onOpenBook!(_chovotHalevavot), returnsNormally);
+      await tester.pump();
+      expect(requests, hasLength(4));
+      requests.last.complete([]);
+      await tester.pump();
+      expect(card().bookForWork(_chovot), isNull);
+    });
+
     testWidgets('the card links a mapped work only', (tester) async {
       Book? opened;
       await tester.pumpWidget(
@@ -124,13 +234,11 @@ void main() {
                     works: [_chovot, _priChadash],
                   ),
                   initiallyExpanded: true,
-                  bookForWork: (work) => BiographiesRepository.bookForWork(
-                    work,
-                    {
-                      _chovotHalevavot.title: _chovotHalevavot,
-                      _yesodeiHatorah.title: _yesodeiHatorah,
-                    },
-                  ),
+                  bookForWork: (work) =>
+                      BiographiesRepository.bookForWork(work, {
+                        _chovotHalevavot.title: _chovotHalevavot,
+                        _yesodeiHatorah.title: _yesodeiHatorah,
+                      }),
                   onOpenBook: (book) => opened = book,
                 ),
               ),
