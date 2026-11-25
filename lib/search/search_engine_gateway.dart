@@ -178,6 +178,10 @@ class SemanticSearchRequest {
   final SemanticGroupingMode? grouping;
   final bool matchNikud;
   final bool matchTaamim;
+  final List<SemanticVote> votes;
+
+  /// מזהה עימוד מקומי שנשמר בבקשות ההמשך של אותו חיפוש.
+  final String? paginationSessionId;
 
   const SemanticSearchRequest({
     required this.query,
@@ -190,6 +194,8 @@ class SemanticSearchRequest {
     this.grouping,
     this.matchNikud = false,
     this.matchTaamim = false,
+    this.votes = const [],
+    this.paginationSessionId,
   });
 
   /// מנוע החיפוש תומך במרחק עריכה עד [kMaxFuzzyDistance].
@@ -613,6 +619,8 @@ class RustSearchEngineOperations
           grouping: request.grouping,
           matchNikud: request.matchNikud,
           matchTaamim: request.matchTaamim,
+          votes: request.votes,
+          paginationSessionId: request.paginationSessionId,
           cancellation: token,
         )
         .whenComplete(token.dispose);

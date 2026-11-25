@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/search/search_engine_gateway.dart'
@@ -18,7 +21,8 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         SemanticGroupingMode,
         SemanticHighlightTarget,
         SemanticPassageHighlight,
-        SemanticRetrievalMode;
+        SemanticRetrievalMode,
+        SemanticVote;
 
 /// מקור עמודי התוצאות של מסך החיפוש הסמנטי.
 abstract interface class SemanticResultsSource {
@@ -29,11 +33,13 @@ abstract interface class SemanticResultsSource {
   SemanticRankingConfig? get ranking;
 
   /// `null` כשחיפוש חדש יותר החליף את זה. זורק `SemanticFailure` בכשל.
+  /// [votes] הם הסימונים הפעילים שמשפיעים על העמודים שטרם הוצגו.
   /// [onSearching] נקרא כשההכנה הסתיימה והחיפוש עצמו מתחיל.
   Future<SemanticResultsPage?> fetch(
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   });
 
@@ -75,12 +81,15 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
   }) : _fallbackLog = fallbackLog ?? SemanticFallbackLog.shared,
        _slowSearchLog = slowSearchLog ?? SemanticSlowSearchLog.shared;
 
+  static final _paginationIdRandom = Random.secure();
+
   final SemanticSearchRepository _repository;
   final SemanticFallbackLog _fallbackLog;
   final SemanticSlowSearchLog _slowSearchLog;
 
   /// ערוץ משלו: חיפוש בכרטיסייה אחרת אינו מבטל את החיפוש כאן.
   final SemanticSearchSession _session = SemanticSearchSession();
+  String? _paginationSessionId;
 
   @override
   bool get isDebugPreview => false;
@@ -93,8 +102,14 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   }) async {
+    if (offset == 0) {
+      _paginationSessionId = base64Url.encode(
+        List.generate(16, (_) => _paginationIdRandom.nextInt(256)),
+      );
+    }
     final stopwatch = Stopwatch()..start();
     Duration? prepare;
     final outcome = await _repository.search(
@@ -103,6 +118,8 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
         facets: options.facets,
         limit: limit,
         offset: offset,
+        votes: votes,
+        paginationSessionId: _paginationSessionId,
         lexicalMode: kSmartSearchLexicalMode,
         fuzzyMaxDistance: kSmartSearchFuzzyMaxDistance,
         retrievalMode: options.includeLexical
@@ -203,6 +220,7 @@ class DebugLexicalPreviewSource implements SemanticResultsSource {
     SemanticQueryOptions options, {
     required int offset,
     required int limit,
+    List<SemanticVote> votes = const [],
     void Function()? onSearching,
   }) async {
     final generation = ++_generation;
