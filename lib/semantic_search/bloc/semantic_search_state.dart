@@ -10,12 +10,16 @@ class SemanticSearchState extends Equatable {
   final SemanticModelChoice activeModelChoice;
   final bool isRemoving;
 
+  /// ה-filePath באינדקס של הספרים שיש להם וקטורים; `null` = לא ידוע.
+  final Set<String>? coveredBookFilePaths;
+
   const SemanticSearchState({
     this.availability = SemanticAvailability.initial,
     this.quantization = SemanticQuantization.int8,
     this.modelChoice = SemanticModelChoice.meivin,
     this.activeModelChoice = SemanticModelChoice.meivin,
     this.isRemoving = false,
+    this.coveredBookFilePaths,
   });
 
   SemanticSearchState copyWith({
@@ -24,12 +28,16 @@ class SemanticSearchState extends Equatable {
     SemanticModelChoice? modelChoice,
     SemanticModelChoice? activeModelChoice,
     bool? isRemoving,
+    Set<String>? Function()? coveredBookFilePaths,
   }) => SemanticSearchState(
     availability: availability ?? this.availability,
     quantization: quantization ?? this.quantization,
     modelChoice: modelChoice ?? this.modelChoice,
     activeModelChoice: activeModelChoice ?? this.activeModelChoice,
     isRemoving: isRemoving ?? this.isRemoving,
+    coveredBookFilePaths: coveredBookFilePaths != null
+        ? coveredBookFilePaths()
+        : this.coveredBookFilePaths,
   );
 
   @override
@@ -39,5 +47,6 @@ class SemanticSearchState extends Equatable {
     modelChoice,
     activeModelChoice,
     isRemoving,
+    coveredBookFilePaths,
   ];
 }

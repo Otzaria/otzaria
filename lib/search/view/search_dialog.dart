@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show max;
 
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,8 @@ import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -153,6 +156,9 @@ class SearchDialog extends StatefulWidget {
   /// האם מותרת התצוגה המקדימה של פיתוח; ברירת המחדל [kDebugMode].
   final bool semanticDebugPreview;
 
+  /// בחיפוש בתוך ספר: הספר, שבו מוצע החיפוש החכם כשיש לו וקטורים.
+  final Book? semanticBook;
+
   const SearchDialog({
     super.key,
     this.existingTab,
@@ -166,6 +172,7 @@ class SearchDialog extends StatefulWidget {
     this.semanticRepository,
     this.semanticConsent,
     this.semanticDebugPreview = kDebugMode,
+    this.semanticBook,
   });
 
   @override
@@ -238,17 +245,21 @@ class _SearchDialogState extends State<SearchDialog> {
   bool _semanticGroupIdentical =
       SearchDefaults.initialSemanticGroupIdenticalForNewSearch();
   bool _semanticSubmitted = false;
+
+  String? _pendingCoverageQuery;
+  int _semanticSubmitRevision = 0;
   SemanticSearchBloc? _semanticBloc;
   TabsBloc? _tabsBloc;
 
   /// החיפוש נשלח לכרטיסייה חדשה, ולכן [SearchDialog.existingTab] זמני ומיותר.
   bool _existingTabHandedOff = false;
 
-  /// חיפוש בספרייה, חדש או בעריכה; לא בתוך ספר (issue #1892).
+  /// חיפוש בספרייה, חדש או בעריכה, או בתוך ספר שנמסר כ-[SearchDialog.semanticBook].
   bool get _supportsSemanticMode =>
-      widget.bookTitle == null &&
-      widget.onSearch == null &&
-      !widget.returnResultOnSubmit;
+      widget.semanticBook != null ||
+      (widget.bookTitle == null &&
+          widget.onSearch == null &&
+          !widget.returnResultOnSubmit);
 
   SemanticSearchTab? get _editedSemanticTab => switch (widget.editTab) {
     final SemanticSearchTab tab => tab,
@@ -263,7 +274,19 @@ class _SearchDialogState extends State<SearchDialog> {
           isSemanticModeVisible(
             availability,
             debug: widget.semanticDebugPreview,
-          ));
+          ) &&
+          _semanticBookCovered(availability));
+
+  /// בתוך ספר המצב מוצע רק כשהחיפוש שמיש ולספר יש וקטורים.
+  bool _semanticBookCovered(SemanticAvailability availability) {
+    final book = widget.semanticBook;
+    if (book == null) return true;
+    final covered = _semanticBloc?.state.coveredBookFilePaths;
+    return availability.isUsable &&
+        _hasOwnBookFacet(book) &&
+        covered != null &&
+        covered.contains(BookIdentity.indexedFilePath(book));
+  }
 
   bool get _isSemanticActive =>
       _semanticSelected && _semanticVisible(_semanticBloc?.state.availability);
@@ -328,11 +351,16 @@ class _SearchDialogState extends State<SearchDialog> {
         repository:
             widget.semanticRepository ?? SemanticSearchRepository.instance,
       )..add(const SemanticSearchStarted());
+      final book = widget.semanticBook;
+      if (book != null && _hasOwnBookFacet(book)) {
+        _semanticBloc!.add(const SemanticCoveredBooksRequested());
+      }
       // מצב מבוקש במפורש (קיצור חיפוש מתקדם, איתור) וכרטיסייה בעריכה
       // גוברים על זיכרון הסשן.
       _semanticSelected =
           _editedSemanticTab != null ||
           (SearchDefaults.initialSemanticForNewSearch() &&
+              widget.semanticBook == null &&
               widget.initialSearchMode == null &&
               widget.existingTab == null &&
               widget.editTab == null);
@@ -385,10 +413,20 @@ class _SearchDialogState extends State<SearchDialog> {
       _semanticIncludeLexical = editedOptions.includeLexical;
       _semanticGroupIdentical = editedOptions.groupIdenticalText;
     }
+    if (_semanticSelected &&
+        !_semanticIncludeLexical &&
+        _editedSemanticTab?.lockedBookFacet == null &&
+        widget.semanticBook == null) {
+      _semanticBloc?.add(const SemanticCoveredBooksRequested());
+    }
 
     // מאזין לשינויים בתיבת החיפוש כדי לעדכן את האפשרויות ולשמור את ההקלדה
     _queryListener = () {
       if (!mounted) return;
+      final pending = _pendingCoverageQuery;
+      if (pending != null && pending != _searchTab.queryController.text) {
+        _cancelPendingSemanticSubmit();
+      }
       // שמירת ההקלדה הנוכחית (לא בעריכה — כדי לא לדרוס את ההקלדה האחרונה)
       if (widget.editTab != null) return;
       SearchDialogQuery.saveLastTyping(_searchTab.queryController.text);
@@ -1054,8 +1092,8 @@ class _SearchDialogState extends State<SearchDialog> {
       UiSnack.showError(LibraryMessages.searchIndexMissing);
       return;
     }
-    if (_isSemanticActive) {
-      _performSemanticSearch();
+    if (_isSemanticActive || _editedSemanticTab?.lockedBookFacet != null) {
+      unawaited(_performSemanticSearch());
       return;
     }
 
@@ -1249,9 +1287,10 @@ class _SearchDialogState extends State<SearchDialog> {
   /// בלי הסכמה או בלי נתונים אין חיפוש; הדיאלוג עצמו אינו רושם דבר.
   Library? get _library => context.read<LibraryBloc>().state.library;
 
-  void _performSemanticSearch() {
+  Future<void> _performSemanticSearch() async {
     final availability = _semanticBloc?.state.availability;
     if (_semanticSubmitted ||
+        _pendingCoverageQuery != null ||
         availability == null ||
         !canRunSemanticSearch(
           availability,
@@ -1259,45 +1298,120 @@ class _SearchDialogState extends State<SearchDialog> {
         )) {
       return;
     }
-    final library = _library;
-    final parsedCategory = parseCategoryQuery(
-      _searchTab.queryController.text,
-      library,
-    );
-    if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
+    final book = widget.semanticBook;
+    final bookFacet =
+        _editedSemanticTab?.lockedBookFacet ??
+        (book == null
+            ? null
+            : FacetHelper.buildBookFacet(
+                FacetHelper.resolveCategoryPath(book),
+                book,
+              ));
+    final input = _searchTab.queryController.text;
+    final parsedCategory = bookFacet == null
+        ? parseCategoryQuery(input, _library)
+        : null;
+    if (parsedCategory != null &&
+        parsedCategory.hasCategoryToken &&
+        !parsedCategory.categoryFound) {
       UiSnack.showError(
         LibraryMessages.categoryOrBookNotFound(parsedCategory.notFoundNames),
       );
       return;
     }
-    final query = parsedCategory.query;
+    final query = parsedCategory?.query ?? input.trim();
     if (query.trim().isEmpty) {
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
-    final isOfficialCategory = officialCategoryFilter(library);
-    final selection = parsedCategory.categoryFound
-        ? [
-            ...parsedCategory.facets!,
-            ...FacetHelper.dimensionFacetsOf(_scopeSelection),
-          ]
-        : _scopeSelection;
-    if (!selection.every(
-      (facet) => isSemanticScopeFacetSupported(
-        facet,
-        includeLexical: _semanticIncludeLexical,
-        isOfficialCategory: isOfficialCategory,
-      ),
-    )) {
+    final selection = switch ((bookFacet, parsedCategory?.facets)) {
+      (final facet?, _) => [facet],
+      (null, final facets?) => [
+        ...facets,
+        ...FacetHelper.dimensionFacetsOf(_scopeSelection),
+      ],
+      (null, null) => _scopeSelection,
+    };
+    final includeLexical = _semanticIncludeLexical;
+    Set<String>? covered;
+    if (book != null ||
+        (bookFacet == null &&
+            !includeLexical &&
+            availability.isUsable &&
+            needsSemanticScopeCoverage(selection))) {
+      final revision = ++_semanticSubmitRevision;
+      setState(() => _pendingCoverageQuery = input);
+      try {
+        covered = await _semanticBloc!.repository.loadCoveredBookFilePaths();
+      } finally {
+        if (mounted && revision == _semanticSubmitRevision) {
+          setState(() => _pendingCoverageQuery = null);
+        }
+      }
+      if (!mounted ||
+          revision != _semanticSubmitRevision ||
+          !_isSemanticActive ||
+          !canRunSemanticSearch(
+            _semanticBloc!.state.availability,
+            debug: widget.semanticDebugPreview,
+          ) ||
+          ModalRoute.of(context)?.isCurrent == false) {
+        return;
+      }
+    }
+    if (book != null &&
+        covered?.contains(BookIdentity.indexedFilePath(book)) != true) {
+      _semanticBloc!.add(const SemanticCoveredBooksRequested());
       UiSnack.showError(SemanticSearchMessages.unsupportedScope);
       return;
     }
+    if (bookFacet == null) {
+      final library = _library;
+      final isOfficialCategory = officialCategoryFilter(library);
+      final isCoveredFacet = coveredFacetFilter(library, covered);
+      if (!selection.every(
+        (facet) => isSemanticScopeFacetSupported(
+          facet,
+          includeLexical: includeLexical,
+          isOfficialCategory: isOfficialCategory,
+          isCoveredFacet: isCoveredFacet,
+        ),
+      )) {
+        UiSnack.showError(SemanticSearchMessages.unsupportedScope);
+        return;
+      }
+    }
+    _submitSemanticSearch(
+      query,
+      semanticScopeFacets(selection),
+      lockedBookFacet: bookFacet,
+    );
+  }
+
+  void _cancelPendingSemanticSubmit() {
+    if (_pendingCoverageQuery == null) return;
+    _semanticSubmitRevision++;
+    setState(() => _pendingCoverageQuery = null);
+  }
+
+  // PDF שה-id שלו שאול מספר הטקסט המקביל חולק איתו את ה-facet באינדקס,
+  // ולכן אי אפשר לצמצם את החיפוש אליו בלבד.
+  static bool _hasOwnBookFacet(Book book) =>
+      book is! PdfBook ||
+      book.id == null ||
+      BookIdentity.indexedFilePath(book) == BookIdentity.keyOf(book);
+
+  void _submitSemanticSearch(
+    String query,
+    List<String> facets, {
+    String? lockedBookFacet,
+  }) {
     _semanticSubmitted = true;
-    _existingTabHandedOff = true;
-    SearchDefaults.rememberSessionSemantic(true);
+    _existingTabHandedOff = !widget.returnResultOnSubmit;
+    if (lockedBookFacet == null) SearchDefaults.rememberSessionSemantic(true);
     final options = SemanticQueryOptions(
       query: query,
-      facets: semanticScopeFacets(selection),
+      facets: facets,
       includeLexical: _semanticIncludeLexical,
       groupIdenticalText: _semanticGroupIdentical,
     );
@@ -1307,7 +1421,11 @@ class _SearchDialogState extends State<SearchDialog> {
       edited.submit(options);
       return;
     }
-    final tab = SemanticSearchTab(runOnFirstShow: true, options: options);
+    final tab = SemanticSearchTab(
+      runOnFirstShow: true,
+      options: options,
+      lockedBookFacet: lockedBookFacet,
+    );
     final tabsBloc = context.read<TabsBloc>();
     final navigationBloc = context.read<NavigationBloc>();
     Navigator.of(context).pop();
@@ -1349,9 +1467,20 @@ class _SearchDialogState extends State<SearchDialog> {
       queryController: _searchTab.queryController,
       queryFocusNode: _searchTab.searchFieldFocusNode,
       scopeSelection: _scopeSelection,
-      onScopeChanged: _onScopeChanged,
+      onScopeChanged:
+          widget.semanticBook != null ||
+              _editedSemanticTab?.lockedBookFacet != null
+          ? null
+          : _onScopeChanged,
+      coveredBookFilePaths: _semanticBloc?.state.coveredBookFilePaths,
       includeLexical: _semanticIncludeLexical,
       onIncludeLexicalChanged: (value) {
+        _cancelPendingSemanticSubmit();
+        if (!value &&
+            widget.semanticBook == null &&
+            _editedSemanticTab?.lockedBookFacet == null) {
+          _semanticBloc?.add(const SemanticCoveredBooksRequested());
+        }
         setState(() => _semanticIncludeLexical = value);
         // עריכת כרטיסייה קיימת אינה משנה את ברירת המחדל לחיפוש חדש.
         if (widget.editTab == null) {
@@ -1360,6 +1489,7 @@ class _SearchDialogState extends State<SearchDialog> {
       },
       groupIdenticalText: _semanticGroupIdentical,
       onGroupIdenticalTextChanged: (value) {
+        _cancelPendingSemanticSubmit();
         setState(() => _semanticGroupIdentical = value);
         if (widget.editTab == null) {
           SearchDefaults.saveSemanticGroupIdenticalDefault(value);
@@ -1490,6 +1620,7 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   void _onScopeChanged(Set<String> selection) {
+    _cancelPendingSemanticSubmit();
     setState(() {
       _scopeSelection = selection;
       _historyResultFilter = null;
@@ -1562,9 +1693,15 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   void _onModeChoice(_ModeChoice choice) {
+    _cancelPendingSemanticSubmit();
     final mode = choice.mode;
-    SearchDefaults.rememberSessionSemantic(mode == null);
+    if (widget.semanticBook == null) {
+      SearchDefaults.rememberSessionSemantic(mode == null);
+    }
     if (mode == null) {
+      if (!_semanticIncludeLexical && widget.semanticBook == null) {
+        _semanticBloc?.add(const SemanticCoveredBooksRequested());
+      }
       setState(() => _semanticSelected = true);
     } else {
       _semanticSelected = false;
@@ -1976,13 +2113,18 @@ class _SearchDialogState extends State<SearchDialog> {
               return _withSemanticAvailability(
                 (semanticAvailability) => _buildSearchButton(
                   blocked: blocked,
-                  semanticBlocked:
-                      _semanticSelected &&
-                      _semanticVisible(semanticAvailability) &&
-                      !canRunSemanticSearch(
-                        semanticAvailability!,
-                        debug: widget.semanticDebugPreview,
-                      ),
+                  semanticBlocked: _editedSemanticTab?.lockedBookFacet != null
+                      ? semanticAvailability == null ||
+                            !canRunSemanticSearch(
+                              semanticAvailability,
+                              debug: widget.semanticDebugPreview,
+                            )
+                      : _semanticSelected &&
+                            _semanticVisible(semanticAvailability) &&
+                            !canRunSemanticSearch(
+                              semanticAvailability!,
+                              debug: widget.semanticDebugPreview,
+                            ),
                 ),
               );
             },
@@ -2008,6 +2150,7 @@ class _SearchDialogState extends State<SearchDialog> {
             ? context.settingsText('עדכן חיפוש')
             : context.settingsText('חפש'),
         icon: FluentIcons.search_24_regular,
+        isLoading: _pendingCoverageQuery != null,
         onPressed: blocked || semanticBlocked ? null : _performSearch,
       ),
     );
@@ -2105,12 +2248,16 @@ class _SearchDialogState extends State<SearchDialog> {
                                           CrossAxisAlignment.stretch,
                                       children: [
                                         _buildIndexWarning(),
-                                        _buildModeSelector(
-                                          context,
-                                          state,
-                                          semanticAvailability,
-                                        ),
-                                        const SizedBox(height: 12),
+                                        if (_editedSemanticTab
+                                                ?.lockedBookFacet ==
+                                            null) ...[
+                                          _buildModeSelector(
+                                            context,
+                                            state,
+                                            semanticAvailability,
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ],
                                         if (semanticActive)
                                           _buildSemanticPanel(
                                             semanticAvailability!,

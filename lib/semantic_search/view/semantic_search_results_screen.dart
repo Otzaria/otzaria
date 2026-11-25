@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/app_info_banner.dart';
@@ -31,6 +32,7 @@ import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/services/semantic_dwell_binding.dart';
 import 'package:otzaria/semantic_search/view/semantic_mode_panel.dart';
@@ -72,10 +74,14 @@ class SemanticSearchResultsScreen extends StatefulWidget {
     super.key,
     required this.tab,
     this.platformSupported,
+    this.semanticRepository,
   });
 
   final SemanticSearchTab tab;
   final bool? platformSupported;
+
+  /// ברירת המחדל: [SemanticSearchRepository.instance] (לבדיקות).
+  final SemanticSearchRepository? semanticRepository;
 
   @override
   State<SemanticSearchResultsScreen> createState() =>
@@ -98,6 +104,9 @@ class _SemanticSearchResultsScreenState
   Future<void> _freshnessChecks = Future.value();
   int _freshnessResultCount = 0;
   int _previewRequestId = 0;
+
+  /// צמצום שממתין לספרים המכוסים מוחלף בצמצום שאחריו.
+  int _narrowRequestId = 0;
 
   /// התוצאה שבתצוגה המקדימה; קובע אם להדגיש מילים בספר.
   SemanticResultItem? _previewItem;
@@ -147,11 +156,13 @@ class _SemanticSearchResultsScreenState
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
+    _narrowRequestId++;
     _clearPreview();
     _bloc.add(SemanticSearchSubmitted(options));
   }
 
   void _openEditDialog() {
+    _narrowRequestId++;
     showDialog(
       context: context,
       builder: (_) => SearchDialog(editTab: widget.tab),
@@ -161,45 +172,71 @@ class _SemanticSearchResultsScreenState
   List<String> get _currentFacets =>
       _bloc.state.options?.facets ?? widget.tab.options.facets;
 
-  void _narrow(List<String> categories, List<String> dimensions) {
-    final scope = FacetHelper.categoryFacetsOf(widget.tab.options.facets);
+  Future<void> _narrow(List<String> categories, List<String> dimensions) async {
+    final tab = widget.tab;
+    final original = tab.options;
+    final bookFacet = tab.lockedBookFacet;
+    final scope = FacetHelper.categoryFacetsOf(original.facets);
     final selection = [
-      ...(categories.isEmpty ? scope : categories),
+      if (bookFacet != null)
+        bookFacet
+      else
+        ...(categories.isEmpty ? scope : categories),
       ...dimensions,
     ];
-    final isOfficialCategory = officialCategoryFilter(
-      context.read<LibraryBloc>().state.library,
-    );
-    if (!selection.every(
-      (facet) => isSemanticScopeFacetSupported(
-        facet,
-        includeLexical: widget.tab.options.includeLexical,
-        isOfficialCategory: isOfficialCategory,
-      ),
-    )) {
-      UiSnack.showError(SemanticSearchMessages.unsupportedScope);
-      return;
+    final request = ++_narrowRequestId;
+    if (bookFacet == null &&
+        !original.includeLexical &&
+        needsSemanticScopeCoverage(selection)) {
+      final repository =
+          widget.semanticRepository ?? SemanticSearchRepository.instance;
+      final covered = await repository.loadCoveredBookFilePaths();
+      if (!mounted ||
+          request != _narrowRequestId ||
+          !identical(widget.tab, tab) ||
+          !identical(tab.options, original)) {
+        return;
+      }
+      final library = context.read<LibraryBloc>().state.library;
+      final isOfficialCategory = officialCategoryFilter(library);
+      final isCoveredFacet = coveredFacetFilter(library, covered);
+      if (!selection.every(
+        (facet) => isSemanticScopeFacetSupported(
+          facet,
+          isOfficialCategory: isOfficialCategory,
+          isCoveredFacet: isCoveredFacet,
+        ),
+      )) {
+        UiSnack.showError(SemanticSearchMessages.unsupportedScope);
+        return;
+      }
     }
+    final facets = semanticScopeFacets(selection);
+    if (listEquals(_currentFacets, facets)) return;
     _clearPreview();
-    widget.tab.narrow(semanticScopeFacets(selection));
+    tab.narrow(facets);
   }
 
   void _setFacet(String facet) {
     final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
-    _narrow(facet == '/' ? const [] : [facet], dimensions);
+    unawaited(_narrow(facet == '/' ? const [] : [facet], dimensions));
   }
 
   void _toggleFacet(String facet) {
     final categories = FacetHelper.categoryFacetsOf(_currentFacets)
       ..remove('/');
     if (!categories.remove(facet)) categories.add(facet);
-    _narrow(categories, FacetHelper.dimensionFacetsOf(_currentFacets));
+    unawaited(
+      _narrow(categories, FacetHelper.dimensionFacetsOf(_currentFacets)),
+    );
   }
 
   void _toggleDimension(String facet) {
     final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
     if (!dimensions.remove(facet)) dimensions.add(facet);
-    _narrow(FacetHelper.categoryFacetsOf(_currentFacets), dimensions..sort());
+    unawaited(
+      _narrow(FacetHelper.categoryFacetsOf(_currentFacets), dimensions..sort()),
+    );
   }
 
   /// ספירה לפי קטגוריה של התוצאות שמוצגות כעת.
@@ -546,7 +583,7 @@ class _SemanticSearchResultsScreenState
                 hasResults: state.items.isNotEmpty,
                 onSetFacet: _setFacet,
                 onToggleFacet: _toggleFacet,
-                onClearAll: () => _narrow(const [], const []),
+                onClearAll: () => unawaited(_narrow(const [], const [])),
                 onToggleDimension: _toggleDimension,
               ),
             );

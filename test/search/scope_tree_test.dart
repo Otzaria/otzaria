@@ -701,4 +701,38 @@ void main() {
     expect(noPersonal.allBookNodes().map((n) => n.title), ['בראשית', 'זר']);
     expect(noPersonal.nodesByFacet.containsKey('/אישי'), isFalse);
   });
+
+  test('coveredOnly משאיר רק ספרים עם וקטורים, מכל מקור (issue #1963)', () {
+    Category cat(String title, List<Book> books) => Category(
+      title: title,
+      description: '',
+      shortDescription: '',
+      order: 10,
+      subCategories: [],
+      books: books,
+      parent: null,
+    );
+    final library = Library(
+      categories: [
+        cat('תנ״ך', [
+          TextBook(id: 1, title: 'בראשית'),
+          TextBook(id: 2, title: 'שמות'),
+        ]),
+        cat('אישי', [TextBook(id: 3, title: 'עוד', source: BookSource.user)]),
+      ],
+    );
+    final covered = {'id:1', 'uid:3'};
+    final tree = ScopeTree.fromLibrary(library).coveredOnly(covered);
+    expect(tree.allBookNodes().map((n) => n.title), ['בראשית', 'עוד']);
+    expect(
+      identical(tree, ScopeTree.fromLibrary(library).coveredOnly(covered)),
+      isTrue,
+    );
+    expect(
+      ScopeTree.fromLibrary(
+        library,
+      ).coveredOnly({'id:2'}).allBookNodes().map((n) => n.title),
+      ['שמות'],
+    );
+  });
 }

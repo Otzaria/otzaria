@@ -83,6 +83,7 @@ class _FakeRepository extends SemanticSearchRepository {
   final _controller = StreamController<SemanticAvailability>.broadcast();
   int downloads = 0;
   int cancels = 0;
+  Completer<void>? coverageGate;
 
   @override
   SemanticAvailability get availability => current;
@@ -104,6 +105,12 @@ class _FakeRepository extends SemanticSearchRepository {
 
   @override
   Future<void> cancelDownload() async => cancels++;
+
+  @override
+  Future<Set<String>?> loadCoveredBookFilePaths() async {
+    await coverageGate?.future;
+    return null;
+  }
 }
 
 SemanticAvailability _availability(
@@ -679,6 +686,104 @@ void main() {
     await completionCheck;
     expect(tester.takeException(), isNull);
   });
+  testWidgets('חיפוש חכם בכל הספרייה נשלח בזמן שסריקת הכיסוי ממתינה', (
+    tester,
+  ) async {
+    final harness = await pumpDialog(
+      tester,
+      _availability(SemanticAvailabilityPhase.ready),
+    );
+    final gate = harness.repository.coverageGate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    await tester.tap(_semanticSegment);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(_queryField, 'בריאת העולם');
+    await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final tab =
+        harness.addedEvents.whereType<AddTab>().single.tab as SemanticSearchTab;
+    addTearDown(tab.dispose);
+    expect(tab.options.facets, ['/']);
+    expect(tab.options.includeLexical, isFalse);
+    gate.complete();
+    await tester.pumpAndSettle();
+  });
+
+  for (final changeMode in [false, true]) {
+    testWidgets(
+      'שינוי ${changeMode ? "מצב" : "שאילתה"} מבטל שליחה שממתינה לכיסוי',
+      (tester) async {
+        final harness = await pumpDialog(
+          tester,
+          _availability(SemanticAvailabilityPhase.ready),
+        );
+        final gate = harness.repository.coverageGate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        await tester.tap(_semanticSegment);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('semantic-include-lexical')),
+        );
+        await tester.pumpAndSettle();
+        tester
+            .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
+            .onChanged({'/הלכה'});
+        await tester.enterText(_queryField, 'שאילתה ראשונה');
+        await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+        await tester.pump();
+        expect(submitButton(tester).isLoading, isTrue);
+
+        if (changeMode) {
+          await tester.tap(find.text('מדויק'));
+          await tester.pump();
+          await tester.tap(_semanticSegment);
+        } else {
+          await tester.enterText(_queryField, 'שאילתה אחרת');
+        }
+        gate.complete();
+        await tester.pumpAndSettle();
+
+        expect(harness.addedEvents.whereType<AddTab>(), isEmpty);
+        expect(submitButton(tester).isLoading, isFalse);
+      },
+    );
+  }
+
+  testWidgets('עריכת חיפוש מתוך ספר שומרת את ההיקף ואת השאילתה עם @', (
+    tester,
+  ) async {
+    const bookFacet = '/תנ״ך/id:1';
+    final tab = SemanticSearchTab(
+      options: const SemanticQueryOptions(query: 'בריאה', facets: [bookFacet]),
+      lockedBookFacet: bookFacet,
+      createResultsBloc: (_) =>
+          buildResultsBloc(source: null, recorder: RecordingRecorder()),
+    );
+    addTearDown(tab.dispose);
+    await pumpDialog(
+      tester,
+      _availability(SemanticAvailabilityPhase.ready),
+      editTab: tab,
+    );
+
+    expect(find.byType(SearchScopeMenuButton), findsNothing);
+    expect(find.text('מדויק'), findsNothing);
+    await tester.enterText(_queryField, 'בריאת העולם@הלכה');
+    await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+    await tester.pumpAndSettle();
+
+    expect(tab.options.query, 'בריאת העולם@הלכה');
+    expect(tab.options.facets, [bookFacet]);
+  });
+
   testWidgets('ספר יחיד, ספר אישי וממד נשלחים כמו שהם בחיפוש משולב', (
     tester,
   ) async {
