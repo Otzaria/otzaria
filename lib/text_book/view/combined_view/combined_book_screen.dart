@@ -17,7 +17,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/gestures.dart' show kPrimaryMouseButton;
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.dart';
 
@@ -41,6 +40,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/widgets/misc/navigation_key_tracker.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -326,9 +326,7 @@ final _detailsTag = RegExp(r'<details\b', caseSensitive: false);
 
 /// שוליים משני צדי הפריטים: בימניים מצויר סמן הבחירה והם מרחיקים את הטקסט
 /// מאזור הלחיצה של המסילה; השמאליים שומרים על מרכוז עמודת הטקסט.
-const _selectionGutter = EdgeInsets.symmetric(
-  horizontal: kTextColumnMinMargin,
-);
+const _selectionGutter = EdgeInsets.symmetric(horizontal: kTextColumnMinMargin);
 
 class _ChildBuilder extends StatelessWidget {
   const _ChildBuilder({required this.builder, required this.child});
@@ -848,7 +846,7 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   late final FocusNode _focusNode;
-  final _selectionAreaFocusNode = _KeepSelectionOnWindowBlurFocusNode();
+  final _selectionAreaFocusNode = KeepSelectionOnWindowBlurFocusNode();
 
   bool _didRequestInitialFocus = false;
 
@@ -1849,9 +1847,7 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// Builds the same protected, formatted text as Ctrl+C without touching the clipboard.
-  SelectedTextDragPreparation? _captureSelectedTextDrag(
-    String capturedText,
-  ) {
+  SelectedTextDragPreparation? _captureSelectedTextDrag(String capturedText) {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded || capturedText.trim().isEmpty) return null;
     final sourceWidget = widget;
@@ -3474,19 +3470,6 @@ class _CombinedViewState extends State<CombinedView> {
     _clearSelectionState();
     _selectionAreaKey.currentState?.selectableRegion.clearSelection();
     widget.onSelectedTextChanged?.call(null, null, null);
-  }
-}
-
-// ב-Windows אובדן פוקוס החלון מעביר את הפוקוס ל-rootScope כשה-lifecycle עדיין
-// resumed; בלי זה SelectableRegion מנקה את הבחירה.
-class _KeepSelectionOnWindowBlurFocusNode extends FocusNode {
-  @override
-  void notifyListeners() {
-    if (SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-        FocusManager.instance.primaryFocus == FocusManager.instance.rootScope) {
-      return;
-    }
-    super.notifyListeners();
   }
 }
 
