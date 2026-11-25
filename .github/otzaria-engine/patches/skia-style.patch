@@ -1,0 +1,107 @@
+Prevent repeated paragraph style scans for long styled text (#5906).
+
+Base Skia revision: 8df24be66531469e576a806749a0202ae26b8d08
+The findAllBlocks hunk backports Skia commit 8a256a988834b3281b9b851ee160b57c68a56cfc.
+The OneLineShaper hunk backports Skia commit b7194156a09d690a329c7afe01a98b4223a9f6ed.
+Traverse justified lines by reference to avoid copying a run for every line.
+Apply from the root of the Skia checkout.
+--- a/modules/skparagraph/src/ParagraphImpl.cpp
++++ b/modules/skparagraph/src/ParagraphImpl.cpp
+@@ -452,6 +452,7 @@
+     bool soFarWhitespacesOnly = true;
+     bool wordSpacingPending = false;
+     Cluster* lastSpaceCluster = nullptr;
++    Block* currentStyle = fTextStyles.begin();
+     for (auto& run : fRuns) {
+
+         // Skip placeholder runs
+@@ -459,15 +460,20 @@
+             continue;
+         }
+
+-        run.iterateThroughClusters([this, &run, &shift, &soFarWhitespacesOnly, &wordSpacingPending, &lastSpaceCluster](Cluster* cluster) {
++        run.iterateThroughClusters([this, &run, &shift, &soFarWhitespacesOnly, &wordSpacingPending,
++                                    &lastSpaceCluster, &currentStyle](Cluster* cluster) {
+             // Shift the cluster (shift collected from the previous clusters)
+             run.shift(cluster, shift);
+
+-            // Synchronize styles (one cluster can be covered by few styles)
+-            Block* currentStyle = fTextStyles.begin();
+-            while (!cluster->startsIn(currentStyle->fRange)) {
+-                currentStyle++;
+-                SkASSERT(currentStyle != fTextStyles.end());
++            // The style blocks are in text order, but RTL runs can visit clusters in reverse.
++            // Reuse the last block when it covers the cluster, otherwise search by text offset.
++            if (!cluster->startsIn(currentStyle->fRange)) {
++                currentStyle = std::partition_point(
++                        fTextStyles.begin(), fTextStyles.end(), [&](const Block& block) {
++                            return block.fRange.end <= cluster->textRange().start;
++                        });
++                SkASSERT(currentStyle != fTextStyles.end() &&
++                         cluster->startsIn(currentStyle->fRange));
+             }
+
+             SkASSERT(!currentStyle->fStyle.isPlaceholder());
+@@ -756,29 +762,24 @@
+ }
+
+ BlockRange ParagraphImpl::findAllBlocks(TextRange textRange) {
+-    BlockIndex begin = EMPTY_BLOCK;
+-    BlockIndex end = EMPTY_BLOCK;
+-    for (int index = 0; index < fTextStyles.size(); ++index) {
+-        auto& block = fTextStyles[index];
+-        if (block.fRange.end <= textRange.start) {
+-            continue;
+-        }
+-        if (block.fRange.start >= textRange.end) {
+-            break;
+-        }
+-        if (begin == EMPTY_BLOCK) {
+-            begin = index;
+-        }
+-        end = index;
++    // The blocks are in text order. A binary search finds the first block, so that
++    // a call for each line does not make line breaking quadratic in the number of blocks.
++    auto first =
++            std::partition_point(fTextStyles.begin(), fTextStyles.end(), [&](const Block& block) {
++                return block.fRange.end <= textRange.start;
++            });
++    auto last = first;
++    while (last != fTextStyles.end() && last->fRange.start < textRange.end) {
++        ++last;
+     }
+
+-    if (begin == EMPTY_INDEX || end == EMPTY_INDEX) {
++    if (first == last) {
+         // It's possible if some text is not covered with any text style
+         // Not in Flutter but in direct use of SkParagraph
+         return EMPTY_RANGE;
+     }
+
+-    return { begin, end + 1 };
++    return {SkToSizeT(first - fTextStyles.begin()), SkToSizeT(last - fTextStyles.begin())};
+ }
+
+ TextLine& ParagraphImpl::addLine(SkVector offset,
+--- a/modules/skparagraph/src/OneLineShaper.cpp
++++ b/modules/skparagraph/src/OneLineShaper.cpp
+@@ -249,6 +249,8 @@ void OneLineShaper::finish(const Block& block, SkScalar height, SkScalar& advanceX) {
+         SkDEBUGF("Last range mismatch: %zu - %zu\n", lastTextEnd, blockText.end);
+         SkASSERT(false);
+     }
++    // The blocks of this style block are now runs; the next style block starts empty
++    fResolvedBlocks.clear();
+ }
+
+ // Make it [left:right) regardless of a text direction
+--- a/modules/skparagraph/src/TextLine.cpp
++++ b/modules/skparagraph/src/TextLine.cpp
+@@ -956,7 +956,7 @@
+     ClusterIndex index = 0;
+     directional_for_each(runs, !reversed, [&](decltype(runs[0]) r) {
+         if (ignore) return;
+-        auto run = this->fOwner->run(r);
++        const auto& run = this->fOwner->run(r);
+         auto trimmedRange = fClusterRange.intersection(run.clusterRange());
+         auto trailedRange = fGhostClusterRange.intersection(run.clusterRange());
+         SkASSERT(trimmedRange.start == trailedRange.start);
