@@ -703,11 +703,17 @@ BookSearchMatches _searchPreparedEntries(
       matchKinds.add(kinds);
       continue;
     }
-    // שם הקטלוג המנורמל הוא תחילת הכותרת המנורמלת, עד מפריד הכרך.
+    // התאמה שנמצאת כולה בשם הספר שומרת על הדירוג שלה גם כשמוצג כרך.
+    final catalogTitleLength = entry.normalizedCatalogTitleLength;
     final rankedTitle =
-        entry.normalizedCatalogTitleLength == normalizedQuery.length &&
-            entry.normalizedTitle.startsWith(normalizedQuery)
-        ? normalizedQuery
+        catalogTitleLength != null &&
+            catalogTitleLength >= normalizedQuery.length &&
+            entry.normalizedTitle.lastIndexOf(
+                  normalizedQuery,
+                  catalogTitleLength - normalizedQuery.length,
+                ) >=
+                0
+        ? entry.normalizedTitle.substring(0, catalogTitleLength)
         : entry.normalizedTitle;
     scored.add(
       _ScoredBookSearchEntry(
