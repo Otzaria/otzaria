@@ -55,8 +55,13 @@ class _WorkRepository extends BiographiesRepository {
   );
 }
 
-class _TestLibraryBloc extends LibraryBloc {
+class _TestLibraryBloc extends Cubit<LibraryState> implements LibraryBloc {
+  _TestLibraryBloc() : super(LibraryState(library: Library(categories: [])));
+
   void update(LibraryState state) => emit(state);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -143,9 +148,6 @@ void main() {
         ..post(const ToolQuery.biography('Q762229'));
       final data = DataRepository.instance;
       final previousCatalog = data.cachedLibraryFutureForTesting;
-      addTearDown(libraryBloc.close);
-      addTearDown(settingsBloc.close);
-      addTearDown(inbox.dispose);
       addTearDown(() {
         if (previousCatalog == null) {
           data.invalidateLibraryCache();
@@ -162,64 +164,71 @@ void main() {
         },
       );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiBlocProvider(
-            providers: [
-              BlocProvider<LibraryBloc>.value(value: libraryBloc),
-              BlocProvider<SettingsBloc>.value(value: settingsBloc),
-            ],
-            child: Scaffold(
-              body: BiographiesScreen(
-                repository: repository,
-                queryInbox: inbox,
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<LibraryBloc>.value(value: libraryBloc),
+                BlocProvider<SettingsBloc>.value(value: settingsBloc),
+              ],
+              child: Scaffold(
+                body: BiographiesScreen(
+                  repository: repository,
+                  queryInbox: inbox,
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(requests, hasLength(1));
-      BiographyCard card() => tester.widget(find.byType(BiographyCard));
+        );
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(1));
+        BiographyCard card() => tester.widget(find.byType(BiographyCard));
 
-      libraryBloc.update(const LibraryState(isLoading: true));
-      final current = Library(categories: []);
-      libraryBloc.update(LibraryState(library: current));
-      await tester.pump();
-      expect(requests, hasLength(2));
-      requests.first.complete([_chovotHalevavot]);
-      await tester.pump();
-      expect(card().bookForWork(_chovot), isNull);
+        libraryBloc.update(const LibraryState(isLoading: true));
+        final current = Library(categories: []);
+        libraryBloc.update(LibraryState(library: current));
+        await tester.pump();
+        expect(requests, hasLength(2));
+        requests.first.complete([_chovotHalevavot]);
+        await tester.pump();
+        expect(card().bookForWork(_chovot), isNull);
 
-      final moved = _book('חובות הלבבות', 'בחיי אבן פקודה');
-      requests.last.complete([moved]);
-      await tester.pumpAndSettle();
-      final oldCallback = card().onOpenBook!;
-      expect(card().bookForWork(_chovot), same(moved));
+        final moved = _book('חובות הלבבות', 'בחיי אבן פקודה');
+        requests.last.complete([moved]);
+        await tester.pumpAndSettle();
+        final oldCallback = card().onOpenBook!;
+        expect(card().bookForWork(_chovot), same(moved));
 
-      libraryBloc.update(LibraryState(library: current, isLoading: true));
-      await tester.pump();
-      expect(card().bookForWork(_chovot), isNull);
-      expect(() => oldCallback(moved), returnsNormally);
-      libraryBloc.update(LibraryState(library: current, error: 'לא זמין'));
-      await tester.pump();
-      expect(requests, hasLength(2));
-      expect(card().bookForWork(_chovot), isNull);
+        libraryBloc.update(LibraryState(library: current, isLoading: true));
+        await tester.pump();
+        expect(card().bookForWork(_chovot), isNull);
+        expect(() => oldCallback(moved), returnsNormally);
+        libraryBloc.update(LibraryState(library: current, error: 'לא זמין'));
+        await tester.pump();
+        expect(requests, hasLength(2));
+        expect(card().bookForWork(_chovot), isNull);
 
-      libraryBloc.update(LibraryState(library: Library(categories: [])));
-      await tester.pump();
-      expect(requests, hasLength(3));
-      requests.last.complete([_chovotHalevavot]);
-      await tester.pumpAndSettle();
-      expect(card().bookForWork(_chovot), same(_chovotHalevavot));
+        libraryBloc.update(LibraryState(library: Library(categories: [])));
+        await tester.pump();
+        expect(requests, hasLength(3));
+        requests.last.complete([_chovotHalevavot]);
+        await tester.pumpAndSettle();
+        expect(card().bookForWork(_chovot), same(_chovotHalevavot));
 
-      data.library = Future.value(Library(categories: []));
-      expect(() => card().onOpenBook!(_chovotHalevavot), returnsNormally);
-      await tester.pump();
-      expect(requests, hasLength(4));
-      requests.last.complete([]);
-      await tester.pump();
-      expect(card().bookForWork(_chovot), isNull);
+        data.library = Future.value(Library(categories: []));
+        expect(() => card().onOpenBook!(_chovotHalevavot), returnsNormally);
+        await tester.pump();
+        expect(requests, hasLength(4));
+        requests.last.complete([]);
+        await tester.pump();
+        expect(card().bookForWork(_chovot), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await libraryBloc.close();
+        await settingsBloc.close();
+        inbox.dispose();
+      }
     });
 
     testWidgets('the card links a mapped work only', (tester) async {
