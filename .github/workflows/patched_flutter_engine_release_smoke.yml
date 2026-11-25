@@ -27,35 +27,67 @@ jobs:
       contents: read
       pull-requests: read
 
-  windows-x64:
-    name: Real patched-engine release build (x64)
+  windows:
+    name: Real patched-engine release build and launch (${{ matrix.arch }})
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2025
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
       - name: Setup pinned Flutter
+        if: matrix.arch == 'x64'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: 3.47.7
           cache: false
 
+      - name: Bootstrap the pinned native ARM64 Flutter SDK
+        if: matrix.arch == 'arm64'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          if ($LASTEXITCODE -ne 0) { throw 'Cloning the pinned ARM64 Flutter SDK failed' }
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
+          if ($LASTEXITCODE -ne 0) { throw 'Bootstrapping the native ARM64 Flutter SDK failed' }
+
+      - name: Require the native host and Dart architecture
+        run: |
+          $expected = '${{ matrix.arch }}'
+          $hostArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+          if ($hostArchitecture -cne $expected) { throw "Expected native $expected runner, got $hostArchitecture" }
+          $dartVersion = (& dart --version 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $dartVersion -notmatch "windows_$expected") {
+            throw "Wrong Dart SDK architecture: $dartVersion"
+          }
+
       # Exercise the production composite action against the real Flutter SDK,
       # not a mocked precache or a source-level implementation of the script.
       - name: Install patched Windows engine
         uses: ./.github/actions/patched-flutter-engine
         with:
-          arch: x64
+          arch: ${{ matrix.arch }}
 
-      - name: Build a clean release-mode Windows application
-        shell: pwsh
+      - name: Build and launch a clean release-mode Windows application
         run: |
           $ErrorActionPreference = 'Stop'
+          $probe = Join-Path $env:GITHUB_WORKSPACE '.github\otzaria-engine\release_smoke.dart'
           flutter config --enable-windows-desktop
           if ($LASTEXITCODE -ne 0) { throw 'Enabling Windows desktop failed' }
           $app = Join-Path $env:RUNNER_TEMP 'otzaria-patched-engine-smoke'
@@ -63,10 +95,12 @@ jobs:
           Set-Location $app
           flutter create --empty --platforms=windows --project-name engine_smoke .
           if ($LASTEXITCODE -ne 0) { throw 'Creating the Flutter smoke app failed' }
+          Copy-Item -LiteralPath $probe -Destination (Join-Path $app 'lib\main.dart') -Force
           flutter build windows --release
           if ($LASTEXITCODE -ne 0) { throw 'Release build with patched engine failed' }
 
-          $result = Join-Path $app 'build\windows\x64\runner\Release\flutter_windows.dll'
+          $bundle = Join-Path $app 'build\windows\${{ matrix.arch }}\runner\Release'
+          $result = Join-Path $bundle 'flutter_windows.dll'
           if (-not (Test-Path -LiteralPath $result -PathType Leaf)) {
             throw "Bundled Windows release engine was not found: $result"
           }
@@ -76,7 +110,28 @@ jobs:
             throw "Bundled release DLL mismatch: got $actual, expected $expected"
           }
 
+          $env:ENGINE_SMOKE_OUTPUT = Join-Path $env:RUNNER_TEMP 'engine-release-smoke.json'
+          $process = Start-Process -FilePath (Join-Path $bundle 'engine_smoke.exe') -WorkingDirectory $bundle -PassThru
+          if (-not $process.WaitForExit(60000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'The release application did not finish within 60 seconds'
+          }
+          if ($process.ExitCode -ne 0) { throw "The release application failed: $($process.ExitCode)" }
+          $report = Get-Content -Raw -LiteralPath $env:ENGINE_SMOKE_OUTPUT | ConvertFrom-Json
+          if ($report.height -le 0 -or $report.lines -le 0 -or $report.selectionBoxes -le 0) {
+            throw 'The release application did not produce valid paragraph geometry'
+          }
+          Get-Content -LiteralPath $env:ENGINE_SMOKE_OUTPUT
+
           $sdk = flutter --version --machine | Out-String
           $sdkInfo = $sdk.Substring($sdk.IndexOf('{')) | ConvertFrom-Json
           Write-Host "Verified bundled Flutter engine: $actual"
           Write-Host "Flutter framework: $($sdkInfo.frameworkVersion), engine: $($sdkInfo.engineRevision)"
+
+      - name: Upload native release smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patched-engine-release-smoke-${{ matrix.arch }}
+          path: ${{ runner.temp }}/engine-release-smoke.json
+          if-no-files-found: warn
