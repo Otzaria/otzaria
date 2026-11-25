@@ -52,6 +52,8 @@ class PluginDevWatchService {
       _watchers[pluginId]?.ready.future ?? Future<void>.value();
 
   void syncWatchers(List<InstalledPlugin> devPlugins) {
+    // bloc שנסגר באמצע LoadPlugins עדיין מגיע לכאן אחרי dispose.
+    if (_eventsController.isClosed) return;
     // localhost_dev plugins reload via HMR — no filesystem to watch.
     final newIds = devPlugins
         .where((p) => !p.isLocalhostDev)

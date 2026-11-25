@@ -98,4 +98,14 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 700));
     expect(changes, isEmpty);
   });
+
+  test('אחרי dispose לא נפתחת האזנה חדשה', () async {
+    service.dispose();
+    service.syncWatchers([_devPlugin(root.path)]);
+    await service.watching('dev.watch');
+
+    await File('${root.path}/index.js').writeAsString('a');
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    expect(changes, isEmpty);
+  });
 }

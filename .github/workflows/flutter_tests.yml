@@ -332,25 +332,28 @@ jobs:
           # חילוץ קבצי הטסט שכללו לפחות טסט שנכשל.
           # ממפים דרך suiteID→suite.path כי .test.url מצביע על widget_tester.dart
           # כשטסט testWidgets נכשל בתוך קוד async של ה-framework.
-          failed_files=$(jq -rs '
-            (map(select(.type == "suite"))
+          # כשל אחרי סיום הטסט מגיע כאירוע error בלבד, אחרי testDone מוצלח.
+          if ! failed_files=$(jq -rs '
+            if (last | .type == "done" and .success == false) then .
+            else error("Incomplete test run") end
+            | (map(select(.type == "suite"))
               | map({(.suite.id | tostring): .suite.path})
               | add) as $suites
             | (map(select(.type == "testStart"))
               | map({(.test.id | tostring): .test})
               | add) as $tests
             | map(select(
-                .type == "testDone"
-                and (.result == "failure" or .result == "error")
-                and (.hidden | not)
+                (.type == "testDone"
+                  and (.result == "failure" or .result == "error")
+                  and (.hidden | not))
+                or .type == "error"
               ))
-            | map($suites[($tests[.testID | tostring].suiteID) | tostring] // empty)
-            | map(select(. != ""))
+            | map($suites[($tests[.testID | tostring].suiteID) | tostring]
+                | if type == "string" and length > 0 then .
+                  else error("Failed test has no suite path") end)
             | unique
             | .[]
-          ' test-results.json)
-
-          if [ -z "$failed_files" ]; then
+          ' test-results.json) || [ -z "$failed_files" ]; then
             echo "::error::הריצה הראשונה נכשלה אבל לא ניתן לחלץ רשימת קבצים שנכשלו"
             exit $first_exit
           fi
@@ -394,12 +397,16 @@ jobs:
               | map({(.test.id | tostring): .test})
               | add) as $tests
             | map(select(
-                .type == "testDone"
-                and (.result == "failure" or .result == "error")
-                and (.hidden | not)
+                (.type == "testDone"
+                  and (.result == "failure" or .result == "error")
+                  and (.hidden | not))
+                or .type == "error"
               ))
-            | map($tests[.testID | tostring])
-            | map("- " + ($suites[.suiteID | tostring] // "unknown") + " :: " + .name)
+            | map(. as $failure
+                | $tests[.testID | tostring] as $test
+                | "- " + ($suites[$test.suiteID | tostring] // "unknown")
+                  + " :: " + ($test.name // $failure.error // "unknown"))
+            | unique
             | .[]
           ' retry-results.json)
 
