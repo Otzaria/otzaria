@@ -28,6 +28,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/utils/reading_position.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -494,6 +495,59 @@ void main() {
         0,
       );
       expect(bloc.state.tabs, hasLength(2));
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('סימניה בטאב פתוח מבקשת הדגשה רק אחרי שפורסם יעד הגלילה, '
+        'וההדגשה ממתינה להופעת השורה (issue #4455)', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final recorder = _RecordingTextBookBloc(loaded: true);
+      final existingTab = TextBookTab(
+        book: TextBook(title: 'ספר א', categoryId: 1),
+        index: 0,
+        blocOverride: recorder,
+      );
+      ReadingPosition? positionAtRequest;
+      recorder.onAdd = (event) {
+        if (event is HighlightLineWhenVisible) {
+          positionAtRequest = existingTab.lines.position.value;
+        }
+      };
+
+      bloc.add(AddTab(existingTab));
+      bloc.add(AddTab(_createTextTab('ספר ב', index: 0, categoryId: 2)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(
+        OpenOrFocusTab(
+          TextBookTab(
+            book: TextBook(title: 'ספר א', categoryId: 1),
+            index: 12,
+          )..highlightLineWhenVisible(12),
+          navigateToPositionIfReused: true,
+        ),
+      );
+      await bloc.stream.firstWhere(
+        (s) => s.tabs.length == 2 && s.currentTabIndex == 0,
+      );
+
+      expect(
+        recorder.received.whereType<HighlightLineWhenVisible>().map(
+          (e) => e.line,
+        ),
+        [12],
+      );
+      expect(recorder.received.whereType<HighlightLine>(), isEmpty);
+      expect(
+        recorder.received
+            .whereType<HighlightLineWhenVisible>()
+            .single
+            .navigationEpoch,
+        existingTab.lines.navigationEpoch.value,
+      );
+      expect(positionAtRequest?.isTarget, isTrue);
+      expect(positionAtRequest?.topLine, 12);
+
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
@@ -3460,9 +3514,13 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   final List<TextBookEvent> received = [];
 
+  /// נקרא ברגע שהאירוע נשלח, לבדיקת המצב שסביבו.
+  void Function(TextBookEvent event)? onAdd;
+
   @override
   void add(TextBookEvent event) {
     received.add(event);
+    onAdd?.call(event);
     super.add(event);
   }
 

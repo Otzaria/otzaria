@@ -230,6 +230,17 @@ class HighlightLine extends TextBookEvent {
   List<Object?> get props => [lineIndex];
 }
 
+/// מדגיש לרגע את [line] כשהיא גלויה בפועל בטאב הפעיל; זמן ההדגשה נספר משם.
+class HighlightLineWhenVisible extends TextBookEvent {
+  final int line;
+  final int? navigationEpoch;
+
+  const HighlightLineWhenVisible(this.line, {this.navigationEpoch});
+
+  @override
+  List<Object?> get props => [line, navigationEpoch];
+}
+
 class ClearHighlightedLine extends TextBookEvent {
   final int? lineIndex;
 
