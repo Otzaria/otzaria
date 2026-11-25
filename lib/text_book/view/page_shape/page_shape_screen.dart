@@ -3023,22 +3023,33 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     if (_content == null || _content!.isEmpty) {
       return Container(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'לא ניתן לטעון את ${widget.commentatorName}',
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-              ActionButton.neutral(
-                onPressed: _loadCommentary,
-                icon: FluentIcons.arrow_clockwise_24_regular,
-                text: 'נסה שוב',
-              ),
-            ],
-          ),
+        // גובה הטור התחתון הוא יחס מגובה הדף: בטור נמוך ההודעה והכפתור
+        // בשורה אחת שמוקטנת לפי הצורך, ובטור גבוה עמודה שנגללת.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final short = constraints.maxHeight < 120;
+            final content = Flex(
+              direction: short ? Axis.horizontal : Axis.vertical,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'לא ניתן לטעון את ${widget.commentatorName}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox.square(dimension: 12),
+                ActionButton.neutral(
+                  onPressed: _loadCommentary,
+                  icon: FluentIcons.arrow_clockwise_24_regular,
+                  text: 'נסה שוב',
+                ),
+              ],
+            );
+            return Center(
+              child: short
+                  ? FittedBox(fit: BoxFit.scaleDown, child: content)
+                  : SingleChildScrollView(child: content),
+            );
+          },
         ),
       );
     }
