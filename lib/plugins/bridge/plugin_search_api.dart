@@ -222,7 +222,8 @@ class PluginSearchApi {
     return raw.cast<String>();
   }
 
-  static void _validateBookIdentity(Map<String, dynamic> identity) {
+  /// דוחה זהות ספר של ה-SDK שאין בה שדה מזהה, או ששדותיה מסוג שגוי.
+  static void validateBookIdentity(Map<String, dynamic> identity) {
     final rawId = identity['id'];
     if (rawId != null && PluginBookIdentity.parseId(rawId) == null) {
       _invalid('book id must be a whole number');
@@ -269,7 +270,7 @@ class PluginSearchApi {
       for (final entry in books) {
         if (entry is! Map) _invalid('books entries must be objects');
         final identity = Map<String, dynamic>.from(entry);
-        _validateBookIdentity(identity);
+        validateBookIdentity(identity);
         final book = findBook(identity);
         if (book == null) {
           throw Exception(
