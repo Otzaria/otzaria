@@ -122,6 +122,7 @@ class _FakeEngine implements SearchEngine {
     required bool matchNikud,
     required bool matchTaamim,
     SemanticRankingOptions? ranking,
+    List<SemanticVote>? votes,
     required SemanticCancellationToken cancellation,
   }) async {
     this.ranking = ranking;

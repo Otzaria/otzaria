@@ -2,8 +2,7 @@ import 'dart:convert';
 
 import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 
-/// המונחים שהמנוע סימן, רק בשורות העמוד שמכילות את כל המונחים של קטע תוצאה
-/// אחד: כל שורת PDF היא מסמך באינדקס, וכשההתאמה אינה רצף היא השורה כולה.
+/// הדגשה מתקצירים של אינדקס לפי שורות, כשאין מתאם לעמוד שלם.
 class ResultLinesHighlightPattern implements Pattern {
   ResultLinesHighlightPattern._(this._terms, this._termSets, this.key);
 

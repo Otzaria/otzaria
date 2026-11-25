@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
+import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
@@ -247,33 +249,65 @@ Future<void> main() async {
         await directory.delete(recursive: true);
       });
       const page = 'Hello world\nhello word\nhello לבד';
+      const splitPage = '😀 hello לבד\nword נמצא בשורה אחרת';
       await engine.addPdfBook(
         title: 'בדיקת כתיבים',
         topics: '/test',
         filePath: 'case.pdf',
         pages: [
           const PdfPageInput(reference: 'עמוד א', text: page, pageIndex: 0),
+          const PdfPageInput(
+            reference: 'עמוד ב',
+            text: splitPage,
+            pageIndex: 1,
+          ),
+        ],
+      );
+      await engine.addDocumentsBatch(
+        docs: [
+          for (final (index, line) in [
+            'hello world',
+            ...splitPage.split('\n'),
+          ].indexed)
+            DocumentInput(
+              ordinal: index,
+              title: 'PDF ישן',
+              reference: 'עמוד ${index == 0 ? 1 : 2}',
+              topics: '/legacy',
+              text: line,
+              segment: index == 0 ? BigInt.zero : BigInt.one,
+              isPdf: true,
+              filePath: 'legacy.pdf',
+            ),
         ],
       );
       await engine.commit();
-      final hits = await engine.searchFuzzy(
-        query: 'hello world',
-        facets: [],
-        limit: 20,
-        offset: 0,
-        maxDistance: 1,
-        order: ResultsOrder.catalogue,
-        matchNikud: false,
-        matchTaamim: false,
+      const query = 'hello world';
+      final settings = const InBookSearchSettings(
+        searchMode: SearchMode.fuzzy,
+        distance: 1,
+      ).forQuery(query);
+      final repository = SearchRepository(
+        engineProvider: () async => RustSearchEngineOperations(engine),
       );
-      expect(hits, hasLength(2));
+      final request = inBookSearchRequest(
+        query: query,
+        bookPath: '/test',
+        limit: 20,
+        settings: settings,
+      );
+      final hits = await repository.searchTexts(request);
+      expect(hits.map((hit) => hit.segment), [BigInt.zero, BigInt.one]);
+      final indexPattern = await repository.preparePdfWordHighlightPattern(
+        request,
+        indexedFilePath: 'case.pdf',
+      );
+      expect(indexPattern?.matcher, isNotNull);
       final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
         hits.map((hit) => hit.text),
-        query: 'hello world',
-        settings: const InBookSearchSettings(
-          searchMode: SearchMode.fuzzy,
-          distance: 1,
-        ).forQuery('hello world'),
+        query: query,
+        settings: settings,
+        indexPattern: indexPattern,
       )!;
 
       expect(_highlighted(pattern, page), [
@@ -282,6 +316,65 @@ Future<void> main() async {
         (1, 'hello'),
         (1, 'word'),
       ]);
+      expect(_highlighted(pattern, splitPage), [(0, 'hello'), (1, 'word')]);
+      expect(_highlighted(pattern, 'hello בלבד\nhello שוב'), isEmpty);
+
+      final legacyRequest = request.copyWith(facets: ['/legacy']);
+      final legacyHits = await repository.searchTexts(legacyRequest);
+      expect(legacyHits.map((hit) => hit.segment), [BigInt.zero]);
+      expect(
+        await repository.preparePdfWordHighlightPattern(
+          legacyRequest,
+          indexedFilePath: 'legacy.pdf',
+        ),
+        isNull,
+      );
+      final legacyPattern = PdfBookSearchView.buildAdvancedHighlightPattern(
+        legacyHits.map((hit) => hit.text),
+        query: query,
+        settings: settings,
+      )!;
+      expect(_highlighted(legacyPattern, splitPage), isEmpty);
+
+      for (final (query, policy) in [
+        (
+          'hello word',
+          const SearchMatchPolicy(proximityScope: SearchScope.sameParagraph),
+        ),
+        (
+          'hello hello word missing',
+          const SearchMatchPolicy(
+            wordMatchMode: WordMatchMode.atLeast,
+            wordMatchCount: 2,
+          ),
+        ),
+      ]) {
+        final settings = InBookSearchSettings(
+          searchMode: SearchMode.advanced,
+          matchPolicy: policy,
+        ).forQuery(query);
+        final request = inBookSearchRequest(
+          query: query,
+          bookPath: '/test',
+          limit: 20,
+          settings: settings,
+        );
+        final hits = await repository.searchTexts(request);
+        expect(hits.map((hit) => hit.segment), [BigInt.zero, BigInt.one]);
+        final indexPattern = await repository.preparePdfWordHighlightPattern(
+          request,
+          indexedFilePath: 'case.pdf',
+        );
+        expect(indexPattern?.matcher, isNotNull);
+        final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
+          hits.map((hit) => hit.text),
+          query: query,
+          settings: settings,
+          indexPattern: indexPattern,
+        )!;
+        expect(_highlighted(pattern, page), [(1, 'hello'), (1, 'word')]);
+        expect(_highlighted(pattern, splitPage), [(0, 'hello'), (1, 'word')]);
+      }
     });
 
     test('קטע שחוצה שורה: כל צד נבדק מול שורה משלו', () {
