@@ -301,6 +301,17 @@ String? comparableVolumeId(
   return _androidInternalPath.hasMatch(path) ? 'android-internal' : volumeId;
 }
 
+/// תיקיית קבצי ההורדה של התקנת ספרייה אל [libraryPath]. באנדרואיד, ספרייה
+/// על כרטיס SD מורדת לכרטיס עצמו (תיקייה אחות ליעד): ארכיון הספרייה גדול
+/// מהמקום הפנוי באחסון הפנימי של רוב המכשירים שבוחרים בכרטיס.
+String libraryDownloadDir(
+  String libraryPath, {
+  required String systemTemp,
+  required bool isAndroid,
+}) => isAndroid && !_androidInternalPath.hasMatch(libraryPath)
+    ? '$libraryPath.download'
+    : systemTemp;
+
 /// האם [a] ו-[b] על אותו כונן, לפי [comparableVolumeId].
 bool isSameVolume(
   String a,

@@ -157,6 +157,18 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   /// נכסי ההורדה האחרונה — לבדיקת קובץ חלקי אחרי כשל.
   List<_DownloadAsset> _downloadAssets = const [];
+
+  /// תיקיית קבצי ההורדה של ההורדה האחרונה (ראה [libraryDownloadDir]).
+  String _downloadDir = '';
+
+  static String _downloadDirFor(String libraryPath) => libraryDownloadDir(
+    libraryPath,
+    systemTemp: Directory.systemTemp.path,
+    isAndroid: Platform.isAndroid,
+  );
+
+  String _downloadPathOf(_DownloadAsset asset) =>
+      path.join(_downloadDir, asset.tempFileName);
   final LibraryDownloadExtractor _extractCompressedDatabase;
   final LibraryDownloadExtractor _extractTarArchive;
   final LibraryDatabaseVerifier _verifyDatabase;
@@ -1223,7 +1235,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           'יש לבחור באחסון הפנימי, או לפרמט את הכרטיס ל-exFAT.';
     }
 
-    final tempPath = Directory.systemTemp.path;
+    final tempPath = _downloadDirFor(target);
     final temp = await getDiskSpaceInfo(tempPath);
     final library = await getDiskSpaceInfo(target);
     final sameVolume = isSameVolume(
@@ -1409,7 +1421,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       final identity = asset.identity;
       if (asset.skipped || identity == null) continue;
       final resumable = await hasReusableDownload(
-        destPath: path.join(Directory.systemTemp.path, asset.tempFileName),
+        destPath: _downloadPathOf(asset),
         identity: identity,
         size: asset.compressedSize,
         split: asset.split,
@@ -1431,6 +1443,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     _downloadCancelled = false;
     _checkDownloadCancelled();
     _downloadAssets = const [];
+    _downloadDir = _downloadDirFor(libraryPath);
     _foregroundWork.acquire(
       this,
       notice: (
@@ -1565,10 +1578,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         final measuredBytes = asset.measuredSize.compressed;
         final space = asset.compressedSize > 0
             ? await additionalDownloadSpace(
-                destPath: path.join(
-                  Directory.systemTemp.path,
-                  asset.tempFileName,
-                ),
+                destPath: _downloadPathOf(asset),
                 identity: asset.identity!,
                 size: asset.compressedSize,
                 split: asset.split,
@@ -1597,6 +1607,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       if (!await libraryDir.exists()) {
         await libraryDir.create(recursive: true);
       }
+      await Directory(_downloadDir).create(recursive: true);
 
       // שלב 1 — הורדת כל הקבצים יחד (פס וזמן משוער מאוחדים). הזמן המשוער כולל
       // גם את החיבור והחילוץ שאחרי ההורדה.
@@ -1626,6 +1637,12 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         etaTicker.cancel();
       }
       _checkDownloadCancelled();
+      // הארכיונים נמחקו בחילוץ; תיקיית ההורדה שעל הכרטיס נמחקת כשהיא ריקה.
+      if (_downloadDir != Directory.systemTemp.path) {
+        try {
+          await Directory(_downloadDir).delete();
+        } on FileSystemException catch (_) {}
+      }
 
       emit(
         const EmptyLibraryExtracting(
@@ -1731,7 +1748,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     required _EtaLine eta,
     required Emitter<EmptyLibraryState> emit,
   }) async {
-    final tempPath = path.join(Directory.systemTemp.path, asset.tempFileName);
+    final tempPath = _downloadPathOf(asset);
     final tempFile = File(tempPath);
     final identity = asset.identity ??=
         '${asset.resolvedUrl}|${asset.compressedSize}';
@@ -1892,7 +1909,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     required _EtaLine eta,
     required Emitter<EmptyLibraryState> emit,
   }) async {
-    final tempPath = path.join(Directory.systemTemp.path, asset.tempFileName);
+    final tempPath = _downloadPathOf(asset);
     var assetProgress = 0.0;
 
     void emitProgress() {
