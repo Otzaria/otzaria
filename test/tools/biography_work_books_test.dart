@@ -226,7 +226,8 @@ void main() {
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
         await libraryBloc.close();
-        await settingsBloc.close();
+        // Bloc.close ממתין לביטול מנוי שההשלמה שלו מתוזמנת ב-zone האמיתי.
+        await tester.runAsync(settingsBloc.close);
         inbox.dispose();
       }
     });
