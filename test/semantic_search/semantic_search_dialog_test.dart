@@ -857,6 +857,55 @@ void main() {
       expect(tab.options.facets, ['/הלכה/id:5', '/הלכה/uid:6']);
     });
 
+    testWidgets('(issue #5502) חכם בלבד: ספר אישי לפי מחבר נשמט, ההיקף נשמר', (
+      tester,
+    ) async {
+      final library = Library(
+        categories: [
+          Category(
+            title: 'מחשבה',
+            description: '',
+            shortDescription: '',
+            order: 0,
+            subCategories: const [],
+            books: [
+              TextBook(
+                id: 1,
+                title: 'כד הקמח',
+                author: 'רבינו בחיי',
+                categoryPath: '/מחשבה',
+              ),
+              TextBook(
+                id: 2,
+                title: 'מחברת',
+                author: 'רבינו בחיי',
+                categoryPath: '/מחשבה',
+                source: BookSource.user,
+              ),
+            ],
+            parent: null,
+          ),
+        ],
+      );
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        library: library,
+      );
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+      await tester.enterText(_queryField, 'טקסט לחיפוש@רבינו בחיי');
+      await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+      await tester.pumpAndSettle();
+      final tab =
+          harness.addedEvents.whereType<AddTab>().single.tab
+              as SemanticSearchTab;
+      addTearDown(tab.dispose);
+      expect(tab.options.includeLexical, isFalse);
+      expect(tab.options.facets, ['/מחשבה/id:1']);
+    });
+
     testWidgets('כיבוי התאמה מילולית אינו מרחיב היקף אישי (issue #2538)', (
       tester,
     ) async {

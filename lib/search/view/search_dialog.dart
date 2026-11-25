@@ -1149,19 +1149,21 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
     final isOfficialCategory = officialCategoryFilter(library);
+    bool isSupported(String facet) => isSemanticScopeFacetSupported(
+      facet,
+      includeLexical: _semanticIncludeLexical,
+      isOfficialCategory: isOfficialCategory,
+    );
+    // ספרי מחבר שאין להם וקטורים (אישיים/מצורפים) נשמטים ואינם פוסלים הכול.
+    final categoryFacets = parsedCategory.facetsKeepingAuthors(isSupported);
     final selection = parsedCategory.categoryFound
         ? [
-            ...parsedCategory.facets!,
+            ...categoryFacets,
             ...FacetHelper.dimensionFacetsOf(_scopeSelection),
           ]
         : _scopeSelection;
-    if (!selection.every(
-      (facet) => isSemanticScopeFacetSupported(
-        facet,
-        includeLexical: _semanticIncludeLexical,
-        isOfficialCategory: isOfficialCategory,
-      ),
-    )) {
+    if ((parsedCategory.categoryFound && categoryFacets.isEmpty) ||
+        !selection.every(isSupported)) {
       UiSnack.showError(SemanticSearchMessages.unsupportedScope);
       return;
     }

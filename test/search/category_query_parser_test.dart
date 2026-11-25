@@ -20,6 +20,19 @@ Category _category(
   parent: null,
 );
 
+class _AuthorCountingBook extends TextBook {
+  _AuthorCountingBook({required super.title, required super.id})
+    : super(author: 'רבינו בחיי', categoryPath: '/מחשבה');
+
+  int authorReads = 0;
+
+  @override
+  String? get author {
+    authorReads++;
+    return super.author;
+  }
+}
+
 class _CountingBook extends TextBook {
   _CountingBook({super.title = 'ספר אחר', super.id = 1});
 
@@ -720,12 +733,20 @@ void main() {
     });
   });
 
-  group('@ also scopes by exact author (issue #5502)', () {
+  group('@ falls back to exact author (issue #5502)', () {
     setUp(AcronymsCache.instance.clear);
     tearDown(AcronymsCache.instance.clear);
 
     String facetOf(Book book) =>
         FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
+
+    Library libraryOf(List<Category> categories) {
+      final library = Library(categories: categories);
+      for (final category in library.subCategories) {
+        category.parent = library;
+      }
+      return library;
+    }
 
     late TextBook torah;
     late TextBook kadHakemach;
@@ -734,7 +755,7 @@ void main() {
 
     setUp(() {
       torah = TextBook(
-        title: 'רבינו בחיי על התורה',
+        title: 'פירוש על התורה',
         id: 1,
         author: 'רבינו בחיי',
         categoryPath: '/מפרשים',
@@ -742,7 +763,8 @@ void main() {
       kadHakemach = TextBook(
         title: 'כד הקמח',
         id: 2,
-        author: 'רבינו בחיי',
+        // כמו ב-GROUP_CONCAT של הקטלוג הראשי: כמה מחברים מופרדים ב-", ".
+        author: 'רבינו בחיי, רבי אחר',
         categoryPath: '/מחשבה',
       );
       other = TextBook(
@@ -751,27 +773,78 @@ void main() {
         author: 'רבינו בחיי אבן פקודה',
         categoryPath: '/מחשבה',
       );
-      library = Library(
-        categories: [
-          _category('מפרשים', [torah]),
-          _category('מחשבה', [kadHakemach, other]),
-        ],
-      );
-      for (final category in library.subCategories) {
-        category.parent = library;
-      }
+      library = libraryOf([
+        _category('מפרשים', [torah]),
+        _category('מחשבה', [kadHakemach, other]),
+      ]);
     });
 
-    test('@שם מוסיף ספרים שהמחבר שלהם הוא השם בדיוק', () {
-      final parsed = parseCategoryQuery('שלום@רבינו בחיי', library);
+    test('בלי שום התאמת כותרת — ספרי המחבר, מנורמל ולא חלקי', () {
+      final parsed = parseCategoryQuery('שלום@רבינו בְּחיי', library);
       expect(parsed.categoryFound, isTrue);
       expect(parsed.facets, [facetOf(torah), facetOf(kadHakemach)]);
+      expect(parsed.authorFacets, parsed.facets!.toSet());
     });
 
-    test('ההשוואה מנורמלת (ניקוד), אבל לא חלקית', () {
-      final parsed = parseCategoryQuery('שלום@רבינו בְּחיי', library);
-      expect(parsed.facets, isNot(contains(facetOf(other))));
-      expect(parsed.facets, contains(facetOf(kadHakemach)));
+    test('(a) כותרת מדויקת מכריעה — בלי ספרי מחבר', () {
+      final exact = TextBook(
+        title: 'רבינו בחיי',
+        id: 9,
+        categoryPath: '/מפרשים',
+      );
+      final parsed = parseCategoryQuery(
+        'שלום@רבינו בחיי',
+        libraryOf([
+          _category('מפרשים', [exact, torah]),
+          _category('מחשבה', [kadHakemach]),
+        ]),
+      );
+      expect(parsed.facets, [facetOf(exact)]);
+      expect(parsed.authorFacets, isEmpty);
+    });
+
+    test('התאמת כותרת חלקית — גם היא קודמת למחבר', () {
+      final titled = TextBook(
+        title: 'רבינו בחיי על התורה',
+        id: 9,
+        categoryPath: '/מפרשים',
+      );
+      final parsed = parseCategoryQuery(
+        'שלום@רבינו בחיי',
+        libraryOf([
+          _category('מפרשים', [titled, torah]),
+          _category('מחשבה', [kadHakemach]),
+        ]),
+      );
+      expect(parsed.facets, [facetOf(titled)]);
+    });
+
+    test('(c) התאמת מחבר בסדר הישיר אינה חוסמת את הסדר ההפוך', () {
+      final book = TextBook(
+        title: 'מחשבה',
+        id: 9,
+        categoryPath: '/רבינו בחיי',
+      );
+      final parsed = parseCategoryQuery(
+        'שלום@מחשבה/רבינו בחיי',
+        libraryOf([
+          _category('מחשבה', [kadHakemach]),
+          _category('רבינו בחיי', [book]),
+        ]),
+      );
+      expect(parsed.facets, [facetOf(book)]);
+      expect(parsed.authorFacets, isEmpty);
+    });
+
+    test('בנתיב, המחבר מוגבל לתחום החלק הקודם', () {
+      final parsed = parseCategoryQuery('שלום@מחשבה/רבינו בחיי', library);
+      expect(parsed.facets, [facetOf(kadHakemach)]);
+    });
+
+    test('(d) שדה מחברים מאוחד (GROUP_CONCAT) — כל מחבר נמצא', () {
+      final parsed = parseCategoryQuery('שלום@רבי אחר', library);
+      expect(parsed.notFoundNames, isEmpty);
+      expect(parsed.facets, [facetOf(kadHakemach)]);
     });
 
     test('מחבר בלבד, בלי ספר או קטגוריה בשם — השם נמצא', () {
@@ -780,14 +853,36 @@ void main() {
       expect(parsed.facets, [facetOf(other)]);
     });
 
-    test('בנתיב, המחבר מוגבל לתחום החלק הקודם', () {
-      final parsed = parseCategoryQuery('שלום@מחשבה/רבינו בחיי', library);
-      expect(parsed.facets, [facetOf(kadHakemach)]);
+    test('(e) כשכותרת נמצאה — שדה המחבר אינו נקרא כלל', () {
+      final books = [
+        _AuthorCountingBook(title: 'כד הקמח', id: 1),
+        _AuthorCountingBook(title: 'חובות הלבבות', id: 2),
+      ];
+      final counting = libraryOf([_category('מחשבה', books)]);
+      parseCategoryQuery('שלום@כד הקמח', counting);
+      parseCategoryQuery('שלום@הלבבות', counting);
+      expect(books.map((book) => book.authorReads), [0, 0]);
     });
 
-    test('התאמת כותרת בלי מחבר תואם — ללא שינוי', () {
-      final parsed = parseCategoryQuery('שלום@חובות הלבבות', library);
-      expect(parsed.facets, [facetOf(other)]);
+    test('ספרי מחבר שהשומר דוחה נשמטים, השאר נשמרים', () {
+      final personal = TextBook(
+        title: 'מחברת',
+        id: 7,
+        author: 'רבינו בחיי',
+        categoryPath: '/מחשבה',
+        source: BookSource.user,
+      );
+      final parsed = parseCategoryQuery(
+        'שלום@רבינו בחיי',
+        libraryOf([
+          _category('מחשבה', [kadHakemach, personal]),
+        ]),
+      );
+      expect(parsed.facets, [facetOf(kadHakemach), facetOf(personal)]);
+      expect(
+        parsed.facetsKeepingAuthors((facet) => !facet.contains('uid:')),
+        [facetOf(kadHakemach)],
+      );
     });
   });
 

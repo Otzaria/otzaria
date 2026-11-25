@@ -28,12 +28,23 @@ class ParsedCategoryQuery {
   /// השמות שהוקלדו אך לא נמצאה להם התאמה בספרייה.
   final List<String> notFoundNames;
 
+  /// מתוך [facets]: ספרים שנמצאו רק לפי המחבר (שכבת ה-fallback האחרונה).
+  final Set<String> authorFacets;
+
   const ParsedCategoryQuery({
     required this.query,
     this.categoryNames = const [],
     this.facets,
     this.notFoundNames = const [],
+    this.authorFacets = const {},
   });
+
+  /// [facets] בלי ספרי מחבר ש-[keep] דוחה — למשל ספר אישי בחיפוש חכם בלבד,
+  /// שאחרת היה פוסל את כל ההיקף.
+  List<String> facetsKeepingAuthors(bool Function(String facet) keep) => [
+    for (final facet in facets ?? const <String>[])
+      if (!authorFacets.contains(facet) || keep(facet)) facet,
+  ];
 
   /// האם הופיע תחביר `@שם` (עם שם אחד לפחות) בשאילתה.
   bool get hasCategoryToken => categoryNames.isNotEmpty;
@@ -54,8 +65,9 @@ String categoryQueryPart(String rawQuery) {
 /// מחזיר את השאילתה הנקייה (ללא חלק הצמצום) ואת נתיבי ה-facet של כל הקטגוריות
 /// והספרים שכותרתם תואמת לאחד השמות שאחרי ה-@ — בכל עומק בעץ הספרייה. אם יש
 /// כמה התאמות לאותו שם, כולן נכללות. ההתאמה אינה דורשת שם מדויק — ראה
-/// [_CategoryQueryResolver._facetsForName] לשכבות ההתאמה (כינויים, הכלה ושגיאות כתיב),
-/// ואחריהן ספרים שהמחבר שלהם הוא השם בדיוק.
+/// [_CategoryQueryResolver._facetsForName] לשכבות ההתאמה (כינויים, הכלה ושגיאות כתיב).
+/// רק כשאף שכבת כותרת/נתיב (בשני הסדרים) לא מצאה דבר — ספרים שהמחבר שלהם
+/// הוא השם בדיוק ([ParsedCategoryQuery.authorFacets]).
 ///
 /// - אם אין `@` בשאילתה: [ParsedCategoryQuery.facets] יהיה null והשאילתה
 ///   תוחזר כמות שהיא.
@@ -97,6 +109,7 @@ ParsedCategoryQuery parseCategoryQuery(String rawQuery, Library? library) {
     categoryNames: names,
     facets: facets,
     notFoundNames: notFoundNames,
+    authorFacets: resolver.authorFacets,
   );
 }
 
@@ -112,8 +125,12 @@ class _CategoryQueryResolver {
       library?.getAllCategories().map(_CategoryCandidate.new).toList() ??
       <_CategoryCandidate>[];
 
+  /// ספרים שנמצאו לפי המחבר בלבד, ב-[facetsForPath].
+  final authorFacets = <String>{};
+
   /// נתיבי ה-facet עבור [name], שיכול להיות נתיב `שם/שם...`: כל חלק מותאם רק
   /// מתחת להתאמות החלק שלפניו. אם הסדר שהוקלד לא מניב דבר — מנסים בסדר ההפוך.
+  /// רק אם גם זה לא מניב דבר, חלק שאין לו התאמת כותרת מותאם לפי המחבר.
   List<String> facetsForPath(String name) {
     final segments = name
         .split('/')
@@ -121,19 +138,60 @@ class _CategoryQueryResolver {
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
 
-    List<String> resolve(Iterable<String> ordered) {
+    // שכבות הכותרת של כל חלק נשמרות, כדי שמעבר המחבר לא יחשב אותן שוב.
+    final byTitle = <String, List<String>>{};
+    List<String> resolve(Iterable<String> ordered, {bool byAuthor = false}) {
       List<String>? scopes;
       for (final segment in ordered) {
-        scopes = _facetsForName(segment, within: scopes);
+        final within = scopes;
+        scopes = byTitle.putIfAbsent(
+          '$segment\u0000${within?.join('\u0000')}',
+          () => _facetsForName(segment, within: within),
+        );
+        if (scopes.isEmpty && byAuthor) {
+          scopes = _facetsByAuthor(segment, within: within);
+          authorFacets.addAll(scopes);
+        }
         if (scopes.isEmpty) break;
       }
       return scopes ?? const [];
     }
 
-    final matches = resolve(segments);
-    return matches.isNotEmpty || segments.length < 2
-        ? matches
-        : resolve(segments.reversed);
+    List<String> resolveBothOrders({bool byAuthor = false}) {
+      final matches = resolve(segments, byAuthor: byAuthor);
+      return matches.isNotEmpty || segments.length < 2
+          ? matches
+          : resolve(segments.reversed, byAuthor: byAuthor);
+    }
+
+    final matches = resolveBothOrders();
+    return matches.isNotEmpty ? matches : resolveBothOrders(byAuthor: true);
+  }
+
+  /// נתיבי scope מנורמלים להשוואת קידומת, או null בלי צמצום.
+  List<String>? _scopePaths(List<String>? within) => within
+      ?.map((scope) => BookFacet.resolveFacetCategoryPath(categoryPath: scope))
+      .toList(growable: false);
+
+  static bool _inScope(String facet, List<String>? scopes) {
+    if (scopes == null) return true;
+    // נתיב הקטגוריה שומר פסיקים; ה-facet של הספר מנרמל אותם למפרידים.
+    final normalized = BookFacet.resolveFacetCategoryPath(categoryPath: facet);
+    return scopes.any((scope) => normalized.startsWith('$scope/'));
+  }
+
+  /// ספרים שאחד ממחבריהם הוא [name] בדיוק (מנורמל): `@רבינו בחיי` מוצא את
+  /// "כד הקמח". בלי התאמה חלקית — "רבינו בחיי אבן פקודה" הוא מחבר אחר.
+  List<String> _facetsByAuthor(String name, {List<String>? within}) {
+    final normalizedName = normalizeFindText(name);
+    if (normalizedName.isEmpty) return const [];
+    final scopes = _scopePaths(within);
+    return [
+      for (final book in books)
+        if (book.authors.contains(normalizedName) &&
+            _inScope(book.facet, scopes))
+          book.facet,
+    ];
   }
 
   /// ההתאמות הטובות ביותר ל-[name], מוגבלות לצאצאי [within] אם ניתן.
@@ -144,33 +202,8 @@ class _CategoryQueryResolver {
       return const [];
     }
 
-    final scopes = within
-        ?.map(
-          (scope) => BookFacet.resolveFacetCategoryPath(categoryPath: scope),
-        )
-        .toList(growable: false);
-    bool inScope(String facet) {
-      if (scopes == null) return true;
-      // נתיב הקטגוריה שומר פסיקים; ה-facet של הספר מנרמל אותם למפרידים.
-      final normalized = BookFacet.resolveFacetCategoryPath(
-        categoryPath: facet,
-      );
-      return scopes.any((scope) => normalized.startsWith('$scope/'));
-    }
-
-    // אחרי שכבות הכותרת נוספים ספרים שהמחבר שלהם הוא השם בדיוק (מנורמל):
-    // `@רבינו בחיי` כולל גם את "כד הקמח". בלי התאמה חלקית — "רבינו בחיי אבן
-    // פקודה" הוא מחבר אחר.
-    List<String> withAuthors(List<String> byTitle) {
-      final byAuthor = [
-        for (final book in books)
-          if (book.author == normalizedName &&
-              inScope(book.facet) &&
-              !byTitle.contains(book.facet))
-            book.facet,
-      ];
-      return byAuthor.isEmpty ? byTitle : [...byTitle, ...byAuthor];
-    }
+    final scopes = _scopePaths(within);
+    bool inScope(String facet) => _inScope(facet, scopes);
 
     // כותרת ספר מדויקת מכריעה לפני בדיקת כינויים או התאמות חלקיות.
     final exact = <String>[
@@ -184,7 +217,7 @@ class _CategoryQueryResolver {
           exact.add(category.facet);
         }
       }
-      return withAuthors(exact);
+      return exact;
     }
 
     final tiers = [<String>[], <String>[]];
@@ -239,7 +272,7 @@ class _CategoryQueryResolver {
     }
 
     for (final tier in tiers) {
-      if (tier.isNotEmpty) return withAuthors(tier);
+      if (tier.isNotEmpty) return tier;
     }
 
     // שומרים את הנרמול והתחום מהמעבר הראשון, בלי לחשב אותם שוב ב-fallback.
@@ -273,7 +306,7 @@ class _CategoryQueryResolver {
         fuzzyMatches.add(categories[i].facet);
       }
     }
-    return withAuthors(fuzzyMatches);
+    return fuzzyMatches;
   }
 }
 
@@ -283,7 +316,12 @@ class _BookCandidate {
   _BookCandidate(this.book);
 
   late final title = normalizeFindText(book.title);
-  late final author = normalizeFindText(book.author ?? '');
+  // מחברי הקטלוג הראשי מאוחדים ב-GROUP_CONCAT(name, ', ') — ראו
+  // BookDao.selectBookAuthorsMap; משווים כל מחבר, וגם את השדה כולו.
+  late final authors = {
+    for (final author in [book.author ?? '', ...?book.author?.split(', ')])
+      normalizeFindText(author),
+  }..remove('');
   late final facet = FacetHelper.buildBookFacet(
     FacetHelper.resolveCategoryPath(book),
     book,
