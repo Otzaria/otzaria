@@ -55,7 +55,6 @@ TextBookLoaded _state(List<bool> loaded, {int version = 1}) => TextBookLoaded(
   linksByLine: const {},
   tableOfContents: [TocEntry(text: 'משנה ברורה', index: 0)],
   visibleIndices: const [0],
-  pinLeftPane: false,
   searchText: '',
   supportsContinuousReadingMode: true,
   continuousReadingMode: false,

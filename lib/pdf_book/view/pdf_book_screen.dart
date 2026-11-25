@@ -1611,10 +1611,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             );
             if (_leftPaneUsesPushLayout &&
                 _bloc.state is! PdfBookLoaded &&
-                resolveInitialReadingLeftPaneVisibility(
-                  explicitOpen: widget.tab.showLeftPane.value,
-                  screenWidth: readingLayoutWidthOf(context),
-                )) {
+                widget.tab.showLeftPane.value) {
               final readerWidth = context.size?.width;
               final sidebarWidth = Settings.getValue<double>(
                 SettingsRepository.keySidebarWidth,
