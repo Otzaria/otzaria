@@ -301,6 +301,160 @@ Map<String, Object?> buildExpectedSelections(
   };
 }
 
+// ---------------------------- מחברי זמננו ----------------------------
+
+const String kZmanenuFixtureTag = 'v12';
+
+/// release של zmanenu-library כפי שה-API מחזיר אותו, רק השדות שהמסייעים קוראים.
+Map<String, Object?> _zmanenuRelease(List<Map<String, Object?>> assets) => {
+  'tag_name': kZmanenuFixtureTag,
+  'assets': assets,
+};
+
+Map<String, Object?> _apiAsset(String name, int size, {bool digest = true}) => {
+  'name': name,
+  'size': size,
+  if (digest) 'digest': 'sha256:${_fakeSha(name)}',
+};
+
+/// מניפסט חלקים בצורה של split_release_asset.sh.
+Map<String, Object?> buildZmanenuPartsManifest() {
+  const sizes = [1500, 1500, 230];
+  return {
+    'schemaVersion': 1,
+    'archive': kZmanenuArchiveName,
+    'size': sizes.fold<int>(0, (a, b) => a + b),
+    'sha256': _fakeSha(kZmanenuArchiveName),
+    'partSizeLimit': 1500,
+    'githubAssetLimit': kGithubAssetLimit,
+    'parts': [
+      for (var i = 0; i < sizes.length; i++)
+        {
+          'name': '$kZmanenuArchiveName.part-${i.toString().padLeft(3, '0')}',
+          'size': sizes[i],
+          'sha256': _fakeSha('$kZmanenuArchiveName.part-$i'),
+        },
+    ],
+  };
+}
+
+/// קובצי ה-release של המקרים: שם הקובץ → תוכנו.
+Map<String, Object?> buildZmanenuFixtureFiles() {
+  final partsManifest = buildZmanenuPartsManifest();
+  final parts = (partsManifest['parts'] as List).cast<Map<String, Object?>>();
+  return {
+    'zmanenu-release-whole.json': _zmanenuRelease([
+      _apiAsset('manifest.json', 2),
+      _apiAsset(kZmanenuArchiveName, 3230),
+    ]),
+    'zmanenu-release-parts.json': _zmanenuRelease([
+      _apiAsset('manifest.json', 2),
+      for (final part in parts)
+        _apiAsset(part['name'] as String, part['size'] as int),
+      _apiAsset(kZmanenuPartsManifestName, 900),
+    ]),
+    'zmanenu-release-whole-without-digest.json': _zmanenuRelease([
+      _apiAsset(kZmanenuArchiveName, 3230, digest: false),
+    ]),
+    'zmanenu-release-without-package.json': _zmanenuRelease([
+      _apiAsset('manifest.json', 2),
+    ]),
+    'zmanenu-parts-manifest.json': partsManifest,
+  };
+}
+
+/// המקרים: release מה-API ('' — ה-API לא ענה) ומניפסט החלקים שנמצא בכתובת
+/// ש-zmanenuPartsManifestUrl מחזירה ('' — אין שם קובץ).
+const List<({String id, String release, String partsManifest})> kZmanenuCases =
+    [
+      (id: 'whole', release: 'zmanenu-release-whole.json', partsManifest: ''),
+      (
+        id: 'parts',
+        release: 'zmanenu-release-parts.json',
+        partsManifest: 'zmanenu-parts-manifest.json',
+      ),
+      (
+        id: 'parts-without-api',
+        release: '',
+        partsManifest: 'zmanenu-parts-manifest.json',
+      ),
+      (id: 'no-api-and-no-parts', release: '', partsManifest: ''),
+      (
+        id: 'whole-without-digest',
+        release: 'zmanenu-release-whole-without-digest.json',
+        partsManifest: '',
+      ),
+      (
+        id: 'release-without-package',
+        release: 'zmanenu-release-without-package.json',
+        partsManifest: '',
+      ),
+    ];
+
+Map<String, Object?> buildExpectedZmanenu(Map<String, Object?> manifest) {
+  final files = buildZmanenuFixtureFiles();
+  ZmanenuOffer? offerFor(
+    ({String id, String release, String partsManifest}) c,
+  ) => zmanenuOffer(
+    c.release.isEmpty ? null : files[c.release] as Map<String, Object?>,
+    partsManifest: c.partsManifest.isEmpty
+        ? null
+        : files[c.partsManifest] as Map<String, Object?>,
+  );
+  return {
+    'archive': kZmanenuArchiveName,
+    'partsManifestName': kZmanenuPartsManifestName,
+    'dropFolder': kZmanenuDropFolder,
+    'offeredTargets': [
+      for (final target in kFixtureTargets)
+        {'target': target.toJson(), 'offered': zmanenuIsOffered(target)},
+    ],
+    'cases': [
+      for (final c in kZmanenuCases)
+        {
+          'id': c.id,
+          'release': c.release,
+          'partsManifest': c.partsManifest,
+          'partsManifestUrl': zmanenuPartsManifestUrl(
+            c.release.isEmpty ? null : files[c.release] as Map<String, Object?>,
+          ),
+          'offer': offerFor(c)?.toJson(),
+        },
+    ],
+    // למחשב אחר: הקבצים לצד הבחירה, וכלל תת-התיקייה חל על כולם יחד.
+    'otherComputer': [
+      for (final c in kZmanenuCases)
+        if (offerFor(c) case final offer?)
+          for (final target in const [
+            AssistantTarget(platform: 'windows', architecture: 'x64'),
+            AssistantTarget(platform: 'android'),
+          ])
+            () {
+              final preset = buildPresets(
+                manifest,
+                target,
+              ).firstWhere((p) => p.id == kDefaultPresetId);
+              final outputFiles = plannedOutputFilesWithZmanenu(
+                manifest,
+                preset.members,
+                target,
+                offer,
+              );
+              return {
+                'case': c.id,
+                'target': target.toJson(),
+                'preset': preset.id,
+                'outputFiles': outputFiles,
+                'outputSubfolder': plannedOutputSubfolder(
+                  outputFiles,
+                  target.platform,
+                ),
+              };
+            }(),
+    ],
+  };
+}
+
 String encodeFixture(Object value) =>
     '${const JsonEncoder.withIndent('  ').convert(value)}\n';
 
@@ -319,5 +473,11 @@ void main() {
   File('$kFixtureDir/expected-selections-large-full.json').writeAsStringSync(
     encodeFixture(buildExpectedSelections(large, targets: kLargeFullTargets)),
   );
+  buildZmanenuFixtureFiles().forEach((name, content) {
+    File('$kFixtureDir/$name').writeAsStringSync(encodeFixture(content!));
+  });
+  File(
+    '$kFixtureDir/expected-zmanenu.json',
+  ).writeAsStringSync(encodeFixture(buildExpectedZmanenu(manifest)));
   print('Wrote the fixtures to $kFixtureDir');
 }

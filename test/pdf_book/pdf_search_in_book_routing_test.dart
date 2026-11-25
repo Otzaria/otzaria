@@ -134,11 +134,11 @@ Future<void> main() async {
     'איפוס במסכת PDF מצורפת משמר חיפוש מקומי עם ברירות מחדל מתקדמות',
     (tester) async {
       SearchDefaults.saveModeDefault(SearchMode.advanced);
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.advanced);
       SearchDefaults.saveDefaults({'קידומות': true, 'ראשי תיבות': true});
       addTearDown(() {
         SearchDefaults.saveModeDefault(SearchMode.exact);
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
         SearchDefaults.saveDefaults({});
       });
       final repository = await pumpPdfSearch(
@@ -183,12 +183,12 @@ Future<void> main() async {
     tester,
   ) async {
     SearchDefaults.saveModeDefault(SearchMode.advanced);
-    SearchDefaults.saveDistanceDefault(3);
+    SearchDefaults.saveDistanceDefault(3, mode: SearchMode.advanced);
     const wordOptions = {'קידומות': true, 'ראשי תיבות': true};
     SearchDefaults.saveDefaults(wordOptions);
     addTearDown(() {
       SearchDefaults.saveModeDefault(SearchMode.exact);
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       SearchDefaults.saveDefaults({});
     });
     final tab = PdfBookTab(book: _loadedState().book, pageNumber: 1);
@@ -244,7 +244,7 @@ Future<void> main() async {
     expect(restored.searchDistance, 3);
     expect(restored.searchOptions, expectedOptions);
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     SearchDefaults.saveDefaults({});
     await tester.pumpWidget(const SizedBox.shrink());
     final reopened = await pumpPdfSearch(
@@ -428,7 +428,7 @@ Future<void> main() async {
 
   testWidgets('עריכת חיפוש מתקדם משוחזר משמרת את ההגדרות', (tester) async {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     final repository = await pumpPdfSearch(
       tester,
       query: 'תדע זרעך',
@@ -492,8 +492,10 @@ Future<void> main() async {
 
   // issue #1937: ברירת מחדל שנשמרה מחלון החיפוש לא חלה על חיפוש בספר.
   testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר PDF', (tester) async {
-    SearchDefaults.saveDistanceDefault(3);
-    addTearDown(() => SearchDefaults.saveDistanceDefault(0));
+    SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
+    addTearDown(
+      () => SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact),
+    );
     final repository = await pumpPdfSearch(
       tester,
       query: '',
@@ -512,10 +514,10 @@ Future<void> main() async {
     'מצב מתקדם שמור אינו חוסם חלק ממילה ב-PDF בשאילתה של מילה אחת (issue #4078)',
     (tester) async {
       SearchDefaults.saveModeDefault(SearchMode.advanced);
-      SearchDefaults.saveDistanceDefault(10);
+      SearchDefaults.saveDistanceDefault(10, mode: SearchMode.advanced);
       addTearDown(() {
         SearchDefaults.saveModeDefault(SearchMode.exact);
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       });
       final repository = await pumpPdfSearch(
         tester,

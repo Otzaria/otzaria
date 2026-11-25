@@ -676,7 +676,7 @@ class _MenuIconActionRow extends StatelessWidget {
               style: IconButton.styleFrom(
                 // צבע פריט תפריט רגיל, לא הגוון המושתק של כפתור סרגל.
                 foregroundColor: colorScheme.onSurface,
-                shape: const CircleBorder(),
+                shape: AppTokens.roundedShape,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
+import 'package:otzaria/utils/text/otzaria_markup.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 
 /// חותך מתוך [html] את החלק שמכוסה ע"י [selectedText], עם התגיות שעוטפות
@@ -14,62 +15,114 @@ String? sliceHtmlBySelection({
   required String html,
   required String selectedText,
 }) {
-  if (html.isEmpty || selectedText.trim().isEmpty) {
-    return null;
-  }
+  return sliceHtmlLinesBySelection(lines: [html], selectedText: selectedText);
+}
 
-  final fragment = html_parser.parseFragment(
+/// חיתוך מתוך השורות שזוהו בבחירה. ההתאמה חייבת להגיע לשתי שורות הקצה.
+/// כל שורה מפוענחת בנפרד, כפי שהיא מוצגת בקורא.
+String? sliceHtmlLinesBySelection({
+  required List<String> lines,
+  required String selectedText,
+}) {
+  if (lines.isEmpty || selectedText.trim().isEmpty) return null;
+
+  dom.DocumentFragment parseLine(String html) => html_parser.parseFragment(
     text_utils.stripNonAcronymQuotes(notes.stripInlineNotes(html)),
   );
+
+  final fragment = parseLine(lines.first);
   final slots = <_Slot>[];
   final rawText = StringBuffer();
   _collectSlots(fragment.nodes, slots, rawText);
+  final firstLineEnd = rawText.length;
+  var lastLineStart = 0;
+  final rowGaps = <int>{};
+  for (final html in lines.skip(1)) {
+    rowGaps.add(rawText.length);
+    final gap = dom.Text(' ');
+    _collectSlots([gap], slots, rawText);
+    fragment.nodes.add(gap);
+    lastLineStart = rawText.length;
+    final row = parseLine(html);
+    _collectSlots(row.nodes, slots, rawText);
+    fragment.nodes.addAll(row.nodes.toList());
+  }
   if (slots.isEmpty) {
     return null;
   }
-
-  String? sliced;
-  final ranges = <(int, int)>{};
-  final sources = _matchKeys(rawText.toString(), removedQuotes: const {});
-  final selections = _matchKeys(selectedText);
-  for (final source in sources) {
-    for (final selection in selections) {
-      if (selection.key.isEmpty) return null;
-      var start = source.key.indexOf(selection.key);
-      while (start >= 0) {
-        final range = (
-          source.offsets[start],
-          source.offsets[start + selection.key.length - 1],
-        );
-        if (ranges.add(range)) {
-          if (ranges.length > _maxOccurrences) return null;
-          final candidate = _buildSlice(
-            fragment: fragment,
-            slots: slots,
-            source: source,
-            selection: selection,
-            matchStart: start,
-            selectedText: selectedText,
-          );
-          if (candidate == null || (sliced != null && sliced != candidate)) {
-            return null;
-          }
-          sliced = candidate;
-        }
-        start = source.key.indexOf(selection.key, start + 1);
+  if (lines.length > 1) {
+    for (final link in fragment.querySelectorAll('a[href]')) {
+      if (safeLinkTarget(link.attributes['href']!, allowBookLinks: true) ==
+          null) {
+        link.attributes.remove('href');
       }
     }
   }
 
-  return sliced;
+  final sourceText = rawText.toString();
+  // פיסוק גלוי יכול להיות כל הטקסט המסומן בשורת קצה.
+  for (final literal in [if (lines.length > 1) true, false]) {
+    String? sliced;
+    final ranges = <(int, int)>{};
+    final sources = literal
+        ? [_MatchKey.from(sourceText, literal: true, rowGaps: rowGaps)]
+        : _matchKeys(sourceText, removedQuotes: const {}, rowGaps: rowGaps);
+    final selections = literal
+        ? [_MatchKey.from(selectedText, literal: true)]
+        : _matchKeys(selectedText);
+    for (final source in sources) {
+      for (final selection in selections) {
+        if (selection.key.isEmpty) return null;
+        var start = source.key.indexOf(selection.key);
+        while (start >= 0) {
+          final range = (
+            source.offsets[start],
+            source.offsets[start + selection.key.length - 1],
+          );
+          if (range.$1 >= firstLineEnd) break;
+          if (range.$2 >= lastLineStart && ranges.add(range)) {
+            if (ranges.length > _maxOccurrences) return null;
+            final candidate = _buildSlice(
+              fragment: fragment,
+              slots: slots,
+              source: source,
+              selection: selection,
+              matchStart: start,
+              selectedText: selectedText,
+            );
+            if (candidate == null || (sliced != null && sliced != candidate)) {
+              return null;
+            }
+            sliced = candidate;
+          }
+          start = source.key.indexOf(selection.key, start + 1);
+        }
+      }
+    }
+    if (sliced != null) return sliced;
+  }
+
+  return null;
 }
 
-List<_MatchKey> _matchKeys(String text, {Set<int>? removedQuotes}) {
-  final current = _MatchKey.from(text, removedQuotes: removedQuotes);
+List<_MatchKey> _matchKeys(
+  String text, {
+  Set<int>? removedQuotes,
+  Set<int> rowGaps = const {},
+}) {
+  final current = _MatchKey.from(
+    text,
+    removedQuotes: removedQuotes,
+    rowGaps: rowGaps,
+  );
   if (!text.codeUnits.any(text_utils.isRemovablePunctuationUnit)) {
     return [current];
   }
-  final joined = _MatchKey.from(text, joinAtPunctuation: true);
+  final joined = _MatchKey.from(
+    text,
+    joinAtPunctuation: true,
+    rowGaps: rowGaps,
+  );
   return [current, if (joined.key != current.key) joined];
 }
 
@@ -161,16 +214,18 @@ class _MatchKey {
 
   factory _MatchKey.from(
     String text, {
+    bool literal = false,
     bool joinAtPunctuation = false,
     Set<int>? removedQuotes,
+    Set<int> rowGaps = const {},
   }) {
     // ההחלפה מוחלת על שני צדי ההשוואה, כדי שההתאמה תעבוד בלי תלות בהגדרת
     // "החלפת שמות קדושים". היא שומרת על האורך, ולכן המיקומים נשארים תקפים.
-    final replaced = text_utils.replaceHolyNames(text);
+    final replaced = literal ? text : text_utils.replaceHolyNames(text);
     final normalized = replaced.length == text.length ? replaced : text;
     final omittedQuotes =
         removedQuotes ??
-        (joinAtPunctuation
+        (literal || joinAtPunctuation
             ? const <int>{}
             : text_utils.removedQuoteOffsets(normalized));
 
@@ -184,7 +239,8 @@ class _MatchKey {
       final codeUnit = normalized.codeUnitAt(i);
       if (omittedQuotes.contains(i)) continue;
       // פיסוק בין מילים מוצג כרווח כשהפיסוק מוסתר, ולכן גם כאן.
-      if (!joinAtPunctuation &&
+      if (!literal &&
+          !joinAtPunctuation &&
           text_utils.isRemovablePunctuationUnit(codeUnit)) {
         punctuationAt ??= i;
         continue;
@@ -196,10 +252,12 @@ class _MatchKey {
       punctuationAt = null;
       previous = codeUnit;
 
-      if (_isIgnored(codeUnit)) continue;
+      if (!literal && _isIgnored(codeUnit)) continue;
 
-      if (_isSpacing(codeUnit)) {
-        pendingSpaceAt ??= i;
+      if (literal ? _isWhitespace(codeUnit) : _isSpacing(codeUnit)) {
+        // מעבר שורה בבחירה שייך לרווח בין רכיבי השורות, גם כשבקישור
+        // שלפניו יש רווח סופי. כך התג נסגר לפני ש-CopyUtils עוטף כל שורה.
+        if (pendingSpaceAt == null || rowGaps.contains(i)) pendingSpaceAt = i;
         continue;
       }
 
@@ -222,14 +280,17 @@ class _MatchKey {
 /// תווים שהקורא עשוי להציג כרווח: רווחים ממש, ומפרידי הטקסט המקראי
 /// שגם [text_utils.removeVolwels] הופך לרווח.
 bool _isSpacing(int codeUnit) =>
+    _isWhitespace(codeUnit) ||
+    codeUnit == 0x05BE || // מקף
+    codeUnit == 0x05C0 || // פסק
+    codeUnit == 0x7C; // קו אנכי
+
+bool _isWhitespace(int codeUnit) =>
     codeUnit == 0x20 || // רווח
     codeUnit == 0x09 || // טאב
     codeUnit == 0x0A || // מעבר שורה
     codeUnit == 0x0D || // גרירת שורה
-    codeUnit == 0xA0 || // רווח קשיח
-    codeUnit == 0x05BE || // מקף
-    codeUnit == 0x05C0 || // פסק
-    codeUnit == 0x7C; // קו אנכי
+    codeUnit == 0xA0; // רווח קשיח
 
 /// תווים שהקורא עשוי להשמיט לגמרי: ניקוד וטעמים, וסימני הפיסוק
 /// ש-[text_utils.removePunctuation] מסיר.

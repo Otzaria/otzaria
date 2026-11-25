@@ -64,11 +64,14 @@ void main() {
     double width = 220,
     double textScale = 1.0,
     List<OpenedTab>? withTabs,
+    int currentTabIndex = 0,
     ThemeData? theme,
   }) async {
     tabs =
         withTabs ?? [_StubTab('ספר א'), _StubTab('ספר ב'), _StubTab('ספר ג')];
-    tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+    tabsBloc = _TestTabsBloc(
+      TabsState(tabs: tabs, currentTabIndex: currentTabIndex),
+    );
     settingsBloc = _TestSettingsBloc(
       SettingsState.initial().copyWith(
         readingTabsPlacement: SettingsRepository.readingTabsPlacementSide,
@@ -755,7 +758,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await pumpPanel(tester);
     final draggables = find
-        .byType(LongPressDraggable<OpenedTab>)
+        .bySubtype<LongPressDraggable<OpenedTab>>()
         .evaluate()
         .length;
     debugDefaultTargetPlatformOverride = null;
@@ -767,11 +770,9 @@ void main() {
     );
   });
 
-  testWidgets('במגע לחיצה ארוכה פותחת את תפריט ההקשר ואינה מסדרת מחדש', (
+  testWidgets('במגע לחיצה ארוכה וגרירה מסדרות מחדש ואינן פותחות תפריט', (
     tester,
   ) async {
-    // תפריט ההקשר זוכה בזירת המחוות מול הגרירה — התנהגות זהה לזו של הרצועה
-    // העליונה, שגם בה לחיצה ארוכה במגע פותחת תפריט.
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await pumpPanel(tester);
 
@@ -789,8 +790,51 @@ void main() {
     final menuOpen = find.text('הצמד כרטיסייה').evaluate().isNotEmpty;
     debugDefaultTargetPlatformOverride = null;
 
+    expect(menuOpen, isFalse);
+    expect(moves, hasLength(1));
+  });
+
+  testWidgets('במגע לחיצה ארוכה ושחרור במקום פותחים את תפריט ההקשר', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await pumpPanel(tester);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('ספר א')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final moves = tabsBloc.addedEvents.whereType<MoveTab>().toList();
+    final menuOpen = find.text('הצמד כרטיסייה').evaluate().isNotEmpty;
+    debugDefaultTargetPlatformOverride = null;
+
     expect(menuOpen, isTrue);
     expect(moves, isEmpty);
+  });
+
+  testWidgets('באנדרואיד לחיצה ארוכה על ה-X פותחת את תפריט הכרטיסיה', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await pumpPanel(tester);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byTooltip('סגור כרטיסייה').first),
+      kind: PointerDeviceKind.touch,
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final menuOpen = find.text('הצמד כרטיסייה').evaluate().length;
+    final removes = tabsBloc.addedEvents.whereType<RemoveTab>().toList();
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(menuOpen, 1);
+    expect(removes, isEmpty);
   });
 
   testWidgets(
@@ -1075,6 +1119,91 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('ספר נוסף'), findsOneWidget);
+  });
+
+  group('הכרטיסיה הפעילה נשארת גלויה בעמודה נגללת (issue #5772)', () {
+    List<OpenedTab> manyTabs() => [
+      for (var i = 0; i < 40; i++) _StubTab('כרטיסיה $i'),
+    ];
+
+    Rect columnRect(WidgetTester tester) => tester.getRect(
+      find.descendant(
+        of: find.byType(VerticalReadingTabStrip),
+        matching: find.byType(Scrollable),
+      ),
+    );
+
+    ScrollPosition columnPosition(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(VerticalReadingTabStrip),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position;
+
+    void expectVisible(WidgetTester tester, String title) {
+      final column = columnRect(tester);
+      final tab = tester.getRect(find.text(title));
+      expect(
+        tab.top >= column.top - 0.5 && tab.bottom <= column.bottom + 0.5,
+        isTrue,
+        reason: '$title ($tab) חייבת להיות בתוך העמודה ($column)',
+      );
+    }
+
+    testWidgets('בפתיחה העמודה גלולה לכרטיסיה הפעילה', (tester) async {
+      await pumpPanel(tester, withTabs: manyTabs(), currentTabIndex: 35);
+      expectVisible(tester, 'כרטיסיה 35');
+    });
+
+    testWidgets('כרטיסיה שנוספה בסוף ונבחרה נגללת לתצוגה', (tester) async {
+      await pumpPanel(tester, withTabs: manyTabs());
+      final added = _StubTab('ספר חדש');
+      tabsBloc.emitState(
+        TabsState(tabs: [...tabs, added], currentTabIndex: tabs.length),
+      );
+      await tester.pumpAndSettle();
+      expectVisible(tester, 'ספר חדש');
+    });
+
+    testWidgets('מעבר לכרטיסיה גלויה אינו מזיז את העמודה', (tester) async {
+      await pumpPanel(tester, withTabs: manyTabs());
+      tabsBloc.emitState(tabsBloc.state.copyWith(currentTabIndex: 2));
+      await tester.pumpAndSettle();
+      expect(columnPosition(tester).pixels, 0);
+    });
+
+    testWidgets('גלילה ידנית נשמרת כל עוד הכרטיסיה הפעילה לא התחלפה', (
+      tester,
+    ) async {
+      await pumpPanel(tester, withTabs: manyTabs());
+      columnPosition(tester).jumpTo(300);
+      await tester.pump();
+      tabsBloc.emitState(tabsBloc.state.copyWith(forceUpdate: true));
+      await tester.pumpAndSettle();
+      expect(columnPosition(tester).pixels, 300);
+    });
+
+    testWidgets(
+      'סגירת הכרטיסיה הפעילה כשהיא מוסתרת מגלה את הבאה באותו אינדקס',
+      (tester) async {
+        await pumpPanel(tester, withTabs: manyTabs(), currentTabIndex: 20);
+        columnPosition(tester).jumpTo(0);
+        await tester.pump();
+        final column = columnRect(tester);
+        expect(
+          tester.getRect(find.text('כרטיסיה 21')).top,
+          greaterThan(column.bottom),
+          reason: 'הכרטיסיה הבאה מחוץ לתצוגה לפני הסגירה',
+        );
+
+        final remaining = [...tabs]..removeAt(20);
+        tabsBloc.emitState(TabsState(tabs: remaining, currentTabIndex: 20));
+        await tester.pumpAndSettle();
+        expectVisible(tester, 'כרטיסיה 21');
+      },
+    );
   });
 
   testWidgets('אייקון הכיווץ מתהפך לפי מצב העמודה', (tester) async {

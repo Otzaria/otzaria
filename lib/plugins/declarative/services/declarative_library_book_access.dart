@@ -256,7 +256,9 @@ class _BookLookupIndex {
       if (book.id case final id?) {
         _byId.putIfAbsent(id, () => []).add(book);
       }
-      _byBookId.putIfAbsent(book.title, () => []).add(book);
+      _byBookId
+          .putIfAbsent(PluginBookIdentity.bookIdOf(book), () => [])
+          .add(book);
       if (PluginBookIdentity.externalOf(book) case final external?) {
         _byExternal.putIfAbsent(_externalKey(external), () => []).add(book);
       }

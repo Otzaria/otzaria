@@ -7,6 +7,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/widgets/add_books_to_tracking_dialog.dart';
@@ -49,16 +50,25 @@ Library _buildLibrary() {
   halacha.books.add(
     TextBook(title: 'ברכות חיצוני', id: 7, externalLibraryId: 'otzar'),
   );
+  halacha.books.add(
+    PdfBook(
+      title: 'ברכות אישי',
+      id: 3,
+      source: BookSource.user,
+      category: halacha,
+      path: r'C:\books\ברכות אישי.pdf',
+    ),
+  );
 
   return Library(categories: [bavli, halacha]);
 }
 
-Future<void> _pumpDialog(WidgetTester tester) async {
+Future<void> _pumpDialog(WidgetTester tester, {Library? library}) async {
   final bloc = _MockLibraryBloc();
   whenListen(
     bloc,
     const Stream<LibraryState>.empty(),
-    initialState: LibraryState(library: _buildLibrary()),
+    initialState: LibraryState(library: library ?? _buildLibrary()),
   );
 
   await tester.pumpWidget(
@@ -116,6 +126,15 @@ void main() {
     );
   });
 
+  testWidgets('ספר PDF אישי ניתן לבחירה למעקב (issue #4345)', (tester) async {
+    await _pumpDialogAndSearch(tester);
+
+    final pdf = find.widgetWithText(CheckboxListTile, 'ברכות אישי');
+    expect(pdf, findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(pdf).onChanged, isNotNull);
+    expect(find.text('ספר אישי — לא נתמך במעקב'), findsNothing);
+  });
+
   testWidgets('גם בעץ הקטגוריות מוצגת רק מהדורת הטקסט של המסכת', (
     tester,
   ) async {
@@ -159,6 +178,32 @@ void main() {
       ),
     );
     expect(categoryRow, findsOneWidget);
+  });
+
+  testWidgets('קפיצה לסוף תוצאות חיפוש ארוכות בונה רק את שורות היעד '
+      '(issue #4766)', (tester) async {
+    final category = _category('תיקייה');
+    category.books.addAll([
+      for (var i = 0; i < 3000; i++)
+        TextBook(title: 'ספר $i', id: i + 1, category: category),
+    ]);
+    await _pumpDialog(tester, library: Library(categories: [category]));
+    await tester.enterText(find.byType(TextField), 'ספר');
+    await tester.pumpAndSettle();
+
+    var rowBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget is CheckboxListTile) rowBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).last)
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(rowBuilds, lessThan(200));
   });
 
   // DD-07: רשימה עם שורת חיפוש היא large בגובה 85% קבוע (UIL-001).

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
@@ -31,6 +34,8 @@ class SemanticSearchTab extends SearchingTab {
   SemanticQueryOptions _options;
   final SemanticResultsBloc Function(SemanticSearchTab tab)? _createResultsBloc;
   SemanticResultsBloc? _resultsBloc;
+  final _createdResultsBloc = ValueNotifier<SemanticResultsBloc?>(null);
+  bool _isDisposed = false;
 
   /// הכותרת של כרטיסייה עם השאילתה [query].
   static String titleFor(String query) =>
@@ -40,11 +45,24 @@ class SemanticSearchTab extends SearchingTab {
   SemanticQueryOptions get options => _options;
 
   /// נוצר בהצגה הראשונה, לא בשחזור הכרטיסיות בעלייה.
-  SemanticResultsBloc get resultsBloc =>
-      _resultsBloc ??= (_createResultsBloc ?? _defaultResultsBloc)(this);
+  SemanticResultsBloc get resultsBloc {
+    if (_resultsBloc case final bloc?) return bloc;
+    final bloc = _resultsBloc = (_createResultsBloc ?? _defaultResultsBloc)(
+      this,
+    );
+    // נוצר בבניית המסך, ואסור לסמן את הרצועה לבנייה באותה מסגרת.
+    scheduleMicrotask(() {
+      if (!_isDisposed) _createdResultsBloc.value = bloc;
+    });
+    return bloc;
+  }
 
   /// בלי ליצור אותו: לאבחון, שאסור לו להתחיל חיפוש.
   SemanticResultsBloc? get createdResultsBloc => _resultsBloc;
+
+  /// מודיע כשה-BLoC נוצר, למי שמציג את מצבו בלי ליצור אותו (הרצועה).
+  ValueListenable<SemanticResultsBloc?> get createdResultsBlocListenable =>
+      _createdResultsBloc;
 
   /// מריץ חיפוש חדש בכרטיסייה ומעדכן את הכותרת.
   void submit(SemanticQueryOptions options) {
@@ -81,7 +99,9 @@ class SemanticSearchTab extends SearchingTab {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _resultsBloc?.close();
+    _createdResultsBloc.dispose();
     super.dispose();
   }
 

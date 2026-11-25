@@ -87,16 +87,22 @@ int _stableStyleIndex(String title) {
 /// שריחוף/לחיצה יזהו את הקישור; עוגן-טווח מקבל גם `&range=1` — לחיצה עליו
 /// מנווטת ישירות ליעד (ולא רק מקפיצה תצוגה). בלעדיו הכול `<span>` לא-אינטראקטיבי.
 /// [rangesOnly] — רק ציטוטי הלינקר (עוגן-טווח); סמני-האות מדולגים. משמש
-/// בחלוניות המפרשים והקישורים, שאינן מציגות סמני מפרש-על.
+/// בחלונית הקישורים, שאינה מציגה סמני מפרש-על.
 /// [notes] — הערות השורה מ-`line_note`: [rawLine] היא השורה השמורה, או גוף
 /// ההערה [note] (מיקום ב-[notes]), ומוזרק רק חלק העוגן שבה.
+/// [decorateBeforePointMarkers] מוסיף תגיות בלבד, לפני הוספת טקסט הציונים.
+/// [splitRangesAtPointMarkers] שומר על קישורי נקודה וטווח נפרדים בחפיפה.
+/// [sourceRawLine] מאפשר למדוד עוגן גולמי לפני הוספת תגיות ששמרו על הטקסט הגלוי.
 String injectLinkAnchorMarkers({
   required String rawLine,
+  String? sourceRawLine,
   required List<Link> anchorLinks,
   required Map<String, int> styleIndexByCommentator,
   int? lineIndex,
   int? activeIndex,
   bool rangesOnly = false,
+  String Function(String html)? decorateBeforePointMarkers,
+  bool splitRangesAtPointMarkers = false,
   List<BookNote> notes = const [],
   int? note,
 }) {
@@ -117,9 +123,13 @@ String injectLinkAnchorMarkers({
   // לא פעם על אותו אופסט, ולכן שומרים את התוצאה לאורך הקריאה.
   final visibleAtRaw = <int, int>{};
   int toVisible(int rawOffset) =>
-      visibleAtRaw[rawOffset] ??= _visibleOffsetAtRaw(rawLine, rawOffset);
+      visibleAtRaw[rawOffset] ??= _visibleOffsetAtRaw(
+        sourceRawLine ?? rawLine,
+        rawOffset,
+      );
   _VisibleChars? visibleChars;
   ({int count, int maxEnd})? rangeBounds;
+  List<Match>? noteMarkers;
   for (var linkIndex = 0; linkIndex < anchorLinks.length; linkIndex++) {
     final link = anchorLinks[linkIndex];
     // continue ולא סינון מראש: האינדקס מזהה את הקישור ב-href של הסמן.
@@ -174,6 +184,12 @@ String injectLinkAnchorMarkers({
               end: rawEnd,
               openTag: '<$tag class="link-anchor-range"$href>',
               closeTag: '</$tag>',
+              // עטיפה של סמן הערה בתוך קישור ציטוט מציירת אותו פעמיים.
+              exclusions: _isLinkerLink(link)
+                  ? (noteMarkers ??= _noteMarkerRegExp
+                        .allMatches(rawLine)
+                        .toList())
+                  : const [],
             ),
           );
         }
@@ -204,9 +220,53 @@ String injectLinkAnchorMarkers({
   // אחר-כך לפי אופסטים גלויים, שהתגים שנוספו לא משנים. טווחים חופפים:
   // wrapHtmlRanges שומר את הראשון ומדלג על החופף לו — ויתור מכוון על
   // הדגשה כפולה כדי לא לייצר HTML מוצלב.
-  var result = ranges.isEmpty ? rawLine : wrapHtmlRanges(rawLine, ranges);
-  return _injectAtVisibleOffsets(result, points);
+  final wrappedRanges = splitRangesAtPointMarkers && lineIndex != null
+      ? _splitRangesAtPointMarkers(rawLine, ranges, points)
+      : ranges;
+  final wrapped = wrapHtmlRanges(rawLine, wrappedRanges);
+  final decorated = decorateBeforePointMarkers?.call(wrapped) ?? wrapped;
+  return _injectAtVisibleOffsets(decorated, points);
 }
+
+List<HtmlWrapRange> _splitRangesAtPointMarkers(
+  String rawLine,
+  List<HtmlWrapRange> ranges,
+  List<({int at, int order, String html})> points,
+) {
+  if (ranges.isEmpty || points.isEmpty) return ranges;
+  final offsets = points.map((point) => point.at).toSet();
+  final chars = _VisibleChars.forOffsets(rawLine, offsets);
+  // החרגה ריקה מפצלת את עטיפת הקישור בלי להשמיט תו מהציטוט.
+  final empty = RegExp('');
+  final breaks = [
+    for (final offset in offsets)
+      empty.matchAsPrefix(rawLine, chars.rawStart(offset))!,
+  ];
+
+  return [
+    for (final range in ranges)
+      HtmlWrapRange(
+        start: range.start,
+        end: range.end,
+        openTag: range.openTag,
+        closeTag: range.closeTag,
+        exclusions: [
+          ...range.exclusions,
+          ...breaks.where(
+            (point) => point.start > range.start && point.start < range.end,
+          ),
+        ]..sort((a, b) => a.start.compareTo(b.start)),
+      ),
+  ];
+}
+
+final _noteMarkerRegExp = RegExp(
+  r'<sup\b[^>]*\sclass\s*=\s*"\s*(?:[^\s">]+\s+)*footnote-marker'
+  r'(?:\s+[^\s">]+)*\s*"[^>]*>.*?</sup>'
+  r'|<a\b[^>]*\sclass\s*=\s*"book-note-marker"[^>]*>.*?</a>',
+  caseSensitive: false,
+  dotAll: true,
+);
 
 bool _isLinkerLink(Link link) =>
     LinkTypes.normalize(link.connectionType) == LinkTypes.linker;

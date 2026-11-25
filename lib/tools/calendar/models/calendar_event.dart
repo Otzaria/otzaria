@@ -87,6 +87,7 @@ class CustomEvent extends Equatable {
   final int baseJewishMonth;
   final int baseJewishDay;
   final RecurrenceType recurrenceType;
+
   /// Weekdays selected for weekly recurrence; null means the DTSTART weekday.
   final List<int>? weeklyDays;
   final int? recurringYears; // כמה שנים האירוע יחזור
@@ -109,6 +110,10 @@ class CustomEvent extends Equatable {
 
   /// מזהה מנוי ה-ICS שממנו יובא האירוע; null = אירוע רגיל / ייבוא מקובץ.
   final String? icsSourceId;
+
+  /// באירוע שנתי עברי מאדר: החודש בשנה מעוברת — 12 (אדר א׳) או 13 (אדר ב׳).
+  /// null = חודש הבסיס, כולל דילוג על אדר ב׳ בשנה פשוטה.
+  final int? leapAdarMonth;
 
   bool get recurring => recurrenceType != RecurrenceType.none;
   bool get recurOnHebrew =>
@@ -162,8 +167,20 @@ class CustomEvent extends Equatable {
         _occurrenceInEffect(day);
   }
 
+  /// החודש העברי של האירוע השנתי בשנה [year]: אדר בשנה פשוטה, ובשנה מעוברת
+  /// האדר שנבחר.
+  int? _annualJewishMonth(int year) {
+    if (baseJewishMonth < JewishDate.ADAR) return baseJewishMonth;
+    final leap = (JewishDate()..setJewishDate(year, 1, 1)).isJewishLeapYear();
+    if (leap) return leapAdarMonth ?? baseJewishMonth;
+    if (baseJewishMonth == JewishDate.ADAR_II && leapAdarMonth == null) {
+      return null;
+    }
+    return JewishDate.ADAR;
+  }
+
   /// המועמד ה-[i] למופע מ-[from]: שנה אחר שנה באירוע שנתי, יום אחר יום בשאר.
-  /// null כשהתאריך אינו קיים באותה שנה (אדר ב' בשנה פשוטה, ל' חשוון).
+  /// null כשהתאריך אינו קיים באותה שנה (ל' חשוון).
   DateTime? occurrenceCandidate(DateTime from, int i) {
     if (recurrenceType == RecurrenceType.annualGregorian) {
       return DateTime(
@@ -176,11 +193,12 @@ class CustomEvent extends Equatable {
       return DateTime(from.year, from.month, from.day + i);
     }
     final targetHebrewYear = JewishDate.fromDateTime(from).getJewishYear() + i;
-    final yearStart = JewishDate()..setJewishDate(targetHebrewYear, 1, 1);
-    if (baseJewishMonth == 13 && !yearStart.isJewishLeapYear()) return null;
     try {
+      final month = _annualJewishMonth(targetHebrewYear);
+      if (month == null) return null;
       final jd = JewishDate()
-        ..setJewishDate(targetHebrewYear, baseJewishMonth, baseJewishDay);
+        ..setJewishDate(targetHebrewYear, month, baseJewishDay);
+      if (jd.getJewishDayOfMonth() != baseJewishDay) return null;
       return _dateOnly(jd.getGregorianCalendar());
     } catch (_) {
       return null;
@@ -192,14 +210,7 @@ class CustomEvent extends Equatable {
     if (occursOn(from)) return _dateOnly(from);
     final base = _dateOnly(baseGregorianDate);
     if (!recurring) return base;
-    // Weekly BYDAY may omit DTSTART; start searching from the base in that case.
-    if (from.isBefore(base) &&
-        (recurrenceType != RecurrenceType.weekly ||
-            weeklyDays == null ||
-            weeklyDays!.isEmpty ||
-            weeklyDays!.contains(base.weekday))) {
-      return base;
-    }
+    if (from.isBefore(base) && _isOccurrenceStart(base)) return base;
     final searchFrom = from.isBefore(base) ? base : from;
     // 120: גם ל' בחודש עברי חוזר בתוכם, ו-29 בפברואר בתוך 9 שנים.
     for (var i = 0; i < 120; i++) {
@@ -230,7 +241,7 @@ class CustomEvent extends Equatable {
             baseJewishDay;
       case RecurrenceType.annualHebrew:
         final jd = JewishDate.fromDateTime(day);
-        return jd.getJewishMonth() == baseJewishMonth &&
+        return jd.getJewishMonth() == _annualJewishMonth(jd.getJewishYear()) &&
             jd.getJewishDayOfMonth() == baseJewishDay;
       case RecurrenceType.none:
         return false;
@@ -273,6 +284,7 @@ class CustomEvent extends Equatable {
     this.colorIndex,
     this.notificationMinutes,
     this.icsSourceId,
+    this.leapAdarMonth,
   });
 
   // פונקציה שמאפשרת ליצור עותק של אירוע עם שינויים
@@ -300,6 +312,7 @@ class CustomEvent extends Equatable {
     ValueGetter<int?>? colorIndex,
     int? notificationMinutes,
     String? icsSourceId,
+    ValueGetter<int?>? leapAdarMonth,
   }) {
     return CustomEvent(
       id: id ?? this.id,
@@ -333,6 +346,9 @@ class CustomEvent extends Equatable {
       colorIndex: colorIndex != null ? colorIndex() : this.colorIndex,
       notificationMinutes: notificationMinutes ?? this.notificationMinutes,
       icsSourceId: icsSourceId ?? this.icsSourceId,
+      leapAdarMonth: leapAdarMonth != null
+          ? leapAdarMonth()
+          : this.leapAdarMonth,
     );
   }
 
@@ -364,6 +380,7 @@ class CustomEvent extends Equatable {
       'colorIndex': colorIndex,
       'notificationMinutes': notificationMinutes,
       'icsSourceId': icsSourceId,
+      if (leapAdarMonth != null) 'leapAdarMonth': leapAdarMonth,
     };
   }
 
@@ -427,13 +444,15 @@ class CustomEvent extends Equatable {
     final rawDays = json['weeklyDays'];
     final List<int>? weeklyDays =
         rawDays is List &&
-                rawDays.isNotEmpty &&
-                rawDays.every(
-                  (day) =>
-                      day is int && day >= DateTime.monday && day <= DateTime.sunday,
-                )
-            ? (rawDays.cast<int>().toSet().toList()..sort())
-            : null;
+            rawDays.isNotEmpty &&
+            rawDays.every(
+              (day) =>
+                  day is int &&
+                  day >= DateTime.monday &&
+                  day <= DateTime.sunday,
+            )
+        ? (rawDays.cast<int>().toSet().toList()..sort())
+        : null;
 
     return CustomEvent(
       id: json['id'] as String,
@@ -459,6 +478,10 @@ class CustomEvent extends Equatable {
       colorIndex: json['colorIndex'] as int?,
       notificationMinutes: json['notificationMinutes'] as int?,
       icsSourceId: json['icsSourceId'] as String?,
+      leapAdarMonth: switch (json['leapAdarMonth']) {
+        final int month when month == 12 || month == 13 => month,
+        _ => null,
+      },
     );
   }
 
@@ -485,6 +508,7 @@ class CustomEvent extends Equatable {
     colorIndex,
     notificationMinutes,
     icsSourceId,
+    leapAdarMonth,
   ];
 }
 

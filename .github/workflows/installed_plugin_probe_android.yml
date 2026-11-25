@@ -1,4 +1,4 @@
-name: Installed plugin Android lifecycle
+name: Installed plugin Android lifecycle and PDF runtime
 
 on:
   pull_request:
@@ -11,8 +11,13 @@ on:
       - 'integration_test/support/webview_probe_*.dart'
       - 'test/tool/perf_probe/installed_plugin*_test.dart'
       - 'tool/perf_probe/*installed_plugin*'
+      - 'tool/perf_probe/*installed_pdf_android*'
       - 'tool/perf_probe/INSTALLED_PLUGIN_ANDROID.md'
       - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'tool/perf_probe/src/installed_pdf_*_contract.dart'
+      - 'lib/pdf_book/**'
+      - 'lib/indexing/**'
+      - 'lib/printing/**'
       - 'lib/main.dart'
       - 'lib/plugins/**'
       - 'lib/core/diagnostics/**'
@@ -48,15 +53,13 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate bounded host control and real SDK fixture
         run: |
-          python3 -m unittest -v tool/perf_probe/test_installed_plugin_android.py
+          python3 -m unittest -v tool/perf_probe/test_installed_plugin_android.py tool/perf_probe/test_installed_pdf_android.py
           node --test tool/perf_probe/test_installed_plugin_fixture.mjs
       - name: Verify sources, dependencies, analysis and original scenario contracts
         env:
@@ -69,10 +72,13 @@ jobs:
           flutter test --no-pub --concurrency=1 --reporter expanded \
             test/tool/perf_probe/installed_plugin_android_control_test.dart \
             test/tool/perf_probe/installed_plugin_probe_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_android_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart \
             test/tool/perf_probe/perf_fixture_startup_settings_test.dart
 
   android:
-    name: Actual installed plugins / Android emulator / debug
+    name: Actual plugins and PDF / Android emulator / debug
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
@@ -87,11 +93,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-linux-android
@@ -101,7 +105,10 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Run real app hosts, Home/resume, protected states and store restoration
+      # The action downloads these without retrying; a truncated download fails the job.
+      - name: Preinstall emulator and system image
+        run: bash .github/scripts/sdkmanager-install.sh emulator 'system-images;android-34;google_apis;x86_64'
+      - name: Run real plugins, Home/resume and PDF viewing, indexing and raster
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34

@@ -25,7 +25,6 @@ TextBookLoaded _state(BookProtection protection) => TextBookLoaded(
   removeNikud: false,
   removePunctuation: false,
   visibleIndices: const [0],
-  pinLeftPane: false,
   searchText: '',
   searchMode: SearchMode.exact,
 );

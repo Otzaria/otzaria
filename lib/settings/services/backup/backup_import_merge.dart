@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/settings/services/backup/shamor_zachor_backup_merge.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
 /// אופן החלת קובץ גיבוי על הנתונים הקיימים.
@@ -23,6 +24,9 @@ class BackupImportCounts {
   int workspaces = 0;
   int plugins = 0;
   int shamorZachorBooks = 0;
+
+  /// רשומות פגומות בגיבוי שלא ניתן היה לפענח ולכן לא יובאו. אינו חלק מ-[total].
+  int skipped = 0;
 
   int get total =>
       bookmarks +
@@ -98,9 +102,11 @@ class BackupImportMerge {
   /// `sz:progress_by_id` ממוזג פר-ספר (ולא פר-דף), `sz:tracked_books` הוא
   /// איחוד, וכל מפתח אחר נכתב רק אם אינו קיים מקומית.
   static ({Map<String, Object?> toWrite, int addedBooks}) mergeShamorZachor(
-    Map<String, Object?> local,
-    Map<String, dynamic> incoming,
+    Map<String, Object?> localSnapshot,
+    Map<String, dynamic> incomingSnapshot,
   ) {
+    final local = ShamorZachorBackupMerge.withoutPdfData(localSnapshot);
+    final incoming = ShamorZachorBackupMerge.withoutPdfData(incomingSnapshot);
     const progressKey = 'sz:progress_by_id';
     const trackedKey = 'sz:tracked_books';
 
@@ -137,7 +143,16 @@ class BackupImportMerge {
       }
     }
 
-    return (toWrite: toWrite, addedBooks: addedBooks);
+    final pdf = ShamorZachorBackupMerge.mergePdfData(
+      localSnapshot,
+      incomingSnapshot,
+    );
+    ShamorZachorBackupMerge.addPdfData(toWrite, pdf.data, {
+      ...local,
+      ...toWrite,
+    });
+    toWrite.removeWhere((key, value) => localSnapshot[key] == value);
+    return (toWrite: toWrite, addedBooks: addedBooks + pdf.addedBooks);
   }
 
   /// שולחנות עבודה שיש להוסיף — הקיימים אינם נוגעים.

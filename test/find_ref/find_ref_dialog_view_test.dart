@@ -18,6 +18,7 @@ import 'package:otzaria/navigation/navigation_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
@@ -70,12 +71,17 @@ class _FakeRepository implements FindRefRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async {
     calls++;
     personalBooksFlags.add(includePersonalBooks);
+    preferencesCalls.add(preferences);
     if (error != null) throw error!;
     return results;
   }
+
+  /// ההעדפות שהועברו לכל איתור; null = סדר שאינו מותאם אישית.
+  final List<FindRefPreferences?> preferencesCalls = [];
 
   @override
   Future<List<DbCommentatorEntry>> getCommentatorsForResult(
@@ -115,6 +121,7 @@ class _GatedRepository implements FindRefRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async {
     if (calls++ == 0) return first;
     await gate.future;
@@ -166,6 +173,7 @@ class _FlakyRepository extends _FakeRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async {
     if (calls++ == 0) throw Exception('DB down');
     return results;
@@ -209,6 +217,7 @@ class _QueryRepository extends _FakeRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async => byQuery[ref] ?? const [];
 }
 
@@ -235,6 +244,7 @@ Future<void> _pumpDialog(
   NavigatorObserver? observer,
   String query = '',
   PluginFindRefService? externalService,
+  bool queryFromLink = false,
 }) async {
   if (screenSize != null) {
     tester.view.physicalSize = screenSize;
@@ -252,6 +262,8 @@ Future<void> _pumpDialog(
     findRefRepository: repository ?? _FakeRepository(results, error: error),
     externalService: externalService,
   );
+  // כמו runDetectionDeepLink: האיתור נשלח לפני שהדיאלוג נפתח.
+  if (queryFromLink) bloc.add(SearchRefRequested(query));
   addTearDown(() async {
     // Dispose the dialog and deliver its cancellation before closing the Bloc.
     await tester.pumpWidget(const SizedBox.shrink());
@@ -458,6 +470,37 @@ void main() {
           ],
         ),
         true,
+      );
+    }
+
+    for (final fromLink in [true, false]) {
+      testWidgets(
+        fromLink
+            ? 'קישור שנפתח כשיש ספק-איתור נשאר בסדר שאינו מותאם'
+            : 'שאילתה משוחזרת כשיש ספק-איתור מותאמת אישית',
+        (tester) async {
+          await FindRefPreferenceStore.setEnabled(true);
+          FindRefPreferenceStore.clear();
+          FindRefPreferenceStore.recordOpen((key: 'o|1', title: 'בראשית'));
+          addTearDown(FindRefPreferenceStore.clear);
+          final repo = _FakeRepository([_ref('בראשית פרק א')]);
+
+          await _pumpDialog(
+            tester,
+            repository: repo,
+            query: 'בראשית',
+            externalService: service,
+            queryFromLink: fromLink,
+          );
+          await tester.pump(_pastDebounce);
+          await tester.pump(const Duration(milliseconds: 700));
+          respond();
+          await tester.pumpAndSettle();
+
+          expect(find.text('בראשית פרק א'), findsOneWidget);
+          expect(repo.preferencesCalls, hasLength(1));
+          expect(repo.preferencesCalls.single, fromLink ? isNull : isNotNull);
+        },
       );
     }
 
@@ -809,11 +852,15 @@ void main() {
   });
 
   testWidgets('הדבקת קישור איתור מריצה אותו בדיאלוג בלי לסגור', (tester) async {
+    await FindRefPreferenceStore.setEnabled(true);
+    FindRefPreferenceStore.recordOpen((key: 'o|1', title: 'בראשית'));
+    addTearDown(FindRefPreferenceStore.clear);
+    final repository = _FakeRepository([_ref('בראשית פרק א')]);
     final host = _FakeHost();
     final pops = _PopCounter();
     await _pumpDialog(
       tester,
-      results: [_ref('בראשית פרק א')],
+      repository: repository,
       host: host,
       observer: pops,
     );
@@ -831,6 +878,7 @@ void main() {
     expect(find.text('מקור אחד'), findsOneWidget);
     expect(host.deepLinks, isEmpty, reason: 'אין ניתוב דרך המסך הראשי');
     expect(pops.pops, 0);
+    expect(repository.preferencesCalls.last, isNull);
   });
 
   testWidgets('קישור שאינו איתור עדיין מנותב דרך המסך הראשי', (tester) async {

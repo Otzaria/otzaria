@@ -24,12 +24,14 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/tabs/system_settings_tab.dart';
 import 'package:otzaria/settings/widgets/expandable_settings_tile.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class _IdleSearchEngine implements SearchEngine {
@@ -179,15 +181,20 @@ void main() {
       );
       tester.widget<ExpandableSettingsTile>(section).onTap!();
       await tester.pump();
-      final backupMode = find.byWidgetPredicate(
-        (w) =>
-            w is SegmentedButton &&
-            w.segments.any(
-              (s) => s.label is Text && (s.label as Text).data == 'גבה הכל',
-            ),
+      final backupMode = find.descendant(
+        of: find.byWidgetPredicate(
+          (widget) =>
+              widget is SettingsAnchor && widget.cardId == 'system.backup.mode',
+        ),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is AppSegmentedControl,
+        ),
       );
+      AppSegmentedControl<Object?> mode() =>
+          tester.widget<AppSegmentedControl<Object?>>(backupMode);
+
       expect(
-        tester.widget<SegmentedButton>(backupMode).selected.single.toString(),
+        mode().currentValue.toString(),
         endsWith('.all'),
       );
       await tester.runAsync(
@@ -196,7 +203,7 @@ void main() {
       await tester.pump();
       expect(Settings.getValue<bool>('key-backup-history'), isFalse);
       expect(
-        tester.widget<SegmentedButton>(backupMode).selected.single.toString(),
+        mode().currentValue.toString(),
         endsWith('.custom'),
       );
       final createNow = find.byWidgetPredicate(
@@ -217,11 +224,7 @@ void main() {
                     '',
               )
               as Map;
-      final shownMode = tester
-          .widget<SegmentedButton>(backupMode)
-          .selected
-          .single
-          .toString();
+      final shownMode = mode().currentValue.toString();
       expect(
         (manifest['includes'] as Map)['history'],
         shownMode.endsWith('.all') ||
@@ -237,23 +240,22 @@ void main() {
         await tester.runAsync(() => Settings.setValue<bool>(key, true));
         await tester.pump();
         expect(
-          tester.widget<SegmentedButton>(backupMode).selected.single.toString(),
+          mode().currentValue.toString(),
           endsWith(BackupService.includesAllSections ? '.all' : '.custom'),
         );
       }
 
       // ExpandableCard מונפש: עד סוף הפתיחה הבורר חתוך, והלחיצה לא מגיעה אליו.
       await tester.pumpAndSettle();
-      final mode = tester.widget<SegmentedButton>(backupMode);
-      final custom = mode.segments.last.value;
-      final all = mode.segments.first.value;
+      final custom = mode().options.last.value;
+      final all = mode().options.first.value;
       await tester.tap(
         find.descendant(of: backupMode, matching: find.text('מותאם אישית')),
       );
       await tester.pump();
       expect(BackupService.includesAllSections, isTrue);
       expect(
-        tester.widget<SegmentedButton>(backupMode).selected.single,
+        mode().currentValue,
         custom,
       );
       await tester.runAsync(
@@ -273,13 +275,13 @@ void main() {
       );
       await tester.pump();
       expect(BackupService.includesAllSections, isTrue);
-      expect(tester.widget<SegmentedButton>(backupMode).selected.single, all);
+      expect(mode().currentValue, all);
       await tester.tap(
         find.descendant(of: backupMode, matching: find.text('מותאם אישית')),
       );
       await tester.pump();
       expect(
-        tester.widget<SegmentedButton>(backupMode).selected.single,
+        mode().currentValue,
         custom,
         reason: 'הבחירה המאוחרת מוצגת עוד לפני השלמת הכתיבות',
       );
@@ -288,7 +290,7 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
       expect(
-        tester.widget<SegmentedButton>(backupMode).selected.single,
+        mode().currentValue,
         custom,
       );
       expect(BackupService.includesAllSections, isTrue);
@@ -298,7 +300,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(tester.widget<SegmentedButton>(backupMode).selected.single, all);
+      expect(mode().currentValue, all);
 
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(

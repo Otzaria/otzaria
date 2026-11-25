@@ -60,7 +60,6 @@ class SettingsRepository {
   /// חדש שיתווסף ל-DB יופיע מאליו ולא ייחשב כמסונן.
   static const String keySelectedLinkTypes = 'key-selected-link-types';
 
-  static const String keyPinSidebar = 'key-pin-sidebar';
   static const String keySidebarWidth = 'key-sidebar-width';
   static const String keyFacetFilteringWidth = 'key-facet-filtering-width';
   static const String keyExternalResultsFirst = 'key-external-results-first';
@@ -192,10 +191,26 @@ class SettingsRepository {
       'key-attached-library-pending-updates';
   static const String keyLastAttachedLibraryUpdateCheck =
       'key-last-attached-library-update-check';
+
+  /// מסדים רשמיים שהמשתמש סירב להורדתם או הסיר (JSON).
+  static const String keyDeclinedOfficialLibraries =
+      'key-declined-official-libraries';
+
+  /// ניסיונות זיהוי של עותק ידני כרשמי (JSON: נתיב ⇒ טביעת הקובץ ומועד).
+  static const String keyOfficialAdoptionAttempts =
+      'key-official-adoption-attempts';
+
+  /// חבילות שנדחו במיקום האיסוף (JSON: שם ⇒ גודל ומועד של קובציה).
+  static const String keyRejectedOfficialPackages =
+      'key-rejected-official-packages';
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
   static const String keyCompactMenuMode = 'key-compact-menu-mode';
+  static const String keyFullscreenAutoHideToolbar =
+      'key-fullscreen-auto-hide-toolbar';
+  static const String keyFullscreenToolbarHintShown =
+      'key-fullscreen-toolbar-hint-shown';
 
   /// מיקום רצועת כרטיסיות העיון: `top` בשורת הכותרת, `side` בעמודה אנכית.
   static const String keyReadingTabsPlacement = 'key-reading-tabs-placement';
@@ -323,7 +338,6 @@ class SettingsRepository {
     keyDefaultSidebarOpen,
     keyDefaultCommentaryOpen,
     keySelectedLinkTypes,
-    keyPinSidebar,
     keySidebarWidth,
     keyFacetFilteringWidth,
     keyExternalResultsFirst,
@@ -388,9 +402,14 @@ class SettingsRepository {
     keyAttachedLibraryFolders,
     keyAttachedLibraryPendingUpdates,
     keyLastAttachedLibraryUpdateCheck,
+    keyDeclinedOfficialLibraries,
+    keyOfficialAdoptionAttempts,
+    keyRejectedOfficialPackages,
     keyEnableHtmlLinks,
     keyPersonalNotesCollapsedByDefault,
     keyCompactMenuMode,
+    keyFullscreenAutoHideToolbar,
+    keyFullscreenToolbarHintShown,
     keyReadingTabsPlacement,
     keyReadingTabsColumnWidth,
     keyReadingTabsColumnCollapsed,
@@ -431,6 +450,7 @@ class SettingsRepository {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
     await _migrateSearchResultsFontSize();
+    await _migratePinSidebar();
     await removeUnrecognizedShortcuts();
     return readSettings();
   }
@@ -540,10 +560,6 @@ class SettingsRepository {
         keyDefaultCommentaryOpen,
         defaultValue: false,
       ),
-      'pinSidebar': _settings.getValue<bool>(
-        keyPinSidebar,
-        defaultValue: false,
-      ),
       'sidebarWidth': _settings.getValue<double>(
         keySidebarWidth,
         defaultValue: 300,
@@ -643,6 +659,10 @@ class SettingsRepository {
       'compactMenuMode': _settings.getValue<bool?>(
         keyCompactMenuMode,
         defaultValue: null,
+      ),
+      'fullscreenAutoHideToolbar': _settings.getValue<bool>(
+        keyFullscreenAutoHideToolbar,
+        defaultValue: true,
       ),
       'autoSync': _settings.getValue<bool>(keyAutoSync, defaultValue: true),
       'updateCheckFrequency': _settings.getValue<String>(
@@ -938,10 +958,6 @@ class SettingsRepository {
     await _settings.setValue(keyDefaultCommentaryOpen, value);
   }
 
-  Future<void> updatePinSidebar(bool value) async {
-    await _settings.setValue(keyPinSidebar, value);
-  }
-
   Future<void> updateSidebarWidth(double value) async {
     await _settings.setValue(keySidebarWidth, value);
   }
@@ -1078,6 +1094,10 @@ class SettingsRepository {
     } else {
       await _settings.setValue(keyCompactMenuMode, value);
     }
+  }
+
+  Future<void> updateFullscreenAutoHideToolbar(bool value) async {
+    await _settings.setValue(keyFullscreenAutoHideToolbar, value);
   }
 
   Future<void> updateReadingTabsPlacement(String value) async {
@@ -1409,6 +1429,15 @@ class SettingsRepository {
     );
   }
 
+  /// הצמדת החלונית הוסרה; מי שהצמיד ממשיך לקבל אותה פתוחה בפתיחת ספר.
+  Future<void> _migratePinSidebar() async {
+    const legacyKey = 'key-pin-sidebar';
+    final pinned = _settings.getValue<bool?>(legacyKey, defaultValue: null);
+    if (pinned == null) return;
+    if (pinned) await _settings.setValue(keyDefaultSidebarOpen, true);
+    await _settings.remove(legacyKey);
+  }
+
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
@@ -1446,7 +1475,6 @@ class SettingsRepository {
     await _settings.setValue(keyContinuousReadingMode, false);
     await _settings.setValue(keyDefaultSidebarOpen, false);
     await _settings.setValue(keyDefaultCommentaryOpen, false);
-    await _settings.setValue(keyPinSidebar, false);
     await _settings.setValue(keySidebarWidth, 300.0);
     await _settings.setValue(keyFacetFilteringWidth, 235.0);
     await _settings.setValue(keyExternalResultsFirst, false);

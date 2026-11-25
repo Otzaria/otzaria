@@ -55,7 +55,6 @@ TextBookLoaded _state() => TextBookLoaded(
   tableOfContents: headerToc(_lines),
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

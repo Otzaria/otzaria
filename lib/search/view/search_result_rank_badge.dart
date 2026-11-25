@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// מספר התוצאה בראש הכרטיס.
+/// מספר התוצאה בתחילת שורת הכותרת של הכרטיס. קטן מספיק כדי לשבת בגובה
+/// השורה, בלי לשמור לעצמו עמודה לכל גובה הכרטיס.
 class SearchResultRankBadge extends StatelessWidget {
   final int rank;
 
@@ -9,11 +10,14 @@ class SearchResultRankBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Container(
-      constraints: const BoxConstraints(minWidth: 32),
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      constraints: const BoxConstraints(
+        minWidth: AppTokens.iconLG,
+        minHeight: AppTokens.iconLG,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS),
       decoration: BoxDecoration(
         color: cs.primaryContainer,
         borderRadius: AppTokens.borderRadiusAll,
@@ -22,10 +26,9 @@ class SearchResultRankBadge extends StatelessWidget {
         widthFactor: 1,
         child: Text(
           '$rank',
-          style: TextStyle(
+          style: theme.textTheme.labelLarge?.copyWith(
             color: cs.onPrimaryContainer,
             fontWeight: FontWeight.bold,
-            fontSize: AppTokens.fontLG,
           ),
         ),
       ),

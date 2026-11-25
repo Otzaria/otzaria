@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
+import 'package:otzaria/settings/services/backup/backup_merge.dart';
+import 'package:otzaria/tools/shamor_zachor/services/pdf_tracking_identity.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
@@ -179,6 +181,78 @@ void main() {
       expect(
         json.decode(result.toWrite['sz:tracked_books'] as String),
         [1, 2, 3],
+      );
+    });
+
+    test('מיזוג שומר על עמודות ותאריכים מקומיים של ספרים רשמיים', () {
+      final result = BackupImportMerge.mergeShamorZachor(
+        {
+          'sz:completion_dates_by_id': json.encode({'1': 'מקומי'}),
+        },
+        {
+          'sz:completion_dates_by_id': json.encode({
+            '1': 'מגיבוי',
+            '2': 'מגיבוי',
+          }),
+        },
+      );
+      expect(result.toWrite, isEmpty);
+    });
+
+    test('הסרת PDF גוברת על עותק ישן במיזוג גיבויים', () {
+      const identity = 'ext:hb:145';
+      final key = PdfTrackingIdentity.keyOf(identity);
+      final book = {'identity': identity, 'key': key};
+      final old = {
+        'sz:tracked_pdf_books': json.encode([book]),
+        'sz:progress_by_id': json.encode({
+          '$key': {
+            '0': {'learn': true},
+          },
+        }),
+        'sz:last_touched:$key': 0,
+      };
+      final current = {
+        'sz:tracked_pdf_books': json.encode([
+          {...book, 'deleted': true},
+        ]),
+        'sz:progress_by_id': '{}',
+      };
+      final result = BackupImportMerge.mergeShamorZachor(current, old);
+      expect(result.toWrite, isEmpty);
+      final merged =
+          BackupMerge.merge(
+                {'shamorZachor': old},
+                {'shamorZachor': current},
+                olderTimestamp: DateTime(2026, 1, 1),
+                newerTimestamp: DateTime(2026, 2, 1),
+                now: DateTime(2026, 2, 2),
+              )['shamorZachor']
+              as Map;
+      expect(json.decode(merged['sz:progress_by_id'] as String), isEmpty);
+      expect(merged, isNot(contains('sz:last_touched:$key')));
+    });
+
+    test('כל נתוני PDF נלקחים מאותו מקור, כולל היעדר התקדמות', () {
+      const identity = 'ext:hb:145';
+      final key = PdfTrackingIdentity.keyOf(identity);
+      final rows = json.encode([
+        {'identity': identity, 'key': key},
+      ]);
+      final local = {'sz:tracked_pdf_books': rows, 'sz:progress_by_id': '{}'};
+      final incoming = {
+        'sz:tracked_pdf_books': rows,
+        'sz:progress_by_id': json.encode({
+          '$key': {
+            '0': {'learn': true},
+          },
+        }),
+        'sz:completion_dates_by_id': json.encode({'$key': '2026-01-01'}),
+        'sz:last_touched:$key': 0,
+      };
+      expect(
+        BackupImportMerge.mergeShamorZachor(local, incoming).toWrite,
+        isEmpty,
       );
     });
 

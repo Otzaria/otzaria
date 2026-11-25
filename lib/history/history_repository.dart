@@ -19,9 +19,5 @@ class HistoryRepository extends BaseListRepository<Bookmark> {
     List<Bookmark> Function(List<Bookmark> current) apply,
   ) async => mutate(apply);
 
-  /// שחזור מגיבוי: דריסה מוחלטת.
-  Future<void> replaceHistory(List<Bookmark> history) async =>
-      overwrite(history);
-
   Future<void> clearHistory() async => clear();
 }

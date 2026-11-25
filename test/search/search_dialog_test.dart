@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
@@ -44,10 +46,13 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show ResultsOrder, SearchScope, WordMatchMode;
 
+import '../support/golden_fonts.dart';
 import '../support/search_engine_test_init.dart';
 import '../test_helpers/memory_cache_provider.dart';
 
@@ -445,9 +450,7 @@ Future<void> main() async {
 
     testWidgets(
       'פריט switch מוצג כ-AppTogglePill, ושורה עם persist:false אינה נשמרת',
-      (
-        tester,
-      ) async {
+      (tester) async {
         registry.registerPayload('test.plugin', {
           'id': 'sw',
           'type': 'switch',
@@ -552,7 +555,9 @@ Future<void> main() async {
 
         final sessions = PluginSearchFieldSessionService.instance;
         final binding =
-            tester.state(find.byType(PluginSearchFieldActions))
+            tester.state(
+                  find.byType(PluginSearchFieldActions),
+                )
                 as PluginSearchFieldBinding;
         final session = sessions.sessionFor(binding, 'voice', 'dictate')!;
         sessions.setFieldText('voice', session.id, 'אהבת חסד');
@@ -1211,9 +1216,7 @@ Future<void> main() async {
       globalOptions == null
           ? 'returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג'
           : 'אישור דיאלוג משמר תבנית, מדיניות וחלופות: global=$globalOptions manual=$manual',
-      (
-        WidgetTester tester,
-      ) async {
+      (WidgetTester tester) async {
         final historyBloc = MockHistoryBloc();
         final indexingBloc = MockIndexingBloc();
         final navigationBloc = MockNavigationBloc();
@@ -1733,6 +1736,213 @@ Future<void> main() async {
     expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
   });
 
+  group(
+    'קביעת מצב ברירת מחדל שומרת גם את האפשרויות הנוכחיות (issue #5185)',
+    () {
+      late SearchingTab tab;
+
+      Future<void> pumpWithTab(WidgetTester tester, SearchMode mode) async {
+        final historyBloc = MockHistoryBloc();
+        final indexingBloc = MockIndexingBloc();
+        final navigationBloc = MockNavigationBloc();
+        whenListen(
+          historyBloc,
+          const Stream<HistoryState>.empty(),
+          initialState: HistoryLoaded([]),
+        );
+        whenListen(
+          indexingBloc,
+          const Stream<IndexingState>.empty(),
+          initialState: IndexingInitial(),
+        );
+        whenListen(
+          navigationBloc,
+          const Stream<NavigationState>.empty(),
+          initialState: const NavigationState(currentScreen: Screen.search),
+        );
+        tab = SearchingTab.newSearch('חיפוש', '', mode: mode);
+        addTearDown(() async {
+          await tester.binding.setSurfaceSize(null);
+          // השמירה מעדכנת גם את הסשן — בלי איפוס היא מזליגה לטסטים הבאים.
+          SearchDefaults.rememberSessionMode(SearchMode.exact);
+          SearchDefaults.rememberSessionExactOptions(const {});
+          SearchDefaults.rememberSessionOptions(const {});
+          SearchDefaults.rememberSessionDistance(0, SearchMode.exact);
+          SearchDefaults.rememberSessionDistance(0, SearchMode.advanced);
+          SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
+          SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
+          SearchDefaults.rememberSessionAnyOrder(false);
+          SearchDefaults.rememberSessionMatchPolicy(SearchMatchPolicy.standard);
+          tab.dispose();
+          await historyBloc.close();
+          await indexingBloc.close();
+          await navigationBloc.close();
+        });
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.pumpWidget(
+          _buildDialogHarness(
+            theme: ThemeData(useMaterial3: true),
+            historyBloc: historyBloc,
+            indexingBloc: indexingBloc,
+            navigationBloc: navigationBloc,
+            dialog: SearchDialog(existingTab: tab),
+          ),
+        );
+        await tester.pumpAndSettle();
+        // מה שהמשתמש סימן בחלונית: קידומות וסיומות, מרווח 5, בכל סדר.
+        tab.globalSearchOptions
+          ..clear()
+          ..addAll({'קידומות דקדוקיות': true, 'סיומות דקדוקיות': true});
+        tab.searchBloc
+          ..add(UpdateDistanceWithoutSearch(5))
+          ..add(UpdateWordOrderWithoutSearch(true));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> openDefaultMode(WidgetTester tester) async {
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-defaults-menu')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-default-mode')),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      final includeOptions = find.text('כולל האפשרויות הנוכחיות');
+
+      testWidgets('חיפוש רגיל: אישור שומר את המצב, האפשרויות, המרווח והסדר', (
+        tester,
+      ) async {
+        await pumpWithTab(tester, SearchMode.exact);
+        await openDefaultMode(tester);
+        expect(includeOptions, findsOneWidget);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
+        expect(SearchDefaults.loadExactDefaults(), {
+          'קידומות דקדוקיות': true,
+          'סיומות דקדוקיות': true,
+        });
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 5);
+        expect(SearchDefaults.loadAnyOrderDefault(), isTrue);
+      });
+
+      testWidgets('חיפוש מתקדם: נשמר גם טווח הקרבה', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        tab.searchBloc.add(
+          UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+        );
+        await tester.pumpAndSettle();
+        await openDefaultMode(tester);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
+        expect(SearchDefaults.loadDefaults(), {
+          'קידומות דקדוקיות': true,
+          'סיומות דקדוקיות': true,
+        });
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 5);
+        expect(
+          SearchDefaults.loadMatchPolicyDefault().proximityScope,
+          SearchScope.sameParagraph,
+        );
+      });
+
+      testWidgets('מתקדם פר-מילה: ברירת המחדל של האפשרויות אינה נדרסת', (
+        tester,
+      ) async {
+        SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+        await pumpWithTab(tester, SearchMode.advanced);
+        // "זהה לכל המילים" כבוי (כמו אחרי שחזור מההיסטוריה): המפה הגלובלית
+        // אינה מה שמוצג בחלונית.
+        tab.useGlobalSearchOptions.value = false;
+        tab.globalSearchOptions.clear();
+        await openDefaultMode(tester);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadDefaults(), {'קידומות דקדוקיות': true});
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 5);
+      });
+
+      testWidgets(
+        'מתקדם פר-מילה: האישור אינו מבטיח את האפשרויות שאינן נשמרות',
+        (
+          tester,
+        ) async {
+          SearchDefaults.saveDefaults(const {'קידומות דקדוקיות': true});
+          await pumpWithTab(tester, SearchMode.advanced);
+          tab.useGlobalSearchOptions.value = false;
+          tab.globalSearchOptions.clear();
+          tab.searchBloc.add(
+            UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph),
+          );
+          await tester.pumpAndSettle();
+          await openDefaultMode(tester);
+
+          expect(includeOptions, findsNothing);
+          expect(find.text('כולל המרווח וסדר המילים הנוכחיים'), findsOneWidget);
+          await tester.tap(find.text('קבע כברירת מחדל'));
+          await tester.pumpAndSettle();
+
+          // חיפוש חדש: האפשרויות הן ברירת המחדל הקודמת, המרווח והסדר מהחלונית.
+          final next = SearchingTab.newSearch('חיפוש', '');
+          addTearDown(next.dispose);
+          expect(
+            next.searchBloc.state.configuration.searchMode,
+            SearchMode.advanced,
+          );
+          expect(next.globalSearchOptions, {'קידומות דקדוקיות': true});
+          expect(next.searchBloc.state.distance, 5);
+          expect(next.searchBloc.state.anyOrder, isTrue);
+          expect(
+            next.searchBloc.state.configuration.matchPolicy.proximityScope,
+            SearchScope.wordDistance,
+          );
+        },
+      );
+
+      testWidgets('בלי הסימון נשמר המצב בלבד', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        await openDefaultMode(tester);
+        await tester.tap(includeOptions);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.advanced);
+        expect(SearchDefaults.loadDefaults(), isEmpty);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 0);
+        expect(SearchDefaults.loadAnyOrderDefault(), isFalse);
+      });
+
+      testWidgets('ביטול אינו שומר דבר', (tester) async {
+        await pumpWithTab(tester, SearchMode.advanced);
+        await openDefaultMode(tester);
+        await tester.tap(find.text('ביטול'));
+        await tester.pumpAndSettle();
+
+        expect(SearchDefaults.loadModeDefault(), SearchMode.exact);
+        expect(SearchDefaults.loadDefaults(), isEmpty);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 0);
+      });
+
+      testWidgets('במקורב אין אפשרויות מילה — אין סימון', (tester) async {
+        await pumpWithTab(tester, SearchMode.fuzzy);
+        await openDefaultMode(tester);
+        expect(includeOptions, findsNothing);
+        await tester.tap(find.text('קבע כברירת מחדל'));
+        await tester.pumpAndSettle();
+        expect(SearchDefaults.loadModeDefault(), SearchMode.fuzzy);
+        expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 0);
+      });
+    },
+  );
+
   testWidgets('תפריט ברירות המחדל של המתקדם שומר ומחזיר את המרווח (#2360)', (
     WidgetTester tester,
   ) async {
@@ -1756,15 +1966,15 @@ Future<void> main() async {
     );
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       SearchDefaults.rememberSessionMode(SearchMode.exact);
       await historyBloc.close();
       await indexingBloc.close();
       await navigationBloc.close();
     });
 
-    SearchDefaults.saveDistanceDefault(2);
-    SearchDefaults.rememberSessionDistance(4);
+    SearchDefaults.saveDistanceDefault(2, mode: SearchMode.advanced);
+    SearchDefaults.rememberSessionDistance(4, SearchMode.advanced);
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     await tester.pumpWidget(
       _buildDialogHarness(
@@ -1795,11 +2005,136 @@ Future<void> main() async {
     final saveDistance = find.text('קבע את המרווח הנוכחי (2) כברירת מחדל');
     expect(saveDistance, findsOneWidget);
 
-    Settings.setValue<int>('key-search-default-distance', 5);
+    Settings.setValue<int>('key-search-default-distance-advanced', 5);
     await tester.tap(saveDistance);
     await tester.pumpAndSettle();
-    expect(SearchDefaults.loadDistanceDefault(), 2);
+    expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 2);
   });
+
+  testWidgets(
+    'מרווח ברירת מחדל נפרד לחיפוש הרגיל ולמתקדם, גם במעבר מצב (issue #5758)',
+    (WidgetTester tester) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+      Settings.setValue<int>('key-search-default-distance', 0);
+      SearchDefaults.rememberSessionMode(SearchMode.exact);
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        // סגירת הדיאלוג שומרת לסשן — מאפסים אחריה כדי לא להזליג לטסטים הבאים.
+        await tester.pumpWidget(const SizedBox());
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
+        SearchDefaults.rememberSessionMode(SearchMode.exact);
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+      });
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: const SearchDialog(initialSearchMode: SearchMode.advanced),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final bloc = BlocProvider.of<SearchBloc>(
+        tester.element(find.text('מדויק')),
+        listen: false,
+      );
+
+      Future<void> saveDistance(String submenu, int distance) async {
+        await tester.tap(
+          find.byKey(const ValueKey('search-dialog-defaults-menu')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(submenu));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text('קבע את המרווח הנוכחי ($distance) כברירת מחדל'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tapAt(Offset.zero);
+        await tester.pumpAndSettle();
+      }
+
+      // מתקדם: מרווח 3 נשמר כברירת מחדל.
+      bloc.add(UpdateDistanceWithoutSearch(3));
+      await tester.pumpAndSettle();
+      await saveDistance('קביעת ברירת מחדל לחיפוש מתקדם', 3);
+
+      // מעבר לרגיל טוען את המרווח שלו, ולא גורר את המרווח של המתקדם.
+      await tester.tap(find.text('מדויק'));
+      await tester.pumpAndSettle();
+      expect(bloc.state.distance, 0);
+      await saveDistance('קביעת ברירת מחדל לחיפוש רגיל', 0);
+
+      // וחזרה למתקדם מחזירה את המרווח שלו.
+      await tester.tap(find.text('מתקדם'));
+      await tester.pumpAndSettle();
+      expect(bloc.state.distance, 3);
+
+      // חיפוש חדש בכל מצב נפתח עם ברירת המחדל שלו.
+      final advanced = SearchingTab.newSearch(
+        'חיפוש',
+        '',
+        mode: SearchMode.advanced,
+      );
+      final exact = SearchingTab.newSearch(
+        'חיפוש',
+        'בראשית',
+        mode: SearchMode.exact,
+      );
+      addTearDown(advanced.dispose);
+      addTearDown(exact.dispose);
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+      expect(advanced.searchBloc.state.distance, 3);
+      expect(exact.searchBloc.state.distance, 0);
+
+      // חיפוש מהספרייה או מאיתור נפתח עם טאב זמני שנושא את השאילתה.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: SearchDialog(existingTab: exact),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('מתקדם'));
+      await tester.pumpAndSettle();
+      expect(exact.searchBloc.state.distance, 3);
+
+      exact.searchBloc.add(UpdateDistanceWithoutSearch(4));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      expect(
+        SearchDefaults.initialDistanceForNewSearch(SearchMode.advanced),
+        4,
+      );
+      expect(SearchDefaults.loadDistanceDefault(SearchMode.advanced), 3);
+    },
+  );
 
   testWidgets('חיפוש רגיל מציג רק קידומות/סיומות דקדוקיות', (
     WidgetTester tester,
@@ -2091,20 +2426,18 @@ Future<void> main() async {
       skip: !engineReady,
     );
 
-    testWidgets(
-      'Enter בשדה מחיל את השאילתה על כותרת הטאב הנערך',
-      (WidgetTester tester) async {
-        await openEditDialog(tester);
-        await tester.enterText(queryField, 'צדיק גאולה');
-        await tester.testTextInput.receiveAction(TextInputAction.done);
-        await tester.pumpAndSettle();
+    testWidgets('Enter בשדה מחיל את השאילתה על כותרת הטאב הנערך', (
+      WidgetTester tester,
+    ) async {
+      await openEditDialog(tester);
+      await tester.enterText(queryField, 'צדיק גאולה');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
 
-        expect(find.byType(SearchDialog), findsNothing);
-        expect(editedTab.title, 'חיפוש: צדיק גאולה');
-        expect(editedTab.titleNotifier.value, 'חיפוש: צדיק גאולה');
-      },
-      skip: !engineReady,
-    );
+      expect(find.byType(SearchDialog), findsNothing);
+      expect(editedTab.title, 'חיפוש: צדיק גאולה');
+      expect(editedTab.titleNotifier.value, 'חיפוש: צדיק גאולה');
+    }, skip: !engineReady);
     Future<void> pickWordDistanceMode(
       WidgetTester tester,
       WordMatchMode mode,
@@ -2139,22 +2472,20 @@ Future<void> main() async {
       skip: !engineReady,
     );
 
-    testWidgets(
-      'עריכה מחילה על הטאב את סדר המילים (issue #2006)',
-      (WidgetTester tester) async {
-        await openEditDialog(tester);
-        await tester.tap(
-          find.byKey(const ValueKey('search-word-order-checkbox')),
-        );
-        await tester.pumpAndSettle();
-        expect(editedTab.searchBloc.state.anyOrder, isFalse);
+    testWidgets('עריכה מחילה על הטאב את סדר המילים (issue #2006)', (
+      WidgetTester tester,
+    ) async {
+      await openEditDialog(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('search-word-order-checkbox')),
+      );
+      await tester.pumpAndSettle();
+      expect(editedTab.searchBloc.state.anyOrder, isFalse);
 
-        await tester.tap(find.byTooltip('חפש'));
-        await tester.pumpAndSettle();
-        expect(editedTab.searchBloc.state.anyOrder, isTrue);
-      },
-      skip: !engineReady,
-    );
+      await tester.tap(find.byTooltip('חפש'));
+      await tester.pumpAndSettle();
+      expect(editedTab.searchBloc.state.anyOrder, isTrue);
+    }, skip: !engineReady);
   });
 
   group('טווח הקרבה וסדר המילים בדיאלוג (issue #2006)', () {
@@ -2317,9 +2648,7 @@ Future<void> main() async {
 
     testWidgets(
       'ברירות המחדל נפתחות בתת־תפריט ו־Escape משאיר את הדיאלוג פתוח',
-      (
-        WidgetTester tester,
-      ) async {
+      (WidgetTester tester) async {
         await openDialog(tester);
         final proximity = find.byKey(
           const ValueKey('search-dialog-default-proximity'),
@@ -2401,10 +2730,7 @@ Future<void> main() async {
       await tester.tap(find.text('חזרה לברירת מחדל'));
       await tester.pumpAndSettle();
       expect(dialogBloc(tester).state.anyOrder, isFalse);
-      expect(
-        dialogBloc(tester).state.proximityScope,
-        SearchScope.wordDistance,
-      );
+      expect(dialogBloc(tester).state.proximityScope, SearchScope.wordDistance);
       expect(dialogKeepsOrder(tester), isTrue);
       expect(
         find.textContaining(SearchScope.sameParagraph.label),
@@ -2528,5 +2854,555 @@ Future<void> main() async {
         find.byKey(const ValueKey('search-dialog-default-mode')),
       );
     });
+  });
+
+  // תפריט ברירות המחדל נפתח מתחתית הדיאלוג, ותת־התפריט שבו ארוך (כ-636 פיקסלים
+  // בתפריטים הרגילים, כ-500 בצפופים). ב-RTL, בערכת הנושא האמיתית ובגופני
+  // ה-goldens: כשיש מקום בצד הוא נפתח לצד השורה ותחתיתו בגובה תחתיתה, ובחלון
+  // צר, כשאין מקום בצד, צמוד מעל השורה ומיושר לקצה ימין שלה.
+  group('מיקום תת־התפריט של ברירות המחדל', () {
+    const rowLabel = 'קביעת ברירת מחדל לחיפוש מתקדם';
+    const proximityKey = ValueKey('search-dialog-default-proximity');
+    // AppMenuMetrics.menuPadding: אנכי 8, אופקי 0.
+    const menuPadding = 8.0;
+    final windows = TargetPlatformVariant.only(TargetPlatform.windows);
+
+    // רוחב הטקסט קובע אם יש מקום בצד; בלי גופן אמיתי כל אות היא ריבוע.
+    setUpAll(loadGoldenFonts);
+
+    final row = find.byType(SubmenuButton);
+    final proximity = find.byKey(proximityKey);
+    final defaultOrder = find.byWidgetPredicate(
+      (widget) =>
+          widget is CheckboxMenuButton &&
+          widget.key == const ValueKey('search-dialog-default-word-order'),
+    );
+
+    Future<void> openDialog(
+      WidgetTester tester,
+      Size size, {
+      bool compact = false,
+      TextDirection direction = TextDirection.rtl,
+      double textScale = 1,
+      double bottomInset = 0,
+    }) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = FakeViewPadding(bottom: bottomInset);
+      addTearDown(() async {
+        tester.view.reset();
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+      });
+
+      // נבנית בתוך הבדיקה, כדי ש-visualDensity והתפריטים יחושבו ל-Windows.
+      final theme = AppThemeData.light(
+        AppThemeData.createColorScheme(
+          AppSeedColors.defaultLight,
+          Brightness.light,
+        ),
+        compactMenuMode: compact,
+      );
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            builder: (context, app) => Directionality(
+              textDirection: direction,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(textScale),
+                ),
+                child: app!,
+              ),
+            ),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const SearchDialog(
+                        initialSearchMode: SearchMode.advanced,
+                      ),
+                    ),
+                    child: const Text('פתח'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> openDefaultsMenu(WidgetTester tester) async {
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-defaults-menu')),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> openSubmenu(WidgetTester tester) async {
+      await openDefaultsMenu(tester);
+      await tester.tap(find.text(rowLabel));
+      await tester.pumpAndSettle();
+      expect(proximity, findsOneWidget);
+    }
+
+    /// הלוח הגלוי של תת־התפריט (ה-Material הקרוב ביותר מעל פריט בו).
+    Rect submenuRect(WidgetTester tester) => tester.getRect(
+      find.ancestor(of: proximity, matching: find.byType(Material)).first,
+    );
+
+    bool besideRow(Rect panel, Rect rowRect) =>
+        panel.right <= rowRect.left + 0.5 || panel.left >= rowRect.right - 0.5;
+
+    bool inOffstage(Element element) {
+      var offstage = false;
+      element.visitAncestorElements((ancestor) {
+        final widget = ancestor.widget;
+        if (widget is Offstage && widget.offstage) {
+          offstage = true;
+          return false;
+        }
+        return true;
+      });
+      return offstage;
+    }
+
+    String sizeName(Size size) =>
+        '${size.width.toInt()}x${size.height.toInt()}';
+
+    for (final (size, compact) in const [
+      (Size(1100, 700), true),
+      (Size(1366, 768), true),
+      (Size(1366, 900), false),
+    ]) {
+      testWidgets(
+        'חלון רחב ${sizeName(size)}${compact ? ' (תפריטים צפופים)' : ''}: '
+        'תת־התפריט לצד השורה ותחתיתו בגובה תחתיתה',
+        (WidgetTester tester) async {
+          await openDialog(tester, size, compact: compact);
+          await openSubmenu(tester);
+
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+          expect(besideRow(panel, rowRect), isTrue, reason: '$panel $rowRect');
+          expect(panel.top, lessThan(rowRect.top));
+          expect(
+            panel.bottom,
+            moreOrLessEquals(rowRect.bottom + menuPadding, epsilon: 1),
+          );
+        },
+        variant: windows,
+      );
+    }
+
+    // תת־התפריט גבוה מהמקום שמעל תחתית השורה: Flutter מצמיד אותו לראש החלון.
+    for (final size in const [Size(1100, 700), Size(1366, 768)]) {
+      testWidgets(
+        'חלון רחב ${sizeName(size)} נמוך מתת־התפריט: לצד השורה וצמוד לראש החלון',
+        (WidgetTester tester) async {
+          await openDialog(tester, size);
+          await openSubmenu(tester);
+
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          expect(panel.height, greaterThan(rowRect.bottom + menuPadding));
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+          expect(besideRow(panel, rowRect), isTrue, reason: '$panel $rowRect');
+          expect(panel.top, moreOrLessEquals(0, epsilon: 1));
+        },
+        variant: windows,
+      );
+    }
+
+    for (final (size, compact) in const [
+      (Size(480, 760), true),
+      (Size(480, 820), false),
+    ]) {
+      testWidgets(
+        'חלון צר ${sizeName(size)}${compact ? ' (תפריטים צפופים)' : ''}: '
+        'תת־התפריט צמוד מעל השורה ומיושר לקצה ימין שלה',
+        (WidgetTester tester) async {
+          await openDialog(tester, size, compact: compact);
+          await openSubmenu(tester);
+
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          // התרחיש: אין מקום לתת־התפריט לא משמאל לשורה ולא מימין לה.
+          expect(
+            panel.width,
+            greaterThan(
+              math.max(rowRect.left, size.width - rowRect.right),
+            ),
+          );
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+          expect(panel.bottom, moreOrLessEquals(rowRect.top, epsilon: 1));
+          expect(panel.right, moreOrLessEquals(rowRect.right, epsilon: 1));
+        },
+        variant: windows,
+      );
+    }
+
+    // אין מקום לא בצד ולא מעל השורה: הלוח מוגבל לגובה שמעל השורה ונגלל,
+    // במקום ש-Flutter יצמיד אותו לראש החלון ויכסה את השורה.
+    for (final size in const [
+      Size(700, 700),
+      Size(480, 760),
+      Size(450, 700),
+    ]) {
+      testWidgets(
+        'חלון צר ונמוך ${sizeName(size)}: תת־התפריט מעל השורה, נגלל ולא מכסה אותה',
+        (WidgetTester tester) async {
+          await openDialog(tester, size);
+          await openSubmenu(tester);
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+          expect(panel.bottom, moreOrLessEquals(rowRect.top, epsilon: 1));
+          expect(panel.right, moreOrLessEquals(rowRect.right, epsilon: 1));
+          expect(panel.top, greaterThanOrEqualTo(-0.5));
+
+          // הלוח נגלל: יש מה לגלול, והפריטים האחרונים מגיעים לתוך הלוח.
+          final scrollable = find
+              .ancestor(of: proximity, matching: find.byType(Scrollable))
+              .first;
+          final position = tester.state<ScrollableState>(scrollable).position;
+          expect(position.maxScrollExtent, greaterThan(0));
+          expect(position.pixels, 0);
+          await tester.ensureVisible(proximity);
+          await tester.pumpAndSettle();
+          expect(position.pixels, greaterThan(0));
+          final last = tester.getRect(proximity);
+          expect(last.top, greaterThanOrEqualTo(panel.top - 0.5));
+          expect(last.bottom, lessThanOrEqualTo(panel.bottom + 0.5));
+          expect(submenuRect(tester), panel, reason: 'הלוח לא זז בגלילה');
+
+          // הפריט האחרון עם תיבה ניתן לסימון אחרי הגלילה.
+          final before = SearchDefaults.loadAnyOrderDefault();
+          await tester.tap(defaultOrder);
+          await tester.pumpAndSettle();
+          expect(SearchDefaults.loadAnyOrderDefault(), !before);
+          expect(proximity, findsOneWidget, reason: 'closeOnActivate: false');
+        },
+        variant: windows,
+      );
+    }
+
+    for (final direction in TextDirection.values) {
+      testWidgets(
+        'חלון צר עם כיוון $direction וטקסט מוגדל',
+        (tester) async {
+          await openDialog(
+            tester,
+            const Size(360, 640),
+            direction: direction,
+            textScale: 1.3,
+          );
+          await openSubmenu(tester);
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          expect(rowRect.deflate(0.5).overlaps(panel), isFalse);
+        },
+        variant: windows,
+      );
+    }
+
+    testWidgets(
+      'תת־התפריט נגיש בחלון אופקי עם מקלדת המסך פתוחה',
+      (tester) async {
+        await openDialog(tester, const Size(640, 400), bottomInset: 145);
+        await openSubmenu(tester);
+        final rowRect = tester.getRect(row);
+        final panel = submenuRect(tester);
+        expect(
+          rowRect.deflate(0.5).overlaps(panel),
+          isFalse,
+          reason: '$panel $rowRect',
+        );
+        expect(panel.bottom, moreOrLessEquals(rowRect.top, epsilon: 1));
+        expect(panel.top, greaterThanOrEqualTo(-0.5));
+
+        await tester.ensureVisible(proximity);
+        await tester.pumpAndSettle();
+        expect(
+          panel.deflate(0.5).contains(tester.getCenter(proximity)),
+          isTrue,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
+
+    for (final size in const [Size(1366, 768), Size(480, 820)]) {
+      testWidgets(
+        'חלון ${sizeName(size)}: תת־התפריט לא קופץ אחרי שהוצג',
+        (WidgetTester tester) async {
+          await openDialog(tester, size);
+          // פתיחה מהירה: פריים אחד בלבד בין פתיחת התפריט לפתיחת תת־התפריט.
+          await tester.tap(
+            find.byKey(const ValueKey('search-dialog-defaults-menu')),
+          );
+          await tester.pump();
+          await tester.tap(find.text(rowLabel));
+          Rect? first;
+          for (var i = 0; i < 10 && first == null; i++) {
+            await tester.pump(const Duration(milliseconds: 16));
+            if (proximity.evaluate().isNotEmpty) first = submenuRect(tester);
+          }
+          expect(first, isNotNull);
+          await tester.pumpAndSettle();
+          expect(submenuRect(tester), first);
+
+          // גם בפתיחה בריחוף, בתפריט שנפתח מחדש.
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          expect(proximity, findsNothing);
+          await openDefaultsMenu(tester);
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.addPointer(location: Offset.zero);
+          addTearDown(mouse.removePointer);
+          await mouse.moveTo(tester.getCenter(row));
+          first = null;
+          for (var i = 0; i < 10 && first == null; i++) {
+            await tester.pump(const Duration(milliseconds: 16));
+            if (proximity.evaluate().isNotEmpty) first = submenuRect(tester);
+          }
+          expect(first, isNotNull);
+          await tester.pumpAndSettle();
+          expect(submenuRect(tester), first);
+        },
+        variant: windows,
+      );
+    }
+
+    for (final size in const [Size(1366, 900), Size(480, 820)]) {
+      testWidgets(
+        'חלון ${sizeName(size)}: העכבר עובר מהשורה אל תת־התפריט ומסמן בו תיבה',
+        (WidgetTester tester) async {
+          await openDialog(tester, size);
+          await openDefaultsMenu(tester);
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.addPointer(location: Offset.zero);
+          addTearDown(mouse.removePointer);
+          var at = tester.getCenter(row);
+          await mouse.moveTo(at);
+          await tester.pumpAndSettle();
+          expect(proximity, findsOneWidget);
+
+          final rowRect = tester.getRect(row);
+          final panel = submenuRect(tester);
+          final target = tester.getRect(defaultOrder);
+          Future<void> moveTowards(Offset to) async {
+            while ((to - at).distance > 0.5) {
+              final step = to - at;
+              at += step.distance <= 4 ? step : step / step.distance * 4;
+              await mouse.moveTo(at);
+              await tester.pump(const Duration(milliseconds: 8));
+              expect(proximity, findsOneWidget, reason: 'נסגר ב-$at');
+            }
+          }
+
+          if (besideRow(panel, rowRect)) {
+            // לצד השורה: אופקית אל תוך הלוח, ואז בתוכו אל התיבה.
+            final x = (panel.left + panel.right) / 2;
+            await moveTowards(Offset(x, at.dy));
+            await moveTowards(Offset(x, target.center.dy));
+          } else {
+            // מעל השורה: עולים ישר למעלה, בקו אנכי שבתוך השורה ובתוך התיבה.
+            expect(panel.bottom, moreOrLessEquals(rowRect.top, epsilon: 1));
+            final x =
+                (math.max(rowRect.left, target.left) +
+                    math.min(rowRect.right, target.right)) /
+                2;
+            await moveTowards(Offset(x, at.dy));
+            await moveTowards(Offset(x, target.center.dy));
+          }
+          await tester.pumpAndSettle();
+          expect(proximity, findsOneWidget);
+          expect(target.contains(at), isTrue);
+
+          final before = SearchDefaults.loadAnyOrderDefault();
+          await mouse.down(at);
+          await tester.pump();
+          await mouse.up();
+          await tester.pumpAndSettle();
+          expect(SearchDefaults.loadAnyOrderDefault(), !before);
+          expect(proximity, findsOneWidget, reason: 'closeOnActivate: false');
+        },
+        variant: windows,
+      );
+    }
+
+    testWidgets(
+      'מקלדת: חץ שמאלה נכנס לתת־התפריט, ו-Esc סוגר את התפריטים ולא את הדיאלוג',
+      (WidgetTester tester) async {
+        await openDialog(tester, const Size(1366, 900));
+        await openDefaultsMenu(tester);
+        final defaultMode = find.byKey(
+          const ValueKey('search-dialog-default-mode'),
+        );
+
+        // פוקוס על השורה פותח את תת־התפריט (התנהגות SubmenuButton).
+        Focus.of(tester.element(find.text(rowLabel))).requestFocus();
+        await tester.pumpAndSettle();
+        expect(proximity, findsOneWidget);
+
+        Element submenuPanel() {
+          late Element panel;
+          tester.element(proximity).visitAncestorElements((ancestor) {
+            if (ancestor.widget.runtimeType.toString() == '_MenuPanel') {
+              panel = ancestor;
+              return false;
+            }
+            return true;
+          });
+          return panel;
+        }
+
+        bool focusInSubmenu() {
+          final focused = FocusManager.instance.primaryFocus?.context;
+          if (focused is! Element) return false;
+          final panel = submenuPanel();
+          var inside = false;
+          focused.visitAncestorElements((ancestor) {
+            inside = identical(ancestor, panel);
+            return !inside;
+          });
+          return inside;
+        }
+
+        // ב-RTL תת־התפריט משמאל: חץ שמאלה מעביר אליו את הפוקוס.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pumpAndSettle();
+        expect(focusInSubmenu(), isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(focusInSubmenu(), isTrue);
+        final focused = FocusManager.instance.primaryFocus!.context! as Element;
+        expect(inOffstage(focused), isFalse);
+
+        // DismissMenuAction של Flutter סוגר את כל עץ התפריטים (root), ולכן
+        // Esc ראשון סוגר את תת־התפריט ואת התפריט הראשי, והדיאלוג נשאר.
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(proximity, findsNothing);
+        expect(defaultMode, findsNothing);
+        expect(find.byType(SearchDialog), findsOneWidget);
+      },
+      variant: windows,
+    );
+
+    testWidgets(
+      'העותק הנסתר למדידה: לא נמצא, לא מקבל פוקוס, לא נלחץ ולא בסמנטיקה',
+      (WidgetTester tester) async {
+        final semantics = tester.ensureSemantics();
+        await openDialog(tester, const Size(1366, 900));
+        await openDefaultsMenu(tester);
+
+        // קיים בעץ אבל מחוץ לבמה: המאתרים הרגילים לא רואים אותו.
+        expect(proximity, findsNothing);
+        final hidden = find.byKey(proximityKey, skipOffstage: false);
+        expect(hidden, findsOneWidget);
+        expect(inOffstage(tester.element(hidden)), isTrue);
+        expect(find.byType(SubmenuButton), findsOneWidget);
+        expect(find.semantics.byLabel(RegExp('טווח הקרבה')), findsNothing);
+
+        // פוקוס: לא ניתן לבקש, וגם מעבר בחצים וב-Tab לא מגיע אליו.
+        final hiddenNode = Focus.of(
+          tester.element(
+            find
+                .descendant(
+                  of: hidden,
+                  matching: find.byType(Text, skipOffstage: false),
+                  skipOffstage: false,
+                )
+                .first,
+          ),
+        );
+        expect(hiddenNode.canRequestFocus, isFalse);
+        hiddenNode.requestFocus();
+        await tester.pump();
+        expect(hiddenNode.hasFocus, isFalse);
+        Focus.of(tester.element(find.text(rowLabel))).requestFocus();
+        await tester.pump();
+        for (final key in [
+          for (var i = 0; i < 6; i++) LogicalKeyboardKey.arrowDown,
+          for (var i = 0; i < 6; i++) LogicalKeyboardKey.arrowUp,
+          for (var i = 0; i < 6; i++) LogicalKeyboardKey.tab,
+        ]) {
+          await tester.sendKeyEvent(key);
+          await tester.pump();
+          final focused = FocusManager.instance.primaryFocus?.context;
+          if (focused is Element) {
+            expect(inOffstage(focused), isFalse, reason: '$key');
+          }
+        }
+
+        // לחיצה: מרכז העותק לא פוגע בו (הוא מונח מעל השורה ומתחתיה).
+        await tester.pumpAndSettle();
+        if (find.byType(SubmenuButton).evaluate().isEmpty) {
+          await openDefaultsMenu(tester);
+        }
+        final hiddenBox = tester.renderObject<RenderBox>(hidden);
+        final point = hiddenBox.localToGlobal(
+          hiddenBox.size.center(Offset.zero),
+        );
+        final hiddenObjects =
+            tester
+                .renderObjectList(
+                  find.descendant(
+                    of: hidden,
+                    matching: find.byWidgetPredicate(
+                      (_) => true,
+                      skipOffstage: false,
+                    ),
+                    skipOffstage: false,
+                  ),
+                )
+                .toSet()
+              ..add(hiddenBox);
+        final hit = tester.hitTestOnBinding(point);
+        expect(
+          hit.path.where((entry) => hiddenObjects.contains(entry.target)),
+          isEmpty,
+        );
+        semantics.dispose();
+      },
+      variant: windows,
+    );
   });
 }

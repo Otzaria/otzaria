@@ -311,7 +311,8 @@ void main() {
       expect(debugAnchorProjectionBodyScanCount, notes.length);
     });
 
-    test('בשורה השמורה מוזרק רק החלק שמחוץ להערות', () {
+    // סמן ההערה אינו נעטף: עטיפה מציגה אותו פעמיים (issue #5030).
+    test('בשורה השמורה מוזרק רק החלק שמחוץ להערות ולסמניהן', () {
       final html = injectLinkAnchorMarkers(
         rawLine: stored,
         anchorLinks: [_linker(2, 12)],
@@ -321,8 +322,7 @@ void main() {
       );
       expect(
         html,
-        'אב<sup class="footnote-marker"><a class="link-anchor-range" '
-        'href="otzaria://anchor?ref=4_0&range=1">1</a></sup>'
+        'אב<sup class="footnote-marker">1</sup>'
         '<a class="link-anchor-range" href="otzaria://anchor?ref=4_0&range=1">'
         'הויכ</a>',
       );

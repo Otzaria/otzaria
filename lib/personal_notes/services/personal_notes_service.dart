@@ -128,6 +128,9 @@ class PersonalNotesService {
         contentFormat: contentFormat,
       );
     }
+    if (bookId == PersonalNote.generalBookId) {
+      throw ArgumentError.value(lineNumber, 'lineNumber', 'general note');
+    }
     final lines = splitBookContentIntoLines(bookContent);
     // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
     // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.

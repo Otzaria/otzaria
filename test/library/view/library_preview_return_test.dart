@@ -1,4 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -181,6 +182,53 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(bloc.state.previewCategory, same(library));
+  });
+
+  // במחשב לחיצת עכבר משאירה את מצב ההדגשה "traditional", ולכן כרטיס שקיבל
+  // פוקוס נצבע בשכבת הפוקוס האפורה גם אחרי שהבחירה בוטלה (issue #5607).
+  group('לחיצת עכבר על רקע ריק (issue #5607)', () {
+    String? focusedTile() => FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<CategoryGridItem>()
+        ?.category
+        .title;
+
+    Future<void> mouseClickFolderThenBackground(WidgetTester tester) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(CategoryGridItem),
+          matching: find.text('הלכה'),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(bloc.state.previewCategory, same(halacha));
+      expect(focusedTile(), 'הלכה');
+
+      final grid = tester.getRect(find.byType(MyGridView));
+      await tester.tapAt(
+        Offset(grid.center.dx, grid.bottom - 20),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    testWidgets('הכרטיס לא נשאר מואפר: הפוקוס יוצא ממנו', (tester) async {
+      await pump(tester);
+      await mouseClickFolderThenBackground(tester);
+
+      expect(bloc.state.previewCategory, same(library));
+      expect(focusedTile(), isNull);
+    });
+
+    testWidgets('אחרי הלחיצה המקלדת עדיין פועלת בספרייה', (tester) async {
+      await pump(tester);
+      await mouseClickFolderThenBackground(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+
+      expect(focusedTile(), isNotNull, reason: 'החץ מחזיר את הפוקוס לרשת');
+    });
   });
 
   testWidgets('לחיצה על תיקייה אחרת רק מחליפה את התצוגה המקדימה', (

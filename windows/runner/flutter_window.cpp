@@ -789,7 +789,6 @@ bool FlutterWindow::OnCreate() {
         if (call.method_name() == "raiseSelf") {
           const HWND self = GetHandle();
           if (self && !RestoreClosedWindow()) {
-            Win32Window::NoteUserActivation(self);
             ::BringWindowToTop(self);
             ::SetForegroundWindow(self);
           }
@@ -1053,8 +1052,6 @@ bool FlutterWindow::RestoreClosedWindow() {
   if (!self || !closed_by_user_) return false;
   closed_by_user_ = false;
   if (::IsWindowVisible(self)) return false;
-  // שחזור הוא כוונה מפורשת — ראו [Win32Window::ShouldVetoActivation].
-  NoteUserActivation(self);
   ::ShowWindow(self, SW_SHOW);
   ::BringWindowToTop(self);
   ::SetForegroundWindow(self);

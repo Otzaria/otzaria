@@ -14,6 +14,7 @@
 
 #include "crash_wer_context.h"
 #include "image_identity.h"
+#include "incident_context.h"
 
 namespace {
 
@@ -131,7 +132,7 @@ std::string Timestamp() {
 }
 
 // אותו מבנה כמו crash_record.cpp, כדי שהחתימה והפענוח יהיו זהים.
-std::string BuildRecord(const CrashWerContext& context,
+std::string BuildRecord(const CrashWerContext& context, uint32_t incident_context,
                         const WER_RUNTIME_EXCEPTION_INFORMATION& info) {
   HANDLE process = info.hProcess;
   const EXCEPTION_RECORD& record = info.exceptionRecord;
@@ -159,6 +160,7 @@ std::string BuildRecord(const CrashWerContext& context,
   report += ::GetThreadId(info.hThread) == context.main_thread_id
                 ? "Thread: main\n"
                 : "Thread: other\n";
+  AppendIncidentContext(incident_context, &report);
   if (context.build_commit[0] != '\0') {
     report += std::string("Build commit: ") + context.build_commit + "\n";
   }
@@ -231,17 +233,25 @@ HRESULT OutOfProcessExceptionEventCallback(
     return S_OK;
   }
   CrashWerContext context = {};
-  if (!ReadRemote(info->hProcess, reinterpret_cast<ULONG_PTR>(pContext),
-                  &context, sizeof(context)) ||
+  const auto address = reinterpret_cast<ULONG_PTR>(pContext);
+  if (!ReadRemote(info->hProcess, address, &context,
+                  kLegacyCrashWerContextSize) ||
       context.magic != CrashWerContext::kMagic ||
-      context.size != sizeof(context) || context.recorded != 0) {
+      context.size < kLegacyCrashWerContextSize || context.recorded != 0) {
     return S_OK;
   }
   context.log_path[ARRAYSIZE(context.log_path) - 1] = L'\0';
   context.version[sizeof(context.version) - 1] = '\0';
   context.build_commit[sizeof(context.build_commit) - 1] = '\0';
   if (context.log_path[0] == L'\0') return S_OK;
-  Append(context.log_path, BuildRecord(context, *info));
+  // ה-DLL יכול עדיין לדווח כשה-runner הישן שולח רק את התחילית.
+  uint32_t incident_context = 0;
+  if (context.size >= sizeof(context) &&
+      !ReadRemote(info->hProcess, address + kLegacyCrashWerContextSize,
+                  &incident_context, sizeof(incident_context))) {
+    incident_context = 0;
+  }
+  Append(context.log_path, BuildRecord(context, incident_context, *info));
   return S_OK;
 }
 

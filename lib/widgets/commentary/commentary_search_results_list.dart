@@ -72,13 +72,14 @@ class _CommentarySearchResultsListState
     final cacheKey =
         '${settingsState.commentatorsFontFamily}|'
         '${colorScheme.onSurface.toARGB32()}|${widget.query}|'
-        '${snippet.globalIndex}|${snippet.snippet}';
+        '${snippet.globalIndex}|${snippet.partialWordMatch}|${snippet.snippet}';
     final cached = _snippetSpansCache[cacheKey];
     if (cached != null) return cached;
 
     final spans = SnippetBuilder.highlightLiteral(
       plainText: snippet.snippet,
       query: widget.query,
+      wholeWord: !snippet.partialWordMatch,
       defaultStyle: TextStyle(
         fontSize: 14,
         fontFamily: AppFonts.renderFontFamily(

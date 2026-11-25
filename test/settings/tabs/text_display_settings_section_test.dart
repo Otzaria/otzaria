@@ -485,6 +485,16 @@ void main() {
       );
     });
 
+    testWidgets('שאר שמות הקודש — התיאור בכינויים ולא בשמות (issue #3518)', (
+      tester,
+    ) async {
+      await pumpRoot(tester, TextDisplayPolicy.empty);
+      for (final name in ['אלהים', 'שדי', 'צבאות']) {
+        expect(find.textContaining(name), findsNothing, reason: name);
+      }
+      expect(find.textContaining('אלקים, ש-די, צבקות'), findsOneWidget);
+    });
+
     testWidgets('טעמי המקרא: התג "כמו הניקוד" ומתג', (tester) async {
       final bloc = await pumpRoot(tester, TextDisplayPolicy.empty);
       TeamimVisibility teamim() =>

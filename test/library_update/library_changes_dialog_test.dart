@@ -99,6 +99,43 @@ void main() {
     );
   });
 
+  testWidgets('בלי הערות מציג הסבר במקום שדה חיפוש', (tester) async {
+    await tester.pumpWidget(_app(const SizedBox()));
+    final context = tester.element(find.byType(Scaffold));
+    final closed = showLibraryChangesDialog(context, const []);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('טרם נשמרו במחשב זה הערות עדכון לספרייה.'),
+      findsOneWidget,
+    );
+    expect(find.byType(EditableText), findsNothing);
+    await tester.tap(find.text('סגור'));
+    await tester.pumpAndSettle();
+    await closed;
+  });
+
+  testWidgets('סגירת החלון משחררת את דיאלוג ההיסטוריה הריקה', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(const SizedBox()));
+    final context = tester.element(find.byType(Scaffold));
+    var closed = false;
+    final dialog = showLibraryChangesDialog(context, const []).then((_) {
+      closed = true;
+    });
+    await tester.pumpAndSettle();
+    expect(
+      find.text('טרם נשמרו במחשב זה הערות עדכון לספרייה.'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    expect(closed, isTrue);
+    await dialog;
+  });
+
   testWidgets('RTL, רשימה ארוכה נגללת, חיפוש מסנן וסגירה', (tester) async {
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1;

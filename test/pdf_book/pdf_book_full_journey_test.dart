@@ -221,15 +221,6 @@ void main() {
       bloc.add(const ResetPerBookSettings());
       await Future.delayed(Duration.zero);
 
-      // ── שלב 9: pin חלונית ─────────────────────────────────────────────────
-      bloc.add(const TogglePinLeftPane());
-      await Future.delayed(Duration.zero);
-      expect((bloc.state as PdfBookLoaded).pinLeftPane, isTrue);
-
-      bloc.add(const TogglePinLeftPane());
-      await Future.delayed(Duration.zero);
-      expect((bloc.state as PdfBookLoaded).pinLeftPane, isFalse);
-
       // ── שלב 10: מצב טעינה ─────────────────────────────────────────────────
       bloc.add(const SetLoadingState(isLoading: true));
       await Future.delayed(Duration.zero);

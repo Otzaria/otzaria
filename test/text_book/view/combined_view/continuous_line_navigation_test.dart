@@ -60,7 +60,6 @@ TextBookLoaded _state(List<bool> loaded, {bool continuous = true}) {
     linksByLine: const {},
     tableOfContents: headerToc(_lines),
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
     supportsContinuousReadingMode: true,
     continuousReadingMode: continuous,

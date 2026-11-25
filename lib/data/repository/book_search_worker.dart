@@ -28,7 +28,7 @@ class BookSearchWorker {
   // FIFO dequeue must remain O(1) even with many queued search requests.
   final Queue<_BookSearchJob> _queue = Queue<_BookSearchJob>();
   _BookSearchJob? _inFlight;
-  Completer<List<int>>? _reply;
+  Completer<BookSearchMatches>? _reply;
 
   @visibleForTesting
   int indexUploads = 0;
@@ -38,7 +38,7 @@ class BookSearchWorker {
 
   /// מחפש את [query] ברשומות [entries]. חיפוש חדש עם אותו [supersedeKey]
   /// מבטל את הקודם, שנכשל ב-[BookSearchSupersededException].
-  Future<List<int>> search(
+  Future<BookSearchMatches> search(
     List<BookSearchEntry> entries,
     BookSearchQuery query, {
     Object? supersedeKey,
@@ -68,17 +68,17 @@ class BookSearchWorker {
 
   Future<void> _run(_BookSearchJob job) async {
     try {
-      List<int> indices;
+      BookSearchMatches matches;
       try {
-        indices = await _searchOnWorker(job);
+        matches = await _searchOnWorker(job);
       } catch (error) {
         debugPrint('[BookSearchWorker] falling back to Isolate.run: $error');
-        indices = await _searchInFreshIsolate(job.entries, job.query);
+        matches = await _searchInFreshIsolate(job.entries, job.query);
       }
       if (job.superseded) {
         job.result.completeError(const BookSearchSupersededException());
       } else {
-        job.result.complete(indices);
+        job.result.complete(matches);
       }
     } catch (error, stackTrace) {
       job.result.completeError(error, stackTrace);
@@ -88,7 +88,7 @@ class BookSearchWorker {
     }
   }
 
-  Future<List<int>> _searchOnWorker(_BookSearchJob job) async {
+  Future<BookSearchMatches> _searchOnWorker(_BookSearchJob job) async {
     final port = await _ensureStarted();
     if (!identical(port, _toWorker)) {
       throw StateError('book search worker disposed before sending');
@@ -98,7 +98,7 @@ class BookSearchWorker {
       port.send(_SetIndexMessage(job.entries));
     }
     _workerEntries = job.entries;
-    final reply = _reply = Completer<List<int>>();
+    final reply = _reply = Completer<BookSearchMatches>();
     port.send(job.query);
     return reply.future;
   }
@@ -144,8 +144,8 @@ class BookSearchWorker {
         _toWorker = port;
         _starting?.complete(port);
         _starting = null;
-      case _SearchReply(:final indices?):
-        _takeReply()?.complete(indices);
+      case _SearchReply(:final matches?):
+        _takeReply()?.complete(matches);
       case _SearchReply(:final error):
         // שגיאה בשאילתה אחת אינה פוסלת את ה-worker; Isolate.run יחזור עליה.
         _takeReply()?.completeError(StateError('$error'));
@@ -155,7 +155,7 @@ class BookSearchWorker {
     }
   }
 
-  Completer<List<int>>? _takeReply() {
+  Completer<BookSearchMatches>? _takeReply() {
     final reply = _reply;
     _reply = null;
     return reply;
@@ -187,6 +187,22 @@ class BookSearchWorker {
     _takeReply()?.completeError(error);
   }
 
+  /// מצב ה-worker לדוח האבחון.
+  Map<String, Object?> describe() => {
+    'mode': _failed
+        ? 'fallback'
+        : _toWorker != null
+        ? 'running'
+        : _starting != null
+        ? 'starting'
+        : 'idle',
+    'queued': _queue.length,
+    'inFlight': _inFlight != null,
+    'awaitingReply': _reply != null,
+    'indexUploads': indexUploads,
+    'indexedEntries': _workerEntries?.length,
+  };
+
   static bool _sameEntries(
     List<BookSearchEntry>? previous,
     List<BookSearchEntry> next,
@@ -201,7 +217,7 @@ class BookSearchWorker {
 }
 
 /// מסלול הגיבוי. פונקציה עליונה כדי שה-closure לא ילכוד את מצב ה-worker.
-Future<List<int>> _searchInFreshIsolate(
+Future<BookSearchMatches> _searchInFreshIsolate(
   List<BookSearchEntry> entries,
   BookSearchQuery query,
 ) => Isolate.run(() => PreparedBookSearchIndex(entries).search(query));
@@ -212,7 +228,7 @@ class _BookSearchJob {
   final List<BookSearchEntry> entries;
   final BookSearchQuery query;
   final Object? supersedeKey;
-  final Completer<List<int>> result = Completer<List<int>>();
+  final Completer<BookSearchMatches> result = Completer<BookSearchMatches>();
   bool superseded = false;
 }
 
@@ -223,9 +239,9 @@ class _SetIndexMessage {
 }
 
 class _SearchReply {
-  const _SearchReply({this.indices, this.error});
+  const _SearchReply({this.matches, this.error});
 
-  final List<int>? indices;
+  final BookSearchMatches? matches;
   final String? error;
 }
 
@@ -239,7 +255,7 @@ void _bookSearchWorkerMain(SendPort replies) {
         index = PreparedBookSearchIndex(entries);
       case BookSearchQuery query:
         try {
-          replies.send(_SearchReply(indices: index!.search(query)));
+          replies.send(_SearchReply(matches: index!.search(query)));
         } catch (error, stackTrace) {
           replies.send(_SearchReply(error: '$error\n$stackTrace'));
         }

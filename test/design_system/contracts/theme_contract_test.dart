@@ -108,10 +108,10 @@ void main() {
         ]) {
           expect(style?.shape?.resolve({}), AppTokens.roundedShape);
         }
-        // כפתור אייקון בלבד עגול (DD-04, q9 שאלה 3).
+        // גם כפתור אייקון בלבד בפינות 8 (DD-04).
         expect(
           theme.iconButtonTheme.style?.shape?.resolve({}),
-          const CircleBorder(),
+          AppTokens.roundedShape,
         );
       });
 

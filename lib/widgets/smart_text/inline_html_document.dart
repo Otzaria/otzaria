@@ -25,7 +25,6 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
         CssStyleSheetExtension,
         DomElementExtension;
 import 'package:html/dom.dart' as dom;
-import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/core/diagnostics/smart_text_render_stats.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
@@ -171,10 +170,8 @@ class InlineHtmlDocument {
   }
 
   static InlineHtmlLine? _parseLineUncached(String html, TextStyle baseStyle) {
-    final List<dom.Node> nodes = html.contains('<') || html.contains('&')
-        ? parseWellFormedInlineHtml(html) ??
-              html_parser.parseFragment(html).nodes
-        : [dom.Text(html)];
+    final nodes = parseInlineHtmlNodes(html);
+    if (nodes == null) return null;
     final heading = _wholeLineHeading(nodes);
     if (heading != null) {
       final style = SimpleInlineHtml.headingStyleForTag(

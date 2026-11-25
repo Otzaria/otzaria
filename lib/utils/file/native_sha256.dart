@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
+import 'package:otzaria/utils/debug_print.dart';
 
 /// SHA-256 כ-hex קטן דרך BCrypt ב-Windows ו-CommonCrypto ב-macOS.
 /// בשאר הפלטפורמות או בכשל טעינה משתמש ב-package:crypto; יש להריץ ב-isolate.

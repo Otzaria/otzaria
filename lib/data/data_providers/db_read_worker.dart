@@ -297,6 +297,7 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
               ),
             ],
             categoryId: key.$2,
+            allowLegacyOfficialTitle: false,
           );
           resolvedBooks[key] = resolved?.book;
         }
@@ -1402,6 +1403,7 @@ void _workerMain(_Bootstrap bootstrap) {
         ),
       ],
       categoryId: categoryId,
+      allowLegacyOfficialTitle: false,
     );
     if (resolvedBooks.length >= _maxResolvedBooks) resolvedBooks.clear();
     return resolvedBooks[key] = resolved?.book;

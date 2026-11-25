@@ -23,10 +23,9 @@ BoxDecoration _decorationIn(WidgetTester tester, Finder of) =>
         as BoxDecoration;
 
 void main() {
-  // DD-04, q9 שאלה 3, q10 שאלה 22: כפתור אייקון שקוף עגול מערכת הנושא, וכפתור
-  // אייקון עם רקע גלוי משלו נשאר בפינות 8.
+  // DD-04: כל כפתורי האייקון בפינות 8, השקוף מערכת הנושא ובעל הרקע מעצמו.
   group('צורת כפתורי אייקון', () {
-    testWidgets('שקוף: עיגול מ-iconButtonTheme', (tester) async {
+    testWidgets('שקוף: פינות 8 מ-iconButtonTheme', (tester) async {
       await pumpInApp(
         tester,
         IconButton(
@@ -36,7 +35,7 @@ void main() {
         ),
       );
       final material = firstMaterialIn(tester, find.byType(IconButton));
-      expect(material.shape, const CircleBorder());
+      expect(material.shape, AppTokens.roundedShape);
     });
 
     for (final (name, button) in <(String, Widget)>[
@@ -377,7 +376,7 @@ void main() {
   });
 
   group('BarButton', () {
-    testWidgets('icon בלי label: עיגול 40, אייקון 20 ב-onSurfaceVariant', (
+    testWidgets('icon בלי label: פינות 8, אייקון 20 ב-onSurfaceVariant', (
       tester,
     ) async {
       await pumpInApp(
@@ -392,13 +391,14 @@ void main() {
       );
       final cs = schemeAt(tester, find.byType(BarButton));
       final button = tester.widget<IconButton>(find.byType(IconButton));
-      expect(button.style?.shape?.resolve({}), const CircleBorder());
+      expect(button.style?.shape?.resolve({}), AppTokens.roundedShape);
       expect(tester.getSize(find.byType(IconButton)), const Size(40, 40));
       final container = tester.widget<AnimatedContainer>(
         find.byType(AnimatedContainer),
       );
       final decoration = container.decoration! as BoxDecoration;
-      expect(decoration.shape, BoxShape.circle);
+      expect(decoration.shape, BoxShape.rectangle);
+      expect(decoration.borderRadius, AppTokens.borderRadiusAll);
       expect(decoration.color, Colors.transparent);
       final icon = tester.widget<Icon>(find.byType(Icon));
       expect(icon.size, 20);
@@ -422,8 +422,8 @@ void main() {
       expect(BarButton.toolbarWidth(true), 40);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-    // שאלה פתוחה 1 (הוכרע B): במגע שטח 48, והעיגול הנראה נשאר 40.
-    testWidgets('icon במגע: שטח 48, העיגול 40', (tester) async {
+    // שאלה פתוחה 1 (הוכרע B): במגע שטח 48, והריבוע הנראה נשאר 40.
+    testWidgets('icon במגע: שטח 48, הריבוע 40', (tester) async {
       await pumpInApp(
         tester,
         Center(
@@ -943,7 +943,7 @@ void main() {
 
   group('AppIconButton', () {
     for (final size in AppIconButtonSize.values) {
-      testWidgets('${size.name}: אייקון ${size.iconSize}, ריבוע +16, עיגול', (
+      testWidgets('${size.name}: אייקון ${size.iconSize}, ריבוע +16, פינות 8', (
         tester,
       ) async {
         await pumpInApp(
@@ -962,7 +962,7 @@ void main() {
         expect(tester.getSize(find.byType(Icon)).width, size.iconSize);
         expect(
           firstMaterialIn(tester, find.byType(IconButton)).shape,
-          const CircleBorder(),
+          AppTokens.roundedShape,
         );
         expect(find.byTooltip('סגור'), findsOneWidget);
       });

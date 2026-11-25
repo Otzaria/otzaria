@@ -6,7 +6,9 @@ import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
 import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:flutter/foundation.dart';
 
@@ -170,6 +172,20 @@ class TabsRepository {
       return OpenedTab.fromJson(castMap(remappedJson));
     }).toList();
   }
+
+  /// טאב שספר טקסט בו נשמר בכותרת שהקטלוג תיקן נבנה מחדש מה-JSON, ו-
+  /// [TextBookTab] מקבל בבנייה את הכותרת שבקטלוג (#2766).
+  List<OpenedTab> refreshCatalogTitles(List<OpenedTab> tabs) => [
+    for (final tab in tabs)
+      _hasRenamedTextBook(tab) ? OpenedTab.fromJson(tab.toJson()) : tab,
+  ];
+
+  static bool _hasRenamedTextBook(OpenedTab tab) => switch (tab) {
+    TextBookTab(:final book) => !identical(book.withCatalogTitle(), book),
+    CommentatorsTab(:final sourceTab) => _hasRenamedTextBook(sourceTab),
+    CombinedTab(:final panes) => panes.any(_hasRenamedTextBook),
+    _ => false,
+  };
 
   dynamic _remapNode(
     dynamic node,

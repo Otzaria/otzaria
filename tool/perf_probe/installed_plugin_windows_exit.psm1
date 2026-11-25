@@ -359,6 +359,15 @@ function Get-InstalledPluginRunExitCode {
         $Report['errors'] -isnot [array] -or $Report['errors'].Count -ne 0 -or
         $Report['testFailures'] -isnot [array] -or $Report['testFailures'].Count -ne 0 -or
         $ExitEvidence.availability -ne 'collected') { return 1 }
+    $pdf = $Report['pdfRuntime']
+    if ($pdf -isnot [System.Collections.IDictionary] -or $pdf['platform'] -ne 'windows' -or
+        $pdf['status'] -ne 'passed' -or $pdf['bundlePathsVerified'] -ne $true -or
+        $pdf['ownedDocumentsRemaining'] -ne 0 -or $pdf['ownedTabsRemaining'] -ne 0 -or
+        $pdf['indexingActiveAfter'] -ne $false -or $pdf['steps'] -isnot [System.Collections.IDictionary]) { return 1 }
+    foreach ($name in @('view', 'concurrentWork', 'desktopLifecycle', 'repeatedLifecycle', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
+        $phase = $pdf['steps'][$name]
+        if ($phase -isnot [System.Collections.IDictionary] -or $phase['status'] -ne 'passed') { return 1 }
+    }
     # Dart Process::Kill on Windows uses TerminateProcess(handle, -1).
     if ($ExitEvidence.exitStatus -notin @(0, [uint32]::MaxValue)) { return 1 }
     if ($null -ne $ApplicationErrors -and $ApplicationErrors['events'].Count -gt 0) { return 1 }

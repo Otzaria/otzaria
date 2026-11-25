@@ -256,15 +256,6 @@ class UpdateDefaultCommentaryOpen extends SettingsEvent {
   List<Object?> get props => [defaultCommentaryOpen];
 }
 
-class UpdatePinSidebar extends SettingsEvent {
-  final bool pinSidebar;
-
-  const UpdatePinSidebar(this.pinSidebar);
-
-  @override
-  List<Object?> get props => [pinSidebar];
-}
-
 class UpdateSidebarWidth extends SettingsEvent {
   final double sidebarWidth;
 
@@ -532,6 +523,15 @@ class UpdateCompactMenuMode extends SettingsEvent {
 
   @override
   List<Object?> get props => [compactMenuMode];
+}
+
+class UpdateFullscreenAutoHideToolbar extends SettingsEvent {
+  final bool autoHide;
+
+  const UpdateFullscreenAutoHideToolbar(this.autoHide);
+
+  @override
+  List<Object?> get props => [autoHide];
 }
 
 class UpdateReadingTabsPlacement extends SettingsEvent {

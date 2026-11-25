@@ -3,6 +3,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
@@ -30,6 +31,7 @@ class _FakeRepository implements FindRefRepository {
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async => throw _error;
 
   @override

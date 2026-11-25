@@ -2,42 +2,12 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
-import 'package:otzaria/data/cache/acronym_cache_data.dart';
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
-
-/// קבוצת-על ממוינת של מזהי ספרים שכינוי שלהם עלול להתאים לשאילתה.
-/// הבדיקה היא חיפוש בינארי — ללא הקצאות, כדי שתרוץ פעם אחת לכל ספר בכל הקלדה.
-class AcronymCandidateBooks {
-  const AcronymCandidateBooks._(this._sortedBookIds);
-
-  final Int32List _sortedBookIds;
-
-  /// האם ייתכן שכינוי של [bookId] מתאים לשאילתה. ההכרעה נשארת בידי הקורא —
-  /// זו קבוצת-על.
-  bool contains(int bookId) {
-    var low = 0;
-    var high = _sortedBookIds.length - 1;
-    while (low <= high) {
-      final mid = (low + high) >> 1;
-      final value = _sortedBookIds[mid];
-      if (value == bookId) return true;
-      if (value < bookId) {
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-    return false;
-  }
-
-  /// בדיקות בלבד — מספר הספרים שנותרו לסריקה.
-  @visibleForTesting
-  int get length => _sortedBookIds.length;
-}
 
 /// In-memory cache for the `book_acronym` table, used for matching
 /// book acronyms and alternative titles (FindRef, library book search).
@@ -59,16 +29,14 @@ class AcronymsCache {
   /// משתנה כשכינויי הספרים משתנים, כולל השלמת טעינה של מסד מצורף.
   int get revision => _revision;
 
-  final Map<int, List<String>> _acronymsByBookId = <int, List<String>>{};
-  final Map<int, Set<String>> _quotedWordsByBookId = <int, Set<String>>{};
-
-  /// אינדקס ביגרמים: לכל צמד תווים סמוכים שמופיע במונח כלשהו — מזהי הספרים
-  /// שלהם יש מונח כזה, ממוינים. המפתח הוא `(תו ראשון << 16) | תו שני`.
-  final Map<int, Int32List> _bookIdsByBigram = <int, Int32List>{};
-
-  static final AcronymCandidateBooks _noCandidates = AcronymCandidateBooks._(
-    Int32List(0),
+  static const _empty = AcronymCacheData(
+    acronymsByBookId: {},
+    bookIdsByBigram: {},
+    rowCount: 0,
   );
+
+  /// כינויי הקטלוג הרשמי ואינדקס הביגרמים שלהם.
+  AcronymCacheData _official = _empty;
 
   /// כינויי ספרי המסדים המצורפים, לפי slug — מרחב id נפרד לכל מסד.
   final Map<String, Map<int, List<String>>> _attachedAcronyms = {};
@@ -79,18 +47,28 @@ class AcronymsCache {
 
   /// Returns all normalized acronyms for a given book ID.
   /// כל ערך כבר עבר [normalizeForFindRefMatch] בעת הטעינה.
-  List<String>? getAcronymsForBook(int bookId) => _acronymsByBookId[bookId];
+  List<String>? getAcronymsForBook(int bookId) =>
+      _official.acronymsByBookId[bookId];
 
   /// ראו [AcronymCacheData.quotedWordsByBookId]. רק לקטלוג הרשמי.
   Set<String> quotedWordsForBook(int bookId) =>
-      _quotedWordsByBookId[bookId] ?? const <String>{};
+      _official.quotedWordsByBookId[bookId] ?? const <String>{};
 
-  /// הכינויים של ספר [bookId] במסד של [source]. לספר אישי אין כינויים.
+  /// הכינויים המילוליים של ספר [bookId] במסד של [source]. לספר אישי אין.
   List<String>? acronymsFor(BookSource source, int bookId) => switch (source) {
-    OfficialBookSource() => _acronymsByBookId[bookId],
+    OfficialBookSource() => _official.acronymsByBookId[bookId],
     AttachedBookSource(:final slug) => _attachedAcronyms[slug]?[bookId],
     UserBookSource() => null,
   };
+
+  /// כל הכינויים של ספר לחיפוש — המילוליים של המסד שלו ואחריהם הנגזרים מכותרתו
+  /// ([bookAliasesOf]). כך מקבל כינויים גם ספר אישי, ספר בלי מזהה ומסד מצורף
+  /// בלי טבלת `book_acronym`.
+  List<String> aliasesFor(BookSource source, int? bookId, String title) =>
+      bookAliasesForTitle(
+        bookId == null ? null : acronymsFor(source, bookId),
+        title,
+      );
 
   /// כל הכינויים של מסד מצורף, או `null` כשלא נטענו. מוחלף בכל טעינה מחדש.
   Map<int, List<String>>? attachedAcronymsOf(String slug) =>
@@ -170,48 +148,23 @@ class AcronymsCache {
         "AND name = 'book_acronym'",
       );
       if (hasTable.isEmpty) return const {};
-      final acronymsByBookId = <int, List<String>>{};
-      for (final row in db.select('SELECT bookId, term FROM book_acronym')) {
-        final bookId = row['bookId'];
-        final term = row['term'];
-        if (bookId is! int || term is! String || term.isEmpty) continue;
-        final normalized = normalizeForFindRefMatch(term);
-        if (normalized.isEmpty) continue;
-        acronymsByBookId.putIfAbsent(bookId, () => <String>[]).add(normalized);
-      }
-      return acronymsByBookId;
+      return collectBookAliasTerms(
+        [
+          for (final row in db.select('SELECT bookId, term FROM book_acronym'))
+            if (row['bookId'] case final int bookId)
+              if (row['term'] case final String term) (bookId, term),
+        ],
+        normalizeForFindRefMatch,
+        withQuotedWords: false,
+      ).aliasesByBookId;
     } finally {
       db.close();
     }
   }
 
-  /// קבוצת-על של הספרים שכינוי שלהם עלול להתאים ל-[normalizedQuery] — בזהות,
-  /// בתחילית או בהכלה. `null` פירושו "אין צמצום, סרוק את כל הספרים".
-  ///
-  /// המסננת אינה מחמיצה: כל שלוש צורות ההתאמה דורשות מונח **שמכיל** את
-  /// השאילתה, ומונח כזה מכיל בהכרח כל ביגרם שלה — ולכן הספר מופיע בכל רשימות
-  /// הביגרמים, כולל הנדירה שבהן. שאילתה קצרה מ-2 תווים אינה ניתנת לאינדוקס.
-  AcronymCandidateBooks? candidatesFor(String normalizedQuery) {
-    // אינדקס ריק מול מונחים קיימים — נפילה לסריקה מלאה. קבוצה ריקה כאן
-    // הייתה משתיקה כל התאמת כינויים, בלי שגיאה.
-    if (!_isLoaded || _bookIdsByBigram.isEmpty) return null;
-    if (normalizedQuery.length < 2) return null;
-
-    Int32List? rarestBookIds;
-    for (var i = 0; i + 1 < normalizedQuery.length; i++) {
-      final bookIds =
-          _bookIdsByBigram[_bigramKey(
-            normalizedQuery.codeUnitAt(i),
-            normalizedQuery.codeUnitAt(i + 1),
-          )];
-      // ביגרם שאינו במאגר — אף מונח אינו מכיל את השאילתה.
-      if (bookIds == null) return _noCandidates;
-      if (rarestBookIds == null || bookIds.length < rarestBookIds.length) {
-        rarestBookIds = bookIds;
-      }
-    }
-    return AcronymCandidateBooks._(rarestBookIds!);
-  }
+  /// ראו [AcronymCacheData.candidatesFor]; `null` גם כשהקאש עוד לא נטען.
+  AcronymCandidateBooks? candidatesFor(String normalizedQuery) =>
+      _isLoaded ? _official.candidatesFor(normalizedQuery) : null;
 
   Future<void> warmUp() async {
     if (_isLoaded) return;
@@ -234,9 +187,7 @@ class AcronymsCache {
     if (repository == null) {
       debugPrint('[AcronymsCache] DB not initialized; skipping warmup');
       if (myGen == _generation) {
-        _acronymsByBookId.clear();
-        _bookIdsByBigram.clear();
-        _quotedWordsByBookId.clear();
+        _official = _empty;
         _isLoaded = false;
       }
       return;
@@ -247,28 +198,18 @@ class AcronymsCache {
           .getBookAcronymCache();
 
       if (myGen != _generation) return;
-      _acronymsByBookId
-        ..clear()
-        ..addAll(data.acronymsByBookId);
-      _bookIdsByBigram
-        ..clear()
-        ..addAll(data.bookIdsByBigram);
-      _quotedWordsByBookId
-        ..clear()
-        ..addAll(data.quotedWordsByBookId);
+      _official = data;
       _isLoaded = true;
       _revision++;
       debugPrint(
-        '[AcronymsCache] Loaded ${data.rowCount} acronyms for ${_acronymsByBookId.length} books',
+        '[AcronymsCache] Loaded ${data.rowCount} acronyms for ${data.acronymsByBookId.length} books',
       );
     } catch (e) {
       debugPrint('[AcronymsCache] Warmup failed: $e');
       // לא מסמנים loaded: כשל זמני (למשל DB locked בעלייה) יאופשר retry
       // ב-warmUp הבא, במקום ראשי-תיבות ריקים לכל ה-session.
       if (myGen == _generation) {
-        _acronymsByBookId.clear();
-        _bookIdsByBigram.clear();
-        _quotedWordsByBookId.clear();
+        _official = _empty;
       }
     }
   }
@@ -276,9 +217,7 @@ class AcronymsCache {
   void clear() {
     _generation++;
     clearAttached();
-    _acronymsByBookId.clear();
-    _bookIdsByBigram.clear();
-    _quotedWordsByBookId.clear();
+    _official = _empty;
     _isLoaded = false;
     _loadingFuture = null;
   }
@@ -289,19 +228,10 @@ class AcronymsCache {
       rawTermsByBookId.entries.expand(
         (entry) => entry.value.map((term) => (entry.key, term)),
       ),
+      normalizeForFindRefMatch,
     );
-    _acronymsByBookId
-      ..clear()
-      ..addAll(data.acronymsByBookId);
-    _bookIdsByBigram
-      ..clear()
-      ..addAll(data.bookIdsByBigram);
-    _quotedWordsByBookId
-      ..clear()
-      ..addAll(data.quotedWordsByBookId);
+    _official = data;
     _isLoaded = true;
     _revision++;
   }
 }
-
-int _bigramKey(int first, int second) => (first << 16) | second;

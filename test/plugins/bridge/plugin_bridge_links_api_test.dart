@@ -87,6 +87,34 @@ class _StubTextBookRepository extends Mock implements TextBookRepository {
     return links;
   }
 
+  List<Link> incomingLinks = const [];
+  int incomingCalls = 0;
+  List<String>? capturedIncomingTypes;
+  int? capturedIncomingLimit;
+  List<String>? capturedIncomingTitles;
+  List<String>? capturedIncomingPrefixes;
+
+  @override
+  Future<List<Link>> getIncomingLinksInRange(
+    TextBook book, {
+    required int startIndex,
+    required int endIndex,
+    List<String>? connectionTypes,
+    List<String>? targetBookTitles,
+    List<String>? targetTitlePrefixes,
+    int? limit,
+  }) async {
+    incomingCalls++;
+    capturedIncomingTypes = connectionTypes;
+    capturedIncomingTitles = targetBookTitles;
+    capturedIncomingPrefixes = targetTitlePrefixes;
+    capturedIncomingLimit = limit;
+    capturedBook = book;
+    capturedStartIndex = startIndex;
+    capturedEndIndex = endIndex;
+    return incomingLinks;
+  }
+
   @override
   Future<({List<CommentatorInfo> commentators, Set<String> rare})>
   getCommentatorsDetailed(TextBook book) async =>
@@ -533,6 +561,177 @@ void main() {
       expect(byUid['links'], hasLength(1));
       expect(repository.capturedBook, same(attached));
     });
+  });
+
+  group('library.getLinks direction (issue #5271)', () {
+    // A→B נשמר בעירובין; בבראשית (החלון) הוא נכנס. index1 = השורה בחלון.
+    final mesorat = Link(
+      heRef: 'עירובין יג, ב',
+      index1: 6,
+      path2: 'עירובין',
+      index2: 11,
+      index2End: 12,
+      connectionType: 'MESORAT_HASHAS',
+      targetCategoryId: 31,
+    );
+    final rashi = Link(
+      heRef: 'רש״י על בראשית א, א',
+      index1: 6,
+      path2: 'רש״י על בראשית',
+      index2: 2,
+      connectionType: 'COMMENTARY',
+    );
+
+    Future<Map<String, dynamic>> getLinks(Map<String, dynamic> extra) async =>
+        await adapter.execute('library', 'getLinks', {
+              'bookId': 'בראשית',
+              'startLine': 5,
+              'endLine': 9,
+              ...extra,
+            })
+            as Map<String, dynamic>;
+
+    test('incoming מחזיר את הקישור כפי שנשמר, בסוג המקורי', () async {
+      repository.links = [rashi];
+      repository.incomingLinks = [mesorat];
+
+      final result = await getLinks({
+        'direction': 'incoming',
+        'connectionTypes': ['MESORAT_HASHAS'],
+      });
+
+      expect(repository.capturedStartIndex, 5);
+      expect(repository.capturedEndIndex, 9);
+      expect(repository.capturedBook?.title, 'בראשית');
+      expect(repository.capturedIncomingTypes, ['MESORAT_HASHAS']);
+      expect(repository.capturedIncomingLimit, 2001);
+      expect(result['truncated'], isFalse);
+      expect(result['links'], [
+        {
+          'direction': 'incoming',
+          'sourceTitle': 'עירובין',
+          'sourceLine': 10,
+          'sourceLineEnd': 11,
+          'sourceHeRef': 'עירובין יג, ב',
+          'sourceSource': 'o',
+          'sourceCategoryId': 31,
+          'targetLine': 5,
+          'connectionType': 'MESORAT_HASHAS',
+          'isCommentary': false,
+        },
+      ]);
+    });
+
+    test('ברירת המחדל ו-outgoing — התשובה של היום, בלי נכנסים', () async {
+      repository.links = [rashi];
+      repository.incomingLinks = [mesorat];
+
+      final byDefault = await getLinks({});
+      final outgoing = await getLinks({'direction': 'outgoing'});
+
+      expect(repository.incomingCalls, 0);
+      expect(outgoing, byDefault);
+      final link = (byDefault['links'] as List).single as Map;
+      expect(link.containsKey('direction'), isFalse);
+      expect(link['targetTitle'], 'רש״י על בראשית');
+    });
+
+    test('both — היוצאים ואחריהם הנכנסים, עם direction בכל רשומה', () async {
+      repository.links = [rashi];
+      repository.incomingLinks = [mesorat];
+
+      final links = (await getLinks({'direction': 'both'}))['links'] as List;
+
+      expect(
+        [for (final l in links) (l as Map)['direction']],
+        [
+          'outgoing',
+          'incoming',
+        ],
+      );
+      expect((links.first as Map)['targetTitle'], 'רש״י על בראשית');
+      expect((links.last as Map)['sourceTitle'], 'עירובין');
+    });
+
+    test('targetTitlePrefixes חל בנכנסים על הספר האחר', () async {
+      repository.incomingLinks = [mesorat, rashi];
+
+      final links =
+          (await getLinks({
+                'direction': 'incoming',
+                'targetTitlePrefixes': ['רש״י'],
+              }))['links']
+              as List;
+
+      expect(
+        [for (final l in links) (l as Map)['sourceTitle']],
+        [
+          'רש״י על בראשית',
+        ],
+      );
+    });
+
+    test('targetTitles משווה את כותרת הספר הנכנס המלאה', () async {
+      repository.incomingLinks = [
+        Link(
+          heRef: 'מקור א',
+          index1: 6,
+          path2: 'מקור א. ב',
+          index2: 11,
+          connectionType: 'REFERENCE',
+        ),
+      ];
+
+      final result = await getLinks({
+        'direction': 'incoming',
+        'targetTitles': ['מקור א. ב'],
+      });
+
+      expect(repository.capturedIncomingLimit, 2001);
+      expect(repository.capturedIncomingTitles, ['מקור א. ב']);
+      expect((result['links'] as List).single['sourceTitle'], 'מקור א. ב');
+    });
+
+    test('סינון לפי תחילית שומר את תקרת השליפה של הנכנסים', () async {
+      repository.links = List.filled(1999, rashi);
+      repository.incomingLinks = [mesorat, rashi, rashi];
+
+      final result = await getLinks({
+        'direction': 'both',
+        'targetTitlePrefixes': ['רש״י'],
+      });
+
+      expect(repository.capturedIncomingLimit, 2);
+      expect(repository.capturedIncomingPrefixes, ['רש״י']);
+      expect(result['links'], hasLength(2000));
+      expect(result['truncated'], isTrue);
+    });
+
+    test('המכסה של 2,000 רשומות חלה על both כולה', () async {
+      repository.links = List.filled(1999, rashi);
+      repository.incomingLinks = [mesorat, mesorat];
+
+      final result = await getLinks({'direction': 'both'});
+
+      expect(repository.capturedIncomingLimit, 2);
+      expect(result['links'], hasLength(2000));
+      expect(result['truncated'], isTrue);
+    });
+
+    for (final bad in ['in', 1, true]) {
+      test('direction=$bad נדחה כ-error.invalid_params', () async {
+        await expectLater(
+          getLinks({'direction': bad}),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.invalid_params'),
+            ),
+          ),
+        );
+      });
+    }
   });
 
   group('library.getLinks includeAnchors', () {

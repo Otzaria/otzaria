@@ -61,7 +61,7 @@ abstract final class TextDisplayProfileEditor {
       _SegmentField<DivineNamesDisplay>(
         icon: OtzariaIcons.alef_crown_24_filled,
         title: t('שאר שמות הקודש'),
-        subtitle: t('אלהים, שדי, צבאות ועוד — בספרים שבהם השמות מסומנים'),
+        subtitle: t('אלקים, ש-די, צבקות ועוד — בספרים שבהם השמות מסומנים'),
         options: [
           SegmentOption(value: DivineNamesDisplay.asIs, label: t('ככתבם')),
           SegmentOption(

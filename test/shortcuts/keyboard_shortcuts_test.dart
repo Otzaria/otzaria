@@ -32,10 +32,14 @@ import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/view/settings_screen.dart'
+    show SettingsScreenController, SettingsTab;
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -717,6 +721,140 @@ void main() {
     });
   });
 
+  group('KeyboardShortcuts - רשימת קיצורי המקשים (issue #4452)', () {
+    late MockSettingsBloc settingsBlocLocal;
+    late StreamController<SettingsState> settingsControllerLocal;
+    late _StubNavigationBloc navigationBloc;
+    late _StubTabsBloc tabsBloc;
+    late _StubHistoryBloc historyBloc;
+    late SettingsScreenController settingsController;
+
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+    });
+
+    setUp(() {
+      FocusRepository().resetForTesting();
+      settingsBlocLocal = MockSettingsBloc();
+      settingsControllerLocal = StreamController<SettingsState>.broadcast();
+      navigationBloc = _StubNavigationBloc();
+      tabsBloc = _StubTabsBloc(const TabsState(tabs: [], currentTabIndex: 0));
+      historyBloc = _StubHistoryBloc();
+      settingsController = SettingsScreenController();
+    });
+
+    tearDown(() async {
+      await settingsControllerLocal.close();
+      await tabsBloc.close();
+      await historyBloc.close();
+      await navigationBloc.close();
+      settingsController.dispose();
+      FocusRepository().resetForTesting();
+    });
+
+    Future<void> pumpWith(
+      WidgetTester tester,
+      Map<String, String> shortcuts,
+    ) async {
+      whenListen(
+        settingsBlocLocal,
+        settingsControllerLocal.stream,
+        initialState: SettingsState.initial().copyWith(shortcuts: shortcuts),
+      );
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                settingsController: settingsController,
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Future<void> sendCtrl(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+    }
+
+    test('קיצור הרשימה רשום בין הקיצורים ללא ברירת מחדל', () {
+      const key = ShortcutValidator.openShortcutsListKey;
+      expect(ShortcutValidator.shortcutKeys, contains(key));
+      expect(ShortcutValidator.defaultShortcuts[key], isEmpty);
+      expect(ShortcutValidator.shortcutNames[key], 'רשימת קיצורי המקשים');
+      // מוצג כסימן, כמו `CTRL + ,`, ולא כשם המקש.
+      expect(
+        ShortcutHelper.formatShortcutForDisplay('ctrl+slash'),
+        startsWith('CTRL + /'),
+      );
+      expect(
+        ShortcutHelper.formatShortcutForDisplay('ctrl+backslash'),
+        startsWith('CTRL + BACKSLASH'),
+      );
+    });
+
+    testWidgets('Ctrl+/ פותח את הרשימה כשהוא מוקצה לפעולה', (tester) async {
+      await pumpWith(tester, const {
+        ShortcutValidator.openShortcutsListKey: 'ctrl+slash',
+      });
+
+      await sendCtrl(tester, LogicalKeyboardKey.slash);
+
+      expect(
+        navigationBloc.events,
+        contains(const NavigateToScreen(Screen.settings)),
+      );
+      expect(settingsController.requestedTab, SettingsTab.shortcuts);
+    });
+
+    testWidgets('קיצור ההגדרות הרגיל אינו בוחר לשונית', (tester) async {
+      await pumpWith(tester, const {});
+
+      await sendCtrl(tester, LogicalKeyboardKey.comma);
+
+      expect(
+        navigationBloc.events,
+        contains(const NavigateToScreen(Screen.settings)),
+      );
+      expect(settingsController.requestedTab, isNull);
+    });
+
+    testWidgets('Ctrl+/ פנוי כשלא הוגדר קיצור לרשימה', (tester) async {
+      await pumpWith(tester, const {});
+
+      await sendCtrl(tester, LogicalKeyboardKey.slash);
+
+      expect(navigationBloc.events, isEmpty);
+      expect(settingsController.requestedTab, isNull);
+    });
+
+    testWidgets('מיפוי קודם של Ctrl+/ לכלים נשמר', (tester) async {
+      await pumpWith(tester, const {'key-shortcut-open-more': 'ctrl+slash'});
+      final previousOpens = ToolsLauncherController.instance.openCount;
+
+      await sendCtrl(tester, LogicalKeyboardKey.slash);
+
+      expect(ToolsLauncherController.instance.openCount, previousOpens + 1);
+      expect(navigationBloc.events, isEmpty);
+      expect(settingsController.requestedTab, isNull);
+    });
+  });
+
   group('KeyboardShortcuts - חיפוש חדש', () {
     late MockSettingsBloc settingsBlocLocal;
     late MockIndexingBloc indexingBloc;
@@ -1023,7 +1161,11 @@ void main() {
       FocusRepository().resetForTesting();
     });
 
-    Future<TabsBloc> pumpWithTabs(WidgetTester tester, int tabCount) async {
+    Future<TabsBloc> pumpWithTabs(
+      WidgetTester tester,
+      int tabCount, {
+      VoidCallback? onFindRefRequested,
+    }) async {
       final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
       final historyBloc = _StubHistoryBloc();
       final navigationBloc = _StubNavigationBloc();
@@ -1050,7 +1192,7 @@ void main() {
           child: MaterialApp(
             home: Scaffold(
               body: KeyboardShortcuts(
-                onFindRefRequested: () {},
+                onFindRefRequested: onFindRefRequested ?? () {},
                 child: const SizedBox(width: 100, height: 100),
               ),
             ),
@@ -1067,6 +1209,36 @@ void main() {
       await tester.sendKeyUpEvent(key);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pump();
+    }
+
+    for (final (key, shortcut) in [
+      (LogicalKeyboardKey.tab, 'ctrl+tab'),
+      (LogicalKeyboardKey.digit3, 'ctrl+3'),
+    ]) {
+      testWidgets('קיצור מותאם $shortcut קודם למעבר בין כרטיסיות', (
+        tester,
+      ) async {
+        whenListen(
+          settingsBlocLocal,
+          settingsControllerLocal.stream,
+          initialState: SettingsState.initial().copyWith(
+            shortcuts: {'key-shortcut-open-find-ref': shortcut},
+          ),
+        );
+        var findRefRequests = 0;
+        final tabsBloc = await pumpWithTabs(
+          tester,
+          5,
+          onFindRefRequested: () => findRefRequests++,
+        );
+        tabsBloc.add(const SetCurrentTab(0));
+        await tester.pump();
+
+        await sendCtrl(tester, key);
+
+        expect(findRefRequests, 1);
+        expect(tabsBloc.state.currentTabIndex, 0);
+      });
     }
 
     testWidgets('Ctrl+3 עובר לטאב השלישי', (tester) async {

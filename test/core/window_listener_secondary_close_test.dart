@@ -59,11 +59,13 @@ void main() {
     RunnerWindowChannel.debugSupportedOverride = true;
     // onWindowFocus מתוך test() אחרי testWidgets פוגש FocusManager משוחרר.
     ViewFocusSync.debugEnabledOverride = false;
-    ViewWindowOpener.instance.resetCloseQueueForTest();
+    ViewWindowOpener.instance.resetForTest();
     runner = _FakeRunner()..install();
     tmp = Directory.systemTemp.createTempSync('otzaria_secclose_');
     AppPaths.debugProfileDataRootPath = tmp.path;
-    database = UserStateDatabase.openAt('${tmp.path}/user_state.db');
+    UserStateDatabase.debugWriteInline = true;
+    database = UserStateDatabase.instance;
+    database.overridePath('${tmp.path}/user_state.db');
     await database.database;
     sessions = WindowSessionStore(database: database);
     TabsRepository.debugSessions = sessions;
@@ -77,6 +79,7 @@ void main() {
     AppPaths.debugProfileDataRootPath = null;
     TabsRepository.debugSessions = null;
     database.close();
+    UserStateDatabase.debugWriteInline = false;
     runner.uninstall();
     RunnerWindowChannel.debugSupportedOverride = null;
     ViewFocusSync.resetForTest();
@@ -319,8 +322,8 @@ void main() {
       sessions: sessions,
       window: entry.tabsSession,
     );
-    await tester.runAsync(() => repository.saveTabs(const [], 0));
-    expect(await tester.runAsync(() => sessions.load(entry.slot)), isNotNull);
+    await repository.saveTabs(const [], 0);
+    expect(await sessions.load(entry.slot), isNotNull);
     var flushed = false;
     Future<void> flush() async => flushed = true;
     PreCloseRegistry.register(flush);
@@ -329,9 +332,8 @@ void main() {
     final flow = ViewWindowCloseFlow(
       entry: entry,
       opener: opener,
-      discardSession: sessions.delete,
     );
-    expect(await tester.runAsync(flow.run), isTrue);
+    expect(await flow.run(), isTrue);
     await tester.pump();
 
     expect(flushed, isTrue, reason: 'הכתיבות התלויות נשטפו');
@@ -343,7 +345,7 @@ void main() {
     expect(windows.stubOf(peer).destroyed, isFalse);
     expect(windows.registry.windows, [peer]);
     expect(
-      await tester.runAsync(() => sessions.load(entry.slot)),
+      await sessions.load(entry.slot),
       isNull,
       reason: 'חלון שנסגר במכוון אינו חוזר באתחול הבא',
     );
@@ -362,6 +364,12 @@ void main() {
     expect(runner.closeSelfCalls, 1);
     expect(await sessions.load(slot), isNull);
   });
+
+  Future<void> waitForMainSession() async {
+    await Future<void>.delayed(Duration.zero);
+    await database.flushWrites();
+    await Future<void>.delayed(Duration.zero);
+  }
 
   test(
     'ריבוי תצוגות: הראשי מוסתר כשחלונות Dart פתוחים, והסשן שלו מושהה',
@@ -388,9 +396,34 @@ void main() {
 
       // הוצג שוב (Ctrl+Shift+T): שומר שוב.
       listener.onWindowFocus();
+      await waitForMainSession();
       expect(WindowTabsSession.current.slot, slot);
     },
   );
+
+  test('הצגה מחדש שומרת עותק אחד של סשן הראשי', () async {
+    UserStateDatabase.debugWriteInline = false;
+    final state = WindowSessionStore.instance;
+    TabsRepository.debugSessions = state;
+    WindowOpener.debugOverride = _TwoWindowsOpener();
+    const slot = UserStateSlot.main;
+    await state.save(slot, tabsJson: '["recover"]', currentIndex: 0);
+    final listener = AppWindowListener();
+    await listener.handleWindowClose();
+
+    expect(runner.closeSelfCalls, 1);
+    expect(await state.load(slot), isNull);
+    expect((await state.loadClosed()).single.tabsJson, '["recover"]');
+    listener.onWindowFocus();
+    await waitForMainSession();
+
+    final active = await state.load(slot);
+    final archived = await state.loadClosed();
+    expect(
+      [active?.tabsJson, ...archived.map((entry) => entry.tabsJson)],
+      ['["recover"]'],
+    );
+  });
 
   group('דיאלוג עם שינויים שלא נשמרו בזמן סגירת החלון (q11 Q3, DD-08)', () {
     late ValueNotifier<bool> dirty;
@@ -401,7 +434,7 @@ void main() {
     tearDown(() => dirty.dispose());
 
     Future<void> openDialog(WidgetTester tester) async {
-      ViewWindowOpener.instance.resetCloseQueueForTest();
+      ViewWindowOpener.instance.resetForTest();
       await tester.pumpWidget(
         BlocProvider<TabsBloc>.value(
           value: _GuardTabs(
@@ -530,7 +563,7 @@ void main() {
 
     Future<void> openWindow(WidgetTester tester, {bool failing = false}) async {
       // הסגירה עוברת בתור של התהליך; הוא חייב להיווצר ב-FakeAsync של הבדיקה.
-      ViewWindowOpener.instance.resetCloseQueueForTest();
+      ViewWindowOpener.instance.resetForTest();
       await tester.runAsync(
         () => service.begin(
           owner: 'p',

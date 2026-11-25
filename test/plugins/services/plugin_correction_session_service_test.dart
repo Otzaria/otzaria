@@ -349,7 +349,8 @@ void main() {
 
   for (final text in [
     '<b>טקסט</b>',
-    'שתי\nפסקאות',
+    'שתי\rפסקאות',
+    'שתי פסקאות',
     '\uD800',
     '&amp;',
     '&#10;',
@@ -364,6 +365,30 @@ void main() {
       expect((await current())['revision'], 0);
     });
   }
+
+  test('ירידת שורה בהצעה מתקבלת בעריכה (פיצול פסקה)', () {
+    service.editParagraph('tab', 0, 'מקור 0', 'מקור\n0');
+    expect(service.displayText('tab', 0, 'מקור 0'), 'מקור\n0');
+    expect(service.editableText('tab', 0, 'מקור 0'), 'מקור\n0');
+  });
+
+  test('ירידת שורה בהצעה מתקבלת בשחזור טיוטה', () async {
+    await restore([change(1, 'שתי\nפסקאות')]);
+    expect(service.displayText('tab', 1, 'מקור 1'), 'שתי\nפסקאות');
+  });
+
+  test('תגיות וישויות בהצעה עם ירידת שורה עדיין נדחות', () {
+    for (final text in ['א\n<b>ב</b>', 'א\n&amp;ב']) {
+      expect(
+        () => service.editParagraph('tab', 0, 'מקור 0', text),
+        error('error.unsupported_context'),
+      );
+    }
+  });
+
+  test('ירידת שורה במקור הפסקה עדיין אינה נתמכת', () {
+    expect(service.canEditParagraph('tab', 'שתי\nפסקאות'), isFalse);
+  });
 
   test('דוחה פסקאות כפולות ומגבלות גודל לפני טעינת מקור', () async {
     await expectLater(

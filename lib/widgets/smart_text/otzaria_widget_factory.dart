@@ -16,13 +16,33 @@ class OtzariaWidgetFactory extends WidgetFactory
   String? _decodedUri;
   Uint8List? _decodedBytes;
 
+  // הבתים ומקור התמונה חיים כל עוד הווידג'ט מציג אותם; המטמון אינו מאריך את חייהם.
+  final _recentImages =
+      <int, (WeakReference<ImageSource>, WeakReference<Uint8List>)>{};
+
+  Uint8List? _imageBytes(ImageSource src) {
+    final hash = src.url.hashCode;
+    final cached = _recentImages.remove(hash);
+    final previous = cached?.$1.target?.url == src.url
+        ? cached?.$2.target
+        : null;
+    final bytes = previous ?? bytesFromDataUri(src.url);
+    if (bytes != null) {
+      _recentImages[hash] = (WeakReference(src), WeakReference(bytes));
+      if (_recentImages.length > 8) {
+        _recentImages.remove(_recentImages.keys.first);
+      }
+    }
+    return bytes;
+  }
+
   @override
   Widget? buildImageWidget(BuildTree meta, ImageSource src) {
     final url = src.url;
     if (!_sizedDataImage.hasMatch(url)) {
       return super.buildImageWidget(meta, src);
     }
-    final bytes = bytesFromDataUri(url);
+    final bytes = _imageBytes(src);
     final pixelSize = bytes == null ? null : encodedImagePixelSize(bytes);
     if (bytes == null || pixelSize == null) {
       _decodedUri = url;

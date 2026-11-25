@@ -416,6 +416,50 @@ void main() {
       },
     );
 
+    for (final splitManifest in [false, true]) {
+      final source = splitManifest ? 'מניפסט הפיצול' : 'פרטי הגרסה';
+      test('תשובת HTML במקום $source מציגה אפשרויות המשך', () async {
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        const manifestUrl = 'https://example.com/seforim.db.zst.manifest.json';
+        final urls = <Uri>[];
+        final bloc = EmptyLibraryBloc(
+          defaultLibraryPathOverride: isolatedTemp.path,
+          httpClient: MockClient((request) async {
+            urls.add(request.url);
+            if (splitManifest && request.url.host == 'api.github.com') {
+              return http.Response(
+                jsonEncode({
+                  'tag_name': 'v31',
+                  'assets': [
+                    {
+                      'name': 'seforim.db.zst.manifest.json',
+                      'browser_download_url': manifestUrl,
+                    },
+                  ],
+                }),
+                200,
+              );
+            }
+            return http.Response('<html>login', 200);
+          }),
+        );
+        addTearDown(bloc.close);
+        final error = bloc.stream
+            .where((s) => s is EmptyLibraryError)
+            .cast<EmptyLibraryError>()
+            .first;
+        bloc.add(DownloadLibraryRequested());
+        expect(
+          (await error.timeout(const Duration(seconds: 5))).errorMessage,
+          LibraryMessages.invalidLibraryReleaseResponse,
+        );
+        expect(urls.map((uri) => uri.host), [
+          'api.github.com',
+          if (splitManifest) 'example.com',
+        ]);
+      });
+    }
+
     test('קריאת release API נקטעת ב-connect timeout', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'otzaria-release-timeout-',

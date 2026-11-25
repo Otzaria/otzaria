@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="org.otzaria.otzaria.pdfexportprobe.CONTROL" />
+    <application>
+        <provider
+            android:name="org.otzaria.otzaria.PdfExportDocumentsProvider"
+            android:authorities="org.otzaria.otzaria.pdfexportprobe.test.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:process=":pdf_documents">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+        <provider
+            android:name="org.otzaria.otzaria.PdfExportControlProvider"
+            android:authorities="org.otzaria.otzaria.pdfexportprobe.test.control"
+            android:exported="true"
+            android:permission="org.otzaria.otzaria.pdfexportprobe.CONTROL"
+            android:process=":pdf_documents" />
+    </application>
+</manifest>

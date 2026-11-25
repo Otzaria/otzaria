@@ -7,9 +7,7 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
-import 'dart:io';
 
-import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
@@ -86,9 +84,9 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
-import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
@@ -104,6 +102,8 @@ import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -119,10 +119,9 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 /// המקום המינימלי לתוכן הספר כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה
-/// היא נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
+/// היא נפתחת כ-overlay.
 const double _kNavMinMainContentWidth = 520;
 
 // קבועים למצבי תצוגה (למניעת magic strings)
@@ -214,6 +213,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   // האם החלונית דוחקת את התוכן (wide). ב-overlay הרוחב לא משתנה ולכן ה-reanchor
   // מיותר — וה-jumpTo שלו מבטל אנימציית ניווט פעילה מבחירה בסרגל הצד.
   bool _paneUsesPushLayout = false;
+  final _navPeek = NavPanelPeekController();
 
   /// מונה כמה פעמים רץ ה-reanchor בעקבות פתיחה/סגירת החלונית. לבדיקת הרגרסיה:
   /// חייב לרוץ במצב push ולהידכא ב-overlay.
@@ -222,6 +222,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // גודל הגופן שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת שינוי גודל (issue #915).
   double? _lastFontSizeForReanchor;
+  int? _lastReportedLinkHighlightLine;
 
   /// מונה כמה פעמים רץ ה-reanchor בעקבות שינוי גודל גופן. לבדיקת הרגרסיה.
   @visibleForTesting
@@ -493,7 +494,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         showSplitView: currentState.showSplitView,
         removeNikud: settings.defaultRemoveNikud,
         forceCloseLeftPane: widget.isInCombinedView,
-        screenWidth: readingLayoutWidthOf(context),
         preserveState: true,
         preserveRemoveNikud: !nikudSettingsChanged,
         preserveRemovePunctuation: !punctuationSettingsChanged,
@@ -702,7 +702,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         preserveState: true,
         // בתצוגה משולבת, חלונית הצד תמיד סגורה
         forceCloseLeftPane: widget.isInCombinedView,
-        screenWidth: readingLayoutWidthOf(context),
       ),
     );
 
@@ -716,6 +715,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   @override
   void dispose() {
+    _navPeek.dispose();
     // ביטול רישום ה-FocusNode מ-FocusRepository (שימוש בהפניה שנשמרה)
     _focusRepository?.unregisterBookContentFocusNode(_bookContentFocusNode);
 
@@ -888,6 +888,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           buildWhen: shouldRebuildReader,
           listener: (context, state) {
             if (state is TextBookLoaded) {
+              // הדגשה מקישור נשארת עד Esc; הסיור מציג על כך טיפ פעם אחת.
+              final linkHighlightLine = state.permanentHighlightLine;
+              if (linkHighlightLine != _lastReportedLinkHighlightLine) {
+                _lastReportedLinkHighlightLine = linkHighlightLine;
+                if (linkHighlightLine != null) {
+                  context.read<TourCubit>().recordInteraction(
+                    TourInteraction(
+                      type: TourInteractionType.linkHighlightShown,
+                    ),
+                  );
+                }
+              }
               // איתור ה-PDF המלווה נדחה עד שהתוכן נטען, כדי שלא יחנוק את
               // שאילתת התוכן בעלייה (ראו _resolveCompanionPdf).
               _resolveCompanionPdf();
@@ -952,7 +964,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   removeNikud: settingsState.defaultRemoveNikud,
                   // בתצוגה משולבת, חלונית הצד תמיד סגורה
                   forceCloseLeftPane: widget.isInCombinedView,
-                  screenWidth: readingLayoutWidthOf(context),
                 ),
               );
             }
@@ -1005,7 +1016,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
 
                 if (state.showPageShapeView) {
-                  // hasPrimaryFocus ולא hasFocus: ה-KeyboardListener הזה עוטף
+                  // hasPrimaryFocus ולא hasFocus: ה-Focus הזה עוטף
                   // את כל גוף המסך (כולל פאנל החיפוש), ו-hasFocus מחזיר true
                   // גם כשצאצא (שדה החיפוש) ממוקד. unfocus כזה היה מסיר פוקוס
                   // מכל התת-עץ ומבריח את הסמן משדה החיפוש בכל הקלדה. כאן
@@ -1039,7 +1050,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     !navigationSearchFocusNode.hasFocus &&
                     !altTitlesSearchFocusNode.hasFocus) {
                   // ממקד את אזור הגלילה (ProgressiveScroll) דרך ה-requester
-                  // שרשם CombinedView; הוא צאצא של ה-KeyboardListener הזה,
+                  // שרשם CombinedView; הוא צאצא של ה-Focus הזה,
                   // לכן Ctrl+P/Home וכו' ממשיכים לעבוד. fallback ל-node הזה
                   // אם אין requester (למשל צורת הדף).
                   final didFocus =
@@ -1049,25 +1060,30 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               });
 
-              return KeyboardListener(
+              return Focus(
                 focusNode: _bookContentFocusNode,
-                autofocus: false,
-                onKeyEvent: (event) => _handleGlobalKeyEvent(
-                  event,
-                  context,
-                  state,
-                  widget.tab,
-                  openSearchFromToolbar: _openSearchFromToolbar,
-                  onPrint: () => handlePrintPress(state),
-                  openNotesForCurrentView: () =>
-                      _openPersonalNotesForCurrentView(state),
-                  isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
-                  selectedTextForNote: _selectedTextForSearch,
-                  selectedLineForNote: _selectedLineForNote,
-                  selectedColumnForNote: _selectedColumnForNote,
-                ),
+                onKeyEvent: (_, event) {
+                  final handled = _handleGlobalKeyEvent(
+                    event,
+                    context,
+                    state,
+                    widget.tab,
+                    openSearchFromToolbar: _openSearchFromToolbar,
+                    onPrint: () => handlePrintPress(state),
+                    openNotesForCurrentView: () =>
+                        _openPersonalNotesForCurrentView(state),
+                    isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
+                    selectedTextForNote: _selectedTextForSearch,
+                    selectedLineForNote: _selectedLineForNote,
+                    selectedColumnForNote: _selectedColumnForNote,
+                  );
+                  // מקש שהספר טיפל בו לא ממשיך לקיצורים הקבועים.
+                  return handled
+                      ? KeyEventResult.handled
+                      : KeyEventResult.ignored;
+                },
                 child: Scaffold(
-                  body: Column(
+                  body: AppTopBarLayout(
                     children: [
                       // בטלפון הסרגל נעלם בגלילה למטה וחוזר בגלילה למעלה
                       // או בהקשה (ChromeAutoHideScope בחלון הראשי).
@@ -1112,24 +1128,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             compact: AppDensity.of(context).isCompact,
           ),
         ),
-        if (state.showLeftPane &&
-            (state.pinLeftPane ||
-                NavSidePanel.canPin(
-                  context,
-                  paneWidth: _sidebarWidth.value,
-                  minMainContentWidth: _kNavMinMainContentWidth,
-                )))
-          AppTopBarItem(
-            widget: NavPanelPinButton(
-              isPinned: state.pinLeftPane,
-              isGloballyPinned:
-                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
-                  false,
-              onToggle: () => context.read<TextBookBloc>().add(
-                TogglePinLeftPane(!state.pinLeftPane),
-              ),
-            ),
-          ),
         if (state.showPageShapeView)
           AppTopBarItem(widget: _buildPageShapeSettingsButton(context, state)),
       ],
@@ -1295,6 +1293,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ? TourTargetKeys.of(context).textBookNavigation
             : null,
         isOpen: state.showLeftPane,
+        peek: _navPeek,
         onToggle: () => context.read<TextBookBloc>().add(
           ToggleLeftPane(!state.showLeftPane),
         ),
@@ -2334,9 +2333,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildBody(BuildContext context, TextBookLoaded state) {
     return NavSidePanel(
       isOpen: state.showLeftPane,
-      isPinned: state.pinLeftPane,
-      isGloballyPinned:
-          Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ?? false,
+      peek: _navPeek,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth.value,
       minMainContentWidth: _kNavMinMainContentWidth,
@@ -2561,6 +2558,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       repository,
       widget.tab.lines,
       state.searchText,
+      state.searchTextSource,
       state.searchOptions,
       state.alternativeWords,
       state.spacingValues,
@@ -2580,6 +2578,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       lines: widget.tab.lines,
       // הוא מעביר את טקסט החיפוש מה-state הנוכחי אל תוך רכיב החיפוש
       initialQuery: state.searchText,
+      initialQuerySource: state.searchTextSource,
       initialSearchOptions: state.searchOptions,
       initialAlternativeWords: state.alternativeWords,
       initialSpacingValues: state.spacingValues,
@@ -2600,8 +2599,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay או
-  /// צפה); חלונית מוצמדת לצד התוכן נשארת פתוחה.
+  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay);
+  /// חלונית שדוחקת את התוכן, או פתוחה בריחוף, נשארת.
   void _closeLeftPaneIfCovering() {
     if (!mounted || _paneUsesPushLayout) return;
     context.read<TextBookBloc>().add(const ToggleLeftPane(false));
@@ -2667,6 +2666,39 @@ Future<void> _setFontSize(
   return savePerBookDisplaySettings(context, state, fontSize: size);
 }
 
+int _nextRescanRequestId = 0;
+
+/// מחכה לסריקה של ההקשה הזו: סריקה אחרת שרצה במקביל מסתיימת בנפרד.
+Future<void> _rescanPersonalBook(
+  CustomFoldersBloc bloc,
+  TextBook book,
+  AppWindowKeys window,
+) async {
+  // שלילי: המזהים החיוביים של תוספים ושל בקשות האינדוקס מגיעים גם הם
+  // ל-RefreshLibrary.requestIds.
+  final requestId = --_nextRescanRequestId;
+  final done = bloc.stream.cast<CustomFoldersState?>().firstWhere(
+    (state) => state?.completedScan?.requestId == requestId,
+    orElse: () => null,
+  );
+  bloc.add(
+    RescanCustomFolders(folderOfFile: book.filePath, requestId: requestId),
+  );
+  final result = await done;
+  if (result == null || bloc.isClosed) return;
+  final scan = result.completedScan!;
+  if (!scan.isSuccess) {
+    UiSnack.showError(SettingsMessages.customFolderSyncFailed, window: window);
+  } else if (scan.errors.isNotEmpty) {
+    UiSnack.showError(
+      SettingsMessages.customFolderScanErrors(scan.errors),
+      window: window,
+    );
+  } else if (result.message != null) {
+    UiSnack.show(result.message!, window: window);
+  }
+}
+
 bool _handleGlobalKeyEvent(
   KeyEvent event,
   BuildContext context,
@@ -2680,6 +2712,15 @@ bool _handleGlobalKeyEvent(
   int? selectedLineForNote,
   int? selectedColumnForNote,
 }) {
+  if (event is! KeyDownEvent) return false;
+  final keyboard = HardwareKeyboard.instance;
+  if (ShortcutHelper.shouldIgnoreWhileEditing(
+    event,
+    preserveModifiedText:
+        keyboard.isControlPressed || ShortcutHelper.isAltModifierPressed,
+  )) {
+    return false;
+  }
   // קריאת קיצורים מההגדרות
   final searchInBookShortcut =
       ShortcutValidator.getShortcutValue(
@@ -2698,6 +2739,9 @@ bool _handleGlobalKeyEvent(
       '';
   final togglePdfShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.togglePdfViewKey) ??
+      '';
+  final refreshBookShortcut =
+      ShortcutValidator.getShortcutValue(ShortcutValidator.refreshBookKey) ??
       '';
   final copyBookLinkShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.copyBookLinkKey) ??
@@ -2779,6 +2823,22 @@ bool _handleGlobalKeyEvent(
       fontSize: state.fontSize,
       bookTitle: state.book.title,
       savedSelectedIndex: reportLineIndex,
+    );
+    return true;
+  }
+
+  // רענון ספר אישי: הסריקה מעדכנת אותו, ו-_libraryReloadSub טוען את הטאב מחדש.
+  // משתמש שכבר הקצה F5 לפעולה אחרת שומר על הקיצור הקיים שלו.
+  if (refreshBookShortcut.isNotEmpty &&
+      state.book.isUserBook &&
+      ShortcutHelper.matchesShortcut(event, refreshBookShortcut) &&
+      !ShortcutValidator.hasConflict(ShortcutValidator.refreshBookKey)) {
+    unawaited(
+      _rescanPersonalBook(
+        context.read<CustomFoldersBloc>(),
+        state.book,
+        AppWindowKeys.of(context),
+      ),
     );
     return true;
   }
@@ -2912,14 +2972,12 @@ bool _handleGlobalKeyEvent(
 
   // Home/End, לבד או עם Ctrl - קצות הספר. ה-listener עוטף גם את שדות הקלט
   // של החלונית, ושם המקשים מזיזים את הסמן בלבד.
-  final keyboard = HardwareKeyboard.instance;
   final isBareKey =
       !keyboard.isShiftPressed &&
       !keyboard.isControlPressed &&
       !keyboard.isMetaPressed &&
       !ShortcutHelper.isAltModifierPressed;
-  if (event is KeyDownEvent &&
-      (isCtrlOrCmd || isBareKey) &&
+  if ((isCtrlOrCmd || isBareKey) &&
       !isTextInputFocusNode(FocusManager.instance.primaryFocus)) {
     switch (event.logicalKey) {
       // Home - תחילת הספר
@@ -2948,29 +3006,30 @@ bool _handleGlobalKeyEvent(
     }
   }
 
-  // ESC ללא Ctrl/Cmd; F11 מטופל בקיצורים הגלובליים, כדי שלא יוחלף פעמיים
-  if (event is KeyDownEvent && !isCtrlOrCmd) {
-    switch (event.logicalKey) {
-      // ESC - ניקוי הדגשת החיפוש או ה-?mark, ואם אין הדגשה — יציאה ממסך מלא
-      case LogicalKeyboardKey.escape:
-        if (state.searchText.isNotEmpty) {
-          context.read<TextBookBloc>().add(
-            const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
-          );
-          return true;
-        }
-        if (state.permanentHighlightLine != null) {
-          context.read<TextBookBloc>().add(const ApplyMarkHighlight());
-          return true;
-        }
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          if (context.read<WindowFullscreenCubit>().state) {
-            FullscreenHelper.toggleFullscreen(context, false);
-            return true;
-          }
-        }
-        break;
+  // קיצור מוגדר קודם לניקוי ההדגשה, שקודם ליציאה ממסך מלא.
+  if (!isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.escape) {
+    final bookBloc = context.read<TextBookBloc>();
+    // לחיצה נוספת יכולה להגיע אחרי עדכון הבלוק ולפני הבנייה מחדש.
+    final current = bookBloc.state;
+    if (current is! TextBookLoaded ||
+        (current.searchText.isEmpty &&
+            current.permanentHighlightLine == null)) {
+      return false;
     }
+    if (KeyboardShortcuts.handleConfiguredShortcut(context, event)) {
+      return true;
+    }
+    if (current.searchText.isNotEmpty) {
+      bookBloc.add(
+        const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
+      );
+    } else {
+      bookBloc.add(const ApplyMarkHighlight());
+      context.read<TourCubit>().recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightCleared),
+      );
+    }
+    return true;
   }
 
   return false;
@@ -3094,7 +3153,7 @@ Future<void> _dispatchContextMenuShortcut({
     fontSize: state.fontSize,
     fontFamily: settingsState.fontFamily,
     fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-    lineHeight: settingsState.lineHeight,
+    lineHeight: settingsState.lineHeightForBook(state.lineHeight),
   );
 
   final Map<String, dynamic> selection;

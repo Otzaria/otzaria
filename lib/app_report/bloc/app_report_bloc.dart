@@ -135,7 +135,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
         includeErrorLog: draft?.includeErrorLog ?? true,
         images: draft?.images ?? const [],
         minidump: draft != null ? draft.minidump : minidump,
-        includeMinidump: draft?.includeMinidump ?? true,
+        includeMinidump: draft?.includeMinidump ?? false,
         hasDraft: draft != null,
         invalidField: _draftLoadFailed ? 'draftLoad' : null,
       ),
@@ -166,8 +166,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
       form.images.isNotEmpty ||
       form.type != initialType ||
       !form.includeDiagnostics ||
-      !form.includeErrorLog ||
-      !form.includeMinidump;
+      !form.includeErrorLog;
 
   Future<void> _saveCurrentDraft(AppReportEditing form) {
     if (!supportsDraft || _draftTerminated || _draftLoadFailed) {

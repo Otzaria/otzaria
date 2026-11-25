@@ -1260,4 +1260,108 @@ void main() {
     expect(offset.dy, 208);
     expect(offset.dy + 210, lessThanOrEqualTo(484));
   });
+
+  group('טיפ Esc להדגשת קישור (issue #4919)', () {
+    setUp(() async {
+      await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
+    });
+
+    test('הדגשה מקישור מציגה את הטיפ כבר בהפעלה הראשונה', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final cubit = TourCubit();
+      cubit.registerSession();
+
+      await cubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightShown),
+      );
+
+      expect(cubit.state.activeLiveTipId, LiveTipId.linkHighlightHint);
+      expect(
+        liveTipSpecById(LiveTipId.linkHighlightHint).description,
+        contains('Esc'),
+      );
+      await cubit.close();
+    });
+
+    test('Esc לפני שהטיפ הוצג — הטיפ נפתר ולא יוצג לעולם', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final first = TourCubit();
+      await first.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightCleared),
+      );
+      expect(first.state.resolvedTips, contains(LiveTipId.linkHighlightHint));
+      await first.close();
+
+      final second = TourCubit();
+      await second.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightShown),
+      );
+      expect(second.state.activeLiveTipId, isNull);
+      await second.close();
+    });
+
+    test('Esc בזמן שהטיפ מוצג סוגר אותו ושומר שנפתר', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final cubit = TourCubit();
+      await cubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightShown),
+      );
+      expect(cubit.state.activeLiveTipId, LiveTipId.linkHighlightHint);
+
+      await cubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightCleared),
+      );
+
+      expect(cubit.state.activeLiveTipId, isNull);
+      expect(
+        LiveTipStorage.decode(
+          Settings.getValue<String>(LiveTipStorage.resolvedTipsKey),
+        ),
+        contains(LiveTipId.linkHighlightHint),
+      );
+      await cubit.close();
+    });
+
+    test('במובייל אין Esc ולכן הטיפ אינו מוצג', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final cubit = TourCubit();
+
+      await cubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightShown),
+      );
+
+      expect(cubit.state.activeLiveTipId, isNull);
+      await cubit.close();
+    });
+
+    test('הדגשה שנעלמה בזמן הסיור אינה מציגה טיפ אחריו', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final cubit = TourCubit();
+      cubit.start(libraryLoaded: true);
+
+      // ההדגשה הופיעה בזמן הסיור ונוקתה בחיפוש חדש או במעבר טאב — בלי Esc.
+      await cubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightShown),
+      );
+      await cubit.complete();
+      await cubit.recordInteraction(
+        TourInteraction(
+          type: TourInteractionType.currentTabChanged,
+          primaryValue: 'בראשית',
+        ),
+      );
+
+      expect(cubit.state.activeLiveTipId, isNull);
+      expect(
+        cubit.state.resolvedTips,
+        isNot(contains(LiveTipId.linkHighlightHint)),
+      );
+      await cubit.close();
+    });
+  });
 }

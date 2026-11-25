@@ -465,7 +465,6 @@ TextBookLoaded _state({
     visibleIndices: visibleIndices,
     selectedIndex: selectedIndex,
     selectedIndices: selectedIndices,
-    pinLeftPane: false,
     searchText: '',
   );
 }

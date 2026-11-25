@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/plugins/adapters/plugin_calendar_adapter.dart';
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
 import 'package:otzaria/tools/calendar/models/zman_alert_preference.dart';
@@ -134,6 +135,49 @@ void main() {
     expect(notifications.present, isEmpty);
     expect(store.ledger, isEmpty);
     expect(statuses.last.ok, isTrue);
+  });
+
+  test('שינוי בחירת אדר מבטל את ההתראה הישנה ומתזמן את החדשה', () async {
+    DateTime hebrew(int year, int month, int day) {
+      final date = (JewishDate()..setJewishDate(year, month, day))
+          .getGregorianCalendar();
+      return DateTime(date.year, date.month, date.day);
+    }
+
+    now = hebrew(5787, 11, 1);
+    final event = CustomEvent(
+      id: 'adar',
+      title: 'יארצייט',
+      description: '',
+      createdAt: DateTime(2025),
+      baseGregorianDate: hebrew(5785, JewishDate.ADAR, 14),
+      baseJewishYear: 5785,
+      baseJewishMonth: JewishDate.ADAR,
+      baseJewishDay: 14,
+      recurrenceType: RecurrenceType.annualHebrew,
+    );
+    final o = owner();
+    await o.execute('upsertEvent', eventArgs(event));
+    await o.idle;
+    final adarI = notifications.scheduled.singleWhere(
+      (alert) => alert.eventDate == hebrew(5787, JewishDate.ADAR, 14),
+    );
+    notifications.scheduled.clear();
+    notifications.cancelled.clear();
+
+    await o.execute(
+      'upsertEvent',
+      eventArgs(event.copyWith(leapAdarMonth: () => JewishDate.ADAR_II)),
+    );
+    await o.idle;
+
+    expect(notifications.cancelled, contains(adarI.id));
+    expect(notifications.present, isNot(contains(adarI.id)));
+    expect(
+      notifications.scheduled.single.eventDate,
+      hebrew(5787, JewishDate.ADAR_II, 14),
+    );
+    expect(notifications.everyIdAtMostOnce, isTrue);
   });
 
   test('חישוב זמני יום נשמר עד שינוי עיר, יום או העדפות', () async {

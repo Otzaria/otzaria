@@ -15,7 +15,8 @@
   "prConcurrentLimit": 3,
   "prHourlyLimit": 1,
   "ignorePaths": [
-    "android/settings.gradle.kts"
+    "android/settings.gradle.kts",
+    "packages/super_native_extensions/**"
   ],
   "packageRules": [
     {

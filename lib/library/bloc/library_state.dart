@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 
 class LibraryState extends Equatable {
   final Library? library;
@@ -13,8 +14,15 @@ class LibraryState extends Equatable {
 
   /// קטגוריות שכותרתן תואמת לשאילתה — קבוצת "תיקיות" אחרי הספרים בתוצאות.
   final List<Category>? searchCategoryResults;
+
+  /// לכל ספר ב-[searchResults] (לפי זהות): מסכת BookMatchKind של ההתאמה.
+  final Map<Book, int>? searchMatchKinds;
   final String? searchQuery;
+
+  /// המחבר שספריו מוצגים במקום תוצאות החיפוש ([ShowAuthorBooks]).
+  final String? authorFilter;
   final List<String>? selectedTopics;
+  final Set<LibraryMatchFilter> selectedMatchFilters;
   final Book? previewBook;
 
   /// תיקייה שנבחרה לתצוגה מקדימה. בלעדית ל-[previewBook] — בחירת אחד מנקה את השני.
@@ -52,8 +60,11 @@ class LibraryState extends Equatable {
     this.currentCategory,
     this.searchResults,
     this.searchCategoryResults,
+    this.searchMatchKinds,
     this.searchQuery,
+    this.authorFilter,
     this.selectedTopics,
+    this.selectedMatchFilters = const {},
     this.previewBook,
     this.previewCategory,
     this.newBooksToIndex,
@@ -65,6 +76,20 @@ class LibraryState extends Equatable {
     this.isSearching = false,
     this.userContentChanged = false,
   });
+
+  /// התאמה לסינון הפעיל בתוצאות, בתצוגה המקדימה ובפתיחה מהמקלדת.
+  bool matchesSearchBook(Book book) {
+    if (!LibraryMatchFilter.showsBook(
+      selectedMatchFilters,
+      searchMatchKinds?[book] ?? 0,
+    )) {
+      return false;
+    }
+    final topics = selectedTopics;
+    return topics == null ||
+        topics.isEmpty ||
+        book.topics.split(',').any((topic) => topics.contains(topic.trim()));
+  }
 
   /// מעבר "טעינה הסתיימה בהצלחה" — משמש להאזנה לריענון הספרייה (עדכון,
   /// החלפת מיקום) במקומות שמציגים נתונים הנגזרים ממנה, כמו גרסת הספרייה.
@@ -266,8 +291,12 @@ class LibraryState extends Equatable {
     Category? currentCategory,
     List<Book>? searchResults,
     List<Category>? searchCategoryResults,
+    Map<Book, int>? searchMatchKinds,
     String? searchQuery,
+    String? authorFilter,
+    bool clearAuthorFilter = false,
     List<String>? selectedTopics,
+    Set<LibraryMatchFilter>? selectedMatchFilters,
     Book? previewBook,
     Category? previewCategory,
     bool clearPreviewBook = false,
@@ -287,8 +316,18 @@ class LibraryState extends Equatable {
       currentCategory: currentCategory ?? this.currentCategory,
       searchResults: searchResults,
       searchCategoryResults: searchCategoryResults,
+      // שייך לרשימת התוצאות עצמה, ולכן נשמר כל עוד היא נשמרת.
+      searchMatchKinds:
+          searchMatchKinds ??
+          (identical(searchResults, this.searchResults)
+              ? this.searchMatchKinds
+              : null),
       searchQuery: searchQuery ?? this.searchQuery,
+      authorFilter: clearAuthorFilter
+          ? null
+          : authorFilter ?? this.authorFilter,
       selectedTopics: selectedTopics ?? this.selectedTopics,
+      selectedMatchFilters: selectedMatchFilters ?? this.selectedMatchFilters,
       previewBook: clearPreviewBook || previewCategory != null
           ? null
           : (previewBook ?? this.previewBook),
@@ -314,8 +353,11 @@ class LibraryState extends Equatable {
     currentCategory,
     searchResults,
     searchCategoryResults,
+    searchMatchKinds,
     searchQuery,
+    authorFilter,
     selectedTopics,
+    selectedMatchFilters,
     previewBook,
     previewCategory,
     newBooksToIndex,

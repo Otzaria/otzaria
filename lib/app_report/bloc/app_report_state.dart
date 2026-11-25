@@ -30,7 +30,7 @@ class AppReportEditing extends AppReportState {
     this.includeDiagnostics = true,
     this.includeErrorLog = true,
     this.minidump,
-    this.includeMinidump = true,
+    this.includeMinidump = false,
     this.images = const [],
     this.submission = AppReportSubmission.idle,
     this.result,

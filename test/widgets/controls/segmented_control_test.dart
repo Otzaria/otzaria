@@ -84,11 +84,81 @@ void main() {
         find.text('טווח פסוקים'),
       );
       expect(cut.didExceedMaxLines, isTrue);
-      for (final label in labels) {
-        expect(find.byTooltip(label), findsOneWidget, reason: label);
-      }
+      expect(find.byTooltip('טווח פסוקים'), findsOneWidget);
+      // תווית שנכנסת במלואה בלי טולטיפ שחוזר עליה.
+      expect(find.byTooltip('הכל'), findsNothing);
     },
   );
+
+  testWidgets('מקטע ממוקד נשאר לחיץ במקלדת אחרי שרמז החיתוך מופיע', (
+    tester,
+  ) async {
+    const label = 'select the second choice';
+    final selected = <int>[];
+    Widget app(double width) => MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: width,
+            child: AppSegmentedControl<int>(
+              expandToFillWidth: true,
+              options: const [
+                SegmentOption(value: 0, label: 'first choice'),
+                SegmentOption(value: 1, label: label),
+              ],
+              currentValue: 0,
+              onChanged: selected.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(app(760));
+    final focus = Focus.of(tester.element(find.text(label)));
+    focus.requestFocus();
+    await tester.pump();
+    expect(focus.hasPrimaryFocus, isTrue);
+    await tester.pumpWidget(app(220));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip(label), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(selected, [1]);
+  });
+
+  testWidgets('תווית מקטע קטועה בשל ריווח נגישות ניתנת לקריאה בריחוף', (
+    tester,
+  ) async {
+    const label = 'abcdefg';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Directionality(
+            textDirection: TextDirection.rtl,
+            child: MediaQuery(
+              data: const MediaQueryData(letterSpacingOverride: 12),
+              child: SizedBox(
+                width: 260,
+                child: AppSegmentedControl<int>(
+                  expandToFillWidth: true,
+                  options: const [
+                    SegmentOption(value: 0, label: label),
+                    SegmentOption(value: 1, label: 'b'),
+                  ],
+                  currentValue: 0,
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(
+      tester.renderObject<RenderParagraph>(find.text(label)).didExceedMaxLines,
+      isTrue,
+    );
+    expect(find.byTooltip(label), findsOneWidget);
+  });
 
   testWidgets('AppSegmentedControl uses a custom tooltip and a label key', (
     tester,
@@ -114,7 +184,8 @@ void main() {
 
     expect(find.byTooltip('First option'), findsOneWidget);
     expect(find.byTooltip('One'), findsNothing);
-    expect(find.byTooltip('Two'), findsOneWidget);
+    // טולטיפ שחוזר על התווית הגלויה מיותר.
+    expect(find.byTooltip('Two'), findsNothing);
     expect(find.byKey(const ValueKey('second')), findsOneWidget);
   });
 

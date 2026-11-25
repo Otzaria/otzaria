@@ -289,7 +289,7 @@ class PluginCorrectionSessionService extends ChangeNotifier {
           } else if (proposed is! String) {
             reason = 'invalid';
           } else {
-            _plainText(proposed);
+            _plainText(proposed, proposed: true);
           }
         }
       } on PluginCorrectionException catch (error) {
@@ -434,7 +434,7 @@ class PluginCorrectionSessionService extends ChangeNotifier {
       final original = value['originalText'] as String;
       final proposed = value['proposedText'] as String;
       _rawSource(raw);
-      _plainText(proposed);
+      _plainText(proposed, proposed: true);
       final change = <String, dynamic>{
         'sectionIndex': index,
         'originalSourceText': raw,
@@ -1100,7 +1100,7 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     final session = _sessionForTab(tabId);
     if (session == null) _fail('error.not_found', 'סשן התיקון הסתיים.');
     final original = _sourceText(source);
-    _plainText(proposed);
+    _plainText(proposed, proposed: true);
     final previous = session.changes[index];
     if (index < 0 ||
         previous != null && previous['originalSourceText'] != source) {
@@ -1212,17 +1212,22 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     return plain;
   }
 
-  void _plainText(String text) {
+  void _plainText(String text, {bool proposed = false}) {
     if (text.length > maxTextLength) {
       _fail('error.limit_exceeded', 'טקסט הפסקה גדול מדי.');
     }
-    if (_unsupportedText.hasMatch(text)) {
+    // ירידת שורה מותרת רק בהצעה (פיצול פסקה); מקור הפסקה נשאר שורה אחת.
+    if ((proposed ? _unsupportedProposed : _unsupportedText).hasMatch(text)) {
       _fail('error.unsupported_context', 'נתמך רק טקסט פשוט בתוך פסקה אחת.');
     }
     if (!_validUtf16(text)) {
       _fail('error.invalid_params', 'הטקסט מכיל תו פגום.');
     }
   }
+
+  static final _unsupportedProposed = RegExp(
+    r'[<>\r\u2028\u2029]|&(?:#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);',
+  );
 
   static final _unsupportedText = RegExp(
     r'[<>\r\n  ]|&(?:#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);',

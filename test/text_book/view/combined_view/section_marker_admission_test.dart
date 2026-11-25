@@ -142,7 +142,6 @@ void main() {
         visibleIndices: const [0],
         selectedIndex: 0,
         selectedIndices: const {0},
-        pinLeftPane: false,
         searchText: '',
       ),
     );

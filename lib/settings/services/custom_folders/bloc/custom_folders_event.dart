@@ -63,6 +63,7 @@ class RescanCustomFolders extends CustomFoldersEvent {
   const RescanCustomFolders({
     this.showNoChangesMessage = true,
     this.onlyFolderPath,
+    this.folderOfFile,
     this.requestId,
   });
   final bool showNoChangesMessage;
@@ -71,6 +72,10 @@ class RescanCustomFolders extends CustomFoldersEvent {
   /// ממילא לא השתנו.
   final String? onlyFolderPath;
 
+  /// כמו [onlyFolderPath], לתיקייה שמכילה את הקובץ (רענון ספר פתוח).
+  /// אם אין תיקייה יחידה שמכילה את הקובץ, נסרקות כל התיקיות.
+  final String? folderOfFile;
+
   /// מזהה בקשה שידווח ב-[CustomFoldersState.completedScan] בסיום הסריקה,
   /// בהצלחה או בכישלון. קיים כדי שקורא שאינו UI (כרגע
   /// `library.refreshUserBooks` של תוסף) יוכל לחכות לתוצאה של הסריקה שהוא
@@ -78,7 +83,12 @@ class RescanCustomFolders extends CustomFoldersEvent {
   final int? requestId;
 
   @override
-  List<Object?> get props => [showNoChangesMessage, onlyFolderPath, requestId];
+  List<Object?> get props => [
+    showNoChangesMessage,
+    onlyFolderPath,
+    folderOfFile,
+    requestId,
+  ];
 }
 
 /// ייבוא ידני של קבצי דורות/קישורים שהמשתמש בחר (לצמיתות, בדריסה מצטברת).

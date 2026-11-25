@@ -1,6 +1,6 @@
-name: WebView Apple native smoke (portable fixture)
+name: Apple native smoke (WebView and installed PDF)
 
-# Targeted native coverage for WebView dependency changes. This is a
+# Native coverage for WebView and installed PDF runtime changes. This is a
 # functional scenario; it does not claim representative CPU/GPU/RAM savings.
 on:
   pull_request:
@@ -8,11 +8,44 @@ on:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'integration_test/webview_resource_probe_test.dart'
-      - 'integration_test/support/perf_recorder.dart'
+      - 'integration_test/perf_resource_probe_test.dart'
+      - 'integration_test/support/perf_*.dart'
       - 'integration_test/support/webview_probe_*.dart'
+      - 'integration_test/installed_plugin_resource_probe_test.dart'
+      - 'integration_test/installed_pdf_ios_probe_test.dart'
+      - 'integration_test/support/installed_plugin_*.dart'
+      - 'test_driver/installed_plugin_resource_probe.dart'
+      - 'test/tool/perf_probe/installed_plugin_pdf*_test.dart'
+      - 'test/tool/perf_probe/fixtures/installed_pdf_*.json'
       - 'test_driver/webview_resource_probe.dart'
+      - 'tool/perf_probe/prepare_installed_plugin_source.py'
+      - 'tool/perf_probe/src/installed_pdf_*_contract.dart'
+      - 'tool/perf_probe/src/installed_plugin_contract.dart'
+      - 'tool/perf_probe/validate_installed_plugin_macos.py'
+      - 'tool/perf_probe/installed_pdf_*.py'
+      - 'tool/perf_probe/test_installed_pdf_desktop.py'
+      - 'tool/perf_probe/run_installed_pdf_ios.py'
+      - 'tool/perf_probe/test_installed_pdf_ios.py'
+      - 'tool/perf_probe/test_installed_plugin_macos.py'
       - 'tool/perf_probe/validate_webview_apple_smoke.py'
       - 'tool/perf_probe/test_webview_apple_smoke_validator.py'
+      - 'tool/perf_probe/*posix*.py'
+      - 'tool/perf_probe/validate_perf_probe_smoke.py'
+      - 'tool/perf_probe/validate_pdf_multi_window.dart'
+      - 'test/tool/perf_probe/pdf_multi_window_test.dart'
+      - 'lib/core/windowing/**'
+      - 'tool/perf_probe/probe_binding.py'
+      - 'tool/perf_probe/framework_pdf_probe.dart'
+      - 'tool/perf_probe/src/probe_*.dart'
+      - 'integration_test/support/perf_resource_workload.dart'
+      - 'integration_test/support/perf_framework_scheduler.dart'
+      - 'tool/perf_probe/prepare_pdf_case.dart'
+      - 'tool/perf_probe/analyze.dart'
+      - 'tool/perf_probe/src/pdf_*.dart'
+      - 'tool/perf_probe/src/report.dart'
+      - 'lib/pdf_book/**'
+      - 'lib/indexing/**'
+      - 'lib/printing/**'
       - '.github/workflows/webview_apple_smoke.yml'
   workflow_dispatch:
     inputs:
@@ -45,12 +78,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Verify accepted and rejected native report shapes
-        run: python3 -m unittest -v tool/perf_probe/test_webview_apple_smoke_validator.py
+        run: |
+          python3 -m unittest -v \
+            tool/perf_probe/test_webview_apple_smoke_validator.py \
+            tool/perf_probe/test_installed_plugin_macos.py \
+            tool/perf_probe/test_installed_pdf_ios.py \
+            tool/perf_probe/test_installed_pdf_desktop.py
 
   portable-webview:
     if: needs.gate.outputs.run == 'true'
     needs: [gate, report-contracts]
-    name: Actual WKWebView / ${{ inputs.platform || 'macos' }}
+    name: Native Apple app / ${{ inputs.platform || 'macos' }}
     runs-on: macos-latest
     timeout-minutes: 90
     env:
@@ -58,9 +96,9 @@ jobs:
       BOT: 'true'
       FLUTTER_SUPPRESS_ANALYTICS: 'true'
       DART_SUPPRESS_ANALYTICS: 'true'
+      PYTHONDONTWRITEBYTECODE: '1'
       CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
       GH_TOKEN: ${{ github.token }}
-      WEBVIEW_PROBE_REPORTS: ${{ github.workspace }}/apple-webview-reports
       WEBVIEW_PROBE_DEVICE_OUTPUT: ''
       # iOS stays manual while intermittent scroll restoration is investigated.
       PROBE_PLATFORM: ${{ inputs.platform || 'macos' }}
@@ -73,10 +111,18 @@ jobs:
           flutter-version: 3.47.7
           cache: false
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7.1.0
+        with:
+          # waitid/WNOWAIT requires Python 3.13+ on macOS.
+          python-version: '3.15'
       - name: Capture exact host and source provenance
         shell: bash
         run: |
           set -euo pipefail
+          {
+            echo "WEBVIEW_PROBE_REPORTS=$RUNNER_TEMP/apple-webview-reports"
+            echo "PERF_POSIX_ROOT=$RUNNER_TEMP/perf-posix-macos"
+          } >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM"
           sw_vers > "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/os.txt"
           uname -a >> "$RUNNER_TEMP/apple-webview-$PROBE_PLATFORM/os.txt"
@@ -155,6 +201,122 @@ jobs:
             --mode "$PROBE_MODE" \
             --commit "$GITHUB_SHA"
 
+      - name: Prepare the installed macOS PDF scenario
+        if: env.PROBE_PLATFORM == 'macos'
+        shell: bash
+        env:
+          INSTALLED_PROBE_ROOT: ${{ runner.temp }}/apple-installed-pdf
+        run: |
+          set -euo pipefail
+          test ! -e "$INSTALLED_PROBE_ROOT"
+          mkdir -p "$INSTALLED_PROBE_ROOT"
+          python3 tool/perf_probe/prepare_installed_plugin_source.py \
+            --output "$INSTALLED_PROBE_ROOT/store-source" \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/source.log"
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/tool/perf_probe/installed_plugin_pdf_macos_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart \
+            2>&1 | tee "$INSTALLED_PROBE_ROOT/contracts.log"
+
+      - name: Run viewing, indexing and printing in the macOS profile app
+        if: env.PROBE_PLATFORM == 'macos'
+        timeout-minutes: 35
+        shell: bash
+        env:
+          INSTALLED_PROBE_DATA: ${{ runner.temp }}/apple-installed-pdf/data
+          INSTALLED_PROBE_OUTPUT: ${{ runner.temp }}/apple-installed-pdf/device
+          INSTALLED_PROBE_REPORTS: ${{ runner.temp }}/apple-installed-pdf/host
+          INSTALLED_PROBE_STORE_SOURCE: ${{ runner.temp }}/apple-installed-pdf/store-source
+          INSTALLED_PROBE_MACHINE_ID: ${{ github.run_id }}-${{ github.run_attempt }}-macos
+        run: |
+          set -euo pipefail
+          flutter drive --profile -d macos --no-dds --no-pub \
+            --driver=test_driver/installed_plugin_resource_probe.dart \
+            --target=integration_test/installed_plugin_resource_probe_test.dart \
+            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+            --dart-define=INSTALLED_PROBE_COMMIT="$GITHUB_SHA" \
+            --dart-define=INSTALLED_PROBE_IDLE_MS=1500 \
+            2>&1 | tee "$RUNNER_TEMP/apple-installed-pdf/run.log"
+
+      - name: Verify actual macOS app images, PDF output and teardown
+        if: env.PROBE_PLATFORM == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tool/perf_probe/validate_installed_plugin_macos.py \
+            --root "$RUNNER_TEMP/apple-installed-pdf/host" \
+            --products build/macos/Build/Products/Profile \
+            --output "$RUNNER_TEMP/apple-installed-pdf/device" \
+            --commit "$GITHUB_SHA" \
+            2>&1 | tee "$RUNNER_TEMP/apple-installed-pdf/verified-result.json"
+
+      - name: Measure the actual PDF reader with the POSIX profile runner
+        if: env.PROBE_PLATFORM == 'macos'
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$PERF_POSIX_ROOT"
+          mkdir "$PERF_POSIX_ROOT"
+          python3 -m unittest tool.perf_probe.test_perf_probe_posix -v \
+            2>&1 | tee "$PERF_POSIX_ROOT/contracts.log"
+          printf '%s\n' '{"schemaVersion":1,"source":{"kind":"generated","pageCount":600}}' \
+            > "$PERF_POSIX_ROOT/case-input.json"
+          for binding in integration framework; do
+            run_name=run
+            if [ "$binding" = framework ]; then run_name=framework-run; fi
+            python3 tool/perf_probe/run_perf_probe_posix.py \
+            --mode profile --cache-state cold --scenario-set pdf-reader --binding-mode "$binding" \
+            --pdf-case "$PERF_POSIX_ROOT/case-input.json" \
+            --warmup 0 --repetitions 1 --launches 1 --display-mode desktop \
+            --hardware-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-macos-desktop" \
+            --build-timeout-seconds 1200 --timeout-seconds 180 \
+            --output "$PERF_POSIX_ROOT/$run_name" \
+            2>&1 | tee "$PERF_POSIX_ROOT/$run_name.log"
+          done
+          for binding in integration framework; do
+            run_name=run
+            if [ "$binding" = framework ]; then run_name=framework-run; fi
+            python3 tool/perf_probe/validate_perf_probe_smoke.py \
+            --root "$PERF_POSIX_ROOT/$run_name" --binding-mode "$binding" --platform macos --commit "$GITHUB_SHA" \
+            | tee "$PERF_POSIX_ROOT/verified-$binding.json"
+          done
+          printf '%s\n' '{"schemaVersion":1,"source":{"kind":"generated","pageCount":10}}' \
+            > "$PERF_POSIX_ROOT/multi-window-case.json"
+          python3 tool/perf_probe/run_perf_probe_posix.py \
+            --mode profile --cache-state cold --scenario-set pdf-multi-window --binding-mode framework \
+            --pdf-case "$PERF_POSIX_ROOT/multi-window-case.json" \
+            --warmup 0 --repetitions 1 --launches 1 --display-mode desktop \
+            --hardware-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-macos-desktop" \
+            --build-timeout-seconds 1200 --timeout-seconds 600 \
+            --output "$PERF_POSIX_ROOT/multi-window-run" \
+            2>&1 | tee "$PERF_POSIX_ROOT/multi-window-run.log"
+          dart tool/perf_probe/validate_pdf_multi_window.dart \
+            --root "$PERF_POSIX_ROOT/multi-window-run" \
+            --platform macos --mode profile --commit "$GITHUB_SHA" \
+            | tee "$PERF_POSIX_ROOT/verified-native-windows.json"
+
+      - name: Preserve POSIX reader measurements and partial failures
+        if: always() && env.PROBE_PLATFORM == 'macos'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: perf-posix-macos-profile-pdf-reader
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ env.PERF_POSIX_ROOT }}/**/*.json
+            ${{ env.PERF_POSIX_ROOT }}/**/*.jsonl
+            ${{ env.PERF_POSIX_ROOT }}/**/*.csv
+            ${{ env.PERF_POSIX_ROOT }}/**/*.log
+            ${{ env.PERF_POSIX_ROOT }}/**/*.md
+            ${{ env.PERF_POSIX_ROOT }}/**/*.txt
+            ${{ env.PERF_POSIX_ROOT }}/multi-window-run/launch-*/pdf-multi-window-*/*.pdf
+            ${{ env.PERF_POSIX_ROOT }}/multi-window-run/launch-*/pdf-multi-window-*/*.png
+            !${{ env.PERF_POSIX_ROOT }}/run/data/**
+            !${{ env.PERF_POSIX_ROOT }}/framework-run/data/**
+            !${{ env.PERF_POSIX_ROOT }}/multi-window-run/data/**
+
       - name: Cleanup only the Simulator created by this job
         if: always() && env.PROBE_PLATFORM == 'ios'
         shell: bash
@@ -181,3 +343,56 @@ jobs:
           path: |
             ${{ runner.temp }}/apple-webview-${{ env.PROBE_PLATFORM }}/
             ${{ env.WEBVIEW_PROBE_REPORTS }}/
+            ${{ runner.temp }}/apple-installed-pdf/
+
+  ios-pdf:
+    name: Actual installed PDF / iOS Simulator / debug
+    needs: [gate, report-contracts]
+    if: needs.gate.outputs.run == 'true' && (github.event_name == 'pull_request' || inputs.platform == 'ios')
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      BOT: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+      CARGO_BUILD_JOBS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve locked dependencies and verify PDF contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub --concurrency=1 --reporter expanded \
+            test/tool/perf_probe/installed_plugin_pdf_ios_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_macos_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_runtime_test.dart test/tool/perf_probe/installed_plugin_pdf_desktop_test.dart test/tool/perf_probe/installed_plugin_memory_pressure_test.dart \
+            test/tool/perf_probe/installed_plugin_pdf_fixture_test.dart
+      - name: Run actual PDF app and verify Simulator bundle provenance
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tool/perf_probe/run_installed_pdf_ios.py \
+            --root "$RUNNER_TEMP/installed-pdf-ios" --commit "$GITHUB_SHA"
+      - name: Cleanup only the PDF Simulator created by this job
+        if: always()
+        shell: bash
+        run: python3 tool/perf_probe/run_installed_pdf_ios.py --root "$RUNNER_TEMP/installed-pdf-ios" --cleanup
+      - name: Preserve PDF reports, native artifacts and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installed-pdf-ios-simulator-debug
+          if-no-files-found: warn
+          retention-days: 14
+          path: ${{ runner.temp }}/installed-pdf-ios/

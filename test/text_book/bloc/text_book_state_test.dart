@@ -291,7 +291,6 @@ TextBookLoaded _loadedState({
     commentaryRemoveNikudOverride: commentaryRemoveNikudOverride,
     visibleIndices: const [0],
     selectedIndices: selectedIndices,
-    pinLeftPane: false,
     searchText: 'אמר רבי',
     searchOptions: searchOptions,
     alternativeWords: alternativeWords,

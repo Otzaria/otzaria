@@ -252,7 +252,7 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     switch (widget.selectedFilter) {
       case 'in_progress':
         return const OtzariaEmptyState(
-          icon: FluentIcons.hourglass_24_regular,
+          icon: OtzariaIcons.book_progress_24_regular,
           title: 'אין ספרים בתהליך',
           message:
               'ניתן להוסיף ספרים למעקב באמצעות לחצן ההוספה (+) שליד הסינון, '

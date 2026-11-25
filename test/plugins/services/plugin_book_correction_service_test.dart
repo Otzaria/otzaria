@@ -141,6 +141,43 @@ void main() {
     expect(loaded, isEmpty);
   });
 
+  test('ביטול אישור כתובת השולח אינו טוען מקור או שולח', () async {
+    var asked = 0;
+    service = PluginBookCorrectionService(
+      senderEmail: () => 'reader@example.com',
+      confirmSender: () async {
+        asked++;
+        return null;
+      },
+      deliver: (_, {required bool allowQueue}) async =>
+          throw StateError('לא לשלוח'),
+    );
+    await expectLater(
+      submit(['א'], 'א', 'ב'),
+      throwsA(
+        predicate(
+          (Object e) => e.toString().contains('error.report_email_required'),
+        ),
+      ),
+    );
+    expect(asked, 1);
+    expect(loaded, isEmpty);
+  });
+
+  test('הכתובת שאושרה נשלחת גם כשהכתובת בהגדרות שונה', () async {
+    late DirectErrorReport sent;
+    service = PluginBookCorrectionService(
+      senderEmail: () => 'changed-in-another-window@example.com',
+      confirmSender: () async => 'confirmed@example.com',
+      deliver: (report, {required bool allowQueue}) async {
+        sent = report;
+        return DirectReportDeliveryResult.sent('נשלח');
+      },
+    );
+    await submit(['א'], 'א', 'ב');
+    expect(sent.senderEmail, 'confirmed@example.com');
+  });
+
   test('allowQueue false מועבר לשירות ושליחה כושלת אינה מאושרת', () async {
     service = PluginBookCorrectionService(
       senderEmail: () => 'reader@example.com',
@@ -250,6 +287,18 @@ void main() {
     expect(report.errorDetails, contains('מוצע: ג'));
   });
 
+  test('מזהה דיווח: תווים ואורך תקינים, ומרחב שמות לפי תוסף', () {
+    expect(PluginBookCorrectionService.isValidReportId('a.b_c:d-1'), isTrue);
+    expect(PluginBookCorrectionService.isValidReportId('x' * 160), isTrue);
+    expect(PluginBookCorrectionService.isValidReportId(''), isFalse);
+    expect(PluginBookCorrectionService.isValidReportId('x' * 161), isFalse);
+    expect(PluginBookCorrectionService.isValidReportId('יש רווח'), isFalse);
+    expect(
+      PluginBookCorrectionService.nativeReportId('test.plugin', 'r1'),
+      'test.plugin:r1',
+    );
+  });
+
   group('reportKind ו-requireTextCorrection', () {
     late int deliveries;
     setUp(() {
@@ -298,6 +347,37 @@ void main() {
         'reportKind': 'free_text',
         'correctionSupported': false,
       });
+    });
+
+    test(
+      'פיצול פסקה (ירידת שורה בהצעה) נשלח כדיווח חופשי, לא כתיקון',
+      () async {
+        final result = await submit(
+          ['אב גד'],
+          'אב גד',
+          'אב\nגד',
+          start: 0,
+          end: 5,
+        );
+        expect(result['reportKind'], 'free_text');
+        expect(report.correction, isNull);
+        expect(report.errorDetails, contains('אב\nגד'));
+      },
+    );
+
+    test('פיצול פסקה נדחה כשנדרש תיקון מובנה', () async {
+      await expectLater(
+        submit(
+          ['אב גד'],
+          'אב גד',
+          'אב\nגד',
+          start: 0,
+          end: 5,
+          extra: {'requireTextCorrection': true},
+        ),
+        coded('error.text_correction_unavailable'),
+      );
+      expect(deliveries, 0);
     });
 
     test('שינוי שחוצה HTML נדחה בלי לשלוח', () async {

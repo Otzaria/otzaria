@@ -17,6 +17,9 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 
+/// מעל אורך זה טיוטה נשמרת בהשהיה ארוכה יותר מההקלדה.
+const int largeDraftLength = 10000;
+
 class InlineNoteEditor extends StatefulWidget {
   final PersonalNote? note;
   final String? referenceText;
@@ -68,6 +71,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
   Object? _draftVersion;
   Timer? _draftSaveTimer;
+  Timer? _draftMaxWaitTimer;
   Timer? _focusRetryTimer;
   bool _isDone = false; // מונע שמירת טיוטה אחרי שמירה/ביטול
   bool _isSaving = false;
@@ -147,6 +151,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   @override
   void dispose() {
     _draftSaveTimer?.cancel();
+    _draftMaxWaitTimer?.cancel();
     _focusRetryTimer?.cancel();
     unawaited(_documentChanges.cancel());
     widget.cancelRequest?.removeListener(_handleCancelRequest);
@@ -176,6 +181,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
       await onSave(result);
       _isDone = true;
       _draftSaveTimer?.cancel();
+      _draftMaxWaitTimer?.cancel();
       var clearedDraft = true;
       try {
         await _clearDraft();
@@ -210,13 +216,24 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   void _scheduleDraftSave() {
     if (_isDone) return;
     _draftSaveTimer?.cancel();
-    _draftSaveTimer = Timer(
-      const Duration(milliseconds: 250),
+    _draftSaveTimer = Timer(_draftSaveDelay(), _persistDraftInBackground);
+    // ה-debounce מתאפס בכל הקשה; הקלדה רציפה נשמרת לפחות פעם ב-5 שניות.
+    _draftMaxWaitTimer ??= Timer(
+      const Duration(seconds: 5),
       _persistDraftInBackground,
     );
   }
 
+  // כל שמירה מקודדת את ההערה כולה על ה-UI וכותבת אותה לקופסת ההגדרות.
+  Duration _draftSaveDelay() =>
+      _controller.quillController.document.length > largeDraftLength
+      ? const Duration(seconds: 2)
+      : const Duration(milliseconds: 250);
+
   void _persistDraftInBackground() {
+    _draftSaveTimer?.cancel();
+    _draftMaxWaitTimer?.cancel();
+    _draftMaxWaitTimer = null;
     unawaited(
       _persistDraft().catchError((Object error) {
         debugPrint('Personal note draft autosave failed: $error');
@@ -315,8 +332,17 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
           return;
         }
       }
-      await _clearDraft();
+      // טיימר שיורה בזמן המחיקה היה שומר את הטיוטה מחדש.
+      _draftSaveTimer?.cancel();
+      _draftMaxWaitTimer?.cancel();
+      _draftMaxWaitTimer = null;
       _isDone = true;
+      try {
+        await _clearDraft();
+      } catch (_) {
+        _isDone = false;
+        rethrow;
+      }
       if (mounted) widget.onCancel();
     } catch (error) {
       if (mounted) UiSnack.showError(NotesMessages.noteDraftUpdateError(error));

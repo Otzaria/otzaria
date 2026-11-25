@@ -159,6 +159,39 @@ void main() {
     },
   );
 
+  qa('שמירה בתור משתמשת בכתובת שאושרה גם לאחר שינוי בהגדרות', (
+    tester,
+  ) async {
+    final context = await mount(tester);
+    await tester.runAsync(() async {
+      await Settings.setValue(
+        SettingsRepository.keyErrorReportSenderEmail,
+        'different@example.com',
+      );
+      expect(
+        await ErrorReportHelper.queueReportForLater(
+          context,
+          const ReportedErrorData(
+            selectedText: 'quoted text',
+            errorDetails: firstText,
+            senderEmail: 'confirmed@example.com',
+          ),
+          target['bookTitle'] as String,
+          'reference 7',
+          const {},
+          7,
+          'unchanged surrounding context',
+          'qa-library',
+        ),
+        isTrue,
+      );
+      expect(
+        (await service.getPendingReports()).single.senderEmail,
+        'confirmed@example.com',
+      );
+    });
+  });
+
   qa('QA both deliberate book queue actions preserve their distinct content', (
     tester,
   ) async {

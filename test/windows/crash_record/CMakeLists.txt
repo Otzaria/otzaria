@@ -16,6 +16,7 @@ add_subdirectory("../../../windows/crash_wer" crash_wer)
 add_executable(crash_record_test
   "../crash_record_test.cpp"
   "../../../windows/runner/image_identity.cpp"
+  "../../../windows/runner/native_exception_log.cpp"
 )
 apply_standard_settings(crash_record_test)
 target_link_libraries(crash_record_test PRIVATE psapi.lib shell32.lib ole32.lib)

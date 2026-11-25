@@ -1759,12 +1759,24 @@ class _PageShapeScreenState extends State<PageShapeScreen>
           },
         ),
         BlocListener<TextBookBloc, TextBookState>(
-          // שינוי גודל גופן משנה את גובה כל הפריטים; בלי עיגון-מחדש ההיסט
-          // בפיקסלים נוחת על מקום אחר (issue #915).
-          listenWhen: (previous, current) =>
-              previous is TextBookLoaded &&
-              current is TextBookLoaded &&
-              previous.fontSize != current.fontSize,
+          listenWhen: (previous, current) {
+            if (previous is! TextBookLoaded || current is! TextBookLoaded) {
+              return false;
+            }
+            final settings = context.read<SettingsBloc>().state;
+            return previous.fontSize != current.fontSize ||
+                settings.lineHeightForBook(previous.lineHeight) !=
+                    settings.lineHeightForBook(current.lineHeight);
+          },
+          listener: (context, state) => _reanchorMainText(),
+        ),
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (previous, current) {
+            final book = context.read<TextBookBloc>().state;
+            return book is TextBookLoaded &&
+                previous.lineHeightForBook(book.lineHeight) !=
+                    current.lineHeightForBook(book.lineHeight);
+          },
           listener: (context, state) => _reanchorMainText(),
         ),
         BlocListener<PersonalNotesBloc, PersonalNotesState>(

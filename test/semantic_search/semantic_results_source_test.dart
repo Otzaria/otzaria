@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
 import 'package:otzaria/semantic_search/services/semantic_fallback_log.dart';
+import 'package:otzaria/semantic_search/services/semantic_slow_search_log.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../support/search_engine_test_init.dart';
@@ -153,6 +155,67 @@ Future<void> main() async {
     expect(written.single.$1.kind, SemanticFailureKind.queryFailed);
     expect(written.single.$1.message, 'embedding failed');
     expect(written.single.$2['Executed mode'], 'lexicalOnly');
+  });
+
+  test('חיפוש איטי נרשם עם זמן ההכנה, זמני המנוע וההיקף', () async {
+    final written = <Map<String, String?>>[];
+    late Duration total;
+    source = EngineSemanticResultsSource(
+      buildRepository(root: root, backend: backend),
+      slowSearchLog: SemanticSlowSearchLog(
+        threshold: Duration.zero,
+        write: (elapsed, details) {
+          total = elapsed;
+          written.add(details);
+        },
+      ),
+    );
+    backend.response = _response(results: 2, totalCount: 2, hasMore: false);
+
+    final searching = Completer<void>();
+    backend.searchGate = Completer<void>();
+    final fetch = source.fetch(
+      const SemanticQueryOptions(query: ' דעת  תליא מילתא ', facets: ['/א']),
+      offset: 30,
+      limit: 30,
+      onSearching: searching.complete,
+    );
+
+    await searching.future;
+    expect(written, isEmpty);
+    const engineWait = Duration(milliseconds: 20);
+    await Future<void>.delayed(engineWait);
+    backend.searchGate!.complete();
+    await fetch;
+
+    final details = written.single;
+    final prepare = Duration(milliseconds: int.parse(details['Prepare ms']!));
+    expect(total - prepare, greaterThan(const Duration(milliseconds: 10)));
+    expect(details['Stages'], 'not reported');
+    expect(details['Scope'], '1 facets');
+    expect(details['Query words'], '3');
+    expect(details['Page offset'], '30');
+    expect(details['Results'], '2');
+  });
+
+  test('חיפוש על כל הספרייה נרשם כך, גם כשה-facet הוא "/"', () async {
+    final written = <Map<String, String?>>[];
+    source = EngineSemanticResultsSource(
+      buildRepository(root: root, backend: backend),
+      slowSearchLog: SemanticSlowSearchLog(
+        threshold: Duration.zero,
+        write: (_, details) => written.add(details),
+      ),
+    );
+    backend.response = _response(results: 0, totalCount: 0, hasMore: false);
+
+    await source.fetch(
+      const SemanticQueryOptions(query: 'א'),
+      offset: 0,
+      limit: 30,
+    );
+
+    expect(written.single['Scope'], 'all books');
   });
 
   test('הצד המילולי של החיפוש החכם: fuzzy במרחק 0', () async {

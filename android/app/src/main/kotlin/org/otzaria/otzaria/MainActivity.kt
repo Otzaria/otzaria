@@ -6,13 +6,15 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+open class MainActivity : FlutterActivity() {
     private var externalActivationChannel: MethodChannel? = null
     private var folderImportChannel: FolderImportChannel? = null
     private var appExitInfoChannel: AppExitInfoChannel? = null
+    private var hangMonitorChannel: HangMonitorChannel? = null
     private var foregroundWorkChannel: ForegroundWorkChannel? = null
     private var androidUpdateChannel: AndroidUpdateChannel? = null
     private var downloadNetworkChannel: DownloadNetworkChannel? = null
+    private var pdfFileExportChannel: PdfFileExportChannel? = null
     private var dartActivationListenerReady = false
     private val pendingActivationUris = mutableListOf<String>()
 
@@ -39,10 +41,12 @@ class MainActivity : FlutterActivity() {
 
         folderImportChannel = FolderImportChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         appExitInfoChannel = AppExitInfoChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        hangMonitorChannel = HangMonitorChannel(flutterEngine.dartExecutor.binaryMessenger)
         foregroundWorkChannel = ForegroundWorkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         androidUpdateChannel = AndroidUpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
         downloadNetworkChannel = DownloadNetworkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        pdfFileExportChannel = PdfFileExportChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
         enqueueIntentUriIfNeeded(intent)
     }
@@ -50,15 +54,18 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (androidUpdateChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         if (folderImportChannel?.onActivityResult(requestCode, resultCode, data) == true) return
+        if (pdfFileExportChannel?.onActivityResult(requestCode, resultCode, data) == true) return
         super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onResume() {
+        hangMonitorChannel?.onResume()
         super.onResume()
         androidUpdateChannel?.onResume()
     }
 
     override fun onPause() {
+        hangMonitorChannel?.onPause()
         androidUpdateChannel?.onPause()
         super.onPause()
     }
@@ -86,12 +93,16 @@ class MainActivity : FlutterActivity() {
         folderImportChannel = null
         appExitInfoChannel?.dispose()
         appExitInfoChannel = null
+        hangMonitorChannel?.dispose()
+        hangMonitorChannel = null
         foregroundWorkChannel?.dispose()
         foregroundWorkChannel = null
         androidUpdateChannel?.dispose()
         androidUpdateChannel = null
         downloadNetworkChannel?.dispose()
         downloadNetworkChannel = null
+        pdfFileExportChannel?.dispose()
+        pdfFileExportChannel = null
         dartActivationListenerReady = false
         super.cleanUpFlutterEngine(flutterEngine)
     }

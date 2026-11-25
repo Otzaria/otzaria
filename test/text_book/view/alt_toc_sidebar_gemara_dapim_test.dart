@@ -245,7 +245,6 @@ TextBookLoaded _loadedState(TextBook book, {required int visibleLine}) {
     removeNikud: false,
     visibleIndices: [visibleLine],
     selectedIndex: null,
-    pinLeftPane: false,
     searchText: '',
   );
 }

@@ -75,6 +75,15 @@ static const char *const hebrew[S_COUNT] = {
     [S_PRESET_CUSTOM_DESC] = "אני רוצה לבחור בעצמי מה להוריד.",
     [S_CARD_SIZE] = "גודל ההורדה: %1",
     [S_REQUIRED_TAG] = "(נדרש)",
+    [S_ZMANENU_TITLE] = "הורד גם את מחברי זמננו",
+    [S_ZMANENU_DESC_THIS] = "מסד ספרים רשמי נוסף. אוצריא שבמחשב הזה תתקין אותו בפתיחה הבאה.",
+    [S_ZMANENU_DESC_OTHER] = "מסד ספרים רשמי נוסף. הקבצים יישמרו לצד הספרייה, ואוצריא "
+                             "תתקין אותו כשבוחרים את התיקייה בהגדרת הספרייה.",
+    [S_ROW_ZMANENU] = "מחברי זמננו",
+    [S_GUIDE_ZMANENU_THIS] = "מחברי זמננו נשמר בתיקייה של אוצריא במחשב הזה, והתוכנה תתקין "
+                             "אותו בפתיחה הבאה.",
+    [S_GUIDE_ZMANENU_OTHER] = "מחברי זמננו נמצא באותה תיקייה. אוצריא מתקינה אותו כשבוחרים "
+                              "את התיקייה בהגדרת הספרייה.",
     [S_CUSTOM_DESC] = "סמן את הרכיבים שברצונך להוריד.",
     [S_CUSTOM_HINT] = "ליד כל רכיב מופיע גודל ההורדה שלו.",
     [S_FOLDER_TITLE] = "לאן לשמור",
@@ -266,6 +275,17 @@ static const char *const english_texts[S_COUNT] = {
     [S_PRESET_CUSTOM_DESC] = "I want to choose what to download myself.",
     [S_CARD_SIZE] = "Download size: %1",
     [S_REQUIRED_TAG] = "(required)",
+    [S_ZMANENU_TITLE] = "Also download Contemporary Authors",
+    [S_ZMANENU_DESC_THIS] = "An additional official book collection. Otzaria on this "
+                            "computer installs it the next time it starts.",
+    [S_ZMANENU_DESC_OTHER] = "An additional official book collection. The files are saved "
+                             "next to the library, and Otzaria installs it when the folder "
+                             "is chosen in the library setup.",
+    [S_ROW_ZMANENU] = "Contemporary Authors",
+    [S_GUIDE_ZMANENU_THIS] = "Contemporary Authors was saved in Otzaria's folder on this "
+                             "computer, and Otzaria installs it the next time it starts.",
+    [S_GUIDE_ZMANENU_OTHER] = "Contemporary Authors is in the same folder. Otzaria installs "
+                              "it when the folder is chosen in the library setup.",
     [S_CUSTOM_DESC] = "Check the items you want to download.",
     [S_CUSTOM_HINT] = "Each item shows its download size.",
     [S_FOLDER_TITLE] = "Where to save",

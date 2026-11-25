@@ -142,13 +142,32 @@ List<LibraryChangesLine> filterLibraryChanges(
 Future<void> showLibraryChangesDialog(
   BuildContext context,
   List<LibraryChangesNote> notes,
-) => showDialog<void>(
-  context: context,
-  builder: settingsDialogBuilder(
-    context,
-    (_) => LibraryChangesDialog(notes: notes),
-  ),
-);
+) {
+  if (notes.isNotEmpty) {
+    return showDialog<void>(
+      context: context,
+      builder: settingsDialogBuilder(
+        context,
+        (_) => LibraryChangesDialog(notes: notes),
+      ),
+    );
+  }
+  // סגירת החלון צריכה לשחרר את נעילת ההיסטוריה הריקה.
+  return showDialogUntilTornDown<void>(
+    context: context,
+    builder: settingsDialogBuilder(
+      context,
+      (context) => AppDialog.singleAction(
+        title: context.settingsText('מה חדש בספרים'),
+        icon: FluentIcons.sparkle_24_regular,
+        content: context.settingsText(
+          'טרם נשמרו במחשב זה הערות עדכון לספרייה.',
+        ),
+        confirmText: context.settingsText('סגור'),
+      ),
+    ),
+  );
+}
 
 class LibraryChangesDialog extends StatefulWidget {
   const LibraryChangesDialog({super.key, required this.notes});

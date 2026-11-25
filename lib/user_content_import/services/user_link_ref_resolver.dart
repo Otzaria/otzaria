@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -5,6 +7,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart';
+import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// פותר כתובת (ref) טקסטואלית — כמו "ב ע\"א" בגמרא או "רטו א" בשו"ע — לאינדקס
@@ -108,7 +111,7 @@ typedef LocatedUserLinkBook = ({
   String title,
   bool isUserBook,
   int? categoryId,
-  int totalLines,
+  int? totalLines,
   bool isDependentOnly,
 });
 
@@ -227,9 +230,31 @@ Future<LocatedUserLinkBook?> _locateIn(
     title: book.title,
     isUserBook: isUserBook,
     categoryId: book.categoryId,
-    totalLines: book.totalLines,
+    totalLines: isUserBook && book.isFileBacked && book.totalLines <= 0
+        ? await _fileBookLines(book)
+        : book.totalLines > 0
+        ? book.totalLines
+        : null,
     isDependentOnly: _isDependentOnly(book),
   );
+}
+
+/// ספר מתיקייה אישית נרשם עם totalLines 0 (תוכנו בקובץ ולא בשורות `line`),
+/// ולכן נספרות שורותיו מהטקסט שהקורא מציג — אחרת גבולות הקישור אינם נבדקים.
+/// מספר שורות לא ידוע מיוצג ב-null, ובקובץ טקסט ריק המספר הוא 0.
+Future<int?> _fileBookLines(Book book) async {
+  try {
+    final text = await readFileBackedBookText(
+      File(book.filePath!),
+      book.fileType,
+      book.title,
+    );
+    if (text == null || text.isEmpty) return text?.length;
+    return '\n'.allMatches(text).length + 1;
+  } on Exception catch (e) {
+    debugPrint('⚠️ [UserLinkBookLocator] ${book.title}: $e');
+    return null;
+  }
 }
 
 // ספר תלוי יכול להיות מסומן גם כספר בסיס בפני עצמו.
@@ -309,6 +334,11 @@ typedef AttachedLinkLibrary = ({
   bool visible,
 });
 
+typedef _AttachedLookup = (
+  ({String slug, int totalLines, bool isDependentOnly})?,
+  bool unavailable,
+);
+
 /// ספרי המסדים המצורפים לפתירת צד של קישור או גרסה, לפי סדר העדיפות.
 /// כל מסד נפתח מוקשח ולקריאה בלבד ([MyDatabase.untrusted]).
 class AttachedLinkBooks {
@@ -331,11 +361,7 @@ class AttachedLinkBooks {
 
   final List<({String slug, bool visible, SeforimRepository repository})>
   _libraries;
-  final _located =
-      <
-        (String, String?),
-        Future<({String slug, int totalLines, bool isDependentOnly})?>
-      >{};
+  final _located = <(String, String?), Future<_AttachedLookup>>{};
 
   final _LooseTitles _looseTitles = {};
 
@@ -360,27 +386,45 @@ class AttachedLinkBooks {
   }
 
   /// הספר [title] במסד [slug], או — בלי slug — במסד הגלוי הראשון שמכיל אותו.
+  /// [requireKnownAbsence] מבדיל בין כותרת חסרה לבין מסד שלא ניתן לקרוא.
   Future<({String slug, int totalLines, bool isDependentOnly})?> locate(
     String title, {
     String? slug,
-  }) => _located.putIfAbsent((title, slug), () async {
+    bool requireKnownAbsence = false,
+  }) async {
+    final (book, unavailable) = await _located.putIfAbsent(
+      (title, slug),
+      () => _lookup(title, slug),
+    );
+    if (book == null && unavailable && requireKnownAbsence) {
+      throw const UnavailableUserLinkCatalogException(attached: true);
+    }
+    return book;
+  }
+
+  Future<_AttachedLookup> _lookup(String title, String? slug) async {
+    var unavailable = false;
     for (final library in _libraries) {
       if (slug != null ? library.slug != slug : !library.visible) continue;
       try {
         final book = await _bookByTitle(library.repository, title, null);
         if (book != null) {
           return (
-            slug: library.slug,
-            totalLines: book.totalLines,
-            isDependentOnly: _isDependentOnly(book),
+            (
+              slug: library.slug,
+              totalLines: book.totalLines,
+              isDependentOnly: _isDependentOnly(book),
+            ),
+            false,
           );
         }
       } on Exception catch (e) {
+        unavailable = true;
         debugPrint('[AttachedLinkBooks] ${library.slug} unreadable: $e');
       }
     }
-    return null;
-  });
+    return (null, unavailable);
+  }
 
   /// השורה (0-based) של [ref] בספר [title] שבמסד [slug].
   Future<int?> resolveRef(String slug, String title, String ref) async {

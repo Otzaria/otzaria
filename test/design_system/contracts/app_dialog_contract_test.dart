@@ -17,6 +17,30 @@ Finder _button<T extends Widget>(String text) => find
 
 void main() {
   group('AppDialog.twoActions', () {
+    testWidgets('לחיצה על אישור עוברת דרך onConfirm, כמו Enter', (
+      tester,
+    ) async {
+      var allow = false;
+      final outcome = await showInApp<bool>(
+        tester,
+        AppDialog.twoActions(
+          title: 'כותרת',
+          content: 'תוכן',
+          onConfirm: () => allow,
+        ),
+      );
+
+      await tester.tap(_button<ActionButton>('אישור'));
+      await tester.pumpAndSettle();
+      expect(outcome.closed, isFalse, reason: 'onConfirm החזיר false');
+
+      allow = true;
+      await tester.tap(_button<ActionButton>('אישור'));
+      await tester.pumpAndSettle();
+      expect(outcome.closed, isTrue);
+      expect(outcome.value, isTrue);
+    });
+
     testWidgets('משטח surfaceContainerHigh בפינות 8, רצועה ותג תמיד', (
       tester,
     ) async {

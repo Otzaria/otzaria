@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:flutter/services.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -15,7 +17,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
 
 /// עץ ניווט תוצאות החיפוש בעיצוב מסך הספרייה ([library_browser.dart]),
-/// בנוי מ-[NavTreeTile]. העץ משוטח לרשימת שורות ומרונדר ב-ListView.builder
+/// בנוי מ-[NavTreeTile]. העץ משוטח לרשימת שורות ומרונדר ב-SuperListView.builder
 /// (בנייה עצלה) — כמו במסך הספרייה, למניעת קיפאון בגלילה ובסינון.
 ///
 /// נשלט (controlled): כל הנתונים והפעולות מוזרקים; הרכיב חסר-state.
@@ -133,11 +135,11 @@ class SearchNavigationTree extends StatelessWidget {
     if (filterQuery.length >= 2) {
       return _buildFilteredBookList(context);
     }
-    // שיטוח לשורות + ListView.builder, כמו במסך הספרייה: בניית כל העץ מראש
-    // מקפיאה את הגלילה ואת הרינדור-מחדש בכל שינוי סינון.
+    // שיטוח לשורות + SuperListView.builder: בנייה מוקדמת של כל העץ מקפיאה את
+    // הגלילה, ו-ListView בונה בקפיצה בפס הגלילה כל שורה שבדרך (#4766).
     final rows = _flattenRows();
     return NavTreeFocusGroup(
-      child: ListView.builder(
+      child: SuperListView.builder(
         padding: kNavTreeListPadding,
         itemCount: rows.length,
         itemBuilder: (context, index) =>
@@ -620,7 +622,7 @@ class SearchNavigationTree extends StatelessWidget {
     }
 
     return NavTreeFocusGroup(
-      child: ListView.builder(
+      child: SuperListView.builder(
         padding: kNavTreeListPadding,
         itemCount: matches.length,
         itemBuilder: (context, index) {
@@ -779,7 +781,7 @@ class SearchTreeExtraBook {
 
 enum _FlatRowKind { rootHeader, category, book, extraCategory, extraBook }
 
-/// שורה משוטחת אחת ברשימת הניווט (לבנייה עצלה ב-ListView.builder).
+/// שורה משוטחת אחת ברשימת הניווט (לבנייה עצלה ב-SuperListView.builder).
 /// [isGroupStart]/[isGroupEnd] מסמנים גבולות קבוצה עליונה — לעיצוב הכרטיס
 /// המקובץ (פינות מעוגלות בקצוות ומפריד בין שורות), כמו במסך הספרייה.
 class _FlatRow {

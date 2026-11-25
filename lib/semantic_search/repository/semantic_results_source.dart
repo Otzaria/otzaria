@@ -10,6 +10,7 @@ import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/semantic_search/services/semantic_fallback_log.dart';
+import 'package:otzaria/semantic_search/services/semantic_slow_search_log.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
@@ -70,10 +71,13 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
   EngineSemanticResultsSource(
     this._repository, {
     SemanticFallbackLog? fallbackLog,
-  }) : _fallbackLog = fallbackLog ?? SemanticFallbackLog.shared;
+    SemanticSlowSearchLog? slowSearchLog,
+  }) : _fallbackLog = fallbackLog ?? SemanticFallbackLog.shared,
+       _slowSearchLog = slowSearchLog ?? SemanticSlowSearchLog.shared;
 
   final SemanticSearchRepository _repository;
   final SemanticFallbackLog _fallbackLog;
+  final SemanticSlowSearchLog _slowSearchLog;
 
   /// ערוץ משלו: חיפוש בכרטיסייה אחרת אינו מבטל את החיפוש כאן.
   final SemanticSearchSession _session = SemanticSearchSession();
@@ -91,6 +95,8 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
     required int limit,
     void Function()? onSearching,
   }) async {
+    final stopwatch = Stopwatch()..start();
+    Duration? prepare;
     final outcome = await _repository.search(
       SemanticSearchRequest(
         query: options.query,
@@ -108,10 +114,21 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
       ),
       ranking: ranking,
       session: _session,
-      onSearching: onSearching,
+      onSearching: () {
+        prepare = stopwatch.elapsed;
+        onSearching?.call();
+      },
     );
     if (outcome == null) return null;
     final response = outcome.response;
+    _slowSearchLog.record(
+      total: stopwatch.elapsed,
+      prepare: prepare,
+      response: response,
+      countQueryWords: () => RegExp(r'\S+').allMatches(options.query).length,
+      facets: options.allLibrary ? 0 : options.facets.length,
+      offset: offset,
+    );
     final fallbackKind = outcome.fallbackKind;
     if (fallbackKind != null) {
       _fallbackLog.record(

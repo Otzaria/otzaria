@@ -56,9 +56,34 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
       - env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
         run: |
           R=$GITHUB_REPOSITORY
+          # A queued label event may outlive its commit or approval. Restarting
+          # that old run can cancel current-head CI through PR concurrency.
+          require_current_pr() {
+            local snapshot predicate_status
+            if ! snapshot=$(gh api "repos/$R/pulls/$PR"); then
+              echo "::error::Could not verify the current PR before restarting CI."
+              exit 1
+            fi
+            if jq -e --arg sha "$SHA" \
+                '.state == "open" and .head.sha == $sha and any(.labels[]?; .name == "run-ci")' \
+                <<< "$snapshot" > /dev/null; then
+              return 0
+            else
+              predicate_status=$?
+            fi
+            if [ "$predicate_status" != 1 ]; then
+              echo "::error::Could not parse the current PR before restarting CI."
+              exit "$predicate_status"
+            fi
+            echo "PR #$PR is no longer open, labeled run-ci, and at $SHA; stopping this label event."
+            exit 0
+          }
+          require_current_pr
           # ה-workflows שאינם מאחורי השער כבר רצו (או רצים על אירוע התווית עצמו).
           ungated='Lockfile Guard|Goldens Guard|UI Baseline Guard|CI Automation Tests'
           runs=$(gh api --paginate "repos/$R/actions/runs?head_sha=$SHA&event=pull_request&per_page=100" \
@@ -70,11 +95,14 @@ jobs:
               echo "$name: not gated"
               continue
             fi
+            require_current_pr
             status=$(gh api "repos/$R/actions/runs/$id" --jq .status)
             if [ "$status" != completed ]; then
+              require_current_pr
               echo "$name: run $id is $status; cancelling before rerun"
               gh run cancel "$id" -R "$R" || true
               for _ in $(seq 60); do
+                require_current_pr
                 status=$(gh api "repos/$R/actions/runs/$id" --jq .status)
                 [ "$status" = completed ] && break
                 sleep 5
@@ -84,6 +112,7 @@ jobs:
               echo "::warning::$name: run $id is $status; not rerun"
               continue
             fi
+            require_current_pr
             echo "$name: rerunning run $id"
             gh run rerun "$id" -R "$R" || echo "::warning::$name: rerun of $id failed"
           done <<< "$runs"

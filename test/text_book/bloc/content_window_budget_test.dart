@@ -98,7 +98,6 @@ void main() {
       tableOfContents: const [],
       removeNikud: false,
       visibleIndices: visibleIndices,
-      pinLeftPane: false,
       searchText: '',
     ),
   );
@@ -134,7 +133,6 @@ void main() {
         tableOfContents: const [],
         removeNikud: false,
         visibleIndices: const [2500, 2501],
-        pinLeftPane: false,
         searchText: '',
       ),
     );

@@ -15,6 +15,16 @@ from run_installed_plugin_linux import (
 )
 
 
+def pdf_runtime_report():
+    fixtures = Path(__file__).resolve().parents[2] / "test/tool/perf_probe/fixtures"
+    return {"status": "passed", "platform": "linux", "bundlePathsVerified": True,
+            "ownedDocumentsRemaining": 0, "ownedTabsRemaining": 0, "indexingActiveAfter": False,
+            "steps": {**{name: {"status": "passed"} for name in (
+                "view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown",
+            )}, "desktopLifecycle": json.loads((fixtures / "installed_pdf_desktop.json").read_text()),
+                "repeatedLifecycle": json.loads((fixtures / "installed_pdf_repeated.json").read_text())}}
+
+
 class LinuxSessionTest(unittest.TestCase):
     def assert_process_stopped(self, pid):
         deadline = time.monotonic() + 2
@@ -171,6 +181,7 @@ class LinuxSessionTest(unittest.TestCase):
             path.parent.mkdir()
             report = {"status": "passed", "platform": "linux", "buildMode": "profile",
                       "errors": [], "contractErrors": [], "policyRestored": True,
+                      "pdfRuntime": pdf_runtime_report(),
                       "runId": "unit-test-fixture", "phases": [
                           {"name": "minimize", "status": "passed"},
                           {"name": "hide", "status": "passed"}]}
@@ -203,6 +214,7 @@ class LinuxSessionTest(unittest.TestCase):
             path.parent.mkdir()
             report = {"status": "passed", "platform": "linux", "buildMode": "profile",
                       "errors": [], "contractErrors": [], "policyRestored": True,
+                      "pdfRuntime": pdf_runtime_report(),
                       "runId": "current-run", "phases": [
                           {"name": "minimize", "status": "passed"},
                           {"name": "hide", "status": "passed"}]}
@@ -230,6 +242,42 @@ class LinuxSessionTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "duplicate phase"):
                         require_linux_result(root)
                 report["phases"].pop(index)
+
+    def test_pdf_runtime_cannot_pass_with_missing_skipped_or_incomplete_evidence(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            path = root / "run-current" / "report.json"
+            path.parent.mkdir()
+            report = {"status": "passed", "platform": "linux", "buildMode": "profile",
+                      "errors": [], "contractErrors": [], "policyRestored": True,
+                      "runId": "pdf-current-run", "phases": [
+                          {"name": "minimize", "status": "passed"},
+                          {"name": "hide", "status": "passed"}]}
+            invalid = [None, {}, {"status": "notRun"}, {"status": "unsupported"}]
+            for field, value in (("status", "failed"), ("platform", "windows"),
+                                 ("bundlePathsVerified", False), ("ownedDocumentsRemaining", 1),
+                                 ("ownedTabsRemaining", 1), ("indexingActiveAfter", True)):
+                invalid.append({**pdf_runtime_report(), field: value})
+                missing = pdf_runtime_report()
+                del missing[field]
+                invalid.append(missing)
+            missing_steps = pdf_runtime_report()
+            del missing_steps["steps"]
+            invalid.append(missing_steps)
+            invalid.append({**pdf_runtime_report(), "steps": []})
+            for name in pdf_runtime_report()["steps"]:
+                missing_step = pdf_runtime_report()
+                del missing_step["steps"][name]
+                invalid.append(missing_step)
+                for status in ("notRun", "failed"):
+                    failed_step = pdf_runtime_report()
+                    failed_step["steps"][name]["status"] = status
+                    invalid.append(failed_step)
+            for pdf in invalid:
+                report["pdfRuntime"] = pdf
+                path.write_text(json.dumps({"installedPluginProbe": report}))
+                with self.subTest(pdf=pdf), self.assertRaisesRegex(RuntimeError, "PDF runtime"):
+                    require_linux_result(root)
 
 
 if __name__ == "__main__":

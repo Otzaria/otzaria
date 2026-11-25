@@ -156,7 +156,6 @@ void main() {
       linksByLine: const {},
       tableOfContents: const [],
       visibleIndices: const [0],
-      pinLeftPane: false,
       searchText: '',
     );
     final context = ReaderLineContext(

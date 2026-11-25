@@ -257,7 +257,6 @@ TextBookLoaded _twoGroupsState() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }
@@ -291,7 +290,6 @@ TextBookLoaded _loadedStateA() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }
@@ -327,7 +325,6 @@ TextBookLoaded _loadedStateB() {
     removeNikud: false,
     visibleIndices: const [1],
     selectedIndex: 1,
-    pinLeftPane: false,
     searchText: '',
   );
 }

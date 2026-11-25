@@ -15,27 +15,53 @@ import 'package:otzaria/utils/text/html_slice.dart';
 /// בוחר את תוכן ה-HTML המתאים ביותר לטקסט שנבחר: השורה המקורית כשהיא
 /// נבחרה במלואה, אחרת חיתוך שלה לטווח הבחירה — כדי שגם בחירה חלקית
 /// תישמר מעוצבת. נופל לטקסט פשוט רק כשהבחירה אינה נמצאת בשורה.
+/// [selectionLineStart] ו־[selectionLineEnd] הם גבולות המקור שזוהו בקורא,
+/// כולל שורות הקצה. בהיעדרם החיתוך מוגבל לשורה [selectedIndex].
 /// [divineNames] — מופעי השמות של [sourceContent] כשהם מוצגים מוחלפים, כדי
 /// שהשורה תושווה לבחירה כפי שהיא על המסך.
 String resolveHtmlTextForSelection({
   required String plainText,
   required int? selectedIndex,
   required List<String> sourceContent,
+  int? selectionLineStart,
+  int? selectionLineEnd,
   DivineNameSpans? divineNames,
 }) {
+  String sourceLine(int index) {
+    final line = sourceContent[index];
+    if (divineNames == null || divineNames.isEmpty) return line;
+    return resolveDivineNameMarkers(
+      injectDivineNameMarkers(line, divineNames, index),
+      substituteOtherNames: true,
+    );
+  }
+
+  if (selectionLineStart != null || selectionLineEnd != null) {
+    if (selectionLineStart == null ||
+        selectionLineEnd == null ||
+        selectionLineStart < 0 ||
+        selectionLineEnd < selectionLineStart ||
+        selectionLineEnd >= sourceContent.length) {
+      return plainText;
+    }
+    if (selectionLineStart < selectionLineEnd) {
+      return sliceHtmlLinesBySelection(
+            lines: [
+              for (var i = selectionLineStart; i <= selectionLineEnd; i++)
+                sourceLine(i),
+            ],
+            selectedText: plainText,
+          ) ??
+          plainText;
+    }
+    selectedIndex = selectionLineStart;
+  }
   if (selectedIndex == null ||
       selectedIndex < 0 ||
       selectedIndex >= sourceContent.length) {
     return plainText;
   }
-
-  var originalData = sourceContent[selectedIndex];
-  if (divineNames != null && !divineNames.isEmpty) {
-    originalData = resolveDivineNameMarkers(
-      injectDivineNameMarkers(originalData, divineNames, selectedIndex),
-      substituteOtherNames: true,
-    );
-  }
+  final originalData = sourceLine(selectedIndex);
   final plainTextCleaned = plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
   final originalCleaned = originalData
       .replaceAll(RegExp(r'<[^>]*>'), '')
@@ -54,7 +80,7 @@ String resolveHtmlTextForSelection({
 }
 
 /// מעתיק טקסט נבחר מספר טקסט תוך שמירה על כותרות ועיצוב.
-/// [headerIndexOverride] ממפה מראה מקום בלבד; ה־HTML נחתך לפי [selectedIndex].
+/// [headerIndexOverride] ממפה מראה מקום בלבד; ה־HTML נחתך לפי טווח המקור.
 ///
 /// [textBookState] הוא null בהעתקה ממשטח ללא `TextBookBloc` (חלונית ה-PDF);
 /// אז [headerBookOverride] הוא מקור ספר הכותרת היחיד.
@@ -70,6 +96,8 @@ Future<void> copySelectedTextForBook({
   required String plainText,
   required int? selectedIndex,
   required List<String> sourceContent,
+  int? selectionLineStart,
+  int? selectionLineEnd,
   required TextBookLoaded? textBookState,
   required SettingsState settingsState,
   required String fontFamily,
@@ -95,6 +123,8 @@ Future<void> copySelectedTextForBook({
     plainText: plainText,
     selectedIndex: selectedIndex,
     sourceContent: sourceContent,
+    selectionLineStart: selectionLineStart,
+    selectionLineEnd: selectionLineEnd,
     textBookState: textBookState,
     settingsState: settingsState,
     headerBookOverride: headerBookOverride,
@@ -129,6 +159,8 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
   required String plainText,
   required int? selectedIndex,
   required List<String> sourceContent,
+  int? selectionLineStart,
+  int? selectionLineEnd,
   required TextBookLoaded? textBookState,
   required SettingsState settingsState,
   TextBook? headerBookOverride,
@@ -165,6 +197,8 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     plainText: plainText,
     selectedIndex: selectedIndex,
     sourceContent: sourceContent,
+    selectionLineStart: selectionLineStart,
+    selectionLineEnd: selectionLineEnd,
     divineNames: showsSubstitutedNames ? textBookState.divineNames : null,
   );
 

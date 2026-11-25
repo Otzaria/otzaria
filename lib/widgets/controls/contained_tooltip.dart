@@ -3,6 +3,19 @@
 
 import 'package:flutter/material.dart';
 
+/// האם [tooltip] רק חוזר על [label] הגלוי על הפקד: אותו טקסט, עד כדי רווחים,
+/// סימני פיסוק וניקוד. טולטיפ כזה מיותר — הוא לא מוסיף מידע על מה שכבר
+/// כתוב. טולטיפ ריק או חסר נחשב גם הוא כחוזר (אין מה להציג).
+bool tooltipRepeatsLabel(String? tooltip, String? label) {
+  if (tooltip == null || tooltip.trim().isEmpty) return true;
+  if (label == null) return false;
+  return _comparable(tooltip) == _comparable(label);
+}
+
+final _nonWordChars = RegExp(r'[^\p{L}\p{N}]', unicode: true);
+
+String _comparable(String text) => text.replaceAll(_nonWordChars, '');
+
 /// [Tooltip] בתוך מכולת סמנטיקה משלו. לכפתור שיש לו פרמטר `tooltip`
 /// (כמו IconButton) עדיף להשתמש בפרמטר.
 class ContainedTooltip extends StatelessWidget {

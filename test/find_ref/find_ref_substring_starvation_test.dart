@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
+import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 
@@ -168,6 +169,29 @@ void main() {
         reason: 'ההתאמה המוכלת מדורגת אחרי התאמות-התחילית — המדיניות לא השתנתה',
       );
     });
+
+    test(
+      'קבוצת רלוונטיות שממלאת את כל התקרה עדיין משאירה מקום ליומא',
+      () async {
+        final repo = buildRepo([
+          for (var i = 0; i < 150; i++)
+            _hit(
+              bookId: i + 10,
+              title: 'מאירי על מסכת $i',
+              matchRank: 1,
+              orderIndex: 100.0,
+            ),
+          _hit(bookId: 1, title: 'יומא', matchRank: 2, orderIndex: 5.0),
+        ]);
+
+        final results = await repo.findRefs('מא');
+        final titles = results.map((r) => r.title).toList();
+
+        expect(titles, hasLength(findRefMaxResultCap));
+        expect(titles, contains('יומא'));
+        expect(titles.last, 'יומא', reason: 'הזנב נשאר אחרי התאמות-התחילית');
+      },
+    );
 
     test('שאילתת מילה-אחת מבקשת מהמטמון לפחות 200 ספרים', () async {
       // limit של 50 גרם לחיתוך לפי סדר-הספרייה עוד לפני הדירוג: עשרת מקומות

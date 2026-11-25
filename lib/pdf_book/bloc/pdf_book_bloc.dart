@@ -17,7 +17,6 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/utils/file/file_book_path_resolver.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 /// סוג לפונקציית אתחול pdfrx — ניתן להחלפה בטסטים.
@@ -118,7 +117,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     // Left pane events
     on<ToggleLeftPane>(_onToggleLeftPane);
-    on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSidebarWidth>(_onUpdateSidebarWidth);
 
     // Right pane events
@@ -341,13 +339,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       return;
     }
 
-    final showLeftPane = resolveInitialReadingLeftPaneVisibility(
-      explicitOpen: tab.showLeftPane.value,
-      screenWidth: event.screenWidth,
-    );
-    // בלי סנכרון ה-notifier, כפתור הסגירה בסרגל מחשב כיוון הפוך ונתקע (issue #869)
-    tab.showLeftPane.value = showLeftPane;
-    final pinLeftPane = Settings.getValue<bool>('key-pin-sidebar') ?? false;
+    final showLeftPane = tab.showLeftPane.value;
     final sidebarWidth = Settings.getValue<double>(
       'key-sidebar-width',
       defaultValue: 300,
@@ -361,7 +353,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         currentPageNumber: tab.pageNumber,
         totalPages: event.totalPages,
         showLeftPane: showLeftPane,
-        pinLeftPane: pinLeftPane,
         sidebarWidth: sidebarWidth,
         searchText: searchText,
         searchOptions: searchOptions,
@@ -647,19 +638,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     tab.showLeftPane.value = newShow;
 
     emit(current.copyWith(showLeftPane: newShow));
-  }
-
-  void _onTogglePinLeftPane(
-    TogglePinLeftPane event,
-    Emitter<PdfBookState> emit,
-  ) {
-    final current = state;
-    if (current is! PdfBookLoaded) return;
-
-    final newPin = event.pin ?? !current.pinLeftPane;
-    tab.pinLeftPane.value = newPin;
-
-    emit(current.copyWith(pinLeftPane: newPin));
   }
 
   void _onUpdateSidebarWidth(

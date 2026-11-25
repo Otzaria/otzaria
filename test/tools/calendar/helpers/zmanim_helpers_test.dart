@@ -254,27 +254,27 @@ void main() {
     test('בתאריך תענית — מחזיר את וריאנטי יציאת הצום', () {
       final times = calculateDailyTimes(fastDate, city);
       expect(times['fastEndTikLenient'], isNotNull);
-      expect(times['fastEndItimLenient'], isNotNull);
+      expect(times['fastEnd18Minutes'], isNotNull);
       expect(times['fastEndTikStringent'], isNotNull);
-      expect(times['fastEndItimStringent'], isNotNull);
+      expect(times['fastEnd22Minutes'], isNotNull);
     });
 
     test('סדר הזמנים: קולא לפני חומרא; 18 דק׳ זהה בין השיטות', () {
       final times = calculateDailyTimes(fastDate, city);
       final tikLenient = times['fastEndTikLenient']!; // 13.5 דק׳
-      final itimLenient = times['fastEndItimLenient']!; // 18 דק׳
+      final fastEnd18 = times['fastEnd18Minutes']!; // 18 דק׳
       final tikStringent = times['fastEndTikStringent']!; // 18 דק׳
-      final itimStringent = times['fastEndItimStringent']!; // 22 דק׳
+      final fastEnd22 = times['fastEnd22Minutes']!; // 22 דק׳
 
-      expect(tikLenient.compareTo(itimLenient), lessThan(0));
-      expect(itimLenient, equals(tikStringent));
-      expect(tikStringent.compareTo(itimStringent), lessThan(0));
+      expect(tikLenient.compareTo(fastEnd18), lessThan(0));
+      expect(fastEnd18, equals(tikStringent));
+      expect(tikStringent.compareTo(fastEnd22), lessThan(0));
     });
 
     test('ביום רגיל (לא תענית) — זמני יציאת הצום לא קיימים', () {
       final times = calculateDailyTimes(summerDate, city);
       expect(times['fastEndTikLenient'], isNull);
-      expect(times['fastEndItimLenient'], isNull);
+      expect(times['fastEnd18Minutes'], isNull);
     });
   });
 
@@ -373,7 +373,7 @@ void main() {
     });
   });
 
-  group('secondsMarker — סימן שניות בשיטת לוח עיתים לבינה', () {
+  group('secondsMarker — סימן שניות', () {
     test('שניות 0–29 → נקודה (.)', () {
       expect(secondsMarker(DateTime(2026, 5, 31, 19, 43, 0)), '.');
       expect(secondsMarker(DateTime(2026, 5, 31, 19, 43, 29)), '.');

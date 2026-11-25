@@ -12,6 +12,7 @@ enum LiveTipId {
   shortcutsHint,
   printHint,
   backupHint,
+  linkHighlightHint,
 }
 
 class LiveTipStorage {
@@ -57,6 +58,8 @@ enum TourInteractionType {
   printUsed,
   shortcutsSettingsOpened,
   systemSettingsOpened,
+  linkHighlightShown,
+  linkHighlightCleared,
 }
 
 class TourInteraction extends Equatable {
@@ -167,6 +170,13 @@ const List<LiveTipSpec> liveTipSpecs = [
         'אוצריא מגבה אוטומטית את הסימניות, ההיסטוריה וההערות שלך. '
         'בהגדרות ← מערכת אפשר לייצא את הגיבוי לקובץ ולשחזר אותו בכל עת — '
         'גם לאחר התקנה מחדש.',
+  ),
+  LiveTipSpec(
+    id: LiveTipId.linkHighlightHint,
+    area: TourSpotlightArea.reading,
+    title: 'הידעת?',
+    description: 'הסימון הצהוב מגיע מהקישור שפתחת. לחיצה על Esc מסירה אותו.',
+    audience: LiveTipAudience.desktopOnly,
   ),
 ];
 

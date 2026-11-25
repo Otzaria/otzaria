@@ -35,6 +35,7 @@ import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_divine_names_filter.dart';
+import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -2449,10 +2450,14 @@ Future<void> main() async {
       PluginBridgeAdapter buildAdapter(
         TextBookRepository textBooks, {
         String instanceId = PluginInstanceIds.defaultForeground,
+        String pluginId = 'test.plugin',
         Future<BookProtection> Function(Book)? checkProtection,
       }) {
         final adapter = PluginBridgeAdapter(
-          _buildInstalledPlugin(permissions: const ['library.read']),
+          _buildInstalledPlugin(
+            permissions: const ['library.read'],
+            pluginId: pluginId,
+          ),
           instanceId: instanceId,
           dependencies: PluginBridgeDependencies(
             historyBloc: _MockHistoryBloc(),
@@ -2501,6 +2506,8 @@ Future<void> main() async {
             ],
           ),
         );
+        PluginBookContentGate.resetForTesting();
+        addTearDown(PluginBookContentGate.resetForTesting);
         repository = _CountingTextBookRepository();
         bookAdapter = buildAdapter(repository);
       });
@@ -2546,7 +2553,7 @@ Future<void> main() async {
         expect(repository.loads, books.length);
       });
 
-      test('בקשה מהירה מתחילה גם כשארבע טעינות אחרות ממתינות', () async {
+      test('תוסף סורק מוגבל, ותוסף אחר לא ממתין מאחורי התור שלו', () async {
         final gate = Completer<void>();
         final blocked = books.take(4);
         for (final book in blocked) {
@@ -2554,17 +2561,169 @@ Future<void> main() async {
         }
         final pending = [for (final book in blocked) load(book)];
         await pumpEventQueue();
+        final otherRepository = _CountingTextBookRepository();
+        final other = buildAdapter(otherRepository, pluginId: 'other.plugin');
         String? fastResult;
-        final fast = load(books.last).then((result) => fastResult = result);
+        final fast = load(
+          books.last,
+          adapter: other,
+        ).then((result) => fastResult = result);
         try {
           await pumpEventQueue();
-          expect(repository.loads, 5);
+          expect(repository.loads, PluginBookContentGate.maxConcurrentLoads);
           expect(fastResult, 'תוכן של ${books.last.title}');
         } finally {
           gate.complete();
           await Future.wait([...pending, fast]);
         }
+        expect(repository.loads, 4);
+        final plugins =
+            PluginBookContentGate.diagnostics!['plugins']
+                as Map<String, Object>;
+        expect(plugins['test.plugin'], {'active': 0, 'peak': 4, 'calls': 4});
+        expect(plugins['other.plugin'], {'active': 0, 'peak': 1, 'calls': 1});
       });
+
+      test('מתקשר שהצטרף לטעינה שפגה בתור טוען בתקציב שלו', () async {
+        final gate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final blocked = books.skip(1).take(2).toList();
+        for (final book in blocked) {
+          repository.gates[book.title] = gate.future;
+        }
+        final pending = [for (final book in blocked) load(book)];
+        await pumpEventQueue();
+        final book = books.first;
+        // התקציב של המתקשר הראשון כמעט נגמר כשהוא נכנס לתור.
+        final first = runZoned(
+          () => bookAdapter.execute('library', 'getBookContent', {
+            'bookId': book.title,
+            'rawDivineNames': true,
+          }),
+          zoneSpecification: ZoneSpecification(
+            createTimer: (self, parent, zone, duration, callback) =>
+                parent.createTimer(
+                  zone,
+                  duration > const Duration(seconds: 1)
+                      ? const Duration(milliseconds: 20)
+                      : duration,
+                  callback,
+                ),
+          ),
+        );
+        final firstFailed = expectLater(
+          first,
+          throwsA(predicate((e) => e.toString().contains('error.timeout'))),
+        );
+        await pumpEventQueue();
+        final joined = load(book);
+        await firstFailed;
+        gate.complete();
+        expect(await joined, 'תוכן של ${book.title}');
+        await Future.wait(pending);
+      });
+
+      test('שחרור הדף של המתאם (גם ב-dispose) מבטל את הממתינות שלו', () async {
+        final gate = Completer<void>();
+        final blocked = books.take(2).toList();
+        for (final book in blocked) {
+          repository.gates[book.title] = gate.future;
+        }
+        final pending = [for (final book in blocked) load(book)];
+        await pumpEventQueue();
+        final otherRepository = _CountingTextBookRepository();
+        final closing = buildAdapter(otherRepository, instanceId: 'second');
+        final queued = expectLater(
+          load(books[2], adapter: closing),
+          throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+        );
+        await pumpEventQueue();
+        closing.releaseRuntime();
+        await queued;
+        gate.complete();
+        await Future.wait(pending);
+        expect(otherRepository.loads, 0);
+        expect(await load(books[3]), 'תוכן של ${books[3].title}');
+      });
+
+      test('בקשה מדף שנסגר בזמן בדיקת ההגנה אינה מתחילה קריאה', () async {
+        final protectionStarted = Completer<void>();
+        final protection = Completer<BookProtection>();
+        final closing = buildAdapter(
+          repository,
+          checkProtection: (_) {
+            protectionStarted.complete();
+            return protection.future;
+          },
+        );
+        final request = load(books.first, adapter: closing);
+        await protectionStarted.future;
+
+        closing.releaseRuntime();
+        protection.complete(BookProtection.none);
+
+        await expectLater(
+          request,
+          throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+        );
+        expect(repository.loads, 0);
+      });
+
+      test('טעינה מחדש בזמן בדיקת הרשאה מבטלת את הקריאה הישנה', () async {
+        final permission = Completer<void>();
+        final request = bookAdapter.withWindowDependencies(
+          () async {
+            await permission.future;
+            return load(books.first);
+          },
+          domain: 'library',
+          rpcAction: 'getBookContent',
+        );
+
+        bookAdapter.releaseBookContentPage();
+        permission.complete();
+
+        await expectLater(
+          request,
+          throwsA(predicate((e) => e.toString().contains('error.unavailable'))),
+        );
+        expect(repository.loads, 0);
+        expect(await load(books.first), 'תוכן של ${books.first.title}');
+      });
+
+      test(
+        'טעינה מחדש מבטלת ממתינים ושומרת את המכסה של הקריאות שרצות',
+        () async {
+          final gate = Completer<void>();
+          final blocked = books.take(2).toList();
+          for (final book in blocked) {
+            repository.gates[book.title] = gate.future;
+          }
+          final active = [for (final book in blocked) load(book)];
+          final queued = expectLater(
+            load(books[2]),
+            throwsA(
+              predicate((e) => e.toString().contains('error.unavailable')),
+            ),
+          );
+          await pumpEventQueue();
+
+          bookAdapter.releaseBookContentPage();
+          await queued;
+
+          final fresh = load(books[3]);
+          await pumpEventQueue();
+          expect(repository.loads, 2);
+          expect(PluginBookContentGate.runningLoadsForTesting, 2);
+
+          gate.complete();
+          await Future.wait([...active, fresh]);
+          expect(repository.loads, 3);
+          expect(PluginBookContentGate.runningLoadsForTesting, 0);
+        },
+      );
 
       test('טעינה משותפת שנכשלה ניתנת לניסיון חוזר', () async {
         final book = books.first;
@@ -2642,14 +2801,12 @@ Future<void> main() async {
         );
         repository.gates[book.title] = gate.future;
         repository.contents[book.title] = 'ישן';
-        Duration? sharingBudget;
-        void Function()? expire;
+        final timers = <(Duration, void Function())>[];
         final old = runZoned(
           () => load(book),
           zoneSpecification: ZoneSpecification(
             createTimer: (self, parent, zone, duration, callback) {
-              sharingBudget = duration;
-              expire = callback;
+              timers.add((duration, callback));
               return parent.createTimer(zone, duration, callback);
             },
           ),
@@ -2661,11 +2818,15 @@ Future<void> main() async {
           protection.complete(BookProtection.none);
           await pumpEventQueue();
           expect(repository.loads, 1);
+          // רק טיימר השיתוף נמדד מהתקציב שנשאר; טיימר התקיעה הוא קבוע.
+          final (sharingBudget, expire) = timers.singleWhere(
+            (timer) => timer.$1 < kPluginDefaultRpcTimeout,
+          );
           expect(
             sharingBudget,
             lessThanOrEqualTo(kPluginDefaultRpcTimeout - preflightTime),
           );
-          expire!();
+          expire();
 
           repository.gates.remove(book.title);
           repository.contents[book.title] = 'חדש';
@@ -6604,6 +6765,7 @@ Future<void> main() async {
   group('PluginBridgeAdapter feedback.report', () {
     PluginBridgeDependencies buildDeps({
       required Future<bool> Function(String title, String content) onConfirm,
+      Future<String?> Function(String initialEmail)? onSenderConfirm,
     }) {
       return PluginBridgeDependencies(
         historyBloc: _MockHistoryBloc(),
@@ -6619,6 +6781,14 @@ Future<void> main() async {
         themePayloadBuilder: () => <String, dynamic>{},
         showConfirmDialog: ({required title, required content}) =>
             onConfirm(title, content),
+        showReportSenderDialog: onSenderConfirm == null
+            ? null
+            : ({
+                required title,
+                required content,
+                required initialEmail,
+                required emailRequired,
+              }) => onSenderConfirm(initialEmail),
         showWarningDialog:
             ({required title, required content, required subtitle}) async =>
                 true,
@@ -6629,10 +6799,14 @@ Future<void> main() async {
       required Future<bool> Function(String title, String content) onConfirm,
       required http.Client client,
       _InMemoryPluginReportQueue? queue,
+      Future<String?> Function(String initialEmail)? onSenderConfirm,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(),
-        dependencies: buildDeps(onConfirm: onConfirm),
+        dependencies: buildDeps(
+          onConfirm: onConfirm,
+          onSenderConfirm: onSenderConfirm,
+        ),
         pluginRepository: _StubPluginRegistryRepository(),
         reportService: PluginReportService(
           client: client,
@@ -6791,6 +6965,108 @@ Future<void> main() async {
       });
 
       expect(body['reporterEmail'], 'saved@example.com');
+    });
+
+    test('כתובת שנערכה בחלון האישור היא זו שנשלחת', () async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+        'old@example.com',
+      );
+      var plainConfirmCalls = 0;
+      String? shownEmail;
+      late Map<String, dynamic> body;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async {
+          plainConfirmCalls++;
+          return true;
+        },
+        // המשתמש מחליף את הכתובת בשדה שבחלון ואז מאשר.
+        onSenderConfirm: (initialEmail) async {
+          shownEmail = initialEmail;
+          return 'new@example.com';
+        },
+        client: MockClient((request) async {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"success":true}', 200);
+        }),
+      );
+
+      await adapter.execute('feedback', 'report', {'details': 'משהו'});
+
+      expect(plainConfirmCalls, 0);
+      expect(shownEmail, 'old@example.com');
+      expect(body['reporterEmail'], 'new@example.com');
+      // כמו בדיווח על תקלה: כתובת תקינה שהוקלדה נשמרת לפעם הבאה.
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyErrorReportSenderEmail),
+        'new@example.com',
+      );
+    });
+
+    test('כתובת שהתוסף מילא מראש נשלחת אך אינה נשמרת', () async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+        '',
+      );
+      late Map<String, dynamic> body;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async => true,
+        // המשתמש אישר בלי לשנות את מה שהתוסף מילא.
+        onSenderConfirm: (initialEmail) async => initialEmail,
+        client: MockClient((request) async {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"success":true}', 200);
+        }),
+      );
+
+      await adapter.execute('feedback', 'report', {
+        'details': 'משהו',
+        'reporterEmail': 'plugin@example.com',
+      });
+
+      expect(body['reporterEmail'], 'plugin@example.com');
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyErrorReportSenderEmail),
+        '',
+      );
+    });
+
+    test('כתובת לא תקינה מהחלון אינה נשלחת', () async {
+      var posted = false;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async => true,
+        onSenderConfirm: (_) async => 'foo@',
+        client: MockClient((_) async {
+          posted = true;
+          return http.Response('{}', 200);
+        }),
+      );
+
+      final result = await adapter.execute('feedback', 'report', {
+        'details': 'משהו',
+      });
+
+      expect(result, 'cancelled');
+      expect(posted, isFalse);
+    });
+
+    test('ביטול בחלון הכתובת אינו שולח', () async {
+      var posted = false;
+      final adapter = buildAdapter(
+        onConfirm: (_, _) async => true,
+        onSenderConfirm: (_) async => null,
+        client: MockClient((_) async {
+          posted = true;
+          return http.Response('{}', 200);
+        }),
+      );
+
+      final result = await adapter.execute('feedback', 'report', {
+        'details': 'משהו',
+      });
+
+      expect(result, 'cancelled');
+      expect(posted, isFalse);
     });
 
     test('כתובת מהתוסף משמשת רק כשאין כתובת שמורה', () async {

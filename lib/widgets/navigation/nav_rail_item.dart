@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/theme/app_motion.dart';
 
@@ -54,7 +55,8 @@ class NavRailItem extends StatelessWidget {
   /// Callback בעת לחיצה
   final VoidCallback onTap;
 
-  /// טקסט Tooltip (לרוב קיצור מקלדת) — אופציונלי
+  /// טקסט Tooltip (לרוב קיצור מקלדת) — אופציונלי. טקסט שחוזר על [label]
+  /// לא מוצג.
   final String? tooltip;
 
   /// האם להדגיש את הפריט בגלל סיור מודרך
@@ -114,7 +116,8 @@ class NavRailItem extends StatelessWidget {
             ),
           );
 
-    if (tooltip != null) {
+    // טולטיפ שחוזר על התווית שמתחת לאייקון מיותר.
+    if (!tooltipRepeatsLabel(tooltip, label)) {
       iconWidget = Tooltip(
         preferBelow: false,
         message: tooltip!,

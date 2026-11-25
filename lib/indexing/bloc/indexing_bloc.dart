@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -20,6 +22,9 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   final void Function(IndexingRunResult result, Duration elapsed)
   _reportFailures;
   final void Function(String message) _showHiddenReconciliationError;
+  final Future<int> Function() _indexFreeBytes;
+  final void Function(String message) _showLowIndexDiskSpace;
+  bool _lowIndexDiskSpaceShown = false;
   int _nextWorkId = 0;
   int? _activeWorkId;
   bool _isPaused = false;
@@ -33,9 +38,18 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     this._repository, {
     void Function(IndexingRunResult result, Duration elapsed)? reportFailures,
     void Function(String message)? showHiddenReconciliationError,
+    Future<int> Function()? indexFreeBytes,
+    void Function(String message)? showLowIndexDiskSpace,
   }) : _reportFailures = reportFailures ?? IndexingFailureReporter.write,
        _showHiddenReconciliationError =
            showHiddenReconciliationError ?? UiSnack.showError,
+       _indexFreeBytes = indexFreeBytes ?? _repository.indexDriveFreeBytes,
+       _showLowIndexDiskSpace =
+           showLowIndexDiskSpace ??
+           ((message) => UiSnack.showWarning(
+             message,
+             duration: const Duration(seconds: 10),
+           )),
        super(IndexingInitial()) {
     on<IndexingWorkEvent>((event, emit) async {
       try {
@@ -282,12 +296,42 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         onWorkListReady: (total) {
           if (_activeWorkId != workId) return;
           emit(_inProgress(booksProcessed: 0, totalBooks: total));
+          unawaited(_warnIfIndexDiskLow(workId));
         },
         onActualIndexingStarted: () => add(ActualIndexingStarted(workId)),
         onProgress: _progressOf(workId),
         onFinalizing: () => add(IndexingFinalizing(workId)),
       ),
     );
+  }
+
+  /// אינדקס מלא תופס כ-2.4GB (library_space_estimate), ואיחוד הקטעים בסוף
+  /// הריצה צריך מקום נוסף לצד הקטעים הקיימים.
+  static const lowIndexDiskSpaceBytes = 3 * 1024 * 1024 * 1024;
+
+  /// פעם אחת לכל הפעלה, כדי שכל עדכון ספרייה לא יחזור על אותה אזהרה.
+  Future<void> _warnIfIndexDiskLow(int workId) async {
+    if (_lowIndexDiskSpaceShown) return;
+    try {
+      final freeBytes = await _indexFreeBytes();
+      if (isClosed ||
+          _activeWorkId != workId ||
+          !_repository.isIndexing() ||
+          _lowIndexDiskSpaceShown ||
+          freeBytes < 0 ||
+          freeBytes >= lowIndexDiskSpaceBytes) {
+        return;
+      }
+      _lowIndexDiskSpaceShown = true;
+      _showLowIndexDiskSpace(
+        LibraryMessages.indexDiskSpaceLow(
+          freeBytes,
+          canMove: DeviceChrome.hasWindowCaption,
+        ),
+      );
+    } catch (error) {
+      debugPrint('⚠️ בדיקת המקום הפנוי בכונן האינדקס נכשלה: $error');
+    }
   }
 
   void Function(int processed, int total) _progressOf(int workId) =>

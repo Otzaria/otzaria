@@ -255,6 +255,20 @@ void main() {
       expect(out, contains('<a href="https://a.example">קישור</a>'));
     });
 
+    test('קישור ישיר לספר באוצריא נשמר (issue #5714)', () {
+      final out = _convert(
+        '<text:p><text:a xlink:href="otzaria://open/book/12?index=2">ברכות'
+        '</text:a><text:a xlink:href="otzaria://open/settings">הגדרות'
+        '</text:a></text:p>',
+      );
+      expect(
+        out,
+        contains('<a href="otzaria://open/book/12?index=2">ברכות</a>'),
+      );
+      expect(out, isNot(contains('href="otzaria://open/settings"')));
+      expect(out, contains('הגדרות'));
+    });
+
     test('קישור בלי href משאיר את הטקסט', () {
       final out = _convert('<text:p><text:a>סתם</text:a></text:p>');
       expect(out, contains('סתם'));

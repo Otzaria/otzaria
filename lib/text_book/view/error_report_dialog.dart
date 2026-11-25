@@ -34,6 +34,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
+import 'package:otzaria/reports/view/report_sender_email_field.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -46,6 +47,7 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 class ReportedErrorData {
   final String selectedText; // הטקסט שסומן ע"י המשתמש
   final String errorDetails; // פירוט הטעות (שדה טקסט נוסף)
+  final String? senderEmail;
 
   /// הצעת תיקון מובנית; null בדיווח חופשי.
   final TextCorrection? correction;
@@ -55,6 +57,7 @@ class ReportedErrorData {
   const ReportedErrorData({
     required this.selectedText,
     required this.errorDetails,
+    this.senderEmail,
     this.correction,
     this.selection,
     this.selectionContext,
@@ -826,13 +829,13 @@ class ErrorReportHelper {
       throw StateError('The source changed before queueing.');
     }
     if (!context.mounted) return false;
-    final senderEmail = await ensureSenderEmail(context);
+    var senderEmail = reportData.senderEmail;
     if (senderEmail == null) {
-      return false;
-    }
-
-    if (verifySource != null && !await verifySource()) {
-      throw StateError('The source changed before queueing.');
+      senderEmail = await ensureSenderEmail(context);
+      if (senderEmail == null) return false;
+      if (verifySource != null && !await verifySource()) {
+        throw StateError('The source changed before queueing.');
+      }
     }
     final directReport = buildDirectReport(
       senderEmail: senderEmail,
@@ -1088,18 +1091,17 @@ class ErrorReportHelper {
       if (data.selectionContext != null) data.selectionContext!,
       target['contextText'] as String,
     ].join('\n\n');
-    DirectErrorReport build(ReportedErrorData data, String email) =>
-        buildDirectReport(
-          senderEmail: email,
-          reportData: data,
-          bookTitle: target['bookTitle'] as String,
-          currentRef: target['currentRef'] as String,
-          bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
-          lineNumber: target['lineNumber'] as int,
-          contextText: reportContext(data),
-          libraryVersion: target['libraryVersion'] as String,
-          source: source,
-        ).withId(draft.reportId);
+    DirectErrorReport build(ReportedErrorData data) => buildDirectReport(
+      senderEmail: data.senderEmail!,
+      reportData: data,
+      bookTitle: target['bookTitle'] as String,
+      currentRef: target['currentRef'] as String,
+      bookDetails: Map<String, String>.from(target['bookDetails'] as Map),
+      lineNumber: target['lineNumber'] as int,
+      contextText: reportContext(data),
+      libraryVersion: target['libraryVersion'] as String,
+      source: source,
+    ).withId(draft.reportId);
     if (!context.mounted) {
       await draft.close();
       return;
@@ -1135,25 +1137,21 @@ class ErrorReportHelper {
                   !await draftSourceMatches(target)) {
                 return unavailableMessage;
               }
-              return build(data, _longestEmailPlaceholder).exceedsApiBodyLimit
-                  ? tooLargeMessage
-                  : null;
+              return build(data).exceedsApiBodyLimit ? tooLargeMessage : null;
             },
           ),
         ),
       );
       if (result == null || !context.mounted) return;
       final data = result.data;
-      // הטופס נשמר כטיוטה לפני שהוא מחזיר פעולה; ביטול כתובת השולח או כשל שליחה משאירים אותה.
+      // הטופס נשמר כטיוטה לפני השליחה כדי שיהיה אפשר לחזור אליו אם היא נכשלה.
       bool completed;
       if (result.action == ErrorReportAction.sendDirect) {
-        final email = await ensureSenderEmail(context);
-        if (email == null || !context.mounted) return;
         if (data.correction != null && !await draftSourceMatches(target)) {
           throw StateError('The source changed before delivery.');
         }
         if (!context.mounted) return;
-        completed = await handleDirectReport(context, build(data, email));
+        completed = await handleDirectReport(context, build(data));
       } else {
         completed = await queueReportForLater(
           context,
@@ -1187,9 +1185,6 @@ class ErrorReportHelper {
     }
   }
 }
-
-/// הכתובת עוד לא ידועה לפני סגירת הדיאלוג: בודקים מול האורך המרבי (RFC 5321).
-final String _longestEmailPlaceholder = 'a' * 254;
 
 String widgetHash(String bookTitle, String currentRef, String selectedText) {
   final normalized = '$bookTitle|$currentRef|$selectedText';
@@ -1420,6 +1415,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
       Theme.of(context).brightness == Brightness.dark;
 
   final TextEditingController _detailsController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final _emailKey = GlobalKey<ReportSenderEmailFieldState>();
   final _quoteSelectionNotifier = SelectionListenerNotifier();
   final _quoteSelectionKey = GlobalKey();
   late _ReportMode _mode;
@@ -1477,6 +1474,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
         ? _ReportMode.freeText
         : _ReportMode.correction;
     _detailsController.text = form?['details'] as String? ?? '';
+    // לא נשמרת בטיוטה: טיוטה ישנה לא תדרוס כתובת שהשתנתה מאז בהגדרות.
+    _emailController.text = _savedSenderEmail;
     _editorText =
         form?['proposedText'] as String? ??
         widget.correctionTemplate?.target ??
@@ -1503,6 +1502,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   void dispose() {
     _quoteSelectionNotifier.dispose();
     _detailsController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -1511,6 +1511,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
     ReportedErrorData data,
   ) async {
     if (_validating || !_canSubmit) return;
+    if (!_ensureValidEmail()) return;
     setState(() => _validating = true);
     try {
       final error = await widget.validateBeforeSubmit?.call(data);
@@ -1518,6 +1519,14 @@ class _RegularReportTabState extends State<RegularReportTab> {
       if (error != null) {
         UiSnack.showError(error);
         return;
+      }
+      final email = data.senderEmail!;
+      if (email != _savedSenderEmail) {
+        await Settings.setValue(
+          SettingsRepository.keyErrorReportSenderEmail,
+          email,
+        );
+        if (!mounted) return;
       }
       widget.onActionSelected(action, data);
     } finally {
@@ -1863,6 +1872,13 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  ReportSenderEmailField(
+                    key: _emailKey,
+                    controller: _emailController,
+                    isRequired: true,
+                    enabled: !_validating,
+                  ),
                 ],
               ),
             ),
@@ -1881,6 +1897,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
         ? _selection!.selectedText(_selectionSource)
         : widget.selectedText,
     errorDetails: _detailsController.text.trim(),
+    senderEmail: _emailController.text.trim(),
     correction: _isCorrection ? _draft?.correction : null,
     selection: !_isCorrection ? _selection : null,
     selectionContext: !_isCorrection
@@ -1891,12 +1908,27 @@ class _RegularReportTabState extends State<RegularReportTab> {
   bool get _offline =>
       Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
 
+  String get _savedSenderEmail =>
+      Settings.getValue<String>(
+        SettingsRepository.keyErrorReportSenderEmail,
+      )?.trim() ??
+      '';
+
+  bool _ensureValidEmail() {
+    final field = _emailKey.currentState;
+    if (field == null) return false;
+    if (field.validate()) return true;
+    unawaited(Scrollable.ensureVisible(field.context));
+    return false;
+  }
+
   Future<void> _confirmAndSendDirect() async {
     final reportData = _reportData;
     if (_offline) {
       await _submitValidated(ErrorReportAction.saveForLater, reportData);
       return;
     }
+    if (!_ensureValidEmail()) return;
     final shouldSend = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('אישור שליחת דיווח'),

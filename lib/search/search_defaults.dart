@@ -29,7 +29,7 @@ class SearchDefaults {
   // מטמון הסשן: מצב החיפוש והמרווח כפי שהמשתמש השאיר אותם בדיאלוג
   // האחרון. בהפעלה הבאה חוזרים לברירת המחדל (חיפוש רגיל / המרווח השמור).
   static SearchMode? _sessionMode;
-  static int? _sessionDistance;
+  static final Map<SearchMode, int> _sessionDistance = {};
 
   SearchDefaults._();
 
@@ -203,28 +203,38 @@ class SearchDefaults {
   }
 
   // ── מרווח בין מילים (חיפוש רגיל/מתקדם) ─────────────────────────────
+  // לכל מצב ברירת מחדל וסשן משלו, כמו אפשרויות המילה (issue #5758).
 
-  /// ברירת המחדל השמורה (בין הפעלות) למרווח בין מילים.
-  static int loadDistanceDefault() {
-    final value = Settings.getValue<int>(_distanceKey) ?? 0;
+  static String _distanceKeyFor(SearchMode mode) =>
+      '$_distanceKey-${mode.name}';
+
+  /// ברירת המחדל השמורה (בין הפעלות) למרווח בין מילים במצב [mode]. עד
+  /// שנשמר ערך למצב, חל הערך המשותף הישן — כך מי ששמר מרווח לפני
+  /// ההפרדה ממשיך לקבל אותו בשני המצבים.
+  static int loadDistanceDefault(SearchMode mode) {
+    final value =
+        Settings.getValue<int>(_distanceKeyFor(mode)) ??
+        Settings.getValue<int>(_distanceKey) ??
+        0;
     return value < 0 ? 0 : value;
   }
 
-  /// שומר את [distance] כברירת המחדל למרווח בחיפושים חדשים.
-  static void saveDistanceDefault(int distance) {
-    Settings.setValue<int>(_distanceKey, distance);
-    _sessionDistance = distance;
+  /// שומר את [distance] כברירת המחדל למרווח בחיפושים חדשים במצב [mode].
+  static void saveDistanceDefault(int distance, {required SearchMode mode}) {
+    Settings.setValue<int>(_distanceKeyFor(mode), distance);
+    _sessionDistance[mode] = distance;
   }
 
-  /// המרווח שאיתו ייפתח חיפוש חדש: מצב הסשן אם קיים, אחרת ברירת המחדל.
-  /// (חיפוש מקורב אינו משתמש בזה — המרחק שם הוא מרחק עריכה, לא מרווח.)
-  static int initialDistanceForNewSearch() {
-    return _sessionDistance ?? loadDistanceDefault();
+  /// המרווח שאיתו ייפתח חיפוש חדש במצב [mode]: מצב הסשן שלו אם קיים, אחרת
+  /// ברירת המחדל שלו. (חיפוש מקורב אינו משתמש בזה — המרחק שם הוא מרחק
+  /// עריכה, לא מרווח.)
+  static int initialDistanceForNewSearch(SearchMode mode) {
+    return _sessionDistance[mode] ?? loadDistanceDefault(mode);
   }
 
-  /// משמר את המרווח להמשך הסשן (נקרא בסגירת דיאלוג החיפוש).
-  static void rememberSessionDistance(int distance) {
-    _sessionDistance = distance;
+  /// משמר את המרווח של [mode] להמשך הסשן.
+  static void rememberSessionDistance(int distance, SearchMode mode) {
+    _sessionDistance[mode] = distance;
   }
 
   // ── סדר המילים (חיפוש רגיל/מתקדם) ──────────────────────────────────

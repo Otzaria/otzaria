@@ -7,7 +7,6 @@ import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:logging/logging.dart';
-import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -15,8 +14,8 @@ import 'package:otzaria/attached_libraries/repository/attached_library_store.dar
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
-import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -329,6 +328,8 @@ class BackupService {
     SettingsRepository.keyDbEffectivePath,
     SettingsRepository.keyAndroidLibraryRoot,
     SettingsRepository.keyAttachedLibraryPendingUpdates,
+    SettingsRepository.keyOfficialAdoptionAttempts,
+    SettingsRepository.keyRejectedOfficialPackages,
     // חותמות זמן ומזהים תפעוליים: שחזור ערך ישן מבלבל את התזמון.
     'key-last-auto-backup',
     _kLastPartialAutoBackupKey,
@@ -445,6 +446,7 @@ class BackupService {
   /// האם המפתח אינו הגדרה כלל, לפי [_nonSettingKeyPrefixes].
   @visibleForTesting
   static bool isNonSettingKey(String key) =>
+      key == FindRefPreferenceStore.scoresKey ||
       _nonSettingKeyPrefixes.any(key.startsWith);
 
   /// האם המפתח מגובה. מסנן את [nonPortableSettingsKeys] ואת מה שאינו הגדרה.
@@ -532,23 +534,14 @@ class BackupService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> _backupBookmarks() async {
-    final repo = BookmarkRepository();
-    final bookmarks = await repo.loadBookmarks();
-    return bookmarks.map((b) => b.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupBookmarks() =>
+      BookmarkRepository().loadJson();
 
-  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() async {
-    final groups = await BookmarkRepository().loadGroups();
-    return groups.map((g) => g.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() =>
+      BookmarkRepository().loadGroupsJson();
 
-  /// Backup history
-  static Future<List<Map<String, dynamic>>> _backupHistory() async {
-    final repo = HistoryRepository();
-    final history = await repo.loadHistory();
-    return history.map((h) => h.toJson()).toList();
-  }
+  static Future<List<Map<String, dynamic>>> _backupHistory() =>
+      HistoryRepository().loadJson();
 
   /// Backup notes from SQLite database
   static Future<List<Map<String, dynamic>>> _backupNotes() async {
@@ -709,7 +702,9 @@ class BackupService {
       }
       return store != null
           ? await store.putFile(file)
-          : base64Encode(await file.readAsBytes());
+          : await Isolate.run(
+              () => base64Encode(File(snapshot).readAsBytesSync()),
+            );
     } catch (e) {
       _logger.warning('Skipping user_books.db backup: $e');
       skippedSections.add('userBooks');
@@ -951,8 +946,7 @@ class BackupService {
       throw Exception('קובץ הגיבוי לא נמצא');
     }
 
-    final content = await file.readAsString();
-    final backupData = json.decode(content) as Map<String, dynamic>;
+    final backupData = await _decodeBackupFile(backupPath);
 
     // Validate backup version
     final version = backupData['version'] as String?;
@@ -1034,13 +1028,13 @@ class BackupService {
             includes['bookmarksAndHistory'] == true) &&
         backupData.containsKey('bookmarks')) {
       await _restoreBookmarks(
-        (backupData['bookmarks'] as List).cast<Map<String, dynamic>>(),
+        backupData['bookmarks'] as List<Object?>,
         counts: counts,
       );
       // Older backups have no groups; the current ones are then kept.
       if (backupData.containsKey('bookmarkGroups')) {
         await _restoreBookmarkGroups(
-          (backupData['bookmarkGroups'] as List).cast<Map<String, dynamic>>(),
+          backupData['bookmarkGroups'] as List<Object?>,
           counts: counts,
         );
       }
@@ -1051,7 +1045,7 @@ class BackupService {
             includes['bookmarksAndHistory'] == true) &&
         backupData.containsKey('history')) {
       await _restoreHistory(
-        (backupData['history'] as List).cast<Map<String, dynamic>>(),
+        backupData['history'] as List<Object?>,
         counts: counts,
       );
     }
@@ -1315,17 +1309,16 @@ class BackupService {
 
   /// Restore bookmarks. [counts] לא ריק = ייבוא ממזג, והסימניות מתווספות.
   static Future<void> _restoreBookmarks(
-    List<Map<String, dynamic>> bookmarksData, {
+    List<Object?> bookmarksData, {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
-    final bookmarks = bookmarksData
-        .map((data) => Bookmark.fromJson(data))
-        .toList();
     if (counts == null) {
-      await repo.replaceBookmarks(bookmarks);
+      await repo.overwriteJson(bookmarksData);
       return;
     }
+    final bookmarks = repo.decodeJson(bookmarksData);
+    counts.skipped += bookmarksData.length - bookmarks.length;
     // `mutate` משמר סימנייה שנוספה בחלון אחר בין הקריאה לכתיבה.
     var added = 0;
     await repo.mutateBookmarks((current) {
@@ -1340,15 +1333,16 @@ class BackupService {
 
   /// Restore bookmark groups. [counts] לא ריק = ייבוא ממזג, והקבוצות מתווספות.
   static Future<void> _restoreBookmarkGroups(
-    List<Map<String, dynamic>> groupsData, {
+    List<Object?> groupsData, {
     BackupImportCounts? counts,
   }) async {
     final repo = BookmarkRepository();
-    final groups = groupsData.map(BookmarkGroup.fromJson).toList();
     if (counts == null) {
-      await repo.replaceGroups(groups);
+      await repo.replaceGroupsJson(groupsData);
       return;
     }
+    final groups = repo.decodeGroupsJson(groupsData);
+    counts.skipped += groupsData.length - groups.length;
     // `mutate`, as for bookmarks: a group added in another window meanwhile
     // must survive the import.
     var added = 0;
@@ -1362,15 +1356,16 @@ class BackupService {
 
   /// Restore history. [counts] לא ריק = ייבוא ממזג, והרשומות מתווספות.
   static Future<void> _restoreHistory(
-    List<Map<String, dynamic>> historyData, {
+    List<Object?> historyData, {
     BackupImportCounts? counts,
   }) async {
     final repo = HistoryRepository();
-    final history = historyData.map((data) => Bookmark.fromJson(data)).toList();
     if (counts == null) {
-      await repo.replaceHistory(history);
+      await repo.overwriteJson(historyData);
       return;
     }
+    final history = repo.decodeJson(historyData);
+    counts.skipped += historyData.length - history.length;
     // ⚠️ `mutate` — ראו ההערה ב-`_restoreBookmarks`.
     var added = 0;
     await repo.mutateHistory((current) {
@@ -2013,12 +2008,7 @@ class BackupService {
       Map<String, dynamic> backupData;
       try {
         // גיבוי של כמה MB חוסם את ה-UI עשרות ms בפתיחת לשונית "מערכת".
-        final path = latestFile.path;
-        backupData = await Isolate.run(
-          () =>
-              json.decode(File(path).readAsStringSync())
-                  as Map<String, dynamic>,
-        );
+        backupData = await _decodeBackupFile(latestFile.path);
       } catch (_) {
         return BackupStatus(
           lastBackupDate: backupDate,
@@ -2099,6 +2089,13 @@ class BackupService {
       return false;
     }
   }
+
+  // קובץ של עשרות MB מפוענח ב-isolate; התוצאה חוזרת ב-Isolate.exit בלי העתקה.
+  static Future<Map<String, dynamic>> _decodeBackupFile(String path) =>
+      Isolate.run(
+        () =>
+            json.decode(File(path).readAsStringSync()) as Map<String, dynamic>,
+      );
 
   /// Checks if shamor zachor data changed meaningfully since the backup:
   /// new books added, a book newly marked, or a review cycle crossed 50% for any book.

@@ -1,4 +1,11 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/core/messages/window_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
@@ -37,8 +44,38 @@ class WindowFullscreenTopBarScope extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      AppTopBarScope(trailing: _items, child: child);
+  Widget build(BuildContext context) {
+    // בטלפון החלקה מראש המסך כבר מחזירה את פסי המערכת; הסרגל נשאר גלוי.
+    final autoHide =
+        !DeviceChrome.isMobile &&
+        context.select(
+          (WindowFullscreenCubit? cubit) => cubit?.state ?? false,
+        ) &&
+        context.select(
+          (SettingsBloc? bloc) =>
+              bloc?.state.fullscreenAutoHideToolbar ?? false,
+        );
+    return AppTopBarScope(
+      trailing: _items,
+      autoHide: autoHide,
+      onAutoHideEntered: _showToolbarHintOnce,
+      child: child,
+    );
+  }
+
+  static bool _hintShown = false;
+
+  /// פעם אחת בלבד: איך מציגים את הסרגל המוסתר ואיך יוצאים ממסך מלא.
+  static void _showToolbarHintOnce(BuildContext context) {
+    const key = SettingsRepository.keyFullscreenToolbarHintShown;
+    if (_hintShown || (Settings.getValue<bool>(key) ?? false)) return;
+    _hintShown = true;
+    unawaited(Settings.setValue<bool>(key, true));
+    UiSnack.show(
+      WindowMessages.fullscreenToolbarHint,
+      window: AppWindowKeys.of(context),
+    );
+  }
 }
 
 /// רוחב החלון שממנו יש בשורת הכותרת מקום לכפתור המסך המלא גם כשהכרטיסיות

@@ -10,6 +10,7 @@ import 'package:otzaria/tools/shamor_zachor/models/progress_model.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/widgets/category_books_grid.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../support/golden_fonts.dart';
 
@@ -481,6 +482,10 @@ void main() {
 
       expect(find.text('ברכות'), findsNothing);
       expect(find.text('אין ספרים בתהליך'), findsOneWidget);
+      expect(
+        find.byIcon(OtzariaIcons.book_progress_24_regular),
+        findsOneWidget,
+      );
       expect(find.textContaining('לחצן ההוספה'), findsOneWidget);
     },
   );

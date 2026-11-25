@@ -123,7 +123,9 @@ class _AttachedCatalogBuild {
   /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
   int order(num? orderIndex) {
     final own = orderIndex?.toInt() ?? 999;
-    if (library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
+    // גם תיקייה מוצהרת עשויה להיות משותפת לכמה מסדים, ולכן ממוינת לפי עדיפות.
+    if (library.rootFolder == null &&
+        library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
       return own;
     }
     return _kAttachedMergedOrderBase +
@@ -571,6 +573,138 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
     ''', params).toMapList();
 }
 
+final _incomingTitleMatchers = Expando<_IncomingTitleMatcher>();
+
+class _IncomingTitleMatcher {
+  _IncomingTitleMatcher(sqlite3.Database db) {
+    db.createFunction(
+      functionName: 'otzaria_incoming_title_matches',
+      argumentCount: const sqlite3.AllowedArgumentCount(1),
+      directOnly: true,
+      function: (args) => matches?.call(args[0] as String) == true ? 1 : 0,
+    );
+  }
+
+  bool Function(String)? matches;
+}
+
+// קישורים נכנסים ל-SDK. השאילתה קוראת רק את צד היעד השמור ואת שורות הכיסוי שלו.
+List<Map<String, dynamic>> _loadIncomingLinkRows(
+  sqlite3.Database db,
+  DbCapabilities capabilities, {
+  required bool official,
+  required int bookId,
+  required int startLineIndex,
+  required int endLineIndex,
+  required List<String>? connectionTypes,
+  required List<String>? sourceTitles,
+  required List<String>? sourceTitlePrefixes,
+  required int? limit,
+}) {
+  List<int>? typeIds;
+  var includeReferenceFallback = false;
+  if (connectionTypes != null) {
+    final types = connectionTypes.map(LinkTypes.normalize).toSet();
+    includeReferenceFallback = types.contains(LinkTypes.reference);
+    typeIds = [
+      for (final row in db.select(
+        'SELECT id, name FROM connection_type WHERE name IS NOT NULL',
+      ))
+        if (types.contains(LinkTypes.normalize(row['name'] as String)) ||
+            types.contains(LinkTypes.canonicalType(row['name'] as String)))
+          row['id'] as int,
+    ];
+    if (typeIds.isEmpty && !includeReferenceFallback) return const [];
+  }
+  final hasRanges = capabilities.hasLinkRanges;
+  final sourceCategory = capabilities.hasBookCategories ? 'sb.categoryId' : '0';
+  final typeFilter = typeIds == null
+      ? ''
+      : 'AND (l.connectionTypeId IN (${List.filled(typeIds.length, '?').join(', ')})'
+            '${includeReferenceFallback ? """
+              OR l.connectionTypeId IS NULL OR l.connectionTypeId NOT IN (
+                SELECT id FROM connection_type WHERE name IS NOT NULL
+              )""" : ''})';
+  final bookFilter = official ? '' : 'AND l.targetBookId = ?';
+  final titles = sourceTitles?.toSet();
+  final prefixes = sourceTitlePrefixes?.toSet();
+  final hasTitleFilter = titles != null || prefixes != null;
+  if (hasTitleFilter &&
+      titles?.isEmpty != false &&
+      prefixes?.isEmpty != false) {
+    return const [];
+  }
+  final titleFilter = hasTitleFilter
+      ? 'WHERE otzaria_incoming_title_matches(sb.title)'
+      : '';
+  // SQLite שומר את ה־callback עד סגירת החיבור. המסננים חיים רק בזמן השאילתה.
+  final matcher = hasTitleFilter
+      ? (_incomingTitleMatchers[db] ??= _IncomingTitleMatcher(db))
+      : null;
+  if (matcher != null) {
+    if (prefixes == null || prefixes.isEmpty) {
+      matcher.matches = (title) => titles?.contains(title) == true;
+    } else {
+      final prefixMatches = <String, bool>{};
+      matcher.matches = (title) =>
+          titles?.contains(title) == true ||
+          prefixMatches.putIfAbsent(
+            title,
+            () => prefixes.any(title.startsWith),
+          );
+    }
+  }
+
+  try {
+    return db
+        .select(
+          '''
+      WITH win(id) AS (
+        SELECT id FROM line WHERE bookId = ? AND lineIndex BETWEEN ? AND ?
+      ),
+      anchors(linkId, anchorLineId) AS (
+        SELECT l.id, l.targetLineId FROM link l
+        WHERE l.targetLineId IN (SELECT id FROM win)
+          $bookFilter $typeFilter
+        ${hasRanges ? """
+          UNION ALL
+          SELECT lc.linkId, lc.lineId FROM link_coverage lc
+          ${typeIds == null ? '' : 'CROSS JOIN link l ON l.id = lc.linkId'}
+          WHERE lc.side = 1 AND lc.lineId IN (SELECT id FROM win)
+            $typeFilter""" : ''}
+      )
+      SELECT tl.lineIndex AS sourceLineIndex, sl.lineIndex AS targetLineIndex,
+        sl.heRef AS targetLineHeRef, sb.title AS targetBookTitle,
+        $sourceCategory AS targetCategoryId, sb.id AS targetBookId,
+        ${_rangeEndSelectColumns(hasRanges)}
+        ct.name AS connectionTypeName
+      FROM anchors a
+      CROSS JOIN link l ON l.id = a.linkId
+      JOIN line tl ON tl.id = a.anchorLineId
+      JOIN line sl ON sl.id = l.sourceLineId
+      JOIN book sb ON sb.id = l.sourceBookId
+      LEFT JOIN connection_type ct ON ct.id = l.connectionTypeId
+      ${_rangeEndJoinClause(hasRanges, panelSide: 0)}
+      $titleFilter
+      ORDER BY tl.lineIndex, l.id
+      ${limit == null ? '' : 'LIMIT ?'}
+    ''',
+          [
+            bookId,
+            startLineIndex,
+            endLineIndex,
+            if (!official) bookId,
+            ...?typeIds,
+            if (hasRanges) ...?typeIds,
+            ?limit,
+          ],
+        )
+        .toMapList();
+  } finally {
+    matcher?.matches = null;
+  }
+}
+
 /// מזהה הספר [title] — בקטגוריה [categoryId] כשהמסד מכיר קטגוריות — או null.
 /// במסד בלי עמודת קטגוריה כל הספרים יושבים תחת שורש אחד, וההתאמה לפי כותרת.
 int? _selectBookId(
@@ -995,6 +1129,10 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
   required int startLineIndex,
   required int endLineIndex,
   required List<String>? targetBookTitles,
+  bool incoming = false,
+  List<String>? incomingConnectionTypes,
+  List<String>? incomingTitlePrefixes,
+  int? incomingLimit,
   ReadOnlyConnection? connection,
 }) {
   sqlite3.Database? db;
@@ -1011,6 +1149,20 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
       categoryId: categoryId,
     );
     if (bookId == null) return const [];
+    if (incoming) {
+      return _loadIncomingLinkRows(
+        db,
+        capabilities,
+        official: official,
+        bookId: bookId,
+        startLineIndex: startLineIndex,
+        endLineIndex: endLineIndex,
+        connectionTypes: incomingConnectionTypes,
+        sourceTitles: targetBookTitles,
+        sourceTitlePrefixes: incomingTitlePrefixes,
+        limit: incomingLimit,
+      );
+    }
 
     final hasLinkAnchor = capabilities.hasLinkAnchors;
     final hasLinkRanges = capabilities.hasLinkRanges;
@@ -1155,8 +1307,9 @@ Future<T> _runBookLoadInIsolate<T>(
 /// סמני חלוקה וכותרות נושא בגוף הטקסט של ספר, ממופתחים לפי `lineIndex`.
 /// [markers] — עלי `Simanim` (אותיות פסקה במדרש רבה, "א") ו-`Seifim`
 /// (סעיפים בנושאי-כלים, "סעיף ג"; מגרסת ספרייה 24).
-/// [headings] — רשומות `Topic` ("הלכות ציצית") ושמות פרשה (`Parasha` ברמה 0,
-/// בלי העליות), רק כשאינם כבר גלויים בטקסט.
+/// [headings] — רשומות `Topic` ("הלכות ציצית"), שמות פרשה (`Parasha` ברמה 0,
+/// בלי העליות) וימי החודש בתהלים ("יום ד׳ לחודש"), רק כשאינם כבר גלויים
+/// בטקסט.
 InlineSectionMarks _loadInlineSectionMarksInIsolate({
   required ReadOnlyDbTarget target,
   required String bookTitle,
@@ -1221,7 +1374,7 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       JOIN line l ON l.id = e.lineId
       LEFT JOIN line_content lc ON lc.id = l.id
       WHERE s.bookId = ?
-        AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.level = 0))
+        AND (s.key = 'Topic' OR (s.key IN ('Parasha', ?) AND e.level = 0))
       ORDER BY l.lineIndex, e.level
       '''
           : '''
@@ -1236,10 +1389,10 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       JOIN tocText t ON t.id = e.textId
       JOIN line l ON l.id = e.lineId
       WHERE s.bookId = ?
-        AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.level = 0))
+        AND (s.key = 'Topic' OR (s.key IN ('Parasha', ?) AND e.level = 0))
       ORDER BY l.lineIndex, e.level
       ''',
-      [bookId],
+      [bookId, kMonthlyCycleStructureKey],
     ).toMapList();
 
     // השאילתה מביאה לכל כותרת את שורתה ושתיים שלפניה — חלון הבדיקה כולו.
@@ -1250,9 +1403,11 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       final lineIndex = row['lineIndex'];
       final rawLabel = row['label'];
       if (lineIndex is! int || rawLabel is! String) continue;
-      final label = row['structureKey'] == 'Parasha'
-          ? parashaHeadingLabel(rawLabel)
-          : rawLabel;
+      final label = switch (row['structureKey']) {
+        'Parasha' => parashaHeadingLabel(rawLabel),
+        kMonthlyCycleStructureKey => monthlyCycleHeadingLabel(rawLabel),
+        _ => rawLabel,
+      };
       if (label == null) continue;
       rawByIndex[lineIndex] = row['line0'];
       rawByIndex[lineIndex - 1] ??= row['line1'];
@@ -1522,6 +1677,10 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
   required int startLineIndex,
   required int endLineIndex,
   List<String>? targetBookTitles,
+  bool incoming = false,
+  List<String>? incomingConnectionTypes,
+  List<String>? incomingTitlePrefixes,
+  int? incomingLimit,
 }) {
   return Isolate.run(
     () => _loadBookLinksRowsInRangeInIsolate(
@@ -1533,6 +1692,10 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
       startLineIndex: startLineIndex,
       endLineIndex: endLineIndex,
       targetBookTitles: targetBookTitles,
+      incoming: incoming,
+      incomingConnectionTypes: incomingConnectionTypes,
+      incomingTitlePrefixes: incomingTitlePrefixes,
+      incomingLimit: incomingLimit,
     ),
   );
 }
@@ -1720,6 +1883,12 @@ Object? runRangeRequestOnConnection(
       startLineIndex: args['startLineIndex'] as int,
       endLineIndex: args['endLineIndex'] as int,
       targetBookTitles: (args['targetBookTitles'] as List?)?.cast<String>(),
+      incoming: args['incoming'] as bool? ?? false,
+      incomingConnectionTypes: (args['incomingConnectionTypes'] as List?)
+          ?.cast<String>(),
+      incomingTitlePrefixes: (args['incomingTitlePrefixes'] as List?)
+          ?.cast<String>(),
+      incomingLimit: args['incomingLimit'] as int?,
       connection: connection,
     ),
     'inlineSectionMarks' => _loadInlineSectionMarksInIsolate(
@@ -1908,6 +2077,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final _attachedCachedKeys = BookKeySet();
+
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
   final Map<String, PendingAttachedCatalog<AttachedCatalogRows>>
   _pendingAttachedCatalogs = {};
@@ -4075,6 +4245,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
+    final declaredFolders = <String, Category>{};
     _attachedBooksById.clear();
     _attachedDbVersions.clear();
     _attachedDuplicateVersions.clear();
@@ -4102,6 +4273,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             metadata: metadata,
             versionLinks: rows.versionLinks,
           ),
+          declaredFolders,
         );
       } catch (e, stackTrace) {
         debugPrint('⚠️ Error appending attached library ${attached.slug}: $e');
@@ -4181,6 +4353,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   void _addAttachedLibraryToCatalog(
     Library library,
     _AttachedCatalogBuild build,
+    Map<String, Category> declaredFolders,
   ) {
     final categories = [
       for (final row in build.categoryRows) db_models.Category.fromJson(row),
@@ -4208,30 +4381,51 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Category ensureLibraryRoot() {
       final existing = libraryRoot;
       if (existing != null) return existing;
-      final personal = _personalRootFor(library, build.metadata);
+      // תיקייה מוצהרת יושבת בשורש הספרייה ומשותפת רק למסדים שהצהירו עליה,
+      // ולא מתמזגת לקטגוריה רשמית או אישית באותו שם.
+      final rootFolder = build.library.rootFolder;
+      final parent = rootFolder == null
+          ? _personalRootFor(library, build.metadata)
+          : library;
+      final title = rootFolder ?? build.library.displayName;
+      final folderKey = rootFolder == null ? null : _mergeTitleKey(rootFolder);
+      final shared = declaredFolders[folderKey];
+      if (shared != null) return libraryRoot = shared;
       final created = Category(
-        title: build.library.displayName,
+        title: title,
+        pathSegment: folderKey == null
+            ? null
+            : Category.attachedRootPathSegment(folderKey),
         description: '',
         shortDescription: '',
         order: _kAttachedRootOrder + build.library.priority,
         subCategories: [],
         books: [],
-        parent: personal,
+        parent: parent,
       );
-      personal.subCategories.add(created);
+      parent.subCategories.add(created);
+      if (folderKey != null) declaredFolders[folderKey] = created;
       return libraryRoot = created;
     }
 
     final roots = [...?build.categoriesByParent[null]]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final merge =
+        build.library.rootFolder == null &&
         build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
-    final rootTargets = merge
-        ? CategoryMergeTargets(
-            library.subCategories,
-            DatabaseLibraryProvider._mergeTitleKey,
-          )
+    // תיקייה מוצהרת משותפת למסדים, ולכן קטגוריות באותו שם מתמזגות בתוכה.
+    final mergeParent = merge
+        ? library
+        : build.library.rootFolder != null && roots.isNotEmpty
+        ? ensureLibraryRoot()
         : null;
+    final rootTargets = mergeParent == null
+        ? null
+        : CategoryMergeTargets(
+            mergeParent.subCategories,
+            DatabaseLibraryProvider._mergeTitleKey,
+            exclude: merge ? declaredFolders.containsValue : null,
+          );
     for (final root in roots) {
       if (rootTargets == null) {
         final parent = ensureLibraryRoot();
@@ -4240,7 +4434,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       }
       final existing = rootTargets.find(root.title);
       if (existing == null) {
-        rootTargets.add(_buildAttachedCategory(root, library, build));
+        rootTargets.add(_buildAttachedCategory(root, mergeParent!, build));
       } else {
         _appendAttachedContent(existing, root, build);
       }
@@ -4650,7 +4844,9 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final List<String> path = [];
     final Set<Category> visited = {};
     while (category != null && !visited.contains(category)) {
-      if (category.title == 'ספריית אוצריא') break;
+      if (category.title == 'ספריית אוצריא' && category.pathSegment == null) {
+        break;
+      }
       visited.add(category);
       path.insert(0, category.title);
       category = category.parent;
@@ -4753,6 +4949,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required int endLineIndex,
     Iterable<String>? targetBookTitles,
     BookSource source = BookSource.official,
+    bool incoming = false,
+    List<String>? incomingConnectionTypes,
+    List<String>? incomingTitlePrefixes,
+    int? incomingLimit,
   }) async {
     final normalizedTargetBookTitles =
         targetBookTitles
@@ -4779,6 +4979,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         'startLineIndex': startLineIndex,
         'endLineIndex': endLineIndex,
         'targetBookTitles': normalizedTargetBookTitles,
+        if (incoming) 'incoming': true,
+        'incomingConnectionTypes': ?incomingConnectionTypes,
+        'incomingTitlePrefixes': ?incomingTitlePrefixes,
+        'incomingLimit': ?incomingLimit,
       },
       () => _runBookLinksInRangeInIsolate(
         target: target,
@@ -4789,6 +4993,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
         targetBookTitles: normalizedTargetBookTitles,
+        incoming: incoming,
+        incomingConnectionTypes: incomingConnectionTypes,
+        incomingTitlePrefixes: incomingTitlePrefixes,
+        incomingLimit: incomingLimit,
       ),
     );
 
@@ -4969,21 +5177,30 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     }
 
     try {
+      final candidates = await BookDatabaseResolver.loadRepositoryCandidates(
+        preferSource: link.targetSource,
+      );
       ResolvedDbBookRecord? resolvedBook;
       findBook:
-      for (final candidate
-          in await BookDatabaseResolver.loadRepositoryCandidates(
-            preferSource: link.targetSource,
-          )) {
+      for (final candidate in candidates) {
         for (final title in targetTitles) {
           resolvedBook = await BookDatabaseResolver.resolveBookInCandidates(
             title: title,
             candidates: [candidate],
             categoryId: link.targetCategoryId,
             fileType: link.targetFileType,
+            allowLegacyOfficialTitle: false,
           );
           if (resolvedBook != null) break findBook;
         }
+      }
+      for (final title in targetTitles) {
+        if (resolvedBook != null) break;
+        resolvedBook = await BookDatabaseResolver.resolveLegacyOfficialBook(
+          title,
+          candidates,
+          fileType: link.targetFileType,
+        );
       }
       if (resolvedBook == null) {
         return [
@@ -4994,16 +5211,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         ];
       }
 
-      // ספר file-backed (תיקייה שנוספה בלי "הוסף למסד הנתונים") — אין שורות
-      // ב-DB, התוכן נקרא מהקובץ עצמו לפי אותו פיצול שורות של הסורק.
       final dbBook = resolvedBook.book;
       final dbBookFormat = documentFormatOf(
         fileType: dbBook.fileType,
         path: dbBook.filePath,
       );
-      if (dbBook.isFileBacked &&
+      // במסד מצורף השורות המוטמעות קודמות לקובץ הנלווה, כמו בפתיחת הספר.
+      final readFromFile =
+          dbBook.isFileBacked &&
           dbBook.filePath != null &&
-          (dbBookFormat?.isTextual ?? false)) {
+          (dbBookFormat?.isTextual ?? false) &&
+          (!resolvedBook.source.isAttached ||
+              !await resolvedBook.repository.hasStoredLines(dbBook.id));
+      if (readFromFile) {
         final file = File(dbBook.filePath!);
         if (!await file.exists()) {
           return [

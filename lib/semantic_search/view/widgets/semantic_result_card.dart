@@ -83,14 +83,7 @@ class SemanticResultCard extends StatelessWidget {
             borderRadius: AppTokens.borderRadiusAll,
             child: Padding(
               padding: AppTokens.cardPadding,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SearchResultRankBadge(rank: rank),
-                  const SizedBox(width: AppTokens.spaceMD),
-                  Expanded(child: _buildContent(context)),
-                ],
-              ),
+              child: _buildContent(context),
             ),
           ),
         ),
@@ -105,6 +98,8 @@ class SemanticResultCard extends StatelessWidget {
       children: [
         Row(
           children: [
+            SearchResultRankBadge(rank: rank),
+            const SizedBox(width: AppTokens.spaceSM),
             if (item.isPdf)
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 8),

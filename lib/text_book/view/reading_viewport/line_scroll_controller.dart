@@ -39,11 +39,12 @@ class _Target {
   _Target({
     required this.line,
     this.alignment = kReadingAnchorAlignment,
-    this.intraLineFraction = 0,
+    double intraLineFraction = 0,
+    this._resolveFraction,
     this.duration = Duration.zero,
     this.curve = Curves.ease,
     this.waitForAttach = false,
-  });
+  }) : _fraction = intraLineFraction;
 
   _Target.anchor(ReadingAnchor anchor)
     : this(
@@ -54,7 +55,18 @@ class _Target {
 
   final int line;
   final double alignment;
-  final double intraLineFraction;
+  double _fraction;
+  double? Function(int line)? _resolveFraction;
+
+  double get intraLineFraction {
+    final resolved = _resolveFraction?.call(line);
+    if (resolved != null) {
+      _fraction = resolved;
+      _resolveFraction = null;
+    }
+    return _fraction;
+  }
+
   final Duration duration;
   final Curve curve;
   bool waitForAttach;
@@ -63,6 +75,7 @@ class _Target {
     line: line,
     alignment: alignment,
     intraLineFraction: intraLineFraction,
+    resolveFraction: _resolveFraction,
   );
 }
 
@@ -259,11 +272,12 @@ class LineScrollController {
 
   /// גלילה לשורת המקור [line]. בלי תצוגה מחוברת היעד נשמר ומבוצע בחיבור.
   /// [rememberPosition] false — תנועה שאינה ניווט (החזקת מקש, סנכרון), בלי
-  /// נקודת חזרה.
+  /// נקודת חזרה. [resolveFraction] מחזיר null כל עוד שורת היעד אינה טעונה.
   Future<void> scrollToLine(
     int line, {
     double alignment = kReadingAnchorAlignment,
     double intraLineFraction = 0,
+    double? Function(int line)? resolveFraction,
     Duration duration = const Duration(milliseconds: 250),
     Curve curve = Curves.ease,
     bool rememberPosition = true,
@@ -275,6 +289,7 @@ class LineScrollController {
           : line.clamp(0, segments.layout.lineCount - 1).toInt(),
       alignment: alignment,
       intraLineFraction: intraLineFraction,
+      resolveFraction: resolveFraction,
       duration: duration,
       curve: curve,
     );
@@ -474,6 +489,7 @@ class LineScrollController {
     final token = ++_token;
     _navigating++;
     _activeTarget = target;
+    final fraction = target.intraLineFraction;
     try {
       await scrollToSourceLine(
         scrollController: itemController,
@@ -482,7 +498,7 @@ class LineScrollController {
         latestSegments: () => _segments ?? segments,
         lineIndex: target.line,
         alignment: target.alignment,
-        intraLineFraction: target.intraLineFraction,
+        intraLineFraction: fraction,
         duration: target.duration,
         curve: target.curve,
         isCurrent: () => token == _token && !_disposed,
@@ -502,7 +518,8 @@ class LineScrollController {
     final landed = _segments;
     if (landed != null && landed.isNotEmpty) {
       final item = landed.layout.itemForLine(target.line);
-      if (item != segments.layout.itemForLine(target.line)) {
+      if (item != segments.layout.itemForLine(target.line) ||
+          target.intraLineFraction != fraction) {
         if (!_nativeReady) {
           _pending = target.instant;
           return;

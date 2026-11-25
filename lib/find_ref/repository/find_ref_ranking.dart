@@ -2,6 +2,7 @@
 /// התאמות ה-AltToc הגלובלי ב-worker (isolate-safe).
 library;
 
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/find_ref/book_name_match.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
 
@@ -121,6 +122,14 @@ class FindRefRankQuery {
 
   bool get needsTokenWiseRanking => tokens.length >= 2;
 
+  late final List<String> _nameWords = matchTokens.any(isTractateWord)
+      ? [
+          for (var i = 0; i < matchTokens.length; i++)
+            if (i == matchTokens.length - 1 || !isTractateWord(matchTokens[i]))
+              matchTokens[i],
+        ]
+      : matchTokens;
+
   /// מפתחות ההתאמה של כותרת מנורמלת לשאילתה — תלויים בספר בלבד.
   ({bool exactMatch, bool startsWithMatch, List<bool> titleWordMatches})
   titleMatch(String normTitle) {
@@ -138,11 +147,27 @@ class FindRefRankQuery {
   }
 
   /// לכל מילת שאילתה: האם המילה שבמקומה בכותרת, מעוגנת למילה הראשונה, פותחת בה.
+  /// "מסכת" אינה נספרת בשני הצדדים: "מסכת יבמות" היא הגמרא "יבמות" (#5609).
   List<bool> _titleWordMatches(List<String> titleTokens) {
-    final start = _titleAnchor(titleTokens, matchTokens.first);
+    final words = _nameWords;
+    if (words.length == matchTokens.length) {
+      final start = _titleAnchor(titleTokens, matchTokens.first);
+      return [
+        for (var i = 0; i < matchTokens.length; i++)
+          _titleTokenAt(titleTokens, start + i, matchTokens[i]),
+      ];
+    }
+    final title = [
+      for (var i = 0; i < titleTokens.length; i++)
+        if (i == titleTokens.length - 1 || !isTractateWord(titleTokens[i]))
+          titleTokens[i],
+    ];
+    final start = _titleAnchor(title, words.first);
+    var k = 0;
     return [
       for (var i = 0; i < matchTokens.length; i++)
-        _titleTokenAt(titleTokens, start + i, matchTokens[i]),
+        (i < matchTokens.length - 1 && isTractateWord(matchTokens[i])) ||
+            _titleTokenAt(title, start + k++, matchTokens[i]),
     ];
   }
 }
@@ -169,6 +194,7 @@ class FindRefRankKey<T> {
     this.punctuationAgrees = true,
     this.directNameMatch = false,
     this.exactAliasMatch = false,
+    this.namesBook = false,
   });
 
   final T item;
@@ -181,6 +207,9 @@ class FindRefRankKey<T> {
 
   /// הספר נמצא לפי כינוי מדויק (טבלת הכינויים), ולא לפי מילות שמו.
   final bool exactAliasMatch;
+
+  /// השאילתה היא שמו המדויק של הספר (כותרת או כינוי) ואחריו מיקום.
+  final bool namesBook;
   final bool startsWithMatch;
 
   /// מ-[FindRefRankQuery.titleMatch]: נקבע פעם אחת לכותרת ולא בכל השוואה.
@@ -217,6 +246,24 @@ class FindRefRankKey<T> {
 /// משווה שתי תוצאות לפי **רלוונטיות** בלבד. סדר התצוגה אינו רלוונטיות, ולכן
 /// אינו כאן — כך ה-cap לא חותך באמצע קבוצת תוצאות שווֹת-רלוונטיות.
 int compareFindRefRelevance(
+  FindRefRankKey<Object?> a,
+  FindRefRankKey<Object?> b,
+  FindRefRankQuery query,
+) {
+  final classCmp = compareFindRefMatchClass(a, b, query);
+  if (classCmp != 0) return classCmp;
+
+  // 7. סדר ספר בספרייה
+  final orderCmp = a.orderIndex.compareTo(b.orderIndex);
+  if (orderCmp != 0) return orderCmp;
+
+  // 8. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
+  return a.specificity.compareTo(b.specificity);
+}
+
+/// מחלקת ההתאמה: כל מפתחות הרלוונטיות שלפני סדר המדף. שתי תוצאות ששוות
+/// בה מוכרעות היום רק לפי מקום הספר בספרייה.
+int compareFindRefMatchClass(
   FindRefRankKey<Object?> a,
   FindRefRankKey<Object?> b,
   FindRefRankQuery query,
@@ -290,6 +337,11 @@ int compareFindRefRelevance(
     return aTier.compareTo(bTier);
   }
 
+  // "שמות רבה מה": הספר שנקרא בשמו לפני מפרשיו, שאינם ספרי יסוד כמוהו (#5741).
+  if (aTier == null && a.namesBook != b.namesBook) {
+    return a.namesBook ? -1 : 1;
+  }
+
   // 6. סדר הדורות בין מפרשים — orderIndex לבדו מערבב דורות מענפי-עץ שונים.
   if (aTier == null && a.bookRank.eraOrder != b.bookRank.eraOrder) {
     return a.bookRank.eraOrder.compareTo(b.bookRank.eraOrder);
@@ -307,13 +359,7 @@ int compareFindRefRelevance(
   if (aPartial != (b.specificity >= _partialTocRankOffset)) {
     return aPartial ? 1 : -1;
   }
-
-  // 7. סדר ספר בספרייה
-  final orderCmp = a.orderIndex.compareTo(b.orderIndex);
-  if (orderCmp != 0) return orderCmp;
-
-  // 8. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
-  return a.specificity.compareTo(b.specificity);
+  return 0;
 }
 
 /// מקום המילה הראשונה של השאילתה בכותרת; 0 כשאינה בה (כינוי, ראשי-תיבות)
@@ -342,4 +388,76 @@ int compareFindRefRank(
     b.reference,
     b.segment,
   );
+}
+
+/// כמה שורות ראשונות של ספר מועדף מוקדמות; שאר שורותיו נשארות במקומן.
+const int findRefPersonalRowsPerBook = 2;
+
+/// כמה שורות של ספרים מועדפים נוספות לכל היותר מעבר לחיתוך.
+const int findRefPersonalMaxAdditions = 6;
+
+/// סידור אישי **אחרי** הדירוג: מזיז שורות בתוך [kept] (אינדקסים ב-[sorted],
+/// בסדר עולה) ומוסיף מעטות — לעולם אינו גורע. [cutoff] — אורך הרצף שנחתך.
+List<int> personalizeFindRefOrder(
+  List<FindRefRankKey<Object?>> sorted,
+  List<int> kept,
+  FindRefRankQuery query, {
+  required int cutoff,
+  required List<String?> books,
+  required List<double> affinities,
+}) {
+  bool isPartial(int i) => sorted[i].specificity >= _partialTocRankOffset;
+
+  // מועמדי ההקדמה: השורות הראשונות של כל ספר מועדף שענו על כל השאילתה.
+  final candidates = <int>{};
+  final rowsPerBook = <String, int>{};
+  for (var i = 0; i < sorted.length; i++) {
+    final book = books[i];
+    if (book == null || affinities[i] <= 0 || isPartial(i)) continue;
+    final taken = rowsPerBook[book] ?? 0;
+    if (taken >= findRefPersonalRowsPerBook) continue;
+    rowsPerBook[book] = taken + 1;
+    candidates.add(i);
+  }
+  if (candidates.isEmpty || kept.isEmpty) return kept;
+
+  final included = kept.toSet();
+  // אחרי [cutoff] נשארה רק מכסת הזנב של #839, שאינה גבול לתוספות.
+  if (cutoff > 0 && cutoff < sorted.length) {
+    final boundary = sorted[cutoff - 1];
+    var additions = 0;
+    for (final i in candidates) {
+      if (additions >= findRefPersonalMaxAdditions) break;
+      if (i < cutoff || included.contains(i)) continue;
+      // רק שורה שמחלקת ההתאמה שלה אינה גרועה משל האחרונה שבחיתוך.
+      if (compareFindRefMatchClass(sorted[i], boundary, query) > 0) continue;
+      included.add(i);
+      additions++;
+    }
+  }
+
+  // התוספות נכנסות במקומן בסדר הדירוג; מכאן רק מועמדים זזים, שורה-שורה
+  // כלפי מעלה, ונעצרים בחוסם הראשון — כך שאר השורות נשארות בסדרן.
+  final order = included.toList()..sort();
+  // מי שאינו מועמד נחשב חסר זיקה — גם שורה שלישית ואילך של ספר מועדף,
+  // ולכן שתי הראשונות של כל ספר מועדף קודמות לשורות הנוספות של אחר.
+  double boost(int i) => candidates.contains(i) ? affinities[i] : 0;
+  for (final candidate in candidates) {
+    var at = order.indexOf(candidate);
+    if (at < 0) continue;
+    while (at > 0) {
+      final above = order[at - 1];
+      // עוקפים רק שורה מאותה מחלקה, פחות מועדפת, ושאינה ספציפית יותר.
+      if (compareFindRefMatchClass(sorted[above], sorted[candidate], query) !=
+              0 ||
+          boost(above) >= boost(candidate) ||
+          sorted[above].specificity < sorted[candidate].specificity) {
+        break;
+      }
+      order[at] = above;
+      order[--at] = candidate;
+    }
+  }
+
+  return order;
 }

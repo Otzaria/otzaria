@@ -485,7 +485,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
             _sidePanelWidth = nextWidth;
           },
           widePaneBuilder: (context, paneContent, paneWidth) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            // מרווח קטן בימין: שם פס הגלילה של חלונית הזמנים
+            // (EdgeScrollbarBehavior.right). תוכן המסך תמיד RTL
+            // (ContentDirectionality), ולכן start הוא תמיד ימין.
+            padding: const EdgeInsetsDirectional.only(start: 4, end: 16),
             child: paneContent,
           ),
           narrowPaneBuilder: (context, paneContent) => Material(
@@ -743,6 +746,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   )
                 : null,
             notificationMinutes: result.notificationMinutes,
+            leapAdarMonth: () => result.leapAdarMonth,
           ),
         );
       } else {
@@ -758,6 +762,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           endGregorianDate: result.endGregorianDate,
           colorIndex: result.colorIndex,
           notificationMinutes: result.notificationMinutes,
+          leapAdarMonth: result.leapAdarMonth,
         );
       }
     });

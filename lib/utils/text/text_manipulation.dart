@@ -22,7 +22,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         generateSmartHighlightPattern,
         splitQueryWords;
 import 'package:otzaria/search/utils/literal_search_pattern.dart'
-    show LiteralEdgeCheck, literalEdgeCheck;
+    show LiteralEdgeCheck, isOverlongSearchQuery, literalEdgeCheck;
 import 'package:otzaria/search/utils/user_regex_query.dart';
 
 export 'find_ref_text_matching.dart';
@@ -1306,11 +1306,17 @@ String _highlightTextOutsideTags(String text, String style) {
   while (position < text.length) {
     final tagStart = text.indexOf('<', position);
     if (tagStart < 0) break;
-    final tagEnd = text.indexOf('>', tagStart + 1);
+    final htmlTagEnd = _htmlTagEnd(text, tagStart);
+    final tagEnd = htmlTagEnd == -1
+        ? text.indexOf('>', tagStart + 1)
+        : htmlTagEnd;
     if (tagEnd < 0) break;
+    // ציון מפרש מוזרק נשאר כמות שהוא — הדגשה בתוכו צובעת את האות שלו.
+    final anchorEnd = _linkAnchorElementEnd(text, tagStart, htmlTagEnd);
+    final end = anchorEnd == -1 ? tagEnd + 1 : anchorEnd;
     writeText(text.substring(position, tagStart));
-    result.write(text.substring(tagStart, tagEnd + 1));
-    position = tagEnd + 1;
+    result.write(text.substring(tagStart, end));
+    position = end;
   }
   writeText(text.substring(position));
   return result.toString();
@@ -1562,9 +1568,9 @@ const _crossLineBrackets = {0x28: 0x29, 0x5B: 0x5D, 0x7B: 0x7D};
 }
 
 /// התאמות ביטוי שמתחיל בסוף שורה ונמשך בתחילת השורה הבאה (או להפך), מוגבלות
-/// למילים שבשורה [line] עצמה. [lineFirst]: [line] היא השורה הראשונה מהשתיים.
+/// למילים שבשורה [maskedLine]. [lineFirst] מציין שהיא הראשונה מהשתיים.
 List<_HighlightMatch> _crossLineMatches(
-  String line,
+  String maskedLine,
   String neighbour, {
   required bool lineFirst,
   required _CompiledHighlightPattern compiled,
@@ -1574,8 +1580,9 @@ List<_HighlightMatch> _crossLineMatches(
   final matcher = compiled.matcher;
   final userRegex = compiled.userRegexCrossesLines ? compiled.userRegex : null;
   if (matcher == null && userRegex == null) return const [];
-  final left = lineFirst ? line : neighbour;
-  final right = lineFirst ? neighbour : line;
+  final maskedNeighbour = _maskLinkAnchors(neighbour);
+  final left = lineFirst ? maskedLine : maskedNeighbour;
+  final right = lineFirst ? maskedNeighbour : maskedLine;
   final leftEnd = crossLineContentRange(left).end;
   final rightStart = crossLineContentRange(right).start;
   final joined = '${left.substring(0, leftEnd)} ${right.substring(rightStart)}';
@@ -1653,6 +1660,8 @@ String highLight(
   String? nextLine,
 }) {
   if (searchQuery.isEmpty) return data;
+  // ציטוט (רקע צהוב) מודגש בשורה אחת בלבד, ולכן אורכו לא תוקע את ה-UI.
+  if (!yellowBackground && isOverlongSearchQuery(searchQuery)) return data;
 
   // בניית תבניות ההדגשה מתבצעת כולה במנוע החיפוש (Rust) — כולל וריאציות
   // כתיב, מילים חילופיות, סובלנות ניקוד ומרווחים בין מילים. המתאם המוכן
@@ -1679,15 +1688,16 @@ String highLight(
       ? _edgeCheckFor(searchQuery, compiled, punctuationHidden)
       : null;
 
+  final maskedData = _maskLinkAnchors(data);
   var matches = _findHighlightMatches(
-    data,
+    maskedData,
     compiled,
     requireTokenBoundaries,
     matchPolicy: matchPolicy,
     isSearchResultLine: isSearchResultLine,
     isFuzzy: isFuzzy,
   );
-  matches = _anchoredToQueryEdges(matches, data, edgeCheck);
+  matches = _anchoredToQueryEdges(matches, maskedData, edgeCheck);
   // מילה בודדת מותאמת בתוך טוקן אחד ולא יכולה לחצות את המעבר בין השורות.
   if (currentIndex == -1 &&
       !yellowBackground &&
@@ -1698,7 +1708,7 @@ String highLight(
     final crossing = [
       if (nextLine != null)
         ..._crossLineMatches(
-          data,
+          maskedData,
           nextLine,
           lineFirst: true,
           compiled: compiled,
@@ -1707,7 +1717,7 @@ String highLight(
         ),
       if (previousLine != null)
         ..._crossLineMatches(
-          data,
+          maskedData,
           previousLine,
           lineFirst: false,
           compiled: compiled,
@@ -1810,6 +1820,7 @@ List<List<int>> computeHighlightSpans(
   int searchDistance = 0,
   SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
   bool isSearchResultLine = false,
+  bool partialWordMatch = false,
 }) {
   // שורת תוצאה ב"בכל סדר" מודגשת מילה-מילה; כאן נדרש הרצף שהמתאם מצא.
   final anyOrderPhrase =
@@ -1828,6 +1839,7 @@ List<List<int>> computeHighlightSpans(
     searchDistance: searchDistance,
     matchPolicy: anyOrderPhrase ? SearchMatchPolicy.standard : matchPolicy,
     isSearchResultLine: isSearchResultLine,
+    partialWordMatch: partialWordMatch,
     anyOrder: matchPolicy.anyOrder,
   );
   return [
@@ -1871,8 +1883,9 @@ List<_HighlightMatch> _computeHighlightMatches(
     for (final eligible in compiled.boundaryEligible)
       eligible && !partialWordMatch,
   ];
+  final maskedData = _maskLinkAnchors(data);
   final matches = _findHighlightMatches(
-    data,
+    maskedData,
     compiled,
     requireTokenBoundaries,
     matchPolicy: matchPolicy,
@@ -1882,7 +1895,7 @@ List<_HighlightMatch> _computeHighlightMatches(
   if (!partialWordMatch) return matches;
   return _anchoredToQueryEdges(
     matches,
-    data,
+    maskedData,
     _edgeCheckFor(searchQuery, compiled, false),
   );
 }
@@ -1969,7 +1982,9 @@ List<_HighlightMatch> _queryMatches(
   bool partialWordMatch,
   bool punctuationHidden,
 ) {
-  if (searchQuery.isEmpty) return const [];
+  if (searchQuery.isEmpty || isOverlongSearchQuery(searchQuery)) {
+    return const [];
+  }
   final compiled = _resolveHighlightPattern(
     searchQuery,
     const {},
@@ -1983,11 +1998,16 @@ List<_HighlightMatch> _queryMatches(
     for (final eligible in compiled.boundaryEligible)
       eligible && !partialWordMatch,
   ];
-  final matches = _findHighlightMatches(text, compiled, requireTokenBoundaries);
+  final maskedText = _maskLinkAnchors(text);
+  final matches = _findHighlightMatches(
+    maskedText,
+    compiled,
+    requireTokenBoundaries,
+  );
   return partialWordMatch
       ? _anchoredToQueryEdges(
           matches,
-          text,
+          maskedText,
           _edgeCheckFor(searchQuery, compiled, punctuationHidden),
         )
       : matches;
@@ -2141,14 +2161,10 @@ String formatTextWithParentheses(String text) {
     // תגי HTML עוברים כמכלול - אחרת סוגריים בתוך attribute (למשל
     // style="color:rgb(0,0,0)") נעטפים ב-<small> וההגדרה נהרסת.
     if (char == 0x3C) {
-      final anchorEnd = _linkAnchorElementEnd(text, i);
-      if (anchorEnd != -1) {
-        i = anchorEnd;
-        continue;
-      }
       final tagEnd = _htmlTagEnd(text, i);
       if (tagEnd != -1) {
-        i = tagEnd + 1;
+        final anchorEnd = _linkAnchorElementEnd(text, i, tagEnd);
+        i = anchorEnd == -1 ? tagEnd + 1 : anchorEnd;
         continue;
       }
     } else if (char == 0x28) {
@@ -2172,29 +2188,92 @@ String formatTextWithParentheses(String text) {
 }
 
 final RegExp _whitespaceRun = RegExp(r'\s+');
-final RegExp _linkAnchorOpeningTag = RegExp(r'^<([a-zA-Z][a-zA-Z0-9:-]*)\b');
-final RegExp _linkAnchorClasses = RegExp(
-  r'''(?:^|\s)class\s*=\s*(["'])(.*?)\1''',
+final RegExp _linkAnchorTag = RegExp(
+  r'<(/?)(a|span)(?=[\s/>])',
   caseSensitive: false,
 );
+final RegExp _linkAnchorClasses = RegExp(
+  r'''\sclass\s*=\s*(["'])(.*?)\1|"[^"]*"|\x27[^\x27]*\x27''',
+  caseSensitive: false,
+  dotAll: true,
+);
 
-int _linkAnchorElementEnd(String text, int start) {
-  final tagEnd = _htmlTagEnd(text, start);
-  if (tagEnd == -1) return -1;
-  final opening = text.substring(start, tagEnd + 1);
-  if (!opening.contains('link-anchor')) return -1;
-  final tag = _linkAnchorOpeningTag.firstMatch(opening);
-  final classes = _linkAnchorClasses.firstMatch(opening)?.group(2);
-  if (tag == null ||
-      classes == null ||
-      !classes.split(_whitespaceRun).contains('link-anchor')) {
+/// מחליף כל ציון מפרש מוזרק (`link-anchor`) בתג ריק באותו אורך: המתאם מדלג על
+/// תגים, והאופסטים נשארים תקפים לשורה המקורית.
+String _maskLinkAnchors(String text) {
+  if (!text.contains('link-anchor')) return text;
+  final result = StringBuffer();
+  var written = 0;
+  for (var i = text.indexOf('<'); i != -1; i = text.indexOf('<', i + 1)) {
+    final tagEnd = _htmlTagEnd(text, i);
+    if (tagEnd == -1) {
+      if (text.startsWith('<!--', i)) break;
+      continue;
+    }
+    final end = _linkAnchorElementEnd(text, i, tagEnd);
+    if (end != -1) {
+      result
+        ..write(text.substring(written, i))
+        ..write('<a${'x' * (end - i - 3)}>');
+      written = end;
+    }
+    i = end == -1 ? tagEnd : end - 1;
+  }
+  if (written == 0) return text;
+  result.write(text.substring(written));
+  return result.toString();
+}
+
+bool _hasLinkAnchorClass(String opening) {
+  if (!opening.contains('link-anchor')) return false;
+  for (final match in _linkAnchorClasses.allMatches(opening)) {
+    final classes = match.group(2);
+    if (classes != null) {
+      return classes.split(_whitespaceRun).contains('link-anchor');
+    }
+  }
+  return false;
+}
+
+int _linkAnchorElementEnd(String text, int start, int tagEnd) {
+  final opening = tagEnd == -1
+      ? null
+      : _linkAnchorTag.matchAsPrefix(text, start);
+  if (opening == null ||
+      opening.group(1)!.isNotEmpty ||
+      text.codeUnitAt(tagEnd - 1) == 0x2F ||
+      !_hasLinkAnchorClass(text.substring(start, tagEnd + 1))) {
     return -1;
   }
-  final close = RegExp(
-    '</${RegExp.escape(tag.group(1)!)}\\s*>',
-    caseSensitive: false,
-  ).allMatches(text, tagEnd + 1).firstOrNull;
-  return close?.end ?? -1;
+
+  final name = opening.group(2)!.toLowerCase();
+  var depth = 1;
+  for (
+    var i = text.indexOf('<', tagEnd + 1);
+    i != -1;
+    i = text.indexOf('<', i + 1)
+  ) {
+    final end = _htmlTagEnd(text, i);
+    if (end == -1) {
+      if (text.startsWith('<!--', i)) return -1;
+      continue;
+    }
+    final tag = _linkAnchorTag.matchAsPrefix(text, i);
+    if (tag != null) {
+      final closes = tag.group(1)!.isNotEmpty;
+      // ציון נוסף מתחיל תחום חדש גם כאשר הציון הקודם לא נסגר.
+      if (!closes && _hasLinkAnchorClass(text.substring(i, end + 1))) return -1;
+      if (tag.group(2)!.toLowerCase() == name) {
+        if (closes) {
+          if (--depth == 0) return end + 1;
+        } else if (text.codeUnitAt(end - 1) != 0x2F) {
+          depth++;
+        }
+      }
+    }
+    i = end;
+  }
+  return -1;
 }
 
 int _htmlTagEnd(String text, int start) {
@@ -2222,6 +2301,8 @@ int _htmlTagEnd(String text, int start) {
       quote = char;
     } else if (char == '>') {
       return i;
+    } else if (char == '<') {
+      return -1;
     }
   }
   return -1;

@@ -69,11 +69,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+      - uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -81,7 +79,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+          bash .github/scripts/sdkmanager-install.sh \
             'platforms;android-37.0' 'build-tools;36.0.0' 'ndk;28.2.13676358'
       - name: Install Flutter dependencies
         run: flutter pub get --enforce-lockfile

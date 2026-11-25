@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -87,7 +89,7 @@ class CategoryPreviewPanel extends StatelessWidget {
             ],
             const SizedBox(height: 12),
             Expanded(
-              child: ListView.builder(
+              child: SuperListView.builder(
                 itemCount: itemCount,
                 itemBuilder: (context, index) => NavTreeGroupCard(
                   isGroupStart: index == 0,

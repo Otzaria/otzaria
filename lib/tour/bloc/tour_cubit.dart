@@ -165,7 +165,7 @@ class TourCubit extends Cubit<TourState> {
   Future<void> recordInteraction(TourInteraction interaction) async {
     _rememberInteraction(interaction);
     _updateDerivedSignals(interaction);
-    _maybeShowLiveTip();
+    _maybeShowLiveTip(interaction);
   }
 
   void dismissLiveTip() {
@@ -331,6 +331,11 @@ class TourCubit extends Cubit<TourState> {
       case TourInteractionType.systemSettingsOpened:
         _markTipResolved(LiveTipId.backupHint);
         break;
+      case TourInteractionType.linkHighlightShown:
+        break;
+      case TourInteractionType.linkHighlightCleared:
+        _markTipResolved(LiveTipId.linkHighlightHint);
+        break;
       case TourInteractionType.currentTabChanged:
       case TourInteractionType.readerPositionChanged:
         if (_isInteractionRelevantToOpportunity(interaction)) {
@@ -364,12 +369,12 @@ class TourCubit extends Cubit<TourState> {
     _persistResolvedTips(updatedResolved);
   }
 
-  void _maybeShowLiveTip() {
+  void _maybeShowLiveTip(TourInteraction interaction) {
     if (state.isActive || state.hasActiveLiveTip || _sessionTipShown) {
       return;
     }
 
-    final nextTipId = _resolveNextLiveTip();
+    final nextTipId = _resolveNextLiveTip(interaction);
     if (nextTipId == null) {
       return;
     }
@@ -386,7 +391,7 @@ class TourCubit extends Cubit<TourState> {
     );
   }
 
-  LiveTipId? _resolveNextLiveTip() {
+  LiveTipId? _resolveNextLiveTip(TourInteraction interaction) {
     if (_canShowTip(LiveTipId.sideBySideSuggestion) &&
         _shouldShowSideBySideSuggestion()) {
       return LiveTipId.sideBySideSuggestion;
@@ -401,6 +406,12 @@ class TourCubit extends Cubit<TourState> {
         _commentaryOpportunityOpen &&
         _commentaryOpportunityScore >= 3) {
       return LiveTipId.commentaryHint;
+    }
+
+    // רק ברגע שההדגשה מופיעה: אחר כך היא עלולה להיעלם בלי Esc (חיפוש, מעבר טאב).
+    if (_canShowTip(LiveTipId.linkHighlightHint) &&
+        interaction.type == TourInteractionType.linkHighlightShown) {
+      return LiveTipId.linkHighlightHint;
     }
 
     if (_canShowTip(LiveTipId.bookSourceHint) &&

@@ -133,7 +133,6 @@ Future<StubPersonalNotesBloc> _pumpView(
       selectedIndex: null,
       selectedIndices: const {},
       continuousReadingMode: false,
-      pinLeftPane: false,
       searchText: '',
     ),
   );

@@ -47,6 +47,10 @@ class PluginSearchDialogItem {
   /// את אותו חיפוש — כמו שליחה עם השורה מסומנת. דורש [openPluginOnSubmit].
   final String? resultsAction;
 
+  /// שם האייקון של כפתור [resultsAction], באותו פורמט של אייקוני התוספים
+  /// (`pluginIconFromName`). null או שם לא מוכר: אייקון "פתח".
+  final String? resultsActionIcon;
+
   final Set<SearchMode> visibleInModes;
   final Map<SearchMode, Set<String>> disabledSearchOptionIds;
 
@@ -63,6 +67,7 @@ class PluginSearchDialogItem {
     this.resultsProvider,
     String? resultsTitle,
     this.resultsAction,
+    this.resultsActionIcon,
     required this.visibleInModes,
     required this.disabledSearchOptionIds,
     this.when,
@@ -86,6 +91,7 @@ class PluginSearchDialogItem {
       'resultsProvider',
       'resultsTitle',
       'resultsAction',
+      'resultsActionIcon',
       'visibleInModes',
       'disabledSearchOptions',
       'when',
@@ -169,6 +175,18 @@ class PluginSearchDialogItem {
         'resultsAction requires openPluginOnSubmit',
       );
     }
+    final resultsActionIcon = payload['resultsActionIcon'] == null
+        ? null
+        : _requiredText(
+            payload['resultsActionIcon'],
+            field: 'resultsActionIcon',
+            maxLength: 128,
+          );
+    if (resultsActionIcon != null && resultsAction == null) {
+      throw const PluginSearchDialogItemException(
+        'resultsActionIcon requires resultsAction',
+      );
+    }
 
     final visibleInModes = _parseModes(
       payload['visibleInModes'],
@@ -199,6 +217,7 @@ class PluginSearchDialogItem {
       resultsProvider: resultsProvider as String?,
       resultsTitle: resultsTitle,
       resultsAction: resultsAction,
+      resultsActionIcon: resultsActionIcon,
       visibleInModes: Set.unmodifiable(visibleInModes),
       disabledSearchOptionIds: Map.unmodifiable({
         for (final entry in disabledSearchOptionIds.entries)

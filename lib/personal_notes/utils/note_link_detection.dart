@@ -75,3 +75,43 @@ List<dynamic> linkifyDeltaOps(List<dynamic> ops) {
   }
   return result;
 }
+
+/// כתובת קישור להערה אישית לפי מזהה ההערה, שאינו משתנה בגיבוי ובשחזור.
+String personalNoteLinkUrl(String noteId) => Uri(
+  scheme: 'otzaria',
+  host: 'note',
+  queryParameters: {'id': noteId},
+).toString();
+
+/// מזהה ההערה שהקישור [url] מפנה אליה, או null כשאינו קישור להערה.
+String? personalNoteLinkTarget(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.scheme != 'otzaria' || uri.host != 'note') {
+    return null;
+  }
+  try {
+    final id = uri.queryParameters['id'];
+    return id == null || id.isEmpty ? null : id;
+  } on FormatException {
+    return null;
+  }
+}
+
+final _noteLinkPattern = RegExp(
+  r'(?:otzaria|zayit|https?)://[^\s"<>{}\x5c]+',
+  caseSensitive: false,
+);
+
+/// מחליף ב-[text] קישורים להערות שמזהן מופיע ב-[ids] בקישור למזהה החדש.
+String remapPersonalNoteLinks(String text, Map<String, String> ids) {
+  if (ids.isEmpty) return text;
+  return text.replaceAllMapped(_noteLinkPattern, (match) {
+    final raw = match.group(0)!;
+    final unpunctuated = _stripTrailingPunctuation(raw);
+    final fullTarget = ids[personalNoteLinkTarget(raw)];
+    if (fullTarget != null) return personalNoteLinkUrl(fullTarget);
+    final target = ids[personalNoteLinkTarget(unpunctuated)];
+    if (target == null) return raw;
+    return personalNoteLinkUrl(target) + raw.substring(unpunctuated.length);
+  });
+}

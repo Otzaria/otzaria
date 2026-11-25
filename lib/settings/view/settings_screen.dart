@@ -317,7 +317,9 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     setState(() {
       _selectedIndex = tabIndex;
       _showMobileMenu = false;
+      _clearSearch();
     });
+    _recordTabTourInteraction(tabIndex);
     // בטוח רק בdesktop layout — במוד mobile ה-node לא מחובר לעץ הפוקוס
     if (_contentFocusNode.enclosingScope != null) {
       _contentFocusNode.requestFocus();

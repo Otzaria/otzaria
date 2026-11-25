@@ -64,6 +64,36 @@ String expandQueryAmudMarks(String query) =>
       return '${m[1]}${m[2]}עמוד ${m[3]}';
     });
 
+/// ר"ת של מיקום בשאילתה: "פ"ב ה"ג" → "פרק ב הלכה ג", "פט"ז מ"ג" → "פרק טז משנה ג",
+/// "ב ה"ג" → "ב הלכה ג". "פ"ב"/"מ"ג" לבדם הם גם המספרים 82/43 ("תהלים פ"ב").
+String expandQueryLocatorAbbreviations(String query) {
+  final words = query.split(' ');
+  for (var i = 1; i < words.length; i++) {
+    final second = _locatorAbbreviation(words[i]);
+    if (second == null || second.prefix == 'פ') continue;
+    final first = _locatorAbbreviation(words[i - 1]);
+    if (first?.prefix == 'פ') {
+      words[i - 1] = 'פרק ${first!.number}';
+    } else if (second.prefix != 'ה' ||
+        !isHebrewNumeral(words[i - 1].replaceAll(_quoteMarks, ''))) {
+      continue;
+    }
+    words[i] = '${second.prefix == 'ה' ? 'הלכה' : 'משנה'} ${second.number}';
+  }
+  return words.join(' ');
+}
+
+final RegExp _locatorAbbreviationPattern = RegExp(
+  '^([פהמ])([א-ת]{0,2})["״]([א-ת])\$',
+);
+
+({String prefix, String number})? _locatorAbbreviation(String word) {
+  final m = _locatorAbbreviationPattern.firstMatch(word);
+  if (m == null) return null;
+  final number = '${m[2]}${m[3]}';
+  return isHebrewNumeral(number) ? (prefix: m[1]!, number: number) : null;
+}
+
 /// האם [token] הוא מספר עברי של 1–3 אותיות (בלי סופיות): מאות, עשרות ואחדות
 /// בסדר יורד, כולל ט"ו/ט"ז. "שבת" ו"פרק" אינם מספרים, "קכא" ו"ב" כן.
 bool isHebrewNumeral(String token) {

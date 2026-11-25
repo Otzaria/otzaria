@@ -190,4 +190,38 @@ void main() {
       );
     });
   });
+
+  group('monthlyCycleHeadingLabel (issue #2720)', () {
+    test('כותרת ספריא בעברית מקבלת "לחודש"', () {
+      expect(monthlyCycleHeadingLabel('יום ד׳'), 'יום ד׳ לחודש');
+      expect(monthlyCycleHeadingLabel("יום ד'"), 'יום ד׳ לחודש');
+      expect(monthlyCycleHeadingLabel('יום י"א'), 'יום י״א לחודש');
+      expect(monthlyCycleHeadingLabel('יום כ״ו לחודש'), 'יום כ״ו לחודש');
+    });
+
+    test('כותרת באנגלית או מספר בלבד מוצגת בעברית', () {
+      expect(monthlyCycleHeadingLabel('Day 4'), 'יום ד׳ לחודש');
+      expect(monthlyCycleHeadingLabel('Day 15'), 'יום ט״ו לחודש');
+      expect(monthlyCycleHeadingLabel('30'), 'יום ל׳ לחודש');
+      expect(monthlyCycleHeadingLabel('ל'), 'יום ל׳ לחודש');
+    });
+
+    test('כותרת שאינה יום בחודש נשארת כמות שהיא', () {
+      expect(monthlyCycleHeadingLabel('Day 31'), 'Day 31');
+      final largeLabel = 'Day ${'9' * 30}';
+      expect(monthlyCycleHeadingLabel(largeLabel), largeLabel);
+      expect(monthlyCycleHeadingLabel(' ספר ראשון '), 'ספר ראשון');
+    });
+  });
+
+  group('injectsSectionHeadings', () {
+    test('נושאים, פרשות וימי החודש מוזרקים; מבנים אחרים לא', () {
+      expect(injectsSectionHeadings('Topic'), isTrue);
+      expect(injectsSectionHeadings('Parasha'), isTrue);
+      expect(injectsSectionHeadings(kMonthlyCycleStructureKey), isTrue);
+      expect(kMonthlyCycleStructureKey, '30 Day Cycle');
+      expect(injectsSectionHeadings('Simanim'), isFalse);
+      expect(injectsSectionHeadings('Book'), isFalse);
+    });
+  });
 }

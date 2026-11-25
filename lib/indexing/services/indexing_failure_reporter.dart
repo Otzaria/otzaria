@@ -19,7 +19,9 @@ class IndexingFailureReporter {
   static void write(IndexingRunResult result, Duration elapsed) {
     if (result.failures.isEmpty && !isSlowRun(elapsed)) return;
     try {
-      ErrorLogFile.appendText(formatReport(result, elapsed: elapsed));
+      ErrorLogFile.appendTextInBackground(
+        formatReport(result, elapsed: elapsed),
+      );
     } catch (error) {
       debugPrint('⚠️ כתיבת דוח כשלי האינדוקס נכשלה: $error');
     }
@@ -34,7 +36,7 @@ class IndexingFailureReporter {
     Duration elapsed = Duration.zero,
   }) {
     if (result.failures.isEmpty && !isSlowRun(elapsed)) return;
-    ErrorLogFile.appendText(
+    ErrorLogFile.appendTextInBackground(
       formatReport(
         result,
         timestamp: timestamp,

@@ -72,7 +72,6 @@ TextBookLoaded _state(
     tableOfContents: headerToc(lines),
     removeNikud: false,
     visibleIndices: const [_targetLine],
-    pinLeftPane: false,
     searchText: searchText,
     supportsContinuousReadingMode: true,
     continuousReadingMode: true,

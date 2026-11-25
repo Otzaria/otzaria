@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/external_tab_drag.dart';
 import 'package:otzaria/core/windowing/tab_drag_preview.dart';
@@ -13,6 +14,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_target.dart';
 import 'package:otzaria/theme/app_shadows.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/misc/app_context_menu.dart';
 
 /// עובי קו החיווי שמסמן היכן הכרטיסיה הנגררת תיכנס.
 const double _kInsertLineWidth = 3;
@@ -57,6 +59,9 @@ class ReadingTabStrip extends StatefulWidget {
 
   /// האם הרצועה עצמה נגללת. ברצועה האופקית הרוחבים מחושבים כך שהכל נכנס.
   final bool scrollable;
+
+  /// הכרטיסיה הפעילה. ברצועה נגללת היא מובאת לתצוגה בכל פעם שהיא מתחלפת.
+  final int? selectedIndex;
 
   /// לחיצה ארוכה לגרירה בנייד; בדסקטופ הגרירה מתחילה בתנועה.
   final bool requireLongPressToDrag;
@@ -137,6 +142,7 @@ class ReadingTabStrip extends StatefulWidget {
     this.axis = Axis.horizontal,
     this.crossExtent,
     this.scrollable = false,
+    this.selectedIndex,
   });
 
   bool get isVertical => axis == Axis.vertical;
@@ -156,6 +162,7 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
   Timer? _springTimer;
 
   final ScrollController _scrollController = ScrollController();
+  final _TouchTabDragSession _touchDrag = _TouchTabDragSession();
 
   /// גלילת הקצה: הכיוון (1- למעלה/להתחלה, 1 למטה/לסוף), השעון שמניע אותה,
   /// והגרירה האחרונה שנמדדה — כדי לעדכן את מיקום ההכנסה גם כשהסמן עומד.
@@ -168,6 +175,42 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
   void initState() {
     super.initState();
     _geometry = _TabStripGeometry.fromWidths(widget.widths);
+    _revealSelected(animate: false);
+  }
+
+  /// גולל את הרצועה במידה המינימלית שהכרטיסיה הפעילה תיראה במלואה.
+  ///
+  /// רק החלפת הכרטיסיה הפעילה מפעילה את זה, ולכן גלילה ידנית אינה נלחמת
+  /// בה. בזמן גרירה מעל הרצועה גלילת הקצה היא שמזיזה אותה.
+  void _revealSelected({required bool animate}) {
+    if (!widget.scrollable || widget.selectedIndex == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final index = widget.selectedIndex;
+      if (!mounted || index == null || !_scrollController.hasClients) return;
+      if (index >= widget.tabs.length || _insertIndex.value != null) return;
+
+      final position = _scrollController.position;
+      final start = _geometry.edgeAt(index);
+      final end = _geometry.edgeAt(index + 1);
+      var target = position.pixels;
+      if (start < target) {
+        target = start;
+      } else if (end > target + position.viewportDimension) {
+        target = end - position.viewportDimension;
+      }
+      target = target.clamp(position.minScrollExtent, position.maxScrollExtent);
+      if (target == position.pixels) return;
+
+      if (animate) {
+        position.animateTo(
+          target,
+          duration: AppTokens.animFast,
+          curve: Curves.easeOut,
+        );
+      } else {
+        position.jumpTo(target);
+      }
+    });
   }
 
   /// מצב הגרירה החיצונית של החלון שהרצועה יושבת בו.
@@ -215,11 +258,23 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
     _insertIndex.value = next;
   }
 
+  static OpenedTab? _selectedTab(ReadingTabStrip strip) {
+    final index = strip.selectedIndex;
+    return index != null && index < strip.tabs.length
+        ? strip.tabs[index]
+        : null;
+  }
+
   @override
   void didUpdateWidget(covariant ReadingTabStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!listEquals(_geometry.widths, widget.widths)) {
       _geometry = _TabStripGeometry.fromWidths(widget.widths);
+    }
+    // סגירת הפעילה יכולה להשאיר את האינדקס ולהחליף את הכרטיסיה שבו.
+    if (widget.selectedIndex != oldWidget.selectedIndex ||
+        _selectedTab(widget) != _selectedTab(oldWidget)) {
+      _revealSelected(animate: true);
     }
   }
 
@@ -470,6 +525,7 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
                     extent: widget.widths[i],
                     crossExtent: widget.crossExtent,
                     requireLongPress: widget.requireLongPressToDrag,
+                    touchDrag: _touchDrag,
                     touchDragAffinity: widget.scrollable
                         ? (isVertical ? Axis.horizontal : Axis.vertical)
                         : null,
@@ -584,6 +640,7 @@ class _DraggableTab extends StatefulWidget {
   final double extent;
   final double? crossExtent;
   final bool requireLongPress;
+  final _TouchTabDragSession touchDrag;
   final Axis? touchDragAffinity;
 
   /// רקע הרצועה — ראו [ReadingTabStrip.stripColor].
@@ -610,6 +667,7 @@ class _DraggableTab extends StatefulWidget {
     required this.extent,
     required this.crossExtent,
     required this.requireLongPress,
+    required this.touchDrag,
     required this.touchDragAffinity,
     required this.stripColor,
     required this.onDragStarted,
@@ -685,7 +743,9 @@ class _DraggableTabState extends State<_DraggableTab> {
   /// ה-cancel מגיע לזירת המחוות ולכן מסתיים דרך `onDraggableCanceled`,
   /// כמו כל גרירה שהתפספסה — אותו מסלול סיום בדיוק.
   void _cancelDrag() {
-    final pointer = _pointer;
+    final pointer = widget.requireLongPress
+        ? widget.touchDrag.recognizer?._pointer
+        : _pointer;
     if (pointer == null) return;
     GestureBinding.instance.cancelPointer(pointer);
   }
@@ -820,7 +880,12 @@ class _DraggableTabState extends State<_DraggableTab> {
   Widget build(BuildContext context) {
     // ⚠️ הגבול עוטף את הכרטיסיה שברצועה, ולא את ה-feedback: ה-feedback
     // קיים רק בזמן הגרירה, והצילום נדרש **ברגע** שהיא מתחילה.
-    final child = RepaintBoundary(key: _boundaryKey, child: widget.child);
+    final child = RepaintBoundary(
+      key: _boundaryKey,
+      child: widget.requireLongPress
+          ? ContextMenuLongPressOwner(child: widget.child)
+          : widget.child,
+    );
 
     // הכרטיסיה נשארת במקומה מעומעמת ולא נעלמת: היעלמותה הייתה משנה את חלוקת
     // המידות באמצע הגרירה ומזיזה את שאר הכרטיסיות תחת הסמן.
@@ -834,45 +899,193 @@ class _DraggableTabState extends State<_DraggableTab> {
       child: widget.child,
     );
 
-    // ⚠️ ה-Listener רק **מתעד** את המצביע, ואינו צורך את האירוע:
-    // `deferToChild` מעביר אותו ל-Draggable כרגיל. המצביע נדרש כדי
-    // שנוכל לבטל את הגרירה מבחוץ — ראו [_cancelDrag].
-    final draggable = widget.requireLongPress
-        ? LongPressDraggable<OpenedTab>(
-            data: widget.tab,
-            dragAnchorStrategy: pointerDragAnchorStrategy,
-            feedback: feedback,
-            childWhenDragging: placeholder,
-            onDragStarted: _handleDragStarted,
-            onDragEnd: (_) => _handleDragFinished(),
-            onDraggableCanceled: (_, _) {
-              _handleDragFinished();
-              widget.onDroppedOutside?.call();
-            },
-            child: child,
-          )
-        : _ScrollAwareDraggable(
-            affinity: widget.touchDragAffinity,
-            data: widget.tab,
-            // חובה: ה-offset שמקבלים יעדי ההפלה הוא פינת ה-feedback, ולכן עוגן
-            // ברירת המחדל מסיט את אזור ההפלה בכחצי רוחב כרטיסיה.
-            dragAnchorStrategy: pointerDragAnchorStrategy,
-            feedback: feedback,
-            childWhenDragging: placeholder,
-            onDragStarted: _handleDragStarted,
-            onDragEnd: (_) => _handleDragFinished(),
-            onDraggableCanceled: (_, _) {
-              _handleDragFinished();
-              widget.onDroppedOutside?.call();
-            },
-            child: child,
-          );
+    if (widget.requireLongPress) {
+      return _TouchTabDraggable(
+        session: widget.touchDrag,
+        data: widget.tab,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: feedback,
+        childWhenDragging: placeholder,
+        onDragStarted: _handleDragStarted,
+        onDragEnd: (_) => _handleDragFinished(),
+        onDraggableCanceled: (_, _) {
+          if (mounted && !widget.touchDrag.canceled) {
+            widget.onDroppedOutside?.call();
+          }
+        },
+        onMenu: (position) {
+          if (mounted) openContextMenuWithin(context, position);
+        },
+        child: child,
+      );
+    }
 
     return Listener(
       onPointerDown: (event) => _pointer = event.pointer,
-      child: draggable,
+      child: _ScrollAwareDraggable(
+        affinity: widget.touchDragAffinity,
+        data: widget.tab,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: feedback,
+        childWhenDragging: placeholder,
+        onDragStarted: _handleDragStarted,
+        onDragEnd: (_) => _handleDragFinished(),
+        onDraggableCanceled: (_, _) {
+          _handleDragFinished();
+          widget.onDroppedOutside?.call();
+        },
+        child: child,
+      ),
     );
   }
+}
+
+class _TouchTabDragSession {
+  _TouchTabRecognizer? recognizer;
+  bool canceled = false;
+}
+
+class _TouchTabDraggable extends LongPressDraggable<OpenedTab> {
+  const _TouchTabDraggable({
+    required this.session,
+    required this.onMenu,
+    required super.child,
+    required super.feedback,
+    required super.data,
+    required super.dragAnchorStrategy,
+    required super.childWhenDragging,
+    required super.onDragStarted,
+    required super.onDragEnd,
+    required super.onDraggableCanceled,
+  });
+
+  final _TouchTabDragSession session;
+  final ValueChanged<Offset> onMenu;
+
+  @override
+  DelayedMultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) {
+    final recognizer = _TouchTabRecognizer(session);
+    Drag? startDrag(Offset position) {
+      final drag = onStart(position);
+      if (drag != null) unawaited(HapticFeedback.selectionClick());
+      return drag;
+    }
+
+    recognizer.onStart = (position) {
+      final kind = recognizer.pointerKind;
+      return switch (kind) {
+        PointerDeviceKind.touch ||
+        PointerDeviceKind.stylus ||
+        PointerDeviceKind.invertedStylus => _HeldTabPress(
+          origin: position,
+          slop: computeHitSlop(kind, recognizer.gestureSettings),
+          onStart: startDrag,
+          onMenu: onMenu,
+        ),
+        _ => startDrag(position),
+      };
+    };
+    return recognizer;
+  }
+}
+
+/// מאפשר למצביע אחד בכל הרצועה להמתין ללחיצה ארוכה או לגרור.
+class _TouchTabRecognizer extends DelayedMultiDragGestureRecognizer {
+  _TouchTabRecognizer(this.session);
+
+  final _TouchTabDragSession session;
+  int? _pointer;
+  PointerDeviceKind get pointerKind => getKindForPointer(_pointer!);
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      session.recognizer == null && super.isPointerAllowed(event);
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _pointer = event.pointer;
+    session
+      ..recognizer = this
+      ..canceled = false;
+    // רושמים לפני המזהה כדי לסווג ביטול לפני סיום הגרירה ב-Flutter.
+    GestureBinding.instance.pointerRouter.addRoute(event.pointer, _endPointer);
+    super.addAllowedPointer(event);
+  }
+
+  void _endPointer(PointerEvent event) {
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      session.canceled = event is PointerCancelEvent;
+      _releasePointer();
+    }
+  }
+
+  void _releasePointer() {
+    final pointer = _pointer;
+    if (pointer == null) return;
+    GestureBinding.instance.pointerRouter.removeRoute(pointer, _endPointer);
+    _pointer = null;
+    session.recognizer = null;
+  }
+
+  @override
+  void rejectGesture(int pointer) {
+    if (pointer == _pointer) _releasePointer();
+    super.rejectGesture(pointer);
+  }
+
+  @override
+  void dispose() {
+    _releasePointer();
+    super.dispose();
+  }
+}
+
+/// לאחר לחיצה ארוכה מתחיל משוב גרירה רק כשיש תזוזה מעבר לסף.
+class _HeldTabPress extends Drag {
+  _HeldTabPress({
+    required this.origin,
+    required this.slop,
+    required this.onStart,
+    required this.onMenu,
+  });
+
+  final Offset origin;
+  final double slop;
+  final GestureMultiDragStartCallback onStart;
+  final ValueChanged<Offset> onMenu;
+  Offset _pendingDelta = Offset.zero;
+  Drag? _drag;
+  bool _moved = false;
+
+  @override
+  void update(DragUpdateDetails details) {
+    if (!_moved) {
+      _pendingDelta += details.delta;
+      if (_pendingDelta.distance <= slop) return;
+      _moved = true;
+      _drag = onStart(origin);
+      details = DragUpdateDetails(
+        sourceTimeStamp: details.sourceTimeStamp,
+        globalPosition: origin + _pendingDelta,
+        delta: _pendingDelta,
+      );
+    }
+    _drag?.update(details);
+  }
+
+  @override
+  void end(DragEndDetails details) {
+    if (_moved) {
+      _drag?.end(details);
+    } else {
+      onMenu(origin + _pendingDelta);
+    }
+  }
+
+  @override
+  void cancel() => _drag?.cancel();
 }
 
 /// במגע ברצועה נגללת מתחילים לרוחב ציר הגלילה; אחרי ההתחלה גוררים בחופשיות.

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
@@ -38,29 +41,54 @@ class PersonalNotesDatabase {
   static const _columnUpdatedAt = 'updated_at';
 
   static const _tableUserBookKeys = 'personal_notes_user_book_keys';
+  static const _tableKeyMoves = 'personal_notes_key_moves';
+  static const _tableMeta = 'personal_notes_meta';
 
   PersonalNotesDatabase._();
 
   static final PersonalNotesDatabase instance = PersonalNotesDatabase._();
 
   Database? _database;
+  Future<Database>? _opening;
+  Future<void>? _closing;
+  Future<void>? _reopenAfter;
 
   /// עולה בכל הוספה, עדכון או מחיקה של הערה, מכל מסלול שמירה.
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
-  /// Get or initialize the database
-  Future<Database> get database async {
+  /// מחזיר את חיבור ההערות, ופותח אותו בעת הצורך.
+  Future<Database> get database => _connection();
+
+  Future<Database> _connection() {
+    final reopenAfter = _reopenAfter;
+    if (reopenAfter != null) return reopenAfter.then((_) => _connection());
+    final closing = _closing;
+    if (closing != null) return closing.then((_) => _connection());
     final open = _database;
-    if (open != null) return open;
-    final dbPath = await AppPaths.resolveNotesDbPath('personal_notes.db');
-    return _database ??= _initDatabase(dbPath);
+    if (open != null) return Future.value(open);
+    // קריאות שנרשמו לפתיחה מקבלות את החיבור לפני הסגירה שממתינה לה.
+    return _opening ??= _open();
   }
+
+  Future<Database> _open() async {
+    try {
+      final dbPath = await AppPaths.resolveNotesDbPath('personal_notes.db');
+      return _database = await _openInBackground(dbPath);
+    } finally {
+      _opening = null;
+    }
+  }
+
+  // החיבור הראשון מקצר את קובץ ה-shm (SetEndOfFile), וסורק או דיסק איטי
+  // תוקעים זאת לשניות — לכן לא על ה-UI. סטטית כדי לא ללכוד את this.
+  static Future<Database> _openInBackground(String dbPath) =>
+      openSqliteInBackground(() => _initDatabase(dbPath));
 
   /// המסד, רק אם כבר נפתח.
   Database? get openDatabase => _database;
 
   /// Initialize the database
-  Database _initDatabase(String dbPath) {
+  static Database _initDatabase(String dbPath) {
     final db = openWritableDatabase(dbPath, 'PersonalNotesDatabase');
     _createSchema(db);
     _migrateSchema(db);
@@ -68,7 +96,7 @@ class PersonalNotesDatabase {
   }
 
   /// Create the database schema
-  void _createSchema(Database db) {
+  static void _createSchema(Database db) {
     db.execute('''
       CREATE TABLE IF NOT EXISTS $_tableUserBookKeys (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -77,6 +105,18 @@ class PersonalNotesDatabase {
       )
     ''');
     db.execute('INSERT OR IGNORE INTO $_tableUserBookKeys VALUES (1, 0, -1)');
+    db.execute(
+      'CREATE TABLE IF NOT EXISTS $_tableMeta '
+      '(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+    );
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS $_tableKeyMoves (
+        from_key TEXT NOT NULL,
+        to_key TEXT NOT NULL,
+        note_ids TEXT NOT NULL,
+        moved_at TEXT NOT NULL
+      )
+    ''');
     db.execute('''
       CREATE TABLE IF NOT EXISTS $_tableNotes (
         $_columnId TEXT PRIMARY KEY,
@@ -112,7 +152,7 @@ class PersonalNotesDatabase {
   }
 
   /// מוסיף עמודות עוגן ל-DB קיים (התקנות ישנות) אם הן חסרות.
-  void _migrateSchema(Database db) {
+  static void _migrateSchema(Database db) {
     final existing = db
         .select('PRAGMA table_info($_tableNotes)')
         .map((row) => row['name'] as String)
@@ -289,12 +329,14 @@ class PersonalNotesDatabase {
   /// מעביר את [notes] למפתח [bookId] רק אם לא השתנו; מחזיר false אם נדרשת הכרעה מחדש.
   Future<bool> moveNotesToBook(
     Iterable<PersonalNote> notes,
-    String bookId,
-  ) async {
+    String bookId, {
+    bool recordMove = false,
+  }) async {
     final expected = {for (final note in notes) note.id: note};
     if (expected.isEmpty) return true;
     final db = await database;
     final changedBooks = <String>{};
+    final movedByKey = <String, List<String>>{};
     var complete = true;
     withTransaction(db, () {
       for (final note in expected.values) {
@@ -314,24 +356,58 @@ class PersonalNotesDatabase {
           'UPDATE $_tableNotes SET $_columnBookId = ? WHERE $_columnId = ?',
           [bookId, note.id],
         );
+        if (recordMove) {
+          (movedByKey[current.bookId] ??= []).add(note.id);
+        }
+      }
+      for (final entry in movedByKey.entries) {
+        db.execute('INSERT INTO $_tableKeyMoves VALUES (?, ?, ?, ?)', [
+          entry.key,
+          bookId,
+          jsonEncode(entry.value),
+          DateTime.now().toIso8601String(),
+        ]);
       }
     });
     _notifyChanges(changedBooks);
     return complete;
   }
 
-  /// Batch insert multiple notes (for bulk restore/import)
-  /// Skips notes that already exist (by ID), or overwrites them with [replace]
+  Future<String?> metaValue(String key) async {
+    final db = await database;
+    final rows = db.select('SELECT value FROM $_tableMeta WHERE key = ?', [
+      key,
+    ]);
+    return rows.isEmpty ? null : rows.first['value'] as String;
+  }
+
+  Future<void> setMetaValue(String key, String value) async {
+    final db = await database;
+    db.execute('INSERT OR REPLACE INTO $_tableMeta VALUES (?, ?)', [
+      key,
+      value,
+    ]);
+  }
+
+  /// מכניס הערות בעסקה אחת, ומדלג על מזהה קיים אלא אם נבחר [replace].
+  /// [resolveIds] מקבל בדיקת מזהים מאותה עסקה שבה ייכתבו ההערות.
   Future<int> batchInsertNotes(
     List<PersonalNote> notes, {
     bool replace = false,
+    List<PersonalNote> Function(bool Function(String) exists)? resolveIds,
   }) async {
     if (notes.isEmpty) return 0;
     final db = await database;
     int count = 0;
     final changedBooks = <String>{};
     withTransaction(db, () {
-      for (final note in notes) {
+      final prepared = resolveIds?.call(
+        (id) => db.select(
+          'SELECT 1 FROM $_tableNotes WHERE $_columnId = ?',
+          [id],
+        ).isNotEmpty,
+      );
+      for (final note in prepared ?? notes) {
         final m = _noteToMap(note);
         final cols = m.keys.join(', ');
         final placeholders = List.filled(m.length, '?').join(', ');
@@ -443,8 +519,34 @@ class PersonalNotesDatabase {
     );
   }
 
-  /// Close the database
-  Future<void> close() async {
+  /// סוגר את המסד. בהעברת תיקייה ממתינים ל-[reopenAfter] לפני פתיחה מחדש.
+  Future<void> close({Future<void>? reopenAfter}) async {
+    if (reopenAfter != null) {
+      _reopenAfter = reopenAfter;
+      void clearGate() {
+        if (identical(_reopenAfter, reopenAfter)) _reopenAfter = null;
+      }
+
+      unawaited(
+        reopenAfter.then<void>(
+          (_) => clearGate(),
+          onError: (Object _) => clearGate(),
+        ),
+      );
+    }
+    final closing = _closing;
+    if (closing != null) return closing;
+    final opening = _opening;
+    if (opening == null) {
+      _closeDatabase();
+      return;
+    }
+    return _closing = opening
+        .then<void>((_) => _closeDatabase(), onError: (Object _) {})
+        .whenComplete(() => _closing = null);
+  }
+
+  void _closeDatabase() {
     final db = _database;
     if (db != null) {
       closeWithCheckpoint(db);

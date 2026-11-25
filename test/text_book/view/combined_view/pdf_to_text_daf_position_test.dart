@@ -123,7 +123,6 @@ TextBookLoaded _state(List<bool> loaded) {
     tableOfContents: _toc(),
     removeNikud: false,
     visibleIndices: const [_daf25aLine],
-    pinLeftPane: false,
     searchText: '',
     supportsContinuousReadingMode: true,
     continuousReadingMode: true,

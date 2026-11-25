@@ -1198,6 +1198,29 @@ void main() {
     });
   });
 
+  testWidgets(
+    'קביעת המצב החכם כברירת מחדל — בלי סימון אפשרויות (issue #5185)',
+    (tester) async {
+      addTearDown(() => SearchDefaults.rememberSessionSemantic(false));
+      await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-defaults-menu')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-default-mode')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('כולל האפשרויות הנוכחיות'), findsNothing);
+      await tester.tap(find.text('קבע כברירת מחדל'));
+      await tester.pumpAndSettle();
+      expect(SearchDefaults.loadSemanticDefault(), isTrue);
+      expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 0);
+    },
+  );
+
   testWidgets('בשדה החיפוש החכם יש ניקוי והיסטוריה', (tester) async {
     await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
     await tester.tap(_semanticSegment);
@@ -1216,6 +1239,39 @@ void main() {
       isEmpty,
     );
     expect(clear, findsNothing);
+  });
+
+  testWidgets('עזרה לניסוח שאלה ליד השדה, ושאילתה קצרה עדיין נשלחת '
+      '(issue #3170)', (tester) async {
+    final harness = await pumpDialog(
+      tester,
+      _availability(SemanticAvailabilityPhase.ready),
+    );
+    await tester.tap(_semanticSegment);
+    await tester.pumpAndSettle();
+
+    final help = find.byTooltip('איך לנסח שאלה לחיפוש החכם');
+    expect(help, findsOneWidget);
+    await tester.tap(help);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('במילים שלכם'), findsWidgets);
+    expect(find.textContaining('פרטים רלוונטיים'), findsOneWidget);
+    expect(find.textContaining('15 עד 30 מילים'), findsNothing);
+    expect(find.textContaining('דוגמה:'), findsOneWidget);
+    await tester.tap(find.byType(ActionButton).last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('דוגמה:'), findsNothing);
+
+    // ההמלצה אינה חוסמת: שאילתה של מילה אחת נשלחת כרגיל.
+    await tester.enterText(_queryField, 'צדקה');
+    await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+    await tester.pumpAndSettle();
+    final added = verify(
+      () => harness.tabs.add(captureAny()),
+    ).captured.whereType<AddTab>().single;
+    final tab = added.tab as SemanticSearchTab;
+    addTearDown(tab.dispose);
+    expect(tab.options.query, 'צדקה');
   });
 
   testWidgets('מעבר מצבים: הקלדה נקלטת בלי לחיצה על השדה (issue #2536)', (

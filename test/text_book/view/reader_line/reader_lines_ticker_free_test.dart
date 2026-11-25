@@ -42,7 +42,6 @@ TextBookLoaded _state() => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0],
   selectedIndex: 2,
-  pinLeftPane: false,
   searchText: '',
 );
 
