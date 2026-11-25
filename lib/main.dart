@@ -101,6 +101,7 @@ import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
+import 'package:otzaria/shortcuts/numpad_navigation_keys.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
@@ -374,6 +375,7 @@ void main(List<String> args) async {
   installPdfiumPreloadGate();
 
   SentryWidgetsFlutterBinding.ensureInitialized();
+  installNumpadNavigationKeys();
   // macOS: המודל נקבע לפני כל קריאה ל-MultiViewMode. סבב ערוץ אחד, עם timeout.
   if (Platform.isMacOS) {
     final reason = await StartupTimeline.instance.phase(
