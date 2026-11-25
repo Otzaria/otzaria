@@ -837,6 +837,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 segment,
                 '',
                 explicitIndex: hasExplicitLocation,
+                selectLine: hasExplicitLocation,
                 dedupeKey: dedupeKey,
               ),
               buildPdfTab: (page, dedupeKey) => PdfBookTab(
@@ -879,6 +880,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       '',
       ignoreHistory: ref.isPdf,
       explicitIndex: hasExplicitLocation,
+      selectLine: hasExplicitLocation,
       requiresStableLayout: ref.isPdf,
       markerReference: ref.isAltToc ? ref.reference : null,
     );
@@ -967,6 +969,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       segment,
       '',
       explicitIndex: true,
+      selectLine: entry.targetSegment != null,
       navigateToPositionIfReused: true,
     );
     if (_openRecorded) return;

@@ -433,6 +433,97 @@ void main() {
         3,
         8,
       ]);
+      expect(
+        tabs.state.tabs.whereType<TextBookTab>().map(
+          (tab) => tab.linkSelectedLine,
+        ),
+        [3, 8],
+      );
+    });
+
+    testWidgets('פתיחת כמה תוצאות בבלי בוחרת יעד בכל טאב חלופי', (
+      tester,
+    ) async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyTalmudBavliOpenFormat,
+        'pdf',
+      );
+      addTearDown(
+        () => Settings.setValue<String>(
+          SettingsRepository.keyTalmudBavliOpenFormat,
+          'text',
+        ),
+      );
+      const bavliResults = [
+        DbReferenceResult(
+          title: 'ברכות',
+          reference: 'ברכות דף ב',
+          segment: 3,
+          bookId: 3,
+        ),
+        DbReferenceResult(
+          title: 'ברכות',
+          reference: 'ברכות דף ג',
+          segment: 8,
+          bookId: 3,
+        ),
+      ];
+      final library = Library(categories: []);
+      final bavliRoot = Category(
+        title: 'תלמוד בבלי',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: [],
+        books: [],
+        parent: library,
+      );
+      library.subCategories.add(bavliRoot);
+      final seder = Category(
+        title: 'סדר זרעים',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: [],
+        books: [],
+        parent: bavliRoot,
+      );
+      bavliRoot.subCategories.add(seder);
+      seder.books.add(TextBook(id: 3, title: 'ברכות', category: seder));
+      bavliRoot.books.add(
+        PdfBook(
+          title: 'ברכות',
+          path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+          category: bavliRoot,
+        ),
+      );
+      final tabs = await _showDialogWithResults(
+        tester,
+        result: bavliResults.first,
+        library: library,
+        repository: _FakeRepository(bavliResults),
+        processTabEvents: true,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(find.text('2 ספרים נבחרו'), findsOneWidget);
+      await tester.tap(find.text('פתח נבחרים'));
+      await tester.pumpAndSettle();
+
+      final fallbackTabs = tabs.state.tabs
+          .whereType<ResolvingTab>()
+          .map((tab) => tab.fallbackTab)
+          .whereType<TextBookTab>();
+      expect(fallbackTabs.map((tab) => tab.linkSelectedLine), [3, 8]);
     });
 
     testWidgets('סגירת הדיאלוג בזמן פתרון היעד מבטלת את הפתיחה', (
@@ -690,6 +781,8 @@ void main() {
     final fallback = (tab as ResolvingTab).fallbackTab as TextBookTab;
     expect(fallback.index, 0);
     expect(fallback.commentators, ['מפרש']);
+    // #5905: גם בטאב הטקסט החלופי היעד נבחר.
+    expect(fallback.linkSelectedLine, 0);
   });
 
   // #2696: Enter שממתין לתוצאות פותח באותו פריים שהרשימה נבנית לראשונה;
@@ -1159,6 +1252,104 @@ void main() {
 
       expect(find.text(result.reference), findsOneWidget);
       expect(find.byTooltip(tooltip), findsNothing);
+    });
+  });
+
+  // #5905: היעד נבחר כמו בלחיצה עליו (הפס בצד, המפרשים עוברים אליו).
+  group('פתיחה מאיתור בוחרת את קטע היעד', () {
+    testWidgets('תוצאה עם מיקום בוחרת את הקטע', (tester) async {
+      final book = TextBook(id: 1, title: 'משלי');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        result: const DbReferenceResult(
+          title: 'משלי',
+          reference: 'משלי פרק כד, כו',
+          segment: 30,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, 30);
+    });
+
+    testWidgets('תוצאה בשורה 0 בוחרת אותה', (tester) async {
+      final book = TextBook(id: 1, title: 'בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        history: [Bookmark(ref: 'בראשית', book: book, index: 40)],
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית פרק א',
+          segment: 0,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, 0);
+    });
+
+    testWidgets('תוצאת ספר בלבד אינה בוחרת דבר', (tester) async {
+      final book = TextBook(id: 1, title: 'בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([book]),
+        history: [Bookmark(ref: 'בראשית', book: book, index: 40)],
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית',
+          segment: 0,
+          bookId: 1,
+        ),
+      );
+
+      expect((tab as TextBookTab).index, 40);
+      expect(tab.linkSelectedLine, isNull);
+    });
+
+    testWidgets('מפרש מהתפריט בוחר את קטע היעד שלו', (tester) async {
+      final source = TextBook(id: 1, title: 'בראשית');
+      final rashi = TextBook(id: 81, title: 'רש"י על בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([source, rashi]),
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית פרק א',
+          segment: 0,
+          bookId: 1,
+        ),
+        commentator: const DbCommentatorEntry(
+          title: 'רש"י על בראשית',
+          bookId: 81,
+          targetSegment: 5,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, 5);
+    });
+
+    testWidgets('מפרש ללא יעד מוגדר אינו בוחר דבר', (tester) async {
+      final source = TextBook(id: 1, title: 'בראשית');
+      final rashi = TextBook(id: 81, title: 'רש"י על בראשית');
+      final tab = await _openResult(
+        tester,
+        library: _libraryWith([source, rashi]),
+        result: const DbReferenceResult(
+          title: 'בראשית',
+          reference: 'בראשית פרק א',
+          segment: 0,
+          bookId: 1,
+        ),
+        commentator: const DbCommentatorEntry(
+          title: 'רש"י על בראשית',
+          bookId: 81,
+          targetSegment: null,
+        ),
+      );
+
+      expect((tab as TextBookTab).linkSelectedLine, isNull);
     });
   });
 }

@@ -456,6 +456,47 @@ void main() {
       });
     }
 
+    test('פתיחה חוזרת של יעד בבלי בוחרת את השורה בטאב טקסט חלופי', () async {
+      final bloc = _newBloc(_FakeTabsRepository());
+      final recorder = _RecordingTextBookBloc(loaded: true);
+      final book = TextBook(title: 'ברכות', categoryId: 1);
+      const key = 'talmud-bavli-pdf:berakhot.pdf|0';
+      final existing = TextBookTab(
+        book: book,
+        index: 40,
+        dedupeKey: key,
+        blocOverride: recorder,
+      );
+      bloc.add(AddTab(existing));
+      bloc.add(AddTab(_createTextTab('ספר ב', categoryId: 2)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      final fallback = TextBookTab(
+        book: book,
+        index: 0,
+        dedupeKey: key,
+        linkSelectedLine: 0,
+      );
+      bloc.add(
+        OpenOrFocusTab(
+          ResolvingTab(
+            fallbackTab: fallback,
+            dedupeKey: key,
+            resolve: () async => throw StateError('Unexpected resolution'),
+          ),
+        ),
+      );
+      await bloc.stream.firstWhere((s) => identical(s.currentTab, existing));
+
+      expect(existing.index, 0);
+      expect(
+        recorder.received.whereType<SelectLineWhenVisible>().single.line,
+        0,
+      );
+      expect(bloc.state.tabs, hasLength(2));
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
     test('טאב טקסט שטרם נטען מקבל את החיפוש רק כשהוא מגיע ל-Loaded', () async {
       // טאב ששוחזר ולא נצפה עדיין נשאר ב-TextBookInitial, ושם UpdateSearchText
       // נזרק בשקט — כל התצורה הייתה נעלמת.

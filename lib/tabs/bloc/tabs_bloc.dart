@@ -20,6 +20,7 @@ import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_completed_publisher.dart';
@@ -653,15 +654,22 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       );
       // מיקום מפורש (סימניה, היסטוריה, או תוצאת חיפוש בשורה אחרת של אותה
       // כותרת) — לא מספיק להעביר focus לטאב הקיים, צריך לגלול אותו אליו.
-      final incoming = event.tab;
+      final fallback = switch (event.tab) {
+        ResolvingTab(fallbackTab: final TextBookTab tab)
+            when matchingTab is TextBookTab && tab.linkSelectedLine != null =>
+          tab,
+        _ => null,
+      };
+      final incoming = fallback ?? event.tab;
       final navigate =
+          fallback != null ||
           event.navigateToPositionIfReused ||
           (incoming is TextBookTab &&
               incoming.searchOrigin == InBookSearchOrigin.globalResult);
       if (navigate) {
         await _propagateNavigationToExistingTab(
           existingTab: matchingTab,
-          incomingTab: event.tab,
+          incomingTab: incoming,
         );
       }
       // ההדגשה מדייקת את היעד בתוך השורה, אחרי הניווט למיקום המפורש.
@@ -675,11 +683,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       );
       if (!identical(event.tab, matchingTab)) event.tab.dispose();
       final tabsToSave = state.tabs;
-      final readerTarget = event.tab is TextBookTab
-          ? _resolveTextBookTab(
-              matchingTab,
-              event.tab as TextBookTab,
-            )
+      final readerTarget = incoming is TextBookTab
+          ? _resolveTextBookTab(matchingTab, incoming)
           : null;
       // התאמה בחלונית מפוצלת דורשת גם עדכון של החלונית הפעילה.
       emit(
