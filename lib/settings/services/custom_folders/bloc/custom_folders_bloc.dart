@@ -610,7 +610,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
   static String? _folderContaining(List<CustomFolder> folders, String? file) {
     if (file == null) return null;
     final normalizedFile = CustomFolderSource.normalizePath(file);
-    return folders
+    final matches = folders
         .map((folder) => folder.path)
         .where(
           (folder) => p.isWithin(
@@ -618,7 +618,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
             normalizedFile,
           ),
         )
-        .firstOrNull;
+        .take(2)
+        .toList();
+    // תיקיות מקוננות יכולות לייצר רשומות שונות לאותו קובץ.
+    return matches.length == 1 ? matches.single : null;
   }
 
   List<CustomFolder> _loadFolders() {
