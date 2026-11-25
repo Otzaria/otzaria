@@ -706,6 +706,94 @@ void main() {
       drag.dispose();
     });
 
+    for (final waitingForRunner in [true, false]) {
+      testWidgets(
+        waitingForRunner
+            ? 'פירוק רצועת המקור לפני תשובת ה־runner מבטל את ההעברה'
+            : 'פירוק רצועת המקור לפני האישור מבטל את ההעברה',
+        (tester) async {
+          final windows = FakeViewWindows(tester);
+          final view = windows.registry.open(size: const Size(800, 600))!;
+          final drops = makeDrops(windows.registry);
+          final target = _target(1);
+          drops.register(view.id, target.target);
+          final tab = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+          final source = _RecordingTabsBloc([tab]);
+          addTearDown(source.close);
+          final release = Completer<void>();
+          final confirmation = Completer<bool>();
+          final originalConfirm = CrossWindowTabDrag.confirmTransfer;
+          addTearDown(
+            () => CrossWindowTabDrag.confirmTransfer = originalConfirm,
+          );
+          final confirmations = <OpenedTab>[];
+          CrossWindowTabDrag.confirmTransfer = (tab) {
+            confirmations.add(tab);
+            return confirmation.future;
+          };
+          runner.systemDrag = {'ran': false, 'hwnd': view.handle.hwnd};
+          if (waitingForRunner) runner.systemDragGate = release;
+          final drag = CrossWindowTabDrag(inProcess: drops);
+          addTearDown(drag.dispose);
+          drag.begin(tab, colors, tabsBloc: source);
+
+          await tester.pump(const Duration(seconds: 1));
+          expect(runner.named('dragOutToSystem'), hasLength(1));
+          expect(confirmations, waitingForRunner ? isEmpty : [same(tab)]);
+          drag.dispose();
+          await tester.pump();
+          expect(runner.named('endTabDrag'), hasLength(1));
+
+          release.complete();
+          confirmation.complete(true);
+          await tester.pump();
+          expect(runner.named('endTabDrag'), hasLength(1));
+          expect(confirmations, waitingForRunner ? isEmpty : [same(tab)]);
+          expect(target.received, isEmpty);
+          expect(source.events, isEmpty);
+        },
+      );
+    }
+
+    testWidgets('חלון חדש באותה משבצת אינו מקבל שחרור ישן', (tester) async {
+      final windows = FakeViewWindows(tester);
+      final view = windows.registry.open(size: const Size(800, 600))!;
+      final drops = makeDrops(windows.registry);
+      final target = _target(1);
+      drops.register(view.id, target.target);
+      final tab = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+      final source = _RecordingTabsBloc([tab]);
+      addTearDown(source.close);
+      final originalConfirm = CrossWindowTabDrag.confirmTransfer;
+      addTearDown(() => CrossWindowTabDrag.confirmTransfer = originalConfirm);
+      final confirmation = Completer<bool>();
+      final confirmations = <OpenedTab>[];
+      CrossWindowTabDrag.confirmTransfer = (tab) {
+        confirmations.add(tab);
+        return confirmation.future;
+      };
+      runner.systemDrag = {'ran': false, 'hwnd': view.handle.hwnd};
+      final drag = CrossWindowTabDrag(inProcess: drops);
+      addTearDown(drag.dispose);
+      drag.begin(tab, colors, tabsBloc: source);
+      await tester.pump(const Duration(seconds: 1));
+      expect(confirmations, [same(tab)]);
+
+      drops.unregister(view.id, target.target);
+      view.handle.destroy();
+      final replacement = windows.registry.open(size: const Size(800, 600))!;
+      expect(replacement.slot, view.slot);
+      final replacementTarget = _target(1);
+      drops.register(replacement.id, replacementTarget.target);
+      confirmation.complete(true);
+      await tester.pump();
+
+      expect(screenCalls, isEmpty);
+      expect(target.received, isEmpty);
+      expect(replacementTarget.received, isEmpty);
+      expect(source.events, isEmpty);
+    });
+
     testWidgets('גרירה שנמסרה למערכת ושוחררה מעל שורת המשימות מבוטלת', (
       tester,
     ) async {
