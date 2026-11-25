@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -32,6 +33,10 @@ class WindowPersistence {
   /// גובה רצועת האחיזה (פס הכותרת המותאם) בפיקסלים לוגיים. בדיקת הנגישות
   /// דורשת שהרצועה הזו — לא סתם פינת חלון — תהיה על מסך חי, אחרת אין מה לגרור.
   static const double _grabStripExtent = 32;
+
+  /// המסגרת הבלתי נראית ש-Windows מוסיף סביב חלון (7px ב-96 DPI) — חלון
+  /// מוצמד לקצה המסך חורג בה משטח העבודה, וזה לא כיסוי של שורת המשימות.
+  static const double _invisibleFrameExtent = 8;
 
   /// החלון הראשי; לכל חלון Dart נוסף [WindowPersistenceBinding] משלו.
   static final WindowPersistenceBinding current = WindowPersistenceBinding();
@@ -128,6 +133,42 @@ class WindowPersistence {
       }
     }
     return false;
+  }
+
+  /// גבולות שחורגים משטח העבודה — למשל מכסים את שורת המשימות (#2457) —
+  /// מוזזים ומוקטנים לתוך שטח העבודה שעליו רובם. חריגה עד [tolerance]
+  /// (המסגרת הבלתי נראית של Windows) וחלון שכל פינותיו על מסכים נשארים.
+  @visibleForTesting
+  static Rect fitToWorkArea(
+    Rect bounds,
+    List<Rect> workAreas,
+    double tolerance,
+  ) {
+    final inner = bounds.deflate(tolerance);
+    final corners = [
+      inner.topLeft,
+      inner.topRight,
+      inner.bottomLeft,
+      inner.bottomRight,
+    ];
+    if (workAreas.isEmpty ||
+        corners.every((p) => workAreas.any((area) => area.contains(p)))) {
+      return bounds;
+    }
+    double overlap(Rect area) {
+      final r = bounds.intersect(area);
+      return math.max(0, r.width) * math.max(0, r.height);
+    }
+
+    final area = workAreas.reduce((a, b) => overlap(b) > overlap(a) ? b : a);
+    final width = math.min(bounds.width, area.width);
+    final height = math.min(bounds.height, area.height);
+    return Rect.fromLTWH(
+      bounds.left.clamp(area.left, area.right - width),
+      bounds.top.clamp(area.top, area.bottom - height),
+      width,
+      height,
+    );
   }
 }
 
@@ -296,12 +337,23 @@ class WindowPersistenceBinding {
         // אין גבולות שמורים (הפעלה ראשונה) — גודל ברירת מחדל ממורכז.
         await _geometry.setSize(WindowPersistence.defaultSize);
         await _window.center();
-      } else if (await _isReachableOnConnectedDisplay(physicalBounds)) {
+      } else if (await _connectedWorkAreas() case final workAreas
+          when workAreas.isEmpty ||
+              WindowPersistence.titleStripReachableOnAnyDisplay(
+                physicalBounds,
+                workAreas,
+                WindowPersistence._grabStripExtent * (_restoredDpr ?? 1),
+              )) {
         // הגבולות כבר עברו clamp ל-minSize (420x400) ב-restoreIfAny, וגודל
         // ה-splash לעולם לא נשמר (splashMode) — לכן מכבדים כל גודל חוקי שנשמר,
-        // כולל חלונות קטנים שהמשתמש בחר במכוון.
+        // כולל חלונות קטנים שהמשתמש בחר במכוון; רק לא מעבר לשטח העבודה.
+        final fitted = WindowPersistence.fitToWorkArea(
+          physicalBounds,
+          workAreas,
+          WindowPersistence._invisibleFrameExtent * (_restoredDpr ?? 1),
+        );
         await _geometry.setBounds(
-          WindowPersistence._scaleRect(physicalBounds, 1 / currentDpr),
+          WindowPersistence._scaleRect(fitted, 1 / currentDpr),
         );
       } else {
         // גבולות מחוץ לכל מסך (מסך שנותק, עיוות DPI בין מסכים) — החלון היה
@@ -316,9 +368,10 @@ class WindowPersistenceBinding {
     }
   }
 
-  /// האם רצועת האחיזה של [physicalBounds] נגישה על מסך מחובר כלשהו. כשל
-  /// בקריאת רשימת המסכים לא חוסם את השחזור — עדיף שחזור רגיל ממירכוז מיותר.
-  Future<bool> _isReachableOnConnectedDisplay(Rect physicalBounds) async {
+  /// שטחי העבודה של המסכים המחוברים בפיקסלים פיזיים. כשל בקריאת רשימת
+  /// המסכים מחזיר רשימה ריקה ולא חוסם את השחזור — עדיף שחזור רגיל ממירכוז
+  /// מיותר.
+  Future<List<Rect>> _connectedWorkAreas() async {
     try {
       final displays = await screenRetriever.getAllDisplays();
       // מסכי macOS וחלונותיו משתמשים באותו מרחב נקודות גלובלי.
@@ -336,14 +389,9 @@ class WindowPersistenceBinding {
         );
         if (rect != null) displayRects.add(rect);
       }
-      if (displayRects.isEmpty) return true;
-      return WindowPersistence.titleStripReachableOnAnyDisplay(
-        physicalBounds,
-        displayRects,
-        WindowPersistence._grabStripExtent * (_restoredDpr ?? 1),
-      );
+      return displayRects;
     } catch (_) {
-      return true;
+      return const [];
     }
   }
 
