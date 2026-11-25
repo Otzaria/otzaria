@@ -283,6 +283,15 @@ class PluginExtendedValidator {
       );
     }
 
+    if (declaredPermissions.contains(pluginSemanticReadPermission)) {
+      _requireMinVersion(
+        manifest,
+        _semanticMinVersion,
+        'החיפוש החכם (semantic.*)',
+        errors,
+      );
+    }
+
     final design = _checkDesignCompliance(files);
 
     return PluginValidationReport(
@@ -347,6 +356,7 @@ class PluginExtendedValidator {
   static const String _searchUiOptionsMinVersion = '0.9.98.3';
   static const String _searchFilterLabelsMinVersion = '0.9.99';
   static const String _searchCompletedMinVersion = '0.9.99';
+  static const String _semanticMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
 
   /// `bookTypes`/`bookSources` בפקדי הסרגל ובפריטי תפריט ההקשר.

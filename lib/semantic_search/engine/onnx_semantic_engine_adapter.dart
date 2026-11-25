@@ -194,6 +194,21 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
     ),
   );
 
+  @override
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  }) => _withToken(
+    cancel,
+    (token) async =>
+        (await _engine()).semanticNearest(input: input, cancellation: token),
+  );
+
+  @override
+  Future<SemanticQueryTokens> queryTokens(List<String> texts) => _guard(
+    () async => (await _engine()).semanticQueryTokens(texts: texts),
+  );
+
   /// ממפה את מצב המנוע; מצב שאינו מוכר לאפליקציה הוא [SemanticBackendState.other].
   static SemanticBackendStatus mapStatus(SemanticStatus status) {
     final errorKind = status.errorKind;
@@ -223,6 +238,7 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
       modelFamilyId: info.modelFamilyId,
       libraryVersion: info.libraryVersion,
       libraryReleaseTag: info.libraryReleaseTag,
+      generation: info.generation.toInt(),
       segments: [
         for (final segment in info.segments)
           SemanticSegmentSummary(

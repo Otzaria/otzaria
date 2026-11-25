@@ -261,6 +261,13 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description:
         'התוסף יכול להריץ חיפוש בתוך הטקסט של כל הספרים ולקבל את התוצאות',
   ),
+  pluginSemanticReadPermission: PluginPermissionInfo(
+    label: 'חיפוש לפי משמעות',
+    icon: FluentIcons.sparkle_24_regular,
+    description:
+        'התוסף יכול למצוא בספרייה שורות שקרובות במשמעותן לטקסט, במודל '
+        'ובנתונים שאוצריא הורידה לחיפוש החכם. החיפוש מוגבל לספרייה הרשמית',
+  ),
   'search.dialog': PluginPermissionInfo(
     label: 'רכיבים בחלון החיפוש',
     icon: FluentIcons.checkbox_checked_24_regular,

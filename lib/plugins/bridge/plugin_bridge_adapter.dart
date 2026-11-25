@@ -67,6 +67,7 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_search_api.dart';
+import 'package:otzaria/plugins/bridge/plugin_semantic_bridge.dart';
 import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchStreamUpdate;
@@ -666,6 +667,7 @@ class PluginBridgeAdapter {
           'bookmarks',
           'database',
           'network',
+          'semantic',
           'shortcut',
         }.contains(domain) ||
         (domain == 'notifications' && rpcAction != 'showInApp')) {
@@ -923,6 +925,15 @@ class PluginBridgeAdapter {
   final Set<String> _pendingSearchCancellations = {};
   final Map<String, Future<void> Function()> _activeNetworkFetchStreams = {};
   final Set<String> _pendingNetworkFetchCancellations = {};
+  static final _semanticOfficialPaths = Expando<List<String>>();
+  late final PluginSemanticBridge _semantic = PluginSemanticBridge(
+    books: _semanticBooks,
+    onPermissionRevoked: (cancel) =>
+        PluginRegistryRepository.onSemanticAccessRevoked(
+          plugin.pluginId,
+          cancel,
+        ),
+  );
 
   static const _searchStreamEvent = '__otzaria.search.query.chunk';
   static const _networkFetchStreamEvent = '__otzaria.network.fetchStream.chunk';
@@ -994,8 +1005,14 @@ class PluginBridgeAdapter {
     releaseBookContentPage();
   }
 
-  /// מפסיק את ההמתנה לטעינות ספר שהדף היוצא ביקש.
+  bool isCurrentPage(Object page) =>
+      !_disposed && identical(page, _bookContentPage);
+
+  Object get pageToken => _bookContentPage;
+
+  /// מבטל טעינות ספר ופעולות חיפוש חכם של הדף היוצא.
   void releaseBookContentPage() {
+    _semantic.release();
     final page = _bookContentPage;
     _bookContentPage = Object();
     _clearPendingBookLoads();
@@ -1293,6 +1310,8 @@ class PluginBridgeAdapter {
         return await _handleLibrary(action, args);
       case 'search':
         return await _handleSearch(action, args, eventSink: eventSink);
+      case 'semantic':
+        return await _handleSemantic(action, args, eventSink: eventSink);
       case 'reader':
         return await _handleReader(action, args);
       case 'workspace':
@@ -4953,6 +4972,50 @@ class PluginBridgeAdapter {
     } on TimeoutException {
       return null;
     }
+  }
+
+  // ----------------------------------------------------------------
+  // semantic.*
+  // ----------------------------------------------------------------
+  Future<dynamic> _handleSemantic(
+    String action,
+    Map<String, dynamic> args, {
+    required PluginRpcEventSink? eventSink,
+  }) async {
+    switch (action) {
+      case 'getStatus':
+      case 'countTokens':
+      case 'nearest':
+      case 'getCoveredBooks':
+        return _semantic.handle(action, args, eventSink: eventSink);
+      default:
+        throw Exception(
+          'error.unknown_method: Unknown semantic action: $action',
+        );
+    }
+  }
+
+  Future<PluginSemanticBookLookup> _semanticBooks(
+    void Function() checkActive,
+  ) async {
+    final data = DataRepository.instance;
+    final future = data.library;
+    final library = await future;
+    checkActive();
+    if (!identical(future, data.libraryCacheIdentity)) {
+      throw Exception('error.unavailable: library catalog changed');
+    }
+    _ensureBookIndex(library);
+    final officialPaths = _semanticOfficialPaths[library] ??= [
+      for (final entry in _booksByIndexedPath.entries)
+        if (entry.value.hasOfficialSemanticIdentity) entry.key,
+    ]..sort();
+    return (
+      find: (identity) => _findPluginBook(library, identity),
+      byIndexedPath: _booksByIndexedPath,
+      officialPaths: officialPaths,
+      isCurrent: () => identical(future, data.libraryCacheIdentity),
+    );
   }
 
   // ----------------------------------------------------------------

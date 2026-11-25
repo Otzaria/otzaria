@@ -6,6 +6,9 @@ final Map<String, String> apiCallToPermissionHint = pluginApiPermissionHints;
 /// פעולות שהרשאתן נאכפת מחוץ לטבלת הרשאות המניפסט.
 final Set<String> apiCallsWithoutPermission = pluginApiCallsWithoutPermission;
 
+/// גישה לחיפוש חכם בספרייה הרשמית.
+const pluginSemanticReadPermission = 'search.semantic.read';
+
 /// שכבת תיקונים זמנית בקורא ללא כתיבה למקור הספר.
 const pluginReaderLocalEditPermission = 'reader.local_edit';
 
@@ -177,6 +180,9 @@ const pluginValidPermissions = <String>[
 
   /// כפתורי תוסף בתוך שדות חיפוש.
   pluginSearchFieldActionsPermission,
+
+  /// השורות הקרובות במשמעותן, במודל ובווקטורים של החיפוש החכם.
+  pluginSemanticReadPermission,
 
   // ===== קורא =====
   /// פתיחת ספרים במצב קריאה
