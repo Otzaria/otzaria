@@ -229,21 +229,19 @@ Map<String, dynamic> buildReaderBookPayload({
   currentRef: state.currentTitle,
 );
 
-/// Plugin entries for the `reader-highlight` context: a right click on
-/// highlighted text with no active selection. Empty unless the click at
+/// Payload for the `reader-highlight` context: a right click on highlighted
+/// text with no active selection. Null unless the click at
 /// [tapPosition] falls on a highlight in paragraph [paragraphIndex].
-List<AppContextMenuEntry> buildClickedHighlightPluginEntries({
+Map<String, dynamic>? _clickedHighlightPluginPayload({
   required RenderObject? root,
   required TextBookLoaded state,
   required String rawText,
   required int paragraphIndex,
   required Offset tapPosition,
   required RenderSettings settings,
-  required List<(String, PluginContextMenuItem)> pluginItems,
-  required BuildContext menuContext,
   TextRange? lineRange,
 }) {
-  if (root == null) return const [];
+  if (root == null) return null;
   final book = state.book;
   final clicked = resolveClickedHighlights(
     root: root,
@@ -255,27 +253,18 @@ List<AppContextMenuEntry> buildClickedHighlightPluginEntries({
     settings: settings,
     lineRange: lineRange,
   );
-  if (clicked.isEmpty) return const [];
-  final entries = buildPluginContextMenuEntries(
-    viewId: View.of(menuContext).viewId,
-    windowKeys: AppWindowKeys.of(menuContext),
-    records: pluginItems,
-    selection: buildClickedHighlightsPayload(
-      highlights: clicked,
-      bookId: book.title,
-      bookTitle: book.title,
-      sectionIndex: paragraphIndex,
-      currentRef: state.currentTitle,
-      bookDbId: book.id,
-      bookType: PluginBookIdentity.typeOf(book),
-      bookSource: PluginBookIdentity.sourceOf(book),
-      bookUid: PluginBookIdentity.uidOf(book),
-    ),
-    context: 'reader-highlight',
-    selectionActionDispatcher: pluginSelectionActionDispatcherOf(menuContext),
+  if (clicked.isEmpty) return null;
+  return buildClickedHighlightsPayload(
+    highlights: clicked,
+    bookId: book.title,
+    bookTitle: book.title,
+    sectionIndex: paragraphIndex,
+    currentRef: state.currentTitle,
+    bookDbId: book.id,
+    bookType: PluginBookIdentity.typeOf(book),
+    bookSource: PluginBookIdentity.sourceOf(book),
+    bookUid: PluginBookIdentity.uidOf(book),
   );
-  if (entries.isEmpty) return const [];
-  return [const AppContextMenuEntry.divider(), ...entries];
 }
 
 List<AppContextMenuEntry> buildReaderPluginMenuEntries({
@@ -300,7 +289,16 @@ List<AppContextMenuEntry> buildReaderPluginMenuEntries({
   }
   final renderSettings = settings();
   if (!hasSelection) {
-    final bookEntries = buildPluginContextMenuEntries(
+    final highlight = _clickedHighlightPluginPayload(
+      root: root,
+      state: state,
+      rawText: lines[paragraphIndex],
+      paragraphIndex: paragraphIndex,
+      tapPosition: tapPosition,
+      settings: renderSettings,
+      lineRange: lineRange,
+    );
+    final entries = buildPluginContextMenuEntries(
       viewId: View.of(menuContext).viewId,
       windowKeys: AppWindowKeys.of(menuContext),
       records: items,
@@ -310,26 +308,16 @@ List<AppContextMenuEntry> buildReaderPluginMenuEntries({
         tabId: tabId,
       ),
       context: 'reader-book',
+      additionalSection: highlight == null
+          ? null
+          : (context: 'reader-highlight', selection: highlight),
       selectionActionDispatcher: pluginSelectionActionDispatcherOf(
         menuContext,
       ),
     );
-    final highlightEntries = buildClickedHighlightPluginEntries(
-      root: root,
-      state: state,
-      rawText: lines[paragraphIndex],
-      paragraphIndex: paragraphIndex,
-      tapPosition: tapPosition,
-      settings: renderSettings,
-      pluginItems: items,
-      menuContext: menuContext,
-      lineRange: lineRange,
-    );
-    return [
-      if (bookEntries.isNotEmpty) const AppContextMenuEntry.divider(),
-      ...bookEntries,
-      ...highlightEntries,
-    ];
+    return entries.isEmpty
+        ? const []
+        : [const AppContextMenuEntry.divider(), ...entries];
   }
   final selection = buildReaderSelectionPayload(
     state: state,
