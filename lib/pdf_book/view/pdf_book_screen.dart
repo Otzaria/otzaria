@@ -299,6 +299,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _bookHasCommentaryLinks = false;
 
   final PdfPaneToggleAnchor _paneToggleAnchor = PdfPaneToggleAnchor();
+  final _openingNavPaneSizeDelegate = PdfOpeningNavPaneSizeDelegateProvider();
   bool _leftPaneUsesPushLayout = false;
   final _scrollPhysicsProvider = StoppablePdfScrollPhysicsProvider();
   bool _rightPaneUsesPushLayout = false;
@@ -456,6 +457,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (current is PdfBookLoaded && current.showLeftPane == show) {
       return;
     }
+    _openingNavPaneSizeDelegate.cancel();
     _prepareViewportTopAnchor(changesReaderWidth: _leftPaneUsesPushLayout);
     _bloc.add(pdf_events.ToggleLeftPane(show));
   }
@@ -465,6 +467,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (current is PdfBookLoaded && current.showRightPane == show) {
       return;
     }
+    _openingNavPaneSizeDelegate.cancel();
     _prepareViewportTopAnchor(changesReaderWidth: _rightPaneUsesPushLayout);
     _bloc.add(pdf_events.ToggleRightPane(show: show));
   }
@@ -726,17 +729,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     // הגדרת Bloc לטיפול בקיום הקובץ ושאר מצבים
     _bloc.add(const pdf_events.LoadPdfDocument());
-
-    // אם ה-PDF כבר טעון, קפוץ לעמוד הנכון
-    if (widget.tab.pdfViewerController.isReady && widget.tab.pageNumber > 1) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (mounted && widget.tab.pdfViewerController.isReady) {
-          await widget.tab.pdfViewerController.goToPage(
-            pageNumber: widget.tab.pageNumber,
-          );
-        }
-      });
-    }
 
     // הגדרת listeners עם שמות לצורך הסרה נכונה ב-dispose
     _leftPaneTabControllerListener = () {
@@ -1379,6 +1371,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   PdfViewerParams _buildPdfViewerParams(PdfLayoutMode layoutMode) {
     if (layoutMode.isBookView) {
+      _openingNavPaneSizeDelegate.cancel();
       _lockedSpreadStartPage ??= pdfSpreadStartPage(
         widget.tab.pageNumber,
         coverPage: layoutMode.hasCoverPage,
@@ -1449,7 +1442,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       backgroundColor: _pdfViewerBgColor(),
       pageImageColorFilter: pdfPageColorFilter(Theme.of(context).brightness),
       pageDropShadow: _pageDropShadow,
-      sizeDelegateProvider: pdfSizeDelegateProviderForLayoutMode(layoutMode),
+      sizeDelegateProvider: layoutMode.isBookView
+          ? pdfSizeDelegateProviderForLayoutMode(layoutMode)
+          : _openingNavPaneSizeDelegate,
       maxImageBytesCachedOnMemory: pdfImageCacheBytesForPanes(
         widget.pdfPaneCount,
       ),
@@ -1544,12 +1539,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       onDocumentChanged: (document) async {
         _personalNoteViewerReady = false;
         _pdfDocumentSession++;
+        _openingNavPaneSizeDelegate.cancel();
         _pdfNoteNavigationGeneration++;
         _focusedPersonalNoteAnchor = null;
         final wasChoosingPoint = _isChoosingPersonalNotePoint;
         _isChoosingPersonalNotePoint = false;
         _noteToReanchor = null;
-        _isJumping = false;
         if (wasChoosingPoint) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() {});
@@ -1604,12 +1599,59 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 ..addListener(_onTextSearcherUpdated);
         });
 
+        final totalPages = document.pages.length;
+        final initialTargetPage = widget.tab.pageNumber.clamp(1, totalPages);
+
+        // pdfrx כבר הציב את עמוד הפתיחה. מתקנים את עוגן השוליים לפני
+        // פרסום המסמך, כדי ששחזור זום וניווט נוסף יתחילו מהמיקום המעודכן.
+        final pageLayouts = controller.layout.pageLayouts;
+        if (initialTargetPage <= pageLayouts.length) {
+          if (!layoutMode.isBookView && initialTargetPage > 1) {
+            controller.value = controller.calcMatrixFor(
+              pdfTopAnchoredCenter(
+                anchorDocTop: pageLayouts[initialTargetPage - 1].top,
+                currentCenter: controller.centerPosition,
+                viewSize: controller.viewSize,
+                zoom: controller.currentZoom,
+              ),
+            );
+            if (_leftPaneUsesPushLayout &&
+                _bloc.state is! PdfBookLoaded &&
+                resolveInitialReadingLeftPaneVisibility(
+                  explicitOpen: widget.tab.showLeftPane.value,
+                  screenWidth: readingLayoutWidthOf(context),
+                )) {
+              final readerWidth = context.size?.width;
+              final sidebarWidth = Settings.getValue<double>(
+                SettingsRepository.keySidebarWidth,
+                defaultValue: 300,
+              )!;
+              // חלונית הניווט נצמדת לקצוות, לכן הדחיקה שווה לרוחב החלונית.
+              _openingNavPaneSizeDelegate.preserveOpeningPage(
+                pageNumber: initialTargetPage,
+                finalWidth: controller.viewSize.width - sidebarWidth,
+                isOpening: () =>
+                    currentSession() &&
+                    _leftPaneUsesPushLayout &&
+                    widget.tab.showLeftPane.value &&
+                    context.size?.width == readerWidth,
+              );
+            }
+          } else if (controller.pageNumber != initialTargetPage) {
+            unawaited(
+              controller.goToPage(
+                pageNumber: initialTargetPage,
+                duration: Duration.zero,
+              ),
+            );
+          }
+        }
+        _initialPageNumber = null;
+        widget.tab.pageNumber = initialTargetPage;
+
         final documentRef = controller.documentRef;
         widget.tab.documentRef.value = documentRef;
         unawaited(_loadPdfPointNotes());
-        final totalPages = document.pages.length;
-        final initialTargetPage = widget.tab.pageNumber.clamp(1, totalPages);
-        widget.tab.pageNumber = initialTargetPage;
 
         // שולחים DocumentReady מיד כדי לשחרר את ה-UI. טעינת ה-outline
         // ו-resolve של titles/line-numbers הם פעולות כבדות (DB+PDF
@@ -1631,36 +1673,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             totalPages: totalPages,
           ),
         );
-
-        if (!currentSession()) return;
-        // נבדק לפני כל await: אחריו גלילת המשתמש נראית כנחיתה שגויה ומוחזרת.
-        final currentReadyPage = resolveReadyPdfPageNumber(
-          isReady: controller.isReady,
-          readPageNumber: () => controller.pageNumber,
-        );
-        final needsInitialPageNavigation =
-            currentReadyPage == null || currentReadyPage != initialTargetPage;
-        if (needsInitialPageNavigation) {
-          _isJumping = true;
-          try {
-            await WidgetsBinding.instance.endOfFrame;
-            if (currentSession()) {
-              await controller.goToPage(
-                pageNumber: initialTargetPage,
-                duration: Duration.zero,
-              );
-              if (!currentSession()) return;
-              await Future.delayed(const Duration(milliseconds: 200));
-            }
-          } finally {
-            if (currentSession()) {
-              _isJumping = false;
-              _initialPageNumber = null;
-            }
-          }
-        } else {
-          _initialPageNumber = null;
-        }
 
         if (!currentSession()) return;
         // בחירת המפרשים נטענת תמיד (לא תלוי ב-enablePerBookSettings); את הזום
@@ -4051,7 +4063,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   static const Duration _kPageMetadataDebounce = Duration(milliseconds: 150);
   Timer? _pageMetadataTimer;
   int? _initialPageNumber; // שמירת מספר העמוד ההתחלתי
-  bool _isJumping = false; // flag לציון שאנחנו בתהליך קפיצה
   bool _linksLoading = true; // true עד שטעינת הקישורים מסתיימת
 
   /// טווח השורות והקישורים של העמוד הנוכחי השתנו — בונה מחדש רק את חלונית המפרשים.
@@ -4175,13 +4186,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     // Sync wheel/pinch zoom into BLoC so toolbar buttons start from the
     // current zoom, and show the zoom bar just like the toolbar buttons do.
-    if (!_isJumping) {
-      final currentState = _bloc.state;
-      if (currentState is PdfBookLoaded &&
-          (currentState.zoom - newZoom).abs() > 0.001) {
-        _bloc.add(pdf_events.UpdateZoom(newZoom));
-        _bloc.add(const pdf_events.SetShowZoomBar(true));
-      }
+    final currentState = _bloc.state;
+    if (currentState is PdfBookLoaded &&
+        (currentState.zoom - newZoom).abs() > 0.001) {
+      _bloc.add(pdf_events.UpdateZoom(newZoom));
+      _bloc.add(const pdf_events.SetShowZoomBar(true));
     }
 
     final newPage = widget.tab.pdfViewerController.pageNumber ?? 1;
@@ -4196,11 +4205,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _lastInitiatedTargetPage = null;
       }
     }
-    // אם אנחנו בתהליך קפיצה, לא נעדכן את pageNumber
-    if (_isJumping) {
-      return;
-    }
-
     // אם זו הפעם הראשונה וה-pageNumber המקורי גדול מ-1, לא נעדכן
     // (כי אנחנו עדיין ממתינים לקפיצה לעמוד הנכון)
     if (_initialPageNumber != null && _initialPageNumber! > 1 && newPage == 1) {
@@ -4534,6 +4538,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         }
                       },
                       onPaneWidthChanged: (nextWidth) {
+                        _openingNavPaneSizeDelegate.cancel();
                         _draggedLeftPaneWidth = nextWidth;
                       },
                       onPaneResizeEnd: () {
