@@ -2230,11 +2230,14 @@ void main() {
           shortcuts: const {'key-shortcut-open-find-ref': 'escape'},
         ),
       );
+      final loaded = bloc.state as TextBookLoaded;
+      bloc.emitStateForTest(loaded.copyWith(searchText: 'שורה'));
       await tester.pump();
+      bloc.receivedEvents.clear();
       final readerFocus = find
           .descendant(
             of: find.byType(TextBookViewerBloc),
-            matching: find.byType(Focus),
+            matching: _bookKeyFocus,
           )
           .first;
       expect(
@@ -2245,6 +2248,7 @@ void main() {
       await tester.pump();
       expect(fullscreen.state, isTrue);
       expect(findRefRequests, 1);
+      expect(bloc.receivedEvents.whereType<UpdateSearchText>(), isEmpty);
       expect(geometry.calls, isEmpty);
 
       final reader = tester.element(find.byType(TextBookViewerBloc));
@@ -2264,6 +2268,15 @@ void main() {
       expect(geometry.calls, isEmpty);
 
       settingsBloc.emitStateForTest(SettingsState.initial());
+      bloc.receivedEvents.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(fullscreen.state, isTrue);
+      expect(geometry.calls, isEmpty);
+      expect(bloc.receivedEvents.whereType<UpdateSearchText>(), hasLength(1));
+
+      // הבלוק כבר ניקה את ההדגשה, והקורא עוד לא נבנה מחדש.
+      bloc.emitStateForTest(loaded);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(findRefRequests, 1);
@@ -2310,6 +2323,181 @@ void main() {
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
       // ההודעה מוצגת פעם אחת בלבד, ונסגרת מעצמה.
       await tester.pump(const Duration(seconds: 7));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  });
+
+  group('קיצור של הספר על מקש מכרטיס "קיצורים קבועים"', () {
+    for (final (shortcut, keys) in [
+      ('ctrl+tab', [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab]),
+      (
+        'ctrl+shift+tab',
+        [
+          LogicalKeyboardKey.controlLeft,
+          LogicalKeyboardKey.shiftLeft,
+          LogicalKeyboardKey.tab,
+        ],
+      ),
+      ('ctrl+2', [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.digit2]),
+      ('ctrl+9', [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.digit9]),
+      ('f11', [LogicalKeyboardKey.f11]),
+      ('escape', [LogicalKeyboardKey.escape]),
+    ]) {
+      testWidgets(
+        '$shortcut שהוקצה להגדלת הטקסט אינו מפעיל גם את הקיצור הקבוע',
+        (tester) async {
+          final previousMacOverride = ShortcutHelper.isMacForTesting;
+          ShortcutHelper.isMacForTesting = false;
+          addTearDown(() {
+            ShortcutHelper.isMacForTesting = previousMacOverride;
+          });
+          await Settings.setValue<String>(
+            ShortcutValidator.zoomInKey,
+            shortcut,
+          );
+          final book = TextBook(title: 'ספר בדיקה');
+          final bloc = _TestTextBookBloc(_loadedState(book));
+          final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+          final other = TextBookTab(book: book, index: 0);
+          final tabsBloc = _TestTabsBloc(
+            TabsState(tabs: [tab, other], currentTabIndex: 0),
+          );
+          final settingsBloc = _TestSettingsBloc(
+            SettingsState.initial().copyWith(fullscreenAutoHideToolbar: false),
+          );
+          // Escape פעיל רק במסך מלא, ולכן מתחילים בו.
+          final fullscreen = WindowFullscreenCubit(
+            initial: shortcut == 'escape',
+            persist: (_) async {},
+          );
+          final geometry = _RecordingGeometry();
+          final windowKeys = AppWindowKeys(
+            id: AppWindowId('fixed-shortcut-$shortcut'),
+          );
+          AppWindowKeys.register(windowKeys);
+          AppWindowKeys.activateWindow(windowKeys.id);
+          addTearDown(() async {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.pump();
+            AppWindowKeys.resetForTest();
+            LastActiveWindow.resetForTest();
+            await Settings.setValue<String?>(ShortcutValidator.zoomInKey, null);
+            await bloc.close();
+            await tabsBloc.close();
+            await settingsBloc.close();
+            await fullscreen.close();
+            tab.dispose();
+            other.dispose();
+          });
+
+          await _setSurfaceSize(tester, const Size(1200, 900));
+          await _pumpTextBookScreen(
+            tester,
+            tab: tab,
+            textBookBloc: bloc,
+            tabsBloc: tabsBloc,
+            settingsBloc: settingsBloc,
+            focusRepository: focusRepository,
+            shamorZachorDataProvider: shamorZachorDataProvider,
+            shamorZachorProgressProvider: shamorZachorProgressProvider,
+            bookmarkBloc: bookmarkBloc,
+            personalNotesBloc: personalNotesBloc,
+            tourCubit: tourCubit,
+            isInCombinedView: false,
+            windowKeys: windowKeys,
+            geometry: geometry,
+            fullscreenCubit: fullscreen,
+            withGlobalShortcuts: true,
+          );
+          bloc.receivedEvents.clear();
+
+          for (final key in keys) {
+            await tester.sendKeyDownEvent(key);
+          }
+          for (final key in keys.reversed) {
+            await tester.sendKeyUpEvent(key);
+          }
+          await tester.pump();
+
+          expect(bloc.receivedEvents.whereType<UpdateFontSize>(), hasLength(1));
+          expect(tabsBloc.receivedEvents, isEmpty);
+          expect(geometry.calls, isEmpty);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      );
+    }
+
+    testWidgets('קיצור ספר אינו בולע אות או תו AltGr בשדה החיפוש בספר', (
+      tester,
+    ) async {
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'z');
+      final previousWindowsOverride = ShortcutHelper.isWindowsForTesting;
+      final previousMacOverride = ShortcutHelper.isMacForTesting;
+      ShortcutHelper.isWindowsForTesting = true;
+      ShortcutHelper.isMacForTesting = false;
+      addTearDown(() {
+        ShortcutHelper.isWindowsForTesting = previousWindowsOverride;
+        ShortcutHelper.isMacForTesting = previousMacOverride;
+      });
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _ExportTextBookBloc(_loadedState(book), content: 'א');
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await Settings.setValue<String?>(ShortcutValidator.zoomInKey, null);
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+      // Ctrl+F בוחר בלשונית החיפוש; ה-bloc של הבדיקה לא פותח את החלונית לבד.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      bloc.emitStateForTest(
+        (bloc.state as TextBookLoaded).copyWith(showLeftPane: true),
+      );
+      await tester.pumpAndSettle();
+      expect(ShortcutHelper.isEditingText, isTrue);
+      bloc.receivedEvents.clear();
+
+      // מקש שסומן handled לא מגיע לשדה כתו.
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyZ), isFalse);
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), isEmpty);
+
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'alt+4');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altRight);
+      final handledAltGr = await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.digit4,
+        character: '₪',
+      );
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.digit4);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(handledAltGr, isFalse);
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), isEmpty);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
@@ -2781,6 +2969,11 @@ void main() {
     });
   });
 }
+
+/// ה-Focus של מסך הספר שמטפל בקיצורי הספר.
+final _bookKeyFocus = find.byWidgetPredicate(
+  (widget) => widget is Focus && widget.child is Scaffold,
+);
 
 Future<void> _pumpTextBookScreen(
   WidgetTester tester, {

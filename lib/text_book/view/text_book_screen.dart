@@ -84,6 +84,7 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
@@ -1076,8 +1077,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     selectedLineForNote: _selectedLineForNote,
                     selectedColumnForNote: _selectedColumnForNote,
                   );
-                  // קיצור ספר שהוקצה ל-F9 קודם להסתרת הסרגל.
-                  return handled && ShortcutHelper.matchesShortcut(event, 'f9')
+                  // מקש שהספר טיפל בו לא ממשיך לקיצורים הקבועים.
+                  return handled
                       ? KeyEventResult.handled
                       : KeyEventResult.ignored;
                 },
@@ -2697,6 +2698,15 @@ bool _handleGlobalKeyEvent(
   int? selectedLineForNote,
   int? selectedColumnForNote,
 }) {
+  if (event is! KeyDownEvent) return false;
+  final keyboard = HardwareKeyboard.instance;
+  if (ShortcutHelper.shouldIgnoreWhileEditing(
+    event,
+    preserveModifiedText:
+        keyboard.isControlPressed || ShortcutHelper.isAltModifierPressed,
+  )) {
+    return false;
+  }
   // קריאת קיצורים מההגדרות
   final searchInBookShortcut =
       ShortcutValidator.getShortcutValue(
@@ -2929,14 +2939,12 @@ bool _handleGlobalKeyEvent(
 
   // Home/End, לבד או עם Ctrl - קצות הספר. ה-listener עוטף גם את שדות הקלט
   // של החלונית, ושם המקשים מזיזים את הסמן בלבד.
-  final keyboard = HardwareKeyboard.instance;
   final isBareKey =
       !keyboard.isShiftPressed &&
       !keyboard.isControlPressed &&
       !keyboard.isMetaPressed &&
       !ShortcutHelper.isAltModifierPressed;
-  if (event is KeyDownEvent &&
-      (isCtrlOrCmd || isBareKey) &&
+  if ((isCtrlOrCmd || isBareKey) &&
       !isTextInputFocusNode(FocusManager.instance.primaryFocus)) {
     switch (event.logicalKey) {
       // Home - תחילת הספר
@@ -2965,26 +2973,30 @@ bool _handleGlobalKeyEvent(
     }
   }
 
-  // יציאה ממסך מלא מטופלת בקיצורים הגלובליים, אחרי הקיצורים המותאמים.
-  if (event is KeyDownEvent && !isCtrlOrCmd) {
-    switch (event.logicalKey) {
-      // ESC ללא Ctrl/Cmd מנקה את הדגשת החיפוש או ה־?mark.
-      case LogicalKeyboardKey.escape:
-        if (state.searchText.isNotEmpty) {
-          context.read<TextBookBloc>().add(
-            const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
-          );
-          return true;
-        }
-        if (state.permanentHighlightLine != null) {
-          context.read<TextBookBloc>().add(const ApplyMarkHighlight());
-          context.read<TourCubit>().recordInteraction(
-            TourInteraction(type: TourInteractionType.linkHighlightCleared),
-          );
-          return true;
-        }
-        break;
+  // קיצור מוגדר קודם לניקוי ההדגשה, שקודם ליציאה ממסך מלא.
+  if (!isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.escape) {
+    final bookBloc = context.read<TextBookBloc>();
+    // לחיצה נוספת יכולה להגיע אחרי עדכון הבלוק ולפני הבנייה מחדש.
+    final current = bookBloc.state;
+    if (current is! TextBookLoaded ||
+        (current.searchText.isEmpty &&
+            current.permanentHighlightLine == null)) {
+      return false;
     }
+    if (KeyboardShortcuts.handleConfiguredShortcut(context, event)) {
+      return true;
+    }
+    if (current.searchText.isNotEmpty) {
+      bookBloc.add(
+        const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
+      );
+    } else {
+      bookBloc.add(const ApplyMarkHighlight());
+      context.read<TourCubit>().recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightCleared),
+      );
+    }
+    return true;
   }
 
   return false;
