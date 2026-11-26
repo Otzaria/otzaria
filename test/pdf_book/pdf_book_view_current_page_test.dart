@@ -57,13 +57,7 @@ void main() {
           PdfDocumentRefDirect(document),
           controller: controller,
           params: PdfViewerParams(
-            layoutPages: (pages, params) => buildBookViewPageLayout(
-              pageSizes: [
-                for (final page in pages) Size(page.width, page.height),
-              ],
-              hasCover: true,
-              verticalMargin: params.margin * 2,
-            ),
+            layoutStrategy: const BookViewLayout(hasCover: true),
             calculateCurrentPageNumber: pdfCurrentPageCalculatorFor(
               PdfLayoutMode.bookView,
             ),
