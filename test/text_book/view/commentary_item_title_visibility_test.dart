@@ -381,6 +381,81 @@ void main() {
     });
   });
 
+  group('CommentaryListBase - כותרת מקטע בלי שם הספר (issue #3599)', () {
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+    });
+
+    late _TestSettingsBloc settingsBloc;
+
+    setUp(() {
+      LibraryProviderManager.instance.resetForTesting();
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.create(
+            title: 'מפרש בדיקה',
+            categoryId: 1,
+            fileType: 'txt',
+          ): FakeCommentaryLibraryProvider(),
+        },
+        providers: [FakeCommentaryLibraryProvider()],
+      );
+      settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    });
+
+    tearDown(() async {
+      await settingsBloc.close();
+      LibraryProviderManager.instance.resetForTesting();
+    });
+
+    testWidgets('שתי שורות מקור — הכתובות מוצגות בלי שם הספר שבקבוצה', (
+      tester,
+    ) async {
+      final links = [
+        _link(heRef: 'מפרש בדיקה ו, ה', index1: 1, index2: 3),
+        _link(heRef: 'מפרש בדיקה ו, ח', index1: 2, index2: 4),
+      ];
+      final bloc = StubTextBookBloc(
+        _loadedState(
+          links: links,
+          content: const ['שורה א', 'שורה ב'],
+          visibleIndices: const [0, 1],
+        ),
+      );
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+      // כותרת הקבוצה מציגה את שם הספר פעם אחת.
+      expect(find.text('מפרש בדיקה'), findsOneWidget);
+      expect(find.text('ו, ה'), findsOneWidget);
+      expect(find.text('ו, ח'), findsOneWidget);
+      expect(find.textContaining('מפרש בדיקה ו'), findsNothing);
+    });
+
+    testWidgets('עם אות סימון — האות לפני הכתובת המקוצרת', (tester) async {
+      final link = _link(
+        heRef: 'מפרש בדיקה, סימן ב',
+        index1: 1,
+        index2: 2,
+        anchorStart: 0,
+        anchorLabel: 'א',
+      );
+      final bloc = StubTextBookBloc(_loadedState(links: [link]));
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+      final title = RegExp(r'^[(\[{]א[)\]}] סימן ב$');
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Text && title.hasMatch(w.data ?? ''),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('CommentaryListBase - כותרת שחוזרת על הקודמת (#4616)', () {
     setUpAll(() async {
       await Settings.init(cacheProvider: MemoryCacheProvider());
