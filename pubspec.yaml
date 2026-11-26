@@ -124,7 +124,7 @@ dependencies:
   characters: ^1.4.1
   collection: ^1.19.1
   # קו התאימות שומר על הדגשת PDF לפי שורות ועל חיפוש רג׳קס חוצה שורה.
-  otzaria_search_engine: 7.2.1
+  otzaria_search_engine: 7.4.0
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
