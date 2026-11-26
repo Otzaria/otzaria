@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -247,6 +248,8 @@ InstalledPlugin _plugin({
   bool headless = false,
   List<String> permissions = const [],
   PluginStartupContributions? startup,
+  bool networkEnabled = false,
+  bool networkAccessGranted = false,
 }) => InstalledPlugin(
   pluginId: id,
   name: 'Test Plugin',
@@ -255,6 +258,7 @@ InstalledPlugin _plugin({
   entrypointPath: entrypointPath,
   enabled: true,
   pinned: false,
+  networkAccessGranted: networkAccessGranted,
   manifest: PluginManifest(
     schemaVersion: 1,
     id: id,
@@ -268,7 +272,7 @@ InstalledPlugin _plugin({
     minAppVersion: '0.0.0',
     sdkVersion: '1.0.0',
     permissions: permissions,
-    networkEnabled: false,
+    networkEnabled: networkEnabled,
     networkAllowlist: const [],
     toolTabTitle: 'Tab',
     toolTabOrder: 0,
@@ -1296,6 +1300,54 @@ void main() {
           }, io);
         },
         variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      );
+    }
+
+    for (final networkAccessGranted in [true, false]) {
+      testWidgets(
+        'מצב מנותק: תוסף רשת ${networkAccessGranted ? "לא מתעורר ברקע" : "שהרשת שלו כובתה מתעורר ברקע"}',
+        (tester) async {
+          await Settings.setValue<bool>(
+            SettingsRepository.keyOfflineMode,
+            true,
+          );
+          // אתחול שנכשל עוצר לפני בניית WebView; המונה מראה אם ההערה הגיעה אליו.
+          WebViewEnvironmentHolder.debugOverrideInitialize(() async {
+            initializeCalls++;
+            throw StateError('init failed');
+          });
+          final plugin = _plugin(
+            permissions: const [pluginRunOnStartupPermission],
+            networkEnabled: true,
+            networkAccessGranted: networkAccessGranted,
+            startup: const PluginStartupContributions(
+              activationEvents: ['notes.changed'],
+            ),
+          );
+          await PluginRegistryRepository().setPermission(
+            plugin.pluginId,
+            pluginRunOnStartupPermission,
+            true,
+          );
+          final lazy = PluginLazyActivationService.instance;
+          lazy.syncPlugin(
+            plugin.pluginId,
+            broadcastTopics: const {'notes.changed'},
+            scheduleStartup: false,
+          );
+          addTearDown(() => lazy.removePlugin(plugin.pluginId));
+
+          bloc.testEmit(PluginSystemLoaded([plugin]));
+          await pumpHost(tester);
+          lazy.onBroadcast(
+            'notes.changed',
+            const {},
+            hasUsableInstance: (_) => false,
+          );
+          await tester.pumpAndSettle();
+
+          expect(initializeCalls, networkAccessGranted ? 0 : 1);
+        },
       );
     }
 
