@@ -80,6 +80,27 @@ void main() {
     });
   }
 
+  // issue #6024: ההנחיה "בחר פורמט לייצוא" צמודה לכפתורי הפורמט — אחרי
+  // הגדרות שמות הקודש, לא מעליהן.
+  for (final hasDivineNames in [true, false]) {
+    testWidgets('סדר: שמות הקודש, ואז בחירת הפורמט מעל הכפתורים '
+        '(hasDivineNames: $hasDivineNames)', (tester) async {
+      await open(
+        tester,
+        width: 1400,
+        profile: const TextDisplayProfile(),
+        hasDivineNames: hasDivineNames,
+      );
+      double top(String text) => tester.getTopLeft(find.text(text)).dy;
+      final hint = top('בחר פורמט לייצוא');
+      expect(hint, greaterThan(top('שמות הקודש בקובץ הזה')));
+      expect(hint, greaterThan(top('שם הוי"ה')));
+      if (hasDivineNames) expect(hint, greaterThan(top('שאר שמות הקודש')));
+      expect(hint, lessThan(top('Word')));
+      expect(hint, lessThan(top('טקסט')));
+    });
+  }
+
   testWidgets('בלי מופעים בספר — אין בורר לשאר השמות', (tester) async {
     final result = await open(
       tester,
