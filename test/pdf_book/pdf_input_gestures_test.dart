@@ -353,7 +353,7 @@ void main() {
     final fits = pdfFitZooms(
       shown: shown,
       viewSize: controller.viewSize,
-      margin: controller.params.margin,
+      margin: controller.layout.margin,
     );
     expect(fits.page, lessThan(fits.width * 0.98));
     await controller.setZoom(
