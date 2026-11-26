@@ -91,6 +91,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: false
       - name: Bootstrap the locked native ARM64 Flutter SDK
         if: matrix.arch == 'arm64'

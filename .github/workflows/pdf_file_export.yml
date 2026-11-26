@@ -74,6 +74,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Allow long dependency paths on Windows

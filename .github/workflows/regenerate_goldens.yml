@@ -26,6 +26,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       - name: Install dependencies

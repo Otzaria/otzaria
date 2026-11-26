@@ -228,6 +228,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       - name: Download library assets
@@ -376,6 +377,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
           # מפתח נפרד: ה-SDK כאן נשמר עם ה-DLL המתוקן ואסור שיגיע ל-jobs אחרים.
           cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:-patched-engine'
@@ -1207,6 +1209,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       # אין חבילת SDK רשמית של Flutter ללינוקס-ARM (המניפסט של flutter-action
@@ -2077,6 +2080,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       - name: Install Rust (stable)
@@ -2396,6 +2400,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           # ב-macOS ה-cache (~2.5GB) כמעט לא נמצא בין ריצות, ושמירתו איטית מהתקנה.
           cache: false
 
@@ -2969,6 +2974,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       - name: Publish differential update packages
@@ -3035,6 +3041,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       - name: Publish differential update packages (Linux)
@@ -3099,6 +3106,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       - name: Publish differential update packages (macOS)
@@ -3184,6 +3192,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
 
       # כל job שבנה נכסי שחרור חייב רשומה. חסר או גודל שגוי מפילים כאן, לפני

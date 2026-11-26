@@ -12,12 +12,15 @@ inputs:
 runs:
   using: composite
   steps:
+    # Windows: pub של Dart 3.14 סורק כל תלות git (בדיקת symlinks) ונכשל בנתיב ארוך
+    # מ-260 תווים בפורק המונורפו של flutter_svg. נתיב cache קצר עוקף זאת.
     - name: Setup Flutter (cached)
       if: github.event_name != 'pull_request'
       uses: subosito/flutter-action@v2
       with:
         channel: stable
         flutter-version: ${{ inputs.flutter-version }}
+        pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
         cache: true
 
     - name: Resolve Flutter cache keys
@@ -27,6 +30,7 @@ runs:
       with:
         channel: stable
         flutter-version: ${{ inputs.flutter-version }}
+        pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
         dry-run: true
 
     # Same paths and keys as subosito/flutter-action, so dev's caches match.
@@ -52,3 +56,4 @@ runs:
       with:
         channel: stable
         flutter-version: ${{ inputs.flutter-version }}
+        pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}

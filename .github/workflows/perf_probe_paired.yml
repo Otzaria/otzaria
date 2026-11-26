@@ -94,6 +94,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: true
       - uses: dtolnay/rust-toolchain@stable
       - name: Install the existing verified release engine
@@ -239,6 +240,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v7.1.0

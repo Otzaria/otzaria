@@ -41,6 +41,7 @@ jobs:
         with:
           channel: stable
           flutter-version: 3.50.1
+          pub-cache-path: ${{ runner.os == 'Windows' && 'C:\pub' || 'default' }}
           cache: false
 
       # Exercise the production composite action against the real Flutter SDK,
