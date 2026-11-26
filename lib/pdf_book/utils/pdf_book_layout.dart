@@ -15,6 +15,7 @@ PdfPageLayout buildBookViewPageLayout({
   required List<Size> pageSizes,
   required bool hasCover,
   required double verticalMargin,
+  double margin = 0.0,
 }) {
   final pageLayouts = <Rect>[];
   const gap = kBookViewSpineGap;
@@ -59,6 +60,8 @@ PdfPageLayout buildBookViewPageLayout({
       pageLayouts.fold(0, (width, page) => max(width, page.right)),
       totalHeight,
     ),
+    margin: margin,
+    primaryAxis: Axis.vertical,
   );
 }
 
@@ -87,49 +90,32 @@ double pdfSpreadPageRenderScale({
   return min(1.5, pow(2, (log(needed) / ln2).ceil()).toDouble());
 }
 
-/// מחזיר את אותו [PdfPageLayout] כל עוד מידות העמודים והפרמטרים לא השתנו —
-/// pdfrx קורא ל-layoutPages בכל בנייה, ומופע זהה מקצר אצלו את ההשוואה.
-class BookViewLayoutMemo {
-  PdfPageLayout? _layout;
-  List<double> _sizes = const [];
-  bool? _hasCover;
-  double? _verticalMargin;
+/// פריסת תצוגת ספר כאסטרטגיית pdfrx; ניווט לעמוד וזום התאמה משתמשים ב-[margin].
+@immutable
+class BookViewLayout extends PdfPageLayoutStrategy {
+  const BookViewLayout({required this.hasCover});
 
-  PdfPageLayout layout(
-    List<PdfPage> pages, {
-    required bool hasCover,
-    required double verticalMargin,
-  }) {
-    final cached = _layout;
-    if (cached != null &&
-        hasCover == _hasCover &&
-        verticalMargin == _verticalMargin &&
-        _sameSizes(pages)) {
-      return cached;
-    }
-    _hasCover = hasCover;
-    _verticalMargin = verticalMargin;
-    _sizes = [
-      for (final page in pages) ...[page.width, page.height],
-    ];
-    return _layout = buildBookViewPageLayout(
-      pageSizes: [
-        for (var i = 0; i < _sizes.length; i += 2)
-          Size(_sizes[i], _sizes[i + 1]),
-      ],
-      hasCover: hasCover,
-      verticalMargin: verticalMargin,
-    );
-  }
+  /// כמו ברירת המחדל של [SequentialPagesLayout], כדי שהמעבר בין התצוגות לא ישנה זום.
+  static const double margin = 8.0;
 
-  bool _sameSizes(List<PdfPage> pages) {
-    if (_sizes.length != pages.length * 2) return false;
-    for (var i = 0; i < pages.length; i++) {
-      if (_sizes[i * 2] != pages[i].width ||
-          _sizes[i * 2 + 1] != pages[i].height) {
-        return false;
-      }
-    }
-    return true;
-  }
+  final bool hasCover;
+
+  @override
+  PdfPageLayout resolve(PdfPageLayoutContext context) =>
+      buildBookViewPageLayout(
+        pageSizes: [
+          for (final page in context.pages) Size(page.width, page.height),
+        ],
+        hasCover: hasCover,
+        // המרווח הוכפל יחד עם הפריסה, לשמירת אותה פרופורציה בין כפולות.
+        verticalMargin: margin * 2,
+        margin: margin,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is BookViewLayout && other.hasCover == hasCover;
+
+  @override
+  int get hashCode => hasCover.hashCode;
 }
