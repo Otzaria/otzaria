@@ -1,24 +1,24 @@
 {
   "schema": 1,
-  "engineRevision": "deb287481e3ce9468f3434937ced4240a70539ca",
+  "engineRevision": "89c39edfdfae2949f6806e4a315c0c08522238b7",
   "patchSha256": {
     "windows-numpad.patch": "544bd5c5799b8227636c3e4b53f36ff184f334003cf09b2552f8a54ff88b4a57"
   },
   "releases": [
     {
       "patches": [],
-      "url": "https://github.com/palmoni5/flutter/releases/download/otzaria-3.47.7-a11y.1",
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y.1",
       "sha256": {
-        "x64": "cc04e8c75d7b8740b3b2705e87a9f9d6839366518ad1eb842e33c6efd2048818",
-        "arm64": "ed7d43bbc77af371cb44303d9484503417761c2ba36480982bc467552c888eab"
+        "x64": "47600fb0bab510e6adebdaca117fdcaf7cabf67fb91d768a373276315a1305a3",
+        "arm64": "5b12b1e6f66f3b8220ac1e14b95a359edbe43cdb869557b986e2dd65ca8f3569"
       }
     },
     {
       "patches": ["windows-numpad.patch"],
-      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.7-a11y-numpad.1",
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y-numpad.1",
       "sha256": {
-        "x64": "502d7c7675f7a1b36c7fe4984fd404009f3cc94bd1a191ecbf95bc5fe31f1b20",
-        "arm64": "dbe8932f9821f41a5b6fdffd3df4f37790554ae60cd697c600e897870ab0eb1c"
+        "x64": "76efdd1bf523c7944c292bb9179dca95e5d8a2faec78b4da8f0aaa06616e77c8",
+        "arm64": "63a2fd903284411cd32d1e1ebbd643bdd3ab35b3e8f07f85ebbff188f839880c"
       }
     }
   ]

@@ -17,7 +17,7 @@ runs:
       shell: pwsh
       env:
         ENGINE_ARCH: ${{ inputs.arch }}
-        ENGINE_REVISION: deb287481e3ce9468f3434937ced4240a70539ca
+        ENGINE_REVISION: 89c39edfdfae2949f6806e4a315c0c08522238b7
       run: |
         $ErrorActionPreference = 'Stop'
 

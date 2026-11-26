@@ -61,7 +61,7 @@ jobs:
         if: matrix.arch == 'arm64'
         run: |
           $ErrorActionPreference = 'Stop'
-          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
           if ($LASTEXITCODE -ne 0) { throw 'Cloning the pinned ARM64 Flutter SDK failed' }
           "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
