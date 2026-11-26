@@ -305,6 +305,7 @@ class CenteredTextSearchSession extends PdfTextSearchSession {
     bool goToFirstMatch = true,
     bool searchImmediately = false,
     int? startPageNumber,
+    int? maxResults,
   }) {
     _pageHighlights.setPattern(null);
     discardPageHighlightSelection();
@@ -314,6 +315,7 @@ class CenteredTextSearchSession extends PdfTextSearchSession {
       goToFirstMatch: goToFirstMatch,
       searchImmediately: searchImmediately,
       startPageNumber: startPageNumber,
+      maxResults: maxResults,
     );
   }
 

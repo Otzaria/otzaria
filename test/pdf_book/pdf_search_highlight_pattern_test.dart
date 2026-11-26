@@ -142,6 +142,7 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
     bool goToFirstMatch = true,
     bool searchImmediately = false,
     int? startPageNumber,
+    int? maxResults,
   }) {
     searches.add(pattern);
     calls.add((
