@@ -227,7 +227,7 @@ def validate(wrapper, built, installed, data_container, receipt, commit):
     report = wrapper.get("installedPdfIosProbe")
     require(isinstance(report, dict), "Missing standalone iOS PDF report")
     expected = {"schemaVersion": 1, "scenario": "installed-pdf-ios-simulator-v1", "status": "passed",
-                "platform": "ios", "buildMode": "debug", "flutterVersion": "3.47.7", "commit": commit,
+                "platform": "ios", "buildMode": "debug", "flutterVersion": "3.50.1", "commit": commit,
                 "campaign": receipt["campaign"], "errors": [], "contractErrors": [], "testFailures": [],
                 "frameworkPassed": True, "physicalDeviceAcceptance": False, "physicalPrinter": "notRun",
                 "appUnmounted": True}

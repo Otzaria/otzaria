@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$Commit,
-    [string]$FlutterVersion = '3.47.7',
+    [string]$FlutterVersion = '3.50.1',
     [ValidateSet('x64', 'arm64')][string]$Architecture = 'x64'
 )
 Set-StrictMode -Version Latest

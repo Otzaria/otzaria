@@ -54,7 +54,7 @@ Android devices, other ABIs and profile/release performance remain separate.
 
 ## Run
 
-Use the reviewed Flutter 3.47.7 SDK, Java 17, Android SDK/NDK, `aapt2`, Rust with
+Use the reviewed Flutter 3.50.1 SDK, Java 17, Android SDK/NDK, `aapt2`, Rust with
 the `x86_64-linux-android` target, and a fresh x86_64 Android emulator. The CI
 workflow uses API 34. Commit tracked changes before running:
 

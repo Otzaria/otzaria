@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.50.1
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate host runner contracts
         run: python3 -m unittest tool/perf_probe/test_android_startup_probe.py
@@ -81,7 +81,7 @@ jobs:
           java-version: '17'
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.50.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-linux-android

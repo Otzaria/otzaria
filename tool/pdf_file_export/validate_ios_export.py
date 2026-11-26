@@ -55,8 +55,8 @@ def validate(root: Path, source: Path, commit: str) -> dict:
     require(set(before) == set(REVIEWED_SOURCES) and before == after, "reviewed source changed or was not recorded")
     require(all(before[name] == sha256(source / name) for name in REVIEWED_SOURCES), "source bytes do not match the checkout")
     flutter = read(root, "flutter.json")
-    require(flutter.get("frameworkVersion") == "3.47.7", "Flutter version changed")
-    require(flutter.get("frameworkRevision") == "abaf9c523780a608bd46686fd5e53740a07077f8", "Flutter source revision changed")
+    require(flutter.get("frameworkVersion") == "3.50.1", "Flutter version changed")
+    require(flutter.get("frameworkRevision") == "ae9b586f34a8443573f82ef57c3bf914a908cbf7", "Flutter source revision changed")
     for stage in ("build", "tests"):
         command = read(root, stage + ".command.json")
         require(command.get("exitCode") == 0 and command.get("timedOut") is False, f"{stage} did not finish successfully")

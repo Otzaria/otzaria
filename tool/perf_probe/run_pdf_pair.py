@@ -103,8 +103,8 @@ def sdk_identity(flutter: str, cwd: Path) -> dict:
     identity = {k: sdk[k] for k in (
         "frameworkVersion", "frameworkRevision", "engineRevision", "dartSdkVersion"
     )}
-    if identity["frameworkVersion"] != "3.47.7":
-        raise ValueError("This experiment requires the pinned Flutter 3.47.7 SDK.")
+    if identity["frameworkVersion"] != "3.50.1":
+        raise ValueError("This experiment requires the pinned Flutter 3.50.1 SDK.")
     return identity
 
 

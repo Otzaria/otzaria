@@ -95,7 +95,7 @@ class IosPdfEvidence(unittest.TestCase):
         steps["teardown"].update(viewerDetached=True, viewerNativeCloseCompleted=True, viewerLoadingCount=0)
         fixture_path = self.output / "bundle-runtime.pdf"
         self.report = {"schemaVersion": 1, "scenario": "installed-pdf-ios-simulator-v1", "status": "passed",
-                       "platform": "ios", "buildMode": "debug", "flutterVersion": "3.47.7", "commit": COMMIT,
+                       "platform": "ios", "buildMode": "debug", "flutterVersion": "3.50.1", "commit": COMMIT,
                        "campaign": self.receipt["campaign"], "pid": 173, "runId": "173-1234", "osVersion": "iOS fixture",
                        "frameworkPassed": True, "physicalDeviceAcceptance": False, "physicalPrinter": "notRun",
                        "errors": [], "contractErrors": [], "testFailures": [], "appUnmounted": True,

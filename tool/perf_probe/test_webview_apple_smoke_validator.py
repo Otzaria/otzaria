@@ -14,7 +14,7 @@ FIXTURE_SHA = "f" * 64
 def valid_wrapper(platform="macos"):
     mode = "profile" if platform == "macos" else "debug"
     records = [{"type": "meta", "os": platform, "buildMode": mode,
-                "appCommit": SHA, "flutterVersion": "3.47.7", "tabs": 3,
+                "appCommit": SHA, "flutterVersion": "3.50.1", "tabs": 3,
                 "idleMs": 3000, "osVersion": "native runner", "runId": "test-run",
                 "fixtureSha256": FIXTURE_SHA}]
     for name, state in subject.EXPECTED.items():

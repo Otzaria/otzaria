@@ -53,7 +53,7 @@ class NativeArchitectureTests(unittest.TestCase):
             modules.append({"name": name, "path": str(path), "bytes": len(data),
                             "sha256": hashlib.sha256(data).hexdigest()})
         report = {"status": "passed", "platform": platform, "buildMode": "profile",
-                  "commit": COMMIT, "flutterVersion": "3.47.7", "pid": 123,
+                  "commit": COMMIT, "flutterVersion": "3.50.1", "pid": 123,
                   "runId": "123-fresh", "errors": [], "contractErrors": [],
                   "pdfRuntime": {
                       "status": "passed", "platform": platform,

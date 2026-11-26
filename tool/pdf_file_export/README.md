@@ -1,7 +1,7 @@
 # בדיקת ייצוא PDF לקובץ ב־iOS
 
 ה־workflow `PDF file export (iOS UIKit and Files)` בונה את Runner האמיתי עם
-Flutter 3.47.7 וה־lockfile של המאגר. הוא מפעיל scheme ייעודי בשם
+Flutter 3.50.1 וה־lockfile של המאגר. הוא מפעיל scheme ייעודי בשם
 `PdfFileExport`, ללא שינוי ב־scheme הרגיל או בבדיקות Runner הקיימות.
 `flutter build ios --config-only` מכין גם את תלויות CocoaPods ו־SPM לפני Xcode;
 אין הרצת `pod install` נוספת מתיקיית המאגר.

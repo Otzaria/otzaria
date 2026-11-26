@@ -30,7 +30,7 @@
 flutter drive --profile -d macos \
   --driver=test_driver/webview_resource_probe.dart \
   --target=integration_test/webview_resource_probe_test.dart \
-  --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 \
+  --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.50.1 \
   --dart-define=WEBVIEW_PROBE_COMMIT="$(git rev-parse HEAD)" \
   --dart-define=WEBVIEW_PROBE_TABS=3 \
   --dart-define=WEBVIEW_PROBE_IDLE_MS=3000
@@ -42,7 +42,7 @@ $probeCommit = git rev-parse HEAD
 flutter drive --profile -d windows `
   --driver=test_driver/webview_resource_probe.dart `
   --target=integration_test/webview_resource_probe_test.dart `
-  --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+  --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.50.1 `
   --dart-define="WEBVIEW_PROBE_COMMIT=$probeCommit" `
   --dart-define=WEBVIEW_PROBE_TABS=3 `
   --dart-define=WEBVIEW_PROBE_IDLE_MS=3000
@@ -408,7 +408,7 @@ flutter pub get --enforce-lockfile
 flutter drive --profile -d windows --no-pub `
   --driver=test_driver/installed_plugin_resource_probe.dart `
   --target=integration_test/installed_plugin_resource_probe_test.dart `
-  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 `
+  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.50.1 `
   --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" `
   --dart-define=INSTALLED_PROBE_IDLE_MS=3000
 ```
@@ -503,7 +503,7 @@ flutter drive --profile -d "$installedProbeDevice" --no-dds --no-pub \
   --driver=test_driver/installed_plugin_resource_probe.dart \
   --target=integration_test/installed_plugin_resource_probe_test.dart \
   --dart-define-from-file="$installedProbeHost/store-defines.json" \
-  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.50.1 \
   --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
   --dart-define=INSTALLED_PROBE_IDLE_MS=3000
 ```

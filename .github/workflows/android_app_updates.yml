@@ -71,7 +71,7 @@ jobs:
           java-version: '17'
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.50.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android

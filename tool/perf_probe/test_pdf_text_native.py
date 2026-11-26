@@ -129,7 +129,7 @@ class NativeReportTest(unittest.TestCase):
         ]
         self.report = {
             "protocolVersion": 1, "status": "passed", "component": "pdfrx-public-text-pipeline",
-            "executionMode": "dart-aot", "dartVersion": "3.13.5 (stable) fixture",
+            "executionMode": "dart-aot", "dartVersion": "3.14.0 (stable) fixture",
             "pdfiumSha256": probe.PDFIUM_SHA256,
             "uiLatencyCollected": False, "nativeTransferSeparated": False, "osCacheCleared": False,
             "corpus": {"version": "otzaria-pdf-text-v2", "pageCount": 32, "bytes": len(corpus), "sha256": corpus_hash, "fontSha256": probe.FONT_SHA256},
@@ -263,23 +263,23 @@ class PackageResolutionTest(unittest.TestCase):
 
 class SdkReceiptTest(unittest.TestCase):
     def test_direct_dart_does_not_invent_a_flutter_observation(self):
-        receipt = probe.sdk_receipt("Dart SDK version: 3.13.5 (stable)")
+        receipt = probe.sdk_receipt("Dart SDK version: 3.14.0 (stable)")
         self.assertIsNone(receipt["flutter"])
 
     def test_wrong_dart_version_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Dart SDK"):
-            probe.sdk_receipt("Dart SDK version: 3.13.50 (stable)")
+            probe.sdk_receipt("Dart SDK version: 3.14.00 (stable)")
 
     def test_exact_flutter_framework_and_engine_are_required(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "flutter.json"
-            value = {"frameworkVersion": "3.47.7", "dartSdkVersion": "3.13.5", "frameworkRevision": probe.FRAMEWORK_REVISION, "engineRevision": probe.ENGINE_REVISION}
+            value = {"frameworkVersion": "3.50.1", "dartSdkVersion": "3.14.0", "frameworkRevision": probe.FRAMEWORK_REVISION, "engineRevision": probe.ENGINE_REVISION}
             path.write_text(json.dumps(value))
-            self.assertEqual(probe.sdk_receipt("Dart SDK version: 3.13.5 (stable)", path)["flutter"], value)
+            self.assertEqual(probe.sdk_receipt("Dart SDK version: 3.14.0 (stable)", path)["flutter"], value)
             value["engineRevision"] = "0" * 40
             path.write_text(json.dumps(value))
             with self.assertRaisesRegex(ValueError, "revision"):
-                probe.sdk_receipt("Dart SDK version: 3.13.5 (stable)", path)
+                probe.sdk_receipt("Dart SDK version: 3.14.0 (stable)", path)
 
 
 class CommandLogTest(unittest.TestCase):

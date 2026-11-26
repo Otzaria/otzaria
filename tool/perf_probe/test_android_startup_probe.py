@@ -55,7 +55,7 @@ def sample_report(config):
         }}
     return {"schemaVersion": 1, "config": config, "package": probe.PACKAGE, "pid": 123,
             "bootId": "boot-" + config["runId"], "buildMode": config["buildMode"],
-            "sourceRevision": "a" * 40, "sourceDirty": False, "flutterVersion": "3.47.7",
+            "sourceRevision": "a" * 40, "sourceDirty": False, "flutterVersion": "3.50.1",
             "fixtureIdentity": "b" * 64, "physicalDeviceAcceptance": False,
             "viewport": {"widthPhysical": 1080, "heightPhysical": 1920, "devicePixelRatio": 3},
             "nativePrewarmCalls": native, "appMainCalled": True,
@@ -109,7 +109,7 @@ class AndroidStartupContracts(unittest.TestCase):
         class FakeRunner(probe.Runner):
             def command(self, argv, **kwargs):
                 if argv[1:3] == ["--version", "--machine"]:
-                    out = b'{"frameworkVersion":"3.47.7"}'
+                    out = b'{"frameworkVersion":"3.50.1"}'
                 elif argv[:2] == ["git", "rev-parse"]:
                     out = b"a" * 40
                 elif argv[1:3] == ["dump", "badging"]:
@@ -141,7 +141,7 @@ class AndroidStartupContracts(unittest.TestCase):
                 def command(self, argv, **kwargs):
                     calls.append(argv)
                     if argv[1:3] == ["--version", "--machine"]:
-                        out = b'{"frameworkVersion":"3.47.7"}'
+                        out = b'{"frameworkVersion":"3.50.1"}'
                     elif argv[:2] == ["git", "rev-parse"]:
                         out = b"a" * 40
                     elif argv[1:3] == ["dump", "badging"]:
@@ -173,7 +173,7 @@ class AndroidStartupContracts(unittest.TestCase):
         class FakeRunner(probe.Runner):
             def command(self, argv, **kwargs):
                 if argv[1:3] == ["--version", "--machine"]:
-                    return probe.subprocess.CompletedProcess(argv, 0, b'{"frameworkVersion":"3.47.7"}', b"")
+                    return probe.subprocess.CompletedProcess(argv, 0, b'{"frameworkVersion":"3.50.1"}', b"")
                 if argv[1:3] == ["build", "apk"]:
                     builds.append(argv)
                     code, out = results[len(builds) - 1]

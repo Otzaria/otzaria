@@ -500,7 +500,7 @@ class RunnerTests(unittest.TestCase):
             calls.append(argv)
             out = b""
             if argv == [flutter, "--version", "--machine"]:
-                out = json.dumps({"frameworkVersion": "3.47.7", "frameworkRevision": COMMIT}).encode()
+                out = json.dumps({"frameworkVersion": "3.50.1", "frameworkRevision": COMMIT}).encode()
             elif argv[:3] == [flutter, "build", "apk"]:
                 self.assertIn("--flavor", argv)
                 self.assertEqual(argv[argv.index("--flavor") + 1], "direct")

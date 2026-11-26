@@ -219,7 +219,7 @@ class SourceContracts(unittest.TestCase):
         self.git("add", "lib", "pubspec.yaml", "pubspec.lock")
         self.git("commit", "-qm", "source fixture")
         self.sdk = self.root / "sdk.json"
-        self.sdk.write_text(json.dumps({"frameworkVersion": "3.47.7", "dartSdkVersion": "3.13.5",
+        self.sdk.write_text(json.dumps({"frameworkVersion": "3.50.1", "dartSdkVersion": "3.14.0",
                                        "frameworkRevision": FRAMEWORK_REVISION, "engineRevision": ENGINE_REVISION}))
 
     def git(self, *arguments):
