@@ -3,5 +3,9 @@ include: package:flutter_lints/flutter.yaml
 formatter:
   trailing_commas: preserve
 analyzer:
+  errors:
+    # TODO: להסיר אחרי המעבר ל-material_ui/cupertino_ui (#5635 סעיף 3.2). ב-Flutter 3.50
+    # material.dart, cupertino.dart ו-Global*Localizations מסומנים deprecated.
+    deprecated_member_use: ignore
   exclude:
     - build/**

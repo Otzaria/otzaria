@@ -1,6 +1,10 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  errors:
+    # TODO: להסיר אחרי המעבר ל-material_ui/cupertino_ui (#5635 סעיף 3.2). ב-Flutter 3.50
+    # material.dart, cupertino.dart ו-Global*Localizations מסומנים deprecated.
+    deprecated_member_use: ignore
   exclude:
     # Unchanged upstream Dart is checked by tool/verify_super_native_extensions.py.
     - packages/super_native_extensions/**
