@@ -17,7 +17,9 @@ import 'package:path/path.dart' as p;
 ///
 /// המנגנון: קובץ [_rootRecordFileName] בתוך תיקיית הנתונים שומר את נתיב
 /// השורש כפי שהיה בריצה הקודמת. בהפעלה, אם השורש הנוכחי שונה — כל מחרוזת
-/// שמורה שמתחילה בשורש הישן משוכתבת לשורש החדש.
+/// שמורה שמתחילה בשורש הישן משוכתבת לשורש החדש. נתיב מחוץ לשורש (למשל
+/// ספרייה שיושבת על אותו כונן נייד, ליד תיקיית האפליקציה) משוכתב יחסית
+/// לבסיס שזז יחד עם השורש, ורק כשהוא חסר במקומו הישן וקיים במקום החדש.
 class PortablePaths {
   static const String _rootRecordFileName = '.otzaria_portable_root';
 
@@ -88,13 +90,22 @@ class PortablePaths {
       'rewriting stored paths',
     );
 
+    final base = _movedBase(oldRoot, newRoot);
+    String rewrite(String value) {
+      final underRoot = _rewritePath(value, oldRoot, newRoot);
+      if (underRoot != value || base == null) return underRoot;
+      final onMovedBase = _rewritePath(value, base.from, base.to);
+      if (onMovedBase == value) return value;
+      return !_exists(value) && _exists(onMovedBase) ? onMovedBase : value;
+    }
+
     for (final key in [..._pathSettingsKeys, ..._jsonPathSettingsKeys]) {
       final value = Settings.getValue<String>(key);
       if (value == null || value.isEmpty) continue;
       final isJson = _jsonPathSettingsKeys.contains(key);
       try {
         final decoded = isJson ? jsonDecode(value) : value;
-        final result = _rewriteDeep(decoded, oldRoot, newRoot);
+        final result = _rewriteDeep(decoded, rewrite);
         if (result.changed) {
           await Settings.setValue<String>(
             key,
@@ -110,7 +121,7 @@ class PortablePaths {
       if (!Hive.isBoxOpen(boxName)) continue;
       final box = Hive.box(boxName);
       for (final key in box.keys.toList()) {
-        final result = _rewriteDeep(box.get(key), oldRoot, newRoot);
+        final result = _rewriteDeep(box.get(key), rewrite);
         if (result.changed) {
           await box.put(key, result.value);
         }
@@ -118,21 +129,52 @@ class PortablePaths {
     }
   }
 
-  /// עובר רקורסיבית על מבנה Hive/JSON ומשכתב כל מחרוזת שמתחילה ב-[oldRoot].
-  static ({bool changed, dynamic value}) _rewriteDeep(
-    dynamic value,
+  /// הבסיס שזז יחד עם שורש הנתונים: [oldRoot] ו-[newRoot] בלי רכיבי
+  /// הסיום המשותפים (תיקיית הנתונים ותיקיית האפליקציה, אם שמה לא השתנה).
+  /// כשרק אות הכונן התחלפה — שורשי הכוננים עצמם. null כשאין רכיב סיום
+  /// משותף, או כשהבסיס לא השתנה.
+  static ({String from, String to})? _movedBase(
     String oldRoot,
     String newRoot,
   ) {
+    final oldParts = p.split(oldRoot);
+    final newParts = p.split(newRoot);
+    var common = 0;
+    while (common < oldParts.length - 1 &&
+        common < newParts.length - 1 &&
+        p.equals(
+          oldParts[oldParts.length - 1 - common],
+          newParts[newParts.length - 1 - common],
+        )) {
+      common++;
+    }
+    if (common == 0) return null;
+    final from = p.joinAll(oldParts.take(oldParts.length - common));
+    final to = p.joinAll(newParts.take(newParts.length - common));
+    return p.equals(from, to) ? null : (from: from, to: to);
+  }
+
+  static bool _exists(String value) {
+    final path = value.startsWith('folder:')
+        ? value.substring('folder:'.length)
+        : value;
+    return FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
+  }
+
+  /// עובר רקורסיבית על מבנה Hive/JSON ומשכתב כל מחרוזת דרך [rewrite].
+  static ({bool changed, dynamic value}) _rewriteDeep(
+    dynamic value,
+    String Function(String) rewrite,
+  ) {
     if (value is String) {
-      final rewritten = _rewritePath(value, oldRoot, newRoot);
+      final rewritten = rewrite(value);
       return (changed: rewritten != value, value: rewritten);
     }
     if (value is Map) {
       var changed = false;
       final out = <dynamic, dynamic>{};
       for (final entry in value.entries) {
-        final result = _rewriteDeep(entry.value, oldRoot, newRoot);
+        final result = _rewriteDeep(entry.value, rewrite);
         changed = changed || result.changed;
         out[entry.key] = result.value;
       }
@@ -144,7 +186,7 @@ class PortablePaths {
       var changed = false;
       final out = <dynamic>[];
       for (final element in value) {
-        final result = _rewriteDeep(element, oldRoot, newRoot);
+        final result = _rewriteDeep(element, rewrite);
         changed = changed || result.changed;
         out.add(result.value);
       }
@@ -166,7 +208,8 @@ class PortablePaths {
     final end = start + oldRoot.length;
     if (value.length < end) return value;
     if (!p.equals(value.substring(start, end), oldRoot)) return value;
-    if (value.length > end) {
+    // שורש כונן (E:\) כבר מסתיים במפריד.
+    if (value.length > end && !oldRoot.endsWith(p.separator)) {
       final next = value[end];
       // התאמת prefix בלבד אינה מספיקה: D:\otzaria_data2 מתחיל ב-D:\otzaria_data
       // אבל אינו יושב תחתיו.
