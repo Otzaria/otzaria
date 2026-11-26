@@ -557,7 +557,7 @@ class Runner:
                                  "density": self.text("shell", "wm", "density"), "home": self.launcher,
                                  "webViewProvider": self.text("shell", "dumpsys", "webviewupdate")}
         version = json.loads(self.command([self.args.flutter, "--version", "--machine"]).stdout)
-        require(version.get("frameworkVersion") == "3.47.7", "Use the reviewed Flutter 3.47.7 toolchain")
+        require(version.get("frameworkVersion") == "3.47.9", "Use the reviewed Flutter 3.47.9 toolchain")
         executable = shutil.which(self.args.flutter)
         require(executable is not None, "Flutter executable is unavailable")
         sdk_root = Path(executable).resolve().parent.parent

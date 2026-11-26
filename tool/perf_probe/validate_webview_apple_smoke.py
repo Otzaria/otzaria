@@ -44,7 +44,7 @@ def validate(report_wrapper, platform, mode, commit):
     require(len(metadata) == 1, "Expected one unique native metadata record")
     metadata = metadata[0]
     expected = {"os": platform, "buildMode": mode, "appCommit": commit,
-                "flutterVersion": "3.47.7", "tabs": 3, "idleMs": 3000}
+                "flutterVersion": "3.47.9", "tabs": 3, "idleMs": 3000}
     for key, value in expected.items():
         require(metadata.get(key) == value, f"Native provenance mismatch: {key}")
     require(isinstance(metadata.get("osVersion"), str) and metadata["osVersion"].strip(),

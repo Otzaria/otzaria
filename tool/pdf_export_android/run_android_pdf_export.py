@@ -14,8 +14,8 @@ import time
 APP = "org.otzaria.otzaria.pdfexportprobe"
 TEST_APP = APP + ".test"
 RUNNER = "org.otzaria.otzaria.PdfExportInstrumentation"
-FRAMEWORK_REVISION = "abaf9c523780a608bd46686fd5e53740a07077f8"
-ENGINE_REVISION = "deb287481e3ce9468f3434937ced4240a70539ca"
+FRAMEWORK_REVISION = "c197ca5199e9ee5661e865596c9c07294dfab51c"
+ENGINE_REVISION = "89c39edfdfae2949f6806e4a315c0c08522238b7"
 SOURCE_PATHS = (
     "android/app/src/main", "android/app/src/pdfExportProbe", "android/app/src/pdfExportAndroidTest",
     "android/app/src/test", "android/app/build.gradle", "lib/utils/file/mobile_pdf_export*",
@@ -157,7 +157,7 @@ def inspect_apks(app, tests, aapt2, output):
 
 def source_receipt(repo, flutter_json):
     sdk = json.loads(flutter_json.read_text())
-    require(sdk["frameworkVersion"] == "3.47.7" and sdk["dartSdkVersion"].startswith("3.13.5"), "Unexpected Flutter/Dart SDK")
+    require(sdk["frameworkVersion"] == "3.47.9" and sdk["dartSdkVersion"].startswith("3.13.7"), "Unexpected Flutter/Dart SDK")
     require(sdk["frameworkRevision"] == FRAMEWORK_REVISION and sdk["engineRevision"] == ENGINE_REVISION, "Unexpected Flutter framework/engine revision")
     dirty = run(["git", "status", "--porcelain", "--untracked-files=all", "--", *SOURCE_PATHS], cwd=repo).stdout
     require(not dirty, f"Measured source is dirty: {dirty}")

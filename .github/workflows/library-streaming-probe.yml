@@ -54,7 +54,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang libzstd-dev zstd
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve pinned dependencies
         run: flutter pub get --enforce-lockfile

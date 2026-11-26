@@ -65,7 +65,7 @@ jobs:
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       # האמולטור x86_64.
       - name: Install Rust for native source fallback

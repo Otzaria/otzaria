@@ -137,14 +137,14 @@ jobs:
         if: matrix.arch == 'x64'
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
           cache: false
 
       - name: Bootstrap the locked native ARM64 Flutter SDK
         if: matrix.arch == 'arm64'
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git /opt/flutter
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git /opt/flutter
           echo "/opt/flutter/bin" >> "$GITHUB_PATH"
           /opt/flutter/bin/flutter --version
 
@@ -235,7 +235,7 @@ jobs:
           set -euo pipefail
           flutter build linux --profile --no-pub \
             --target=integration_test/installed_plugin_resource_probe_test.dart \
-            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.9 \
             --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
             --dart-define=INSTALLED_PROBE_IDLE_MS=1000 \
             2>&1 | tee "$INSTALLED_PROBE_ROOT/build-profile.log"
