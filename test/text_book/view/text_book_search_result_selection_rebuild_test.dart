@@ -103,6 +103,25 @@ Future<void> main() async {
     expect(identical(tester.widget(snippetOf(4)), before), isTrue);
   });
 
+  testWidgets('מעבר לתוצאה הבאה בונה מחדש רק את השורה שיצאה ואת שנבחרה', (
+    tester,
+  ) async {
+    await pumpWithResults(tester);
+    expect(find.byType(NavTreeContentRow), findsNWidgets(6));
+
+    var rowBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget is NavTreeContentRow) rowBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+    await tester.tap(find.byTooltip('התוצאה הבאה'));
+    await tester.pump();
+    debugOnRebuildDirtyWidget = null;
+
+    expect(rowBuilds, 2);
+    expect(isSelected(tester, 1), isTrue);
+  });
+
   testWidgets('הבחירה וכפתורי הניווט מתעדכנים במעבר בין תוצאות', (
     tester,
   ) async {
