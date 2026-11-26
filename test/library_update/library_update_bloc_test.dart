@@ -5,6 +5,8 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/foreground_work.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart'
+    show DbReadWorkerNotReleased;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
@@ -2071,6 +2073,27 @@ void main() {
               (s) => s.errorMessage,
               'detail',
               contains('Other filesystem error'),
+            ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'מסד שלא שוחרר לכתיבה (תור worker מלא) מוצג בהודעה שלו, בלי Bad state',
+      build: () => _bloc(
+        _FakeService(
+          deltaWithFallbackPlan,
+          applyError: DbReadWorkerNotReleased('המסד בשימוש. יש לנסות שוב.'),
+        ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.error)
+            .having(
+              (s) => s.errorMessage,
+              'detail',
+              'המסד בשימוש. יש לנסות שוב.',
             ),
       ],
     );
