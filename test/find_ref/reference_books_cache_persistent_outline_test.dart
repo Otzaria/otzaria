@@ -154,6 +154,7 @@ void main() {
 
         final result = await cache.getPdfOutlineEntries('/cached.pdf');
         await Future<void>.delayed(Duration.zero);
+        await database.backgroundWritesDone;
 
         expect(result, equals(expectedEntries));
         expect(parserCalled, isFalse);
@@ -184,6 +185,7 @@ void main() {
 
       await cache.getPdfOutlineEntries('/fresh.pdf');
       await Future<void>.delayed(Duration.zero);
+      await database.backgroundWritesDone;
 
       final row = await repository.getPdfOutlineCacheEntry('/fresh.pdf');
       expect(row!.accessedAt, equals(accessedAt));
@@ -311,6 +313,7 @@ void main() {
 
         final result = await cache.getPdfOutlineEntries('/flaky.pdf');
         await Future<void>.delayed(Duration.zero);
+        await database.backgroundWritesDone;
 
         expect(result, equals(expectedEntries));
         expect(parserCalled, isFalse);

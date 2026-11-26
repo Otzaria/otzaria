@@ -29,16 +29,11 @@ class PdfOutlineCacheDao extends FileCacheDao<PdfOutlineCacheEntry> {
   }
 
   Future<void> deleteAllExceptFilePaths(Set<String> keepFilePaths) async {
-    final db = await database;
     final allPaths = await selectAllFilePaths();
-    final stalePaths = allPaths.where((path) => !keepFilePaths.contains(path));
-    withoutBusyWait(
-      db,
-      () => withTransaction(db, () {
-        for (final stalePath in stalePaths) {
-          db.execute(queries['deleteByFilePath']!, [stalePath]);
-        }
-      }),
-    );
+    await writeInBackground([
+      for (final path in allPaths)
+        if (!keepFilePaths.contains(path))
+          (queries['deleteByFilePath']!, [path]),
+    ]);
   }
 }

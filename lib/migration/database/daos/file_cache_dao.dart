@@ -27,12 +27,11 @@ class FileCacheDao<E> {
     return _fromMap(result.first);
   }
 
-  // המטמון אינו חיוני: כתיבה שנתקלת בכותב אחר נכשלת מיד, ולא חוסמת את
-  // ה-UI עד busy_timeout.
-  Future<void> _write(String query, List<Object?> args) async {
-    final db = await database;
-    withoutBusyWait(db, () => db.execute(queries[query]!, args));
-  }
+  Future<void> _write(String query, List<Object?> args) =>
+      writeInBackground([(queries[query]!, args)]);
+
+  Future<void> writeInBackground(List<SqlStatement> statements) =>
+      _db.writeInBackground(statements);
 
   Future<void> upsert(E entry) => _write('upsert', _upsertArgs(entry));
 

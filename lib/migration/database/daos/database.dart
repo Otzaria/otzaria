@@ -379,6 +379,29 @@ class MyDatabase {
     db.execute('ALTER TABLE user_book_version_new RENAME TO user_book_version');
   }
 
+  final _backgroundWrites = <Future<void>>{};
+
+  /// ראה [writeWithoutWaitingInBackground]; [backgroundWritesDone] ממתין לסיומן.
+  Future<void> writeInBackground(List<SqlStatement> statements) async {
+    if (statements.isEmpty) return;
+    final write = writeWithoutWaitingInBackground(
+      await database,
+      _path,
+      statements,
+    );
+    _backgroundWrites.add(write);
+    try {
+      await write;
+    } finally {
+      _backgroundWrites.remove(write);
+    }
+  }
+
+  /// מושלם כשאין כתיבות רקע פתוחות, גם אם נכשלו.
+  Future<void> get backgroundWritesDone => Future.wait(
+    _backgroundWrites.map((write) => write.catchError((Object _) {})),
+  );
+
   bool _retired = false;
 
   /// סוגר לצמיתות: גישה נוספת זורקת במקום לפתוח את הקובץ מחדש — מאגר

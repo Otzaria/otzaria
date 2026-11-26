@@ -64,6 +64,49 @@ Future<void> closeWithCheckpointInBackground(Database db, String path) async {
 void _checkpointAndClose(String path) =>
     closeWithCheckpoint(openSecondaryWritableConnection(path, 'WalCheckpoint'));
 
+/// הוראת SQL וערכיה, לכתיבה ב-[writeWithoutWaitingInBackground].
+typedef SqlStatement = (String sql, List<Object?> args);
+
+/// מריץ את [statements] בטרנזקציה בחיבור משני ב-isolate: כתיבת שורה של כמה MB
+/// חוסמת שניות. כמו [withoutBusyWait], נעילה של כותב אחר זורקת SQLITE_BUSY מיד.
+Future<void> writeWithoutWaitingInBackground(
+  Database db,
+  String path,
+  List<SqlStatement> statements,
+) async {
+  // בנעילה בלעדית (journal רגיל, ראה [_openInRollbackJournal]) אין חיבור משני.
+  if (db.select('PRAGMA locking_mode').first.values.first == 'exclusive') {
+    return withoutBusyWait(db, () => _executeAll(db, statements));
+  }
+  await compute(
+    _writeOnSecondaryConnection,
+    (path: path, statements: statements),
+    debugLabel: 'CacheWrite',
+  );
+}
+
+void _writeOnSecondaryConnection(
+  ({String path, List<SqlStatement> statements}) job,
+) {
+  final db = openSecondaryWritableConnection(
+    job.path,
+    'CacheWrite',
+    busyTimeoutMs: 0,
+  );
+  try {
+    _executeAll(db, job.statements);
+  } finally {
+    db.close();
+  }
+}
+
+void _executeAll(Database db, List<SqlStatement> statements) =>
+    withTransaction(db, () {
+      for (final (sql, args) in statements) {
+        db.execute(sql, args);
+      }
+    });
+
 /// פותח DB כתיב עם הכוונון האחיד לכל מסדי הנתונים של האפליקציה: המתנה
 /// לנעילה, ו-WAL כשהאחסון תומך בו. [label] מזהה את הקורא בלוג.
 Database openWritableDatabase(
