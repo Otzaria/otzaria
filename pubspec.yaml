@@ -56,10 +56,11 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # pdfrx 3.0.1 ומעלה דורש Flutter 3.50.
-  pdfrx: 3.0.0
+  # pdfrx 3.x דורש Flutter 3.50. 3.2.0 משנה את חתימת startTextSearch ומוסיף
+  # את PdfPage.loadImages, ולכן מוצמד ל-3.1.0.
+  pdfrx: 3.1.0
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
-  pdfium_dart: ^0.4.3
+  pdfium_dart: ^0.4.4
   url_launcher: ^6.3.3
   # ליבה בלבד: החבילה המורחבת רושמת בעלייה plugins של וידאו/אודיו/WebView.
   flutter_widget_from_html_core: ^0.17.4
@@ -410,7 +411,7 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
-  test: ^1.31.1
+  test: ^1.32.0
   yaml: ^3.1.4
   build_runner: ^2.16.2
   bloc_test: ^10.0.0
