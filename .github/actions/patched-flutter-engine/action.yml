@@ -1,7 +1,7 @@
 name: Install patched Flutter Windows engine
 description: >
   Replaces the release-mode flutter_windows.dll (with its .pdb, .lib and .exp)
-  in the Flutter SDK cache with the build from palmoni5/flutter, which fixes
+  in the Flutter SDK cache with the build from Y-PLONI/flutter, which fixes
   quadratic UI Automation GetVisibleRanges hangs (flutter/flutter#196183) and nested reparenting
   (flutter/flutter#175041, PR #195448). Fails the job when the download, the
   checksum or the
@@ -21,10 +21,10 @@ runs:
         ENGINE_ARCH: ${{ inputs.arch }}
         # TODO: כשתיקוני flutter/flutter#196183 ו-#195448 ביציב — למחוק פעולה זו, בדיקות hash אחרי
         # flutter build ואת סיומת cache-key ‏-patched-engine ב-build-and-announce.yml.
-        ENGINE_REVISION: deb287481e3ce9468f3434937ced4240a70539ca
-        ENGINE_RELEASE_URL: https://github.com/palmoni5/flutter/releases/download/otzaria-3.47.7-a11y.1
-        ENGINE_SHA256_X64: cc04e8c75d7b8740b3b2705e87a9f9d6839366518ad1eb842e33c6efd2048818
-        ENGINE_SHA256_ARM64: ed7d43bbc77af371cb44303d9484503417761c2ba36480982bc467552c888eab
+        ENGINE_REVISION: 89c39edfdfae2949f6806e4a315c0c08522238b7
+        ENGINE_RELEASE_URL: https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y.1
+        ENGINE_SHA256_X64: 47600fb0bab510e6adebdaca117fdcaf7cabf67fb91d768a373276315a1305a3
+        ENGINE_SHA256_ARM64: 5b12b1e6f66f3b8220ac1e14b95a359edbe43cdb869557b986e2dd65ca8f3569
       run: |
         $ErrorActionPreference = 'Stop'
         $expectedSha = switch ($env:ENGINE_ARCH) {

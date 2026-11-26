@@ -257,9 +257,11 @@ Name those frames with the release asset `otzaria-dart-symbols-windows-<arch>.de
 `dart run tool/symbolize_hang_report.dart --symbols <file> errors.txt`. The tool skips any record
 whose `Dart build-id` does not match the file. `Build commit` identifies a dev build, and those have no
 published symbols. Windows builds published by `build-and-announce.yml` ship a patched `flutter_windows.dll`
-(`.github/actions/patched-flutter-engine`): name its frames with the `.pdb` from the `palmoni5/flutter` release
-`otzaria-3.47.7-a11y.1`, picked by the GUID in the record's `Module PDB:` line (x64
-`9A3F8E48-5EA7-4A0A-8316-21352F723250`, arm64 `7324F4D1-92B4-455F-BA47-E65B47E2E69B`). Other builds use the official PDB from
+(`.github/actions/patched-flutter-engine`): name its frames with the `.pdb` from the `Y-PLONI/flutter` release
+`otzaria-3.47.9-a11y.1`, picked by the GUID in the record's `Module PDB:` line (x64
+`839DA06A-80CF-4384-8AB1-2C12419AAD6D`, arm64 `1A6943B5-D409-4961-A793-F57E47334725`). Builds on Flutter 3.47.7 use the
+`palmoni5/flutter` release `otzaria-3.47.7-a11y.1` (x64 `9A3F8E48-5EA7-4A0A-8316-21352F723250`, arm64
+`7324F4D1-92B4-455F-BA47-E65B47E2E69B`). Other builds use the official PDB from
 `flutter_infra_release/flutter/<engine.version>/windows-x64-release/windows-x64-flutter.zip`.
 For `otzaria.exe` and the DLLs CMake builds from source (e.g. `flutter_inappwebview_windows_plugin.dll`), use the PDBs in the release
 asset `otzaria-native-symbols-<arch>.zip`; Release builds write them to `build/windows/<arch>/pdb/Release`.
