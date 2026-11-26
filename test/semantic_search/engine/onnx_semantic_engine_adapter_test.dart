@@ -77,6 +77,23 @@ class _FakeEngine implements SearchEngine {
     recoveredFromPrevious: vectorsRecovered,
   );
 
+  String? retiredDir;
+
+  @override
+  Future<SemanticGenerationRetireReport> retirePreviousSemanticGeneration({
+    required String vectorsDir,
+  }) async {
+    final error = failure;
+    if (error != null) throw error;
+    retiredDir = vectorsDir;
+    return SemanticGenerationRetireReport(
+      generation: BigInt.two,
+      retired: true,
+      retiredGeneration: BigInt.one,
+      bytesFreed: BigInt.from(10),
+    );
+  }
+
   @override
   Future<SemanticStatus> semanticStatus() async => status;
 
@@ -376,6 +393,27 @@ void main() {
         isA<SemanticFailure>()
             .having((f) => f.kind, 'kind', SemanticFailureKind.vectorsBusy)
             .having((f) => f.field, 'field', 'vectors_dir'),
+      ),
+    );
+  });
+
+  test('retirePreviousGeneration מעביר את התיקייה וממפה סט תפוס', () async {
+    expect(await adapter.retirePreviousGeneration('/v'), isTrue);
+    expect(engine.retiredDir, '/v');
+
+    engine.failure = const SemanticError(
+      kind: SemanticErrorKind.vectorsBusy,
+      message: 'compaction is running',
+      field: 'vectors_dir',
+    );
+    await expectLater(
+      adapter.retirePreviousGeneration('/v'),
+      throwsA(
+        isA<SemanticFailure>().having(
+          (f) => f.kind,
+          'kind',
+          SemanticFailureKind.vectorsBusy,
+        ),
       ),
     );
   });

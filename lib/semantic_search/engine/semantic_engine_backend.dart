@@ -65,6 +65,10 @@ abstract interface class SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   });
 
+  /// מוחק את הדור הקודם ששמור לגיבוי ליד הדור החי; `false` כשלא היה כזה.
+  /// לקרוא רק אחרי שהדור החי נפתח בלי ליפול לגיבוי.
+  Future<bool> retirePreviousGeneration(String vectorsDir);
+
   /// סוגר את ה-session הפתוח.
   Future<void> disable();
 
@@ -150,6 +154,10 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
     int? liveLibraryVersion,
     required SemanticCancelHandle cancel,
   }) => Future.error(_unavailable);
+
+  @override
+  Future<bool> retirePreviousGeneration(String vectorsDir) =>
+      Future.error(_unavailable);
 
   @override
   Future<void> disable() async {}

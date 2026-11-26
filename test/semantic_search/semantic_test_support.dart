@@ -291,6 +291,7 @@ class FakeBackend implements SemanticEngineBackend {
   final List<SemanticFailure> retireFailures = [];
   final List<String> retireDirs = [];
 
+  @override
   Future<bool> retirePreviousGeneration(String vectorsDir) async {
     calls.add('retire');
     retireDirs.add(vectorsDir);

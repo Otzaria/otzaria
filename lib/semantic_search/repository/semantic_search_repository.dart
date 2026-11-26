@@ -222,6 +222,9 @@ class SemanticSearchRepository {
   Future<void>? _compaction;
   SemanticCancelHandle _compactCancel = SemanticCancelHandle();
 
+  /// הדור שהגיבוי שלו כבר נמחק בהרצה הזו.
+  int? _retiredGeneration;
+
   /// ה-base שהשרשרת אליו נכשלה; אליו מורידים base בלבד.
   String? _deltaChainFailedFor;
   SemanticAvailabilityPhase? _jobPhase;
@@ -927,6 +930,7 @@ class SemanticSearchRepository {
     }
     _openQuantization = quantization;
     unawaited(_warmUp());
+    _retirePreviousIfNeeded();
   }
 
   Future<void> _warmUp() async {
@@ -1640,6 +1644,40 @@ class SemanticSearchRepository {
       }
     } catch (error, stackTrace) {
       _log('compact', error, stackTrace);
+    }
+  }
+
+  /// אחרי פתיחה מהדור החי מוחק ברקע את הדור הקודם, שהמנוע שומר לגיבוי עד
+  /// ההתקנה הבאה. רץ במקום האיחוד, כדי שהתקנה, מחיקה והעברה ימתינו לו.
+  void _retirePreviousIfNeeded() {
+    final vectors = _vectors;
+    if (vectors == null ||
+        !vectors.present ||
+        vectors.recoveredFromPrevious ||
+        vectors.generation == _retiredGeneration ||
+        _compaction != null ||
+        _moveInProgress) {
+      return;
+    }
+    _retiredGeneration = vectors.generation;
+    _compaction = _retirePrevious().whenComplete(() => _compaction = null);
+  }
+
+  Future<void> _retirePrevious() async {
+    try {
+      final dir = (await _paths()).vectorsDirectory;
+      if (await _backend.retirePreviousGeneration(dir)) {
+        _vectors = await _backend.vectorsInfo(dir);
+      }
+    } on SemanticFailure catch (failure) {
+      // התקנה או איחוד תופסים את הסט: הפתיחה הבאה תנסה שוב.
+      if (failure.kind == SemanticFailureKind.vectorsBusy) {
+        _retiredGeneration = null;
+      } else {
+        _log('retirePrevious', failure, StackTrace.current);
+      }
+    } catch (error, stackTrace) {
+      _log('retirePrevious', error, stackTrace);
     }
   }
 
