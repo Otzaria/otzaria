@@ -115,7 +115,7 @@ def run_driver(root, receipt, commit):
             "--keep-app-running",
             "--driver=test_driver/installed_plugin_resource_probe.dart",
             "--target=integration_test/installed_pdf_ios_probe_test.dart",
-            "--dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7",
+            "--dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.9",
             "--dart-define=INSTALLED_PROBE_COMMIT=" + commit,
             "--dart-define=INSTALLED_PDF_IOS_CAMPAIGN=" + receipt["campaign"]]
     save(root / "driver-command.json", args)

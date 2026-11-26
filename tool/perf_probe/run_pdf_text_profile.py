@@ -17,8 +17,8 @@ import traceback
 PDFIUM_SHA256 = "1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723"
 CORPUS_SHA256 = "3f148e978f8bdb29f499a9dc229d05708bf0e7c895ee9f4469300f3f8ce8cfb4"
 FONT_SHA256 = "054f3f97a338070c3558a9ce7e302565be85c7436b10bb0a01cf6a41f0782e61"
-FRAMEWORK_REVISION = "abaf9c523780a608bd46686fd5e53740a07077f8"
-ENGINE_REVISION = "deb287481e3ce9468f3434937ced4240a70539ca"
+FRAMEWORK_REVISION = "c197ca5199e9ee5661e865596c9c07294dfab51c"
+ENGINE_REVISION = "89c39edfdfae2949f6806e4a315c0c08522238b7"
 CORPUS_KINDS = ("hebrew", "niqqud", "columns", "mixed_direction", "rotate_90", "rotate_270", "visual_order", "legacy_map")
 POINTED_TEXT_OBSERVATION = {
     "kind": "pdfium-inserted-spaces", "pages": [2, 10, 18, 26],
@@ -105,11 +105,11 @@ def source_receipt(repo):
 
 
 def sdk_receipt(dart_version, flutter_json=None):
-    require(re.search(r"Dart SDK version: 3\.13\.5(?:\s|\b)", dart_version), "Unexpected Dart SDK")
+    require(re.search(r"Dart SDK version: 3\.13\.7(?:\s|\b)", dart_version), "Unexpected Dart SDK")
     result = {"dartVersionOutput": dart_version.strip(), "flutter": None}
     if flutter_json is not None:
         sdk = json.loads(flutter_json.read_text(encoding="utf-8"))
-        require(sdk.get("frameworkVersion") == "3.47.7" and sdk.get("dartSdkVersion", "").startswith("3.13.5"), "Unexpected Flutter/Dart SDK")
+        require(sdk.get("frameworkVersion") == "3.47.9" and sdk.get("dartSdkVersion", "").startswith("3.13.7"), "Unexpected Flutter/Dart SDK")
         require(sdk.get("frameworkRevision") == FRAMEWORK_REVISION and sdk.get("engineRevision") == ENGINE_REVISION, "Unexpected Flutter/engine revision")
         result["flutter"] = sdk
     return result
@@ -148,7 +148,7 @@ def compiler_dependencies(depfile, repo):
 def validate_native_report(report, output, *, warmup, repetitions):
     require(report.get("protocolVersion") == 1 and report.get("status") == "passed", "Native report is incomplete")
     require(report.get("component") == "pdfrx-public-text-pipeline" and report.get("executionMode") == "dart-aot", "Not an AOT text component run")
-    require(report.get("dartVersion", "").startswith("3.13.5 "), "Native runtime SDK changed")
+    require(report.get("dartVersion", "").startswith("3.13.7 "), "Native runtime SDK changed")
     require(report.get("pdfiumSha256") == PDFIUM_SHA256, "Native library identity differs")
     require(report.get("uiLatencyCollected") is False and report.get("nativeTransferSeparated") is False and report.get("osCacheCleared") is False, "Unsupported measurement scope")
     corpus = report["corpus"]

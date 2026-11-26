@@ -189,7 +189,7 @@ try {
         return @{
             type = $Type; utc = $started.AddSeconds($Second).ToString('o')
             pid = 10; probeRunId = 'run-a'; session = 1
-            version = 'test-build'; buildMode = 'profile'; flutterVersion = '3.47.7'; osVersion = 'Windows test'
+            version = 'test-build'; buildMode = 'profile'; flutterVersion = '3.47.9'; osVersion = 'Windows test'
         }
     }
     function New-Attachment([string]$Mode = 'composition', [string]$Id = ('a' * 32), [double]$Second = 1) {

@@ -11,7 +11,7 @@
 ## סביבת ההרצה
 
 הבנייה משתמשת במתכון `build_linux` מתוך `flutter_tests.yml`: מארח
-`ubuntu-26.04`, קונטיינר `debian:bookworm-slim`, Flutter 3.47.7, Clang 14,
+`ubuntu-26.04`, קונטיינר `debian:bookworm-slim`, Flutter 3.47.9, Clang 14,
 JDK 17, תלויות GTK3 וה־SDK של WPE 2.48.7 תחת `/opt/wpe-sdk`. הנכס
 `wpe-runtime-2.48.7-linux-x86_64.tar.zst` מה־release
 `wpe-2.48.7-print-to-pdf` נבדק מול
@@ -63,7 +63,7 @@ python3 tool/perf_probe/prepare_installed_plugin_source.py \
 flutter pub get --enforce-lockfile
 flutter build linux --profile --no-pub \
   --target=integration_test/installed_plugin_resource_probe_test.dart \
-  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+  --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.9 \
   --dart-define="INSTALLED_PROBE_COMMIT=$(git rev-parse HEAD)" \
   --dart-define=INSTALLED_PROBE_IDLE_MS=1000
 python3 tool/perf_probe/run_installed_plugin_linux.py \

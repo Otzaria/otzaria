@@ -22,7 +22,7 @@ class EvidenceTests(unittest.TestCase):
         self.commit = "a" * 40
         files = {name: sha256(self.source / name) for name in REVIEWED_SOURCES}
         self.write("source.json", {"commit": self.commit, "tree": "b" * 40, "filesBefore": files, "filesAfter": files})
-        self.write("flutter.json", {"frameworkVersion": "3.47.7", "frameworkRevision": "abaf9c523780a608bd46686fd5e53740a07077f8"})
+        self.write("flutter.json", {"frameworkVersion": "3.47.9", "frameworkRevision": "c197ca5199e9ee5661e865596c9c07294dfab51c"})
         for stage, action in (("build", "build-for-testing"), ("tests", "test-without-building")):
             self.write(stage + ".command.json", {"exitCode": 0, "timedOut": False, "arguments": ["xcodebuild", action]})
         identifier = "AABBCCDD-1111-2222-3333-123456789012"
