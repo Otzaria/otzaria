@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Flutter
-        uses: ./.github/actions/setup-flutter
+        uses: ./revised/.github/actions/setup-flutter
         with:
           flutter-version: 3.47.9
 
