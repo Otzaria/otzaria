@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/view/text_book_export_dialog.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
+import 'package:otzaria/widgets/text/app_section_label.dart';
 
 /// דיאלוג ייצוא הספר: נפתח בלי חריגה ברוחב מסך רחב וצר, ברירת המחדל מפרופיל
 /// ערוץ הייצוא, והבחירה חוזרת בלי לשנות את הפרופיל.
@@ -48,7 +49,7 @@ void main() {
       );
       final result = await open(tester, width: width, profile: profile);
       expect(find.text('שאר שמות הקודש'), findsOneWidget);
-      expect(find.text('בחר פורמט לייצוא'), findsOneWidget);
+      expect(find.text('פורמט ייצוא'), findsOneWidget);
 
       await tester.tap(find.text('Word'));
       await tester.pumpAndSettle();
@@ -80,24 +81,39 @@ void main() {
     });
   }
 
-  // issue #6024: ההנחיה "בחר פורמט לייצוא" צמודה לכפתורי הפורמט — אחרי
-  // הגדרות שמות הקודש, לא מעליהן.
+  // issue #6024: דיאלוג "הגדרות ייצוא" בשני מקטעים — שמות הקודש, ואז
+  // "פורמט ייצוא" צמוד לכפתורי הפורמט.
   for (final hasDivineNames in [true, false]) {
-    testWidgets('סדר: שמות הקודש, ואז בחירת הפורמט מעל הכפתורים '
-        '(hasDivineNames: $hasDivineNames)', (tester) async {
+    testWidgets('כותרת וסדר המקטעים (hasDivineNames: $hasDivineNames)', (
+      tester,
+    ) async {
       await open(
         tester,
         width: 1400,
         profile: const TextDisplayProfile(),
         hasDivineNames: hasDivineNames,
       );
+      expect(find.text('הגדרות ייצוא'), findsOneWidget);
+      expect(find.text('בחר פורמט לייצוא'), findsNothing);
       double top(String text) => tester.getTopLeft(find.text(text)).dy;
-      final hint = top('בחר פורמט לייצוא');
-      expect(hint, greaterThan(top('שמות הקודש בקובץ הזה')));
-      expect(hint, greaterThan(top('שם הוי"ה')));
-      if (hasDivineNames) expect(hint, greaterThan(top('שאר שמות הקודש')));
-      expect(hint, lessThan(top('Word')));
-      expect(hint, lessThan(top('טקסט')));
+      final title = top('הגדרות ייצוא');
+      final holy = top('שמות הקודש בקובץ הזה');
+      final format = top('פורמט ייצוא');
+      expect(title, lessThan(holy));
+      expect(holy, lessThan(top('שם הוי"ה')));
+      expect(format, greaterThan(top('שם הוי"ה')));
+      if (hasDivineNames) expect(format, greaterThan(top('שאר שמות הקודש')));
+      expect(format, lessThan(top('Word')));
+      expect(format, lessThan(top('טקסט')));
+      for (final heading in ['שמות הקודש בקובץ הזה', 'פורמט ייצוא']) {
+        expect(
+          find.ancestor(
+            of: find.text(heading),
+            matching: find.byType(AppSectionLabel),
+          ),
+          findsOneWidget,
+        );
+      }
     });
   }
 

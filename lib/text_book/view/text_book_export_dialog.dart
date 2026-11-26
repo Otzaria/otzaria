@@ -34,7 +34,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
   var divineNames = profile.divineNames;
   final format = await showChoiceDialog<TextBookExportFormat>(
     context: context,
-    title: 'בחירת סוג קובץ',
+    title: 'הגדרות ייצוא',
     icon: FluentIcons.document_arrow_right_24_regular,
     size: AppDialogSize.medium,
     // רוחב קבוע: SettingsSegmentedTile בנוי על LayoutBuilder.
@@ -45,7 +45,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _SectionLabel('שמות הקודש בקובץ הזה'),
+            const AppSectionLabel('שמות הקודש בקובץ הזה'),
             const SizedBox(height: 6),
             AppCard(
               child: Column(
@@ -103,9 +103,9 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
                 ],
               ),
             ),
-            // צמוד לכפתורי הפורמט שמתחת (choices).
-            const SizedBox(height: 12),
-            const _SectionLabel('בחר פורמט לייצוא'),
+            // כפתורי הפורמט (choices) שמתחת הם פעולת הייצוא.
+            const SizedBox(height: 16),
+            const AppSectionLabel('פורמט ייצוא'),
           ],
         ),
       ),
@@ -126,21 +126,4 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
     holyName: holyName,
     divineNames: divineNames,
   );
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontWeight: FontWeight.bold,
-        color: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
 }
