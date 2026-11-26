@@ -93,6 +93,10 @@ class _TocViewerState extends State<TocViewer>
   // בשדה החיפוש, כמו ב"איתור". מתאפס בכל שינוי שאילתה.
   int? _highlightedEntryIndex;
 
+  // השורה המסומנת בעץ. מעבר הכותרת הפעילה בזמן הקריאה מעדכן רק אותה, כדי
+  // שלא ייבנו מחדש כל השורות הגלויות אלא רק שתי השורות שסימונן השתנה.
+  final ValueNotifier<int?> _selectedEntry = ValueNotifier(null);
+
   final ItemScrollController _virtualScrollController = ItemScrollController();
   final ItemPositionsListener _virtualPositionsListener =
       ItemPositionsListener.create();
@@ -115,6 +119,7 @@ class _TocViewerState extends State<TocViewer>
     TocExpansionSettings.autoExpand.removeListener(_onAutoExpandChanged);
     _searchDebounce?.cancel();
     searchController.dispose();
+    _selectedEntry.dispose();
     super.dispose();
   }
 
@@ -165,7 +170,7 @@ class _TocViewerState extends State<TocViewer>
     if (next == current) return;
 
     final targetIndex = flat[next].entry.index;
-    setState(() => _highlightedEntryIndex = targetIndex);
+    _selectedEntry.value = _highlightedEntryIndex = targetIndex;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final current = _displayDataFor(state);
@@ -262,6 +267,17 @@ class _TocViewerState extends State<TocViewer>
       if (_flatEntryIndices.containsKey(entry.index)) return entry.index;
     }
     return activeIndex;
+  }
+
+  /// בזמן דפדוף בחיצים הסימון הוא של תוצאת הדפדוף, לא של מיקום הקריאה.
+  /// נקרא מה-state הנוכחי של ה-bloc: ה-state של ה-BlocBuilder נשאר ישן
+  /// כשהכותרת הפעילה זזה בלי build.
+  void _syncSelectedEntry() {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    _selectedEntry.value =
+        _highlightedEntryIndex ??
+        _visibleActiveIndex(_activeTocIndex(state), _displayDataFor(state));
   }
 
   void _scrollToActiveItem(TextBookLoaded state) {
@@ -402,7 +418,6 @@ class _TocViewerState extends State<TocViewer>
   Widget _buildTocRow(
     TocEntry entry, {
     bool showFullText = false,
-    required int? activeIndex,
     required bool isExpanded,
     bool isGroupStart = false,
     bool isGroupEnd = false,
@@ -414,10 +429,6 @@ class _TocViewerState extends State<TocViewer>
       _navigateToLine(entry.index);
     }
 
-    // בזמן דפדוף בחיצים הסימון הוא של תוצאת הדפדוף, לא של מיקום הקריאה.
-    final bool selected = _highlightedEntryIndex != null
-        ? _highlightedEntryIndex == entry.index
-        : activeIndex == entry.index;
     final text = showFullText ? entry.fullText : entry.text;
     final title = holyNameStyle == null
         ? text
@@ -436,28 +447,38 @@ class _TocViewerState extends State<TocViewer>
       _expandedRevision++;
     });
 
-    // הלחיצה תמיד מנווטת; שורה סגורה גם נפתחת, ושורה פתוחה ופעילה גם מכווצת.
-    final toggleOnTap =
-        hasChildren && !showFullText && (!isExpanded || selected);
-    final tile = NavTreeTile.heading(
-      title: title,
-      // בחיפוש הפוקוס נשאר בשדה, והחיצים מדפדפים משם.
-      focusOnTap: !showFullText,
-      level: level,
-      isSelected: selected,
-      isExpanded: isExpanded,
-      hasChildren: hasChildren,
-      onTap: () {
-        if (toggleOnTap) setExpanded(!isExpanded);
-        navigateToEntry();
-      },
-      onToggleExpand: hasChildren ? () => setExpanded(!isExpanded) : null,
-    );
-
+    // אותו מופע נשמר כל עוד סימון השורה לא השתנה, ו-Flutter מדלג עליו.
+    Widget? tile;
+    bool? tileSelected;
     return NavTreeGroupCard(
       isGroupStart: isGroupStart,
       isGroupEnd: isGroupEnd,
-      child: tile,
+      child: ValueListenableBuilder<int?>(
+        valueListenable: _selectedEntry,
+        builder: (context, selectedIndex, _) {
+          final selected = selectedIndex == entry.index;
+          if (tile != null && tileSelected == selected) return tile!;
+          tileSelected = selected;
+          // הלחיצה תמיד מנווטת; שורה סגורה גם נפתחת, ושורה פתוחה ופעילה גם
+          // מכווצת.
+          final toggleOnTap =
+              hasChildren && !showFullText && (!isExpanded || selected);
+          return tile = NavTreeTile.heading(
+            title: title,
+            // בחיפוש הפוקוס נשאר בשדה, והחיצים מדפדפים משם.
+            focusOnTap: !showFullText,
+            level: level,
+            isSelected: selected,
+            isExpanded: isExpanded,
+            hasChildren: hasChildren,
+            onTap: () {
+              if (toggleOnTap) setExpanded(!isExpanded);
+              navigateToEntry();
+            },
+            onToggleExpand: hasChildren ? () => setExpanded(!isExpanded) : null,
+          );
+        },
+      ),
     );
   }
 
@@ -554,8 +575,7 @@ class _TocViewerState extends State<TocViewer>
 
   /// בונה רשימה וירטואלית מהעץ השטוח והממוטמן.
   Widget _buildVirtualizedTocList(
-    List<TocFlatItem> flat,
-    int? activeIndex, {
+    List<TocFlatItem> flat, {
     required bool isSearching,
     required String title,
     required _TocDisplayData display,
@@ -589,7 +609,6 @@ class _TocViewerState extends State<TocViewer>
           child: _buildTocRow(
             item.entry,
             showFullText: isSearching,
-            activeIndex: activeIndex,
             isExpanded: item.isExpanded,
             isGroupStart: index == 1,
             isGroupEnd: index == flat.length,
@@ -624,12 +643,13 @@ class _TocViewerState extends State<TocViewer>
       listener: (context, state) {
         if (state is TextBookLoaded) {
           _scrollToActiveItem(state);
+          _syncSelectedEntry();
         }
       },
       child: BlocBuilder<TextBookBloc, TextBookState>(
         bloc: context.read<TextBookBloc>(),
-        // build רק כשהכותרת הפעילה או העץ משתנים: בניית העץ בכל שורה של
-        // גלילה יוצרת frames ארוכים בספרים עם אלפי כותרות.
+        // build רק כשהעץ משתנה: בניית העץ בכל שורה של גלילה יוצרת frames
+        // ארוכים בספרים עם אלפי כותרות. הכותרת הפעילה מתעדכנת ב-listener.
         buildWhen: (previous, current) {
           if (current is! TextBookLoaded) return true;
           if (previous is! TextBookLoaded) return true;
@@ -637,18 +657,13 @@ class _TocViewerState extends State<TocViewer>
                 previous.tableOfContents,
                 current.tableOfContents,
               ) ||
-              _activeTocIndex(previous) != _activeTocIndex(current) ||
               previous.bodyDisplayProfile.holyName !=
                   current.bodyDisplayProfile.holyName;
         },
         builder: (context, state) {
           if (state is! TextBookLoaded) return const Center();
           final display = _displayDataFor(state);
-          // מחושב פעם אחת ומועבר לכל הפריטים, כדי שהבנייה לא תהיה O(n²).
-          final int? activeIndex = _visibleActiveIndex(
-            _activeTocIndex(state),
-            display,
-          );
+          _syncSelectedEntry();
           final expandMenu = _buildExpandMenu(display);
 
           final delegate = NavPanelSearchDelegate(
@@ -687,7 +702,6 @@ class _TocViewerState extends State<TocViewer>
                     child: NavTreeFocusGroup(
                       child: _buildVirtualizedTocList(
                         _flatItemsFor(display),
-                        activeIndex,
                         isSearching: display.isSearching,
                         title: state.book.title,
                         display: display,
