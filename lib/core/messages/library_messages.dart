@@ -162,6 +162,9 @@ abstract class LibraryMessages {
   static const String updateDiskSpaceError =
       'אין מספיק מקום פנוי בדיסק לעדכון הספרייה';
 
+  static const String libraryDbBusy =
+      'מסד הספרייה בשימוש כרגע ולא ניתן לשחרר אותו. יש לנסות שוב בעוד רגע.';
+
   static const String updateNetworkInterrupted =
       'החיבור לרשת נקטע במהלך ההורדה';
 

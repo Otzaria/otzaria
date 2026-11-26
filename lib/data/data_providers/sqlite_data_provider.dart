@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show ValueListenable, ValueNotifier, debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
@@ -305,10 +306,9 @@ class SqliteDataProvider {
       final findRefReleased = await FindRefDbIsolate.suspendForExternalWrite();
       final readWorkerReleased = await DbReadWorker.suspendForExternalWrite();
       if (!findRefReleased || !readWorkerReleased) {
-        final message = 'לא ניתן לשחרר את seforim.db לפני החלפת הספרייה';
         throw findRefReleased
-            ? DbReadWorkerNotReleased(message)
-            : StateError(message);
+            ? DbReadWorkerNotReleased(LibraryMessages.libraryDbBusy)
+            : LibraryDbNotReleased(LibraryMessages.libraryDbBusy);
       }
     } catch (_) {
       if (releaseOnFailure) {
