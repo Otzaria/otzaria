@@ -1975,22 +1975,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               }
             } else if (event is KeyUpEvent) {
               final key = event.logicalKey;
-              if (key == _continuousScrollKey) _stopContinuousScroll();
-              if (key == LogicalKeyboardKey.arrowUp ||
-                  key == LogicalKeyboardKey.arrowDown) {
-                return KeyEventResult.handled;
-              }
-              _horizontalPageTurnKeys.remove(key);
-              // שחרור אחרי החזקה מבטל את התור; לחיצות קצרות שומרות את הדפדוף שלהן.
-              if (_isPageTurnKey(event.logicalKey)) {
-                final wasHeld = _heldArrowKeys.remove(event.logicalKey);
-                if (wasHeld && _pendingPageTurns.isNotEmpty) {
+              final pageTurn = _isPageTurnKey(key);
+              if (!HardwareKeyboard.instance.isLogicalKeyPressed(key)) {
+                if (key == _continuousScrollKey) _stopContinuousScroll();
+                _horizontalPageTurnKeys.remove(key);
+                // שחרור אחרי החזקה מבטל את התור; לחיצות קצרות שומרות את הדפדוף שלהן.
+                if (pageTurn &&
+                    _heldArrowKeys.remove(key) &&
+                    _pendingPageTurns.isNotEmpty) {
                   _pendingPageTurns.clear();
-                  // הלחיצה הבאה תמשיך מיעד האנימציה הפעילה ולא מהתור שבוטל.
+                  // הלחיצה הבאה תמשיך מיעד האנימציה הפעילה.
                   _lastInitiatedTargetPage = _inFlightAnimationTarget;
                 }
-                return KeyEventResult.handled;
               }
+              return pageTurn ||
+                      key == LogicalKeyboardKey.arrowUp ||
+                      key == LogicalKeyboardKey.arrowDown
+                  ? KeyEventResult.handled
+                  : KeyEventResult.ignored;
             }
             return KeyEventResult.ignored;
           },
