@@ -255,6 +255,103 @@ void main() {
       expect(after.libraries, isEmpty);
     });
 
+    /// כונן נייד שבמחשב הקודם נקרא [oldDrive]: תיקיית האפליקציה וספרייה
+    /// אחות לה יושבות עליו, והספרייה מחוץ לתיקיית הנתונים.
+    /// [appFolder] null — האפליקציה חולצה ישירות לשורש הכונן.
+    Future<({Directory drive, String oldDrive})> setUpMovedDrive({
+      String? appFolder = 'אוצריא נייד',
+    }) async {
+      final drive = await Directory.systemTemp.createTemp('otzaria_drive_');
+      addTearDown(() => drive.delete(recursive: true));
+      final appDir = appFolder == null
+          ? drive
+          : (Directory(p.join(drive.path, appFolder))..createSync());
+      final exePath = p.join(appDir.path, 'otzaria.exe');
+      File(exePath).writeAsStringSync('fake exe');
+      File(
+        p.join(appDir.path, AppPaths.portableMarkerFileName),
+      ).writeAsStringSync('');
+      AppPaths.debugOverrideDataRootPath(null);
+      AppPaths.debugOverrideResolvedExecutable(exePath);
+      dataRoot = await AppPaths.getDataRootPath();
+      await Directory(dataRoot).create(recursive: true);
+      final oldDrive = '${drive.path}_old';
+      await writeRootRecord(
+        p.join(oldDrive, appFolder ?? '', 'otzaria_data'),
+      );
+      return (drive: drive, oldDrive: oldDrive);
+    }
+
+    test('כונן נייד שהחליף אות — ספרייה על הכונן מחוץ לתיקיית הנתונים '
+        'נמצאת (issue #6081)', () async {
+      final moved = await setUpMovedDrive();
+      final library = Directory(p.join(moved.drive.path, 'ספרייה'))
+        ..createSync();
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(moved.oldDrive, 'ספרייה'),
+      );
+
+      await PortablePaths.migrateIfMoved();
+
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        library.path,
+      );
+    });
+
+    test('כונן נייד שהחליף אות, האפליקציה בשורש הכונן — ספרייה על הכונן '
+        'נמצאת (issue #6081)', () async {
+      final moved = await setUpMovedDrive(appFolder: null);
+      final library = Directory(p.join(moved.drive.path, 'ספרייה'))
+        ..createSync();
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(moved.oldDrive, 'ספרייה'),
+      );
+
+      await PortablePaths.migrateIfMoved();
+
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        library.path,
+      );
+    });
+
+    test('כונן נייד שהחליף אות — נתיב שאין לו מקביל בכונן החדש נשאר '
+        'כמות שהוא (issue #6081)', () async {
+      final moved = await setUpMovedDrive();
+      final missing = p.join(moved.oldDrive, 'ספרייה');
+      await Settings.setValue(SettingsRepository.keyLibraryPath, missing);
+
+      await PortablePaths.migrateIfMoved();
+
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        missing,
+      );
+    });
+
+    test('כונן נייד שהחליף אות — נתיב קיים מחוץ לתיקיית הנתונים אינו '
+        'מוחלף (issue #6081)', () async {
+      final moved = await setUpMovedDrive();
+      Directory(p.join(moved.drive.path, 'ספרייה')).createSync();
+      final existing = Directory('${moved.oldDrive}${p.separator}ספרייה')
+        ..createSync(recursive: true);
+      addTearDown(() => Directory(moved.oldDrive).delete(recursive: true));
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        existing.path,
+      );
+
+      await PortablePaths.migrateIfMoved();
+
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        existing.path,
+      );
+    });
+
     test('Windows: שינוי אות כונן באותיות שונות (case) עדיין מזוהה', () async {
       if (!Platform.isWindows) {
         return;
