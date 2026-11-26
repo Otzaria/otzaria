@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
@@ -90,10 +91,12 @@ List<AppContextMenuEntry> buildPluginContextMenuSection({
   return [const AppContextMenuEntry.divider(), ...entries];
 }
 
+/// בונה את פריטי התוספים לתפריט אחד. למקטע נוסף יש הקשר ונתוני לחיצה משלו.
 List<AppContextMenuEntry> buildPluginContextMenuEntries({
   required List<(String pluginId, PluginContextMenuItem item)> records,
   required Map<String, dynamic> selection,
   String context = 'reader-selection',
+  ({String context, Map<String, dynamic> selection})? additionalSection,
   PluginRuntimeDispatcher? dispatcher,
   int? viewId,
   AppWindowKeys? windowKeys,
@@ -101,46 +104,76 @@ List<AppContextMenuEntry> buildPluginContextMenuEntries({
   PluginSelectedTextResolver? resolveSelectedText,
 }) {
   final runtime = dispatcher ?? PluginRuntimeDispatcher.instance;
-  final selectedText = _selectedTextOf(selection);
-  // זהות הספר שב-payload — בדיוק מה שהתוסף יקבל בלחיצה.
-  final bookType = selection['type'] as String?;
-  final bookSource = selection['source'] as String?;
-  final byPlugin = <String, List<PluginContextMenuItem>>{};
-  for (final (pluginId, item) in records) {
-    if (item.contexts.contains(context) &&
-        item.isVisibleForSelection(selectedText) &&
-        item.showsForBook(bookType: bookType, bookSource: bookSource)) {
-      byPlugin.putIfAbsent(pluginId, () => []).add(item);
-    }
-  }
   final entries = <AppContextMenuEntry>[];
-  for (final MapEntry(key: pluginId, value: items) in byPlugin.entries) {
-    // קו חוצץ בין תוספים שונים כברירת מחדל; התוסף מבטל אותו בפריט הראשון שלו.
-    if (entries.isNotEmpty &&
-        !entries.last.isDivider &&
-        items.first.separatorBefore) {
+  final visiblePlugins = <String>{};
+
+  void addSection(
+    String context,
+    Map<String, dynamic> selection, {
+    PluginSelectedTextResolver? resolveSelectedText,
+  }) {
+    final selectedText = _selectedTextOf(selection);
+    final bookType = selection['type'] as String?;
+    final bookSource = selection['source'] as String?;
+    final byPlugin = <String, List<PluginContextMenuItem>>{};
+    for (final (pluginId, item) in records) {
+      if (item.contexts.contains(context) &&
+          item.isVisibleForSelection(selectedText) &&
+          item.showsForBook(bookType: bookType, bookSource: bookSource)) {
+        byPlugin.putIfAbsent(pluginId, () => []).add(item);
+      }
+    }
+    if (byPlugin.isEmpty) return;
+    if (entries.isNotEmpty && !entries.last.isDivider) {
       entries.add(const AppContextMenuEntry.divider());
     }
-    for (final item in items) {
-      final entry = _buildEntry(
-        pluginId: pluginId,
-        item: item,
-        selection: selection,
-        context: context,
-        dispatcher: runtime,
-        viewId: viewId,
-        windowKeys: windowKeys,
-        selectionActionDispatcher: selectionActionDispatcher,
-        resolveSelectedText: resolveSelectedText,
-      );
-      if (entry.isDivider && entries.isNotEmpty && entries.last.isDivider) {
-        continue;
+    for (final MapEntry(key: pluginId, value: items) in byPlugin.entries) {
+      if (entries.isNotEmpty &&
+          !entries.last.isDivider &&
+          items.first.separatorBefore) {
+        entries.add(const AppContextMenuEntry.divider());
       }
-      entries.add(entry);
+      for (final item in items) {
+        final entry = _buildEntry(
+          pluginId: pluginId,
+          item: item,
+          selection: selection,
+          context: context,
+          dispatcher: runtime,
+          viewId: viewId,
+          windowKeys: windowKeys,
+          selectionActionDispatcher: selectionActionDispatcher,
+          resolveSelectedText: resolveSelectedText,
+        );
+        if (entry.isDivider && entries.isNotEmpty && entries.last.isDivider) {
+          continue;
+        }
+        entries.add(entry);
+        if (!visiblePlugins.contains(pluginId) && _hasPluginMenuAction(entry)) {
+          visiblePlugins.add(pluginId);
+        }
+      }
     }
   }
-  return entries;
+
+  addSection(context, selection, resolveSelectedText: resolveSelectedText);
+  if (additionalSection case final section?) {
+    addSection(section.context, section.selection);
+  }
+  if (visiblePlugins.length < 2) return entries;
+  return [
+    AppContextMenuEntry(
+      label: 'תוספים',
+      icon: FluentIcons.puzzle_piece_24_regular,
+      children: entries,
+    ),
+  ];
 }
+
+bool _hasPluginMenuAction(AppContextMenuEntry entry) =>
+    entry.onTap != null ||
+    entry.colorRowActions?.any((action) => action.onTap != null) == true ||
+    entry.children?.any(_hasPluginMenuAction) == true;
 
 String _selectedTextOf(Map<String, dynamic> selection) =>
     (selection['renderedSelectedText'] ?? selection['text'] ?? '').toString();

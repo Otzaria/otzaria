@@ -576,6 +576,133 @@ export interface SearchOptionsCatalog {
   defaultLimit: number;
 }
 
+// ---------------------------------------------------------------------------
+// semantic.* — the meaning-based search space (from 0.9.99)
+// ---------------------------------------------------------------------------
+
+/** What `semantic.getStatus` reports. Access to search data requires `phase: 'ready'`. */
+export type SemanticPhase =
+  | 'ready'
+  | 'consentRequired'
+  | 'needsDownload'
+  | 'vectorsNotPublished'
+  | 'downloading'
+  | 'installing'
+  | 'failed'
+  | 'hidden';
+
+export interface SemanticLimits {
+  maxPoints: number;
+  maxK: number;
+  defaultK: number;
+  maxCandidates: number;
+  defaultMaxCandidates: number;
+  /** All the lists of one `semantic.nearest` answer together. */
+  maxHits: number;
+  maxExcludeSpans: number;
+  maxPointTextLength: number;
+  maxTokenTexts: number;
+  maxTokenTextsLength: number;
+  maxScopeEntries: number;
+}
+
+export interface SemanticStatus {
+  phase: SemanticPhase;
+  /** With `hidden`: `unsupportedPlatform` | `engineNotInBuild`. */
+  hiddenReason?: string;
+  /** With `failed`: the kind of the last failure. */
+  failure?: string;
+  /** While downloading or installing; `fraction` is null when the size is unknown. */
+  progress?: { item: 'model' | 'vectors' | 'install'; fraction: number | null };
+  modelFamilyId: string | null;
+  /** The width of the vectors. */
+  dim: number | null;
+  vectorsReleaseTag: string | null;
+  vectorsLibraryVersion: number | null;
+  /** Changes with every install and compaction of the vectors. Scores are
+   *  comparable only within one `modelFamilyId` and one generation. */
+  generation: number | null;
+  limits: SemanticLimits;
+}
+
+/** A text, embedded as a query (default) or as a stored line is embedded; or a
+ *  vector of the set's width, base64 of float32 little-endian, scaled to unit length. */
+export type SemanticPoint =
+  | { text: string; as?: 'query' | 'passage' }
+  | { vector: string };
+
+/** Lines `from` to `to` (inclusive) of one book, by line index. */
+export type SemanticLineSpan = BookIdentity & { from: number; to: number };
+
+export interface SemanticNearestParams {
+  /** 1 to 64 points, searched in one pass over the vectors. */
+  from: SemanticPoint[];
+  /** Vectors each point's scan returns; default 50, at most 2000. A vector can
+   *  stand for several lines (the same text in several books). */
+  k?: number;
+  /** `best` (default): one list, every line once at its best score over the points.
+   *  `perPoint`: one list per point, in their order. */
+  pool?: 'best' | 'perPoint';
+  /** `best` only: the most vectors kept before they are resolved to lines;
+   *  default 1000, at most 5000. */
+  maxCandidates?: number;
+  /** `best` only: score every line against every point, in `pointScores`. */
+  rescore?: boolean;
+  minScore?: number;
+  /** Lines never returned, such as the passage the points were taken from. */
+  exclude?: SemanticLineSpan[];
+  // Scope, as in `search.query`; all official books by default.
+  categories?: string[];
+  books?: BookIdentity[];
+  authors?: string[];
+  eras?: string[];
+  baseBooksOnly?: boolean;
+  facets?: string[];
+}
+
+/** A line found. The text is not included: read it with `library.getBookContent`
+ *  under `library.content.read`. */
+export interface SemanticHit extends BookIdentity {
+  book: string;
+  categoryPath?: string | null;
+  reference: string;
+  index: number;
+  /** Which window of a long line matched; 0 for the line's start. */
+  window: number;
+  /** Ranked as the search screen ranks, with its long-line penalties. */
+  score: number;
+  /** The point that found the line best, by its index in `from`. */
+  point: number;
+  /** With `rescore`: the score for each point; null where the line has no vector. */
+  pointScores?: Array<number | null>;
+}
+
+export type SemanticNearestChunk =
+  | { type: 'progress'; phase: 'searching' }
+  /** `point` is set with `pool: 'perPoint'`; a list may come in several chunks. */
+  | { type: 'hits'; point?: number; hits: SemanticHit[] }
+  | {
+      type: 'done';
+      generation: number;
+      vectorsLibraryVersion: number;
+      /** More lines than `limits.maxHits`; the lists were cut. */
+      clipped: boolean;
+    };
+
+export interface SemanticTokenCounts {
+  /** Each text as the query sequence the model sees, role prefix and special tokens
+   *  included: a text fits one window when its count is at most `queryMaxTokens`. */
+  counts: number[];
+  queryMaxTokens: number;
+  /** What an empty query counts. */
+  overheadTokens: number;
+}
+
+export interface SemanticCoveredBooks {
+  /** Official books in the current catalog with at least one covered line. */
+  books: Array<BookIdentity & { title: string }>;
+}
+
 /**
  * ההרשאה נקבעת לפי ה-host שב-`url`: `localhost` / `::1` / `127.0.0.0`–`127.0.0.255`
  * דורשים `network.localhost`; כל יעד אחר (אינטרנט) דורש `network.access`.
@@ -2687,6 +2814,10 @@ export type OtzariaMethod =
   | 'search.setFieldText'
   | 'search.setFieldActionState'
   | 'search.endFieldSession'
+  | 'semantic.getStatus'
+  | 'semantic.countTokens'
+  | 'semantic.nearest'
+  | 'semantic.getCoveredBooks'
   | 'reader.openBook'
   | 'reader.openBookAtRef'
   | 'reader.printRange'
@@ -2886,6 +3017,31 @@ export interface OtzariaGlobal {
     method: 'network.fetchStream',
     payload: NetworkFetchParams
   ): AsyncIterable<NetworkFetchStreamChunk>;
+
+  /** The state of the meaning-based search (from 0.9.99). Requires search.semantic.read. */
+  call(method: 'semantic.getStatus'): Promise<OtzariaResponse<SemanticStatus>>;
+
+  /** Token counts, to cut a long passage into windows that fit (from 0.9.99). */
+  call(
+    method: 'semantic.countTokens',
+    payload: { texts: string[] }
+  ): Promise<OtzariaResponse<SemanticTokenCounts>>;
+
+  /**
+   * The lines nearest up to 64 points, in one pass (from 0.9.99). A new call from
+   * the same plugin page ends the previous one (it finishes without a `done`
+   * chunk); a search the user runs in Otzaria ends it with `error.preempted`;
+   * `return()` on the iterator cancels it.
+   */
+  call(
+    method: 'semantic.nearest',
+    payload: SemanticNearestParams
+  ): AsyncIterable<SemanticNearestChunk>;
+
+  /** The books the installed vectors cover (from 0.9.99). */
+  call(
+    method: 'semantic.getCoveredBooks'
+  ): Promise<OtzariaResponse<SemanticCoveredBooks>>;
 
   /** Waits for the print dialog to finish, without the generic 30-second RPC timeout. */
   call(

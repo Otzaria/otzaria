@@ -1909,16 +1909,18 @@ void main() {
       expect(changed, ['מצורף']);
     });
 
-    test('ספר אישי ו-PDF — רק metadata, בלי קריאת טקסט', () async {
+    test('PDF ישן מסומן לאינדוקס מחדש בלי קריאת טקסט', () async {
       final personal = TextBook(id: 9, title: 'אישי', source: BookSource.user);
       final pdf = PdfBook(title: 'סרוק', path: r'C:\pdfs\a.pdf');
+      final current = PdfBook(title: 'חדש', path: r'C:\pdfs\b.pdf');
       final engine = _RecordingSearchEngine()
         ..fingerprints = {
           BookIdentity.indexedFilePath(personal): BigInt.one,
           BookIdentity.indexedFilePath(pdf): BigInt.zero,
+          BookIdentity.indexedFilePath(current): BigInt.one,
         };
 
-      expect(await detect(engine, [personal, pdf]), isEmpty);
+      expect(await detect(engine, [personal, pdf, current]), [pdf.title]);
     });
 
     test('ספר שאינו באינדקס אינו נבדק', () async {
@@ -3546,6 +3548,10 @@ void main() {
       expect(result.failures.single.kind, IndexingFailureKind.pdfUnsupported);
       expect(result.failures.single.isRetryable, isFalse);
       expect(provider.indexedFilePaths, contains(pdf.path));
+      expect(
+        engine.addedDocuments.single.textHash,
+        await _fakeContentFingerprint(text: const []),
+      );
     });
 
     test('PDF חלקי מאונדקס אך מוחזר כאזהרה מפורטת', () async {

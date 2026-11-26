@@ -5,8 +5,11 @@ import argparse
 import base64
 import gzip
 import hashlib
+import http.client
 import json
 from pathlib import Path
+import time
+import urllib.error
 import urllib.request
 
 COMMIT = "4517d39c4ecab632aff98e1c0e414881695961aa"
@@ -17,6 +20,21 @@ HASHES = {
     "i18n/en.js": "54f9ec3b69a2858d2a1bb0f6d80f641397c3ff1fd286a83cdb5e751af3366ef2",
     "background.html": "0110c549b0350222c63c098843c9b6debdcd61cebd57d91b11874f07426fc975",
 }
+
+
+def fetch(url: str) -> bytes:
+    for attempt in range(1, 4):
+        try:
+            with urllib.request.urlopen(url, timeout=45) as response:
+                return response.read(2 * 1024 * 1024 + 1)
+        except urllib.error.HTTPError as error:
+            if attempt == 3 or error.code < 500:
+                raise
+        except (OSError, http.client.IncompleteRead):
+            if attempt == 3:
+                raise
+        time.sleep(10 * attempt)
+    raise AssertionError("unreachable")
 
 
 def prepare(output: Path) -> None:
@@ -30,8 +48,7 @@ def prepare(output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     for name, expected in HASHES.items():
         url = f"https://raw.githubusercontent.com/Otzaria/otzaria-plugins-store/{COMMIT}/{name}"
-        with urllib.request.urlopen(url, timeout=45) as response:
-            data = response.read(2 * 1024 * 1024 + 1)
+        data = fetch(url)
         if len(data) > 2 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != expected:
             raise ValueError(f"Pinned source hash mismatch: {name}")
         target = output / name

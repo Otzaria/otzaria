@@ -35,7 +35,7 @@ dependencies:
   otzaria_context_menu:
     path: packages/otzaria_context_menu
   flutter_bloc: ^9.1.1
-  bloc: ^9.2.1
+  bloc: ^9.2.2
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור felangel/bloc#4829, #4894, #4913–#4916.
   # ענף master בפורק Otzaria/bloc הוא הענף המשולב; תיקוני סקירה נדחפים אליו וגם לענפי ה-PRים.
   bloc_concurrency:
@@ -51,7 +51,7 @@ dependencies:
   material_color_utilities: any
   # נסיגת ההגדרות כשפתיחת Hive נכשלת (SharePreferenceCache).
   shared_preferences: ^2.5.6
-  hive_ce: ^2.23.3
+  hive_ce: ^2.24.0
   path_provider: ^2.1.6
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
@@ -123,8 +123,7 @@ dependencies:
   googleapis_auth: ^2.3.7
   characters: ^1.4.1
   collection: ^1.19.1
-  # קו התאימות שומר על הדגשת PDF לפי שורות ועל חיפוש רג׳קס חוצה שורה.
-  otzaria_search_engine: 7.2.1
+  otzaria_search_engine: 7.5.3
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
@@ -150,11 +149,11 @@ dependencies:
       url: https://github.com/Otzaria/flutter_spinbox
       ref: 3b7813842c7c4f1b7d019dcfe344fc8ddfdf6f7e
   logging: ^1.3.0
-  sqlite3: ^3.9.1
+  sqlite3: ^3.9.2
   super_clipboard: ^0.9.1
   # Dragging selected reader text via the already bundled native extension.
   super_native_extensions: ^0.9.1
-  flutter_local_notifications: ^23.0.3
+  flutter_local_notifications: ^23.0.4
   timezone: ^0.11.2
   xml: ^7.0.1
   markdown: ^7.3.1

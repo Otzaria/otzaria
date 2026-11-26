@@ -220,10 +220,14 @@ void main() {
       });
       addTearDown(() => ContextMenuRegistry.instance.removeAll('test.pdf'));
       await _pump(tester, recorder);
-      expect(
-        describeContextMenu(_menuOf(tester, 'משנה ברורה')),
-        contains('פעולה ל-PDF'),
-      );
+      // בספר ה-PDF יש פריטים משני תוספים, ולכן הם מקובצים תחת "תוספים"
+      // (issue #3160).
+      final pdfMenu = describeContextMenu(_menuOf(tester, 'משנה ברורה'));
+      expect(pdfMenu.sublist(pdfMenu.indexOf('תוספים') + 1), [
+        '  הוסף לתוכנית',
+        '  ---',
+        '  פעולה ל-PDF',
+      ]);
       expect(
         describeContextMenu(_menuOf(tester, 'שולחן ערוך')),
         isNot(contains('פעולה ל-PDF')),

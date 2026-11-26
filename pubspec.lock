@@ -96,10 +96,10 @@ packages:
     dependency: "direct main"
     description:
       name: bloc
-      sha256: e03b235924e4f509c27b5d6b2f949200e0a91149a9818b4f65eeb56662b75413
+      sha256: c3e0f19010c7a337d789b17993863563e6847f17871bcd0b96232cded59d675c
       url: "https://pub.dev"
     source: hosted
-    version: "9.2.1"
+    version: "9.2.2"
   bloc_concurrency:
     dependency: "direct main"
     description:
@@ -668,10 +668,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_local_notifications
-      sha256: "7d37d69ded3028af4f22531a0097a3baa478a384dff2e23e873707c93df3b704"
+      sha256: "2b7579556c117b535ef83835798a7f3c4003dc892a888a4a99f2107bca7b6675"
       url: "https://pub.dev"
     source: hosted
-    version: "23.0.3"
+    version: "23.0.4"
   flutter_local_notifications_linux:
     dependency: transitive
     description:
@@ -885,10 +885,10 @@ packages:
     dependency: "direct main"
     description:
       name: hive_ce
-      sha256: c2692c07b780d5eaec78c4f9317e9bfbb952700ef60bfdbca9e52c496300b967
+      sha256: "03ac73b673f98f48d7a3c364bb0b646a88f931240453e0f389ffcc0e18c5379f"
       url: "https://pub.dev"
     source: hosted
-    version: "2.23.3"
+    version: "2.24.0"
   hooks:
     dependency: "direct dev"
     description:
@@ -1246,10 +1246,10 @@ packages:
     dependency: "direct main"
     description:
       name: otzaria_search_engine
-      sha256: "6a71c5bf3ce9ef84317c516f9994e31f20b495e8523f16bc0932828ea5d713bf"
+      sha256: "9b844f1a396132bd7d8f91d64ecea35be7d0db867ce8974e256b605ea3b34606"
       url: "https://pub.dev"
     source: hosted
-    version: "7.2.1"
+    version: "7.5.3"
   package_config:
     dependency: transitive
     description:
@@ -1801,10 +1801,10 @@ packages:
     dependency: "direct main"
     description:
       name: sqlite3
-      sha256: "8765980411f9b6733534efe9d014fad0750fa649590598772c04692deb34886b"
+      sha256: "1ae2e821614e7b69628ecb64273e8bc5401b14ab166ee7ea0035c35bb136cbd7"
       url: "https://pub.dev"
     source: hosted
-    version: "3.9.1"
+    version: "3.9.2"
   stack_trace:
     dependency: transitive
     description:

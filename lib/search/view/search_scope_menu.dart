@@ -46,8 +46,10 @@ class SearchScopeMenuButton extends StatefulWidget {
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
 
-  /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
+  /// בחיפוש החכם: רק ספרים עם וקטורים ([coveredFilePaths]), ועד שהם ידועים
+  /// רק ספרים מהספרייה הרשמית.
   final bool officialBooksOnly;
+  final Set<String>? coveredFilePaths;
 
   /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
   final bool excludeUserBooks;
@@ -57,6 +59,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.officialBooksOnly = false,
+    this.coveredFilePaths,
     this.excludeUserBooks = false,
   });
 
@@ -84,7 +87,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   int _baseBookGeneration = 0;
 
   ScopeTree _visibleTree(ScopeTree tree) => widget.officialBooksOnly
-      ? tree.officialOnly()
+      ? switch (widget.coveredFilePaths) {
+          final covered? => tree.coveredOnly(covered),
+          null => tree.officialOnly(),
+        }
       : widget.excludeUserBooks
       ? tree.withoutUserBooks()
       : tree;
@@ -166,6 +172,21 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     _savedScopes = SearchScopePreferences.loadSavedScopes();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScopeMenuButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.officialBooksOnly == widget.officialBooksOnly &&
+        identical(oldWidget.coveredFilePaths, widget.coveredFilePaths) &&
+        oldWidget.excludeUserBooks == widget.excludeUserBooks) {
+      return;
+    }
+    final library = _library;
+    final fullTree = library == null ? null : ScopeTree.cachedFor(library);
+    _treeCache = fullTree == null ? null : _visibleTree(fullTree);
+    _baseBookGeneration++;
+    _baseBookNodesCache = null;
   }
 
   @override
@@ -750,6 +771,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       _view = _View.root;
       _stack.clear();
       _highlight = 0;
+    }
+    final tree = widget.tree;
+    if (tree != null && !identical(oldWidget.tree, tree)) {
+      for (var i = 0; i < _stack.length; i++) {
+        final node = tree.nodesByFacet[_stack[i].facet];
+        if (node == null) {
+          _stack.removeRange(i, _stack.length);
+          _highlight = 0;
+          break;
+        }
+        _stack[i] = node;
+      }
     }
     final incoming = widget.selected;
     if (incoming.length != _selection.length ||

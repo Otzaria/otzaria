@@ -27,6 +27,7 @@ ACTIVITY = "org.otzaria.otzaria.MainActivity"
 DIRECTORY = "android-webview-startup-probe"
 SCENARIOS = ("noEnabled", "noOpen", "foreground", "background", "overlap")
 TARGET = "integration_test/android_webview_startup_probe_test.dart"
+GRADLE_NETWORK_ERROR = b"Gradle threw an error while downloading artifacts from the network"
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -508,9 +509,22 @@ class Runner:
                 f"--dart-define=OTZARIA_PROBE_SOURCE_REVISION={revision}",
                 f"--dart-define=OTZARIA_PROBE_SOURCE_DIRTY={'true' if dirty else 'false'}",
                 f"--dart-define=OTZARIA_PROBE_FLUTTER_VERSION={version['frameworkVersion']}"]
-        result = self.command(argv, timeout=3600, env=env, check=False)
-        (self.output / "build.log").write_bytes(result.stdout + result.stderr)
+        for attempt in range(1, 4):
+            result = self.command(argv, timeout=3600, env=env, check=False)
+            output = result.stdout + result.stderr
+            (self.output / "build.log").write_bytes(output)
+            if attempt == 3 or not result.returncode:
+                break
+            # Flutter logs earlier Gradle attempts too. Check only the last failure for HTTP 429.
+            failure = result.stderr.rpartition(b"FAILURE: Build ")[2]
+            if (not failure.startswith(b"failed with an exception.") or
+                    GRADLE_NETWORK_ERROR not in failure or b"Received status code 429 from server:" not in failure):
+                break
+            print(f"Gradle download was rate-limited; retrying the APK build ({attempt}/2)", file=sys.stderr, flush=True)
+            time.sleep(60 * attempt)
         if result.returncode:
+            # build.log is only in the artifact; the job log needs the cause too.
+            print(output.decode(errors="replace")[-8000:], file=sys.stderr)
             raise RuntimeError("Probe APK build failed; see build.log")
         apk = ROOT / "build/app/outputs/flutter-apk" / f"app-direct-{self.args.mode}.apk"
         aapt = shutil.which("aapt2")

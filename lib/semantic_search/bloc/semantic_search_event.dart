@@ -68,3 +68,8 @@ class SemanticModelChoiceChanged extends SemanticSearchEvent {
   @override
   List<Object?> get props => [modelChoice];
 }
+
+/// הממשק צריך את הספרים שיש להם וקטורים; נטענים כשהחיפוש החכם שמיש.
+class SemanticCoveredBooksRequested extends SemanticSearchEvent {
+  const SemanticCoveredBooksRequested();
+}

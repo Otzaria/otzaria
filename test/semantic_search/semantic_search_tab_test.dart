@@ -33,6 +33,21 @@ void main() {
     expect(restored.title, '$kSemanticSearchModeName: צדקה');
   });
 
+  test('שחזור ושכפול של חיפוש מתוך ספר שומרים את הספר והממדים', () {
+    const bookFacet = '/הלכה/id:1';
+    final tab = SemanticSearchTab(
+      options: options.copyWith(facets: ['/הלכה', '/base']),
+      lockedBookFacet: bookFacet,
+    );
+    final restored = OpenedTab.fromJson(tab.toJson()) as SemanticSearchTab;
+    final clone = tab.clone();
+    for (final candidate in [tab, restored, clone]) {
+      addTearDown(candidate.dispose);
+      expect(candidate.lockedBookFacet, bookFacet);
+      expect(candidate.options.facets, ['/base', bookFacet]);
+    }
+  });
+
   test('שכפול נשאר כרטיסייה סמנטית עצמאית', () {
     final tab = SemanticSearchTab(options: options);
     addTearDown(tab.dispose);

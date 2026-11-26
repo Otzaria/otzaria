@@ -1280,12 +1280,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       onArrowDown: () => _moveBetweenResults(1),
       onArrowUp: () => _moveBetweenResults(-1),
       onAdvancedSearch: () async {
-        final bookTitle =
-            (context.read<TextBookBloc>().state as TextBookLoaded).book.title;
+        final book =
+            (context.read<TextBookBloc>().state as TextBookLoaded).book;
 
         final result = await showInBookAdvancedSearchDialog(
           context,
-          bookTitle: bookTitle,
+          bookTitle: book.title,
+          book: book,
           query: searchTextController.text,
           settings: _settings,
         );

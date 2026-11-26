@@ -183,7 +183,8 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
   'app.open_url': PluginPermissionInfo(
     label: 'פתיחת קישורים בדפדפן',
     icon: FluentIcons.open_24_regular,
-    description: 'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך, או את אפליקציית זית',
+    description:
+        'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך, או את אפליקציית זית',
   ),
   'app.run_on_startup': PluginPermissionInfo(
     label: 'טעינה אוטומטית ברקע',
@@ -206,7 +207,8 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description:
         'התוסף יכול להוסיף לאוצריא כפתורים, פריטי תפריט ומידע, שמוצגים כבר '
         'כשהתוכנה נפתחת. אוצריא היא שמפעילה אותם, ולכן חלק מהפעולות יתבצעו '
-        'בלי לפתוח את דף התוסף',
+        'בלי לפתוח את דף התוסף. למשל: פריט בתפריט שנפתח בלחיצה ימנית על '
+        'טקסט בספר, או כפתור בסרגל הכלים של הספר',
   ),
   'app.shortcuts': PluginPermissionInfo(
     label: 'קיצורי מקלדת',
@@ -258,6 +260,13 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     icon: OtzariaIcons.search_in_library_24_regular,
     description:
         'התוסף יכול להריץ חיפוש בתוך הטקסט של כל הספרים ולקבל את התוצאות',
+  ),
+  pluginSemanticReadPermission: PluginPermissionInfo(
+    label: 'חיפוש לפי משמעות',
+    icon: FluentIcons.sparkle_24_regular,
+    description:
+        'התוסף יכול למצוא בספרייה שורות שקרובות במשמעותן לטקסט, במודל '
+        'ובנתונים שאוצריא הורידה לחיפוש החכם. החיפוש מוגבל לספרייה הרשמית',
   ),
   'search.dialog': PluginPermissionInfo(
     label: 'רכיבים בחלון החיפוש',

@@ -20,6 +20,9 @@ import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:win32/win32.dart';
 
 const _nativeDeadline = Duration(seconds: 10);
+const _loadDeadline = Duration(seconds: 30);
+// הטעינה הראשונה מפעילה גם את תהליך הדפדפן של WebView2, ובמכונת CI טרייה זה לבד חורג מ-30 שניות.
+const _firstLoadDeadline = Duration(seconds: 90);
 const _probeHtml = '''
 <!DOCTYPE html>
 <html>
@@ -391,11 +394,15 @@ Future<_RenderedProbe> _renderProbe(
   final loadedCompleter = Completer<void>();
   final webViewKey = UniqueKey();
   final events = <String>[];
+  final elapsed = Stopwatch();
+  var loadDeadline = cycle == 1 ? _firstLoadDeadline : _loadDeadline;
+  var creationFailed = false;
   var loadCount = 0;
   final creationFailures = WindowsWebViewCreationFailures.stream.listen((
     failure,
   ) {
     if (failure.creationKey == webViewKey) {
+      creationFailed = true;
       events.add('creation failed: ${failure.error}');
     }
   });
@@ -409,6 +416,11 @@ Future<_RenderedProbe> _renderProbe(
             webViewEnvironment: environment,
             initialData: InAppWebViewInitialData(data: _probeHtml),
             onWebViewCreated: (controller) {
+              // ההארכה מיועדת ליצירה הקרה; לניווט אחריה נשארות עד 30 שניות.
+              final navigationDeadline = elapsed.elapsed + _loadDeadline;
+              if (navigationDeadline < loadDeadline) {
+                loadDeadline = navigationDeadline;
+              }
               onCreated();
               controllerCompleter.complete(controller);
             },
@@ -435,17 +447,19 @@ Future<_RenderedProbe> _renderProbe(
       ),
     );
 
-    final deadline = Stopwatch()..start();
+    elapsed.start();
     while (!loadedCompleter.isCompleted &&
-        deadline.elapsed < const Duration(seconds: 30)) {
+        !creationFailed &&
+        elapsed.elapsed < loadDeadline) {
       await tester.pump(const Duration(milliseconds: 100));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
+    expect(creationFailed, isFalse, reason: 'cycle=$cycle, events=$events');
     expect(
       loadedCompleter.isCompleted,
       isTrue,
       reason:
-          'הדף לא סיים להיטען תוך 30 שניות — מסך ריק? '
+          'הדף לא סיים להיטען תוך ${loadDeadline.inSeconds} שניות — מסך ריק? '
           'cycle=$cycle, controllerCreated=${controllerCompleter.isCompleted}, '
           'events=$events',
     );

@@ -25,6 +25,7 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/view/whole_word_search_action.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
@@ -32,6 +33,7 @@ import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
 import 'package:otzaria/pdf_book/utils/pdf_engine_result_ordinals.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_result_list.dart';
 import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
+import 'package:otzaria/pdf_book/utils/pdf_word_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/utils/result_lines_highlight_pattern.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
@@ -231,14 +233,25 @@ class PdfBookSearchView extends StatefulWidget {
   /// תקרת מונחים ייחודיים לתבנית ההדגשה, כדי שהרגקס לא יתנפח.
   static const int _maxHighlightTerms = 50;
 
-  /// תבנית הדגשה לעמודים: המתאם של הקורא הטקסטואלי כשהוא מוצא את [resultHtmls],
-  /// ואחרת המונחים שהמנוע סימן, בשורות שהוא התאים. null כשאין מה להדגיש.
+  /// תבנית הדגשה מהמתאם לעמוד, מהתאמת המרווח או מהסימונים ב-[resultHtmls].
   @visibleForTesting
   static Pattern? buildAdvancedHighlightPattern(
     Iterable<String> resultHtmls, {
     String query = '',
     InBookSearchSettings settings = const InBookSearchSettings(),
+    HighlightPattern? indexPattern,
   }) {
+    if (indexPattern?.matcher case final matcher?) {
+      final policy = settings.matchPolicy;
+      return PdfWordHighlightPattern(
+        matcher,
+        indexPattern!.wordBoundaryEligible,
+        settings.searchMode == SearchMode.fuzzy
+            ? WordMatchMode.all
+            : policy.wordMatchMode,
+        policy.wordMatchCount,
+      );
+    }
     final proximity = _proximityPattern(resultHtmls, query, settings);
     if (proximity != null) return proximity;
 
@@ -286,7 +299,7 @@ class PdfBookSearchView extends StatefulWidget {
     String query,
     InBookSearchSettings settings,
   ) {
-    // במקורב, בטווח פסקה/כותרת וב"לפחות N מילים" המנוע מתאים שורה ולא רצף.
+    // במקורב, בטווח פסקה/כותרת וב"לפחות N מילים" אין דרישה לרצף.
     if (query.isEmpty || settings.searchMode == SearchMode.fuzzy) return null;
     final policy = settings.matchPolicy;
     if (policy.proximityScope != SearchScope.wordDistance ||
@@ -397,7 +410,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   int get _searchDistance => _settings.distance;
   SearchMatchPolicy get _matchPolicy => _settings.matchPolicy;
 
-  String _lastPdfHighlightSource = '';
+  Object _lastPdfHighlightSource = '';
   int _searchGeneration = 0;
   late final _engineSearch = InBookEngineSearchCancellation(
     widget.searchRepository,
@@ -475,6 +488,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
       RegExp regExp => regExp.pattern,
       ProximityHighlightPattern proximity => proximity.key,
       ResultLinesHighlightPattern lines => lines.key,
+      PdfWordHighlightPattern words => words,
       _ => '',
     };
     final searcher = widget.textSearcher;
@@ -715,14 +729,65 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   }
 
   /// מדגיש על העמוד את מה שהמנוע מצא בפועל (כולל fuzzy/מילים חלופיות).
-  void _updateAdvancedHighlight(List<SearchResult> results, String query) {
+  void _updateAdvancedHighlight(
+    List<SearchResult> results,
+    String query, {
+    HighlightPattern? indexPattern,
+  }) {
     final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
       results.map((r) => r.text),
       query: query,
       settings: _settings,
+      indexPattern: indexPattern,
     );
     _lastAdvancedHighlightPattern = pattern;
     _schedulePdfHighlight(pattern);
+  }
+
+  static final _phraseQuotes = RegExp(r'(?<![א-ת])["״“”„]|["״“”„](?![א-ת])');
+
+  static bool _hasQuotedFuzzyPhrase(String query) {
+    final segments = query.split(_phraseQuotes);
+    for (var i = 1; i + 1 < segments.length; i += 2) {
+      if (SearchQueryBuilder.hasMultipleWords(segments[i])) return true;
+    }
+    return false;
+  }
+
+  Future<HighlightPattern?> _preparePageWordHighlights(
+    String query,
+    int requestId,
+  ) async {
+    final policy = _settings.matchPolicy;
+    final needsWordMatcher = switch (_settings.searchMode) {
+      SearchMode.exact => false,
+      SearchMode.fuzzy =>
+        policy.querySemantics == SearchQuerySemantics.regular &&
+            !_hasQuotedFuzzyPhrase(query),
+      SearchMode.advanced =>
+        policy.proximityScope != SearchScope.wordDistance ||
+            policy.wordMatchMode != WordMatchMode.all,
+    };
+    final options = _settings.searchOptions;
+    if (!needsWordMatcher ||
+        SearchQueryBuilder.optionsRequestVocalized(options) ||
+        options.values.any((word) => word['תרגום ארמי'] == true)) {
+      return null;
+    }
+    try {
+      return await widget.searchRepository.preparePdfWordHighlightPattern(
+        inBookSearchRequest(
+          query: query,
+          bookPath: _bookPath!,
+          settings: _settings,
+          cancelRequestId: requestId,
+        ),
+        indexedFilePath: _indexedFilePath,
+      );
+    } catch (error) {
+      debugPrint('[PdfSearch] page word highlights unavailable: $error');
+      return null;
+    }
   }
 
   @override
@@ -1304,13 +1369,14 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     }
 
     try {
+      final requestId = _engineSearch.next();
       final rawResults = await searchBookWithEngine(
         widget.searchRepository,
         query: query,
         bookPath: _bookPath!,
         limit: kInBookEngineFetchLimit,
         settings: _settings,
-        cancelRequestId: _engineSearch.next(),
+        cancelRequestId: requestId,
       );
 
       final indexedFilePath = _indexedFilePath;
@@ -1347,7 +1413,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           );
         }
       });
-      _updateAdvancedHighlight(results, query);
+      final indexPattern = results.isEmpty
+          ? null
+          : await _preparePageWordHighlights(query, requestId);
+      if (!mounted || generation != _searchGeneration) return;
+      _updateAdvancedHighlight(results, query, indexPattern: indexPattern);
       _centerOpenTargetMatch();
       _scheduleScrollToCurrentPage();
     } catch (e, st) {
@@ -1540,6 +1610,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         final result = await showInBookAdvancedSearchDialog(
           context,
           bookTitle: widget.bookTitle,
+          book: switch (pdfBookBloc.state) {
+            PdfBookLoaded(:final book) => book,
+            _ => null,
+          },
           query: widget.searchController.text,
           settings: _settings,
         );

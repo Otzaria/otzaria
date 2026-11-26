@@ -488,6 +488,10 @@ Otzaria.on('plugin.boot', (payload) => {
 | `search.fullText` | `search.fulltext.read` | `{ query, limit?, rawDivineNames? }` | `SearchResult[]` |
 | `search.query` | `search.fulltext.read` | `{ query, regex?, mode?, distance?, proximityScope?, order?, grouping?, wordMatchMode?, anyOrder?, options?, wordOptions?, alternativeWords?, customSpacing?, negativeQuery?, categories?, books?, authors?, eras?, baseBooksOnly?, limit?, offset?, includeBookCounts? }` | `AsyncIterable<{ sequence, results, total, groupCount, truncated, facets, bookCounts? }>` |
 | `search.getOptions` | `search.fulltext.read` | `{}` | הערכים החוקיים לכל פרמטר של `search.query` |
+| `semantic.getStatus` | `search.semantic.read` | — | `{ phase, modelFamilyId, dim, generation, limits, … }` |
+| `semantic.countTokens` | `search.semantic.read` | `{ texts }` | `{ counts, queryMaxTokens, overheadTokens }` |
+| `semantic.nearest` | `search.semantic.read` | `{ from, k?, pool?, maxCandidates?, rescore?, minScore?, exclude?, categories?, books?, authors?, eras?, baseBooksOnly? }` | `AsyncIterable` של `progress`, `hits` ו-`done` |
+| `semantic.getCoveredBooks` | `search.semantic.read` | — | `{ books }` |
 
 ב-`search.query`, גודל עמוד מוגבל ל-500 וחלון הדפדוף (`offset + limit`
 לאחר החיתוך) מוגבל ל-10,000 כדי למנוע הקצאת זיכרון לא חסומה במנוע.
@@ -743,6 +747,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `library.refresh` | סריקה מחדש של התיקיות האישיות ורענון הקטלוג (`library.refreshUserBooks`) |
 | `library.books.provide` | הוספת ספרים מהתוסף לאיתור הספרים במסך הספרייה (`contributes.startup.libraryBooks`); לחיצה על ספר כזה נמסרת לתוסף |
 | `search.fulltext.read` | חיפוש טקסט מלא |
+| `search.semantic.read` | חיפוש לפי משמעות במודל ובווקטורים של החיפוש החכם (`semantic.*`); מ־0.9.99 |
 | `reader.open` | פתיחת ספרים + קריאת מצב הקורא |
 | `reader.local_edit` | שכבת תיקונים זמנית בקורא הטקסט הרשמי, ללא כתיבה למקור; מ־0.9.98.1 |
 | `navigation.write` | ניווט בין מסכים |

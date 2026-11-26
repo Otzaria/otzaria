@@ -18,6 +18,9 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -55,6 +58,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         SearchEngine;
 
 import '../test_helpers/memory_cache_provider.dart';
+import 'semantic_test_support.dart' show FakeBackend, FakeSettingsStore;
 import 'semantic_ui_test_support.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
@@ -173,11 +177,13 @@ void main() {
     utils.HolyNameStyle? holyNameStyle,
     FakeResultsSource? injectedSource,
     SemanticQueryOptions? initialOptions,
+    String? lockedBookFacet,
     Library? library,
     Stream<LibraryState> libraryStates = const Stream.empty(),
     double? paneWidth,
     bool platformSupported = true,
     IndexingBloc? indexingBloc,
+    SemanticSearchRepository? semanticRepository,
   }) async {
     if (library != null) {
       DataRepository.instance.library = Future.value(library);
@@ -193,6 +199,7 @@ void main() {
     final tab = SemanticSearchTab(
       runOnFirstShow: runOnFirstShow,
       options: initialOptions ?? SemanticQueryOptions(query: query),
+      lockedBookFacet: lockedBookFacet,
       createResultsBloc: (_) => buildResultsBloc(
         source: source,
         recorder: recorder,
@@ -248,6 +255,7 @@ void main() {
                 child: SemanticSearchResultsScreen(
                   tab: tab,
                   platformSupported: platformSupported,
+                  semanticRepository: semanticRepository,
                 ),
               ),
             ),
@@ -1122,6 +1130,106 @@ void main() {
     ]);
   });
 
+  testWidgets('צמצום בחיפוש חכם בלבד ממתין לספרים המכוסים (issue #1963)', (
+    tester,
+  ) async {
+    final personal = TextBook(
+      id: 4,
+      title: 'חידושים',
+      source: BookSource.user,
+    );
+    final uncovered = TextBook(id: 1, title: 'ספר 1');
+    Category category(String title, Book book) => Category(
+      title: title,
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: const [],
+      books: [book],
+      parent: null,
+    );
+    final library = Library(
+      categories: [
+        category('ספרים אישיים', personal),
+        category('הלכה', uncovered),
+      ],
+    );
+    String facetOf(Book book) =>
+        FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
+    final repository = _LateCoverageRepository({'uid:4'});
+    final harness = await pumpScreen(
+      tester,
+      library: library,
+      initialOptions: const SemanticQueryOptions(
+        query: 'כבוד אב',
+        includeLexical: false,
+      ),
+      semanticRepository: repository,
+    );
+    SemanticFacetFiltering tree() => tester.widget(
+      find.byType(SemanticFacetFiltering, skipOffstage: false),
+    );
+
+    tree().onSetFacet(facetOf(personal));
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [facetOf(personal)]);
+
+    tree().onSetFacet(facetOf(uncovered));
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [facetOf(personal)]);
+
+    final searchId = harness.tab.resultsBloc.state.searchId;
+    repository.gate = Completer<void>();
+    tree().onSetFacet('/הלכה');
+    tree().onSetFacet('/ספרים אישיים');
+    repository.gate!.complete();
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/ספרים אישיים']);
+    expect(harness.tab.resultsBloc.state.searchId, searchId + 1);
+
+    repository.gate = Completer<void>();
+    tree().onSetFacet(facetOf(personal));
+    tree().onSetFacet('/');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/']);
+    repository.gate!.complete();
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/']);
+  });
+
+  testWidgets('קטגוריית אב וספר אחר אינם מרחיבים חיפוש מתוך ספר', (
+    tester,
+  ) async {
+    const bookFacet = '/הלכה/id:1';
+    final harness = await pumpScreen(
+      tester,
+      initialOptions: const SemanticQueryOptions(
+        query: 'כבוד אב',
+        facets: [bookFacet],
+      ),
+      lockedBookFacet: bookFacet,
+    );
+    SemanticFacetFiltering tree() => tester.widget(
+      find.byType(SemanticFacetFiltering, skipOffstage: false),
+    );
+
+    tree().onSetFacet('/הלכה');
+    tree().onToggleFacet('/הלכה/id:2');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [bookFacet]);
+
+    tree().onToggleDimension('/era/ראשונים');
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [
+      '/era/ראשונים',
+      bookFacet,
+    ]);
+
+    tree().onClearAll();
+    await settle(tester);
+    expect(harness.tab.resultsBloc.state.options!.facets, [bookFacet]);
+  });
+
   testWidgets('עץ חכם מסתיר חברי היקף בלי תוצאות (issue #2702)', (
     tester,
   ) async {
@@ -1197,5 +1305,27 @@ Future<void> settle(WidgetTester tester) async {
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
     await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
+/// מאגר שהספרים המכוסים בו לא חושבו עדיין, ונטענים רק לפי בקשה.
+class _LateCoverageRepository extends SemanticSearchRepository {
+  _LateCoverageRepository(this.covered)
+    : super(
+        backend: FakeBackend(),
+        consent: () => FakeConsentStore(),
+        settings: FakeSettingsStore(),
+      );
+
+  final Set<String> covered;
+  Completer<void>? gate;
+
+  @override
+  Set<String>? get coveredBookFilePaths => null;
+
+  @override
+  Future<Set<String>?> loadCoveredBookFilePaths() async {
+    await gate?.future;
+    return covered;
   }
 }

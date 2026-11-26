@@ -178,6 +178,10 @@ class SemanticSearchRequest {
   final SemanticGroupingMode? grouping;
   final bool matchNikud;
   final bool matchTaamim;
+  final List<SemanticVote> votes;
+
+  /// מזהה עימוד מקומי שנשמר בבקשות ההמשך של אותו חיפוש.
+  final String? paginationSessionId;
 
   const SemanticSearchRequest({
     required this.query,
@@ -190,6 +194,8 @@ class SemanticSearchRequest {
     this.grouping,
     this.matchNikud = false,
     this.matchTaamim = false,
+    this.votes = const [],
+    this.paginationSessionId,
   });
 
   /// מנוע החיפוש תומך במרחק עריכה עד [kMaxFuzzyDistance].
@@ -613,6 +619,8 @@ class RustSearchEngineOperations
           grouping: request.grouping,
           matchNikud: request.matchNikud,
           matchTaamim: request.matchTaamim,
+          votes: request.votes,
+          paginationSessionId: request.paginationSessionId,
           cancellation: token,
         )
         .whenComplete(token.dispose);
@@ -1118,6 +1126,43 @@ class RustSearchEngineOperations
   void primeSmartHighlightPattern(SearchEngineRequest request) =>
       _primeHighlightPattern(request, SearchQuerySemantics.smart);
 
+  Future<HighlightPattern?> preparePdfWordHighlightPattern(
+    SearchEngineRequest request, {
+    required String indexedFilePath,
+  }) async {
+    final indexed = indexHighlightRequest(request);
+    if (indexed == null ||
+        await _engine.getBookTextFingerprint(filePath: indexedFilePath) ==
+            BigInt.zero) {
+      return null;
+    }
+    return _generateIndexHighlightPattern(
+      indexed,
+      cancelRequestId: indexed.cancelRequestId,
+    );
+  }
+
+  Future<HighlightPattern?> _generateIndexHighlightPattern(
+    SearchEngineRequest request, {
+    int? cancelRequestId,
+  }) => switch (request.searchMode) {
+    SearchMode.advanced => _engine.generateIndexHighlightPattern(
+      query: request.query,
+      distance: request.distance < 0 ? 0 : request.distance,
+      customSpacing: request.customSpacing,
+      alternativeWords: request.alternativeWords,
+      searchOptions: request.searchOptions,
+      anyOrder: request.anyOrder,
+      cancelRequestId: cancelRequestId,
+    ),
+    SearchMode.fuzzy => _engine.generateIndexFuzzyHighlightPattern(
+      query: request.query,
+      maxDistance: _fuzzyDistance(request.distance),
+      cancelRequestId: cancelRequestId,
+    ),
+    SearchMode.exact => Future.value(null),
+  };
+
   void _primeHighlightPattern(
     SearchEngineRequest request,
     SearchQuerySemantics semantics,
@@ -1146,21 +1191,7 @@ class RustSearchEngineOperations
                     : SemanticLexicalMode.fuzzy,
                 maxDistance: _fuzzyDistance(request.distance),
               )
-            : switch (request.searchMode) {
-                SearchMode.advanced => _engine.generateIndexHighlightPattern(
-                  query: request.query,
-                  distance: request.distance < 0 ? 0 : request.distance,
-                  customSpacing: request.customSpacing,
-                  alternativeWords: request.alternativeWords,
-                  searchOptions: request.searchOptions,
-                  anyOrder: request.anyOrder,
-                ),
-                SearchMode.fuzzy => _engine.generateIndexFuzzyHighlightPattern(
-                  query: request.query,
-                  maxDistance: _fuzzyDistance(request.distance),
-                ),
-                SearchMode.exact => Future.value(null),
-              },
+            : _generateIndexHighlightPattern(request),
       ),
     );
   }

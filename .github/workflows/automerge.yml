@@ -25,8 +25,8 @@ jobs:
       github.event_name == 'push' ||
       (github.event_name == 'pull_request_target' &&
        contains(github.event.pull_request.labels.*.name, 'automerge')) ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
-       (github.event.workflow_run.event == 'pull_request' ||
+      (github.event_name == 'workflow_run' &&
+       ((github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success') ||
         (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'dev' &&
          github.event.workflow_run.name == 'Flutter Tests')))
     runs-on: ubuntu-latest
@@ -107,27 +107,35 @@ jobs:
           head=$(jq -r .head.sha <<< "$pr")
           base=$(jq -r .base.ref <<< "$pr")
 
-          # ה-CI האחרון שהסתיים חייב להיות ירוק. ריצה חדשה על dev אינה חוסמת
-          # PR שכבר עבר CI, אבל כשל ידוע או הרצה חוזרת חדשה יותר כן חוסמים.
-          # הקומיט הירוק חייב להיות אב קדמון של dev הנוכחי (גם אחרי force push).
+          # כש-dev שבור ממוזג רק PR שמכיל את dev הנוכחי ועבר CI מלא, בלי ריבייס שלא נבדק.
+          # גם ריצה שנכשלה חייבת להשתייך להיסטוריה הנוכחית של dev.
+          dev_recovery=false
           dev_head=$(gh api "repos/$R/git/ref/heads/dev" --jq .object.sha)
           dev_runs=$(gh api "repos/$R/actions/workflows/flutter_tests.yml/runs?branch=dev&event=push&per_page=100" --jq '.workflow_runs')
           dev_ci=$(jq -c 'first(.[] | select(.status == "completed")) // empty' <<< "$dev_runs")
-          if [ -z "$dev_ci" ] || [ "$(jq -r .conclusion <<< "$dev_ci")" != success ]; then
-            echo "Waiting for a successful completed CI run on dev"
-            exit 0
-          fi
+          [ -n "$dev_ci" ] || { echo "Waiting for a completed CI run on dev"; exit 0; }
+          case "$(jq -r .conclusion <<< "$dev_ci")" in
+            success) ;;
+            failure|timed_out|cancelled)
+              [ "$base" = dev ] || { echo "Waiting for green dev CI"; exit 0; }
+              dev_recovery=true ;;
+            *) echo "Waiting for a successful completed CI run on dev"; exit 0 ;;
+          esac
           if jq -e '(map(.status == "completed") | index(true)) as $i | any(.[:$i][]; (.run_attempt // 1) > 1)' <<< "$dev_runs" > /dev/null; then
             echo "Waiting for a newer dev CI retry to finish"
             exit 0
           fi
-          green_head=$(jq -r '.head_sha // empty' <<< "$dev_ci")
-          [ -n "$green_head" ] || { echo "No verified green dev commit"; exit 0; }
-          if [ "$green_head" != "$dev_head" ]; then
-            relation=$(gh api "repos/$R/compare/$green_head...$dev_head" --jq .status)
-            [ "$relation" = ahead ] || { echo "Last green dev commit is not an ancestor of current dev"; exit 0; }
+          ci_head=$(jq -r '.head_sha // empty' <<< "$dev_ci")
+          [ -n "$ci_head" ] || { echo "No verified dev CI commit"; exit 0; }
+          if [ "$ci_head" != "$dev_head" ]; then
+            relation=$(gh api "repos/$R/compare/$ci_head...$dev_head" --jq .status)
+            [ "$relation" = ahead ] || { echo "Last completed dev CI commit is not an ancestor of current dev"; exit 0; }
           fi
-          echo "Continuing with green dev baseline $green_head; current dev $dev_head"
+          if [ "$dev_recovery" = true ]; then
+            echo "Dev recovery: require full PR CI and the current dev commit in the tested head"
+          else
+            echo "Continuing with green dev baseline $ci_head; current dev $dev_head"
+          fi
           base_head=$dev_head
           if [ "$base" != dev ]; then
             base_head=$(gh api "repos/$R/git/ref/heads/$base" --jq .object.sha)
@@ -180,6 +188,15 @@ jobs:
           fi
 
           behind=$(gh api "repos/$R/compare/$base_head...$head" --jq .behind_by)
+          if [ "$dev_recovery" = true ] && [ "$behind" != 0 ]; then
+            echo "Dev recovery requires an up-to-date PR with successful CI; no automatic rebase"
+            marker="<!-- automerge-recovery-behind:$head -->"
+            posted=$(gh api --paginate "repos/$R/issues/$PR/comments" --jq '.[].body')
+            if [[ "$posted" != *"$marker"* ]]; then
+              comment "⏳ המיזוג האוטומטי ממתין לעדכון הענף" "ה-CI של \`dev\` נכשל, ולכן ממוזג כעת רק ענף שמכיל את \`dev\` העדכני ועבר עליו CI מלא. עדכנו את הענף מול \`dev\` והוסיפו שוב את התווית \`automerge\`, או המתינו ש-\`dev\` יחזור לירוק, ואז הריבייס יתבצע אוטומטית."$'\n\n'"$marker"
+            fi
+            exit 0
+          fi
           if [ "$behind" -gt 0 ]; then
             head_repo=$(jq -r .head.repo.full_name <<< "$pr")
             head_ref=$(jq -r .head.ref <<< "$pr")

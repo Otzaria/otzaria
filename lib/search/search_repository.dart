@@ -135,6 +135,25 @@ class SearchRepository {
     return results;
   }
 
+  /// תבנית לקורא PDF, אם הספר נכתב כמסמכי עמוד.
+  Future<HighlightPattern?> preparePdfWordHighlightPattern(
+    SearchEngineRequest request, {
+    required String indexedFilePath,
+  }) async {
+    if (indexedFilePath.isEmpty ||
+        (_engineProvider == null &&
+            !TantivyDataProvider.instance.isInitialized.value)) {
+      return null;
+    }
+    final engine = await _engine();
+    return engine is RustSearchEngineOperations
+        ? engine.preparePdfWordHighlightPattern(
+            request,
+            indexedFilePath: indexedFilePath,
+          )
+        : null;
+  }
+
   Future<void> _verifySnapshot(
     SearchEngineOperations engine,
     String expected,
