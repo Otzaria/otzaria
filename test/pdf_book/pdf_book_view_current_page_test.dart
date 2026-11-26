@@ -9,6 +9,19 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
 import '../test_helpers/pdf_document_dispose.dart';
 
+class _RecordingBookViewLayout extends BookViewLayout {
+  _RecordingBookViewLayout() : super(hasCover: true);
+
+  final resolvedLayouts = <PdfPageLayout>[];
+
+  @override
+  PdfPageLayout resolve(PdfPageLayoutContext context) {
+    final layout = super.resolve(context);
+    resolvedLayouts.add(layout);
+    return layout;
+  }
+}
+
 /// בתצוגת ספר העמוד הנוכחי שמדווח הקורא הוא של הכפולה המוצגת — ממנו מחושב
 /// יעד החיצים.
 void main() {
@@ -33,8 +46,9 @@ void main() {
 
   Future<PdfViewerController> pumpBookView(
     WidgetTester tester,
-    Size surface,
-  ) async {
+    Size surface, {
+    BookViewLayout layoutStrategy = const BookViewLayout(hasCover: true),
+  }) async {
     await tester.binding.setSurfaceSize(surface);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final document = (await tester.runAsync(() async {
@@ -57,7 +71,7 @@ void main() {
           PdfDocumentRefDirect(document),
           controller: controller,
           params: PdfViewerParams(
-            layoutStrategy: const BookViewLayout(hasCover: true),
+            layoutStrategy: layoutStrategy,
             calculateCurrentPageNumber: pdfCurrentPageCalculatorFor(
               PdfLayoutMode.bookView,
             ),
@@ -113,6 +127,26 @@ void main() {
     }
     return controller.pageNumber!;
   }
+
+  testWidgets('שינוי גודל הצופה משתמש שוב בפריסת אותו מסמך', (tester) async {
+    final strategy = _RecordingBookViewLayout();
+    final controller = await pumpBookView(
+      tester,
+      const Size(900, 700),
+      layoutStrategy: strategy,
+    );
+    await tester.pumpAndSettle();
+    final first = controller.layout;
+    strategy.resolvedLayouts.clear();
+
+    const larger = Size(1200, 800);
+    await tester.binding.setSurfaceSize(larger);
+    await tester.pumpAndSettle();
+
+    expect(controller.viewSize, larger);
+    expect(strategy.resolvedLayouts, isNotEmpty);
+    expect(strategy.resolvedLayouts, everyElement(same(first)));
+  });
 
   group('העמוד הנוכחי בתצוגת ספר (issue #1712)', () {
     testWidgets('מוגדל: חלקה התחתון של כפולה וראש כפולה בסוף הספר', (
