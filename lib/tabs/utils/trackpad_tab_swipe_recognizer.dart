@@ -11,6 +11,10 @@ class TrackpadTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
   Offset _pan = Offset.zero;
   bool _accepted = false;
 
+  /// מחווה שמתחילה אנכית שייכת לגלילת התוכן, ולא להחלקה בין טאבים.
+  static bool isVerticalPan(Offset pan) =>
+      pan.dy.abs() > pan.dx.abs() && pan.distance > kPrecisePointerPanSlop;
+
   /// מבטל מעבר טאב כשקנה המידה משתנה אחרי הזכייה בזירת המחוות.
   void Function()? onPinchAfterAcceptance;
 
@@ -36,6 +40,11 @@ class TrackpadTabSwipeRecognizer extends HorizontalDragGestureRecognizer {
       }
       // localPan כולל גם את הזזת הרכיב; דלתאות שומרות רק את התנועה.
       _pan += event.localPanDelta;
+      // יציאה מיד מאפשרת לגלילה לזכות בלי לחכות לסף (#3975).
+      if (!_accepted && isVerticalPan(_pan)) {
+        resolve(GestureDisposition.rejected);
+        return;
+      }
     }
     super.handleEvent(event);
   }

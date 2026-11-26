@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:otzaria/tabs/utils/trackpad_tab_swipe_recognizer.dart';
 
 /// מונע מעבר טאב בגלילה אנכית, בלי לתפוס את גלילת ה-PDF במגע.
 class TabContentVerticalDragRecognizer extends VerticalDragGestureRecognizer {
@@ -14,6 +15,19 @@ class TabContentVerticalDragRecognizer extends VerticalDragGestureRecognizer {
   final bool Function() contentIsWebView;
 
   static bool _never() => false;
+
+  @override
+  void handleEvent(PointerEvent event) {
+    // בלוח מגע הבולען רק מחזיק את הזירה פתוחה עד שהכיוון ברור; בגלילה
+    // אנכית הוא יוצא יחד עם ההחלקה, והגלילה זוכה בלי לבלוע את הסף (#3975).
+    if (event is PointerPanZoomUpdateEvent &&
+        !contentIsWebView() &&
+        TrackpadTabSwipeRecognizer.isVerticalPan(event.pan)) {
+      resolve(GestureDisposition.rejected);
+      return;
+    }
+    super.handleEvent(event);
+  }
 
   @override
   bool hasSufficientGlobalDistanceToAccept(
