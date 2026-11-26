@@ -70,6 +70,11 @@ class _Repository extends Fake implements DataRepository {
   );
 }
 
+const _eliyahu = 'רבי אליהו';
+
+/// שם מחבר אמיתי מהקטלוג שיש בו ", " — אינו שני מחברים.
+const _teitelbaum = 'הרב יואל טייטלבוים, האדמו"ר מסאטמר';
+
 /// קישורי הקטגוריה והמחבר בתוצאות האיתור בספרייה (issue #4231).
 ({Library library, Category halacha, Category tur, List<Book> books})
 _library() {
@@ -95,6 +100,16 @@ _library() {
     ),
     TextBook(title: 'ערוך השולחן', author: 'רבי יחיאל מיכל', category: halacha),
   ];
+  books.addAll([
+    TextBook(title: 'ספר א', author: _eliyahu, category: halacha),
+    TextBook(
+      title: 'ספר ב',
+      author: '$_eliyahu, $_teitelbaum',
+      authorNames: const [_eliyahu, _teitelbaum],
+      category: halacha,
+    ),
+    TextBook(title: 'ספר ג', author: _teitelbaum, category: halacha),
+  ]);
   tur.books.addAll(books.take(2));
   halacha.books.addAll(books.skip(2));
   halacha.subCategories.add(tur);
@@ -110,7 +125,11 @@ void main() {
   late LibraryBloc libraryBloc;
 
   Future<({Library library, Category halacha, Category tur, List<Book> books})>
-  pump(WidgetTester tester, {bool hideBook = false}) async {
+  pump(
+    WidgetTester tester, {
+    bool hideBook = false,
+    bool multiAuthor = false,
+  }) async {
     final data = _library();
     final visibleLibrary = hideBook
         ? filterHiddenFromLibrary(
@@ -131,7 +150,9 @@ void main() {
         library: visibleLibrary,
         currentCategory: visibleLibrary,
         searchQuery: 'יוסף',
-        searchResults: [data.books[1], data.books[3]],
+        searchResults: multiAuthor
+            ? [data.books[4], data.books[5]]
+            : [data.books[1], data.books[3]],
       ),
     );
     whenListen(
@@ -347,4 +368,43 @@ void main() {
       });
     },
   );
+
+  group('multi-author books (issue #4231)', () {
+    testWidgets('ספר של שני מחברים מציג קישור לכל מחבר', (tester) async {
+      await pump(tester, multiAuthor: true);
+
+      expect(link('ספר ב', _eliyahu), findsOneWidget);
+      expect(link('ספר ב', _teitelbaum), findsOneWidget);
+      expect(find.text('$_eliyahu, $_teitelbaum'), findsNothing);
+      expect(find.byTooltip('כל ספרי המחבר'), findsNWidgets(3));
+    });
+
+    testWidgets('המחבר של ספר יחיד מציג גם את הספר המשותף', (tester) async {
+      final data = await pump(tester, multiAuthor: true);
+
+      await tester.tap(link('ספר א', _eliyahu));
+      await settle(tester);
+
+      expect(libraryBloc.state.authorFilter, _eliyahu);
+      expect(
+        libraryBloc.state.searchResults,
+        unorderedEquals([data.books[4], data.books[5]]),
+      );
+      expect(find.text('מחבר: $_eliyahu'), findsOneWidget);
+    });
+
+    testWidgets('קישור המחבר השני בספר המשותף מציג את ספריו', (tester) async {
+      final data = await pump(tester, multiAuthor: true);
+
+      await tester.tap(link('ספר ב', _teitelbaum));
+      await settle(tester);
+
+      expect(libraryBloc.state.authorFilter, _teitelbaum);
+      expect(
+        libraryBloc.state.searchResults,
+        unorderedEquals([data.books[5], data.books[6]]),
+      );
+      expect(find.text('מחבר: $_teitelbaum'), findsOneWidget);
+    });
+  });
 }
