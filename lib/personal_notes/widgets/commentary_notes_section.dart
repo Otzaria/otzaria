@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
 /// אזור נפרד בחלונית ההערות עם ההערות שנכתבו על המפרשים המוצגים לצד הספר.
 /// לחיצה על הערה פותחת את הערות אותו מפרש בחלונית, ושם אפשר לערוך אותן.
@@ -72,44 +73,48 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
     if (_groups.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(
-            'הערות על המפרשים המוצגים',
-            style: theme.textTheme.titleSmall,
-          ),
-        ),
-        for (final (bookId, notes) in _groups) ...[
+    return AppSelectionArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
-              bookId,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
+              'הערות על המפרשים המוצגים',
+              style: theme.textTheme.titleSmall,
             ),
           ),
-          for (final note in notes)
-            ListTile(
-              dense: true,
-              title: Text(
-                note.title.isNotEmpty ? note.title : 'שורה ${note.lineNumber}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          for (final (bookId, notes) in _groups) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text(
+                bookId,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
-              subtitle: Text(
-                note.contentPlain,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () => widget.onOpenNote(bookId, note.lineNumber!),
             ),
+            for (final note in notes)
+              ListTile(
+                dense: true,
+                title: Text(
+                  note.title.isNotEmpty
+                      ? note.title
+                      : 'שורה ${note.lineNumber}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  note.contentPlain,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => widget.onOpenNote(bookId, note.lineNumber!),
+              ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
