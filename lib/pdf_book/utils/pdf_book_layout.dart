@@ -95,22 +95,51 @@ double pdfSpreadPageRenderScale({
 class BookViewLayout extends PdfPageLayoutStrategy {
   const BookViewLayout({required this.hasCover});
 
+  static final _layouts =
+      Expando<Map<bool, ({List<Size> sizes, PdfPageLayout layout})>>();
+
   /// כמו ברירת המחדל של [SequentialPagesLayout], כדי שהמעבר בין התצוגות לא ישנה זום.
   static const double margin = 8.0;
 
   final bool hasCover;
 
   @override
-  PdfPageLayout resolve(PdfPageLayoutContext context) =>
-      buildBookViewPageLayout(
-        pageSizes: [
-          for (final page in context.pages) Size(page.width, page.height),
-        ],
-        hasCover: hasCover,
-        // המרווח הוכפל יחד עם הפריסה, לשמירת אותה פרופורציה בין כפולות.
-        verticalMargin: margin * 2,
-        margin: margin,
-      );
+  PdfPageLayout resolve(PdfPageLayoutContext context) {
+    final pages = context.pages;
+    // טעינה הדרגתית עשויה להחליף את רשימת העמודים של אותו מסמך.
+    final layouts = pages.isEmpty
+        ? null
+        : (_layouts[pages.first.document] ??= {});
+    final cached = layouts?[hasCover];
+    final sizes = _readSizes(pages, cached?.sizes);
+    if (cached != null && identical(sizes, cached.sizes)) return cached.layout;
+
+    final layout = buildBookViewPageLayout(
+      pageSizes: sizes,
+      hasCover: hasCover,
+      verticalMargin: margin * 2,
+      margin: margin,
+    );
+    layouts?[hasCover] = (sizes: sizes, layout: layout);
+    return layout;
+  }
+
+  static List<Size> _readSizes(List<PdfPage> pages, List<Size>? previous) {
+    if (previous == null || previous.length != pages.length) {
+      return [for (final page in pages) Size(page.width, page.height)];
+    }
+    List<Size>? updated;
+    for (var i = 0; i < pages.length; i++) {
+      final page = pages[i];
+      final width = page.width;
+      final height = page.height;
+      final size = previous[i];
+      if (width == size.width && height == size.height) continue;
+      updated ??= List.of(previous, growable: false);
+      updated[i] = Size(width, height);
+    }
+    return updated ?? previous;
+  }
 
   @override
   bool operator ==(Object other) =>
