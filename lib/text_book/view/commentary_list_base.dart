@@ -1807,6 +1807,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
               .trim(),
       onOpenPersonalNote: widget.onOpenPersonalNote,
       shouldShowItemTitle: (title) => _shouldShowItemTitle(group, state, title),
+      groupBookTitle: group.bookTitle,
       personalNotes: _personalNotesForGroup(group),
       restoreLineBreaks: _restoreLineBreaks,
     );

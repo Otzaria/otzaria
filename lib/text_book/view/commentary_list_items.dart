@@ -119,6 +119,9 @@ class _CommentaryLinkItem extends StatefulWidget {
   /// null = הצג תמיד.
   final bool Function(String displayTitle)? shouldShowItemTitle;
 
+  /// שם הספר שבכותרת הקבוצה — מושמט מכותרת המקטע (#3599). null = כותרת מלאה.
+  final String? groupBookTitle;
+
   const _CommentaryLinkItem({
     super.key,
     required this.link,
@@ -149,6 +152,7 @@ class _CommentaryLinkItem extends StatefulWidget {
     this.highlightQueryListenable,
     this.onOpenPersonalNote,
     this.shouldShowItemTitle,
+    this.groupBookTitle,
   });
 
   @override
@@ -265,6 +269,13 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                           widget.onLinkTitleRendered?.call(link, '');
                         });
                         return const SizedBox.shrink();
+                      }
+                      final groupBookTitle = widget.groupBookTitle;
+                      if (showTitle && groupBookTitle != null) {
+                        displayTitle = commentaryTitleWithoutBook(
+                          displayTitle: displayTitle,
+                          groupBookTitle: groupBookTitle,
+                        );
                       }
                       if (!showTitle) {
                         displayTitle = markerText!;
