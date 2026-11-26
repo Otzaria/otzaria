@@ -147,11 +147,13 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   });
 
   @override
-  Future<bool> retirePreviousGeneration(String vectorsDir) => _guard(
-    () async => (await (await _engine()).retirePreviousSemanticGeneration(
-      vectorsDir: vectorsDir,
-    )).retired,
-  );
+  Future<bool> retirePreviousGeneration(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    // המנוע 7.5.3 מוחק בלי לאמת את הדור של הסשן ואת שלמות הבלוקים.
+    return false;
+  }
 
   @override
   Future<void> disable() async => (await _engine()).disableSemantic();

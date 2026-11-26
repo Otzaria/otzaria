@@ -397,25 +397,15 @@ void main() {
     );
   });
 
-  test('retirePreviousGeneration מעביר את התיקייה וממפה סט תפוס', () async {
-    expect(await adapter.retirePreviousGeneration('/v'), isTrue);
-    expect(engine.retiredDir, '/v');
-
-    engine.failure = const SemanticError(
-      kind: SemanticErrorKind.vectorsBusy,
-      message: 'compaction is running',
-      field: 'vectors_dir',
-    );
-    await expectLater(
-      adapter.retirePreviousGeneration('/v'),
-      throwsA(
-        isA<SemanticFailure>().having(
-          (f) => f.kind,
-          'kind',
-          SemanticFailureKind.vectorsBusy,
-        ),
+  test('retirePreviousGeneration שומר את הגיבוי במנוע 7.5.3', () async {
+    expect(
+      await adapter.retirePreviousGeneration(
+        '/v',
+        cancel: SemanticCancelHandle(),
       ),
+      isFalse,
     );
+    expect(engine.retiredDir, isNull);
   });
 
   test('search: ביטול מגיע ל-token, והדירוג ו-fallbackKind ממופים', () async {

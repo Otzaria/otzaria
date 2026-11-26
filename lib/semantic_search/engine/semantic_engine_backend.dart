@@ -65,9 +65,12 @@ abstract interface class SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   });
 
-  /// מוחק את הדור הקודם ששמור לגיבוי ליד הדור החי; `false` כשלא היה כזה.
-  /// לקרוא רק אחרי שהדור החי נפתח בלי ליפול לגיבוי.
-  Future<bool> retirePreviousGeneration(String vectorsDir);
+  /// מפנה את הגיבוי רק אם הסשן משרת את הדור החי השלם.
+  /// אימות הדור, בדיקת השלמות והפינוי מתבצעים תחת אותה נעילה.
+  Future<bool> retirePreviousGeneration(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  });
 
   /// סוגר את ה-session הפתוח.
   Future<void> disable();
@@ -156,8 +159,10 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
   }) => Future.error(_unavailable);
 
   @override
-  Future<bool> retirePreviousGeneration(String vectorsDir) =>
-      Future.error(_unavailable);
+  Future<bool> retirePreviousGeneration(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
 
   @override
   Future<void> disable() async {}

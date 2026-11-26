@@ -222,8 +222,10 @@ class SemanticSearchRepository {
   Future<void>? _compaction;
   SemanticCancelHandle _compactCancel = SemanticCancelHandle();
 
-  /// הדור שהגיבוי שלו כבר נמחק בהרצה הזו.
-  int? _retiredGeneration;
+  String? _openVectorsDirectory;
+  bool _retirementPending = false;
+  SemanticCancelHandle? _retirementCancel;
+  Timer? _retirementRetry;
 
   /// ה-base שהשרשרת אליו נכשלה; אליו מורידים base בלבד.
   String? _deltaChainFailedFor;
@@ -418,6 +420,7 @@ class SemanticSearchRepository {
   /// מוחק את המודל, הוקטורים וההורדות, ומפסיק את העדכון ברקע.
   Future<void> removeData() async {
     _removingData = true;
+    _retirementCancel?.cancel();
     try {
       await _removeData();
     } finally {
@@ -610,6 +613,7 @@ class SemanticSearchRepository {
   /// עד [finishLibraryMove] לא מתחילות הורדות והתקנות חדשות.
   Future<void> releaseForLibraryMove() async {
     _moveInProgress = true;
+    _retirementCancel?.cancel();
     _cancelAllSearches();
     _busyRetry?.cancel();
     await _stopPassageModelDownload();
@@ -870,6 +874,9 @@ class SemanticSearchRepository {
 
   Future<void> _open() async {
     final epoch = _lifecycleEpoch;
+    if (_removingData) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
     if (_moveInProgress) {
       throw const SemanticFailure(SemanticFailureKind.libraryMoving);
     }
@@ -892,7 +899,10 @@ class SemanticSearchRepository {
     await _closeSession(waitForOpening: false, invalidateOpening: false);
     final paths = await _paths();
     final identity = await _loadIdentity(await _installedFamily(_vectors));
-    if (epoch != _lifecycleEpoch || !_isConsentGranted() || _moveInProgress) {
+    if (epoch != _lifecycleEpoch ||
+        !_isConsentGranted() ||
+        _moveInProgress ||
+        _removingData) {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
     try {
@@ -924,11 +934,16 @@ class SemanticSearchRepository {
       }
       rethrow;
     }
-    if (epoch != _lifecycleEpoch || !_isConsentGranted() || _moveInProgress) {
+    if (epoch != _lifecycleEpoch ||
+        !_isConsentGranted() ||
+        _moveInProgress ||
+        _removingData) {
       await _backend.disable();
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
     _openQuantization = quantization;
+    _openVectorsDirectory = paths.vectorsDirectory;
+    _retirementPending = true;
     unawaited(_warmUp());
     _retirePreviousIfNeeded();
   }
@@ -964,6 +979,15 @@ class SemanticSearchRepository {
     }
     final wasOpen = _openQuantization != null;
     _openQuantization = null;
+    _openVectorsDirectory = null;
+    _retirementPending = false;
+    _retirementRetry?.cancel();
+    _retirementRetry = null;
+    final retirement = _retirementCancel;
+    if (retirement != null) {
+      retirement.cancel();
+      await _compaction;
+    }
     _passageModelVerification = null;
     await _stopPassageModelDownload();
     await _discardPassageModelStaging();
@@ -1242,7 +1266,10 @@ class SemanticSearchRepository {
       if (userInitiated && _jobCancel.isCancelled) _restartCancelledJob = true;
       return _job!;
     }
-    return _job = _jobBody().whenComplete(() => _job = null);
+    return _job = _jobBody().whenComplete(() {
+      _job = null;
+      _retirePreviousIfNeeded();
+    });
   }
 
   Future<void> _jobBody() async {
@@ -1471,7 +1498,8 @@ class SemanticSearchRepository {
       );
       if (_jobCancel.isCancelled) return;
     }
-    _compactIfNeeded();
+    if (_retirementCancel != null) await _compaction;
+    if (!_jobCancel.isCancelled) _compactIfNeeded();
   }
 
   /// מתקין את [base], או את [chain] — ה-deltas אליו — כשיש. delta שהמנוע
@@ -1591,6 +1619,9 @@ class SemanticSearchRepository {
         ),
         cancel: _jobCancel,
       );
+      if (_openVectorsDirectory == paths.vectorsDirectory) {
+        _retirementPending = true;
+      }
     } on SemanticFailure catch (failure) {
       if (failure.kind != SemanticFailureKind.artifactIncompatible) rethrow;
       // delta שאינו ממשיך את הסט (delta.*, או פרסום חוזר): ה-base מחליף אותו.
@@ -1625,7 +1656,10 @@ class SemanticSearchRepository {
       return;
     }
     final cancel = _compactCancel = SemanticCancelHandle();
-    _compaction = _compact(cancel).whenComplete(() => _compaction = null);
+    _compaction = _compact(cancel).whenComplete(() {
+      _compaction = null;
+      _retirePreviousIfNeeded();
+    });
   }
 
   Future<void> _compact(SemanticCancelHandle cancel) async {
@@ -1634,6 +1668,7 @@ class SemanticSearchRepository {
       // גרסת המסד אינה מוכיחה שהאינדקס מלא ועדכני; בלי גרסת אינדקס מאומתת
       // מאחדים בלי לנפות רשומות מול האינדקס, שעשוי להיות חלקי.
       await _backend.compactVectors(dir, cancel: cancel);
+      if (_openVectorsDirectory == dir) _retirementPending = true;
       _invalidateCoveredBooks();
       if (!cancel.isCancelled) _vectors = await _backend.vectorsInfo(dir);
     } on SemanticFailure catch (failure) {
@@ -1647,33 +1682,44 @@ class SemanticSearchRepository {
     }
   }
 
-  /// אחרי פתיחה מהדור החי מוחק ברקע את הדור הקודם, שהמנוע שומר לגיבוי עד
-  /// ההתקנה הבאה. רץ במקום האיחוד, כדי שהתקנה, מחיקה והעברה ימתינו לו.
   void _retirePreviousIfNeeded() {
-    final vectors = _vectors;
-    if (vectors == null ||
-        !vectors.present ||
-        vectors.recoveredFromPrevious ||
-        vectors.generation == _retiredGeneration ||
+    final dir = _openVectorsDirectory;
+    if (dir == null ||
+        !_retirementPending ||
+        _retirementRetry != null ||
         _compaction != null ||
-        _moveInProgress) {
+        _job != null ||
+        _moveInProgress ||
+        _removingData ||
+        !_isConsentGranted()) {
       return;
     }
-    _retiredGeneration = vectors.generation;
-    _compaction = _retirePrevious().whenComplete(() => _compaction = null);
+    _retirementPending = false;
+    final cancel = _retirementCancel = SemanticCancelHandle();
+    _compaction = _retirePrevious(dir, cancel).whenComplete(() {
+      _retirementCancel = null;
+      _compaction = null;
+    });
   }
 
-  Future<void> _retirePrevious() async {
+  Future<void> _retirePrevious(String dir, SemanticCancelHandle cancel) async {
     try {
-      final dir = (await _paths()).vectorsDirectory;
-      if (await _backend.retirePreviousGeneration(dir)) {
-        _vectors = await _backend.vectorsInfo(dir);
+      if (!await isSemanticOwnedDirectory(dir) || cancel.isCancelled) return;
+      if (await _backend.retirePreviousGeneration(dir, cancel: cancel) &&
+          !cancel.isCancelled) {
+        final vectors = await _backend.vectorsInfo(dir);
+        if (!cancel.isCancelled) _vectors = vectors;
       }
     } on SemanticFailure catch (failure) {
-      // התקנה או איחוד תופסים את הסט: הפתיחה הבאה תנסה שוב.
+      if (cancel.isCancelled) return;
       if (failure.kind == SemanticFailureKind.vectorsBusy) {
-        _retiredGeneration = null;
-      } else {
+        _retirementPending = true;
+        _retirementRetry = Timer(_busyRetryDelay, () {
+          _retirementRetry = null;
+          _retirePreviousIfNeeded();
+        });
+      } else if (failure.kind != SemanticFailureKind.cancelled &&
+          failure.kind != SemanticFailureKind.notConfigured) {
         _log('retirePrevious', failure, StackTrace.current);
       }
     } catch (error, stackTrace) {
