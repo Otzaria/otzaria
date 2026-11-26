@@ -6,6 +6,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_quit.dart';
+import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'install_mode_switch.dart';
 import 'updat_compat.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/controls/status_chip.dart';
@@ -102,8 +106,14 @@ void hebrewDefaultDialog({
   required void Function() startUpdate,
   required Future<void> Function() launchInstaller,
   required void Function() dismissUpdate,
+  InstallModeSwitcher? installModeSwitcher,
 }) {
   final changelogText = changelog?.trim() ?? '';
+  // התקנה בהיקף האחר (forum/topic/3173): המתקין המלא של הגרסה החדשה רץ במצב
+  // ההחלפה במקום העדכון הרגיל.
+  final switcher =
+      installModeSwitcher ?? InstallModeSwitcher.forCurrentProcess();
+  var switchScope = false;
 
   showDialog<bool>(
     context: context,
@@ -143,13 +153,46 @@ void hebrewDefaultDialog({
                           },
                         ),
                 ],
+                if (switcher != null)
+                  StatefulBuilder(
+                    builder: (context, setState) => CheckboxListTile(
+                      key: const ValueKey('update-switch-install-mode'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: switchScope,
+                      onChanged: (value) =>
+                          setState(() => switchScope = value ?? false),
+                      title: Text(
+                        switcher.otherScope == WindowsInstallScope.allUsers
+                            ? 'התקנת העדכון לכל המשתמשים במחשב'
+                            : 'התקנת העדכון רק למשתמש הנוכחי',
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
         ),
       );
     },
-  ).then((confirmed) {
-    if (confirmed == true) startUpdate();
+  ).then((confirmed) async {
+    if (confirmed != true) return;
+    if (switcher == null || !switchScope) return startUpdate();
+    if (!context.mounted) return;
+    var launched = false;
+    try {
+      launched = await switcher.switchTo(
+        switcher.otherScope,
+        quit: () => AppQuit.quitAll(
+          AppQuitReason.update,
+          window: AppWindowScope.controllerOf(context),
+        ),
+      );
+    } catch (_) {
+      // הורדה שנכשלה מדווחת כמו שיגור שנכשל.
+    }
+    if (!launched) {
+      UiSnack.showError(LibraryMessages.updateInstallerLaunchError);
+    }
   });
 }

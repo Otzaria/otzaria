@@ -30,6 +30,7 @@ import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/dialogs/backup_restore_flow.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
+import 'package:otzaria/settings/panels/install_mode_panel.dart';
 import 'package:otzaria/settings/panels/portable_shortcut_panel.dart';
 import 'package:otzaria/settings/panels/reports_card.dart';
 import 'package:otzaria/settings/panels/search_feedback_panel.dart';
@@ -640,6 +641,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
                   // מוצגים רק בחלק מההתקנות.
                   const PortableShortcutPanel(),
+                  const InstallModePanel(),
 
                   // 2. עדכוני מערכת (רשת + עדכון מפתחים)
                   _buildSystemUpdatesSection(context, state),

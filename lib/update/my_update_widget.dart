@@ -562,6 +562,37 @@ Future<File> prepareUpdateInstallerFile({
   return File(p.join(dir.path, 'otzaria-$version.$extension'));
 }
 
+/// מוריד את המתקין המלא של הריליס האחרון, להעברת ההתקנה להיקף אחר (ראה
+/// [installModeSwitchArguments]). ריליס ישן מ-[currentVersion] נדחה — הרצתו
+/// הייתה מנמיכה את הגרסה. תיקייה נפרדת מזו של העדכון, שמוחקת את שאריותיה.
+Future<File> downloadInstallerForModeSwitch(String currentVersion) async {
+  final release = await fetchLatestAppRelease();
+  final version = release == null
+      ? null
+      : _normalizeVersion(release['tag_name'] as String);
+  if (version == null ||
+      isNewerReleaseVersion(
+        latestVersion: currentVersion,
+        currentVersion: version,
+      )) {
+    throw StateError('No release for version $currentVersion');
+  }
+  final url = pickWindowsAssetUrl(
+    (release!['assets'] as List).cast<Map<String, dynamic>>(),
+    preferredFormat: 'exe',
+    isArmMachine: WindowsArchInfo.isWindowsOnArm,
+  );
+  if (url == null || !isSilentWindowsInstallerUrl(url)) {
+    throw StateError('No Windows installer in release $version');
+  }
+  final dir = p.join(Directory.systemTemp.path, 'otzaria_install_mode');
+  return downloadReleaseFile(
+    File(p.join(dir, 'otzaria-$version.exe')),
+    url,
+    'otzaria',
+  );
+}
+
 /// האם בדיקת עדכונים חסומה כרגע (מצב מנותק או שעדכוני תוכנה כובו בהגדרות).
 bool updateCheckBlocked({
   required bool isOfflineMode,

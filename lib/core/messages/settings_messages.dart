@@ -327,4 +327,6 @@ abstract class SettingsMessages {
   static const String portableShortcutRemoved = 'קיצור הדרך הוסר מהמחשב הזה';
   static const String portableShortcutRemoveFailed =
       'לא ניתן היה להסיר את קיצור הדרך';
+  static const String installModeSwitchFailed =
+      'לא ניתן היה להוריד או להפעיל את המתקין. בדקו את החיבור לרשת ונסו שוב';
 }

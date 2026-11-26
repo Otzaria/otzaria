@@ -195,6 +195,22 @@ begin
   Result := PortableMode;
 end;
 
+// /SWITCHMODE=allusers|currentuser (מהגדרות אוצריא או מחלון העדכון): העברת
+// התקנה קיימת להיקף האחר. במקום שדרוג שקט באותו היקף נפתח "איך להתקין" עם
+// ההיקף המבוקש מסומן, ובסיום RemoveOtherScopeInstalls מסיר את ההתקנה הקודמת
+// דרך ה-uninstaller שלה בשקט — שמשאיר את הנתונים והספרים במקומם.
+function SwitchModeTarget(): String;
+begin
+  Result := Lowercase(ExpandConstant('{param:SWITCHMODE|}'));
+end;
+
+function SwitchModeParam(): String;
+begin
+  Result := '';
+  if SwitchModeTarget() <> '' then
+    Result := ' /SWITCHMODE=' + SwitchModeTarget();
+end;
+
 function TryGetInstallDirFromRegistry(RootKey: Integer; const SubKey: String; var InstallDir: String): Boolean;
 begin
   Result := RegQueryStringValue(RootKey, SubKey, 'Inno Setup: App Path', InstallDir);
@@ -337,10 +353,13 @@ end;
 
 function GetDefaultInstallDir(Param: String): String;
 var
-  Dummy: Boolean;
+  RequiresAdmin: Boolean;
 begin
-  Result := FindPreviousInstallDir(Dummy);
-  if Result = '' then
+  Result := FindPreviousInstallDir(RequiresAdmin);
+  // בהחלפת היקף ההתקנה הקודמת שייכת להיקף האחר: LocalAppData של משתמש אחד
+  // אינה נגישה לשאר המשתמשים, ו-Program Files אינה כתיבה בהתקנת משתמש.
+  if (Result = '') or
+     ((SwitchModeTarget() <> '') and (RequiresAdmin <> IsAdminInstallMode)) then
     Result := ExpandConstant('{autopf}\Otzaria');
 end;
 
@@ -830,7 +849,7 @@ begin
     exit;
   // /PORTABLE — ישר לאשף במצב נייד: בלי שדרוג שקט (המשתמש רוצה עותק נייד,
   // לא עדכון של ההתקנה הקיימת) ובלי הסלמת הרשאות.
-  if CmdLineParamExists('/PORTABLE') then
+  if CmdLineParamExists('/PORTABLE') or (SwitchModeTarget() <> '') then
     exit;
 
   PreviousDir := FindPreviousInstallDir(RequiresAdmin);
@@ -1066,8 +1085,12 @@ begin
     // /CURRENTUSER = שיגור-מחדש מתהליך מורם שבחר במפורש התקנת משתמש.
     if CmdLineParamExists('/PORTABLE') then
       PortableModeRadio.Checked := True
-    else if IsAdminInstallMode or
-      (IsAdmin and not CmdLineParamExists('/CURRENTUSER')) then
+    // /ALLUSERS ו-/CURRENTUSER של שיגור-מחדש גוברים על /SWITCHMODE — אחרת
+    // בחירה הפוכה באשף מסומנת שוב על ההיקף המבוקש ונתקעת בלולאת שיגור.
+    else if (SwitchModeTarget() = 'currentuser') and not IsAdminInstallMode then
+      CurrentUserModeRadio.Checked := True
+    else if IsAdminInstallMode or (((SwitchModeTarget() = 'allusers') or IsAdmin) and
+      not CmdLineParamExists('/CURRENTUSER')) then
       AllUsersModeRadio.Checked := True;
     ApplyInstallModeChoice();
   end;
@@ -1079,7 +1102,8 @@ begin
   // שיגור-מחדש עם מצב מפורש (מעמוד "איך להתקין") — הפתיחה כבר הוצגה בריצה
   // הקודמת; ממשיכים ישר ל"איך להתקין", שבו הבחירה מסומנת ונבחרת התיקייה.
   Result :=
-    (CmdLineParamExists('/ALLUSERS') or CmdLineParamExists('/CURRENTUSER')) and
+    (CmdLineParamExists('/ALLUSERS') or CmdLineParamExists('/CURRENTUSER') or
+     (SwitchModeTarget() <> '')) and
     (PageID = wpWelcome);
   if Result or (not PortableMode) then
     exit;
@@ -1174,9 +1198,9 @@ begin
     begin
       if IsAdmin then
         // התהליך כבר מורם אבל במצב משתמש — שיגור-מחדש עם /ALLUSERS, בלי UAC.
-        Launched := RelaunchSetup('open', '/ALLUSERS', SW_SHOWNORMAL, ResultCode)
+        Launched := RelaunchSetup('open', '/ALLUSERS' + SwitchModeParam(), SW_SHOWNORMAL, ResultCode)
       else
-        Launched := RelaunchSetupElevated('/ALLUSERS', SW_SHOWNORMAL, ResultCode);
+        Launched := RelaunchSetupElevated('/ALLUSERS' + SwitchModeParam(), SW_SHOWNORMAL, ResultCode);
       if not Launched then
         InstTell(CustomMessage('AdminNeededTitle'), CustomMessage('AllUsersRelaunchFailed'),
           mbError);
@@ -1184,7 +1208,7 @@ begin
     else
     begin
       // התהליך כבר במצב מנהל — חזרה להתקנת משתמש דורשת שיגור-מחדש.
-      Launched := RelaunchSetup('open', '/CURRENTUSER', SW_SHOWNORMAL, ResultCode);
+      Launched := RelaunchSetup('open', '/CURRENTUSER' + SwitchModeParam(), SW_SHOWNORMAL, ResultCode);
       if not Launched then
         InstTell(CustomMessage('ModeChangeFailedTitle'),
           CustomMessage('CurrentUserRelaunchFailed'), mbError);
