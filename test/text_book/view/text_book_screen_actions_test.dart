@@ -1772,6 +1772,82 @@ void main() {
       );
     });
 
+    testWidgets(
+      '"הקטע הבא" ו"הקטע הקודם" ממשיכים מהקטע הנבחר שעל המסך ולא מראש התצוגה (#6022)',
+      (tester) async {
+        final book = TextBook(title: 'ספר בדיקה');
+        final loaded = _loadedState(
+          book,
+          content: List.generate(150, (i) => 'שורה $i'),
+        ).copyWith(selectedIndex: 3);
+        final bloc = _TestTextBookBloc(loaded);
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
+
+        await _setSurfaceSize(tester, const Size(1200, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: true,
+        );
+
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        expect(tab.index, 0);
+        expect(tab.lines.position.value?.visibleLines, contains(3));
+
+        Iterable<int?> selections() => bloc.receivedEvents
+            .whereType<UpdateSelectedIndex>()
+            .map((e) => e.index);
+
+        // ראש התצוגה בשורה 0 והקטע הנבחר (3) גלוי: הקודם הוא 2 ולא כלום.
+        bloc.receivedEvents.clear();
+        await tester.tap(find.byTooltip('הקטע הקודם'));
+        await tester.pumpAndSettle();
+        expect(selections(), [2]);
+
+        bloc.emitStateForTest(loaded.copyWith(selectedIndex: 10));
+        await tester.pumpAndSettle();
+        expect(tab.index, lessThan(10));
+        expect(tab.lines.position.value?.visibleLines, contains(10));
+        bloc.receivedEvents.clear();
+        await tester.tap(find.byTooltip('הקטע הבא'));
+        await tester.pumpAndSettle();
+        expect(selections(), [11]);
+
+        // קטע נבחר שאינו על המסך: ממשיכים ממיקום הקריאה, כמו קודם.
+        bloc.emitStateForTest(loaded.copyWith(selectedIndex: 140));
+        await tester.pumpAndSettle();
+        final top = tab.index;
+        expect(tab.lines.position.value?.visibleLines, isNot(contains(140)));
+        bloc.receivedEvents.clear();
+        await tester.tap(find.byTooltip('הקטע הבא'));
+        await tester.pumpAndSettle();
+        expect(selections(), [top + 1]);
+      },
+    );
+
     testWidgets('במצב רגיל אין שורת ניווט בתפריט ה-overflow', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
