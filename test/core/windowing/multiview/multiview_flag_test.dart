@@ -60,6 +60,18 @@ void main() {
     expect(handle.nativeHandle, isNull);
   });
 
+  test('הבקר כבר נהרס לפני onWindowDestroyed: שאילתות לא זורקות', () {
+    final view =
+        TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
+    final controller = _StrictStubController(view);
+    final handle = ViewWindowHandle.forTesting(controller);
+    controller.destroyed = true;
+    expect(handle.isDestroyed, isTrue);
+    expect(handle.isActivated, isFalse);
+    expect(handle.isMinimized, isFalse);
+    expect(handle.logicalContentSize, Size.zero);
+  });
+
   test('ViewWindowNative.platform: win32, GTK או Cocoa לפי הפלטפורמה', () {
     final native = ViewWindowNative.platform();
     if (Platform.isWindows) expect(native, isA<Win32ViewWindowNative>());
@@ -145,4 +157,19 @@ void main() {
       expect(MultiViewMode.supported, Platform.isWindows || Platform.isLinux);
     });
   });
+}
+
+/// כמו הבקר האמיתי: אחרי ההריסה כל שאילתה זורקת StateError.
+class _StrictStubController extends StubWindowController {
+  _StrictStubController(super.view);
+
+  T _alive<T>(T value) =>
+      destroyed ? throw StateError('Window has been destroyed.') : value;
+
+  @override
+  bool get isActivated => _alive(super.isActivated);
+  @override
+  bool get isMinimized => _alive(super.isMinimized);
+  @override
+  Size get contentSize => _alive(super.contentSize);
 }

@@ -71,8 +71,8 @@ int? implicitViewWindowHandle() {
   return address == 0 ? null : address;
 }
 
-/// מדליק את דגל החלונות של המסגרת רק למשך [body]. מחוץ לו הדגל כבוי, ולכן
-/// `showDialog` נשאר בתוך התצוגה ו-`MaterialApp` אינו עוטף ב-`WindowManager`.
+/// מדליק את דגל החלונות של המסגרת רק למשך [body]; מחוץ לו הדגל כבוי, ובנאי
+/// הווידג'טים `Window`/`WindowScope` זורקים (ולכן משתמשים ב-`View`).
 T withWindowing<T>(T Function() body) {
   final previous = features.isWindowingEnabled;
   features.isWindowingEnabled = true;
@@ -109,11 +109,11 @@ class ViewWindowHandle {
 
   @visibleForTesting
   ViewWindowHandle.forTesting(
-    RegularWindowController controller, {
+    WindowController controller, {
     this._defersDestroy = false,
   }) : _controller = controller;
 
-  final RegularWindowController _controller;
+  final WindowController _controller;
 
   /// Linux 3.47.2: הריסה עם פריים בדרך קורסת (flutter#192873), ולכן קודם
   /// מסתירים ומפרקים את התצוגה, והורסים רק אחרי כמה פריימים.
@@ -126,28 +126,30 @@ class ViewWindowHandle {
   FlutterView get view => _controller.rootView;
 
   /// גודל אזור הציור של החלון, ביחידות הלוגיות של מערכת ההפעלה.
-  Size get logicalContentSize => _controller.contentSize;
+  Size get logicalContentSize =>
+      isDestroyed ? Size.zero : _controller.contentSize;
 
   /// מודיע על שינוי גודל, הפעלה, כותרת ומגבלות; לא על הזזה בלבד.
   Listenable get changes => _controller;
 
   bool _destroyed = false;
 
-  /// האם החלון כבר נהרס (WM_DESTROY).
-  bool get isDestroyed => _destroyed;
+  /// האם החלון כבר נהרס (WM_DESTROY). הבקר מודיע למאזינים על ההריסה עוד
+  /// לפני `onWindowDestroyed`, ולכן בודקים גם אותו.
+  bool get isDestroyed => _destroyed || _controller.isDestroyed;
 
   /// החלון העליון כמספר: HWND, `GtkWindow*` או `NSWindow*`; null אחרי ההריסה.
   int? get nativeHandle {
     final controller = _controller;
-    if (_destroyed) return null;
+    if (isDestroyed) return null;
     if (controller is WindowControllerWin32) {
-      return (controller as WindowControllerWin32).windowHandle.address;
+      return controller.windowHandle.address;
     }
     if (controller is WindowControllerLinux) {
-      return (controller as WindowControllerLinux).windowHandle.address;
+      return controller.windowHandle.address;
     }
     if (controller is WindowControllerMacOS) {
-      return (controller as WindowControllerMacOS).windowHandle.address;
+      return controller.windowHandle.address;
     }
     return null;
   }
@@ -155,40 +157,40 @@ class ViewWindowHandle {
   /// Linux: ה-`FlView*` של התצוגה; null מחוץ ל-Linux או אחרי ההריסה.
   int? get flutterViewHandle {
     final controller = _controller;
-    if (_destroyed || controller is! WindowControllerLinux) return null;
-    return (controller as WindowControllerLinux).flutterViewHandle.address;
+    if (isDestroyed || controller is! WindowControllerLinux) return null;
+    return controller.flutterViewHandle.address;
   }
 
   /// ה-HWND של החלון העליון; null מחוץ ל-Windows או אחרי ההריסה.
   int? get hwnd {
     final controller = _controller;
-    if (_destroyed || controller is! WindowControllerWin32) return null;
-    return (controller as WindowControllerWin32).windowHandle.address;
+    if (isDestroyed || controller is! WindowControllerWin32) return null;
+    return controller.windowHandle.address;
   }
 
-  bool get isActivated => !_destroyed && _controller.isActivated;
-  bool get isMaximized => !_destroyed && _controller.isMaximized;
-  bool get isMinimized => !_destroyed && _controller.isMinimized;
-  bool get isFullscreen => !_destroyed && _controller.isFullscreen;
+  bool get isActivated => !isDestroyed && _controller.isActivated;
+  bool get isMaximized => !isDestroyed && _controller.isMaximized;
+  bool get isMinimized => !isDestroyed && _controller.isMinimized;
+  bool get isFullscreen => !isDestroyed && _controller.isFullscreen;
 
   void setTitle(String title) {
-    if (!_destroyed) _controller.setTitle(title);
+    if (!isDestroyed) _controller.setTitle(title);
   }
 
   void setMaximized(bool value) {
-    if (!_destroyed) _controller.setMaximized(value);
+    if (!isDestroyed) _controller.setMaximized(value);
   }
 
   void setMinimized(bool value) {
-    if (!_destroyed) _controller.setMinimized(value);
+    if (!isDestroyed) _controller.setMinimized(value);
   }
 
   void setFullscreen(bool value) {
-    if (!_destroyed) _controller.setFullscreen(value);
+    if (!isDestroyed) _controller.setFullscreen(value);
   }
 
   void setMinimumSize(Size size) {
-    if (_destroyed) return;
+    if (isDestroyed) return;
     _controller.setConstraints(
       BoxConstraints(minWidth: size.width, minHeight: size.height),
     );
@@ -238,7 +240,7 @@ ViewWindowHandle createViewWindow({
   }
   final delegate = _ViewWindowDelegate(onCloseRequested, onDestroyed);
   final controller = withWindowing(
-    () => RegularWindowController(
+    () => WindowController(
       size: size,
       title: title,
       delegate: delegate,
@@ -251,7 +253,7 @@ ViewWindowHandle createViewWindow({
 }
 
 // בלי super: מימושי ברירת המחדל זורקים כשהדגל כבוי, והוא כבוי כשהודעה מגיעה.
-class _ViewWindowDelegate extends RegularWindowControllerDelegate {
+class _ViewWindowDelegate extends WindowControllerDelegate {
   _ViewWindowDelegate(this._onCloseRequested, this._onDestroyed);
 
   final void Function(ViewWindowHandle handle) _onCloseRequested;
@@ -259,7 +261,7 @@ class _ViewWindowDelegate extends RegularWindowControllerDelegate {
   late final ViewWindowHandle handle;
 
   @override
-  void onWindowCloseRequested(RegularWindowController controller) =>
+  void onWindowCloseRequested(WindowController controller) =>
       _onCloseRequested(handle);
 
   @override

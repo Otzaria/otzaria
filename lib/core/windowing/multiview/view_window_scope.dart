@@ -86,6 +86,8 @@ class _ViewWindowScopeState extends State<ViewWindowScope>
   Future<void> _close() => _closeFlow.run();
 
   void _onWindowChanged() {
+    // הבקר מודיע גם על ההריסה עצמה, לפני onWindowDestroyed.
+    if (_entry.handle.isDestroyed) return;
     PluginRuntimeDispatcher.instance.setWindowMinimized(
       _entry.handle.isMinimized,
       viewId: _viewId,

@@ -12,7 +12,7 @@ import 'package:window_manager/window_manager.dart' show ResizeEdge;
 import 'second_test_view.dart';
 
 /// בקר חלון בלי נייטיב: המצב נקבע ידנית, ו-[notify] מדמה WM_SIZE/WM_ACTIVATE.
-class StubWindowController extends RegularWindowController {
+class StubWindowController extends WindowController {
   StubWindowController(FlutterView view) : super.empty() {
     rootView = view;
   }
@@ -44,6 +44,8 @@ class StubWindowController extends RegularWindowController {
     super.dispose();
   }
 
+  @override
+  bool get isDestroyed => destroyed;
   @override
   Size get contentSize => logicalContentSize;
   @override

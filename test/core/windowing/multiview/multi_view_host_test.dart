@@ -106,7 +106,7 @@ class _StubHandle extends ViewWindowHandle {
   void requestClose() => _onCloseRequested(this);
 }
 
-class _StubController extends RegularWindowController {
+class _StubController extends WindowController {
   _StubController(FlutterView view) : super.empty() {
     rootView = view;
   }
@@ -121,6 +121,8 @@ class _StubController extends RegularWindowController {
     onDestroy?.call();
   }
 
+  @override
+  bool get isDestroyed => _destroyed;
   @override
   Size get contentSize => Size.zero;
   @override

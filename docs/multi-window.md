@@ -8,7 +8,7 @@
 ## המודל: ריבוי תצוגות
 
 בכל הפלטפורמות: מנוע אחד ו-isolate אחד, וכל חלון נוסף הוא חלון Dart
-(`RegularWindowController`) עם `FlutterView` משלו באותו מנוע. הקוד
+(`WindowController`) עם `FlutterView` משלו באותו מנוע. הקוד
 ב-`lib/core/windowing/multiview/`; תקרה של 8 חלונות כולל הראשי
 (`ViewWindowRegistry.maxWindows`). כל המצב (הגדרות, מסדים, שירותים) משותף
 באותו isolate; רק עץ הווידג'טים, הכרטיסיות והגבולות הם לכל חלון.
@@ -66,7 +66,7 @@
    beta), ולכן החלון הראשי **מוסתר** ולא נהרס, ותוספים הקשורים ל-view 0
    (תוספי רקע, הדפסה) נשארים חיים. אם זה ישתנה — לבדוק מחדש את "שחזור החלון
    האחרון" (`view_window_opener.dart`) ואת יציאת התהליך.
-4. לעולם לא להשתמש בווידג'טים `RegularWindow`/`WindowScope`: הבנאים שלהם
+4. לעולם לא להשתמש בווידג'טים `Window`/`WindowScope`: הבנאים שלהם
    בודקים את הדגל וזורקים מחוץ ל-`withWindowing`. משתמשים ב-`View(view: ...)`.
 5. `flutter_internal_imports_test` עובר — `package:flutter/src/` מיובא רק
    ב-`multiview_flag.dart`, ושם בלבד יש לתקן.
