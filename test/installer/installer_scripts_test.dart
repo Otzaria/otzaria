@@ -8,6 +8,7 @@ import 'package:otzaria/plugins/services/bundled_plugin_seed_service.dart';
 import 'package:otzaria/plugins/services/plugin_protocol_registration_service.dart';
 import 'package:otzaria/semantic_search/models/semantic_import_layout.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/update/windows_installer.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -1533,9 +1534,10 @@ void main() {
           expect(body, contains('(PageID = wpWelcome)'));
           expect(body, isNot(contains('wpSelectDir')));
           final wizard = _routine(script, 'procedure InitializeWizard');
+          expect(wizard, contains('or IsAdmin) and'));
           expect(
             wizard,
-            contains("(IsAdmin and not CmdLineParamExists('/CURRENTUSER'))"),
+            contains("not CmdLineParamExists('/CURRENTUSER')) then"),
           );
           expect(wizard, contains('AllUsersModeRadio.Checked := True'));
         },
@@ -5678,6 +5680,106 @@ void main() {
           _routine(script, 'procedure UiBuildTasksPage()'),
           contains("WizardSelectTasks('desktopicon')"),
         );
+      });
+    }
+  });
+
+  group('/SWITCHMODE — העברת התקנה קיימת להיקף האחר (forum/topic/3173)', () {
+    for (final name in _scripts) {
+      test('$name: הערכים זהים לאלה שהאפליקציה מעבירה', () {
+        final body = _routine(_script(name), 'function SwitchModeTarget(');
+        expect(body, contains("ExpandConstant('{param:SWITCHMODE|}')"));
+        expect(body, contains('Lowercase('));
+        final script = _script(name);
+        for (final scope in WindowsInstallScope.values) {
+          final value = installModeSwitchArguments(
+            scope,
+          ).single.split('=').last;
+          expect(script, contains("SwitchModeTarget() = '$value'"));
+        }
+      });
+
+      test('$name: החלפה פותחת את האשף במקום השדרוג השקט באותו היקף', () {
+        final body = _routine(_script(name), 'function InitializeSetup(');
+        final switchExit = body.indexOf("(SwitchModeTarget() <> '') then");
+        expect(switchExit, greaterThan(0));
+        expect(
+          switchExit,
+          lessThan(body.indexOf('IsUpgradeFromModernVersion()')),
+        );
+        expect(
+          switchExit,
+          lessThan(body.lastIndexOf('RelaunchSetupElevated(')),
+          reason: 'ההסלמה נעשית רק בשיגור-מחדש של "איך להתקין"',
+        );
+      });
+
+      test('$name: ההיקף המבוקש מסומן, והפתיחה מדולגת', () {
+        final script = _script(name);
+        final wizard = _routine(script, 'procedure InitializeWizard');
+        expect(
+          wizard,
+          contains(
+            "(SwitchModeTarget() = 'currentuser') and not IsAdminInstallMode then\n"
+            '${name == _full ? '      ' : '    '}CurrentUserModeRadio.Checked := True',
+          ),
+        );
+        // דגל המצב של שיגור-מחדש (בחירה הפוכה באשף) גובר על /SWITCHMODE.
+        expect(
+          wizard,
+          contains(
+            "IsAdminInstallMode or (((SwitchModeTarget() = 'allusers') or IsAdmin) and",
+          ),
+        );
+        final skip = _routine(script, 'function ShouldSkipPage(');
+        expect(skip, contains("(SwitchModeTarget() <> '')"));
+      });
+
+      test('$name: השיגור-מחדש למצב המבוקש נושא את דגל ההחלפה', () {
+        // בלעדיו המופע המורם לא יודע שזו החלפה, ותיקיית ברירת המחדל שלו היא
+        // זו של ההתקנה בהיקף הקודם.
+        final next = _routine(_script(name), 'function NextButtonClick(');
+        final relaunches = RegExp(
+          r"RelaunchSetup(?:Elevated)?\((?:'open', )?'/(?:ALLUSERS|CURRENTUSER)'([^,]*),",
+        ).allMatches(next).toList();
+        expect(relaunches, hasLength(3));
+        for (final m in relaunches) {
+          expect(m[1], ' + SwitchModeParam()');
+        }
+      });
+
+      test('$name: בהחלפה ההתקנה החדשה במיקום ברירת המחדל של ההיקף החדש', () {
+        final body = _routine(
+          _script(name),
+          'function GetDefaultInstallDir(',
+        );
+        expect(
+          body,
+          contains(
+            "((SwitchModeTarget() <> '') and (RequiresAdmin <> IsAdminInstallMode))",
+          ),
+        );
+        expect(body, contains(r"ExpandConstant('{autopf}\Otzaria')"));
+      });
+
+      test('$name: ההתקנה הקודמת מוסרת בשקט — בלי מחיקת נתונים', () {
+        // ה-uninstaller של ההיקף הקודם רץ /VERYSILENT, ושאלת "למחוק גם את
+        // הנתונים?" מדולגת בהסרה שקטה (ברירת המחדל: לשמור).
+        final script = _script(name);
+        expect(
+          _routine(script, 'procedure CurStepChanged('),
+          contains('RemoveOtherScopeInstalls();'),
+        );
+        expect(
+          _routine(script, 'procedure RemoveStaleScopeRegistration('),
+          contains("'/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CROSSSCOPE=1'"),
+        );
+        final uninit = _routine(script, 'function InitializeUninstall(');
+        expect(
+          uninit.indexOf('if UninstallSilent then'),
+          lessThan(uninit.indexOf('DeleteUserDataOnUninstall := True')),
+        );
+        expect(_sections(script, 'UninstallDelete'), isEmpty);
       });
     }
   });
