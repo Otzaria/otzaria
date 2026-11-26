@@ -115,6 +115,14 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   });
 
   @override
+  Future<bool> retirePreviousGeneration(String vectorsDir) => _guard(() async {
+    final report = await (await _engine()).retirePreviousSemanticGeneration(
+      vectorsDir: vectorsDir,
+    );
+    return report.retired;
+  });
+
+  @override
   Future<void> disable() async => (await _engine()).disableSemantic();
 
   @override

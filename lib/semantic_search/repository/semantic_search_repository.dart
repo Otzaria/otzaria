@@ -751,7 +751,8 @@ class SemanticSearchRepository {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
     _openQuantization = quantization;
-    unawaited(_warmUp());
+    // הפינוי מוחק קבצים גדולים, ולכן רק אחרי שהחיפוש הראשון כבר חם.
+    unawaited(_warmUp().whenComplete(() => _maintainVectors(compact: false)));
   }
 
   Future<void> _warmUp() async {
@@ -1288,7 +1289,7 @@ class SemanticSearchRepository {
       );
       if (_jobCancel.isCancelled) return;
     }
-    _compactIfNeeded();
+    _maintainVectors();
   }
 
   /// מתקין את [base], או את [chain] — ה-deltas אליו — כשיש. delta שהמנוע
@@ -1433,15 +1434,46 @@ class SemanticSearchRepository {
     return true;
   }
 
-  /// מאחד ברקע סט שהמנוע מבקש לאחד (אחרי deltas); לעולם לא בעליית התוכנה.
-  void _compactIfNeeded() {
-    if (_vectors?.needsCompaction != true ||
-        _compaction != null ||
-        _moveInProgress) {
-      return;
-    }
+  /// מאחד ברקע סט שהמנוע מבקש לאחד (אחרי deltas), ואז מפנה את הדור הקודם.
+  /// איחוד לעולם לא רץ בעליית התוכנה, ולכן הפתיחה קוראת עם [compact] `false`.
+  void _maintainVectors({bool compact = true}) {
+    if (_compaction != null || _moveInProgress || _removingData) return;
     final cancel = _compactCancel = SemanticCancelHandle();
-    _compaction = _compact(cancel).whenComplete(() => _compaction = null);
+    _compaction = _maintain(
+      cancel,
+      compact: compact,
+    ).whenComplete(() => _compaction = null);
+  }
+
+  Future<void> _maintain(
+    SemanticCancelHandle cancel, {
+    required bool compact,
+  }) async {
+    if (compact && _vectors?.needsCompaction == true) await _compact(cancel);
+    if (cancel.isCancelled || _moveInProgress) return;
+    await _retirePrevious();
+  }
+
+  /// הגיבוי נמחק רק כשהדור החי נפתח, והסשן הפתוח לא חזר לגיבוי. המנוע בודק
+  /// את זה שוב תחת נעילת הסט, ולכן כשל כאן לעולם לא פוגע בסט.
+  Future<void> _retirePrevious() async {
+    if (_openQuantization == null) return;
+    try {
+      final dir = (await _paths()).vectorsDirectory;
+      final info = await _backend.vectorsInfo(dir);
+      if (!info.present || info.recoveredFromPrevious) return;
+      if (await _backend.retirePreviousGeneration(dir)) {
+        _vectors = await _backend.vectorsInfo(dir);
+      }
+    } on SemanticFailure catch (failure) {
+      if (failure.kind == SemanticFailureKind.vectorsBusy) {
+        _scheduleBusyRetry();
+      } else if (failure.kind != SemanticFailureKind.cancelled) {
+        _log('retire', failure, StackTrace.current);
+      }
+    } catch (error, stackTrace) {
+      _log('retire', error, stackTrace);
+    }
   }
 
   Future<void> _compact(SemanticCancelHandle cancel) async {
