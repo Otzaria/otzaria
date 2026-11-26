@@ -136,16 +136,21 @@ void main() {
   });
 
   group('NavTreeHeader', () {
+    // פעם אחת לפני העץ: הודעת fontsChange שמגיעה באמצע בדיקה משאירה פריים ממתין.
+    setUpAll(
+      () =>
+          (FontLoader('Roboto')..addFont(
+                rootBundle.load('fonts/Rubik-VariableFont_wght.ttf'),
+              ))
+              .load(),
+    );
+
     for (final width in [220.0, 235.0, 600.0]) {
       for (final direction in TextDirection.values) {
         for (final scale in [1.0, 1.3]) {
           testWidgets(
             'פעולות נשארות גלויות ולחיצות ברוחב $width ${direction.name} ×$scale',
             (tester) async {
-              await (FontLoader('Roboto')..addFont(
-                    rootBundle.load('fonts/Rubik-VariableFont_wght.ttf'),
-                  ))
-                  .load();
               final activated = <int>[];
               await pump(
                 tester,

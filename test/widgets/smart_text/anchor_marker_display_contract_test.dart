@@ -543,52 +543,63 @@ void main() {
       },
     );
 
-    testWidgets(
-      'fc1fcae: הציור מורם 0.40 מגודלו מעל קו הבסיס, באותה מידה בכל גופן (issue #2075)',
-      (tester) async {
-        const fonts = {
-          'FrankRuhlCLM': 'FrankRuehlCLM-Medium.ttf',
-          'NotoSerifHebrew': 'NotoSerifHebrew-VariableFont_wdth,wght.ttf',
-          'TaameyDavidCLM': 'TaameyDavidCLM-Medium.ttf',
-          'KeterYG': 'KeterYG-Medium.ttf',
-        };
+    group('בכל גופן', () {
+      const fonts = {
+        'FrankRuhlCLM': 'FrankRuehlCLM-Medium.ttf',
+        'NotoSerifHebrew': 'NotoSerifHebrew-VariableFont_wdth,wght.ttf',
+        'TaameyDavidCLM': 'TaameyDavidCLM-Medium.ttf',
+        'KeterYG': 'KeterYG-Medium.ttf',
+      };
+      // מחוץ לבדיקה: הודעת fontsChange שמגיעה באמצע בדיקה משאירה פריים ממתין.
+      setUpAll(() async {
         for (final MapEntry(key: family, value: file) in fonts.entries) {
           await _loadFont(family, file);
-          await _pumpSmart(
-            tester,
-            _inject(
-              'שורה ראשונה<br>$line',
-              [
-                _point('מפרש', 20),
-              ],
-              styles: {'מפרש': 5},
-            ),
-            settings: RenderSettings(fontSize: 24, fontFamily: family),
-          );
-          final placement = _placements(tester).single;
-          final size = 24 * kLinkAnchorMarkerScale;
-          final painter = TextPainter(
-            text: TextSpan(
-              text: placement.text,
-              style: TextStyle(fontFamily: family, fontSize: size, height: 1),
-            ),
-            textDirection: TextDirection.rtl,
-          )..layout();
-          final glyphBottom = sameLineAnchorRect(
-            painter.getBoxesForSelection(
-              TextSelection(baseOffset: 0, extentOffset: placement.text.length),
-            ),
-          )!.bottom;
-          painter.dispose();
-          expect(
-            placement.anchorRect.bottom -
-                (placement.paintRect.top + glyphBottom),
-            closeTo(kRaisedMarkerRaiseFactor * size, 0.5),
-            reason: family,
-          );
         }
-      },
-    );
+      });
+
+      testWidgets(
+        'fc1fcae: הציור מורם 0.40 מגודלו מעל קו הבסיס, באותה מידה בכל גופן (issue #2075)',
+        (tester) async {
+          for (final family in fonts.keys) {
+            await _pumpSmart(
+              tester,
+              _inject(
+                'שורה ראשונה<br>$line',
+                [
+                  _point('מפרש', 20),
+                ],
+                styles: {'מפרש': 5},
+              ),
+              settings: RenderSettings(fontSize: 24, fontFamily: family),
+            );
+            final placement = _placements(tester).single;
+            final size = 24 * kLinkAnchorMarkerScale;
+            final painter = TextPainter(
+              text: TextSpan(
+                text: placement.text,
+                style: TextStyle(fontFamily: family, fontSize: size, height: 1),
+              ),
+              textDirection: TextDirection.rtl,
+            )..layout();
+            final glyphBottom = sameLineAnchorRect(
+              painter.getBoxesForSelection(
+                TextSelection(
+                  baseOffset: 0,
+                  extentOffset: placement.text.length,
+                ),
+              ),
+            )!.bottom;
+            painter.dispose();
+            expect(
+              placement.anchorRect.bottom -
+                  (placement.paintRect.top + glyphBottom),
+              closeTo(kRaisedMarkerRaiseFactor * size, 0.5),
+              reason: family,
+            );
+          }
+        },
+      );
+    });
 
     testWidgets(
       'צבעי הציור נגזרים מערכת הנושא, בבהיר ובכהה, בשני המסלולים (issue #2075)',

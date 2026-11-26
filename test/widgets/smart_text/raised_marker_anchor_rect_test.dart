@@ -13,7 +13,12 @@ import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 const _lineWithSpacedMarker =
     'על ידי חום האש <sup>(א)</sup> או תולדותיה, הרי זה עובר על איסור בישול.';
 
+bool _readingFontLoaded = false;
+
+// נטען פעם אחת ב-setUpAll: הודעת fontsChange שמגיעה באמצע בדיקה משאירה פריים ממתין.
 Future<void> _loadReadingFont() async {
+  if (_readingFontLoaded) return;
+  _readingFontLoaded = true;
   final bytes = File('fonts/FrankRuehlCLM-Medium.ttf').readAsBytesSync();
   await (FontLoader(
     'FrankRuhlCLM',
@@ -21,6 +26,8 @@ Future<void> _loadReadingFont() async {
 }
 
 void main() {
+  setUpAll(_loadReadingFont);
+
   group('sameLineAnchorRect — איחוד תיבות של אותה שורה', () {
     // המספרים לקוחים מפריסה אמיתית של '<sup>(א)</sup>' ב-FrankRuhlCLM:
     // תווי הבידוד (RLI/PDI) חסרים בגופן ונופלים לגופן גיבוי גבוה יותר, ולכן
