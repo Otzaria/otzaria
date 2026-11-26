@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
@@ -83,5 +84,49 @@ void main() {
 
     expect(find.text('שורה 2'), findsOneWidget);
     expect(find.text('חדשה'), findsOneWidget);
+  });
+
+  testWidgets('אפשר לסמן את תוכן ההערה ולהעתיק ב-Ctrl+C (issue #5989)', (
+    tester,
+  ) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    store = {
+      'רש"י': [_note('רש"י', 4, 'תוכן ההערה להעתקה')],
+    };
+    await tester.pumpWidget(build(['רש"י']));
+    await tester.pumpAndSettle();
+
+    // לחיצה על הכותרת מעבירה את המיקוד לאזור בלי לפתוח הערה; Ctrl+A מסמן.
+    await tester.tap(find.text('הערות על המפרשים המוצגים'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+
+    // מקלדת עברית: המקש הלוגי C, והתו שהוא מפיק הוא 'ב'.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC, character: 'ב');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(copied, hasLength(1));
+    expect(copied.single, contains('תוכן ההערה להעתקה'));
   });
 }
