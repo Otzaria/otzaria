@@ -37,6 +37,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/search/utils/search_query_sync.dart';
+import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/utils/text/ref_helper.dart' show tocSectionAt;
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -453,6 +454,40 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
   }
 
+  /// סריקת המחרוזת המקומית על שורות הספר, והצגת התוצאות.
+  Future<void> _scanContent(
+    List<String> content,
+    String query,
+    ({int start, int? end, String title})? section,
+    int requestId,
+  ) async {
+    var truncated = false;
+    final List<TextSearchResult> effectiveResults;
+    try {
+      effectiveResults = widget.simpleSearchRunner != null
+          ? await widget.simpleSearchRunner!(content, query)
+          : await searchInContent(
+              content: content,
+              query: query,
+              wholeWord: _effectiveWholeWord,
+              range: section == null
+                  ? null
+                  : (start: section.start, end: section.end),
+              onTruncated: (t) => truncated = t,
+              isCurrent: () => mounted && requestId == _activeSearchRequestId,
+            );
+    } catch (e) {
+      debugPrint('החיפוש בספר נכשל: $e');
+      if (mounted && requestId == _activeSearchRequestId) {
+        _showSearchFailure(LibraryMessages.searchError);
+      }
+      return;
+    }
+    if (mounted && requestId == _activeSearchRequestId) {
+      _applySearchResults(effectiveResults, truncated: truncated);
+    }
+  }
+
   Future<void> _searchTextUpdated() async {
     final requestId = ++_activeSearchRequestId;
     _engineSearch.cancel();
@@ -509,31 +544,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         return;
       }
 
-      var truncated = false;
-      final List<TextSearchResult> effectiveResults;
-      try {
-        effectiveResults = widget.simpleSearchRunner != null
-            ? await widget.simpleSearchRunner!(content, query)
-            : await searchInContent(
-                content: content,
-                query: query,
-                wholeWord: _wholeWord,
-                range: section == null
-                    ? null
-                    : (start: section.start, end: section.end),
-                onTruncated: (t) => truncated = t,
-                isCurrent: () => mounted && requestId == _activeSearchRequestId,
-              );
-      } catch (e) {
-        debugPrint('החיפוש בספר נכשל: $e');
-        if (mounted && requestId == _activeSearchRequestId) {
-          _showSearchFailure(LibraryMessages.searchError);
-        }
-        return;
-      }
-      if (mounted && requestId == _activeSearchRequestId) {
-        _applySearchResults(effectiveResults, truncated: truncated);
-      }
+      await _scanContent(content, query, section, requestId);
       return;
     }
 
@@ -608,6 +619,23 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           await _ensureContent();
         } catch (e) {
           debugPrint('טעינת תוכן הספר לתוצאות נכשלה: $e');
+        }
+      }
+
+      // מנוע בלי התאמות בספר שהקורא מדגיש בו התאמות: האינדקס חסר או ישן
+      // לספר. רצף המילים המילולי צר מכל שאילתת מנוע, ולכן כל התאמה מקומית
+      // היא התאמה גם של שאילתת המנוע — חוץ ממילים חלופיות ומרווח ידני.
+      if (results.isEmpty &&
+          !InBookSearchRouting.hasAlternativeWords(_alternativeWords) &&
+          !InBookSearchRouting.hasSpacingValues(_spacingValues)) {
+        final content = await _ensureContent().then<List<String>?>(
+          (lines) => lines,
+          onError: (Object e) => null,
+        );
+        if (!mounted || requestId != _activeSearchRequestId) return;
+        if (content != null) {
+          await _scanContent(content, query, section, requestId);
+          return;
         }
       }
 
