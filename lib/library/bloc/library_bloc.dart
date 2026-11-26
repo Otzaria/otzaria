@@ -891,7 +891,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
     final books = library
         .getAllBooks()
-        .where((book) => book.author?.trim() == author)
+        .where((book) => book.authors.contains(author))
         .toList();
     emit(
       state.copyWith(
