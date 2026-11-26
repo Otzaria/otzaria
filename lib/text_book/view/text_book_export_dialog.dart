@@ -45,13 +45,6 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'בחר פורמט לייצוא',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
             const _SectionLabel('שמות הקודש בקובץ הזה'),
             const SizedBox(height: 6),
             AppCard(
@@ -110,6 +103,9 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
                 ],
               ),
             ),
+            // צמוד לכפתורי הפורמט שמתחת (choices).
+            const SizedBox(height: 12),
+            const _SectionLabel('בחר פורמט לייצוא'),
           ],
         ),
       ),
