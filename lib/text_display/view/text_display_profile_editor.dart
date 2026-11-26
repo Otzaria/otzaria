@@ -81,6 +81,17 @@ abstract final class TextDisplayProfileEditor {
           anchorMarkers: v ? MarkVisibility.show : MarkVisibility.hide,
         ),
       ),
+      _SwitchField(
+        icon: OtzariaIcons.text_font_hebrew_24_filled,
+        title: t('ציוני המפרשים כבדפוס'),
+        subtitle: t('אות קטנה מורמת, בלי סוגריים ובלי הבדל בין המפרשים'),
+        read: (p) => p.printLikeAnchorMarkers,
+        write: (p, v) => p.copyWith(
+          anchorMarkerStyle: v
+              ? AnchorMarkerStyle.print
+              : AnchorMarkerStyle.variants,
+        ),
+      ),
     ];
   }
 

@@ -475,6 +475,7 @@ class _CombinedViewState extends State<CombinedView> {
       activeIndex: lineIndex0 == _activeAnchorLine ? _activeAnchorIndex : null,
       notes: state.bookNotes.notesAt(lineIndex0),
       note: note,
+      printLike: state.bodyDisplayProfile.printLikeAnchorMarkers,
     );
   }
 
@@ -2006,6 +2007,7 @@ class _CombinedViewState extends State<CombinedView> {
       markerKey: (
         state.linksByLine,
         state.bodyDisplayProfile.showAnchorMarkers,
+        state.bodyDisplayProfile.printLikeAnchorMarkers,
         state.book.versionTitle,
         _sectionMarkersByLine,
         _sectionHeadingsByLine,

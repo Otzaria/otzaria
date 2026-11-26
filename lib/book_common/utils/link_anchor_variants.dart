@@ -13,7 +13,10 @@ import 'package:otzaria/theme/app_fonts.dart';
 enum LinkAnchorDelimiter {
   parentheses('(', ')'),
   brackets('[', ']'),
-  braces('{', '}');
+  braces('{', '}'),
+
+  /// בלי סוגריים — סמן "כבדפוס" ([kLinkAnchorPrintVariant]).
+  none('', '');
 
   const LinkAnchorDelimiter(this.open, this.close);
 
@@ -66,7 +69,17 @@ const List<LinkAnchorVariant> kLinkAnchorVariants = [
   LinkAnchorVariant(italic: true, delimiter: LinkAnchorDelimiter.braces),
   LinkAnchorVariant(underline: true, delimiter: LinkAnchorDelimiter.braces),
   LinkAnchorVariant(rashiScript: true, delimiter: LinkAnchorDelimiter.braces),
+  // אחרון ומחוץ ל-[kLinkAnchorStyleCount]: לא מוקצה למפרש לפי הכותרת.
+  kLinkAnchorPrintVariant,
 ];
+
+/// סמן "כבדפוס" (issue #4394): אות מורמת בגופן הטקסט, בלי סוגריים ובלי הדגשה.
+const LinkAnchorVariant kLinkAnchorPrintVariant = LinkAnchorVariant(
+  delimiter: LinkAnchorDelimiter.none,
+);
+
+/// האינדקס של [kLinkAnchorPrintVariant] במחלקה `link-anchor-<index>`.
+final int kLinkAnchorPrintStyleIndex = kLinkAnchorVariants.length - 1;
 
 /// האות עטופה בסוגריים של הווריאנט שבאינדקס [variantIndex]. אינדקס שאינו
 /// ברשימה נופל לסוגריים העגולים — ברירת המחדל ההיסטורית.
@@ -78,8 +91,8 @@ String wrapLinkAnchorLetter(String letter, int variantIndex) {
   return delimiter.wrap(letter);
 }
 
-/// מספר הווריאנטים הזמינים (ראו [anchorStyleIndexByCommentator]).
-final int kLinkAnchorStyleCount = kLinkAnchorVariants.length;
+/// מספר הווריאנטים שמוקצים למפרשים (ראו [anchorStyleIndexByCommentator]).
+final int kLinkAnchorStyleCount = kLinkAnchorPrintStyleIndex;
 
 /// הווריאנט לפי מחלקות ה-CSS של האלמנט, או null כשאין מחלקת וריאנט.
 LinkAnchorVariant? linkAnchorVariantFromClasses(Iterable<String> classes) {
