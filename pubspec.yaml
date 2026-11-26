@@ -90,7 +90,7 @@ dependencies:
   # they are placed. Already in the graph through `pdf`; declared for direct use.
   bidi: ^2.0.13
   kosher_dart: ^2.1.0
-  archive: ^4.6.0
+  archive: ^4.7.1
   posix: ^6.5.4
   package_info_plus: ^10.2.2
   convert: ^3.1.2
@@ -186,11 +186,11 @@ dependency_overrides:
       url: https://github.com/Otzaria/labs.git
       ref: f48be9ede26c06e433a186bd1aca2876fb4de143
       path: pkgs/timezone
-  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור brendan-duncan/archive#428–#438 ו־#441.
+  # TODO: לחזור לגרסה הרשמית אחרי מיזוג ושחרור brendan-duncan/archive#438.
   archive:
     git:
       url: https://github.com/Otzaria/archive
-      ref: 533742bcee15f1a81cecf5d38707e8f6318dcfa3 # codex/archive-integration
+      ref: 92343094ec6aa6279312877965c4b79e6d65c92f
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור dart-lang/core#1043, #1044.
   # ענף characters-integrated כולל את כל התיקונים; מוצמד לקומיט שנבדק.
   characters:
