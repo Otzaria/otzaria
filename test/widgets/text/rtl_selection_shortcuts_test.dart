@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -383,6 +384,145 @@ void main() {
       trackRtlSelection('בגד'); // אמור להתעלם
       rtlSelectionPriming = false;
       expect(rtlInferredReversed, isTrue, reason: 'priming לא משנה את ההסקה');
+    });
+  });
+
+  group('Shift+למטה/למעלה אחרי בחירה בעכבר בשורה אחת (#6048)', () {
+    const line1 = 'אבגדה והוזח טיכלמ';
+    const line2 = 'נסעפצ קרשתא בגדהו';
+    const line3 = 'שלישית שלישית';
+
+    // שלוש שורות, כל אחת Text נפרד — כמו שורות הספר בתוך SelectionArea.
+    Future<void> pumpLines(WidgetTester tester) async {
+      regionKey = GlobalKey<SelectableRegionState>();
+      sel = null;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Center(
+                child: SizedBox(
+                  width: 600,
+                  child: RtlSelectionShortcuts(
+                    child: SelectableRegion(
+                      key: regionKey,
+                      selectionControls: emptyTextSelectionControls,
+                      onSelectionChanged: (v) {
+                        if (!rtlSelectionPriming) sel = v?.plainText;
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final line in const [line1, line2, line3])
+                            Text(line, style: const TextStyle(fontSize: 24)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// גרירת עכבר בתוך השורה הראשונה מ-[fromRight] אל [toRight] (מרחק מהקצה
+    /// הימני של השורה).
+    Future<void> mouseDragInFirstLine(
+      WidgetTester tester, {
+      required double fromRight,
+      required double toRight,
+    }) async {
+      final rect = tester.getRect(find.text(line1));
+      final y = rect.center.dy;
+      final gesture = await tester.startGesture(
+        Offset(rect.right - fromRight, y),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(Offset(rect.right - toRight, y));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('גרירה מימין לשמאל ואז Shift+למטה מרחיבה, לא מאבדת', (
+      tester,
+    ) async {
+      await pumpLines(tester);
+      await mouseDragInFirstLine(tester, fromRight: 2, toRight: 90);
+      final dragged = sel;
+      expect(dragged, isNotNull);
+      expect(dragged, isNotEmpty);
+      expect(line1.startsWith(dragged!), isTrue);
+
+      await shiftPress(tester, LogicalKeyboardKey.arrowDown);
+      expect(sel, isNotNull);
+      expect(
+        sel!.startsWith(line1),
+        isTrue,
+        reason: 'הבחירה מהעכבר חייבת להישמר ולגדול לשורה הבאה — לא "$sel"',
+      );
+      expect(sel, contains(line2.substring(0, 2)));
+      expect(sel, isNot(contains('שליש')));
+
+      // Shift+למעלה מחזיר בדיוק לבחירה שנעשתה בעכבר.
+      await shiftPress(tester, LogicalKeyboardKey.arrowUp);
+      expect(sel, equals(dragged));
+    });
+
+    testWidgets(
+      'Shift+End ו-Ctrl+Shift+End מרחיבים את הבחירה מהעכבר, לא מאבדים',
+      (tester) async {
+        await pumpLines(tester);
+        await mouseDragInFirstLine(tester, fromRight: 2, toRight: 90);
+        final dragged = sel;
+        expect(dragged, isNotEmpty);
+
+        await shiftPress(tester, LogicalKeyboardKey.end);
+        expect(sel, equals(line1), reason: 'עד סוף השורה — לא "$sel"');
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await shiftPress(tester, LogicalKeyboardKey.end);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        expect(sel, isNotNull);
+        expect(sel!.startsWith(line1), isTrue, reason: 'לא "$sel"');
+        expect(sel, endsWith(line3));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
+
+    testWidgets('Shift+למעלה מבחירה של שורה אחת בשורה השנייה מרחיבה למעלה', (
+      tester,
+    ) async {
+      await pumpLines(tester);
+      final rect = tester.getRect(find.text(line2));
+      final gesture = await tester.startGesture(
+        Offset(rect.right - 2, rect.center.dy),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(Offset(rect.right - 90, rect.center.dy));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final dragged = sel;
+      expect(dragged, isNotEmpty);
+      expect(line2.startsWith(dragged!), isTrue);
+
+      await shiftPress(tester, LogicalKeyboardKey.arrowUp);
+      expect(sel, isNotNull);
+      expect(
+        sel!.endsWith(dragged),
+        isTrue,
+        reason: 'הבחירה חייבת לגדול למעלה ולשמור את סופה — לא "$sel"',
+      );
+      expect(sel, contains(line1.substring(line1.length - 2)));
     });
   });
 
