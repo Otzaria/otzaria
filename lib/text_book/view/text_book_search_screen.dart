@@ -1192,22 +1192,29 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                           );
                   }
 
+                  // המעבר בין תוצאות בונה מחדש רק את השורה שיצאה מהבחירה ואת
+                  // זו שנכנסה אליה; לשאר השורות חוזר אותו widget.
+                  NavTreeContentRow? row;
                   return NavTreeGroupCard(
                     isGroupStart: isGroupStart,
                     isGroupEnd: isGroupEnd,
                     child: ValueListenableBuilder<int?>(
                       valueListenable: _selectedResult,
-                      builder: (context, selected, child) => NavTreeContentRow(
-                        isSelected:
+                      builder: (context, selected, child) {
+                        final isSelected =
                             selected != null &&
                             selected >= resultListIndex &&
-                            selected <= lastResultListIndex,
-                        onTap: () => _navigateToSearchResult(
-                          resultListIndex,
-                          closePane: true,
-                        ),
-                        child: child!,
-                      ),
+                            selected <= lastResultListIndex;
+                        if (row?.isSelected == isSelected) return row!;
+                        return row = NavTreeContentRow(
+                          isSelected: isSelected,
+                          onTap: () => _navigateToSearchResult(
+                            resultListIndex,
+                            closePane: true,
+                          ),
+                          child: child!,
+                        );
+                      },
                       child: RichText(
                         textScaler: MediaQuery.textScalerOf(context),
                         textAlign: TextAlign.justify,
