@@ -226,6 +226,25 @@ const int _minPartialMatchChars = 2;
 /// ומ-~2000 תווים ההתאמה הראשונה זורקת FormatException: Stack overflow.
 const int _maxQueryChars = 1000;
 
+String? _lastOverlongQuery;
+bool _lastOverlongResult = false;
+
+/// שאילתה שהחיפוש בספר דוחה בגלל אורכה. ההדגשה והספירה מדלגות עליה כדי
+/// למנוע נרמול מיותר של טקסט ארוך בכל שורת גוף.
+bool isOverlongSearchQuery(String query) {
+  if (identical(query, _lastOverlongQuery)) return _lastOverlongResult;
+  if (query.length <= _maxQueryChars) {
+    _lastOverlongQuery = null;
+    _lastOverlongResult = false;
+    return false;
+  }
+
+  final result = normalizeLiteralQuery(query).length > _maxQueryChars;
+  _lastOverlongQuery = query;
+  _lastOverlongResult = result;
+  return result;
+}
+
 /// האם החיפוש הליטרלי ל-[query] מתאים גם בתוך מילה. ההדגשה בגוף הספר חייבת
 /// לקבל אותו ערך, אחרת אות בודדת מודגשת בתוך מילים שהחיפוש לא מצא.
 bool literalPartialWordMatch(String query, {required bool wholeWord}) =>

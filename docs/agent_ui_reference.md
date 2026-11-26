@@ -345,17 +345,16 @@ import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 
 NavSidePanel(
   isOpen: _isNavVisible,
-  isPinned: _isPinned,          // omit on screens without a pin (default: docked)
+  peek: _navPeek,               // reading screens: hover on the toggle opens it
   onClose: () => setState(() => _isNavVisible = false),
   paneContent: _buildTree(),
   mainContent: _buildContent(),
 )
-NavPanelToggleButton(isOpen: _isNavVisible, onToggle: _toggleNav) // first leadingItems entry
-NavPanelPinButton(isPinned: _isPinned, onToggle: _togglePin)      // next, only while open
+NavPanelToggleButton(isOpen: _isNavVisible, peek: _navPeek, onToggle: _toggleNav) // first leadingItems entry
 NavPanelTabHeader(controller: _tabController, tabs: const [(icon: ..., iconFilled: ..., label: 'ניווט')])
 ```
 
-- A pinned panel pushes the content; an unpinned one floats with a scrim and closes on a click on the content. Nothing closes a panel on scroll. A panel that opens by itself with a book starts pinned. Switching pin state moves both contents by `GlobalKey`; never rebuild them.
+- An open panel pushes the content (on a narrow screen it overlays with a scrim). With a `NavPanelPeekController` shared by the toggle and the panel, hovering the toggle opens the closed panel over the content, without a scrim, until the pointer leaves the panel; a click opens it pushing the content. There is no pin. Switching between the two moves both contents by `GlobalKey`; never rebuild them. Nothing closes a panel on scroll.
 - **Search inside a panel** sits under the tab row, never in `AppTopBar` (`lib/widgets/navigation/nav_panel_search.dart`). The screen owns a `NavPanelSearchHost`, keeps its `activeTab` in sync with the `TabController`, wraps `paneContent` in `NavPanelSearchScope(host:)`, and wraps each tab in `NavPanelSearchSlot(index:)`.
   - A tab that is all search (in-book search) draws its field permanently: `SearchPaneBase`.
   - Navigation, alternate headings, and result-book filters use `NavPanelCollapsibleSearch(presentation: NavPanelSearchPresentation.persistent, delegate: NavPanelSearchDelegate(...))`. The field stays above the scrolling list, including after clearing it. Other filters keep the default collapsible presentation. Put `const NavPanelSearchToggle()` in the `trailing` of the `NavTreeHeader`; it hides itself when the field is visible.

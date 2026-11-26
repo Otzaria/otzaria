@@ -201,7 +201,6 @@ TextBookLoaded _stateWithoutCommentators({required bool commentatorsLoaded}) {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }
@@ -223,7 +222,6 @@ TextBookLoaded _stateWithoutLinks() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }
@@ -258,7 +256,6 @@ TextBookLoaded _stateWithIrrelevantLinks() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }
@@ -292,7 +289,6 @@ TextBookLoaded _stateWithLinksNoActiveCommentators() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

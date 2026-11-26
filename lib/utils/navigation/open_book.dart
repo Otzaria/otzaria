@@ -29,9 +29,11 @@ void openBook(
   String? pinpointHighlight,
   bool markSection = false,
   String? markText,
+  bool selectLine = false,
   bool insertAdjacent = false,
   bool navigateToPositionIfReused = false,
   List<String>? initialCommentators,
+  String? markerReference,
 }) {
   bookOpenCoordinatorOf(context).openBook(
     book,
@@ -43,9 +45,11 @@ void openBook(
     pinpointHighlight: pinpointHighlight,
     markSection: markSection,
     markText: markText,
+    selectLine: selectLine,
     insertAdjacent: insertAdjacent,
     initialCommentators: initialCommentators,
     navigateToPositionIfReused: navigateToPositionIfReused,
+    markerReference: markerReference,
   );
 }
 
@@ -54,6 +58,11 @@ void openPreparedTab(
   BuildContext context,
   OpenedTab tab, {
   bool insertAdjacent = false,
+  bool navigateToPositionIfReused = false,
 }) {
-  bookOpenCoordinatorOf(context).openTab(tab, insertAdjacent: insertAdjacent);
+  bookOpenCoordinatorOf(context).openTab(
+    tab,
+    insertAdjacent: insertAdjacent,
+    navigateToPositionIfReused: navigateToPositionIfReused,
+  );
 }

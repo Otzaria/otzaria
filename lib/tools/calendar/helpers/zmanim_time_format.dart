@@ -1,7 +1,7 @@
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-/// מחזיר את סימן השניות בשיטת "לוח עיתים לבינה": נקודה (`.`) כשהשניות
+/// מחזיר את סימן השניות: נקודה (`.`) כשהשניות
 /// 0–29, נקודותיים (`:`) כשהן 30–59. הסימן מציין לקורא אם הזמן האמיתי
 /// נופל במחצית הראשונה או השנייה של הדקה (הזמן עצמו אינו מעוגל).
 String secondsMarker(DateTime dt) => dt.second < 30 ? '.' : ':';
@@ -14,7 +14,7 @@ const String _ltrIsolateStart = '\u2066';
 const String _ltrIsolateEnd = '\u2069';
 
 /// מעצב שעה לפורמט HH:MM עם תמיכה ב-timezone, ובסופו סימן שניות
-/// ([secondsMarker]) בשיטת לוח עיתים לבינה. הזמן נחתך לדקה ואינו מעוגל,
+/// ([secondsMarker]). הזמן נחתך לדקה ואינו מעוגל,
 /// והמקטע עטוף ב-LTR isolate לתצוגה תקינה ב-RTL.
 String formatZmanTime(DateTime dt, tz.Location tzLocation) {
   final tzDateTime = tz.TZDateTime.from(dt, tzLocation);

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 import 'package:otzaria/models/books.dart';
 
 abstract class LibraryEvent extends Equatable {
@@ -170,6 +171,16 @@ class UpdateSearchQuery extends LibraryEvent {
   List<Object?> get props => [query];
 }
 
+/// כל ספרי המחבר בספרייה, במקום תוצאות החיפוש; null חוזר לתיקייה.
+class ShowAuthorBooks extends LibraryEvent {
+  final String? author;
+
+  const ShowAuthorBooks(this.author);
+
+  @override
+  List<Object?> get props => [author];
+}
+
 class SelectTopics extends LibraryEvent {
   final List<String> topics;
 
@@ -177,6 +188,15 @@ class SelectTopics extends LibraryEvent {
 
   @override
   List<Object?> get props => [topics];
+}
+
+class SelectMatchFilters extends LibraryEvent {
+  final Set<LibraryMatchFilter> filters;
+
+  const SelectMatchFilters(this.filters);
+
+  @override
+  List<Object?> get props => [filters];
 }
 
 class SelectBookForPreview extends LibraryEvent {

@@ -176,7 +176,7 @@ my-plugin/
 | `contributes.background.entrypoint` | `null` | נתיב יחסי לקובץ HTML קליל (ללא UI) שייטען ברקע במקום ה-`entrypoint` המלא. רלוונטי רק לתוסף עם `app.run_on_startup`. ראה §ריצת רקע. |
 | `contributes.startup` | `null` | פקדים, פריטי תפריט ונתונים שאוצריא טוענת ישירות מהמניפסט בלי להפעיל WebView. |
 | `contributes.startup.programs` | `[]` | תכניות חישוב Host מוולדות, ללא JavaScript; ראו `API_REFERENCE.md` §תכניות Host ללא WebView. |
-| `contributes.startup.searchDialogItems` | `[]` | שורות סטטיות, `checkbox` או `switch` (מגרסה 0.9.98.3); `persist: false` הופך בחירה לחד-פעמית (מגרסה 0.9.98.3); `openPluginOnSubmit` יכול לנתב את אישור החיפוש לתוסף, ו-`resultsAction` (מגרסה 0.9.98.3) מוסיף כפתור בטאב החיפוש שמעביר אליו את החיפוש אחרי שהסתיים. |
+| `contributes.startup.searchDialogItems` | `[]` | שורות סטטיות, `checkbox` או `switch` (מגרסה 0.9.98.3); `persist: false` הופך בחירה לחד-פעמית (מגרסה 0.9.98.3); `openPluginOnSubmit` יכול לנתב את אישור החיפוש לתוסף, ו-`resultsAction` (מגרסה 0.9.98.3) מוסיף כפתור בטאב החיפוש שמעביר אליו את החיפוש אחרי שהסתיים, ו-`resultsActionIcon` (מגרסה 0.9.99) קובע את האייקון שלו. |
 | `contributes.startup.searchFieldActions` | `[]` | כפתורים בתוך שדות החיפוש (מגרסה 0.9.98.1). לחיצה פותחת סשן שבו התוסף כותב לשדה דרך `search.setFieldText`. מגרסה 0.9.98.3: `visibleWhen: "nonEmptyText"` (כפתור רק כשיש טקסט), הקשר חיפוש מלא באירוע (`request`, `pluginSelections`, `categoryPath`), ו-`mode: "providerBooksFilter"` לסינון ספרי התוסף באיתור הספרים. מגרסה 0.9.99: תווית קצרה במצבי הסינון, שהתוסף יכול לקבוע (`pluginOnlyLabel`, `libraryOnlyLabel`). וכן `when` שמציג או מסתיר כפתור לפי הגדרה או אחסון התוסף, בלי להעיר את המנוע. |
 | `contributes.startup.externalEditions` | `[]` | קונפיגורציית מהדורות מקבילות של ספק חיצוני (טבלת מיפוי במקור DB מוכרז); ראו `API_REFERENCE.md` §מהדורות מקבילות חיצוניות. |
 | `contributes.startup.libraryBooks` | `[]` | ספק ספרים שמצטרף לאיתור הספרים במסך הספרייה. לחיצה על ספריו נמסרת לתוסף, או מבצעת `openAction` בלי להעיר את המנוע. מגרסה 0.9.98; ראו `API_REFERENCE.md` §ספרים בחיפוש הספרייה. |
@@ -466,7 +466,7 @@ Otzaria.on('plugin.boot', (payload) => {
 | `library.listBookAltStructures` | `library.content.read` | `{ bookId, rawDivineNames? }` | `AltStructure[]` |
 | `library.getBookAltToc` | `library.content.read` | `{ bookId, structureKey?, rawDivineNames? }` | `TocEntry[]` |
 | `library.getCommentators` | `library.links.read` | `{ bookId, categoryId?, startLine?, endLine?, grouped? }` | `{ commentators }` או `{ groups }` |
-| `library.getLinks` | `library.links.read` | `{ bookId, categoryId?, startLine, endLine, connectionTypes?, targetTitles?, includeAnchors?, rawDivineNames? }` (חלון עד 200 שורות) | `{ links, truncated }` |
+| `library.getLinks` | `library.links.read` | `{ bookId, categoryId?, startLine, endLine, connectionTypes?, targetTitles?, includeAnchors?, rawDivineNames?, direction? }` (חלון עד 200 שורות) | `{ links, truncated }` |
 | `library.getRawLinks` | `library.links.read` | `{ bookId, categoryId?, startLine?, endLine?, connectionTypes?, targetTitles? }` (הטווח חובה יחד; חלון עד 1000 שורות) | `{ links, truncated, startLine, endLine }` — אותם קישורים של `getLinks`, בחמשת המפתחות של `links.json` |
 | `library.getLinkTargetsSummary` | `library.links.read` | `{ bookId, categoryId? }` | `{ targets, maxSourceLine }` |
 | `library.getLinkContent` | `library.content.read` | `{ links, rawDivineNames? }` (עד 25) | `{ items }` |
@@ -488,6 +488,10 @@ Otzaria.on('plugin.boot', (payload) => {
 | `search.fullText` | `search.fulltext.read` | `{ query, limit?, rawDivineNames? }` | `SearchResult[]` |
 | `search.query` | `search.fulltext.read` | `{ query, regex?, mode?, distance?, proximityScope?, order?, grouping?, wordMatchMode?, anyOrder?, options?, wordOptions?, alternativeWords?, customSpacing?, negativeQuery?, categories?, books?, authors?, eras?, baseBooksOnly?, limit?, offset?, includeBookCounts? }` | `AsyncIterable<{ sequence, results, total, groupCount, truncated, facets, bookCounts? }>` |
 | `search.getOptions` | `search.fulltext.read` | `{}` | הערכים החוקיים לכל פרמטר של `search.query` |
+| `semantic.getStatus` | `search.semantic.read` | — | `{ phase, modelFamilyId, dim, generation, limits, … }` |
+| `semantic.countTokens` | `search.semantic.read` | `{ texts }` | `{ counts, queryMaxTokens, overheadTokens }` |
+| `semantic.nearest` | `search.semantic.read` | `{ from, k?, pool?, maxCandidates?, rescore?, minScore?, exclude?, categories?, books?, authors?, eras?, baseBooksOnly? }` | `AsyncIterable` של `progress`, `hits` ו-`done` |
+| `semantic.getCoveredBooks` | `search.semantic.read` | — | `{ books }` |
 
 ב-`search.query`, גודל עמוד מוגבל ל-500 וחלון הדפדוף (`offset + limit`
 לאחר החיתוך) מוגבל ל-10,000 כדי למנוע הקצאת זיכרון לא חסומה במנוע.
@@ -743,6 +747,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `library.refresh` | סריקה מחדש של התיקיות האישיות ורענון הקטלוג (`library.refreshUserBooks`) |
 | `library.books.provide` | הוספת ספרים מהתוסף לאיתור הספרים במסך הספרייה (`contributes.startup.libraryBooks`); לחיצה על ספר כזה נמסרת לתוסף |
 | `search.fulltext.read` | חיפוש טקסט מלא |
+| `search.semantic.read` | חיפוש לפי משמעות במודל ובווקטורים של החיפוש החכם (`semantic.*`); מ־0.9.99 |
 | `reader.open` | פתיחת ספרים + קריאת מצב הקורא |
 | `reader.local_edit` | שכבת תיקונים זמנית בקורא הטקסט הרשמי, ללא כתיבה למקור; מ־0.9.98.1 |
 | `navigation.write` | ניווט בין מסכים |

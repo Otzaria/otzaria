@@ -75,6 +75,7 @@ Future<void> main() async {
       query: 'אמר',
       needle: 'אמר',
       index: 0,
+      partialWordMatch: true,
     ),
     (
       name: 'ניקוד ותוכן עשיר',
@@ -83,6 +84,7 @@ Future<void> main() async {
       query: 'אמר',
       needle: 'אמר',
       index: 1,
+      partialWordMatch: true,
     ),
     (
       name: 'ביטוי של כמה מילים',
@@ -90,6 +92,7 @@ Future<void> main() async {
       query: 'אמר רבי',
       needle: 'אמר רבי',
       index: 1,
+      partialWordMatch: true,
     ),
     (
       name: 'regex מנוע',
@@ -97,6 +100,15 @@ Future<void> main() async {
       query: '/מו?שה/',
       needle: 'מושה',
       index: 1,
+      partialWordMatch: true,
+    ),
+    (
+      name: 'בחיפוש מילה שלמה מדלגים על התאמה בתוך מילה',
+      content: 'נאמר ${List.filled(80, 'מילה').join(' ')} אמר',
+      query: 'אמר',
+      needle: 'אמר',
+      index: 0,
+      partialWordMatch: false,
     ),
   ];
   for (final data in cases) {
@@ -123,7 +135,7 @@ Future<void> main() async {
                         searchText: data.query,
                         currentSearchIndex: data.index,
                         fontSize: 18,
-                        partialWordHighlight: true,
+                        partialWordHighlight: data.partialWordMatch,
                       ),
                     ),
                   ),
@@ -163,6 +175,7 @@ Future<void> main() async {
         query: data.query,
         displayProfile: TextDisplayProfile.defaults,
         matchIndex: data.index,
+        partialWordMatch: data.partialWordMatch,
         renderedBody: () => body,
       );
       expect(target?.call(0, item)?.top, closeTo(expected, 0.001));

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -54,9 +55,11 @@ SearchingTab createInBookSearchDialogTab({
 
 /// פותח חיפוש מתקדם בתוך ספר עם [settings] ומחזיר את ההגדרות שאושרו, או
 /// null בביטול. הדיאלוג מציג את המדיניות שנבחרה, לא את זו שהותאמה לשאילתה.
+/// חיפוש חכם ב-[book] פותח כרטיסיית תוצאות ומחזיר null.
 Future<SearchDialogResult?> showInBookAdvancedSearchDialog(
   BuildContext context, {
   required String? bookTitle,
+  Book? book,
   required String query,
   required InBookSearchSettings settings,
 }) async {
@@ -77,6 +80,7 @@ Future<SearchDialogResult?> showInBookAdvancedSearchDialog(
       existingTab: tab,
       bookTitle: bookTitle,
       returnResultOnSubmit: true,
+      semanticBook: book,
     ),
   );
 

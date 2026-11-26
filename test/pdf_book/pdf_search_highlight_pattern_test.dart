@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
@@ -108,12 +109,22 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
   final List<Pattern> searches = [];
   final calls = <({bool searchImmediately, bool goToFirstMatch})>[];
   List<PdfTextSearchResult> fakeMatches = const [];
+  double? progress = 1;
+  Object? failure;
+  final requestedPages = <int>[];
+  Completer<PdfPageText?>? textGate;
 
   @override
   List<PdfTextSearchResult> get matches => fakeMatches;
 
   @override
   bool get isSearching => scanning;
+
+  @override
+  double? get searchProgress => progress;
+
+  @override
+  Object? get searchError => failure;
 
   /// הסריקה עדיין רצה; הטסט מסיים אותה ב-[finishPageScan].
   bool scanning = false;
@@ -147,12 +158,22 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
   Pattern? get pattern => searches.lastOrNull;
 
   @override
-  Future<PdfPageText?> loadText({required int pageNumber}) async => PdfPageText(
-    pageNumber: pageNumber,
-    fullText: pageFullText,
-    charRects: const [],
-    fragments: const [],
-  );
+  Future<PdfPageText?> loadText({required int pageNumber}) async {
+    requestedPages.add(pageNumber);
+    if (textGate != null) return textGate!.future;
+    return PdfPageText(
+      pageNumber: pageNumber,
+      fullText: pageFullText,
+      charRects: const [],
+      fragments: const [],
+    );
+  }
+
+  @override
+  void stopTextSearch() {
+    scanning = false;
+    notifyListeners();
+  }
 
   /// התאמה אחת בעמוד, כדי לדמות סריקה שהצליחה.
   void setSingleMatch() => setPageMatches(const [(0, 1)]);
@@ -1226,6 +1247,209 @@ Future<void> main() async {
   });
 
   group('מסלול הנסיגה בזרימת החיפוש הפשוט', () {
+    testWidgets('עצירה לפני התאמה ראשונה אינה טוענת עמודים או מחדשת חיפוש', (
+      tester,
+    ) async {
+      final searcher = await _pumpSearchView(tester, pageFullText: 'טקסט עברי');
+      await _search(tester, 'תנו רבנן');
+      searcher
+        ..scanning = true
+        ..progress = 0.25;
+      await _finishScan(tester, searcher);
+      await tester.tap(find.byTooltip('עצור את החיפוש'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(searcher.requestedPages, isEmpty);
+      expect(searcher.searches, hasLength(1));
+      expect(find.text(PdfMessages.searchIncomplete), findsOneWidget);
+      expect(find.byTooltip('עצור את החיפוש'), findsNothing);
+    });
+
+    testWidgets('השהיה עם תוצאות ריקות אינה מתזמנת סריקה נוספת', (
+      tester,
+    ) async {
+      final searcher = await _pumpSearchView(tester, pageFullText: 'טקסט עברי');
+      await _search(tester, 'תנו רבנן');
+      searcher
+        ..progress = 0.5
+        ..isActive = false;
+      await tester.pump();
+      await tester.pump();
+
+      expect(searcher.requestedPages, isEmpty);
+      expect(searcher.searches, hasLength(1));
+      searcher.isActive = true;
+      await tester.pump();
+      expect(searcher.searches, hasLength(1));
+    });
+
+    testWidgets('כשל בסריקה מוצג כשגיאה ואינו מתחיל נסיגה', (
+      tester,
+    ) async {
+      final searcher = await _pumpSearchView(tester, pageFullText: 'טקסט עברי');
+      await _search(tester, 'תנו רבנן');
+      searcher
+        ..progress = null
+        ..failure = StateError('failed text extraction');
+      await _finishScan(tester, searcher);
+
+      expect(searcher.requestedPages, isEmpty);
+      expect(searcher.searches, hasLength(1));
+      expect(find.text(LibraryMessages.searchError), findsOneWidget);
+      expect(find.text('אין תוצאות'), findsNothing);
+    });
+
+    testWidgets('סריקה חוזרת שהצליחה מסירה שגיאת מנוע ישנה', (tester) async {
+      final searcher = await _pumpSearchView(tester, pageFullText: 'טקסט עברי');
+      await _search(tester, 'תנו רבנן');
+      searcher
+        ..progress = null
+        ..failure = StateError('failed text extraction');
+      await _finishScan(tester, searcher);
+      expect(find.text(LibraryMessages.searchError), findsOneWidget);
+
+      searcher
+        ..progress = 1
+        ..failure = null;
+      await _finishScan(tester, searcher);
+      expect(find.text(LibraryMessages.searchError), findsNothing);
+      expect(searcher.requestedPages, isNotEmpty);
+      expect(searcher.searches, hasLength(2));
+    });
+
+    testWidgets('סיום שאילתה ישנה בזמן debounce אינו מתחיל נסיגה חדשה', (
+      tester,
+    ) async {
+      final searcher = await _pumpSearchView(tester, pageFullText: 'טקסט עברי');
+      await _search(tester, 'תנו רבנן');
+      await tester.enterText(find.byType(EditableText).first, 'שאילתה חדשה');
+      await tester.pump(const Duration(milliseconds: 100));
+      await _finishScan(tester, searcher);
+
+      expect(searcher.requestedPages, isEmpty);
+      expect(searcher.searches, hasLength(1));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(searcher.searches, hasLength(2));
+      expect(searcher.searchedPatterns.last.hasMatch('שאילתה חדשה'), isTrue);
+    });
+
+    for (final pause in [false, true]) {
+      testWidgets('דגימה שהתיישנה נעצרת אחרי העמוד הממתין (pause=$pause)', (
+        tester,
+      ) async {
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: 'טקסט עברי',
+        );
+        await _search(tester, 'תנו רבנן');
+        final gate = searcher.textGate = Completer<PdfPageText?>();
+        await _finishScan(tester, searcher);
+        expect(searcher.requestedPages, hasLength(1));
+
+        if (pause) {
+          searcher.isActive = false;
+        } else {
+          await tester.enterText(
+            find.byType(EditableText).first,
+            'שאילתה חדשה',
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        gate.complete(
+          PdfPageText(
+            pageNumber: 1,
+            fullText: pause ? 'טקסט עברי' : '',
+            charRects: const [],
+            fragments: const [],
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(searcher.requestedPages, hasLength(1));
+        expect(searcher.searches, hasLength(1));
+        expect(find.text(PdfMessages.noTextLayer), findsNothing);
+        if (pause) {
+          searcher.isActive = true;
+          await tester.pump();
+          await tester.pump();
+          expect(searcher.requestedPages, hasLength(4));
+          expect(searcher.searches, hasLength(2));
+          expect(searcher.searchedPatterns.last.hasMatch('רבנן תנו'), isTrue);
+          await _finishScan(tester, searcher);
+          expect(searcher.searches, hasLength(2));
+        } else {
+          await tester.pump(const Duration(milliseconds: 600));
+        }
+      });
+    }
+
+    testWidgets('חזרה לטאב לפני סיום הדגימה מחדשת אותה פעם אחת', (
+      tester,
+    ) async {
+      final searcher = await _pumpSearchView(tester, pageFullText: 'טקסט עברי');
+      await _search(tester, 'תנו רבנן');
+      final gate = searcher.textGate = Completer<PdfPageText?>();
+      await _finishScan(tester, searcher);
+      expect(searcher.requestedPages, hasLength(1));
+      searcher
+        ..isActive = false
+        ..isActive = true;
+      await tester.pump();
+      expect(searcher.requestedPages, hasLength(1));
+      gate.complete(
+        const PdfPageText(
+          pageNumber: 1,
+          fullText: 'טקסט עברי',
+          charRects: [],
+          fragments: [],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(searcher.requestedPages, hasLength(4));
+      expect(searcher.searches, hasLength(2));
+      expect(searcher.searchedPatterns.last.hasMatch('רבנן תנו'), isTrue);
+      await _finishScan(tester, searcher);
+      expect(searcher.searches, hasLength(2));
+    });
+
+    for (final paused in [false, true]) {
+      testWidgets('כשל בטעינת עמוד דגימה (paused=$paused)', (tester) async {
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: 'טקסט עברי',
+        );
+        await _search(tester, 'תנו רבנן');
+        final gate = searcher.textGate = Completer<PdfPageText?>();
+        await _finishScan(tester, searcher);
+        expect(searcher.requestedPages, hasLength(1));
+
+        if (paused) {
+          searcher
+            ..isActive = false
+            ..isActive = true;
+        }
+        searcher.textGate = null;
+        gate.completeError(StateError('failed text probe'));
+        await tester.pump();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        if (paused) {
+          expect(find.text(LibraryMessages.searchError), findsNothing);
+          expect(searcher.requestedPages, hasLength(4));
+          expect(searcher.searches, hasLength(2));
+          expect(searcher.searchedPatterns.last.hasMatch('רבנן תנו'), isTrue);
+        } else {
+          expect(find.text(LibraryMessages.searchError), findsOneWidget);
+          expect(searcher.requestedPages, hasLength(1));
+          expect(searcher.searches, hasLength(1));
+        }
+      });
+    }
+
     testWidgets('אפס תוצאות בספר עם עברית — מורץ חיפוש שני בסדר ההפוך', (
       tester,
     ) async {

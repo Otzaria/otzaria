@@ -138,6 +138,8 @@ hebrew.ExitSetupMessage=ההורדה לא הושלמה. קבצים שכבר יר
 ; ב"כולל חיפוש חכם" / "Smart Search included" הרווחים קשיחים (U+00A0), כדי שהצירוף לא יישבר.
 ; שם תת-התיקייה בחוזה המשותף לשלושת המסייעים (expected-selections), זהה בכל שפה.
 ContractSubfolder=אוצריא להתקנה ל-%1
+; תיקיית האיסוף של מסדים רשמיים, יחסית לתיקיית הנתונים של אוצריא (defaultDropDirectory).
+ZmanenuDropFolder=מסדים אישיים\להתקנה
 
 english.AppTitle=Otzaria Download Assistant
 english.OtzariaVersion=Otzaria %1
@@ -166,6 +168,12 @@ english.PresetUpdateDesc=The installer of the new version, to update an existing
 english.PresetCustom=Custom selection
 english.PresetCustomDesc=I want to choose what to download myself.
 english.RequiredTag=(required)
+english.ZmanenuTitle=Also download Contemporary Authors
+english.ZmanenuDescThis=An additional official book collection. Otzaria on this computer installs it the next time it starts.
+english.ZmanenuDescOther=An additional official book collection. The files are saved next to the library, and Otzaria installs it when the folder is chosen in the library setup.
+english.ZmanenuName=Contemporary Authors
+english.GuideZmanenuThis=Contemporary Authors was saved in Otzaria's folder on this computer, and Otzaria installs it the next time it starts.
+english.GuideZmanenuOther=Contemporary Authors is in the same folder. Otzaria installs it when the folder is chosen in the library setup.
 english.OutputSubfolder=Otzaria setup for %1
 english.FallbackFolder=Otzaria setup
 english.DurationSeconds=%1 seconds
@@ -293,6 +301,12 @@ hebrew.PresetUpdateDesc=קובץ ההתקנה של הגרסה החדשה, לעד
 hebrew.PresetCustom=בחירה אישית
 hebrew.PresetCustomDesc=אני רוצה לבחור בעצמי מה להוריד.
 hebrew.RequiredTag=(נדרש)
+hebrew.ZmanenuTitle=הורד גם את מחברי זמננו
+hebrew.ZmanenuDescThis=מסד ספרים רשמי נוסף. אוצריא שבמחשב הזה תתקין אותו בפתיחה הבאה.
+hebrew.ZmanenuDescOther=מסד ספרים רשמי נוסף. הקבצים יישמרו לצד הספרייה, ואוצריא תתקין אותו כשבוחרים את התיקייה בהגדרת הספרייה.
+hebrew.ZmanenuName=מחברי זמננו
+hebrew.GuideZmanenuThis=מחברי זמננו נשמר בתיקייה של אוצריא במחשב הזה, והתוכנה תתקין אותו בפתיחה הבאה.
+hebrew.GuideZmanenuOther=מחברי זמננו נמצא באותה תיקייה. אוצריא מתקינה אותו כשבוחרים את התיקייה בהגדרת הספרייה.
 hebrew.OutputSubfolder=אוצריא להתקנה ל-%1
 hebrew.FallbackFolder=אוצריא-להתקנה
 hebrew.DurationSeconds=%1 שניות
@@ -478,6 +492,12 @@ const
   OfflineDataTypes = 'semantic-model,semantic-vectors,';
   { סדר ההצגה. סדר ההוספה ב-BuildPresets הוא שקובע איזו כפולה מושמטת. }
   PresetDisplayOrder = 'basic,full-indexed,full,update,';
+  { מחברי זמננו: ה-release האחרון של המאגר, לא המניפסט של אוצריא. השמות הם
+    שהאפליקציה מחפשת (offlinePackageName). }
+  ZmanenuRepository = 'Otzaria/zmanenu-library';
+  ZmanenuArchive = 'zmanenu-offline.tar.zst';
+  ZmanenuPartsManifest = 'zmanenu-offline.tar.zst.manifest.json';
+  ZmanenuPartsFile = 'zmanenu-parts.json';
 
 type
   TInt64Array = array of Int64;
@@ -513,6 +533,16 @@ var
 
   { --- הצעות מוכנות, נגזרות מהמניפסט --- }
   PresetId, PresetLabel, PresetDesc, PresetSize, PresetMembers: TArrayOfString;
+
+  { --- מחברי זמננו: ריק כשאין release שאפשר לאמת, ואז האפשרות אינה מוצגת --- }
+  ZmanenuTag: String;
+  ZmanenuName, ZmanenuSha, ZmanenuUrl: TArrayOfString;
+  ZmanenuSize: TInt64Array;
+  { חלקים: מניפסט החלקים ({tmp}\ZmanenuPartsFile) נכתב אחריהם. }
+  ZmanenuSplit: Boolean;
+  ZmanenuChecked: Boolean;
+  { השורה בעמוד ההצעות, -1 כשאינה מוצגת. }
+  ZmanenuIndex: Integer;
 
   { --- מצב האשף --- }
   ModePage: TInputOptionWizardPage;
@@ -1163,7 +1193,8 @@ var
   Marker: String;
 begin
   Result := False;
-  if not FileSize64(Path, Actual) or (Actual <> Size) then
+  { בלי sha256 (מחברי זמננו בלי digest) אין מה לאמת מולו: הקובץ יורד מחדש. }
+  if (Sha = '') or not FileSize64(Path, Actual) or (Actual <> Size) then
     exit;
   Marker := ReadMarkerHex(Name);
   if (Marker <> '') and (Marker <> Lowercase(Sha)) then
@@ -1185,8 +1216,8 @@ begin
   Result := FileMatchesMarker(CachePath(Name), Name, Size, Sha);
 end;
 
-{ עמוד ההורדה כבר אימת את ה-sha256 (הוא מועבר אליו תמיד), ולכן כאן נבדק
-  גודל בלבד. הקובץ מקבל את שמו הסופי רק אחרי הבדיקה, והחותם — אחריו. }
+{ עמוד ההורדה כבר אימת את ה-sha256 כשיש, ולכן כאן נבדק גודל בלבד (0 — לא ידוע).
+  הקובץ מקבל את שמו הסופי רק אחרי הבדיקה, והחותם — אחריו, ורק עם sha256. }
 function PromoteToCache(const TempPath, Name: String; Size: Int64;
   const Sha: String): Boolean;
 var
@@ -1200,12 +1231,12 @@ begin
   if not RenameFile(TempPath, Staged) then
     if not CopyFile(TempPath, Staged, False) then
       exit;
-  if FileSize64(Staged, Actual) and (Actual = Size) then
+  if FileSize64(Staged, Actual) and ((Size = 0) or (Actual = Size)) then
   begin
     DeleteFile(MarkerPath(Name));
     DeleteFile(CachePath(Name));
     Result := RenameFile(Staged, CachePath(Name));
-    if Result then
+    if Result and (Sha <> '') then
       WriteMarker(Name, Sha);
   end;
   { כישלון מחזיר את הקובץ לשמו הקודם: ב-curl זה הקובץ החלקי המאומת. }
@@ -1548,7 +1579,245 @@ begin
   Result := ParseManifest(ManifestRaw);
 end;
 
-{ הנסיגה היחידה כשאין מניפסט: עמוד ההורדות בדפדפן. המסייע לא יוריד דבר בלי hash. }
+{ ========================= מחברי זמננו ========================= }
+
+function IsSha256Hex(const Value: String): Boolean;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := False;
+  if Length(Value) <> 64 then
+    exit;
+  for I := 1 to 64 do
+  begin
+    C := Value[I];
+    if not (((C >= '0') and (C <= '9')) or ((C >= 'a') and (C <= 'f'))) then
+      exit;
+  end;
+  Result := True;
+end;
+
+{ תג ריק — ה-API לא ענה, והכתובת היא של ה-release האחרון. }
+function ZmanenuAssetUrl(const Tag, Name: String): String;
+begin
+  if Tag = '' then
+    Result := 'https://github.com/Otzaria/zmanenu-library/releases/latest/download/' + Name
+  else
+    Result := AssetUrl(ZmanenuRepository, Tag, Name);
+end;
+
+procedure ZmanenuClear();
+begin
+  SetArrayLength(ZmanenuName, 0);
+  SetArrayLength(ZmanenuSha, 0);
+  SetArrayLength(ZmanenuUrl, 0);
+  SetArrayLength(ZmanenuSize, 0);
+  ZmanenuSplit := False;
+end;
+
+procedure ZmanenuAdd(const Name: String; Size: Int64; const Sha: String);
+var
+  N: Integer;
+begin
+  N := GetArrayLength(ZmanenuName);
+  SetArrayLength(ZmanenuName, N + 1);
+  SetArrayLength(ZmanenuSha, N + 1);
+  SetArrayLength(ZmanenuUrl, N + 1);
+  SetArrayLength(ZmanenuSize, N + 1);
+  ZmanenuName[N] := Name;
+  ZmanenuSha[N] := Sha;
+  ZmanenuUrl[N] := ZmanenuAssetUrl(ZmanenuTag, Name);
+  ZmanenuSize[N] := Size;
+end;
+
+{ הנכס בשם Name ברשימת ה-API, או 0. }
+function ZmanenuFindAsset(const Raw: AnsiString; const Name: String): Integer;
+begin
+  Result := JArrFirst(Raw, JFind(Raw, 1, 'assets'));
+  while (Result > 0) and (JStr(Raw, Result, 'name') <> Name) do
+    Result := JArrNext(Raw, Result);
+end;
+
+{ חלקים לפי מניפסט החלקים; כשה-API ענה, כל חלק חייב להיות נכס באותו גודל. }
+function ZmanenuReadParts(const ApiRaw, Raw: AnsiString; ApiOk: Boolean): Boolean;
+var
+  ElemPos, AssetPos, Index: Integer;
+  Name, Sha, Expected: String;
+  Size, Total: Int64;
+begin
+  Result := False;
+  if JStr(Raw, 1, 'archive') <> ZmanenuArchive then
+    exit;
+  Total := 0;
+  Index := 0;
+  ElemPos := JArrFirst(Raw, JFind(Raw, 1, 'parts'));
+  while ElemPos > 0 do
+  begin
+    Name := JStr(Raw, ElemPos, 'name');
+    Size := JInt(Raw, ElemPos, 'size');
+    Sha := JStr(Raw, ElemPos, 'sha256');
+    Expected := IntToStr(Index);
+    while Length(Expected) < 3 do
+      Expected := '0' + Expected;
+    Expected := ZmanenuArchive + '.part-' + Expected;
+    if (Name <> Expected) or (Size <= 0) or not IsSha256Hex(Sha) then
+      exit;
+    if ApiOk then
+    begin
+      AssetPos := ZmanenuFindAsset(ApiRaw, Name);
+      if AssetPos = 0 then
+        exit;
+      if JInt(ApiRaw, AssetPos, 'size') <> Size then
+        exit;
+    end;
+    ZmanenuAdd(Name, Size, Sha);
+    Total := Total + Size;
+    Index := Index + 1;
+    ElemPos := JArrNext(Raw, ElemPos);
+  end;
+  Result := (Index > 0) and (JInt(Raw, 1, 'size') = Total);
+end;
+
+{ ה-release האחרון של מחברי זמננו; לעולם אינו נכשל. קובץ שלם עם sha256 מה-API,
+  אחרת חלקים לפי מניפסט החלקים, ובלעדיו הקובץ השלם בלי sha256 (האפליקציה מאמתת). }
+procedure LoadZmanenu();
+var
+  ApiRaw, PartsRaw: AnsiString;
+  ApiOk, NotFound, PartsRead: Boolean;
+  ElemPos: Integer;
+  Digest: String;
+  Size: Int64;
+begin
+  ZmanenuClear();
+  ZmanenuTag := '';
+  ApiOk := False;
+  NotFound := False;
+  PartsRead := False;
+  ElemPos := 0;
+  Size := 0;
+  try
+    FetchToTemp('https://api.github.com/repos/Otzaria/zmanenu-library/releases/latest',
+      'zmanenu-release.json');
+    ApiOk := LoadStringFromFile(ExpandConstant('{tmp}\zmanenu-release.json'), ApiRaw);
+  except
+    { 404: אין מאגר או אין בו release — הכתובת הישירה הייתה נכשלת גם היא. }
+    NotFound := Pos('404', GetExceptionMessage) > 0;
+    Log('DownloadAssistant: zmanenu release: ' + GetExceptionMessage);
+  end;
+  if NotFound or StopRequested then
+    exit;
+  if ApiOk then
+  begin
+    ZmanenuTag := JStr(ApiRaw, 1, 'tag_name');
+    if not IsSafeName(ZmanenuTag) then
+    begin
+      ZmanenuTag := '';
+      exit;
+    end;
+    ElemPos := ZmanenuFindAsset(ApiRaw, ZmanenuArchive);
+    if ElemPos > 0 then
+    begin
+      Digest := JStr(ApiRaw, ElemPos, 'digest');
+      Size := JInt(ApiRaw, ElemPos, 'size');
+      if (Length(Digest) = 71) and (Copy(Digest, 1, 7) = 'sha256:') and
+         IsSha256Hex(Copy(Digest, 8, 64)) and (Size > 0) then
+      begin
+        ZmanenuAdd(ZmanenuArchive, Size, Copy(Digest, 8, 64));
+        Log('DownloadAssistant: zmanenu ' + ZmanenuTag + ' whole');
+        exit;
+      end;
+    end;
+  end;
+  if not ApiOk or (ZmanenuFindAsset(ApiRaw, ZmanenuPartsManifest) > 0) then
+  begin
+    try
+      FetchToTemp(ZmanenuAssetUrl(ZmanenuTag, ZmanenuPartsManifest), ZmanenuPartsFile);
+      PartsRead := LoadStringFromFile(ExpandConstant('{tmp}\') + ZmanenuPartsFile, PartsRaw);
+    except
+      Log('DownloadAssistant: zmanenu parts manifest: ' + GetExceptionMessage);
+    end;
+  end;
+  if not PartsRead then
+  begin
+    { בלי API: ה-release האחרון, בגודל לא ידוע (0). }
+    if not ApiOk then
+      ZmanenuAdd(ZmanenuArchive, 0, '')
+    else if (ElemPos > 0) and (Size > 0) then
+      ZmanenuAdd(ZmanenuArchive, Size, '');
+    if GetArrayLength(ZmanenuName) > 0 then
+      Log('DownloadAssistant: zmanenu ' + ZmanenuTag + ' whole, without sha256');
+    exit;
+  end;
+  if ZmanenuReadParts(ApiRaw, PartsRaw, ApiOk) then
+  begin
+    ZmanenuSplit := True;
+    Log('DownloadAssistant: zmanenu ' + ZmanenuTag + ' in ' +
+      IntToStr(GetArrayLength(ZmanenuName)) + ' parts');
+  end
+  else
+    ZmanenuClear();
+end;
+
+{ ב-Android בחירת התיקייה עוברת דרך SAF, והחבילה לא הייתה מותקנת. }
+function ZmanenuOffered(): Boolean;
+begin
+  Result := (GetArrayLength(ZmanenuName) > 0) and ((TargetPlatform = 'windows') or
+    (TargetPlatform = 'macos') or (TargetPlatform = 'linux'));
+end;
+
+function ZmanenuSelected(): Boolean;
+begin
+  Result := False;
+  if ZmanenuChecked then
+    Result := ZmanenuOffered();
+end;
+
+function ZmanenuDownloadSize(): Int64;
+var
+  I: Integer;
+begin
+  Result := 0;
+  for I := 0 to GetArrayLength(ZmanenuSize) - 1 do
+    Result := Result + ZmanenuSize[I];
+end;
+
+function ZmanenuSelectedSize(): Int64;
+begin
+  Result := 0;
+  if ZmanenuSelected() then
+    Result := ZmanenuDownloadSize();
+end;
+
+{ בסדר הכתיבה: מניפסט החלקים אחרון. }
+function ZmanenuOutputNames(): TArrayOfString;
+var
+  I, N: Integer;
+begin
+  N := GetArrayLength(ZmanenuName);
+  SetArrayLength(Result, N);
+  for I := 0 to N - 1 do
+    Result[I] := ZmanenuName[I];
+  if ZmanenuSplit then
+  begin
+    SetArrayLength(Result, N + 1);
+    Result[N] := ZmanenuPartsManifest;
+  end;
+end;
+
+{ תיקיית האיסוף של אוצריא במחשב הזה (getDataRootPath): %APPDATA%\otzaria, ובעותק
+  נייד — portable.marker ליד ה-exe — otzaria_data לידו. המסייע מכיר עותק נייד
+  רק כשהוא עצמו יושב בתיקייה שלו. }
+function ZmanenuDropDir(): String;
+begin
+  if FileExists(AssistantDir() + '\portable.marker') then
+    Result := AssistantDir() + '\otzaria_data'
+  else
+    Result := ExpandConstant('{userappdata}\otzaria');
+  Result := Result + '\' + CustomMessage('ZmanenuDropFolder');
+end;
+
+{ הנסיגה היחידה כשאין מניפסט: עמוד ההורדות בדפדפן. המסייע לא יוריד את אוצריא בלי hash. }
 procedure OpenDownloadsPage();
 var
   ErrorCode: Integer;
@@ -2215,9 +2484,13 @@ begin
   end;
 end;
 
+{ למחשב אחר מחברי זמננו נכתב לצד הבחירה, ולכן נספר בכלל "יותר מקובץ אחד". }
 function ProducedFileCount(): Integer;
 begin
   Result := GetArrayLength(PlannedOutputNames());
+  if ZmanenuSelected() then
+    if not IsThisComputerMode() then
+      Result := Result + GetArrayLength(ZmanenuOutputNames());
 end;
 
 { ההסברים (outputNote) של הרכיבים שנבחרו, בסדר המניפסט ובלי כפולים — לפי הטקסט
@@ -2337,6 +2610,7 @@ end;
 procedure RefreshPresetPage();
 var
   I: Integer;
+  SizeText: String;
 begin
   BuildPresets();
   PresetPage.CheckListBox.Items.Clear;
@@ -2355,6 +2629,26 @@ begin
       I := DefaultIndex(PresetId, 'full');
     PresetPage.SelectedValueIndex := I;
   end;
+  { תיבת סימון אחרי כל כפתורי הרדיו: SelectedValueIndex מחזיר את המסומן
+    הראשון, ולכן היא אינה נספרת כהצעה. }
+  ZmanenuIndex := -1;
+  if ZmanenuOffered() then
+  begin
+    SizeText := '';
+    if ZmanenuDownloadSize() > 0 then
+      SizeText := HumanSize(ZmanenuDownloadSize());
+    ZmanenuIndex := PresetPage.CheckListBox.AddCheckBox(
+      CustomMessage('ZmanenuTitle'), SizeText, 0,
+      ZmanenuChecked, True, False, False, nil);
+  end;
+end;
+
+function ZmanenuDescription(): String;
+begin
+  if IsThisComputerMode() then
+    Result := CustomMessage('ZmanenuDescThis')
+  else
+    Result := CustomMessage('ZmanenuDescOther');
 end;
 
 { המתקין נעול כשאין לו חלופה; עם חלופה (חבילה מלאה) — כפתורי רדיו. }
@@ -3293,7 +3587,7 @@ end;
 { בונה את תור ההורדה: מה שכבר במטמון ומאומת אינו נכנס אליו. }
 function BuildQueue(): Boolean;
 var
-  C, A, P, First, Consumed: Integer;
+  C, A, P, Z, First, Consumed: Integer;
   Prefix: Int64;
   Url: String;
 begin
@@ -3358,6 +3652,11 @@ begin
         end;
       end;
     end;
+    if ZmanenuSelected() then
+      for Z := 0 to GetArrayLength(ZmanenuName) - 1 do
+        if not CachedFileIsGood(ZmanenuName[Z], ZmanenuSize[Z], ZmanenuSha[Z]) then
+          QueueAdd(ZmanenuUrl[Z], ZmanenuName[Z], ZmanenuSha[Z],
+            CustomMessage('ZmanenuName'), ZmanenuSize[Z]);
   finally
     WorkPage.Hide;
   end;
@@ -3369,7 +3668,7 @@ end;
 
 function RunDownloads(): Boolean;
 var
-  I, Attempt: Integer;
+  I, Attempt, Outcome: Integer;
   Started: Int64;
   Failure: String;
 begin
@@ -3392,7 +3691,11 @@ begin
     for I := 0 to GetArrayLength(QueueUrl) - 1 do
     begin
       Started := NowMs();
-      case CurlDownloadItem(I) of
+      { curl ממשיך קבצים חלקיים לפי sha256 וגודל; קובץ בלי sha256 יורד בעמוד מאפס. }
+      Outcome := CurlFallback;
+      if QueueSha[I] <> '' then
+        Outcome := CurlDownloadItem(I);
+      case Outcome of
         CurlDone:
           begin
             Log('DownloadAssistant: ' + QueueFile[I] + ' done by curl in ' +
@@ -3420,7 +3723,7 @@ begin
         CurrentProgress := 0;
         CurrentFileSize := QueueSize[I];
         Started := NowMs();
-        { ה-hash מהמניפסט מועבר תמיד — קובץ שאינו תואם נדחה כאן ולא נשמר. }
+        { ה-hash מהמניפסט מועבר — קובץ שאינו תואם נדחה כאן ולא נשמר. '' — בלי אימות. }
         DownloadPage.Add(QueueUrl[I], QueueFile[I], QueueSha[I]);
         SpeedResume();
         try
@@ -3679,6 +3982,77 @@ begin
     Log('DownloadAssistant: copied ' + Name);
 end;
 
+{ הקובץ הזמני של Name בתיקייה Dir. האפליקציה מתעלמת ממנו: הסיומת אינה part-NNN או manifest.json. }
+function ZmanenuTmpPath(const Dir, Name: String): String;
+begin
+  Result := Dir + '\' + Name + '.tmp';
+end;
+
+{ מחברי זמננו לתיקייה Dir, בלי חילוץ: קודם כל הקבצים בשמות זמניים, ואז שינוי שם
+  בזה אחר זה ומניפסט החלקים אחרון — האפליקציה סורקת את תיקיית האיסוף, ואסור
+  שתמצא חבילה חלקית. }
+function PlaceZmanenu(const Dir: String; var Done: Int64; Total: Int64): Boolean;
+var
+  I: Integer;
+  Size: Int64;
+  Tmp, Status: String;
+  Names: TArrayOfString;
+begin
+  Result := False;
+  if not ForceDirectories(Dir) then
+  begin
+    LoadErrorTech := 'cannot create ' + Dir;
+    exit;
+  end;
+  Names := ZmanenuOutputNames();
+  Status := Msg1('CopyingTo', CustomMessage('ZmanenuName'));
+  try
+    for I := 0 to GetArrayLength(ZmanenuName) - 1 do
+    begin
+      WorkPage.SetText(Status, ZmanenuName[I]);
+      WorkPage.SetProgress(MegaBytes(Done), MegaBytes(Total));
+      Tmp := ZmanenuTmpPath(Dir, ZmanenuName[I]);
+      DeleteFile(Tmp);
+      { גודל 0 — לא היה ידוע לפני ההורדה: הגודל של מה שירד. }
+      Size := ZmanenuSize[I];
+      if (Size = 0) and not FileSize64(CachePath(ZmanenuName[I]), Size) then
+        Size := 0;
+      if not CreateHardLink(Tmp, CachePath(ZmanenuName[I]), 0) then
+        if not WriteFileTo(Tmp, CachePath(ZmanenuName[I]), fmCreate, Size,
+          Done, Total, Status) then
+        begin
+          LoadErrorTech := 'cannot copy ' + ZmanenuName[I] + ' to ' + Dir;
+          exit;
+        end;
+      Done := Done + Size;
+    end;
+    if ZmanenuSplit then
+    begin
+      Tmp := ZmanenuTmpPath(Dir, ZmanenuPartsManifest);
+      DeleteFile(Tmp);
+      if not CopyFile(ExpandConstant('{tmp}\') + ZmanenuPartsFile, Tmp, False) then
+      begin
+        LoadErrorTech := 'cannot write ' + Tmp;
+        exit;
+      end;
+    end;
+    for I := 0 to GetArrayLength(Names) - 1 do
+    begin
+      DeleteFile(Dir + '\' + Names[I]);
+      if not RenameFile(ZmanenuTmpPath(Dir, Names[I]), Dir + '\' + Names[I]) then
+      begin
+        LoadErrorTech := 'cannot rename ' + ZmanenuTmpPath(Dir, Names[I]);
+        exit;
+      end;
+    end;
+    Log('DownloadAssistant: zmanenu placed in ' + Dir);
+    Result := True;
+  finally
+    for I := 0 to GetArrayLength(Names) - 1 do
+      DeleteFile(ZmanenuTmpPath(Dir, Names[I]));
+  end;
+end;
+
 { ==================== הרכבה והכנת תיקיית היעד ==================== }
 
 { מה עושים בקובץ במחשב היעד. נגזר מהסיומת, לא משם רכיב. }
@@ -3722,7 +4096,7 @@ end;
 
 function PrepareOutput(): Boolean;
 var
-  C, A, P, Produced: Integer;
+  C, A, P, Z, Produced: Integer;
   Notes, PartsNote, SingleName, JoinNote, FirstExe, Folder: String;
   Done, Total: Int64;
   OutputNotes: TArrayOfString;
@@ -3738,7 +4112,7 @@ begin
   RunAfterExe := '';
   RevealPath := '';
   SetArrayLength(ResultCommands, 0);
-  Total := UiSelectedSize();
+  Total := UiSelectedSize() + ZmanenuSelectedSize();
 
   WorkPage.Show;
   try
@@ -3814,6 +4188,29 @@ begin
           RunAfterExe := AssetOutputDir(A) + '\' + AssetName[A];
       end;
     end;
+    { למחשב הזה — תיקיית האיסוף של אוצריא; למחשב אחר — לצד הבחירה. }
+    if ZmanenuSelected() then
+    begin
+      if IsThisComputerMode() then
+        Folder := ZmanenuDropDir()
+      else
+        Folder := OutputDir();
+      if not PlaceZmanenu(Folder, Done, Total) then
+      begin
+        LoadErrorMsg := CustomMessage('ErrorCopy');
+        exit;
+      end;
+      if not IsThisComputerMode() then
+      begin
+        OutputNotes := ZmanenuOutputNames();
+        for Z := 0 to GetArrayLength(OutputNotes) - 1 do
+        begin
+          Notes := Notes + '• ' + DisplayLtr(OutputNotes[Z]) + #13#10;
+          SingleName := OutputNotes[Z];
+          Produced := Produced + 1;
+        end;
+      end;
+    end;
   finally
     WorkPage.Hide;
   end;
@@ -3859,6 +4256,13 @@ begin
   OutputNotes := PlannedOutputNotes(EnglishUi());
   for C := 0 to GetArrayLength(OutputNotes) - 1 do
     ResultGuide := ResultGuide + #13#10 + OutputNotes[C];
+  if ZmanenuSelected() then
+  begin
+    if IsThisComputerMode() then
+      ResultGuide := ResultGuide + #13#10#13#10 + CustomMessage('GuideZmanenuThis')
+    else
+      ResultGuide := ResultGuide + #13#10#13#10 + CustomMessage('GuideZmanenuOther');
+  end;
   ResultText := ResultText + ResultGuide;
   Result := True;
 end;
@@ -3911,6 +4315,10 @@ begin
   ConnectPage.Show;
   try
     ManifestLoaded := LoadReleaseManifest();
+#ifndef DevManifestFile
+    if ManifestLoaded then
+      LoadZmanenu();
+#endif
   finally
     ConnectPage.Hide;
   end;
@@ -4024,6 +4432,8 @@ begin
   begin
     if PresetPage.SelectedValueIndex <> CustomPresetIndex then
       ApplyPreset(PresetPage.SelectedValueIndex);
+    if ZmanenuIndex >= 0 then
+      ZmanenuChecked := PresetPage.Values[ZmanenuIndex];
     exit;
   end;
 
@@ -4079,6 +4489,7 @@ begin
   for I := 0 to GetArrayLength(CompId) - 1 do
     if CompSelected[I] then
       Needed := Needed + CompDownloadSize[I] * 2;
+  Needed := Needed + ZmanenuSelectedSize() * 2;
   if GetSpaceOnDisk64(OutputBaseDir(), Free, Total) and (Free < Needed) then
     if not UiAsk(CustomMessage('SpaceTitle'), Msg1('SpaceText', HumanSize(Needed)),
       CustomMessage('SpaceYes'), CustomMessage('Cancel'), False) then

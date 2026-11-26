@@ -69,6 +69,7 @@ class TextBookSearchView extends StatefulWidget {
   /// נקרא אחרי מעבר לתוצאה; ההורה סוגר את החלונית רק כשהיא מכסה את התוכן.
   final void Function() closeLeftPaneCallback;
   final String initialQuery;
+  final Object? initialQuerySource;
   final Map<String, Map<String, bool>> initialSearchOptions;
   final Map<int, List<String>> initialAlternativeWords;
   final Map<String, String> initialSpacingValues;
@@ -93,6 +94,7 @@ class TextBookSearchView extends StatefulWidget {
     required this.focusNode,
     required this.closeLeftPaneCallback,
     required this.initialQuery,
+    this.initialQuerySource,
     this.initialSearchOptions = const {},
     this.initialAlternativeWords = const {},
     this.initialSpacingValues = const {},
@@ -232,11 +234,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     ).forQuery(searchableInBookQuery(searchTextController.text) ?? '');
   }
 
+  final _querySource = Object();
+
   void _syncBlocSearchTextState() {
     final activeParameters = _activeSearchParameters;
     context.read<TextBookBloc>().add(
       UpdateSearchText(
         searchTextController.text,
+        textSource: _querySource,
         searchOptions: activeParameters.searchOptions,
         alternativeWords: activeParameters.alternativeWords,
         spacingValues: activeParameters.customSpacing,
@@ -308,16 +313,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   void didUpdateWidget(TextBookSearchView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // עדכון שדה החיפוש אם initialQuery השתנה
-    final queryChanged = widget.initialQuery != oldWidget.initialQuery;
-    // ה-BLoC מקבל את השאילתה המנורמלת (בלי ניקוד ורווחים), וערך שתואם לה
-    // הוא הד של השדה עצמו, לא שינוי חיצוני שדורס את ההקלדה (issue #1430).
-    final controllerQuery = searchTextController.text;
+    final queryChanged =
+        widget.initialQuery != oldWidget.initialQuery ||
+        !identical(widget.initialQuerySource, oldWidget.initialQuerySource);
+    // כמה עדכוני BLoC יכולים להגיע לפריים אחד, גם עם אותה שאילתה (#5711).
     final needsControllerSync =
-        widget.initialQuery != controllerQuery &&
-        widget.initialQuery != (searchableInBookQuery(controllerQuery) ?? '') &&
-        widget.initialQuery !=
-            (searchableInBookQueryWithEdges(controllerQuery) ?? '');
+        !identical(widget.initialQuerySource, _querySource) &&
+        widget.initialQuery != searchTextController.text;
     final normalizedSearchMode = widget.initialSearchMode;
     // ה-bloc מחזיר את המדיניות האפקטיבית, ו"בכל סדר" אינו חל על מילה אחת.
     final widgetQuery = searchableInBookQuery(widget.initialQuery) ?? '';
@@ -1212,6 +1214,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         context.read<TextBookBloc>().add(
           UpdateSearchText(
             _searchableQuery(searchTextController.text) ?? '',
+            textSource: _querySource,
             searchOptions: activeParameters.searchOptions,
             alternativeWords: activeParameters.alternativeWords,
             spacingValues: activeParameters.customSpacing,
@@ -1238,6 +1241,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         context.read<TextBookBloc>().add(
           UpdateSearchText(
             '',
+            textSource: _querySource,
             searchOptions: const {},
             alternativeWords: const {},
             spacingValues: const {},
@@ -1276,12 +1280,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       onArrowDown: () => _moveBetweenResults(1),
       onArrowUp: () => _moveBetweenResults(-1),
       onAdvancedSearch: () async {
-        final bookTitle =
-            (context.read<TextBookBloc>().state as TextBookLoaded).book.title;
+        final book =
+            (context.read<TextBookBloc>().state as TextBookLoaded).book;
 
         final result = await showInBookAdvancedSearchDialog(
           context,
-          bookTitle: bookTitle,
+          bookTitle: book.title,
+          book: book,
           query: searchTextController.text,
           settings: _settings,
         );
@@ -1301,6 +1306,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             context.read<TextBookBloc>().add(
               UpdateSearchText(
                 value,
+                textSource: _querySource,
                 searchOptions: settings.searchOptions,
                 alternativeWords: settings.alternativeWords,
                 spacingValues: settings.spacingValues,

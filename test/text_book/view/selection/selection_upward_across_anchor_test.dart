@@ -91,7 +91,6 @@ void main() {
       removeNikud: false,
       visibleIndices: [anchor],
       selectedIndex: null,
-      pinLeftPane: false,
       searchText: '',
     );
     final textBookBloc = _TestTextBookBloc(state);

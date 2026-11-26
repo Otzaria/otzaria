@@ -322,7 +322,7 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
     required bool canSend,
   }) => buildPendingReportTile(
     context,
-    icon: FluentIcons.puzzle_piece_24_regular,
+    icon: OtzariaIcons.plugin_error_24_regular,
     title: record.pluginName,
     subtitle: _pluginReportSummary(context, record),
     canSend: canSend,

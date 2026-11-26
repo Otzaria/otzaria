@@ -1,5 +1,9 @@
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_core.dart'
+    show kExternalTargetOfficial;
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -18,7 +22,8 @@ import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 class DefaultCommentators {
   /// מחזיר את מפרשי ותרגומי ברירת המחדל של [book], ממוינים לפי `position`.
   ///
-  /// נקרא מהמסד של הספר (seforim.db או מסד מצורף); לספר אישי — ריק.
+  /// נקרא מהמסד של הספר (seforim.db או מסד מצורף); לספר אישי — ריק. אחריהם
+  /// באים מפרשים ממסדים מצורפים אחרים (`external_default_commentator`).
   static Future<
     ({List<({String title, int position})> commentators, List<String> targums})
   >
@@ -49,19 +54,76 @@ class DefaultCommentators {
     final commentatorRows = await linkDao.selectDefaultCommentators(dbBook.id);
     final targumRows = await linkDao.selectDefaultTargums(dbBook.id);
 
-    return (
-      commentators: commentatorRows
-          .map(
-            (row) => (
-              title: row['targetBookTitle'] as String,
-              position: (row['position'] as num).toInt(),
-            ),
-          )
-          .toList(),
-      targums: targumRows
-          .map((row) => row['targetBookTitle'] as String)
-          .toList(),
+    final commentators = [
+      for (final row in commentatorRows)
+        (
+          title: row['targetBookTitle'] as String,
+          position: (row['position'] as num).toInt(),
+        ),
+    ];
+    final targums = [
+      for (final row in targumRows) row['targetBookTitle'] as String,
+    ];
+    if (AttachedLibraryRegistry.instance.visibleLibraries.isEmpty) {
+      return (commentators: commentators, targums: targums);
+    }
+    final external = await _externalDefaults(book);
+    var next = commentators.fold(-1, (m, c) => c.position > m ? c.position : m);
+    for (final title in external.commentators) {
+      if (commentators.any((c) => c.title == title)) continue;
+      commentators.add((title: title, position: ++next));
+    }
+    for (final title in external.targums) {
+      if (!targums.contains(title)) targums.add(title);
+    }
+    return (commentators: commentators, targums: targums);
+  }
+
+  /// מפרשים ותרגומים שמסדים מצורפים אחרים מציעים ל-[book], לפי עדיפות המסד
+  /// ואז `position`. נכלל רק ספר שמקושר בפועל ל-[book] ומוצג ברשימת מפרשיו.
+  static Future<({List<String> commentators, List<String> targums})>
+  _externalDefaults(Book book) async {
+    final commentators = <String>[];
+    final targums = <String>[];
+    final ownSlug = switch (book.source) {
+      AttachedBookSource(:final slug) => slug,
+      _ => null,
+    };
+    final linked = await ExternalLinkRepository.instance.commentatorSources(
+      title: book.title,
+      categoryId: book.categoryId,
+      source: book.source,
     );
+    final registry = AttachedLibraryRegistry.instance;
+    for (final library in registry.visibleLibraries) {
+      final source = BookSource.attached(library.slug);
+      if (library.slug == ownSlug || !linked.containsValue(source)) continue;
+      final repository = await registry.repositoryFor(library.slug);
+      if (repository == null) continue;
+      final rows = await repository.database.linkDao
+          .selectExternalDefaultCommentators(book.title);
+      for (final row in rows) {
+        final title = row['commentatorTitle'] as String;
+        if (linked[title] != source) continue;
+        if (!_targetsBook(row['targetSource'] as String?, ownSlug)) continue;
+        switch (row['kind']) {
+          case 'commentator':
+            commentators.add(title);
+          case 'targum':
+            targums.add(title);
+        }
+      }
+    }
+    return (commentators: commentators, targums: targums);
+  }
+
+  /// `targetSource`: NULL — כל מקור; 'official' — הספרייה הרשמית; אחרת
+  /// library_id של המסד שבו הספר.
+  static bool _targetsBook(String? targetSource, String? ownSlug) {
+    final value = targetSource?.trim() ?? '';
+    if (value.isEmpty) return true;
+    if (value.toLowerCase() == kExternalTargetOfficial) return ownSlug == null;
+    return AttachedLibraryProbe.sanitizeSlug(value) == ownSlug;
   }
 
   static SqliteDataProvider get _provider => SqliteDataProvider.instance;

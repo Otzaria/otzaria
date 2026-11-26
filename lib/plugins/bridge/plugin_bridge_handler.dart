@@ -12,6 +12,7 @@ import 'package:otzaria/plugins/models/plugin_rpc_response.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
+import 'package:otzaria/plugins/bridge/plugin_semantic_bridge.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/database/plugin_database_service.dart';
 
@@ -79,14 +80,32 @@ class PluginBridgeHandler {
           args,
           eventSink: (topic, payload) async {
             await controller.evaluateJavascript(
-              source:
-                  'window.dispatchEvent(new CustomEvent('
-                  '${jsonEncode(topic)}, { detail: ${jsonEncode(payload)} }));',
+              source: eventDispatchScript(topic, payload),
             );
           },
         );
       },
     );
+  }
+
+  @visibleForTesting
+  static String eventDispatchScript(
+    String topic,
+    Map<String, dynamic> payload,
+  ) {
+    var guard = '';
+    if (topic == PluginSemanticBridge.streamEvent) {
+      final id = payload['streamId'] as String;
+      final document = PluginSemanticBridge.streamDocumentId(id);
+      if (document == null) {
+        throw Exception('error.invalid_params: invalid semantic stream id');
+      }
+      // הסקריפט עשוי לרוץ אחרי שה-WebView כבר עבר למסמך הבא.
+      guard =
+          'if (window.__otzariaSemanticDocument === ${jsonEncode(document)}) ';
+    }
+    return '${guard}window.dispatchEvent(new CustomEvent('
+        '${jsonEncode(topic)}, { detail: ${jsonEncode(payload)} }));';
   }
 
   /// נקודת כניסה לבדיקות בלבד: מריצה את אותו נתיב RPC שמופעל מ-JavaScript,
@@ -132,6 +151,11 @@ class PluginBridgeHandler {
   // error.timeout אחרי שהדיווח כבר נשלח, וגורם לכפילות בניסיון חוזר.
   static bool hasOwnTimeout(String method) =>
       method == 'search.query' ||
+      // פתיחת המודל בשימוש הראשון וסריקת הכיסוי אורכות יותר מ-30 שניות
+      // במחשב איטי; PluginSemanticBridge מנהל חסם זמן משלו.
+      method == 'semantic.nearest' ||
+      method == 'semantic.countTokens' ||
+      method == 'semantic.getCoveredBooks' ||
       method == 'network.fetchStream' ||
       method == 'network.download' ||
       method == 'network.fetchFile' ||
@@ -182,10 +206,34 @@ class PluginBridgeHandler {
 
     final method = first['method'];
     final parts = method is String ? method.split('.') : const <String>[];
+    final semantic = parts.firstOrNull == 'semantic';
+    final page = semantic ? adapter.pageToken : null;
+    final authorization = semantic
+        ? PluginRegistryRepository.semanticAccessGeneration(
+            plugin.pluginId,
+          )
+        : null;
+    void checkSemanticAccess() {
+      if (page != null && !adapter.isCurrentPage(page)) {
+        throw Exception('error.unavailable: the plugin page was closed');
+      }
+      if (authorization != null &&
+          authorization !=
+              PluginRegistryRepository.semanticAccessGeneration(
+                plugin.pluginId,
+              )) {
+        throw Exception('error.permission_denied: semantic access revoked');
+      }
+    }
+
     final endWork = onWorkStarted?.call();
     try {
       return await adapter.withWindowDependencies(
-        () => _dispatchRpc(args, eventSink: eventSink),
+        () => _dispatchRpc(
+          args,
+          eventSink: eventSink,
+          checkSemanticAccess: semantic ? checkSemanticAccess : null,
+        ),
         domain: parts.firstOrNull,
         rpcAction: parts.skip(1).join('.'),
       );
@@ -199,6 +247,7 @@ class PluginBridgeHandler {
   Future<dynamic> _dispatchRpc(
     List<dynamic> args, {
     PluginRpcEventSink? eventSink,
+    VoidCallback? checkSemanticAccess,
   }) async {
     late final PluginRpcRequest request;
     try {
@@ -244,6 +293,7 @@ class PluginBridgeHandler {
     final isContentRead = isRateLimitExempt(request.method);
     final isStreamCancellation =
         (request.method == 'search.query' ||
+            request.method == 'semantic.nearest' ||
             request.method == 'network.fetchStream') &&
         PluginBridgeAdapter.isStreamCancellationPayload(request.payload);
     bool? grantedEarly;
@@ -282,6 +332,8 @@ class PluginBridgeHandler {
         }
       }
 
+      checkSemanticAccess?.call();
+
       // פעולות ארוכות מנהלות בעצמן חסם זמן; היתר נחתכות אחרי 30 שניות.
       final execution = adapter.execute(
         domain,
@@ -292,6 +344,7 @@ class PluginBridgeHandler {
       final result = hasOwnTimeout(request.method)
           ? await execution
           : await execution.timeout(kPluginDefaultRpcTimeout);
+      checkSemanticAccess?.call();
       return _successResp(result);
     } on PluginDatabaseException catch (e) {
       return _errorResp(e.code, e.message);

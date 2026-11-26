@@ -86,6 +86,15 @@ abstract class Book {
       ((externalLibraryId ?? '').isEmpty ||
           DatabaseConstants.isBundledLibrarySource(externalLibraryId));
 
+  /// האם לספר יש זהות רשמית לשימוש בחיפוש הסמנטי.
+  bool get hasOfficialSemanticIdentity =>
+      isOfficialLibraryBook &&
+      ((this is TextBook && id != null && (filePath?.isEmpty ?? true)) ||
+          (this is PdfBook &&
+              DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
+                externalLibraryId,
+              )));
+
   /// External library ID (e.g., Sefaria ref) for books from external sources
   final String? externalLibraryId;
 
@@ -249,9 +258,20 @@ class TextBook extends Book {
     return bookText ?? '';
   }
 
+  /// הספר בכותרת שבקטלוג, כשנשמר לפני שהספרייה החזירה לכותרתו גרשיים (#2766).
+  TextBook withCatalogTitle() {
+    final catalogTitle = LibraryProviderManager.instance.catalogTitleFor(
+      title,
+      source: source,
+      bookId: id,
+    );
+    return catalogTitle == null ? this : copyWith(title: catalogTitle);
+  }
+
   /// יוצר עותק של הספר עם שדות מעודכנים לפי הצורך.
   TextBook copyWith({
     int? id,
+    String? title,
     String? heCategories,
     String? author,
     String? heEra,
@@ -260,7 +280,7 @@ class TextBook extends Book {
   }) {
     return TextBook(
       id: id ?? this.id,
-      title: title,
+      title: title ?? this.title,
       category: category,
       author: author ?? this.author,
       heCategories: heCategories ?? this.heCategories,
@@ -327,12 +347,20 @@ class ExternalLibraryBook extends Book {
   /// The online link to access the book in the Otzar HaChochma system.
   final String link;
 
+  /// הכרך כפי שבקטלוג אוצר החכמה. [title] כבר כולל אותו, כדי שכרכים של
+  /// אותו ספר ייבדלו ברשימה, בפרטים ובחיפוש.
+  final String? volume;
+
+  /// שם הספר בקטלוג בלי הכרך: זהות התוסף (`bookId`) נשענת עליו.
+  final String catalogTitle;
+
   /// Creates an [ExternalLibraryBook] instance.
   ///
   /// [title] and [id] are required. Other parameters are optional.
   /// [link] is required for online access to the book.
   ExternalLibraryBook({
-    required super.title,
+    required String title,
+    this.volume,
     required int id,
     super.author,
     super.heCategories,
@@ -352,7 +380,11 @@ class ExternalLibraryBook extends Book {
     super.fileType = 'link',
     super.source,
     super.externalLibraryId,
-  }) : super(id: id);
+  }) : catalogTitle = title,
+       super(
+         id: id,
+         title: volume == null || volume == title ? title : '$title – $volume',
+       );
 
   /// Creates an [ExternalLibraryBook] instance from a JSON map.
   ///
@@ -360,6 +392,7 @@ class ExternalLibraryBook extends Book {
   factory ExternalLibraryBook.fromJson(Map<String, dynamic> json) {
     return ExternalLibraryBook(
       title: json['bookName'] ?? json['title'],
+      volume: json['volume'],
       id: json['id'] ?? json['otzarId'],
       author: json['author'],
       pubPlace: json['pubPlace'],
@@ -379,7 +412,8 @@ class ExternalLibraryBook extends Book {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'title': title,
+      'title': catalogTitle,
+      if (volume != null) 'volume': volume,
       'type': 'ExternalLibraryBook',
       'otzarId': id,
       'author': author,

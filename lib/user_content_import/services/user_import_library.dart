@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -58,34 +59,54 @@ class UserImportLibraryResult {
   final UserImportResult added;
   final List<String> errors;
 
+  /// קבצים שמורים שדולגו בבנייה (ספר דו-משמעי) — מדווחים אך אינם כישלון.
+  final List<String> skipped;
+
   const UserImportLibraryResult({
     required this.rebuild,
     this.added = const UserImportResult(),
     this.errors = const [],
+    this.skipped = const [],
   });
 
   bool get ok => errors.isEmpty && rebuild.errors.isEmpty;
 
-  List<String> get allErrors => [...errors, ...rebuild.errors];
+  List<String> get allErrors => [...errors, ...rebuild.errors, ...skipped];
 }
 
 /// קובצי הייבוא נשמרים על תוכנם, וכל שינוי בונה מחדש מכלל הפעילים — כך ייצוא
 /// והשהיה אינם דורשים מעקב פר-שורה, והמקור יכול להימחק או לזוז.
 class UserImportLibrary {
+  static final StreamController<Object?> _changes =
+      StreamController<Object?>.broadcast(sync: true);
+
+  /// מודיע לחלונות אחרים אחרי שינוי שהסתיים בהצלחה.
+  static Stream<Object?> get changes => _changes.stream;
+
+  static void _notifyChanged(Object? source) {
+    if (_changes.hasListener) _changes.add(source);
+  }
+
   final MyDatabase _db;
   final UserBooksDatabaseHolder? _holder;
+
+  /// מזהה את ה־bloc שיזם את השינוי, כדי שלא ירענן את עצמו שוב.
+  final Object? changeSource;
 
   /// תלויות פתירת-הספרים של הייבוא, להזרקה בבדיקות. בלי הזרקה הפתירה
   /// האמיתית רצה ב-isolate ([UserContentImporter.ingestContentsInBackground]).
   final UserLinkRefResolver? resolveRef;
   final UserLinkSourceChecker? sourceExists;
   final UserLinkBookLocator? locateBook;
+  final AttachedLinkBooks? attachedBooks;
 
   UserImportLibrary(
     this._db, {
+    this.changeSource,
     this.resolveRef,
     this.sourceExists,
     this.locateBook,
+    this.attachedBooks,
   }) : _holder =
            identical(
              UserBooksDatabaseHolder.instance.repositoryIfInitialized?.database,
@@ -119,6 +140,13 @@ class UserImportLibrary {
       'FROM user_import_file ORDER BY importedAt DESC, id DESC',
     );
     return rows.map(_fromRow).toList();
+  });
+
+  /// האם יש מה למחוק ב-[removeAll]: קבצים, או נתונים ידניים שקדמו לספרייה.
+  Future<bool> hasContent() => _serial(() async {
+    final db = await _db.database;
+    return db.select('SELECT 1 FROM user_import_file LIMIT 1').isNotEmpty ||
+        await UserContentRepository(_db).hasManualContent();
   });
 
   /// תוכן הקובץ כפי שיובא, או null אם הוסר בינתיים.
@@ -203,12 +231,15 @@ class UserImportLibrary {
 
   /// שינוי ובנייה מחדש נכתבים יחד, כולל טבלאות הבסיס הידני. הפענוח ארוך ורץ
   /// בלי טרנזקציה פתוחה, ולכן השינוי מוחל פעם כדי לדעת מה ייבנה ופעם לכתיבה.
-  /// [selected]: (שם, מקור) של הקבצים שנוספו עכשיו — רק הם נספרים ב-added.
+  /// [selected] הם הקבצים שנוספו, ו-[reenabledId] נבדק בלי להיספר ב-added.
   Future<UserImportLibraryResult> _changeAndRebuild(
     _Change change, {
     Set<(String, String?)> selected = const {},
+    int? reenabledId,
   }) async {
-    final files = await _onOwnConnection(_enabledFilesAfter(change, selected));
+    final files = await _onOwnConnection(
+      _enabledFilesAfter(change, selected, reenabledId),
+    );
     final ingest = files.isEmpty ? null : await _ingest(files);
     if (ingest != null && ingest.errors.isNotEmpty) {
       return UserImportLibraryResult(
@@ -217,19 +248,24 @@ class UserImportLibrary {
       );
     }
     final rebuild = await _onOwnConnection(_rebuildWith(change, ingest));
+    _notifyChanged(changeSource);
     return UserImportLibraryResult(
       rebuild: rebuild,
-      added: ingest?.selectedCounts ?? const UserImportResult(),
+      added: selected.isEmpty
+          ? const UserImportResult()
+          : ingest?.selectedCounts ?? const UserImportResult(),
+      skipped: ingest?.skipped ?? const [],
     );
   }
 
   static Future<List<ImportedFile>> Function(MyDatabase) _enabledFilesAfter(
     _Change change,
     Set<(String, String?)> selected,
+    int? reenabledId,
   ) =>
       (userDb) => _inTransaction(userDb, () async {
         await change(userDb);
-        return _enabledFiles(await userDb.database, selected);
+        return _enabledFiles(await userDb.database, selected, reenabledId);
       }, commit: false);
 
   static Future<UserImportResult> Function(MyDatabase) _rebuildWith(
@@ -294,8 +330,12 @@ class UserImportLibrary {
   }
 
   /// משהה או מחזיר קובץ. השהיה אינה מוחקת אותו — התוכן נשאר לייצוא ולהחזרה.
-  Future<UserImportLibraryResult> setEnabled(int id, bool enabled) =>
-      _serial(() => _changeAndRebuild(_setFileEnabled(id, enabled)));
+  Future<UserImportLibraryResult> setEnabled(int id, bool enabled) => _serial(
+    () => _changeAndRebuild(
+      _setFileEnabled(id, enabled),
+      reenabledId: enabled ? id : null,
+    ),
+  );
 
   static _Change _setFileEnabled(int id, bool enabled) => (userDb) async {
     (await userDb.database).execute(
@@ -318,6 +358,7 @@ class UserImportLibrary {
   /// מסיר את כל הקבצים ומנקה את כל הנתונים הידניים, גם אלה שקדמו לספרייה.
   Future<UserImportLibraryResult> removeAll() => _serial(() async {
     await _onOwnConnection(_removeAllFiles);
+    _notifyChanged(changeSource);
     return const UserImportLibraryResult(rebuild: UserImportResult());
   });
 
@@ -332,23 +373,29 @@ class UserImportLibrary {
   static List<ImportedFile> _enabledFiles(
     sqlite3.Database db,
     Set<(String, String?)> selected,
+    int? reenabledId,
   ) => [
     for (final row in db.select(
-      'SELECT name, originPath, content FROM user_import_file '
+      'SELECT id, name, originPath, content FROM user_import_file '
       'WHERE enabled = 1 ORDER BY id',
     ))
       ImportedFile(
         name: row['name'] as String,
         content: row['content'] as String,
-        selected: selected.contains((
-          row['name'] as String,
-          row['originPath'] as String?,
-        )),
+        selected:
+            row['id'] == reenabledId ||
+            selected.contains((
+              row['name'] as String,
+              row['originPath'] as String?,
+            )),
       ),
   ];
 
   Future<UserImportIngest> _ingest(List<ImportedFile> files) {
-    if (resolveRef == null && sourceExists == null && locateBook == null) {
+    if (resolveRef == null &&
+        sourceExists == null &&
+        locateBook == null &&
+        attachedBooks == null) {
       return UserContentImporter.ingestContentsInBackground(files, _db);
     }
     return UserContentImporter.ingestContents(
@@ -357,6 +404,8 @@ class UserImportLibrary {
       resolveRef: resolveRef ?? resolveUserLinkTargetLine,
       sourceExists: sourceExists ?? userLinkSourceBookExists,
       locateBook: locateBook ?? locateUserLinkBook,
+      attachedBooks: attachedBooks,
+      skipStoredAmbiguousLinks: true,
     );
   }
 

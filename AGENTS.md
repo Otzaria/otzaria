@@ -74,7 +74,7 @@ Follow the user's task scope. Do not create Markdown files for plans, progress l
 
 Several contributors work on `dev` in parallel and their pull requests are merged continuously. A change that ignores them duplicates work or conflicts as soon as theirs is merged.
 
-- **Before starting** - list open PRs (`gh pr list -R Otzaria/otzaria --state open --json number,author,title,files`) and look for the same issue or the files you plan to change. If an open PR already fixes the issue, do not fix it again. If one touches the same code, build on its approach or coordinate in that PR.
+- **Before starting** - list open PRs (`gh pr list -R Otzaria/otzaria --state open --limit 1000 --json number,author,title,files`) and look for the same issue or the files you plan to change. If an open PR already fixes the issue, do not fix it again. If one touches the same code, build on its approach or coordinate in that PR.
 - **Before opening a PR** - check each overlapping open PR for conflicts with yours: `git fetch upstream pull/<N>/head:pr-<N>` and `git merge-tree --write-tree pr-<N> HEAD`.
 - **In the PR description** - name every overlapping open PR and whether it merges cleanly with yours.
 
@@ -566,7 +566,7 @@ A pull request runs only Analyze and the guards (Lockfile, Goldens, UI Baseline,
 
 A failed run is retried once (except Analyze and the guards); a job that then passes is logged in the open `flaky-ci` issue, and a repeated failure moves the PR to draft. Flutter Tests also runs on every push to `dev`: a commit that fails twice there, after a green one, gets a revert PR from Otzaria Bot. A merge commit reverts its whole PR; a single-parent commit (including squash or rebase) reverts only that commit, never an inferred range based on the original PR's commit count.
 
-The `automerge` label (added by someone with write access) merges the PR with a merge commit as Otzaria Bot once every check passed, including `CI result`. Merges share one queue and require successful CI on the current `dev` SHA, including after a retry. Checks from different workflows remain distinct; only superseded runs of the same workflow and event are replaced. The bot first rebases a branch that is behind and waits for CI on the new head. Any push by a person removes `automerge`.
+The `automerge` label (added by someone with write access) merges the PR with a merge commit as Otzaria Bot once every check passed, including `CI result`. Merges share one queue and normally require a successful completed CI run on an ancestor of the current `dev` SHA; a newer retry still blocks merging. If the latest completed `dev` CI failed, timed out or was cancelled, an approved PR targeting `dev` may recover it only when its fully tested head contains the current `dev` SHA, with no automatic rebase. Checks from different workflows remain distinct; only superseded runs of the same workflow and event are replaced. The bot first rebases a branch that is behind, then merges it in the same run without waiting for CI on the rebased head (CI already passed on the PR's own head). Any push by a person removes `automerge`.
 
 ## Keeping a Branch Up to Date
 

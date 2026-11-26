@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart'
+    show SuperListView;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -44,8 +46,10 @@ class SearchScopeMenuButton extends StatefulWidget {
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
 
-  /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
+  /// בחיפוש החכם: רק ספרים עם וקטורים ([coveredFilePaths]), ועד שהם ידועים
+  /// רק ספרים מהספרייה הרשמית.
   final bool officialBooksOnly;
+  final Set<String>? coveredFilePaths;
 
   /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
   final bool excludeUserBooks;
@@ -55,6 +59,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.officialBooksOnly = false,
+    this.coveredFilePaths,
     this.excludeUserBooks = false,
   });
 
@@ -82,7 +87,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   int _baseBookGeneration = 0;
 
   ScopeTree _visibleTree(ScopeTree tree) => widget.officialBooksOnly
-      ? tree.officialOnly()
+      ? switch (widget.coveredFilePaths) {
+          final covered? => tree.coveredOnly(covered),
+          null => tree.officialOnly(),
+        }
       : widget.excludeUserBooks
       ? tree.withoutUserBooks()
       : tree;
@@ -164,6 +172,21 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     _savedScopes = SearchScopePreferences.loadSavedScopes();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScopeMenuButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.officialBooksOnly == widget.officialBooksOnly &&
+        identical(oldWidget.coveredFilePaths, widget.coveredFilePaths) &&
+        oldWidget.excludeUserBooks == widget.excludeUserBooks) {
+      return;
+    }
+    final library = _library;
+    final fullTree = library == null ? null : ScopeTree.cachedFor(library);
+    _treeCache = fullTree == null ? null : _visibleTree(fullTree);
+    _baseBookGeneration++;
+    _baseBookNodesCache = null;
   }
 
   @override
@@ -437,18 +460,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final library = _library;
     final tree =
         _treeCache ?? (library == null ? null : ScopeTree.cachedFor(library));
-    final node = tree?.nodesByFacet[facet];
-    if (node != null) return node.title;
-
-    // מפתח ספר מהצורה 'כותרת|קטגוריה|...' נושא את הכותרת לפני ה-'|'; מפתח
-    // מזהה ('id:5') אינו שם, ואז אין מה להציג בלי העץ.
-    final pipe = facet.indexOf('|');
-    final head = pipe < 0 ? facet : facet.substring(0, pipe);
-    final segment = head.split('/').last;
-    if (segment.isEmpty || RegExp(r'^(id|uid|ext):').hasMatch(segment)) {
-      return null;
-    }
-    return segment;
+    return ScopeTree.facetDisplayName(facet, tree: tree);
   }
 
   /// הסינונים הפעילים ל-chips. בחירת קטגוריות/ספרים ספציפיים
@@ -759,6 +771,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       _view = _View.root;
       _stack.clear();
       _highlight = 0;
+    }
+    final tree = widget.tree;
+    if (tree != null && !identical(oldWidget.tree, tree)) {
+      for (var i = 0; i < _stack.length; i++) {
+        final node = tree.nodesByFacet[_stack[i].facet];
+        if (node == null) {
+          _stack.removeRange(i, _stack.length);
+          _highlight = 0;
+          break;
+        }
+        _stack[i] = node;
+      }
     }
     final incoming = widget.selected;
     if (incoming.length != _selection.length ||
@@ -1224,7 +1248,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                 ? const Center(child: CircularProgressIndicator())
                 : items.isEmpty
                 ? _buildEmpty(context)
-                : ListView.builder(
+                : SuperListView.builder(
                     controller: _scrollController,
                     shrinkWrap: true,
                     padding: const EdgeInsets.symmetric(vertical: 4),

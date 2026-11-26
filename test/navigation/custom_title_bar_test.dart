@@ -32,6 +32,9 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/search/bloc/search_bloc.dart';
+import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -58,10 +61,16 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
+import 'package:otzaria/workspaces/workspace.dart';
 import 'package:window_manager/window_manager.dart' show WindowCaptionButton;
 import '../helpers/memory_settings_cache.dart';
 import '../test_helpers/fake_view_window.dart';
 import '../test_helpers/second_test_view.dart';
+
+/// SearchBloc שהטסט פולט לו state ישירות (emit מוגן).
+class _ControlledSearchBloc extends SearchBloc {
+  void emitState(SearchState state) => emit(state);
+}
 
 class _NewTabRegistryRepo extends Fake implements PluginRegistryRepository {
   @override
@@ -171,13 +180,159 @@ void main() {
         expect(find.text('סגור הכל'), findsOneWidget);
         expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
       },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      variant: const TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
     );
   }
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
+
+  group('active workspace name in title-bar tooltip (issue #5501)', () {
+    final study = Workspace(id: 'a', name: 'עיון', tabs: const []);
+    final lesson = Workspace(id: 'b', name: 'שיעור', tabs: const []);
+
+    Future<void> pump(
+      WidgetTester tester, {
+      WorkspaceBloc? workspaceBloc,
+    }) async {
+      final tab = _makeTextTab('ספר א');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        tab.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
+    }
+
+    testWidgets('the tooltip names the active workspace and follows a switch', (
+      tester,
+    ) async {
+      final workspaceBloc = _TestWorkspaceBloc(
+        WorkspaceState(workspaces: [study, lesson], activeWorkspaceId: 'a'),
+      );
+      addTearDown(workspaceBloc.close);
+      await pump(tester, workspaceBloc: workspaceBloc);
+
+      expect(
+        find.byTooltip(RegExp('החלף שולחן עבודה.*נוכחי: עיון')),
+        findsOneWidget,
+      );
+
+      workspaceBloc.push(
+        WorkspaceState(workspaces: [study, lesson], activeWorkspaceId: 'b'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip(RegExp('נוכחי: שיעור')), findsOneWidget);
+      expect(find.byTooltip(RegExp('נוכחי: עיון')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets(
+      'without an active workspace or a WorkspaceBloc the tooltip is unchanged',
+      (
+        tester,
+      ) async {
+        final workspaceBloc = _TestWorkspaceBloc(
+          WorkspaceState(workspaces: [study]),
+        );
+        addTearDown(workspaceBloc.close);
+        await pump(tester, workspaceBloc: workspaceBloc);
+        expect(
+          find.byTooltip(RegExp('^החלף שולחן עבודה \\(.*\\)\$')),
+          findsOneWidget,
+        );
+
+        await pump(tester);
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byTooltip(RegExp('^החלף שולחן עבודה \\(.*\\)\$')),
+          findsOneWidget,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
+  });
+
+  testWidgets(
+    'שחרור במקום פותח תפריט של כרטיסייה לא פעילה; תזוזה מסדרת כרטיסיות',
+    (tester) async {
+      final tabs = [
+        _makeTextTab('ספר א'),
+        _makeTextTab('ספר ב'),
+        _makeTextTab('ספר ג'),
+      ];
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: tabs, currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final workspaceBloc = _TestWorkspaceBloc();
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await workspaceBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        workspaceBloc: workspaceBloc,
+      );
+
+      final secondTab = find.text('ספר ב');
+      final first = await tester.startGesture(tester.getCenter(secondTab));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      expect(secondTab, findsOneWidget);
+      await first.up();
+      await tester.pumpAndSettle();
+      expect(find.text('סגור הכל'), findsOneWidget);
+      expect(tabsBloc.state.currentTabIndex, 1);
+      expect(tabsBloc.addedEvents.whereType<MoveTab>(), isEmpty);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      final target = tester.getCenter(find.text('ספר ג'));
+      final second = await tester.startGesture(
+        tester.getCenter(find.text('ספר א')),
+      );
+      await tester.pump(kLongPressTimeout);
+      await second.moveTo(target);
+      await tester.pump();
+      await second.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('סגור הכל'), findsNothing);
+      expect(tabsBloc.addedEvents.whereType<MoveTab>(), hasLength(1));
+    },
+    variant: TargetPlatformVariant.mobile(),
+  );
 
   testWidgets(
     'adding a tab without plugins keeps correct width on its first frame',
@@ -805,6 +960,67 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'כרטיסיית חיפוש ברקע מציגה ספינר בזמן החיפוש (issue #5766)',
+      (tester) async {
+        final bloc = _ControlledSearchBloc();
+        await pumpTabs(tester, [
+          _makeTextTab('ספר פתוח'),
+          SearchingTab('חיפוש: קקק', 'קקק', searchBloc: bloc),
+        ]);
+        // מצב ה-BLoC מגיע ב-microtask, ובסרגל הוא מצויר רק בפריים שאחריו.
+        Future<void> pumpBlocUpdate() async {
+          await tester.pump();
+          await tester.pump();
+        }
+
+        Finder spinnerInStrip() => find.descendant(
+          of: find.byType(ReadingTabStrip),
+          matching: find.byType(LoadingIndicator),
+        );
+        expect(searchIconInStrip(), findsOneWidget);
+        expect(spinnerInStrip(), findsNothing);
+
+        bloc.emitState(bloc.state.copyWith(isLoading: true, isCounting: true));
+        await pumpBlocUpdate();
+        expect(spinnerInStrip(), findsOneWidget);
+        expect(searchIconInStrip(), findsNothing);
+        expect(tester.getSize(spinnerInStrip()), const Size(14, 14));
+        expect(find.text('קקק'), findsOneWidget, reason: 'הכותרת לא משתנה');
+
+        bloc.emitState(
+          bloc.state.copyWith(isLoading: false, isCounting: false),
+        );
+        await pumpBlocUpdate();
+        expect(spinnerInStrip(), findsNothing);
+        expect(searchIconInStrip(), findsOneWidget);
+      },
+    );
+
+    testWidgets('ספינר החיפוש בכרטיסיה צרה מוצג כמו האייקון (issue #5766)', (
+      tester,
+    ) async {
+      final tabs = crowdedTabs(10);
+      final bloc = _ControlledSearchBloc();
+      tabs[tabs.length - 1] = SearchingTab(
+        'חיפוש: קקק',
+        'קקק',
+        searchBloc: bloc,
+      );
+      bloc.emitState(bloc.state.copyWith(isLoading: true));
+      await pumpTabs(tester, tabs);
+
+      expect(
+        find.descendant(
+          of: find.byType(ReadingTabStrip),
+          matching: find.byType(LoadingIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('קקק'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('בכרטיסיה שאין בה מקום לאייקון אין אייקון ואין גלישה', (
       tester,
@@ -2074,7 +2290,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.byType(LongPressDraggable<OpenedTab>),
+          find.bySubtype<LongPressDraggable<OpenedTab>>(),
           findsNothing,
         );
       },
@@ -2109,7 +2325,7 @@ void main() {
         );
 
         expect(
-          find.byType(LongPressDraggable<OpenedTab>),
+          find.bySubtype<LongPressDraggable<OpenedTab>>(),
           findsOneWidget,
         );
       },
@@ -3889,7 +4105,6 @@ TextBookTab _makeTextTab(String title, {String currentTitle = ''}) {
       removePunctuation: false,
       visibleIndices: const [0],
       selectedIndex: 0,
-      pinLeftPane: false,
       searchText: '',
       currentTitle: currentTitle,
     ),
@@ -4002,7 +4217,10 @@ class _TestPluginSystemBloc extends Cubit<PluginSystemState>
 
 class _TestWorkspaceBloc extends Cubit<WorkspaceState>
     implements WorkspaceBloc {
-  _TestWorkspaceBloc() : super(WorkspaceState.initial());
+  _TestWorkspaceBloc([WorkspaceState? initial])
+    : super(initial ?? WorkspaceState.initial());
+
+  void push(WorkspaceState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -85,12 +85,18 @@ jobs:
           cc -O2 -Wall -Wextra -arch x86_64 -arch arm64 -mmacosx-version-min=12.0 \
             tool/updater/atomic_tree_swap.c -o /tmp/otzaria-atomic-swap
           lipo /tmp/otzaria-atomic-swap -verify_arch x86_64 arm64
+      # curl in the action does not retry a connection reset mid-download (exit 56).
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        id: flutter
+        continue-on-error: true
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
+      - name: Setup Flutter (retry)
+        if: steps.flutter.outcome == 'failure'
+        uses: ./.github/actions/setup-flutter
+        with:
+          flutter-version: 3.47.7
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
       - name: Test native SHA-256 (macOS)
@@ -110,20 +116,30 @@ jobs:
             test/windows/window_centering_test.cpp -o "$RUNNER_TEMP/window_centering_test"
           "$RUNNER_TEMP/window_centering_test"
 
+      - name: Test WebView backend choice
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/webview_backend_test.cpp -o "$RUNNER_TEMP/webview_backend_test"
+          "$RUNNER_TEMP/webview_backend_test"
+
       - name: Test native exception records
         run: |
           c++ -std=c++17 -Wall -Wextra -Werror -pthread -I windows/runner \
             test/windows/native_exception_records_test.cpp -o "$RUNNER_TEMP/native_exception_records_test"
           "$RUNNER_TEMP/native_exception_records_test"
 
+      - name: Test the window focus policy
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -I windows/runner \
+            test/windows/activation_gate_test.cpp -o "$RUNNER_TEMP/activation_gate_test"
+          "$RUNNER_TEMP/activation_gate_test"
+
       # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
       # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -219,11 +235,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -318,25 +332,28 @@ jobs:
           # חילוץ קבצי הטסט שכללו לפחות טסט שנכשל.
           # ממפים דרך suiteID→suite.path כי .test.url מצביע על widget_tester.dart
           # כשטסט testWidgets נכשל בתוך קוד async של ה-framework.
-          failed_files=$(jq -rs '
-            (map(select(.type == "suite"))
+          # כשל אחרי סיום הטסט מגיע כאירוע error בלבד, אחרי testDone מוצלח.
+          if ! failed_files=$(jq -rs '
+            if (last | .type == "done" and .success == false) then .
+            else error("Incomplete test run") end
+            | (map(select(.type == "suite"))
               | map({(.suite.id | tostring): .suite.path})
               | add) as $suites
             | (map(select(.type == "testStart"))
               | map({(.test.id | tostring): .test})
               | add) as $tests
             | map(select(
-                .type == "testDone"
-                and (.result == "failure" or .result == "error")
-                and (.hidden | not)
+                (.type == "testDone"
+                  and (.result == "failure" or .result == "error")
+                  and (.hidden | not))
+                or .type == "error"
               ))
-            | map($suites[($tests[.testID | tostring].suiteID) | tostring] // empty)
-            | map(select(. != ""))
+            | map($suites[($tests[.testID | tostring].suiteID) | tostring]
+                | if type == "string" and length > 0 then .
+                  else error("Failed test has no suite path") end)
             | unique
             | .[]
-          ' test-results.json)
-
-          if [ -z "$failed_files" ]; then
+          ' test-results.json) || [ -z "$failed_files" ]; then
             echo "::error::הריצה הראשונה נכשלה אבל לא ניתן לחלץ רשימת קבצים שנכשלו"
             exit $first_exit
           fi
@@ -380,12 +397,16 @@ jobs:
               | map({(.test.id | tostring): .test})
               | add) as $tests
             | map(select(
-                .type == "testDone"
-                and (.result == "failure" or .result == "error")
-                and (.hidden | not)
+                (.type == "testDone"
+                  and (.result == "failure" or .result == "error")
+                  and (.hidden | not))
+                or .type == "error"
               ))
-            | map($tests[.testID | tostring])
-            | map("- " + ($suites[.suiteID | tostring] // "unknown") + " :: " + .name)
+            | map(. as $failure
+                | $tests[.testID | tostring] as $test
+                | "- " + ($suites[$test.suiteID | tostring] // "unknown")
+                  + " :: " + ($test.name // $failure.error // "unknown"))
+            | unique
             | .[]
           ' retry-results.json)
 
@@ -460,14 +481,11 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
-          # ⚠️ חייב להתאים לשאר ה-jobs. `pubspec.lock` דורש Flutter >=3.47.0,
-          # ולכן עם 3.44.0 ה-job הזה נכשל ב-`pub get` ומעולם לא רץ ירוק.
-          flutter-version: 3.47.7
+          # ⚠️ חייב להתאים לשאר ה-jobs: `pubspec.lock` דורש Flutter >=3.47.0.
           # ה-cache של Windows נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          cache: true
+          flutter-version: 3.47.7
 
       - name: Install dependencies
         shell: pwsh
@@ -491,6 +509,21 @@ jobs:
         shell: pwsh
         timeout-minutes: 3
         run: test/windows/run_shift_key_normalizer_test.ps1
+
+      - name: Test the native window focus guard
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'MSVC not found' }
+          $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $runner = Join-Path $env:GITHUB_WORKSPACE 'windows/runner'
+          $testSource = Join-Path $env:GITHUB_WORKSPACE 'test/windows/activation_gate_test.cpp'
+          cmd /c "call `"$vcvars`" >nul && cl /nologo /std:c++17 /W4 /WX /EHsc /I`"$runner`" `"$testSource`" /link user32.lib"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\activation_gate_test.exe
+          exit $LASTEXITCODE
 
       - name: Test the native Windows clipboard bitmap reader
         shell: pwsh
@@ -594,11 +627,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         shell: pwsh
@@ -632,11 +663,9 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
           flutter-version: 3.47.7
-          cache: true
 
       - name: Install dependencies
         shell: pwsh
@@ -702,12 +731,10 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: ./.github/actions/setup-flutter
         with:
-          channel: stable
-          flutter-version: 3.47.7
           # ה-cache של הקונטיינר נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          cache: true
+          flutter-version: 3.47.7
 
       - name: Install Linux build dependencies
         run: |

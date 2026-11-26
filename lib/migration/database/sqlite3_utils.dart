@@ -27,7 +27,8 @@ void withTransaction(Database db, void Function() fn) {
     fn();
     db.execute('COMMIT');
   } catch (_) {
-    db.execute('ROLLBACK');
+    // אחרי שגיאת I/O, SQLite כבר ביטל את הטרנזקציה, ו-ROLLBACK יזרוק ויסתיר אותה.
+    if (!db.autocommit) db.execute('ROLLBACK');
     rethrow;
   }
 }

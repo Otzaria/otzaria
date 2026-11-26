@@ -4,6 +4,7 @@ import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/utils/note_link_detection.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
@@ -36,7 +37,9 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
   final TextEditingController _labelController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
-  int _selectedTab = 0;
+  // להערה כללית אין ספר לקשר אליו.
+  late final bool _hasBookTab = widget.bookId != PersonalNote.generalBookId;
+  late int _selectedTab = _hasBookTab ? 0 : 1;
   PersonalNote? _selectedNote;
   String? _urlError;
 
@@ -76,7 +79,11 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
       if (lineNumber == null || lineNumber <= 0) return;
       final bookId = widget.bookId ?? '';
       final label = _labelOr('שורה $lineNumber');
-      final url = 'otzaria://book?bookId=$bookId&line=$lineNumber';
+      final url = Uri(
+        scheme: 'otzaria',
+        host: 'book',
+        queryParameters: {'bookId': bookId, 'line': '$lineNumber'},
+      ).toString();
       Navigator.of(context).pop(
         PersonalNoteLinkTarget(label: label, url: url),
       );
@@ -97,12 +104,9 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
 
     final note = _selectedNote;
     if (note == null) return;
-    final label = _labelOr(
-      note.displayTitle?.trim().isNotEmpty == true
-          ? note.displayTitle!.trim()
-          : 'הערה',
-    );
-    final url = 'otzaria://note?id=${note.id}';
+    final title = note.title.trim();
+    final label = _labelOr(title.isNotEmpty ? title : 'הערה');
+    final url = personalNoteLinkUrl(note.id);
     Navigator.of(context).pop(PersonalNoteLinkTarget(label: label, url: url));
   }
 
@@ -135,10 +139,11 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             AppSegmentedControl<int>(
-              options: const [
-                SegmentOption(value: 0, label: 'קישור לספר'),
-                SegmentOption(value: 1, label: 'קישור להערה'),
-                SegmentOption(value: 2, label: 'הדבקת קישור'),
+              options: [
+                if (_hasBookTab)
+                  const SegmentOption(value: 0, label: 'קישור לספר'),
+                const SegmentOption(value: 1, label: 'קישור להערה'),
+                const SegmentOption(value: 2, label: 'הדבקת קישור'),
               ],
               currentValue: _selectedTab,
               expandToFillWidth: true,

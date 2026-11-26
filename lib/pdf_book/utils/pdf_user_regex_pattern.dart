@@ -25,8 +25,8 @@ class PdfUserRegexPattern implements RegExp {
 
   final UserRegexMatcher _matcher;
 
-  /// An edge `^`/`$` (`\A`/`\z` in the engine's pattern) means a text line, as
-  /// in the index where each PDF line is a document: such a pattern runs per line.
+  /// An edge `^`/`$` (`\A`/`\z` in the engine's pattern) belongs to a layout
+  /// line, even when the index stores the whole page as one document.
   final bool _lineAnchored;
 
   /// The query as typed, which also tells pdfrx whether a search repeats.

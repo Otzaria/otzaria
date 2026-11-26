@@ -208,9 +208,6 @@
         {"scope":"buildDayCell","fp":"0f736c3f","n":1},
         {"scope":"buildDayCell","fp":"72466283","n":1}
       ],
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_OverflowAwareTooltipText.build","fp":"d2aa3949","n":1}
-      ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"17cb6f38","n":1},
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"4f0c3e16","n":1},
@@ -381,9 +378,6 @@
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a7c1dfe6","n":1},
         {"scope":"LayoutFixSuggestionBanner.build","fp":"a8c1e179","n":1}
       ],
-      "lib/search/view/search_result_rank_badge.dart": [
-        {"scope":"SearchResultRankBadge.build","fp":"503c9e50","n":1}
-      ],
       "lib/search/view/search_results_layout.dart": [
         {"scope":"_SearchResultsLayoutState._buildQueryDisplay","fp":"2d3a28a0","n":1}
       ],
@@ -495,11 +489,6 @@
       ],
       "lib/tools/calendar/widgets/calendar_main_panel.dart": [
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"a7c1dfe6","n":1}
-      ],
-      "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_AlertControl.build","fp":"a6c1de53","n":1},
-        {"scope":"_CompositeLabelValue.build","fp":"a6c1de53","n":1},
-        {"scope":"_ZmanCard.build","fp":"a6c1de53","n":1}
       ],
       "lib/tools/gematria/widgets/gematria_result_card.dart": [
         {"scope":"GematriaResultCard.build","fp":"2d3a28a0","n":1},
@@ -657,9 +646,6 @@
       "lib/search/view/search_dialog.dart": [
         {"scope":"_SearchDialogState._buildFooter","fp":"1509e529","n":1}
       ],
-      "lib/search/view/search_result_rank_badge.dart": [
-        {"scope":"SearchResultRankBadge.build","fp":"a215a261","n":1}
-      ],
       "lib/search/view/search_result_source_tag.dart": [
         {"scope":"SearchResultSourceTag.build","fp":"9f20568c","n":1}
       ],
@@ -734,12 +720,8 @@
         {"scope":"CalendarMainPanel._buildDayNamesRow","fp":"66ff54ff","n":1}
       ],
       "lib/tools/calendar/widgets/calendar_times_panel.dart": [
-        {"scope":"_CalendarTimesPanelState.build","fp":"de1701d4","n":1},
         {"scope":"_MoladCard.build","fp":"3bee9d82","n":1},
-        {"scope":"_MoladCard.build","fp":"7a5f6425","n":2},
-        {"scope":"_OverflowAwareTooltipText.build","fp":"05d6e3d9","n":1},
-        {"scope":"_ZmanCard._buildCompositeSegment","fp":"d1a84c0b","n":1},
-        {"scope":"_ZmanCard.build","fp":"3bee9d82","n":1}
+        {"scope":"_MoladCard.build","fp":"7a5f6425","n":2}
       ],
       "lib/tools/calendar/widgets/calendar_top_bar.dart": [
         {"scope":"_CalendarTopBarState._buildGoogleSyncStatus","fp":"920fa78d","n":1},
@@ -1033,9 +1015,6 @@
       "lib/personal_notes/widgets/personal_note_editor.dart": [
         {"scope":"_PersonalNoteEditorBodyState._insertLink","fp":"3e6ca19c","n":1}
       ],
-      "lib/personal_notes/widgets/personal_notes_sidebar.dart": [
-        {"scope":"openNoteLink","fp":"3e6ca19c","n":1}
-      ],
       "lib/plugins/bridge/plugin_bridge_adapter.dart": [
         {"scope":"PluginBridgeAdapter._defaultPrintBookRange","fp":"3e6ca19c","n":1},
         {"scope":"PluginBridgeAdapter._defaultPrintPluginFile","fp":"3e6ca19c","n":1}
@@ -1273,9 +1252,6 @@
       ],
       "lib/settings/search/settings_anchor.dart": [
         {"scope":"_SettingsAnchorState.build","fp":"ce1f078a","n":1}
-      ],
-      "lib/tools/shamor_zachor/widgets/completion_animation_overlay.dart": [
-        {"scope":"_CompletionAnimationState.build","fp":"ce1f078a","n":1}
       ],
       "lib/tools/view/tools_launcher_panel.dart": [
         {"scope":"_MovePulseState.build","fp":"ce1f078a","n":1}

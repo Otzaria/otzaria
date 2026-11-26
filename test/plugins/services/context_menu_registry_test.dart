@@ -82,6 +82,28 @@ void main() {
       ]);
     });
 
+    test('מקבל library-book רק כשהוא נבחר במפורש (issue #4466)', () {
+      final item = registry.registerPayload('plan', {
+        'id': 'add-to-plan',
+        'title': 'הוסף לתוכנית הלימוד',
+        'contexts': ['library-book'],
+      });
+      expect(item.contexts, ['library-book']);
+      final legacy = registry.registerPayload('legacy', {
+        'id': 'selection',
+        'title': 'פעולה על סימון',
+      });
+      expect(legacy.contexts, isNot(contains('library-book')));
+      expect(
+        () => registry.registerPayload('plan', {
+          'id': 'category',
+          'title': 'קטגוריה',
+          'contexts': ['library-category'],
+        }),
+        throwsA(isA<PluginContextMenuException>()),
+      );
+    });
+
     test('מקבל את הקשרי המפרש רק כשהם נבחרים במפורש', () {
       final item = registry.registerPayload('lookup', {
         'id': 'commentary',

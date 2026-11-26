@@ -58,7 +58,7 @@ class CrossWindowTabDrag {
   /// מזהה עולה לכל גרירה, לגידור תשובות אסינכרוניות של גרירה שהסתיימה.
   int _dragGeneration = 0;
 
-  /// כותרת הכרטיסיה הנגררת כרגע, לשליחה לחלון היעד.
+  /// כותרת הכרטיסיה הנגררת, עד עצירת התצוגה הנייטיבית.
   String? _draggedTitle;
 
   /// הכרטיסיה הנגררת ובלוק הכרטיסיות של חלון המקור, למסירה מ-[_poll].
@@ -237,14 +237,12 @@ class CrossWindowTabDrag {
   /// ⚠️ חובה בסגירת החלון. הטיימר שואל את ה-runner כל 60ms, ולולאה שנשארה
   /// אחרי שהחלון נסגר ממשיכה לעדכן חיווי של גרירה שאיננה.
   void dispose() {
+    _dragGeneration++;
     _timer?.cancel();
     _timer = null;
-    // ⚠️ בלי זה הרוח הנייטיבית נשארת חיה ומצוירת אחרי שהרצועה ירדה מהעץ.
-    // המסירה למערכת מנקה בעצמה, ולכן רק גרירה שלא נמסרה מטופלת כאן.
-    if (_draggedTitle != null && !_handedOff) _hidePreview();
+    if (_draggedTitle != null) _hideSystemPreview();
     // ⚠️ המחלקה חיה יותר מגרירה בודדת (היא שדה של הרצועה). החזקה של
     // כרטיסיה שאולי כבר `dispose`-ה היא הפניה תלויה.
-    _draggedTitle = null;
     _draggedTab = null;
     _sourceBloc = null;
     _cancelFlutterDrag = null;
@@ -372,26 +370,26 @@ class CrossWindowTabDrag {
       _handedOff = true;
       _timer?.cancel();
       _timer = null;
-      _hidePreview();
+      _hideSystemPreview();
       return;
     }
 
+    final generation = _dragGeneration;
     _handedOff = true;
+    _timer?.cancel();
+    _timer = null;
     final last = _lastDragOverSlot;
     if (last != null) _notifyDragLeave(last);
     _lastDragOverSlot = null;
-    _draggedTitle = null;
 
     _cancelFlutterDrag?.call();
     final outcome = await _dragOutToSystem();
-    _timer?.cancel();
-    _timer = null;
+    if (generation != _dragGeneration) return;
 
-    // `ran == false` פירושו שהנייטיב לא הריץ לולאת גרירה בכלל (למשל אין
-    // תצוגה חיה). אין תוצאה להסתמך עליה, ולכן אין להעביר את הכרטיסיה.
-    if (outcome == null || !outcome.ran) return _hidePreview();
-    // ⚠️ נשאר בקוד. את מסלול הגרירה אי אפשר לבדוק אוטומטית — הוא תלוי
-    // בהחלטות ה-shell — ושורה אחת בלוג היא ההבדל בין אבחון לניחוש.
+    if (outcome == null || bloc.isClosed) return _hideSystemPreview();
+    final peerSlot = outcome.snapped ? null : outcome.slot;
+    // שחרור לפני תחילת הלולאה יכול להעביר רק לחלון היעד שכבר קיים.
+    if (!outcome.ran && peerSlot == null) return _hideSystemPreview();
     debugPrint(
       'גרירה הסתיימה: snapped=${outcome.snapped} '
       'rect=${outcome.left},${outcome.top} '
@@ -405,7 +403,7 @@ class CrossWindowTabDrag {
     if (!outcome.snapped) {
       // שחרור חזרה מעל חלון המקור — ביטול. אחרת כל גרירה שיצאה וחזרה
       // הייתה פותחת חלון.
-      if (outcome.isSelf) return _hidePreview();
+      if (outcome.isSelf) return _hideSystemPreview();
 
       // ⚠️ שורת המשימות אינה מחווה של "פתח חלון כאן". היא נגישה גם בחלון
       // ממוקסם, ולכן שחרור עליה הוא כמעט תמיד החטאה.
@@ -415,17 +413,29 @@ class CrossWindowTabDrag {
           outcome.atTaskbarEdge ||
           _outsideWorkArea(outcome.slot, outcome.inWorkArea)) {
         debugPrint('גרירה שוחררה מעל שורת המשימות — מבוטלת');
-        return _hidePreview();
+        return _hideSystemPreview();
       }
     }
 
-    if (!await confirmTransfer(tab)) return _hidePreview();
+    // בשחרור מוקדם טיימר המעקב הנייטיבי פעיל עד הסתרת התצוגה.
+    if (!outcome.ran) _hideSystemPreview();
+    final confirmed = await confirmTransfer(tab);
+    if (generation != _dragGeneration) return;
+    if (!confirmed || bloc.isClosed) {
+      if (outcome.ran) _hideSystemPreview();
+      return;
+    }
 
-    if (!outcome.snapped && outcome.slot != null) {
-      // הכרטיסיה נכנסת לחלון קיים — אין מה להחליף את הרוח, והיא מוסתרת
-      // מיד כדי שלא תרחף מעל היעד.
-      _hidePreview();
-      await _transferToPeer(outcome.slot!, tab, bloc, outcome.x, outcome.y);
+    if (peerSlot != null) {
+      if (outcome.ran) _hideSystemPreview();
+      await _transferToPeer(
+        peerSlot,
+        tab,
+        bloc,
+        outcome.x,
+        outcome.y,
+        hwnd: outcome.hwnd,
+      );
       return;
     }
 
@@ -443,14 +453,18 @@ class CrossWindowTabDrag {
             )
           : null,
     );
+    if (generation == _dragGeneration) _hideSystemPreview();
     if (moved) {
-      _hideAfterViewOpened();
-      bloc.add(RemoveTab(tab));
+      if (!bloc.isClosed) bloc.add(RemoveTab(tab));
       return;
     }
 
-    _hidePreview();
     await WindowOpener.current.reportOpenWindowFailure();
+  }
+
+  void _hideSystemPreview() {
+    _draggedTitle = null;
+    _hidePreview();
   }
 
   /// מעביר את הכרטיסיה לחלון [slot], למקום המדויק שתחת הסמן.
@@ -464,19 +478,34 @@ class CrossWindowTabDrag {
     OpenedTab tab,
     TabsBloc bloc,
     int x,
-    int y,
-  ) async {
-    final index =
-        _remoteDropIndex ??
-        await _inProcess.notifyDragOver(slot, x, y, tab.title);
+    int y, {
+    required int? hwnd,
+  }) async {
+    final generation = _dragGeneration;
+    // משבצת של חלון Dart מתפנה בסגירה ויכולה כבר לשמש חלון אחר.
+    bool samePeer() =>
+        hwnd == null ||
+        slot == InProcessTabDrops.mainSlot ||
+        _inProcess.resolve(hwnd: hwnd) == slot;
+
+    final index = samePeer()
+        ? _remoteDropIndex ??
+              await _inProcess.notifyDragOver(slot, x, y, tab.title)
+        : null;
     _remoteDropIndex = null;
-    final moved = await _inProcess.sendTabToWindow(slot, tab, index: index);
+    if (generation != _dragGeneration || bloc.isClosed) {
+      if (samePeer()) _notifyDragLeave(slot);
+      return;
+    }
+    final moved = samePeer()
+        ? await _inProcess.sendTabToWindow(slot, tab, index: index)
+        : false;
     if (moved == true) {
-      bloc.add(RemoveTab(tab));
+      if (!bloc.isClosed) bloc.add(RemoveTab(tab));
       return;
     }
     // החיווי ביעד הודלק על ידי `notifyDragOver` — יש לכבות אותו.
-    _notifyDragLeave(slot);
+    if (samePeer()) _notifyDragLeave(slot);
     UiSnack.showError(
       moved == false
           ? WindowMessages.transferFailed
@@ -530,7 +559,14 @@ class CrossWindowTabDrag {
       // הכרטיסיה נכנסת לחלון קיים — אין מה להחליף את הרוח, והיא מוסתרת
       // מיד כדי שלא תרחף מעל היעד.
       _hidePreview();
-      await _transferToPeer(target.slot!, tab, tabsBloc, target.x, target.y);
+      await _transferToPeer(
+        target.slot!,
+        tab,
+        tabsBloc,
+        target.x,
+        target.y,
+        hwnd: target.hwnd,
+      );
       return;
     }
 

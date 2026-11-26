@@ -6,7 +6,12 @@ import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticHighlightTarget, SemanticPassageHighlight;
+    show
+        SemanticHighlightTarget,
+        SemanticNearestInput,
+        SemanticNearestResponse,
+        SemanticPassageHighlight,
+        SemanticQueryTokens;
 
 /// החוזה של שכבת החיפוש הסמנטי מול המנוע.
 ///
@@ -41,6 +46,15 @@ abstract interface class SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   });
 
+  /// מזהה זול של דור וקטורים תקין; null כשאי אפשר לאמת מטמון קודם.
+  Future<String?> coveredBooksStamp(String vectorsDir);
+
+  /// הספרים באינדקס הפתוח שיש להם וקטורים בסט; מעבר על כל האינדקס.
+  Future<SemanticCoveredBooksSummary> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  });
+
   /// פותח את הסט והמודל לקריאה ומחזיר את המצב שאחרי הפתיחה.
   Future<SemanticBackendStatus> open(SemanticOpenRequest request);
 
@@ -68,6 +82,15 @@ abstract interface class SemanticEngineBackend {
     List<SemanticHighlightTarget> targets, {
     required SemanticCancelHandle cancel,
   });
+
+  /// השורות החיות הקרובות לכמה נקודות (טקסטים או וקטורים), במעבר אחד על הסט.
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  });
+
+  /// אורך כל טקסט כשאילתה, בטוקנים, עם התקרה שבה שאילתה נחתכת.
+  Future<SemanticQueryTokens> queryTokens(List<String> texts);
 }
 
 /// מימוש למנוע שאינו תומך בזרימת הוקטורים המותקנים: הכול מדווח כלא זמין.
@@ -109,6 +132,15 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
   }) => Future.error(_unavailable);
 
   @override
+  Future<String?> coveredBooksStamp(String vectorsDir) async => null;
+
+  @override
+  Future<SemanticCoveredBooksSummary> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
+
+  @override
   Future<SemanticBackendStatus> open(SemanticOpenRequest request) =>
       Future.error(_unavailable);
 
@@ -135,6 +167,16 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
     List<SemanticHighlightTarget> targets, {
     required SemanticCancelHandle cancel,
   }) => Future.error(_unavailable);
+
+  @override
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
+
+  @override
+  Future<SemanticQueryTokens> queryTokens(List<String> texts) =>
+      Future.error(_unavailable);
 }
 
 /// בוחר את מתאם ONNX רק בפלטפורמות הנתמכות.

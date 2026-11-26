@@ -56,6 +56,7 @@ const Set<String> kValidatorKnownTables = {
   'schema_meta',
   'db_meta',
   'external_link',
+  'external_default_commentator',
   'banner',
   'book_banner',
   'book_protection',
@@ -86,6 +87,13 @@ const Map<String, List<String>> kValidatorCoreColumns = {
   'line_ref': ['bookId', 'lineIndex', 'refKeyHash'],
   'schema_meta': ['key', 'value'],
   'external_link': ['sourceBookId', 'sourceLineIndex', 'targetTitle'],
+  'external_default_commentator': [
+    'targetSource',
+    'targetTitle',
+    'commentatorBookId',
+    'kind',
+    'position',
+  ],
   'book_version_link': ['versionBookId', 'primaryTitle'],
 };
 
@@ -116,6 +124,7 @@ class PersonalDbReport {
   String? dbVersion;
   String? updateManifestUrl;
   String? updatePublicKey;
+  String? libraryFolder;
 
   /// שני שדות העדכון קיימים ותקינים, ויש library_id ו-db_version שלם.
   bool updatesEnabled = false;
@@ -225,6 +234,13 @@ class _Caps {
           col('external_link', 'sourceBookId') &&
           col('external_link', 'sourceLineIndex') &&
           col('external_link', 'targetTitle'),
+      'hasExternalDefaultCommentators':
+          books &&
+          col('external_default_commentator', 'targetSource') &&
+          col('external_default_commentator', 'targetTitle') &&
+          col('external_default_commentator', 'commentatorBookId') &&
+          col('external_default_commentator', 'kind') &&
+          col('external_default_commentator', 'position'),
     };
   }
 }
@@ -333,8 +349,13 @@ String validatorSlugFor({String? libraryId, required String fileName}) {
 }
 
 /// בודק את [path] בלי לכתוב אליו. [checkFiles] — בודק גם שקובצי
-/// `book.filePath` קיימים בדיסק.
-PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
+/// `book.filePath` קיימים בדיסק. [officialLibrary] — seforim.db, להשוואת
+/// `library_folder` לקטגוריות העליונות שלו.
+PersonalDbReport validatePersonalDb(
+  String path, {
+  bool checkFiles = true,
+  String? officialLibrary,
+}) {
   final report = PersonalDbReport(path);
   final file = File(path);
   if (!file.existsSync()) {
@@ -393,6 +414,7 @@ PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
       return report;
     }
     _readMeta(db, caps, report);
+    if (officialLibrary != null) _checkFolderName(report, officialLibrary);
     report.bookCount = _count(db, 'SELECT COUNT(*) FROM book');
     if (report.bookCount == 0) {
       report._add(Severity.warning, 'empty', 'The "book" table is empty.');
@@ -407,6 +429,7 @@ PersonalDbReport validatePersonalDb(String path, {bool checkFiles = true}) {
     }
     _checkFilePaths(db, caps, report, checkFiles: checkFiles);
     _checkExternalLinks(db, caps, report);
+    _checkExternalDefaultCommentators(db, caps, report);
     _checkVersionLinks(db, caps, report);
   } on SqliteException catch (e) {
     report._add(Severity.error, 'sqlite_error', e.message);
@@ -586,7 +609,7 @@ void _readMeta(Database db, _Caps caps, PersonalDbReport report) {
     final rows = db.select(
       'SELECT key, value FROM schema_meta '
       "WHERE key IN ('library_id', 'library_name', 'db_version', "
-      "'update_manifest_url', 'update_public_key')",
+      "'update_manifest_url', 'update_public_key', 'library_folder')",
     );
     for (final row in rows) {
       final value = row['value']?.toString().trim();
@@ -601,6 +624,7 @@ void _readMeta(Database db, _Caps caps, PersonalDbReport report) {
   report.dbVersion = meta['db_version'];
   report.updateManifestUrl = meta['update_manifest_url'];
   report.updatePublicKey = meta['update_public_key'];
+  report.libraryFolder = meta['library_folder'];
   _checkUpdateSource(report);
   report.slug = validatorSlugFor(
     libraryId: report.libraryId,
@@ -628,6 +652,48 @@ void _readMeta(Database db, _Caps caps, PersonalDbReport report) {
       'no_db_version',
       'No schema_meta.db_version — changes are detected by size and date only.',
     );
+  }
+}
+
+/// כמו `_mergeTitleKey` בספק הספרייה: מרכאות וגרשיים אינם חלק מהשם.
+String validatorMergeTitleKey(String title) =>
+    title.replaceAll(RegExp('''['"״׳’”“`]'''), '').trim();
+
+/// תיקייה מוצהרת אינה מתמזגת לקטגוריה רשמית באותו שם: יוצגו שתי תיקיות.
+void _checkFolderName(PersonalDbReport report, String officialLibrary) {
+  final folder = report.libraryFolder;
+  if (folder == null) return;
+  final db = _tryOpen(officialLibrary, immutable: true);
+  if (db == null) {
+    report._add(
+      Severity.warning,
+      'official_library_unreadable',
+      'Could not open the official library $officialLibrary.',
+    );
+    return;
+  }
+  try {
+    final key = validatorMergeTitleKey(folder);
+    final roots = db.select(
+      'SELECT title FROM category WHERE parentId IS NULL',
+    );
+    for (final row in roots) {
+      final title = row['title']?.toString() ?? '';
+      if (validatorMergeTitleKey(title) == key) {
+        report._add(
+          Severity.warning,
+          'library_folder_matches_official',
+          'library_folder "$folder" has the name of the official top-level '
+              'category "$title". It is not merged into it: the tree shows '
+              'two folders with the same name.',
+        );
+        return;
+      }
+    }
+  } on SqliteException catch (e) {
+    report._add(Severity.warning, 'official_library_unreadable', e.message);
+  } finally {
+    db.close();
   }
 }
 
@@ -812,6 +878,84 @@ void _checkExternalLinks(Database db, _Caps caps, PersonalDbReport report) {
         'targetSource value(s) that match no database: ${invalid.join(', ')}.',
       );
     }
+  }
+}
+
+/// שורה נקראת רק כשהספר המפרש קיים, הכותרת אינה ריקה וה-kind מוכר; והיא
+/// משפיעה רק כשהספר מקושר ליעד ב-`external_link`.
+void _checkExternalDefaultCommentators(
+  Database db,
+  _Caps caps,
+  PersonalDbReport report,
+) {
+  const table = 'external_default_commentator';
+  if (caps.has(table) &&
+      report.capabilities['hasExternalDefaultCommentators'] != true) {
+    report._add(
+      Severity.warning,
+      'incomplete_group',
+      'Table "$table" is ignored: it needs targetSource, targetTitle, '
+          'commentatorBookId, kind and position.',
+    );
+    return;
+  }
+  if (report.capabilities['hasExternalDefaultCommentators'] != true) return;
+  final invalid = _count(
+    db,
+    'SELECT COUNT(*) FROM $table e '
+    'WHERE NOT EXISTS (SELECT 1 FROM book b WHERE b.id = e.commentatorBookId) '
+    "OR COALESCE(TRIM(e.targetTitle), '') = '' "
+    "OR e.kind IS NULL OR e.kind NOT IN ('commentator', 'targum')",
+  );
+  if (invalid > 0) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_invalid_rows',
+      '$invalid row(s) have no matching commentator book, an empty '
+          "targetTitle or a kind other than 'commentator'/'targum'; they are "
+          'ignored.',
+    );
+  }
+  final badSources = [
+    for (final row in db.select(
+      'SELECT DISTINCT targetSource AS s FROM $table LIMIT 50',
+    ))
+      if (row['s'] case final value?)
+        if (value.toString().trim() case final s
+            when s.isNotEmpty &&
+                s.toLowerCase() != 'official' &&
+                validatorSanitizeSlug(s).isEmpty)
+          s,
+  ];
+  if (badSources.isNotEmpty) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_bad_target_source',
+      'targetSource value(s) that match no database: ${badSources.join(', ')}.',
+    );
+  }
+  if (report.capabilities['hasExternalLinks'] != true) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_without_links',
+      '$table has no effect without external_link: a commentator is a '
+          'default only where it is linked to the target book.',
+    );
+    return;
+  }
+  final unlinked = _count(
+    db,
+    'SELECT COUNT(*) FROM $table e WHERE NOT EXISTS ('
+    'SELECT 1 FROM external_link l WHERE l.sourceBookId = e.commentatorBookId '
+    'AND l.targetTitle = e.targetTitle)',
+  );
+  if (unlinked > 0) {
+    report._add(
+      Severity.warning,
+      'external_default_commentator_unlinked',
+      '$unlinked row(s) name a commentator with no external_link to its '
+          'target book; they are ignored.',
+    );
   }
 }
 

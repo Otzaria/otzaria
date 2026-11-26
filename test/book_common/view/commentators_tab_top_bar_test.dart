@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
@@ -56,10 +57,8 @@ void main() {
               prevMajorTooltip: 'הפרק הקודם',
               nextMajorTooltip: 'הפרק הבא',
               navPaneOpen: false,
-              navPanePinned: false,
-              canPinNavPane: true,
+              navPeek: NavPanelPeekController(),
               onToggleNavPane: () => calls.add('pane'),
-              onTogglePin: () => calls.add('pin'),
               onPrevMajor: () => calls.add('prevMajor'),
               onPrevMinor: () => calls.add('prevMinor'),
               onNextMinor: () => calls.add('nextMinor'),
@@ -190,10 +189,8 @@ void main() {
                     prevMajorTooltip: 'הפרק הקודם',
                     nextMajorTooltip: 'הפרק הבא',
                     navPaneOpen: false,
-                    navPanePinned: false,
-                    canPinNavPane: true,
+                    navPeek: NavPanelPeekController(),
                     onToggleNavPane: () {},
-                    onTogglePin: () {},
                     onPrevMajor: () => calls.add('prevMajor'),
                     onPrevMinor: () => calls.add('prevMinor'),
                     onNextMinor: () => calls.add('nextMinor'),

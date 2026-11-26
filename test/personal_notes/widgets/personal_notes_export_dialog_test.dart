@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 PersonalNote _note(String id, String bookId, {String? displayTitle}) =>
     PersonalNote(
@@ -102,5 +103,11 @@ void main() {
     expect(find.textContaining('|user'), findsNothing);
     expect(find.textContaining('|db:'), findsNothing);
     expect(find.text('שבת — שבת'), findsNothing);
+  });
+
+  testWidgets('כותרת הדיאלוג נושאת את אייקון ייצוא ההערות', (tester) async {
+    await _open(tester, [_note('1', 'ברכות')]);
+
+    expect(find.byIcon(OtzariaIcons.note_export_24_regular), findsOneWidget);
   });
 }

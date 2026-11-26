@@ -214,6 +214,10 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     '0.9.98.1',
     hasPermissionHint: true,
   ),
+  'semantic.getStatus': PluginApiMethod('search.semantic.read', '0.9.99'),
+  'semantic.countTokens': PluginApiMethod('search.semantic.read', '0.9.99'),
+  'semantic.nearest': PluginApiMethod('search.semantic.read', '0.9.99'),
+  'semantic.getCoveredBooks': PluginApiMethod('search.semantic.read', '0.9.99'),
   'reader.openBook': PluginApiMethod('reader.open', '0.9.89'),
   'reader.openBookAtRef': PluginApiMethod('reader.open', '0.9.89'),
   'reader.printRange': PluginApiMethod(
@@ -467,6 +471,11 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   'feedback.submitBookCorrection': PluginApiMethod(
     'feedback.send_email',
     '0.9.98.1',
+    hasPermissionHint: true,
+  ),
+  'feedback.getBookCorrectionStatus': PluginApiMethod(
+    'feedback.send_email',
+    '0.9.99',
     hasPermissionHint: true,
   ),
   'feedback.report': PluginApiMethod(null, '0.9.97'),

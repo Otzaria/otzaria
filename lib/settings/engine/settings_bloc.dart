@@ -73,7 +73,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
     on<UpdateDefaultSidebarOpen>(_onUpdateDefaultSidebarOpen);
     on<UpdateDefaultCommentaryOpen>(_onUpdateDefaultCommentaryOpen);
-    on<UpdatePinSidebar>(_onUpdatePinSidebar);
     on<UpdateSidebarWidth>(_onUpdateSidebarWidth);
     on<UpdateFacetFilteringWidth>(_onUpdateFacetFilteringWidth);
     on<UpdateExternalResultsFirst>(_onUpdateExternalResultsFirst);
@@ -98,6 +97,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
     on<UpdateCommentaryOpensOnTextTap>(_onUpdateCommentaryOpensOnTextTap);
     on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
+    on<UpdateFullscreenAutoHideToolbar>(_onUpdateFullscreenAutoHideToolbar);
     on<UpdateAutoSync>(_onUpdateAutoSync);
     on<UpdateUpdateCheckFrequency>(_onUpdateUpdateCheckFrequency);
     on<UpdateRestoreAllWindows>(_onUpdateRestoreAllWindows);
@@ -213,7 +213,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           settings['defaultContinuousReadingMode'] ?? false,
       defaultSidebarOpen: settings['defaultSidebarOpen'],
       defaultCommentaryOpen: settings['defaultCommentaryOpen'],
-      pinSidebar: settings['pinSidebar'],
       sidebarWidth: settings['sidebarWidth'],
       facetFilteringWidth: settings['facetFilteringWidth'],
       externalResultsFirst: settings['externalResultsFirst'] ?? false,
@@ -240,6 +239,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       commentaryOpensOnTextTap: settings['commentaryOpensOnTextTap'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
       compactMenuModeIsSet: settings['compactMenuMode'] != null,
+      fullscreenAutoHideToolbar: settings['fullscreenAutoHideToolbar'] ?? true,
       autoSync: settings['autoSync'] ?? true,
       updateCheckFrequency: settings['updateCheckFrequency'] ?? '',
       restoreAllWindows: settings['restoreAllWindows'] ?? false,
@@ -455,6 +455,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         compactMenuModeIsSet: value != null,
       ),
     );
+  }
+
+  Future<void> _onUpdateFullscreenAutoHideToolbar(
+    UpdateFullscreenAutoHideToolbar event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateFullscreenAutoHideToolbar(event.autoHide);
+    emit(state.copyWith(fullscreenAutoHideToolbar: event.autoHide));
   }
 
   Future<void> _onUpdateReadingTabsPlacement(
@@ -775,14 +783,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateDefaultCommentaryOpen(event.defaultCommentaryOpen);
     emit(state.copyWith(defaultCommentaryOpen: event.defaultCommentaryOpen));
-  }
-
-  Future<void> _onUpdatePinSidebar(
-    UpdatePinSidebar event,
-    Emitter<SettingsState> emit,
-  ) async {
-    await _repository.updatePinSidebar(event.pinSidebar);
-    emit(state.copyWith(pinSidebar: event.pinSidebar));
   }
 
   Future<void> _onUpdateSidebarWidth(

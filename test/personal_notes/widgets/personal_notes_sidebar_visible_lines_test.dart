@@ -434,7 +434,6 @@ TextBookLoaded _loadedState({required List<int> visibleIndices}) =>
       removeNikud: false,
       visibleIndices: visibleIndices,
       selectedIndex: null,
-      pinLeftPane: false,
       searchText: '',
     );
 

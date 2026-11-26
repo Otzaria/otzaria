@@ -29,6 +29,7 @@ import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
+import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:provider/provider.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
@@ -180,10 +181,10 @@ Future<void> main() async {
     'חיפוש טקסט מסומן מתחיל מברירות המחדל השמורות (issue #3690)',
     (tester) async {
       SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
       addTearDown(() {
         SearchDefaults.saveExactDefaults(const {});
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
       });
       final bloc = await pumpScreen(
         tester,
@@ -212,11 +213,11 @@ Future<void> main() async {
     tester,
   ) async {
     SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
-    SearchDefaults.saveDistanceDefault(3);
+    SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
     SearchDefaults.saveAnyOrderDefault(true);
     addTearDown(() {
       SearchDefaults.saveExactDefaults(const {});
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
       SearchDefaults.saveAnyOrderDefault(false);
     });
     final bloc = await pumpScreen(
@@ -261,7 +262,28 @@ Future<void> main() async {
       bloc.recordedEvents.whereType<ApplyMarkHighlight>().single,
       const ApplyMarkHighlight(),
     );
+    // ניקוי ההדגשה ב-Esc מלמד שהמשתמש כבר יודע — טיפ ה-Esc נפתר (#4919).
+    expect(tourCubit.state.resolvedTips, contains(LiveTipId.linkHighlightHint));
   });
+
+  testWidgets(
+    'הדגשה מקישור מציגה טיפ "הידעת?" על Esc (issue #4919)',
+    (tester) async {
+      final bloc = await pumpScreen(tester, searchText: '');
+      expect(tourCubit.state.activeLiveTipId, isNull);
+
+      bloc.emitStateForTest(
+        (bloc.state as TextBookLoaded).copyWith(
+          highlightText: 'בראשית',
+          permanentHighlightLine: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(tourCubit.state.activeLiveTipId, LiveTipId.linkHighlightHint);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 }
 
 TextBookLoaded _loadedState(
@@ -287,7 +309,6 @@ TextBookLoaded _loadedState(
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: searchText,
     searchOrigin: searchOrigin,
     permanentHighlightLine: markLine,
@@ -303,6 +324,8 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   final List<TextBookEvent> recordedEvents = [];
+
+  void emitStateForTest(TextBookState state) => emit(state);
 
   void showSearch(UpdateSearchText event) {
     emit(

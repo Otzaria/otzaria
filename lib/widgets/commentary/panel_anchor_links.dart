@@ -54,6 +54,10 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// האם הקטע מדגיש את הציטוט המקושר ([Link.linkedAnchorStart]); אז גם בהערה.
   bool get highlightsLinkedAnchor => false;
 
+  /// גם סמני-האות של מפרש-על (שער הציון במשנה ברורה), ולא רק ציטוטי
+  /// הלינקר — כמו בצורת הדף, לפי "ציוני המפרשים" במפרשים.
+  bool get showsCommentatorAnchors => false;
+
   bool get hasPanelLinks =>
       _anchorLinks.isNotEmpty || _noteLinks.isNotEmpty || _hasStoredNotes;
 
@@ -207,32 +211,42 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// גוף ההערה [note] (מיקום ב-`notesAt`) של שורה [lineIndex] בקטע, עם חלקי
   /// הציטוטים שבו — ה-href מפנה לאותה רשימה כמו בשורה.
   String _noteBodyWithAnchors(int lineIndex, int note, String body) {
-    final notes = _targetNotes.notesAt(lineIndex);
-    final anchors = _anchorsAt(lineIndex);
-    var html = !anchorLinksEnabled || anchors.isEmpty
-        ? body
-        : injectLinkAnchorMarkers(
-            rawLine: body,
-            anchorLinks: anchors,
-            styleIndexByCommentator: const {},
-            lineIndex: lineIndex,
-            rangesOnly: true,
-            notes: notes,
-            note: note,
-          );
-    if (highlightsLinkedAnchor && lineIndex == anchorSourceLink.index2 - 1) {
-      final linked = linkedAnchorSpan(note: note);
-      if (linked != null) {
-        html = wrapVisibleRange(
-          html: html,
-          start: linked.start,
-          end: linked.end!,
-          openTag: '<span class="link-anchor-range">',
-          closeTag: '</span>',
-        );
+    return _decorateLineAnchors(body, lineIndex, note: note);
+  }
+
+  String _decorateLineAnchors(String body, int lineIndex, {int? note}) {
+    String decorate(String html) {
+      if (note == null) {
+        html = injectDivineNameMarkers(html, _targetNames, lineIndex);
       }
+      final linked = lineIndex == anchorSourceLink.index2 - 1
+          ? linkedAnchorSpan(note: note)
+          : null;
+      if (linked == null) return html;
+      return wrapVisibleRange(
+        html: html,
+        start: linked.start,
+        end: linked.end!,
+        openTag: '<span class="link-anchor-range">',
+        closeTag: '</span>',
+      );
     }
-    return html;
+
+    final anchors = _anchorsAt(lineIndex);
+    if (!anchorLinksEnabled || !_targetNotesLoaded || anchors.isEmpty) {
+      return decorate(body);
+    }
+    return injectLinkAnchorMarkers(
+      rawLine: body,
+      anchorLinks: anchors,
+      styleIndexByCommentator: anchorStyleIndexByCommentator(anchors),
+      lineIndex: lineIndex,
+      rangesOnly: !showsCommentatorAnchors,
+      notes: _targetNotes.notesAt(lineIndex),
+      note: note,
+      decorateBeforePointMarkers: decorate,
+      splitRangesAtPointMarkers: showsCommentatorAnchors,
+    );
   }
 
   void _openNoteAnchor(String url) {
@@ -249,6 +263,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// בטקסט השמור ([note] null) או בגוף ההערה [note]; null עד שההערות נטענו
   /// או כשאין לו חלק שם.
   LinkAnchorSpan? linkedAnchorSpan({int? note}) {
+    if (!highlightsLinkedAnchor) return null;
     final start = anchorSourceLink.linkedAnchorStart;
     final end = anchorSourceLink.linkedAnchorEnd;
     if (start == null || end == null || end <= start) return null;
@@ -341,7 +356,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
       for (final link in cached.anchored)
         if (link.index1 >= line &&
             link.index1 <= (anchorSourceLink.index2End ?? line) &&
-            _hasRangeSpan(link))
+            (showsCommentatorAnchors || _hasRangeSpan(link)))
           link,
     ];
     final nextNotes = numberedNoteLinks([
@@ -397,18 +412,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   ];
 
   String _injectLineLinks(String rawLine, int lineIndex) {
-    final anchors = _anchorsAt(lineIndex);
-    final html = anchors.isEmpty || !_targetNotesLoaded
-        ? rawLine
-        : injectLinkAnchorMarkers(
-            rawLine: rawLine,
-            anchorLinks: anchors,
-            styleIndexByCommentator: const {},
-            lineIndex: lineIndex,
-            rangesOnly: true,
-            notes: _targetNotes.notesAt(lineIndex),
-          );
-    final marked = injectDivineNameMarkers(html, _targetNames, lineIndex);
+    final marked = _decorateLineAnchors(rawLine, lineIndex);
     if (!anchorLinksEnabled) return marked;
     final lineNotes = _targetNotes.notesAt(lineIndex);
     var result = lineNotes.isEmpty

@@ -1,0 +1,103 @@
+name: PDF text pipeline (native AOT)
+
+on:
+  pull_request:
+    paths:
+      - 'tool/perf_probe/pdf_text_fixture.dart'
+      - 'tool/perf_probe/run_pdf_text_profile.*'
+      - 'tool/perf_probe/test_pdf_text_native.py'
+      - 'tool/perf_probe/pdf_text_profile.md'
+      - 'tool/perf_probe/src/pdf_image_budget.dart'
+      - 'tool/perf_probe/src/pdf_text_profile*.dart'
+      - 'tool/perf_probe/src/report.dart'
+      - 'test/tool/perf_probe/pdf_text*'
+      - 'fonts/Tinos-Regular.ttf'
+      - 'lib/main.dart'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/pdf_text_pipeline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  text_pipeline:
+    name: Native PDF text pipeline (Linux x64 Dart AOT)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+      - name: Resolve and record the pinned SDK and dependencies
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pdf-text-inputs" "$RUNNER_TEMP/pdf-text-tests"
+          flutter --version --machine > "$RUNNER_TEMP/pdf-text-inputs/flutter.json"
+          flutter pub get --enforce-lockfile
+      - name: Verify the exact Linux PDFium producer artifact
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            'https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8125/pdfium-linux-x64.tgz' \
+            --output "$RUNNER_TEMP/pdf-text-inputs/pdfium.tgz"
+          echo "e1c3ce6e270cb5e0c20816b379ad9f2c1309972697c505f508de92bf5e7d6659  $RUNNER_TEMP/pdf-text-inputs/pdfium.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/pdf-text-inputs/pdfium.tgz" -C "$RUNNER_TEMP/pdf-text-inputs" lib/libpdfium.so
+          echo "1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723  $RUNNER_TEMP/pdf-text-inputs/lib/libpdfium.so" | sha256sum --check
+      - name: Validate the host and public pipeline with native PDFium
+        shell: bash
+        env:
+          OTZARIA_PDF_TEXT_PDFIUM: ${{ runner.temp }}/pdf-text-inputs/lib/libpdfium.so
+          OTZARIA_PDF_TEXT_PDFIUM_SHA256: 1c251efce460d67437a4c76d4be9033ae2f17bf5603f5bff1af10209b94ca723
+        run: |
+          python3 -m unittest -v tool/perf_probe/test_pdf_text_native.py 2>&1 | tee "$RUNNER_TEMP/pdf-text-tests/host.log"
+          python3 - <<'PYTEST' 2>&1 | tee "$RUNNER_TEMP/pdf-text-tests/native.log"
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          from urllib.parse import unquote, urljoin, urlparse
+          config = Path('.dart_tool/package_config.json').resolve()
+          packages = json.loads(config.read_text())['packages']
+          package = next(item for item in packages if item['name'] == 'test')
+          root = Path(unquote(urlparse(urljoin(config.as_uri(), package['rootUri'])).path))
+          dart = Path(os.environ['FLUTTER_ROOT']) / 'bin/cache/dart-sdk/bin/dart'
+          subprocess.run([
+              str(dart), f'--packages={config}', str(root / 'bin/test.dart'),
+              '--concurrency=1', '--reporter=expanded',
+              'test/tool/perf_probe/pdf_text_profile_test.dart',
+              'test/tool/perf_probe/pdf_text_profile_report_test.dart',
+              'test/tool/perf_probe/pdf_text_profile_native_test.dart',
+          ], check=True)
+          PYTEST
+      - name: Measure the AOT component and validate every observation
+        shell: bash
+        run: |
+          python3 tool/perf_probe/run_pdf_text_profile.py \
+            --dart "$FLUTTER_ROOT/bin/cache/dart-sdk/bin/dart" \
+            --pdfium "$RUNNER_TEMP/pdf-text-inputs/lib/libpdfium.so" \
+            --flutter-json "$RUNNER_TEMP/pdf-text-inputs/flutter.json" \
+            --output "$RUNNER_TEMP/pdf-text-aot" --warmup 1 --repetitions 5
+      - name: Preserve source receipts, native corpus and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-text-pipeline-linux-x64-aot
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/pdf-text-inputs/flutter.json
+            ${{ runner.temp }}/pdf-text-tests/**
+            ${{ runner.temp }}/pdf-text-aot/**

@@ -4,6 +4,8 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -61,8 +63,8 @@ class _StubPluginRegistryRepository extends PluginRegistryRepository {
   Future<bool?> getPermission(String pluginId, String permission) async => true;
 }
 
-InstalledPlugin _plugin() => InstalledPlugin(
-  pluginId: 'test.plugin',
+InstalledPlugin _plugin([String id = 'test.plugin']) => InstalledPlugin(
+  pluginId: id,
   name: 'Test Plugin',
   version: '1.0.0',
   installPath: '/',
@@ -71,7 +73,7 @@ InstalledPlugin _plugin() => InstalledPlugin(
   pinned: true,
   manifest: PluginManifest(
     schemaVersion: 1,
-    id: 'test.plugin',
+    id: id,
     name: 'Test Plugin',
     version: '1.0.0',
     description: '',
@@ -121,8 +123,10 @@ void main() {
 
   PluginBridgeAdapter buildAdapter({
     PluginBookCorrectionService? bookCorrectionService,
+    DirectErrorReportService? directReportService,
+    String pluginId = 'test.plugin',
   }) => PluginBridgeAdapter(
-    _plugin(),
+    _plugin(pluginId),
     dependencies: PluginBridgeDependencies(
       historyBloc: _MockHistoryBloc(),
       tabsBloc: _StubTabsBloc(),
@@ -139,6 +143,7 @@ void main() {
     ),
     pluginRepository: _StubPluginRegistryRepository(),
     bookCorrectionService: bookCorrectionService,
+    directReportService: directReportService,
   );
 
   setUp(() {
@@ -150,6 +155,126 @@ void main() {
         adapter.execute('feedback', 'submitBookCorrection', args),
         _codedError(code),
       );
+
+  group('feedback.getBookCorrectionStatus', () {
+    for (final args in <Map<String, dynamic>>[
+      {},
+      {'reportId': 42},
+      {'reportId': ''},
+      {'reportId': 'יש רווח'},
+      {'reportId': 'x' * 161},
+    ]) {
+      test('דוחה מזהה לא תקין: $args', () {
+        return expectLater(
+          adapter.execute('feedback', 'getBookCorrectionStatus', args),
+          _codedError('error.invalid_params'),
+        );
+      });
+    }
+
+    group('מרחב שמות לכל תוסף', () {
+      late Directory tmp;
+      late UserStateDatabase db;
+      late DirectErrorReportService direct;
+
+      setUp(() async {
+        tmp = Directory.systemTemp.createTempSync('otzaria_status_');
+        db = UserStateDatabase.openAt(path.join(tmp.path, 'user_state.db'));
+        final store = PendingReportStore(database: db);
+        direct = DirectErrorReportService(reportStore: store);
+        await store.add(
+          DirectErrorReportService.pendingKind,
+          DirectErrorReport(
+            id: 'plugin.a:r1',
+            senderEmail: 'user@example.com',
+            subject: 's',
+            bookTitle: 'ספר',
+            currentRef: '',
+            lineNumber: 1,
+            errorDetails: 'd',
+            queueType: DirectErrorReportQueueType.automaticRetry,
+            createdAt: DateTime(2026),
+          ).toJson(),
+        );
+      });
+
+      tearDown(() async {
+        await direct.closeHttpClient();
+        db.close();
+        tmp.deleteSync(recursive: true);
+      });
+
+      Future<Map<String, dynamic>> status(String pluginId) async =>
+          Map<String, dynamic>.from(
+            await buildAdapter(
+                  directReportService: direct,
+                  pluginId: pluginId,
+                ).execute('feedback', 'getBookCorrectionStatus', {
+                  'reportId': 'r1',
+                })
+                as Map,
+          );
+
+      test('התוסף הבעלים רואה את הדיווח שלו', () async {
+        expect(await status('plugin.a'), {
+          'status': 'queued',
+          'reportId': 'r1',
+          'nativeReportId': 'plugin.a:r1',
+        });
+      });
+
+      test('תוסף אחר עם אותו reportId לא רואה את הדיווח', () async {
+        expect(await status('plugin.b'), {
+          'status': 'unknown',
+          'reportId': 'r1',
+          'nativeReportId': 'plugin.b:r1',
+        });
+      });
+      test('מזהה מפורש ושדות עודפים אינם עוקפים את מרחב השמות', () async {
+        final caller = buildAdapter(
+          directReportService: direct,
+          pluginId: 'plugin.b',
+        );
+        expect(
+          await caller.execute('feedback', 'getBookCorrectionStatus', {
+            'reportId': 'plugin.a:r1',
+            'nativeReportId': 'plugin.a:r1',
+            'pluginId': 'plugin.a',
+            'status': 'sent',
+          }),
+          {
+            'status': 'unknown',
+            'reportId': 'plugin.a:r1',
+            'nativeReportId': 'plugin.b:plugin.a:r1',
+          },
+        );
+      });
+
+      test('דיווח תיקון רגיל על ספר אינו גלוי לתוסף', () async {
+        const id = '1782315021188111-1234567';
+        await PendingReportStore(database: db).add(
+          DirectErrorReportService.pendingKind,
+          {'id': id},
+        );
+        expect(await direct.lookupReportStatus(id), 'queued');
+        final caller = buildAdapter(
+          directReportService: direct,
+          pluginId: 'plugin.a',
+        );
+        expect(
+          await caller.execute('feedback', 'getBookCorrectionStatus', {
+            'reportId': id,
+            'nativeReportId': id,
+          }),
+          {
+            'status': 'unknown',
+            'reportId': id,
+            'nativeReportId': 'plugin.a:$id',
+          },
+        );
+      });
+    });
+  });
 
   group('feedback.submitBookCorrection identity', () {
     for (final args in <Map<String, dynamic>>[

@@ -42,9 +42,6 @@ class LibraryChangesNotes {
   /// ממתין לפני הצגה אוטומטית — המסך הראשי רושם כאן את סיום הסיור המודרך.
   Future<void> Function()? beforeAutoShow;
 
-  /// עולה בכל שינוי בהערות השמורות — מסך ההגדרות מרענן לפיו את הכפתור.
-  final revision = ValueNotifier<int>(0);
-
   bool _showing = false;
   bool _showAgain = false;
 
@@ -53,7 +50,7 @@ class LibraryChangesNotes {
   Future<void> afterLibraryUpdate(List<String> releaseTags) async {
     try {
       await _fetcher.enqueue(releaseTags);
-      await _fetchQueued();
+      await _fetcher.fetchQueued();
       await showPending();
     } catch (error, stackTrace) {
       _log(error, stackTrace);
@@ -63,15 +60,11 @@ class LibraryChangesNotes {
   /// בעלייה: ניסיון חוזר לתגים שבתור (לא במצב מנותק) והצגת הממתינות.
   Future<void> onStartup() async {
     try {
-      if (!_isOffline()) await _fetchQueued();
+      if (!_isOffline()) await _fetcher.fetchQueued();
       await showPending();
     } catch (error, stackTrace) {
       _log(error, stackTrace);
     }
-  }
-
-  Future<void> _fetchQueued() async {
-    if (await _fetcher.fetchQueued() > 0) revision.value++;
   }
 
   /// מציג את ההערות הממתינות (גם אלה שכתב המעדכן הלא-מקוון), ובסגירה מעביר
@@ -91,7 +84,7 @@ class LibraryChangesNotes {
         final context = _context();
         if (context == null || !context.mounted) return;
         await _showDialog(context, pending);
-        await _markSeen(pending);
+        await store.markSeen(pending);
       } while (_showAgain);
     } catch (error, stackTrace) {
       _log(error, stackTrace);
@@ -106,20 +99,15 @@ class LibraryChangesNotes {
     _showing = true;
     try {
       final notes = await store.readAll();
-      if (notes.isEmpty || !context.mounted) return;
+      if (!context.mounted) return;
       await _showDialog(context, notes);
-      await _markSeen(notes);
+      if (notes.isNotEmpty) await store.markSeen(notes);
     } catch (error, stackTrace) {
       _log(error, stackTrace);
     } finally {
       _showing = false;
       if (_showAgain) await showPending();
     }
-  }
-
-  Future<void> _markSeen(List<LibraryChangesNote> notes) async {
-    await store.markSeen(notes);
-    revision.value++;
   }
 
   void _log(Object error, StackTrace stackTrace) {

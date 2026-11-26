@@ -5,6 +5,7 @@ import 'package:otzaria/settings/panels/tikkun_korim_settings_panel.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tools/tikkun_korim/settings/tikkun_settings.dart';
 import 'package:otzaria/tools/tikkun_korim/models/tikkun_vav_ketia.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
@@ -106,4 +107,11 @@ void main() {
       },
     );
   }
+
+  testWidgets('וי״ו קטיעא מוצגת באייקון וי״ו סתם מלא', (tester) async {
+    await _pump(tester);
+
+    expect(find.byIcon(OtzariaIcons.vav_stam_24_filled), findsOneWidget);
+    expect(find.byIcon(OtzariaIcons.alef_1_24_filled), findsNothing);
+  });
 }

@@ -4,6 +4,9 @@ import 'dart:typed_data';
 
 import 'package:pdfrx/pdfrx.dart';
 
+import 'pdf_export_cancellation.dart';
+import 'pdf_file_cleanup.dart';
+
 /// מקור PDF שנפתח מקובץ, או מבתים של מסמך שנוצר בזיכרון.
 class PrintPdfSource {
   const PrintPdfSource.file(String path) : _path = path, _data = null;
@@ -14,6 +17,74 @@ class PrintPdfSource {
 
   Future<Uint8List> readBytes() async =>
       _data ?? await File(_path!).readAsBytes();
+
+  /// מעתיק ל-staging בבעלות הקורא בלי ליצור עותק מלא נוסף של ה-PDF.
+  Future<void> writeToFile(
+    String stagingPath, {
+    int cancellationAddress = 0,
+  }) async {
+    final destination = File(stagingPath);
+    if (await FileSystemEntity.type(stagingPath, followLinks: false) ==
+        FileSystemEntityType.link) {
+      throw ArgumentError('The PDF staging path cannot be a symbolic link.');
+    }
+    final sourcePath = _path;
+    if (sourcePath != null &&
+        (File(sourcePath).absolute.path == destination.absolute.path ||
+            (await destination.exists() &&
+                await File(sourcePath).exists() &&
+                await FileSystemEntity.identical(
+                  await File(sourcePath).resolveSymbolicLinks(),
+                  await destination.resolveSymbolicLinks(),
+                )))) {
+      throw ArgumentError('The PDF source cannot be its own staging file.');
+    }
+    var completed = false;
+    await withPdfFileCleanup(
+      () async {
+        PdfExportCancellationToken.throwIfCancelledAt(cancellationAddress);
+        final output = await destination.open(mode: FileMode.write);
+        await withPdfFileCleanup(() async {
+          const chunkSize = 64 * 1024;
+          final data = _data;
+          if (data != null) {
+            for (var offset = 0; offset < data.length; offset += chunkSize) {
+              PdfExportCancellationToken.throwIfCancelledAt(
+                cancellationAddress,
+              );
+              await output.writeFrom(
+                data,
+                offset,
+                min(offset + chunkSize, data.length),
+              );
+            }
+          } else {
+            final input = await File(sourcePath!).open();
+            await withPdfFileCleanup(() async {
+              final buffer = Uint8List(chunkSize);
+              while (true) {
+                PdfExportCancellationToken.throwIfCancelledAt(
+                  cancellationAddress,
+                );
+                final count = await input.readInto(buffer);
+                if (count == 0) break;
+                await output.writeFrom(buffer, 0, count);
+              }
+            }, input.close);
+          }
+          PdfExportCancellationToken.throwIfCancelledAt(cancellationAddress);
+          await output.flush();
+        }, output.close);
+        PdfExportCancellationToken.throwIfCancelledAt(cancellationAddress);
+        completed = true;
+      },
+      () async {
+        if (!completed && await destination.exists()) {
+          await destination.delete();
+        }
+      },
+    );
+  }
 
   Future<PdfDocument> open({bool useProgressiveLoading = false}) {
     final path = _path;

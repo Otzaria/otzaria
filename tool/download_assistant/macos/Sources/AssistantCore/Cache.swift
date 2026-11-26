@@ -37,7 +37,8 @@ public func cacheStatus(
     expectedSize: Int64, expectedSha256: String
 ) -> CacheStatus {
     guard let fileSize = fileSize else { return .missing }
-    guard fileSize == expectedSize else { return .invalid }
+    // בלי sha256 אין במה לאמת את המטמון: הקובץ יורד מחדש.
+    guard !expectedSha256.isEmpty, fileSize == expectedSize else { return .invalid }
     guard let markerText = markerText, let markerHex = CacheMarker.parse(markerText) else {
         return .needsHash
     }
@@ -116,7 +117,7 @@ public final class CacheStore {
             try fileManager.removeItem(at: final)
         }
         try fileManager.moveItem(at: partialURL(name, sha256: sha256), to: final)
-        try? writeMarker(name: name, sha256: sha256)
+        if !sha256.isEmpty { try? writeMarker(name: name, sha256: sha256) }
     }
 
     func attributes(_ url: URL) -> (size: Int64, modified: Date?)? {

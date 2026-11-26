@@ -1,6 +1,10 @@
 # Generated Dart files - keep LF to avoid spurious diffs on Windows
 *.g.dart text eol=lf
 
+# Flutter rewrites these headers with LF during pub get on every platform.
+linux/flutter/generated_plugin_registrant.h text eol=lf
+windows/flutter/generated_plugin_registrant.h text eol=lf
+
 # Shell scripts must stay LF - bash on Linux/macOS breaks on CRLF
 *.sh text eol=lf
 

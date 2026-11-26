@@ -265,6 +265,7 @@ class PersonalNotesRepository {
     int? categoryId,
     bool refresh = false,
   }) async {
+    if (bookId == PersonalNote.generalBookId) return '';
     final parsed = parsePersonalNotesBookKey(bookId);
     if (parsed.source case final source?) {
       _lastContent = null;

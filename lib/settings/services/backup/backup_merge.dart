@@ -4,6 +4,7 @@ import 'package:otzaria/bookmarks/utils/search_history_key.dart';
 import 'package:otzaria/bookmarks/utils/reading_history_key.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/services/backup/backup_report_format.dart';
+import 'package:otzaria/settings/services/backup/shamor_zachor_backup_merge.dart';
 
 /// מיזוג מניפסטים של גיבוי לארכיון מתגלגל — איחוד לפי זהות פריט.
 ///
@@ -362,18 +363,25 @@ class BackupMerge {
   /// שמור-וזכור: מיזוג פר-ספר בתוך `sz:progress_by_id` (החדש מנצח לכל ספר,
   /// ספר ישן-בלבד נשמר). מיזוג פר-דף אסור — היה מחזיר סימונים שבוטלו בכוונה.
   static Map<String, dynamic>? _mergeShamorZachor(
-    Map<String, dynamic>? older,
-    Map<String, dynamic>? newer,
+    Map<String, dynamic>? olderSnapshot,
+    Map<String, dynamic>? newerSnapshot,
   ) {
-    if (older == null && newer == null) return null;
-    final merged = <String, dynamic>{...?older, ...?newer};
+    if (olderSnapshot == null && newerSnapshot == null) return null;
+    final older = ShamorZachorBackupMerge.withoutPdfData(olderSnapshot ?? {});
+    final newer = ShamorZachorBackupMerge.withoutPdfData(newerSnapshot ?? {});
+    final merged = <String, dynamic>{...older, ...newer};
 
     const progressKey = 'sz:progress_by_id';
-    final olderProgress = _decodeJsonMap(older?[progressKey]);
-    final newerProgress = _decodeJsonMap(newer?[progressKey]);
+    final olderProgress = _decodeJsonMap(older[progressKey]);
+    final newerProgress = _decodeJsonMap(newer[progressKey]);
     if (olderProgress != null || newerProgress != null) {
       merged[progressKey] = json.encode({...?olderProgress, ...?newerProgress});
     }
+    final pdf = ShamorZachorBackupMerge.mergePdfData(
+      newerSnapshot ?? {},
+      olderSnapshot ?? {},
+    );
+    ShamorZachorBackupMerge.addPdfData(merged, pdf.data, merged);
     return merged;
   }
 

@@ -1,5 +1,6 @@
 """Process and evidence checks; these do not execute Flutter, WPE or X11."""
 
+import io
 import json
 import os
 from pathlib import Path
@@ -9,10 +10,23 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
+import urllib.error
 
+import prepare_installed_plugin_source as store_source
 from run_installed_plugin_linux import (
     observe, require_fresh_reports, require_linux_result, run, run_owned,
 )
+
+
+def pdf_runtime_report():
+    fixtures = Path(__file__).resolve().parents[2] / "test/tool/perf_probe/fixtures"
+    return {"status": "passed", "platform": "linux", "bundlePathsVerified": True,
+            "ownedDocumentsRemaining": 0, "ownedTabsRemaining": 0, "indexingActiveAfter": False,
+            "steps": {**{name: {"status": "passed"} for name in (
+                "view", "concurrentWork", "cancelAndRecover", "reopen", "loadedModules", "teardown",
+            )}, "desktopLifecycle": json.loads((fixtures / "installed_pdf_desktop.json").read_text()),
+                "repeatedLifecycle": json.loads((fixtures / "installed_pdf_repeated.json").read_text())}}
 
 
 class LinuxSessionTest(unittest.TestCase):
@@ -171,6 +185,7 @@ class LinuxSessionTest(unittest.TestCase):
             path.parent.mkdir()
             report = {"status": "passed", "platform": "linux", "buildMode": "profile",
                       "errors": [], "contractErrors": [], "policyRestored": True,
+                      "pdfRuntime": pdf_runtime_report(),
                       "runId": "unit-test-fixture", "phases": [
                           {"name": "minimize", "status": "passed"},
                           {"name": "hide", "status": "passed"}]}
@@ -203,6 +218,7 @@ class LinuxSessionTest(unittest.TestCase):
             path.parent.mkdir()
             report = {"status": "passed", "platform": "linux", "buildMode": "profile",
                       "errors": [], "contractErrors": [], "policyRestored": True,
+                      "pdfRuntime": pdf_runtime_report(),
                       "runId": "current-run", "phases": [
                           {"name": "minimize", "status": "passed"},
                           {"name": "hide", "status": "passed"}]}
@@ -230,6 +246,78 @@ class LinuxSessionTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "duplicate phase"):
                         require_linux_result(root)
                 report["phases"].pop(index)
+
+    def test_pdf_runtime_cannot_pass_with_missing_skipped_or_incomplete_evidence(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            path = root / "run-current" / "report.json"
+            path.parent.mkdir()
+            report = {"status": "passed", "platform": "linux", "buildMode": "profile",
+                      "errors": [], "contractErrors": [], "policyRestored": True,
+                      "runId": "pdf-current-run", "phases": [
+                          {"name": "minimize", "status": "passed"},
+                          {"name": "hide", "status": "passed"}]}
+            invalid = [None, {}, {"status": "notRun"}, {"status": "unsupported"}]
+            for field, value in (("status", "failed"), ("platform", "windows"),
+                                 ("bundlePathsVerified", False), ("ownedDocumentsRemaining", 1),
+                                 ("ownedTabsRemaining", 1), ("indexingActiveAfter", True)):
+                invalid.append({**pdf_runtime_report(), field: value})
+                missing = pdf_runtime_report()
+                del missing[field]
+                invalid.append(missing)
+            missing_steps = pdf_runtime_report()
+            del missing_steps["steps"]
+            invalid.append(missing_steps)
+            invalid.append({**pdf_runtime_report(), "steps": []})
+            for name in pdf_runtime_report()["steps"]:
+                missing_step = pdf_runtime_report()
+                del missing_step["steps"][name]
+                invalid.append(missing_step)
+                for status in ("notRun", "failed"):
+                    failed_step = pdf_runtime_report()
+                    failed_step["steps"][name]["status"] = status
+                    invalid.append(failed_step)
+            for pdf in invalid:
+                report["pdfRuntime"] = pdf
+                path.write_text(json.dumps({"installedPluginProbe": report}))
+                with self.subTest(pdf=pdf), self.assertRaisesRegex(RuntimeError, "PDF runtime"):
+                    require_linux_result(root)
+
+
+class StoreSourceFetchTest(unittest.TestCase):
+    def fetch_with(self, failures):
+        calls = []
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        def urlopen(url, timeout):
+            calls.append(url)
+            if len(calls) <= len(failures):
+                raise failures[len(calls) - 1]
+            return Response(b"source")
+
+        with mock.patch.object(store_source.urllib.request, "urlopen", urlopen), \
+                mock.patch.object(store_source.time, "sleep"):
+            return store_source.fetch("https://example.invalid/a"), len(calls)
+
+    @staticmethod
+    def http(code):
+        return urllib.error.HTTPError("https://example.invalid/a", code, "busy", {}, None)
+
+    def test_retries_server_and_network_errors(self):
+        self.assertEqual(self.fetch_with([self.http(503), ConnectionResetError()]),
+                         (b"source", 3))
+
+    def test_client_errors_and_persistent_failures_are_raised(self):
+        with self.assertRaises(urllib.error.HTTPError):
+            self.fetch_with([self.http(404)])
+        with self.assertRaises(urllib.error.HTTPError):
+            self.fetch_with([self.http(503)] * 3)
 
 
 if __name__ == "__main__":

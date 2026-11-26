@@ -70,10 +70,9 @@ Future<void> main() async {
     test('^ ו-\$ מעוגנים לשורת הטקסט, לא לעמוד', () {
       const text = 'ויאמר משה\nויאמר אהרן\r\nאמר משה';
       List<String?> found(String raw, [int start = 0]) =>
-          PdfUserRegexPattern.tryParse(raw)!
-              .allMatches(text, start)
-              .map((m) => m.group(0))
-              .toList();
+          PdfUserRegexPattern.tryParse(
+            raw,
+          )!.allMatches(text, start).map((m) => m.group(0)).toList();
       expect(found('/^ויאמר/'), ['ויאמר', 'ויאמר']);
       expect(found(r'/משה$/'), ['משה', 'משה']);
       expect(found(r'/^ויאמר \S+$/'), ['ויאמר משה', 'ויאמר אהרן']);
@@ -84,6 +83,12 @@ Future<void> main() async {
         PdfUserRegexPattern.tryParse('/^ויאמר/')!.matchAsPrefix(text, 10),
         isNotNull,
       );
+    });
+
+    test('רגקס ללא עוגן שורה יכול להתאים על פני שתי שורות', () {
+      const text = '😀 ויאמר מֹשֶׁה אל העם\r\nאל תיראו התיצבו';
+      final pattern = PdfUserRegexPattern.tryParse('/משה .* תיראו/')!;
+      expect(pattern.stringMatch(text), 'מֹשֶׁה אל העם\r\nאל תיראו');
     });
 
     test('allMatches עצל ועוצר בשורה המתאימה הראשונה', () {
@@ -147,9 +152,9 @@ Future<void> main() async {
 
     test('pdfrx מקבל את התבנית ומחזיר טווחים בעמוד', () async {
       const text = 'אמר שמע בני ישראל';
-      final ranges = await page(text)
-          .allMatches(PdfUserRegexPattern.tryParse(r'/שמע \S+ ישראל/')!)
-          .toList();
+      final ranges = await page(
+        text,
+      ).allMatches(PdfUserRegexPattern.tryParse(r'/שמע \S+ ישראל/')!).toList();
       expect(ranges.map((r) => (r.start, r.end)), [(4, text.length)]);
     });
   }, skip: ready ? false : searchEngineSkipReason);

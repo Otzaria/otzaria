@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "activation_gate.h"
 #include "crash_record.h"
 #include "flutter_window.h"
 #include "jump_list_manager.h"
@@ -19,6 +20,7 @@
 #include "hang_monitor.h"
 #include "startup_watchdog.h"
 #include "utils.h"
+#include "webview_backend.h"
 
 static const wchar_t* kSingleInstanceMutexName = L"OtzariaAppSingleInstance";
 static const wchar_t* kFlutterWindowClassName = L"FLUTTER_RUNNER_WIN32_WINDOW";
@@ -87,6 +89,21 @@ static std::wstring DataRootOfWindowProcess(HWND hwnd) {
   if (!ok) return std::wstring();
   std::wstring dir(image, size);
   return DataRootForExeDir(dir.substr(0, dir.find_last_of(L"\\/")));
+}
+
+// מספר הבנייה האמיתי של Windows, או 0 אם לא ידוע. GetVersionEx כפופה
+// למניפסט ומסומנת deprecated; RtlGetVersion מחזירה את הגרסה בפועל.
+static unsigned long WindowsBuildNumber() {
+  using RtlGetVersionFn = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
+  const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+  const auto rtl_get_version =
+      ntdll ? reinterpret_cast<RtlGetVersionFn>(
+                  ::GetProcAddress(ntdll, "RtlGetVersion"))
+            : nullptr;
+  RTL_OSVERSIONINFOW info{};
+  info.dwOSVersionInfoSize = sizeof(info);
+  if (!rtl_get_version || rtl_get_version(&info) != 0) return 0;
+  return info.dwBuildNumber;
 }
 
 static bool SameDataRoot(const std::wstring& a, const std::wstring& b) {
@@ -323,31 +340,6 @@ static void BringWindowToFront(HWND hwnd) {
   SetForegroundWindow(hwnd);
 }
 
-namespace {
-
-HHOOK g_activation_hook = nullptr;
-
-// חוסם הפעלה תוכניתית שגוזלת מהמשתמש את החלון שהרגע בחר.
-//
-// ⚠️ `WH_CBT` הוא המקום היחיד שמאפשר **לסרב** להפעלה, והוא רץ סינכרונית
-// בהקשר של הקורא — כלומר גם על הפעלה שמגיעה מתוך מנוע Flutter ולא דרך
-// לולאת ההודעות שלנו. ראו [Win32Window::ShouldVetoActivation] להסבר
-// מלא על מה שנמדד.
-LRESULT CALLBACK ActivationGuardProc(int code, WPARAM wparam, LPARAM lparam) {
-  if (code == HCBT_ACTIVATE &&
-      Win32Window::ShouldVetoActivation(reinterpret_cast<HWND>(wparam))) {
-    return 1;  // מסרב להפעלה.
-  }
-  return ::CallNextHookEx(g_activation_hook, code, wparam, lparam);
-}
-
-void InstallActivationGuard() {
-  g_activation_hook = ::SetWindowsHookExW(WH_CBT, ActivationGuardProc, nullptr,
-                                          ::GetCurrentThreadId());
-}
-
-}  // namespace
-
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t* command_line, _In_ int show_command) {
   crash_record::Install();
@@ -432,8 +424,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   flutter::DartProject project(L"data");
-  // ב-RDP שיתוף ה-D3D surface של ה-composition נכשל (מסך ריק בתוספים); כופים HWND.
-  if (::GetSystemMetrics(SM_REMOTESESSION) &&
+  // מתי כופים HWND על WebView של התוספים — ראו webview_backend.h.
+  if (otzaria::ShouldForceHwndWebView(::GetSystemMetrics(SM_REMOTESESSION) != 0,
+                                      WindowsBuildNumber()) &&
       ::GetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND",
                                 nullptr, 0) == 0) {
     ::SetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND", L"1");
@@ -486,7 +479,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     if (!is_cli_invocation) hang_monitor::SetMainWindow(main_hwnd);
   }
 
-  InstallActivationGuard();
+  const HHOOK focus_guard = otzaria::InstallViewFocusGuard();
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
@@ -506,6 +499,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::TranslateMessage(&msg);
     ::DispatchMessage(&msg);
   }
+  if (focus_guard) ::UnhookWindowsHookEx(focus_guard);
 
   // ⚠️ מאפיין חלון שלא הוסר לפני ההריסה נחשב דליפה על ידי Windows
   // (`DestroyWindow` מדווח עליו ב-debug heap). המסלול הרגיל יוצא ב-

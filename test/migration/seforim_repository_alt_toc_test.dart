@@ -242,4 +242,82 @@ void main() {
       );
     });
   });
+
+  // issue #5748 — "טור או"ח שח ו": לטור אין כינוי "טור אורח חיים", והחלק מגיע
+  // בראשי תיבות.
+  group('ראשי תיבות של החלק בסעיפי השולחן ערוך שבטור', () {
+    Future<int> buildTurSeifim() async {
+      final catId = await repository.insertCategory(
+        const Category(title: 'הלכה', parentId: null, level: 0),
+      );
+      final bookId = await repository.insertExternalContentBook(
+        categoryId: catId,
+        title: 'טור',
+        filePath: '/tmp/tur.txt',
+        fileType: 'txt',
+        fileSize: 0,
+        lastModified: 0,
+        isPersonal: false,
+      );
+      final db = await database.database;
+      db.execute(
+        'INSERT INTO alt_toc_structure (bookId, key, title) '
+        "VALUES (?, 'ShulchanArukhSeifim', 'סעיפי שולחן ערוך')",
+        [bookId],
+      );
+      final structureId = db.lastInsertRowId;
+      int? add(String text, int level, int? parentId) {
+        db.execute('INSERT OR IGNORE INTO tocText (text) VALUES (?)', [text]);
+        final textId = db.select('SELECT id FROM tocText WHERE text = ?', [
+          text,
+        ]).single['id'];
+        db.execute(
+          'INSERT INTO alt_toc_entry (structureId, parentId, textId, level) '
+          'VALUES (?, ?, ?, ?)',
+          [structureId, parentId, textId, level],
+        );
+        return db.lastInsertRowId;
+      }
+
+      for (final part in ['אורח חיים', 'חושן משפט']) {
+        final root = add(part, 0, null);
+        add('סעיף ו', 2, add('סימן שח', 1, root));
+        add('סעיף א', 2, add('סימן א', 1, root));
+        add('סעיף א', 2, add('סימן ב', 1, root));
+      }
+      return bookId;
+    }
+
+    Future<List<Object?>> references(int bookId, List<String> tokens) async =>
+        (await repository.getAltTocEntriesForReference(
+          bookId,
+          'טור',
+          queryTokens: tokens,
+        )).map((r) => r['reference']).toList();
+
+    for (final withIndex in [false, true]) {
+      test(withIndex ? 'מהקאש הגלובלי' : 'מהבנייה הפר-ספר', () async {
+        final bookId = await buildTurSeifim();
+        if (withIndex) {
+          final build = repository.beginAltTocFlatIndex();
+          while (!await build.step()) {}
+          repository.attachAltTocIndex(build.index);
+        }
+
+        expect(await references(bookId, ['אוח', 'שח', 'ו']), [
+          'אורח חיים סימן שח סעיף ו',
+        ]);
+        expect(await references(bookId, ['שח', 'ו']), hasLength(2));
+        for (final tokens in [
+          ['אוח', 'א', 'א'],
+          ['אוח', 'סימן', 'א', 'סעיף', 'א'],
+          ['אורח', 'חיים', 'א', 'א'],
+        ]) {
+          expect(await references(bookId, tokens), [
+            'אורח חיים סימן א סעיף א',
+          ]);
+        }
+      });
+    }
+  });
 }

@@ -1,0 +1,123 @@
+name: PDF file export (Windows and macOS)
+
+on:
+  pull_request:
+    paths:
+      - 'lib/printing/**'
+      - 'lib/utils/file/atomic_file_publication.dart'
+      - 'lib/utils/file/file_publication_permissions.dart'
+      - 'lib/utils/file/file_publication_rename.dart'
+      - 'lib/utils/file/desktop_save_target.dart'
+      - 'lib/utils/file/save_target_name.dart'
+      - 'lib/utils/file/file_picker_dialog_options.dart'
+      - 'lib/plugins/bridge/plugin_save_target.dart'
+      - 'lib/plugins/bridge/plugin_bridge_adapter.dart'
+      - 'lib/utils/file/mobile_pdf_export_*.dart'
+      - 'test/plugins/bridge/plugin_bridge_ui_print_test.dart'
+      - 'test/printing/pdf_export_cancellation_test.dart'
+      - 'test/printing/pdf_file_*_test.dart'
+      - 'test/printing/print_pdf_*_test.dart'
+      - 'test/printing/pdf_sheet_*_test.dart'
+      - 'test/printing/printing_screen_file_export_test.dart'
+      - 'test/printing/printing_screen_mobile_export_test.dart'
+      - 'test/utils/file/atomic_file_publication_test.dart'
+      - 'test/utils/file/desktop_save_target_test.dart'
+      - 'test/utils/file/save_target_name_test.dart'
+      - 'test/utils/file/mobile_pdf_export_*_test.dart'
+      - 'test/helpers/printing_raster_idle.dart'
+      - 'fonts/Tinos-Regular.ttf'
+      - 'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/pdf_file_export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-file-export-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci_gate.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  export:
+    name: Native PDF files / ${{ matrix.platform }}
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            runner: windows-2025
+          - platform: macos
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      BOT: 'true'
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DART_SUPPRESS_ANALYTICS: 'true'
+      OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
+      CARGO_BUILD_JOBS: '2'
+      OTZARIA_MOBILE_PDF_UI_ARTIFACT_DIR: mobile-pdf-ui
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Allow long dependency paths on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: git config --global core.longpaths true
+      - name: Resolve the locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Record the actual Flutter SDK
+        run: flutter --version --machine > pdf-file-export-flutter.json
+      - name: Record the tested source and tree
+        run: git rev-parse HEAD 'HEAD^{tree}' > pdf-file-export-source.txt
+      - name: Test file ownership, publication, native content and export UI
+        timeout-minutes: 25
+        run: >-
+          flutter test --no-pub --concurrency=1 --reporter expanded
+          --file-reporter json:pdf-file-export-tests.jsonl
+          test/plugins/bridge/plugin_bridge_ui_print_test.dart
+          test/printing/pdf_export_cancellation_test.dart
+          test/printing/pdf_file_cleanup_test.dart
+          test/printing/pdf_file_stream_test.dart
+          test/printing/print_pdf_file_cache_test.dart
+          test/printing/print_pdf_source_io_test.dart
+          test/printing/pdf_file_native_test.dart
+          test/printing/print_pdf_source_test.dart
+          test/printing/pdf_sheet_composer_test.dart
+          test/printing/pdf_sheet_file_output_test.dart
+          test/printing/printing_screen_file_export_test.dart
+          test/printing/printing_screen_mobile_export_test.dart
+          test/utils/file/atomic_file_publication_test.dart
+          test/utils/file/desktop_save_target_test.dart
+          test/utils/file/save_target_name_test.dart
+          test/utils/file/mobile_pdf_export_core_test.dart
+          test/utils/file/mobile_pdf_export_models_test.dart
+          test/utils/file/mobile_pdf_export_service_test.dart
+      - name: Preserve test results and toolchain identity
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: pdf-file-export-${{ matrix.platform }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            pdf-file-export-flutter.json
+            pdf-file-export-source.txt
+            pdf-file-export-tests.jsonl
+            mobile-pdf-ui/*.png

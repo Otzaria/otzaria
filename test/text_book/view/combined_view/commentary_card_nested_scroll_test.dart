@@ -557,7 +557,6 @@ TextBookLoaded _loadedState({
     visibleIndices: [cardLine],
     selectedIndex: cardLine,
     selectedIndices: {cardLine},
-    pinLeftPane: false,
     searchText: '',
   );
 }

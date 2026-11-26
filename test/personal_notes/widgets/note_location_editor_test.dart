@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -5,6 +6,7 @@ import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/personal_notes/utils/note_location_edit.dart';
 import 'package:otzaria/personal_notes/widgets/note_location_editor.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 const _lines = [
   'שורה ראשונה',
@@ -108,5 +110,17 @@ void main() {
     await tester.pump();
     expect(edit.scope, PersonalNoteScope.book);
     expect(edit.changed, isFalse);
+  });
+
+  testWidgets('אייקוני ההיקף: מילים, שורות וכל הספר', (tester) async {
+    final edit = NoteLocationEdit.of(_note('יהי'), _lines)!;
+    await _pump(tester, edit);
+
+    expect(find.byIcon(FluentIcons.text_underline_24_regular), findsOneWidget);
+    expect(
+      find.byIcon(OtzariaIcons.text_first_line_24_regular),
+      findsOneWidget,
+    );
+    expect(find.byIcon(FluentIcons.book_open_24_regular), findsOneWidget);
   });
 }

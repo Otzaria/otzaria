@@ -155,12 +155,16 @@ class ReadingExtentEstimates {
       }
       debugCountedLines += cursor;
       if (full) {
-        replacedAll = true;
+        final previousMean = _unloadedLineChars;
+        final sameCounts = _sameCounts(_counts, result.counts);
         _counts = result.counts;
         // שחרור תוכן בלבד לא משנה את ברירת המחדל שנקבעה לפני החימום.
         if (meanMayChange) {
           _unloadedLineChars = known == 0 ? 200 : chars / known;
         }
+        // בלי שינוי בהערכות לא מדווחים: ריענון מלא מבטל מדידות של פריטים שלא נבנו.
+        if (sameCounts && _unloadedLineChars == previousMean) continue;
+        replacedAll = true;
       }
       applied.addAll(ranges);
     }
@@ -229,6 +233,14 @@ typedef _CountChunk = ({List<String> lines, List<bool>? loaded});
 typedef _CountResult = ({Int32List counts, int chars, int loaded});
 
 final _countWorkers = ReadingExtentWorkerQueue();
+
+bool _sameCounts(Int32List a, Int32List b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
 
 bool _rawCharactersExceed(List<_CountChunk> chunks, int limit) {
   var total = 0;

@@ -95,7 +95,13 @@ $armed = ([datetime]'2026-11-06T18:00:00Z').ToUniversalTime()
 $boot = $armed.AddSeconds(2)
 $micros = [long](($boot.Ticks - [datetime]::UnixEpoch.Ticks) / 10)
 function New-Report {
-    return @{ pid = 42; runId = "42-$micros"; platform = 'windows'; buildMode = 'profile'; status = 'passed'; errors = @(); testFailures = @() }
+    $steps = @{}
+    foreach ($name in @('view', 'concurrentWork', 'desktopLifecycle', 'repeatedLifecycle', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
+        $steps[$name] = @{ status = 'passed' }
+    }
+    return @{ pid = 42; runId = "42-$micros"; platform = 'windows'; buildMode = 'profile'; status = 'passed'; errors = @(); testFailures = @()
+        pdfRuntime = @{ platform = 'windows'; status = 'passed'; steps = $steps; bundlePathsVerified = $true
+            ownedDocumentsRemaining = 0; ownedTabsRemaining = 0; indexingActiveAfter = $false } }
 }
 function New-Trace {
     return @{
@@ -304,6 +310,26 @@ $trace.events[0].nativeIdentity.exitStatus = 0
 $zero = Get-InstalledPluginExitEvidence $trace (New-Report)
 Assert-Equal 0 $zero.exitStatus 'An actually observed zero remains zero'
 Assert-Equal 0 (Get-InstalledPluginRunExitCode 0 (New-Report) $zero) 'Driver, report and observed normal native exit can pass'
+foreach ($pdf in @($null, @{}, @{ status = 'notRun' })) {
+    $report = New-Report; $report.pdfRuntime = $pdf
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $zero) 'Missing or skipped PDF runtime cannot pass a Windows bundle run'
+}
+$pdfFailures = @{ status = 'failed'; platform = 'linux'; bundlePathsVerified = $false
+    ownedDocumentsRemaining = 1; ownedTabsRemaining = 1; indexingActiveAfter = $true }
+foreach ($key in $pdfFailures.Keys) {
+    $report = New-Report; $report.pdfRuntime[$key] = $pdfFailures[$key]
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $zero) "Invalid PDF $key cannot pass"
+    $report.pdfRuntime.Remove($key)
+    Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $zero) "Missing PDF $key cannot pass"
+}
+foreach ($name in @('view', 'concurrentWork', 'desktopLifecycle', 'repeatedLifecycle', 'cancelAndRecover', 'reopen', 'loadedModules', 'teardown')) {
+    foreach ($status in @($null, 'notRun', 'unsupported', 'running', 'failed')) {
+        $report = New-Report
+        if ($null -eq $status) { $report.pdfRuntime.steps.Remove($name) }
+        else { $report.pdfRuntime.steps[$name].status = $status }
+        Assert-Equal 1 (Get-InstalledPluginRunExitCode 0 $report $zero) "PDF phase $name with $status cannot pass"
+    }
+}
 $trace.events[1].exitStatus = [uint32]::MaxValue
 $trace.events[0].nativeIdentity.exitStatus = [uint32]::MaxValue
 $teardown = Get-InstalledPluginExitEvidence $trace (New-Report)

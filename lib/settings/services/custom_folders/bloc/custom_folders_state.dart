@@ -43,6 +43,7 @@ class CustomFoldersState extends Equatable {
     this.error,
     this.completedScan,
     this.importFiles = const [],
+    this.hasUserContent = false,
   });
 
   final List<CustomFolder> folders;
@@ -50,6 +51,9 @@ class CustomFoldersState extends Equatable {
 
   /// קובצי הייבוא השמורים, לניהול בהגדרות. ריק עד שנטענו.
   final List<UserImportFile> importFiles;
+
+  /// האם יש נתונים מיובאים ש"נקה הכל" ימחק. false עד שנטענו.
+  final bool hasUserContent;
 
   /// תוצאת הסריקה האחרונה שהתבקשה עם `requestId`. מתאפסת בתחילת כל סריקה
   /// חדשה, כדי שתוצאה ישנה לא תיקלט כתשובה לבקשה אחרת.
@@ -71,6 +75,7 @@ class CustomFoldersState extends Equatable {
     Object? error = _sentinel,
     Object? completedScan = _sentinel,
     List<UserImportFile>? importFiles,
+    bool? hasUserContent,
   }) {
     final newSyncing = isSyncing ?? this.isSyncing;
     return CustomFoldersState(
@@ -78,6 +83,7 @@ class CustomFoldersState extends Equatable {
           ? this.completedScan
           : completedScan as CustomFoldersScanOutcome?,
       importFiles: importFiles ?? this.importFiles,
+      hasUserContent: hasUserContent ?? this.hasUserContent,
       folders: folders ?? this.folders,
       isSyncing: newSyncing,
       // כשהסנכרון מסתיים אין תיקייה פעילה — מאפסים כדי שהספינר ייעלם מכולן.
@@ -102,6 +108,7 @@ class CustomFoldersState extends Equatable {
     error,
     completedScan,
     importFiles,
+    hasUserContent,
   ];
 }
 

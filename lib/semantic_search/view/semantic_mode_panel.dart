@@ -11,6 +11,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -25,6 +26,7 @@ class SemanticModePanel extends StatelessWidget {
     this.queryTrailingAction,
     required this.scopeSelection,
     required this.onScopeChanged,
+    this.coveredBookFilePaths,
     required this.includeLexical,
     required this.onIncludeLexicalChanged,
     required this.groupIdenticalText,
@@ -44,7 +46,10 @@ class SemanticModePanel extends StatelessWidget {
   /// פעולה בסוף שדה השאילתה (היסטוריית החיפושים).
   final Widget? queryTrailingAction;
   final Set<String> scopeSelection;
-  final ValueChanged<Set<String>> onScopeChanged;
+
+  /// `null` בחיפוש בתוך ספר, שבו ההיקף הוא הספר ואין בורר.
+  final ValueChanged<Set<String>>? onScopeChanged;
+  final Set<String>? coveredBookFilePaths;
   final bool includeLexical;
   final ValueChanged<bool> onIncludeLexicalChanged;
   final bool groupIdenticalText;
@@ -308,6 +313,11 @@ class SemanticModePanel extends StatelessWidget {
                   buttonKey: const ValueKey('semantic-query-clear'),
                   controller: queryController,
                 ),
+                OtzariaSearchAction.icon(
+                  iconData: FluentIcons.info_24_regular,
+                  tooltip: context.settingsText('איך לנסח שאלה לחיפוש החכם'),
+                  onPressed: () => _showQueryHelp(context),
+                ),
                 ?queryTrailingAction,
               ],
             ),
@@ -322,12 +332,14 @@ class SemanticModePanel extends StatelessWidget {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SearchScopeMenuButton(
-                key: ValueKey(includeLexical),
-                selected: scopeSelection,
-                officialBooksOnly: !includeLexical,
-                onChanged: onScopeChanged,
-              ),
+              if (onScopeChanged case final onScopeChanged?)
+                SearchScopeMenuButton(
+                  key: ValueKey(includeLexical),
+                  selected: scopeSelection,
+                  officialBooksOnly: !includeLexical,
+                  coveredFilePaths: coveredBookFilePaths,
+                  onChanged: onScopeChanged,
+                ),
               FilterChip(
                 key: const ValueKey('semantic-include-lexical'),
                 label: Text(context.settingsText('שלב גם התאמה מילולית')),
@@ -356,6 +368,23 @@ class SemanticModePanel extends StatelessWidget {
       ],
     );
   }
+}
+
+/// הסבר על ניסוח שאלה טובה (#3170): המלצה בלבד, שאילתה קצרה עדיין מותרת.
+void _showQueryHelp(BuildContext context) {
+  showSingleActionDialog(
+    context: context,
+    icon: AppDialogIcons.info,
+    title: context.settingsText('איך לנסח שאלה לחיפוש החכם'),
+    content: context.settingsText(
+      'החיפוש החכם מחפש לפי המשמעות, ולא לפי המילים המדויקות.\n\n'
+      '• תארו את העניין במילים שלכם, ולא כפי שאתם משערים שהוא כתוב בספרים.\n'
+      '• ציינו את ההקשר והנסיבות: מי, מתי, באיזה מצב.\n'
+      '• הוסיפו פרטים רלוונטיים כדי להסביר את השאלה. גם שאילתה קצרה מותרת.\n\n'
+      'דוגמה: "אדם ששכח לברך ברכת המזון ונזכר רק אחרי שיצא מהבית שבו אכל, '
+      'האם עליו לחזור למקום שאכל בו או שאפשר לברך במקום שהוא נמצא בו?"',
+    ),
+  );
 }
 
 /// המלצה לצמצם את ההיקף, כשהחיפוש רץ על כל הספרייה.

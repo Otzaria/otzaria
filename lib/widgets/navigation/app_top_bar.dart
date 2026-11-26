@@ -4,7 +4,9 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerDownEvent;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -42,14 +44,47 @@ typedef AppTopBarItemsBuilder =
 class AppTopBarScope extends StatelessWidget {
   final AppTopBarItemsBuilder? leading;
   final AppTopBarItemsBuilder? trailing;
+
+  /// כשמוגדר, הסרגלים שמתחת לא תופסים גובה ומוצגים מעל התוכן רק בריחוף
+  /// בראשם או במיקוד מקלדת. null יורש מה-scope החיצוני.
+  final bool? autoHide;
+
+  /// נקרא כשחלונית פעילה עוברת להסתרה, עם ה-context שלה.
+  final ValueSetter<BuildContext>? onAutoHideEntered;
   final Widget child;
 
   const AppTopBarScope({
     super.key,
     this.leading,
     this.trailing,
+    this.autoHide,
+    this.onAutoHideEntered,
     required this.child,
   });
+
+  static ValueSetter<BuildContext>? _onAutoHideEnteredOf(BuildContext context) {
+    for (
+      _AppTopBarScopeData? s = context
+          .getInheritedWidgetOfExactType<_AppTopBarScopeData>();
+      s != null;
+      s = s.parent
+    ) {
+      if (s.onAutoHideEntered != null) return s.onAutoHideEntered;
+    }
+    return null;
+  }
+
+  static bool _autoHideOf(BuildContext context) {
+    for (
+      _AppTopBarScopeData? s = context
+          .dependOnInheritedWidgetOfExactType<_AppTopBarScopeData>();
+      s != null;
+      s = s.parent
+    ) {
+      if (s.autoHide != null) return s.autoHide!;
+    }
+    return false;
+  }
 
   static List<AppTopBarItem> _collect(
     BuildContext context,
@@ -79,6 +114,8 @@ class AppTopBarScope extends StatelessWidget {
       parent: context.dependOnInheritedWidgetOfExactType<_AppTopBarScopeData>(),
       leading: leading,
       trailing: trailing,
+      autoHide: autoHide,
+      onAutoHideEntered: onAutoHideEntered,
       child: child,
     );
   }
@@ -88,11 +125,15 @@ class _AppTopBarScopeData extends InheritedWidget {
   final _AppTopBarScopeData? parent;
   final AppTopBarItemsBuilder? leading;
   final AppTopBarItemsBuilder? trailing;
+  final bool? autoHide;
+  final ValueSetter<BuildContext>? onAutoHideEntered;
 
   const _AppTopBarScopeData({
     required this.parent,
     required this.leading,
     required this.trailing,
+    required this.autoHide,
+    required this.onAutoHideEntered,
     required super.child,
   });
 
@@ -100,7 +141,8 @@ class _AppTopBarScopeData extends InheritedWidget {
   bool updateShouldNotify(_AppTopBarScopeData oldWidget) =>
       parent != oldWidget.parent ||
       leading != oldWidget.leading ||
-      trailing != oldWidget.trailing;
+      trailing != oldWidget.trailing ||
+      autoHide != oldWidget.autoHide;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -485,6 +527,263 @@ class _AppTopBarState extends State<AppTopBar>
       ],
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  AppTopBarLayout
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// פס הרגישות בראש החלונית שמציג את הסרגל המוסתר.
+const double _kAutoHideRevealStrip = 8.0;
+const Duration _kAutoHideDelay = Duration(milliseconds: 600);
+const Duration _kAutoHideInitialDelay = Duration(milliseconds: 1500);
+const Duration _kAutoHideTouchDelay = Duration(seconds: 3);
+const Duration _kAutoHideAnimDuration = Duration(milliseconds: 150);
+
+/// חלונית קריאה כמו Column: הילד הראשון הוא הסרגל העליון, והשאר מתחתיו.
+///
+/// כש-[AppTopBarScope.autoHide] פעיל (מסך מלא), הסרגל לא תופס גובה: הוא
+/// מצויר מעל ראש התוכן ומוצג בריחוף בראש החלונית או כשהמיקוד בתוכו.
+class AppTopBarLayout extends StatefulWidget {
+  final List<Widget> children;
+
+  const AppTopBarLayout({super.key, required this.children})
+    : assert(children.length > 1);
+
+  @override
+  State<AppTopBarLayout> createState() => _AppTopBarLayoutState();
+}
+
+enum _TopBarLayoutSlot { body, bar }
+
+class _AppTopBarLayoutState extends State<AppTopBarLayout>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _reveal = AnimationController(
+    vsync: this,
+    duration: _kAutoHideAnimDuration,
+    value: 1.0,
+  );
+  final FocusNode _barFocus = FocusNode(
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+  Timer? _hideTimer;
+  bool _hovering = false;
+  bool? _autoHide;
+  bool _entryPending = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reveal.duration = AppMotion.duration(context, _kAutoHideAnimDuration);
+    final autoHide = AppTopBarScope._autoHideOf(context);
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (autoHide != _autoHide) {
+      _autoHide = autoHide;
+      _entryPending = autoHide;
+      _hideTimer?.cancel();
+      _reveal.value = autoHide ? 0.0 : 1.0;
+    }
+    // קורא שנטען ברקע נכנס להסתרה כשהוא מוצג, ולא כשהמסך המלא התחיל.
+    if (_entryPending && visible) {
+      _entryPending = false;
+      // מוצג לרגע בכניסה, כדי שיהיה ברור לאן הסרגל נעלם.
+      _reveal.value = 1.0;
+      _scheduleHide(_kAutoHideInitialDelay);
+      AppTopBarScope._onAutoHideEnteredOf(context)?.call(context);
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _reveal.dispose();
+    _barFocus.dispose();
+    super.dispose();
+  }
+
+  void _show() {
+    _hideTimer?.cancel();
+    _reveal.forward();
+  }
+
+  void _scheduleHide(Duration delay) {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(delay, _hideIfIdle);
+  }
+
+  void _hideIfIdle() {
+    if (!mounted || _autoHide != true || _hovering || _barFocus.hasFocus) {
+      return;
+    }
+    // תפריט או דיאלוג שנפתחו מהסרגל: מחכים שייסגרו.
+    if (!(ModalRoute.isCurrentOf(context) ?? true)) {
+      _scheduleHide(_kAutoHideDelay);
+      return;
+    }
+    _reveal.reverse();
+  }
+
+  void _onHover(bool hovering) {
+    _hovering = hovering;
+    if (_autoHide != true) return;
+    hovering ? _show() : _scheduleHide(_kAutoHideDelay);
+  }
+
+  void _onFocusChange(bool hasFocus) {
+    if (_autoHide != true) return;
+    hasFocus ? _show() : _scheduleHide(_kAutoHideDelay);
+  }
+
+  void _onRevealStripPointerDown(PointerDownEvent event) {
+    if (_autoHide != true || event.kind != PointerDeviceKind.touch) return;
+    _show();
+    _scheduleHide(_kAutoHideTouchDelay);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final autoHide = _autoHide!;
+    // סדר הילדים קבוע: מעבר למסך מלא משנה רק את המיקומים ואת סדר הציור,
+    // בלי להעביר צמתים בעץ.
+    return _TopBarMultiChildLayout(
+      delegate: _TopBarLayoutDelegate(overlayBar: autoHide),
+      children: [
+        LayoutId(
+          id: _TopBarLayoutSlot.body,
+          // קורא המסך מקריא את הסרגל קודם גם כשהוא מצויר מעל התוכן.
+          child: Semantics(
+            container: true,
+            sortKey: const OrdinalSortKey(1),
+            child: Column(children: widget.children.sublist(1)),
+          ),
+        ),
+        LayoutId(
+          id: _TopBarLayoutSlot.bar,
+          child: Semantics(
+            container: true,
+            sortKey: const OrdinalSortKey(0),
+            child: MouseRegion(
+              hitTestBehavior: HitTestBehavior.translucent,
+              onEnter: (_) => _onHover(true),
+              onExit: (_) => _onHover(false),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AnimatedBuilder(
+                    animation: _reveal,
+                    builder: (context, child) {
+                      final t = autoHide
+                          ? Curves.easeOut.transform(_reveal.value)
+                          : 1.0;
+                      // מעל התוכן הצל שמתחת לסרגל מפריד ביניהם; הוא נעלם עם הסרגל.
+                      return ClipRect(
+                        clipper: _RevealClipper(_kShadowReach * t),
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          heightFactor: t,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Focus(
+                      focusNode: _barFocus,
+                      includeSemantics: false,
+                      onFocusChange: _onFocusChange,
+                      child: widget.children.first,
+                    ),
+                  ),
+                  Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: _onRevealStripPointerDown,
+                    child: SizedBox(
+                      height: autoHide ? _kAutoHideRevealStrip : 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// חותך מעל הסרגל ומשאיר מתחתיו [below] לצל.
+class _RevealClipper extends CustomClipper<Rect> {
+  final double below;
+
+  const _RevealClipper(this.below);
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(
+    -_kShadowReach,
+    0,
+    size.width + _kShadowReach,
+    size.height + below,
+  );
+
+  @override
+  bool shouldReclip(_RevealClipper oldClipper) => below != oldClipper.below;
+}
+
+/// בחלון רגיל התוכן מצויר אחרי הסרגל ומכסה את צלו, כמו ב-Column.
+class _TopBarMultiChildLayout extends CustomMultiChildLayout {
+  const _TopBarMultiChildLayout({
+    required _TopBarLayoutDelegate super.delegate,
+    super.children,
+  });
+
+  @override
+  RenderCustomMultiChildLayoutBox createRenderObject(BuildContext context) =>
+      _RenderTopBarLayout(delegate: delegate);
+}
+
+class _RenderTopBarLayout extends RenderCustomMultiChildLayoutBox {
+  _RenderTopBarLayout({required super.delegate});
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if ((delegate as _TopBarLayoutDelegate).overlayBar) {
+      defaultPaint(context, offset);
+      return;
+    }
+    for (var child = lastChild; child != null; child = childBefore(child)) {
+      final data = child.parentData! as MultiChildLayoutParentData;
+      context.paintChild(child, data.offset + offset);
+    }
+  }
+}
+
+class _TopBarLayoutDelegate extends MultiChildLayoutDelegate {
+  final bool overlayBar;
+
+  _TopBarLayoutDelegate({required this.overlayBar});
+
+  @override
+  void performLayout(Size size) {
+    final barSize = layoutChild(
+      _TopBarLayoutSlot.bar,
+      BoxConstraints(
+        minWidth: size.width,
+        maxWidth: size.width,
+        maxHeight: size.height,
+      ),
+    );
+    positionChild(_TopBarLayoutSlot.bar, Offset.zero);
+    final top = overlayBar ? 0.0 : barSize.height;
+    layoutChild(
+      _TopBarLayoutSlot.body,
+      BoxConstraints.tight(Size(size.width, math.max(0, size.height - top))),
+    );
+    positionChild(_TopBarLayoutSlot.body, Offset(0, top));
+  }
+
+  @override
+  bool shouldRelayout(_TopBarLayoutDelegate oldDelegate) =>
+      overlayBar != oldDelegate.overlayBar;
 }
 
 enum _AdaptiveTopBarSlot {

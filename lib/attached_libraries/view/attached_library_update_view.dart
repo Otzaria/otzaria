@@ -8,6 +8,19 @@ import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 
+/// תגית "רשמי": עותק שהתוכנה הורידה ואימתה מול המפתח שבקוד.
+class OfficialLibraryChip extends StatelessWidget {
+  const OfficialLibraryChip({super.key});
+
+  @override
+  Widget build(BuildContext context) => MetaChip(
+    size: MetaChipSize.small,
+    tone: MetaChipTone.primary,
+    icon: FluentIcons.shield_checkmark_24_regular,
+    label: context.settingsText('רשמי'),
+  );
+}
+
 /// The update-source chip: none, signed with its domain, or changed.
 class AttachedUpdateSourceChip extends StatelessWidget {
   const AttachedUpdateSourceChip({super.key, required this.library});
@@ -48,12 +61,16 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
     required this.onCheck,
     required this.onInstall,
     required this.onCancel,
+    this.onInstallFull,
   });
 
   final AttachedUpdateStatus status;
   final VoidCallback onCheck;
   final void Function(AttachedUpdateOffer offer) onInstall;
   final VoidCallback onCancel;
+
+  /// הורדה מלאה של עותק רשמי שאינו תואם לגרסתו.
+  final void Function(AttachedUpdateOffer offer)? onInstallFull;
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +112,7 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
           width: 160,
           child: LinearProgressIndicator(value: status.fraction),
         ),
-        Text(_progressText(context, status), style: style),
+        Text(progressText(context, status), style: style),
         if (status.phase == AttachedUpdatePhase.download ||
             status.phase == AttachedUpdatePhase.waitingForWifi)
           ActionButton.neutral(
@@ -114,7 +131,15 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
       ],
       AttachedUpdateFailed(:final offer) => [
         Text(errorText(context, status), style: errorStyle),
-        if (offer != null)
+        if (offer != null &&
+            onInstallFull != null &&
+            status.error == AttachedUpdateError.integrityMismatch)
+          ActionButton.recommended(
+            text: context.settingsText('הורדה מלאה'),
+            icon: FluentIcons.arrow_download_24_regular,
+            onPressed: () => onInstallFull!(offer),
+          )
+        else if (offer != null)
           ActionButton.neutral(
             text: context.settingsText('עדכן'),
             icon: FluentIcons.arrow_download_24_regular,
@@ -132,7 +157,7 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
     );
   }
 
-  static String _progressText(
+  static String progressText(
     BuildContext context,
     AttachedUpdateInProgress status,
   ) => switch (status.phase) {
@@ -197,6 +222,9 @@ class AttachedLibraryUpdateRow extends StatelessWidget {
     ),
     AttachedUpdateError.verifyFailed => context.settingsText(
       'המסד החדש לא עבר את הבדיקה — המסד הקודם נשמר',
+    ),
+    AttachedUpdateError.integrityMismatch => context.settingsText(
+      'הקובץ שונה מהגרסה הרשמית — נדרשת הורדה מלאה',
     ),
     AttachedUpdateError.unknown => context.settingsText('העדכון נכשל'),
   };

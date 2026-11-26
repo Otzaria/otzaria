@@ -16,7 +16,8 @@ const String _sdkStubCore = r'''
   window.Otzaria = {
     call: function (method, payload) {
       if (_realSdk) return _realSdk.call(method, payload);
-      if (method === 'search.query' || method === 'network.fetchStream') {
+      if (method === 'search.query' || method === 'semantic.nearest' ||
+          method === 'network.fetchStream') {
         return _notReadyStream();
       }
       return Promise.reject(new Error('Otzaria SDK not ready yet'));
@@ -63,7 +64,8 @@ const String _hostShortcutsJs = r'''
   window.__otzariaMatchHostShortcut = function (e, list) {
     for (var i = 0; i < list.length; i++) {
       var s = list[i];
-      if (s.codes.indexOf(e.code) !== -1 &&
+      var keyMatches = (s.key && e.key === s.key) || s.codes.indexOf(e.code) !== -1;
+      if (keyMatches &&
           !!e.ctrlKey === !!s.ctrl && !!e.shiftKey === !!s.shift &&
           !!e.altKey === !!s.alt && !!e.metaKey === !!s.meta) {
         return s;
@@ -90,7 +92,43 @@ const String _hostShortcutsJs = r'''
     // ועדיין אפשר למנוע את פעולת ברירת המחדל לפני סיום האירוע.
     window.removeEventListener('keydown', _forwardHostShortcut);
     window.addEventListener('keydown', _forwardHostShortcut);
+    _forwardFieldTabShortcutAfterPage(e);
   }, true);
+  // קיצורי הלשוניות בשדה עריכה (#3942): ההחלטה מתקבלת רק אחרי שהאירוע סיים
+  // לעבור בדף, כך שגם מאזין שהתוסף רשם באמצע ההקשה קודם למארח. האירוע לא
+  // נחסם — כמו בשאר הקיצורים שנשארים בשדה.
+  var _fieldTabShortcutIds =
+      /^key-shortcut-(close-tab|close-all-tabs|restore-closed-tab)$/;
+  function _forwardFieldTabShortcutAfterPage(e) {
+    if (!e.isTrusted || e.repeat || !window.__otzariaIsEditableTarget(e)) return;
+    var match = window.__otzariaMatchHostShortcut(e, window.__otzariaHostShortcuts);
+    if (!match || !_fieldTabShortcutIds.test(match.id)) return;
+    var stopped = false;
+    ['stopPropagation', 'stopImmediatePropagation'].forEach(function (name) {
+      var stop = e[name];
+      e[name] = function () {
+        stopped = true;
+        return stop.apply(e, arguments);
+      };
+    });
+    var cancelBubbleDescriptor =
+        Object.getOwnPropertyDescriptor(Event.prototype, 'cancelBubble');
+    if (cancelBubbleDescriptor && cancelBubbleDescriptor.set) {
+      Object.defineProperty(e, 'cancelBubble', {
+        configurable: true,
+        get: function () { return cancelBubbleDescriptor.get.call(e); },
+        set: function (value) {
+          stopped = stopped || !!value;
+          cancelBubbleDescriptor.set.call(e, value);
+        }
+      });
+    }
+    setTimeout(function () {
+      if (stopped || e.defaultPrevented ||
+          !window.flutter_inappwebview) return;
+      window.flutter_inappwebview.callHandler('otzaria_host_shortcut', match.id);
+    }, 0);
+  }
   // שלב bubble: קיצור שהתוסף טיפל בו (preventDefault) נשאר שלו. בשדה עריכה
   // מועברים הקיצורים הקבועים וחיפוש חדש; קיצורי עריכה (Ctrl+K, Ctrl+H) נשארים.
   function _forwardHostShortcut(e) {
@@ -161,6 +199,10 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
   var _networkStreams = {};
   var _networkSequence = 0;
   var _networkEvent = '__otzaria.network.fetchStream.chunk';
+  var _semanticStreams = {};
+  var _semanticDocument = null;
+  var _semanticSequence = 0;
+  var _semanticEvent = '__otzaria.semantic.nearest.chunk';
   var rpc = function (method, payload) {
     return window.flutter_inappwebview.callHandler('otzaria_rpc', {
       method: method,
@@ -176,6 +218,11 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
   window.addEventListener(_networkEvent, function (event) {
     var detail = event.detail || {};
     var stream = _networkStreams[detail.streamId];
+    if (stream) stream.push(detail.chunk);
+  });
+  window.addEventListener(_semanticEvent, function (event) {
+    var detail = event.detail || {};
+    var stream = _semanticStreams[detail.streamId];
     if (stream) stream.push(detail.chunk);
   });
   var createRpcStream = function (method, payload, streams, streamId) {
@@ -215,6 +262,7 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
       fail: function (error) {
         if (ended) return;
         failure = error instanceof Error ? error : new Error(String(error));
+        if (method === 'semantic.nearest') queue.length = 0;
         ended = true;
         delete streams[streamId];
         flush();
@@ -224,9 +272,15 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
     var request = Object.assign({}, payload || {}, { __streamId: streamId });
     rpc(method, request).then(function (response) {
       if (!response || response.success !== true) {
-        var message = response && response.error && response.error.message;
-        session.fail(new Error(message || 'Stream failed'));
+        var error = response && response.error;
+        var failure = new Error((error && error.message) || 'Stream failed');
+        if (error && error.code) failure.code = error.code;
+        if (error && error.retryable !== undefined) failure.retryable = error.retryable;
+        session.fail(failure);
         return;
+      }
+      if (method === 'semantic.nearest' && response.data && !response.data.completed) {
+        queue.length = 0;
       }
       session.finish();
     }, session.fail);
@@ -243,6 +297,7 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
         });
       },
       return: function () {
+        if (method === 'semantic.nearest') queue.length = 0;
         if (!ended) {
           ended = true;
           delete streams[streamId];
@@ -262,6 +317,17 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
     var id = 'network_' + Date.now().toString(36) + '_' + (++_networkSequence).toString(36);
     return createRpcStream('network.fetchStream', payload, _networkStreams, id);
   };
+  var createSemanticNearestStream = function (payload) {
+    if (_semanticDocument === null) {
+      var bytes = window.crypto.getRandomValues(new Uint8Array(16));
+      _semanticDocument = Array.from(bytes, function (byte) {
+        return byte.toString(16).padStart(2, '0');
+      }).join('');
+      window.__otzariaSemanticDocument = _semanticDocument;
+    }
+    var id = 'semantic_' + _semanticDocument + '_' + (++_semanticSequence);
+    return createRpcStream('semantic.nearest', payload, _semanticStreams, id);
+  };
   // בתוך ה-boot רק נרשמת, והמארח מחיל את כולן לפי הסדר לפני מסירת אירועים.
   var recordBootEventOptions = function (request) {
     _bootEventOptions.push(request);
@@ -271,6 +337,7 @@ ${fontFaceJson == null ? '' : _fontFaceJs(fontFaceJson)}  var _ls = {};
     call: function (method, payload) {
       if (method === 'search.query') return createSearchStream(payload);
       if (method === 'network.fetchStream') return createNetworkFetchStream(payload);
+      if (method === 'semantic.nearest') return createSemanticNearestStream(payload);
       if (method === 'events.setOptions' && _bootEventOptions) {
         return recordBootEventOptions(payload);
       }

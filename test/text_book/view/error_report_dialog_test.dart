@@ -48,6 +48,12 @@ void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false);
+    // שליחה ישירה ותור דורשים כתובת לחזרה; כאן היא כבר שמורה, ושדה הפירוט
+    // הוא הראשון מבין שני השדות בטופס.
+    await Settings.setValue<String>(
+      SettingsRepository.keyErrorReportSenderEmail,
+      'reader@example.com',
+    );
     await Settings.setValue<String>(
       SettingsRepository.keyFontFamily,
       'candara',
@@ -717,7 +723,10 @@ void main() {
         isNull,
       );
 
-      await tester.enterText(find.byType(TextField), 'זו טעות בפסקה הנוכחית');
+      await tester.enterText(
+        find.byType(TextField).first,
+        'זו טעות בפסקה הנוכחית',
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('שלח ישירות לאוצריא'), findsOneWidget);
@@ -751,7 +760,10 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byType(TextField), 'זו טעות שמקורה בספריא');
+      await tester.enterText(
+        find.byType(TextField).first,
+        'זו טעות שמקורה בספריא',
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('שלח ישירות לספריא'), findsOneWidget);
@@ -830,7 +842,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final textField = tester.widget<TextField>(find.byType(TextField));
+      final textField = tester.widget<TextField>(find.byType(TextField).first);
       expect(textField.focusNode?.hasFocus ?? textField.autofocus, isTrue);
     });
   });
@@ -872,7 +884,7 @@ void main() {
       addTearDown(() => ShortcutHelper.isMacForTesting = null);
       final actions = await pumpTab(tester);
 
-      await tester.enterText(find.byType(TextField), 'פירוט הטעות');
+      await tester.enterText(find.byType(TextField).first, 'פירוט הטעות');
       await tester.pumpAndSettle();
       await pressWith(tester, LogicalKeyboardKey.controlLeft);
 
@@ -887,7 +899,7 @@ void main() {
       addTearDown(() => ShortcutHelper.isMacForTesting = null);
       await pumpTab(tester);
 
-      await tester.enterText(find.byType(TextField), 'פירוט הטעות');
+      await tester.enterText(find.byType(TextField).first, 'פירוט הטעות');
       await tester.pumpAndSettle();
       await pressWith(tester, LogicalKeyboardKey.metaLeft);
 
@@ -910,7 +922,7 @@ void main() {
       addTearDown(() => ShortcutHelper.isMacForTesting = null);
       final actions = await pumpTab(tester);
 
-      await tester.enterText(find.byType(TextField), 'פירוט הטעות');
+      await tester.enterText(find.byType(TextField).first, 'פירוט הטעות');
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
@@ -1554,7 +1566,6 @@ TextBookLoaded _loadedState() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

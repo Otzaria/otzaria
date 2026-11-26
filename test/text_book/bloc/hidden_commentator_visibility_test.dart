@@ -107,7 +107,6 @@ TextBookLoaded _loaded(TextBook book) => TextBookLoaded(
   tableOfContents: const [],
   removeNikud: false,
   visibleIndices: const [0],
-  pinLeftPane: false,
   searchText: '',
 );
 

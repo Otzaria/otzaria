@@ -22,8 +22,10 @@ import urllib.parse
 import uuid
 
 if __package__:
+    from . import installed_pdf_android as pdf_runtime
     from .prepare_installed_plugin_source import COMMIT as STORE_COMMIT, prepare, write_defines
 else:
+    import installed_pdf_android as pdf_runtime
     from prepare_installed_plugin_source import COMMIT as STORE_COMMIT, prepare, write_defines
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -209,7 +211,7 @@ class Protocol:
         return action, payload
 
 
-def verify_report(raw, complete, bootstrap, evidence, commit):
+def verify_report(raw, complete, bootstrap, evidence, commit, *, apk):
     require(complete.get("reportBytes") == len(raw)
             and complete.get("reportSha256") == hashlib.sha256(raw).hexdigest(), "Final report bytes or digest changed")
     report = json.loads(raw)
@@ -277,6 +279,8 @@ def verify_report(raw, complete, bootstrap, evidence, commit):
     require(len({guard.get("discardRequestId") for guard in guards}) == 1 and guards[0].get("discardRequestId")
             and all(guard.get("sameControllerAfterRequest") is True and guard.get("released") is False for guard in guards),
             "Protected controls did not survive the same discard request")
+    pdf_runtime.verify_pdf_runtime(report.get("pdfRuntime"), apk, evidence.get("pdfRuntime"),
+                                   package=PACKAGE, process_id=bootstrap["pid"])
     return report
 
 
@@ -320,7 +324,7 @@ class Runner:
         self.cleaning_up = False
         self.result = {"schemaVersion": 1, "status": "running", "campaignId": self.campaign,
                        "startedUtc": utc_now(), "serial": args.device, "mode": "debug", "emulator": True,
-                       "scope": "Actual app, installed store, native Home/resume and lifecycle contracts; emulator debug only",
+                       "scope": "Actual app, installed store, native Home/resume and PDF runtime; emulator debug only",
                        "physicalProfileRelease": {"status": "notRun"},
                        "performanceAcceptance": {"status": "notRun"}, "evidence": self.evidence,
                        "cleanup": [], "bootstrapPolling": "Only before app.main and the first quiet window"}
@@ -611,9 +615,40 @@ class Runner:
         require(aapt, "aapt2 is needed to verify the dedicated APK before installation")
         badging = self.command([aapt, "dump", "badging", str(apk)]).stdout.decode()
         self.result["apk"] = {**verify_apk(badging), "sha256": file_sha256(apk),
-                              "bytes": apk.stat().st_size}
+                              "bytes": apk.stat().st_size, "pdfium": pdf_runtime.apk_pdfium_module(apk)}
         self.save()
         self.install(apk)
+        self.verify_pdf_installation()
+
+    def verify_pdf_installation(self):
+        apk_path = pdf_runtime.installed_apk_path(self.text("shell", "pm", "path", "--user", "0", PACKAGE), PACKAGE)
+        module_path = pdf_runtime.installed_module_path(apk_path)
+        require(self.text("shell", "readlink", "-f", module_path) == module_path,
+                "Installed PDFium must be an extracted file in this APK's native library directory")
+        installed = {
+            "apkPath": apk_path,
+            "apkSha256": pdf_runtime.sha256_receipt(self.text("shell", "sha256sum", apk_path), apk_path),
+            "modulePath": module_path,
+            "moduleSha256": pdf_runtime.sha256_receipt(self.text("shell", "sha256sum", module_path), module_path),
+        }
+        self.result["apk"]["installed"] = installed
+        self.save()
+        require(installed["apkSha256"] == self.result["apk"]["sha256"]
+                and installed["moduleSha256"] == self.result["apk"]["pdfium"]["sha256"],
+                "Installed APK or PDFium bytes differ from the built APK")
+
+    def capture_pdf_maps(self):
+        process = self.read_process()
+        require(process == self.original["process"], "PDF maps must come from the original app process")
+        maps = self.text("shell", "-T", "run-as", PACKAGE, "cat", f"/proc/{process['pid']}/maps")
+        require(self.read_process() == process, "App process changed during PDF mapping capture")
+        path = self.output / "bundle-runtime-host-maps.txt"
+        path.write_text(maps + "\n", encoding="utf-8")
+        self.evidence["pdfRuntime"] = {
+            "pid": process["pid"], "process": process, "mapsFile": path.name,
+            "observedModulePaths": sorted(pdf_runtime.pdfium_mapped_paths(maps)),
+            "executableModulePaths": sorted(pdf_runtime.pdfium_mapped_paths(maps, executable_only=True)),
+        }
 
     def install(self, apk):
         def accepted(_):
@@ -696,7 +731,8 @@ class Runner:
                 verify_completion(receipt, event, preliminary)
                 raw = self.adb("shell", "-T", "run-as", PACKAGE, "cat", self.bootstrap["reportPath"]).stdout
                 (self.output / "installed-plugin-report.json").write_bytes(raw)
-                verify_report(raw, receipt, self.bootstrap, self.evidence, self.result["sourceCommit"])
+                verify_report(raw, receipt, self.bootstrap, self.evidence, self.result["sourceCommit"],
+                              apk=self.result["apk"])
                 return
             time.sleep(min(0.1, max(0, end - time.monotonic())))
         raise TimeoutError("Device did not publish its final completion receipt after control close")
@@ -765,7 +801,10 @@ class Runner:
                     (self.output / "preliminary-installed-plugin-report.json").write_bytes(raw)
                     self.result["completion"] = payload
                     self.save()
-                    verify_report(raw, payload, self.bootstrap, self.evidence, self.result["sourceCommit"])
+                    self.capture_pdf_maps()
+                    verify_report(raw, payload, self.bootstrap, self.evidence, self.result["sourceCommit"],
+                                  apk=self.result["apk"])
+                    self.result["pdfRuntimeVerified"] = True
                     require(protocol.actions == ["home", "quiet", "resume", "complete"], "Missing OS background phase")
                     quiet = self.evidence["hostQuiet"]
                     require(all(command["finishedMonotonic"] <= quiet["startedMonotonic"]

@@ -240,6 +240,5 @@ TextBookLoaded _loadedState(TextBook book) => TextBookLoaded(
   visibleIndices: const [0, 1],
   selectedIndex: 0,
   selectedIndices: const {0},
-  pinLeftPane: false,
   searchText: '',
 );

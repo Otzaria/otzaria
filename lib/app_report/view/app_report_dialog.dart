@@ -14,9 +14,11 @@ import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
@@ -56,6 +58,9 @@ IconData appReportTypeIcon(AppReportType type) => switch (type) {
   AppReportType.performance => FluentIcons.top_speed_24_regular,
   AppReportType.suggestion => FluentIcons.lightbulb_24_regular,
 };
+
+/// קיצור השליחה, כמו בדיווח על טעות בספר ובעורך ההערות.
+const String _sendShortcut = 'ctrl+enter';
 
 /// טופס דיווח ידני על התוכנה: סוג, כותרת, תיאור, שלבי שחזור, מייל (חובה)
 /// ותצוגה מקדימה של הצרופות.
@@ -151,36 +156,46 @@ class _AppReportDialogState extends State<AppReportDialog> {
         },
         builder: (context, state) {
           if (state is AppReportEditing) _syncControllers(state);
-          return AppDialogFrame(
-            size: AppDialogSize.large,
-            icon: FluentIcons.person_feedback_24_regular,
-            title: context.settingsText('דיווח על תקלה בתוכנה'),
-            subtitle: context.settingsText(
-              'ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה',
-            ),
-            closeEnabled: !(state is AppReportEditing && state.isSending),
-            // X, Escape ולחיצה בחוץ עוברים ב-_leave: טיוטה, או סגירה.
-            onDismissRequest: _leave,
-            actions: _buildActions(context, state),
-            padding: EdgeInsets.zero,
-            child: switch (state) {
-              AppReportCollecting() => const Padding(
-                padding: EdgeInsets.all(AppTokens.spaceXL),
-                child: LoadingIndicator(),
-              ),
-              // הפס גלוי מההתחלה: בחלון נמוך אין סימן אחר לכך שיש עוד שדות
-              // מתחת.
-              AppReportEditing() => PanelScrollableContent(
-                thumbVisibility: true,
-                padding: const EdgeInsets.fromLTRB(
-                  AppTokens.spaceLG,
-                  AppTokens.spaceMD,
-                  AppTokens.spaceLG,
-                  0,
-                ),
-                child: _buildForm(context, state),
-              ),
+          final send = _sendAction(state);
+          return CallbackShortcuts(
+            bindings: {
+              if (send != null)
+                for (final activator in ShortcutHelper.activatorsFromShortcut(
+                  _sendShortcut,
+                ))
+                  activator: send,
             },
+            child: AppDialogFrame(
+              size: AppDialogSize.large,
+              icon: FluentIcons.person_feedback_24_regular,
+              title: context.settingsText('דיווח על תקלה בתוכנה'),
+              subtitle: context.settingsText(
+                'ככל שהתיאור מדויק יותר, כך קל יותר לאתר את התקלה ולתקן אותה',
+              ),
+              closeEnabled: !(state is AppReportEditing && state.isSending),
+              // X, Escape ולחיצה בחוץ עוברים ב-_leave: טיוטה, או סגירה.
+              onDismissRequest: _leave,
+              actions: _buildActions(context, state),
+              padding: EdgeInsets.zero,
+              child: switch (state) {
+                AppReportCollecting() => const Padding(
+                  padding: EdgeInsets.all(AppTokens.spaceXL),
+                  child: LoadingIndicator(),
+                ),
+                // הפס גלוי מההתחלה: בחלון נמוך אין סימן אחר לכך שיש עוד שדות
+                // מתחת.
+                AppReportEditing() => PanelScrollableContent(
+                  thumbVisibility: true,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTokens.spaceLG,
+                    AppTokens.spaceMD,
+                    AppTokens.spaceLG,
+                    0,
+                  ),
+                  child: _buildForm(context, state),
+                ),
+              },
+            ),
           );
         },
       ),
@@ -244,6 +259,14 @@ class _AppReportDialogState extends State<AppReportDialog> {
           _buildDraftNotice(context, enabled: enabled),
           const SizedBox(height: AppTokens.spaceMD),
         ],
+        AppInfoBanner(
+          message: context.settingsText(
+            'כאן מדווחים על התוכנה ועל הכלים המובנים בה (למשל לוח השנה '
+            'והגימטריה). תוספים הם רכיבים שהותקנו בנפרד ופותחו על ידי '
+            'אחרים — על תקלה בתוסף יש לדווח למפתח התוסף, דרך התוסף עצמו.',
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceMD),
         _fieldLabel(context, FluentIcons.tag_24_regular, 'סוג הדיווח'),
         AppSegmentedControl<AppReportType>(
           options: [
@@ -401,6 +424,17 @@ class _AppReportDialogState extends State<AppReportDialog> {
       Settings.isInitialized &&
       (Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false);
 
+  /// הפעולה של כפתור השליחה, או null כשהוא כבוי או מוסתר. משותפת לכפתור
+  /// ולקיצור, כדי שלא יפעלו בתנאים שונים.
+  VoidCallback? _sendAction(AppReportState state) {
+    if (state is! AppReportEditing ||
+        state.isSending ||
+        state.invalidField == 'draftLoad') {
+      return null;
+    }
+    return () => _bloc.add(AppReportSubmitted(queueOnly: _offline));
+  }
+
   List<Widget> _buildActions(BuildContext context, AppReportState state) {
     final editing = state is AppReportEditing ? state : null;
     final busy = editing?.isSending ?? false;
@@ -451,10 +485,9 @@ class _AppReportDialogState extends State<AppReportDialog> {
                 : 'שלח',
           ),
           icon: FluentIcons.send_24_regular,
+          tooltip: ShortcutHelper.formatShortcutForDisplay(_sendShortcut),
           isLoading: busy,
-          onPressed: editing == null || busy
-              ? null
-              : () => _bloc.add(AppReportSubmitted(queueOnly: _offline)),
+          onPressed: _sendAction(state),
         ),
     ];
   }

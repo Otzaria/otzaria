@@ -1063,6 +1063,57 @@ void main() {
     },
   );
 
+  test(
+    'external write under full control queue never writes without a '
+    'release ack, and the gate recovers',
+    () async {
+      const smallBook = {'bookId': 1, 'title': 'בראשית'};
+      final smallText = List.generate(5, (i) => 'שורה $i').join('\n');
+      final lineSource = FakeLineSourceEngine();
+      LibraryLineSource.debugReset(engine: lineSource);
+      addTearDown(LibraryLineSource.debugReset);
+      final dbPath = await seedDb('seforim', bigBookLines: 4097);
+      final full = await pausedBookRead(dbPath);
+      final previousTimeout = DbReadWorker.lifecycleCommandTimeout;
+      DbReadWorker.lifecycleCommandTimeout = const Duration(milliseconds: 10);
+      var writeStarted = false;
+      try {
+        for (var i = 0; i < 4; i++) {
+          DbReadWorker.allowReopen();
+        }
+        await expectLater(
+          () async {
+            await SqliteDataProvider.instance.closeForExternalWrite();
+            writeStarted = true;
+          }(),
+          throwsA(isA<DbReadWorkerNotReleased>()),
+        );
+        expect(writeStarted, isFalse);
+        expect(lineSource.depth, 0, reason: 'the line source hold is gone');
+        expect(lineSource.resumes, 1);
+      } finally {
+        DbReadWorker.lifecycleCommandTimeout = previousTimeout;
+        full.release.send(null);
+      }
+      expect(await full.result, isA<DbReadWorkerSuspended>());
+      // החיבור נפתח מחדש עצל, ב-initialize הבא של ה-provider.
+      DbReadWorker.allowReopen();
+      expect(
+        await DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          ...smallBook,
+        }),
+        smallText,
+        reason: 'the failed session resumed the worker',
+      );
+      await SqliteDataProvider.instance.closeForExternalWrite();
+      await SqliteDataProvider.instance.reopenAfterExternalWrite(
+        reopenDatabase: false,
+      );
+      expect(lineSource.depth, 0);
+    },
+  );
+
   test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {
     final dbPath = await seedDb('seforim');
     await DbReadWorker.batched('heRef', {

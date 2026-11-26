@@ -17,8 +17,9 @@ import 'package:otzaria/widgets/layout/app_card.dart';
 /// אחרת זה הסט שנבחר: הזמנים האלה מודפסים במקום ברירת המחדל, כמו שחגים
 /// ואירועים אישיים מודפסים בתאים.
 ///
-/// הרשימה מוצגת תמיד: בברירת מחדל מסומנים בה [defaultSelection], כלומר מה
-/// שיודפס בפועל, ולחיצה על תיבה עוברת לבחירה אישית שמתחילה מהם.
+/// הרשימה מוצגת רק כשהמתג דלוק, ומסומנים בה בהתחלה [defaultSelection], כלומר
+/// מה שיודפס בלי בחירה אישית. כשהמתג כבוי אין טקסט הסבר: ברירת המחדל של כל
+/// תצוגה מתוארת ב-[defaultPrintedZmanim].
 class CalendarPrintZmanimPicker extends StatefulWidget {
   final CalendarView view;
   final Set<String> defaultSelection;
@@ -102,12 +103,6 @@ class _CalendarPrintZmanimPickerState extends State<CalendarPrintZmanimPicker> {
 
   bool get _custom => widget.selection != null;
 
-  String get _defaultHint => switch (widget.view) {
-    CalendarView.month => 'בלי זמנים בתאי החודש: חגים ואירועים בלבד',
-    CalendarView.week => 'זריחה ושקיעה בכל יום',
-    CalendarView.day => 'הזמנים שמוצגים בלוח',
-  };
-
   /// מה שמסומן ברשימה: הבחירה האישית, או ברירת המחדל כשלא נבחר דבר.
   Set<String> get _shown => widget.selection ?? widget.defaultSelection;
 
@@ -133,7 +128,6 @@ class _CalendarPrintZmanimPickerState extends State<CalendarPrintZmanimPicker> {
         SettingsSwitchTile(
           icon: FluentIcons.clock_24_regular,
           title: 'בחירת זמני יום להדפסה',
-          subtitle: _custom ? null : _defaultHint,
           value: _custom,
           onChanged: (on) =>
               widget.onChanged(on ? {...widget.defaultSelection} : null),

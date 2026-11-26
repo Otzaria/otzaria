@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/plugins/services/plugin_find_ref_service.dart';
@@ -33,6 +34,21 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   String? _shownNormalizedQuery;
   bool? _shownIncludePersonalBooks;
   HiddenLibrarySelection? _shownVisibility;
+
+  /// גרסת ההעדפות האישיות שלפיה התבקשו התוצאות המוצגות; null = בקשה
+  /// שאינה מותאמת אישית (קישור, סיור).
+  (int, bool)? _shownPreferenceVersion;
+
+  (int, bool) get _preferenceVersion =>
+      (FindRefPreferenceStore.revision, FindRefPreferenceStore.isEnabled);
+
+  /// בקשה לא-מותאמת (קישור, סיור) שתוצאותיה טרם הוצגו.
+  (String, bool, HiddenLibrarySelection)? _pendingPlainRequest;
+
+  /// הסדר המותאם שמוצג דורג לפני שינוי בהעדפות.
+  bool get shownOrderIsStale =>
+      _shownPreferenceVersion != null &&
+      _shownPreferenceVersion != _preferenceVersion;
   int _requestGeneration = 0;
   int _externalGeneration = 0;
   _FindRefDelay? _externalDelay;
@@ -118,15 +134,23 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     if (_closing) return;
     final includePersonalBooks =
         event.includePersonalBooks ?? FindRefPersonalBooksSetting.load();
+    final visibility = findRefRepository.respectHiddenLibrary
+        ? const HiddenLibraryStore().load()
+        : const HiddenLibrarySelection();
+    // הדיאלוג שנפתח על קישור או סיור שולח שוב את אותה שאילתה ומבטל אותם
+    // ב-debounce; הבקשה שלו יורשת מהם את הסדר הלא-מותאם.
+    final requestKey = (normalized, includePersonalBooks, visibility);
+    final personalized =
+        event.personalized && _pendingPlainRequest != requestKey;
+    _pendingPlainRequest = null;
     _lastRequest = event.refText.length < 2
         ? null
         : SearchRefRequested(
             event.refText,
             includePersonalBooks: includePersonalBooks,
+            personalized: personalized,
           );
-    final visibility = findRefRepository.respectHiddenLibrary
-        ? const HiddenLibraryStore().load()
-        : const HiddenLibrarySelection();
+    final preferenceVersion = personalized ? _preferenceVersion : null;
     // גם שימוש בתוצאה קיימת מבטל רענון אישי שהתחיל בבקשה אחרת.
     final requestGeneration = ++_requestGeneration;
     findRefRepository.cancelPendingSearch();
@@ -134,7 +158,10 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
         state is FindRefSuccess &&
         normalized == _shownNormalizedQuery &&
         includePersonalBooks == _shownIncludePersonalBooks &&
-        visibility == _shownVisibility) {
+        visibility == _shownVisibility &&
+        // סדר לא-מותאם תקף לכל בקשה; סדר מותאם רק לבקשה מותאמת מאותה גרסה.
+        (_shownPreferenceVersion == null ||
+            _shownPreferenceVersion == preferenceVersion)) {
       return;
     }
 
@@ -146,10 +173,13 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       _shownNormalizedQuery = null;
       _shownIncludePersonalBooks = null;
       _shownVisibility = null;
+      _shownPreferenceVersion = null;
       _retriedQuery = null;
       emit(const FindRefSuccess([]));
       return;
     }
+
+    if (!personalized) _pendingPlainRequest = requestKey;
 
     // debounce: ממתינים לפני שמתחילים ב-fetch. אם המשתמש מקליד שוב לפני
     // שהדיליי מסתיים — restartable יבטל את ה-handler הזה כאן בלי שיתחיל
@@ -159,9 +189,16 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
 
     emit(FindRefLoading());
     try {
+      final searchedPreferenceVersion = personalized
+          ? _preferenceVersion
+          : null;
+      final preferences = personalized
+          ? FindRefPreferenceStore.snapshot()
+          : null;
       final List<DbReferenceResult> refs = await findRefRepository.findRefs(
         event.refText,
         includePersonalBooks: includePersonalBooks,
+        preferences: preferences,
       );
       // emit.isDone יהיה true אם ה-handler בוטל ע"י restartable
       // (event חדש הגיע באמצע ה-fetch). במצב כזה לא נכתוב את התוצאות
@@ -170,6 +207,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       _shownNormalizedQuery = normalized;
       _shownIncludePersonalBooks = includePersonalBooks;
       _shownVisibility = visibility;
+      _shownPreferenceVersion = searchedPreferenceVersion;
       _retriedQuery = null;
       emit(
         FindRefSuccess(
@@ -203,6 +241,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
           SearchRefRequested(
             event.refText,
             includePersonalBooks: includePersonalBooks,
+            personalized: personalized,
           ),
         );
         return;
@@ -212,6 +251,11 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       if (emit.isDone || requestGeneration != _requestGeneration) return;
       debugPrint('[FindRef] search failed: $e\n$stackTrace');
       emit(const FindRefError(FindRefErrorKind.failed));
+    } finally {
+      // גם חיפוש שנכשל מסיים את הירושה, אחרת "נסה שוב" נשאר לא-מותאם.
+      if (!emit.isDone && requestGeneration == _requestGeneration) {
+        _pendingPlainRequest = null;
+      }
     }
   }
 
@@ -228,6 +272,8 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     _shownNormalizedQuery = null;
     _shownIncludePersonalBooks = null;
     _shownVisibility = null;
+    _shownPreferenceVersion = null;
+    _pendingPlainRequest = null;
     _retriedQuery = null;
     emit(FindRefInitial());
   }

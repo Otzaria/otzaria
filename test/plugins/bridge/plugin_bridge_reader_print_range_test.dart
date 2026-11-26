@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
@@ -38,6 +41,9 @@ class _PrintRepository extends Mock implements TextBookRepository {
   Object? error;
   Completer<List<String>>? pending;
   int lookups = 0;
+  int reads = 0;
+  Future<void>? delayRead;
+  String? contents;
   @override
   Future<List<String>> getAvailableCommentators(TextBook book) async {
     lookups++;
@@ -46,8 +52,19 @@ class _PrintRepository extends Mock implements TextBookRepository {
   }
 
   @override
-  Future<String> getBookContent(TextBook book) async =>
-      'content:${book.source.wireKey}';
+  Future<String> getBookContent(TextBook book) async {
+    reads++;
+    final text = contents ?? 'content:${book.source.wireKey}';
+    await delayRead;
+    return text;
+  }
+}
+
+class _PrintTextBook extends TextBook {
+  _PrintTextBook({required super.title}) : super(source: BookSource.user);
+
+  @override
+  Future<List<TocEntry>> get tableOfContents async => const [];
 }
 
 class _MockNavigationBloc extends Mock implements NavigationBloc {}
@@ -126,6 +143,49 @@ void main() {
     DataRepository.instance.library = Future.value(library);
   }
 
+  PluginBridgeAdapter buildAdapter({BuildContext? context}) {
+    final adapter = PluginBridgeAdapter(
+      _plugin(),
+      instanceId: 'tab-1',
+      dependencies: PluginBridgeDependencies(
+        windowContext: context,
+        bookProtectionResolver: (_) async => BookProtection.none,
+        historyBloc: _MockHistoryBloc(),
+        tabsBloc: tabsBloc,
+        navigationBloc: _MockNavigationBloc(),
+        calendarCubit: _MockCalendarCubit(),
+        workspaceBloc: _MockWorkspaceBloc(),
+        searchRepository: _MockSearchRepository(),
+        personalNotesRepository: _MockPersonalNotesRepository(),
+        bookOpenCoordinator: _MockBookOpenCoordinator(),
+        themePayloadBuilder: () => <String, dynamic>{},
+        showConfirmDialog: ({required title, required content}) async => true,
+        showWarningDialog:
+            ({required title, required content, required subtitle}) async =>
+                true,
+        hasUserActivation: (pluginId, instanceId) async => userActivated,
+        textBookRepository: repository,
+        printBookRange: context != null
+            ? null
+            : (
+                book, {
+                required startLine,
+                endLine,
+                required activeCommentators,
+                required availableCommentators,
+              }) async {
+                selected = List.of(activeCommentators);
+                available = List.of(availableCommentators);
+                shown.add((book: book, startLine: startLine, endLine: endLine));
+                return printResult;
+              },
+      ),
+      pluginRepository: _MockPluginRegistryRepository(),
+    );
+    addTearDown(adapter.dispose);
+    return adapter;
+  }
+
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
@@ -142,41 +202,72 @@ void main() {
       TextBook(title: 'תהילים'),
       PdfBook(title: 'סריקה', path: '/tmp/scan.pdf'),
     ]);
-    adapter = PluginBridgeAdapter(
-      _plugin(),
-      instanceId: 'tab-1',
-      dependencies: PluginBridgeDependencies(
-        historyBloc: _MockHistoryBloc(),
-        tabsBloc: tabsBloc,
-        navigationBloc: _MockNavigationBloc(),
-        calendarCubit: _MockCalendarCubit(),
-        workspaceBloc: _MockWorkspaceBloc(),
-        searchRepository: _MockSearchRepository(),
-        personalNotesRepository: _MockPersonalNotesRepository(),
-        bookOpenCoordinator: _MockBookOpenCoordinator(),
-        themePayloadBuilder: () => <String, dynamic>{},
-        showConfirmDialog: ({required title, required content}) async => true,
-        showWarningDialog:
-            ({required title, required content, required subtitle}) async =>
-                true,
-        hasUserActivation: (pluginId, instanceId) async => userActivated,
-        textBookRepository: repository,
-        printBookRange:
-            (
-              book, {
-              required startLine,
-              endLine,
-              required activeCommentators,
-              required availableCommentators,
-            }) async {
-              selected = List.of(activeCommentators);
-              available = List.of(availableCommentators);
-              shown.add((book: book, startLine: startLine, endLine: endLine));
-              return printResult;
-            },
+    adapter = buildAdapter();
+  });
+
+  testWidgets('ההדפסה אינה מחליפה טעינת ספר משותפת של התוסף', (
+    tester,
+  ) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (value) {
+            context = value;
+            return const SizedBox();
+          },
+        ),
       ),
-      pluginRepository: _MockPluginRegistryRepository(),
     );
+
+    final book = _PrintTextBook(title: 'תהילים');
+    installLibrary([book]);
+    final printingAdapter = buildAdapter(context: context);
+    Future<String> read() async =>
+        (await printingAdapter.execute('library', 'getBookContent', {
+              'bookId': book.title,
+              'rawDivineNames': true,
+            }))
+            as String;
+    final reading = Completer<void>();
+    final printing = Completer<void>();
+
+    repository.delayRead = reading.future;
+    repository.contents = 'לקריאת התוסף';
+    final request = read();
+    await tester.pump();
+
+    repository.delayRead = printing.future;
+    repository.contents = 'להדפסה';
+    final printRequest = printingAdapter.execute('reader', 'printRange', {
+      'bookId': book.title,
+      'startIndex': 0,
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(PrintingScreen), findsOneWidget);
+    expect(repository.reads, 2);
+
+    String? joinedResult;
+    final joined = read().then((value) {
+      joinedResult = value;
+      return value;
+    });
+    await tester.pump();
+    reading.complete();
+    await tester.pump();
+
+    final resultWhilePrinting = joinedResult;
+    Navigator.of(context).pop(false);
+    await tester.pumpAndSettle();
+    printing.complete();
+    await tester.pump();
+    expect(await printRequest, {'printed': false});
+    expect(await request, 'לקריאת התוסף');
+    await joined;
+
+    expect(resultWhilePrinting, 'לקריאת התוסף');
+    expect(repository.reads, 2);
   });
 
   test('פותח את מסך ההדפסה על הטווח ומחזיר printed:true', () async {

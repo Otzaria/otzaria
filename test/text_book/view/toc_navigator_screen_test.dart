@@ -102,7 +102,6 @@ TextBookLoaded _loadedState({
     removeNikud: false,
     visibleIndices: visibleIndices,
     selectedIndex: selectedIndex,
-    pinLeftPane: false,
     searchText: '',
   );
 }

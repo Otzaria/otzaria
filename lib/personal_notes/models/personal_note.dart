@@ -30,6 +30,10 @@ enum PersonalNoteContentFormat {
 
 /// Represents a stored personal note.
 class PersonalNote extends Equatable {
+  /// מפתח שמור להערות שאינן שייכות לספר.
+  /// הערה כללית נשמרת כהערת ספר ([PersonalNoteStatus.book]).
+  static const generalBookId = '|general';
+
   /// Unique note identifier.
   final String id;
 
@@ -171,6 +175,8 @@ class PersonalNote extends Equatable {
   bool get isWordAnchored => anchorText != null && anchorText!.isNotEmpty;
 
   bool get isBookNote => status == PersonalNoteStatus.book;
+
+  bool get isGeneralNote => bookId == generalBookId;
 
   PersonalNoteScope get scope => isBookNote
       ? PersonalNoteScope.book

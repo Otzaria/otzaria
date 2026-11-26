@@ -19,7 +19,6 @@ TextBookLoaded _state({Set<int> selected = const {}}) => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0, 1, 2],
   selectedIndices: selected,
-  pinLeftPane: false,
   searchText: '',
 );
 

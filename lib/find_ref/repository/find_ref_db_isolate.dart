@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/book_aliases/book_aliases.dart';
 import 'package:otzaria/core/error_log_file.dart';
-import 'package:otzaria/data/cache/acronym_cache_data.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/find_ref/repository/alt_toc_flat_entry.dart';
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
@@ -14,7 +14,10 @@ import 'package:otzaria/migration/models/toc_entry.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
-    show hebrewTokenAlternatives, parseDafCitationFromDafToken;
+    show
+        hebrewTokenAlternatives,
+        normalizeForFindRefMatch,
+        parseDafCitationFromDafToken;
 
 /// נזרק כשבקשה נזרקה מתור ה-worker בגלל הקלדה חדשה. אינו שגיאה — הקורא
 /// אמור לנטוש בשקט את השאילתה שהתיישנה.
@@ -464,6 +467,12 @@ class FindRefDbIsolate {
     return _castRows(res);
   }
 
+  /// כל טבלת `book_base_text` (ספר → ספרי הבסיס שלו, עם כותרותיהם).
+  Future<List<Map<String, dynamic>>> getBookBaseTexts() async {
+    final res = await _request('bookBaseTexts', const {});
+    return _castRows(res);
+  }
+
   /// שולף ומכין את קאש הכינויים כולו ב-worker, בלי לממש עשרות אלפי שורות
   /// SQLite על ה-UI isolate.
   Future<AcronymCacheData> getBookAcronymCache() async {
@@ -472,7 +481,7 @@ class FindRefDbIsolate {
     return AcronymCacheData(
       acronymsByBookId: (raw['acronymsByBookId'] as Map)
           .cast<int, List<String>>(),
-      bookIdsByBigram: (raw['bookIdsByBigram'] as Map).cast<int, Int32List>(),
+      bookIdsByBigram: (raw['bookIdsByBigram'] as Map).cast<int, List<int>>(),
       rowCount: raw['rowCount'] as int,
       quotedWordsByBookId: (raw['quotedWordsByBookId'] as Map)
           .cast<int, Set<String>>(),
@@ -1170,6 +1179,12 @@ void _workerMain(_Bootstrap bootstrap) {
           throw StateError('seforim.db unavailable for allLocalBooksSlim');
         }
         return repo.database.bookDao.selectAllLocalBooksSlim();
+      case 'bookBaseTexts':
+        final repo = await ensureRepo();
+        if (repo == null) {
+          throw StateError('seforim.db unavailable for bookBaseTexts');
+        }
+        return repo.loadBookBaseTexts();
       case 'bookAcronymCache':
         final repo = await ensureRepo();
         if (repo == null) {
@@ -1186,6 +1201,7 @@ void _workerMain(_Bootstrap bootstrap) {
               (row['term'] as String?) ?? '',
             ),
           ),
+          normalizeForFindRefMatch,
         );
         return {
           'acronymsByBookId': data.acronymsByBookId,
@@ -1352,23 +1368,27 @@ void _workerMain(_Bootstrap bootstrap) {
         title,
         queryTokens: (book['queryTokens'] as List).cast<String>(),
       );
-      if (toc.isEmpty && fallback != null) {
+      final tocFellBack = toc.isEmpty && fallback != null;
+      if (tocFellBack) {
         toc = await repo.getTocEntriesForReference(
           bookId,
           title,
           queryTokens: fallback,
         );
       }
-      progress.out.add({
-        'toc': toc,
-        'altToc': altTokens == null
-            ? const <Map<String, dynamic>>[]
-            : await repo.getAltTocEntriesForReference(
-                bookId,
-                title,
-                queryTokens: altTokens,
-              ),
-      });
+      var altToc = const <Map<String, dynamic>>[];
+      for (final tokens in [
+        altTokens,
+        if (altTokens != null && tocFellBack) fallback,
+      ]) {
+        if (tokens == null || altToc.isNotEmpty) continue;
+        altToc = await repo.getAltTocEntriesForReference(
+          bookId,
+          title,
+          queryTokens: tokens,
+        );
+      }
+      progress.out.add({'toc': toc, 'altToc': altToc});
     }
     return progress.out.length >= books.length;
   }

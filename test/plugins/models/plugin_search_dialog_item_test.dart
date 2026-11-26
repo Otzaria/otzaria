@@ -183,6 +183,35 @@ void main() {
     }
   });
 
+  test('resultsActionIcon נשמר, ודורש resultsAction', () {
+    final parsed = PluginSearchDialogItem.fromPayload({
+      ...item(),
+      'resultsAction': 'המשך במקור החיצוני',
+      'resultsActionIcon': 'search_in_library_24_regular',
+    });
+    expect(parsed.resultsActionIcon, 'search_in_library_24_regular');
+    expect(
+      PluginSearchDialogItem.fromPayload({
+        ...item(),
+        'resultsAction': 'המשך',
+      }).resultsActionIcon,
+      isNull,
+    );
+
+    for (final invalid in [
+      {'resultsActionIcon': 'apps_24_regular'},
+      {'resultsAction': 'המשך', 'resultsActionIcon': ''},
+      {'resultsAction': 'המשך', 'resultsActionIcon': 7},
+      {'resultsAction': 'המשך', 'resultsActionIcon': 'x' * 129},
+    ]) {
+      expect(
+        () => PluginSearchDialogItem.fromPayload({...item(), ...invalid}),
+        throwsA(isA<PluginSearchDialogItemException>()),
+        reason: '$invalid היה אמור להידחות',
+      );
+    }
+  });
+
   test('rejects a non-boolean openPluginOnSubmit value', () {
     expect(
       () => PluginSearchDialogItem.fromPayload({

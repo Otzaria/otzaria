@@ -467,6 +467,35 @@ void main() {
       await history.close();
     });
 
+    test('פתיחה מהספרייה מכבדת בחירת מפרשים ריקה מההיסטוריה', () async {
+      final book = _makeBook('ספר טקסט');
+      final history = await _makeLoadedHistory([
+        Bookmark(
+          ref: 'ספר טקסט',
+          book: book,
+          index: 30,
+          hasExplicitCommentators: true,
+        ),
+      ]);
+      final tabs = _CapturingTabsBloc();
+      final navigation = _FakeNavigationBloc();
+      addTearDown(history.close);
+      addTearDown(tabs.close);
+      addTearDown(navigation.close);
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabs,
+        historyBloc: history,
+        navigationBloc: navigation,
+      );
+
+      coordinator.openBook(book, 0, '');
+
+      final event = tabs.capturedEvents.single as OpenOrFocusTab;
+      final tab = event.tab as TextBookTab;
+      addTearDown(tab.dispose);
+      expect(tab.commentators, isEmpty);
+    });
+
     test('ignoreHistory אינו משחזר גם את המפרשים', () async {
       final book = _makeBook('ספר טקסט');
       final history = await _makeLoadedHistory([

@@ -175,6 +175,66 @@ void main() {
       expect(_linkSpans(tester), hasLength(1));
     });
 
+    testWidgets('a credit of many short lines collapses', (tester) async {
+      final manyLines = [for (var i = 1; i <= 8; i++) 'שורה $i'].join('\n');
+      await tester.pumpWidget(_wrap(BookSourceBanner(text: manyLines)));
+      expect(find.text('הצג פרטים'), findsOneWidget);
+      expect(find.textContaining('שורה 8'), findsNothing);
+    });
+
+    testWidgets('a credit of four short lines is shown in full', (
+      tester,
+    ) async {
+      final fourLines = [for (var i = 1; i <= 4; i++) 'שורה $i'].join('\n');
+      await tester.pumpWidget(_wrap(BookSourceBanner(text: fourLines)));
+      expect(find.text('הצג פרטים'), findsNothing);
+      expect(find.textContaining('שורה 4'), findsOneWidget);
+    });
+
+    testWidgets('a short credit that wraps in a narrow window collapses', (
+      tester,
+    ) async {
+      final wrapping = 'קרדיט ' * 30;
+      await tester.pumpWidget(
+        _wrap(
+          Center(
+            child: SizedBox(
+              width: 200,
+              child: BookSourceBanner(text: wrapping),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('הצג פרטים'), findsOneWidget);
+    });
+
+    testWidgets('rechecks wrapping when accessibility text spacing changes', (
+      tester,
+    ) async {
+      final dispatcher = tester.platformDispatcher;
+      addTearDown(dispatcher.clearLetterSpacingOverrideTestValue);
+      final credit = List.filled(4, 'credit lines').join('\n');
+      await tester.pumpWidget(
+        _wrap(
+          Center(
+            child: SizedBox(
+              width: 200,
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(fontFamily: 'Ahem'),
+                child: BookSourceBanner(text: credit, fontSize: 20),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('הצג פרטים'), findsNothing);
+
+      dispatcher.letterSpacingOverrideTestValue = 6;
+      await tester.pumpAndSettle();
+
+      expect(find.text('הצג פרטים'), findsOneWidget);
+    });
+
     testWidgets('the banner is excluded from text selection', (tester) async {
       await tester.pumpWidget(
         _wrap(SelectionArea(child: const BookSourceBanner(text: text))),
@@ -220,9 +280,7 @@ void main() {
       expect(_linkSpans(tester), hasLength(1));
     });
 
-    testWidgets('omits lines that contain a link when offline', (
-      tester,
-    ) async {
+    testWidgets('omits lines that contain a link when offline', (tester) async {
       await tester.pumpWidget(
         _wrap(const BookSourceBanner(text: text), isOfflineMode: true),
       );

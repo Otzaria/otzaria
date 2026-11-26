@@ -19,6 +19,18 @@ Category _category(String title, {Category? parent}) {
 }
 
 void main() {
+  test('ספר שנוסף לעץ אחרי חיפוש נמצא בחיפוש הבא', () {
+    final category = _category('ש"ס');
+    final library = Library(categories: [category]);
+    final source = TextBook(title: 'ברכות "א"');
+    expect(library.getCompanionBooks(source, PdfBook), isEmpty);
+
+    final added = PdfBook(title: 'ברכות  א', path: 'b.pdf');
+    category.books.add(added);
+    expect(library.getCompanionBooks(source, PdfBook), [added]);
+    expect(library.getCompanionBook(source, PdfBook), added);
+  });
+
   test('companion traversal preserves nested order and normalized titles', () {
     final root = _category('ספרים');
     final nested = _category('תת תיקייה', parent: root);

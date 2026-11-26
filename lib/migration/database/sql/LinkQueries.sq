@@ -144,6 +144,15 @@ JOIN book b ON dt.targumBookId = b.id
 WHERE dt.bookId = ?
 ORDER BY dt.position;
 
+-- מפרשי ברירת מחדל שמסד מצורף מציע לספר [targetTitle] במסד אחר, לפי position.
+-- kind: 'commentator' או 'targum'; targetSource NULL — כל מקור. פרמטר: (targetTitle).
+selectExternalDefaultCommentators:
+SELECT edc.targetSource, b.title AS commentatorTitle, edc.kind, edc.position
+FROM external_default_commentator edc
+JOIN book b ON edc.commentatorBookId = b.id
+WHERE edc.targetTitle = ?
+ORDER BY edc.position, b.title;
+
 insert:
 INSERT INTO link (sourceBookId, targetBookId, sourceLineId, targetLineId, connectionTypeId)
 VALUES (?, ?, ?, ?, ?);

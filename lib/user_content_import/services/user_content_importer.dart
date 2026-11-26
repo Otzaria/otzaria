@@ -160,6 +160,7 @@ class UserContentImporter {
     UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
     UserLinkBookLocator locateBook = locateUserLinkBook,
     AttachedLinkBooks? attachedBooks,
+    bool skipStoredAmbiguousLinks = false,
   }) async {
     final attached = attachedBooks ?? AttachedLinkBooks.none;
     final repo = UserContentRepository(userDb);
@@ -243,14 +244,24 @@ class UserContentImporter {
         );
       } else if (lower.endsWith('_links.json')) {
         final baseTitle = name.substring(0, name.length - '_links.json'.length);
-        await _ingestNativeLinks(
+        final skipIfAmbiguous = skipStoredAmbiguousLinks && !file.selected;
+        final errorsFrom = errors.length;
+        final ambiguous = await _ingestNativeLinks(
           file,
           ingest.links,
           errors,
           baseTitle: baseTitle,
+          skipIfAmbiguous: skipIfAmbiguous,
           locateBook: locateBook,
           attached: attached,
         );
+        // קובץ שמור שנעשה דו-משמעי (למשל כשמסד מצורף נוסף אחריו) מדולג כולו,
+        // ואינו חוסם בנייה של שאר הקבצים; קובץ חדש נחסם כרגיל.
+        if (ambiguous && skipIfAmbiguous) {
+          ingest.links.removeRange(linksFrom, ingest.links.length);
+          ingest.skipped.addAll(errors.sublist(errorsFrom));
+          errors.removeRange(errorsFrom, errors.length);
+        }
       } else {
         errors.add('$name: $kUnrecognizedImportFileMessage');
       }
@@ -690,12 +701,14 @@ class UserContentImporter {
   }
 
   /// בקובץ native, שם הקובץ מזהה את ספר המקור ו-path_2 את ספר היעד.
-  /// אינדקסי השורות נבדקים מול totalLines של כל ספר.
-  static Future<void> _ingestNativeLinks(
+  /// אינדקסי השורות נבדקים מול totalLines של כל ספר. מחזיר אם נמצא בו ספר
+  /// דו-משמעי.
+  static Future<bool> _ingestNativeLinks(
     ImportedFile file,
     List<UserLinkRecord> out,
     List<String> errors, {
     required String baseTitle,
+    required bool skipIfAmbiguous,
     required UserLinkBookLocator locateBook,
     required AttachedLinkBooks attached,
   }) async {
@@ -706,7 +719,7 @@ class UserContentImporter {
     } catch (e, stackTrace) {
       debugPrint('⚠️ [UserContentImporter] $fileName: $e\n$stackTrace');
       errors.add(SettingsMessages.customFolderFileImportFailed(fileName));
-      return;
+      return false;
     }
     for (final err in parsed.errors) {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
@@ -722,7 +735,9 @@ class UserContentImporter {
             title: title,
             isUserBook: false,
             categoryId: null,
-            totalLines: inAttached.totalLines,
+            totalLines: inAttached.totalLines > 0
+                ? inAttached.totalLines
+                : null,
             isDependentOnly: inAttached.isDependentOnly,
             db: inAttached.slug,
           );
@@ -730,6 +745,13 @@ class UserContentImporter {
         if (found != null && await attached.hasLooseTitle(title)) {
           throw AmbiguousUserLinkBookException(title, normalized: true);
         }
+      } else if (await attached.locate(
+            title,
+            requireKnownAbsence: !skipIfAmbiguous,
+          ) !=
+          null) {
+        // ב-native אין סימון מסד שמכריע בהתנגשות עם ספר אישי או רשמי.
+        throw AmbiguousUserLinkBookException(title);
       }
       if (found == null) return null;
       return (
@@ -742,19 +764,23 @@ class UserContentImporter {
       );
     }
 
+    String ambiguity(AmbiguousUserLinkBookException e) => e.normalized
+        ? e.details
+        : 'קיים ביותר ממקור אחד (אישי, רשמי או מסד מצורף)';
+
     final _LocatedLinkBook? source;
     try {
       source = await locate(baseTitle);
     } on AmbiguousUserLinkBookException catch (e) {
-      errors.add('$fileName: ספר הבסיס "$baseTitle" ${e.details}');
-      return;
+      errors.add('$fileName: ספר הבסיס "$baseTitle" ${ambiguity(e)}');
+      return true;
     } on UnavailableUserLinkCatalogException catch (e) {
       errors.add('$fileName: ${e.message}');
-      return;
+      return false;
     }
     if (source == null) {
       errors.add('$fileName: ספר הבסיס "$baseTitle" לא נמצא בספרייה');
-      return;
+      return false;
     }
 
     final targetCache = <String, _LocatedLinkBook?>{};
@@ -765,12 +791,15 @@ class UserContentImporter {
         try {
           targetCache[row.targetTitle] = await locate(row.targetTitle);
         } on AmbiguousUserLinkBookException catch (e) {
+          errors.add(
+            '$fileName: ספר היעד "${row.targetTitle}" ${ambiguity(e)}',
+          );
+          if (skipIfAmbiguous) return true;
           ambiguousTargets.add(row.targetTitle);
-          errors.add('$fileName: ספר היעד "${row.targetTitle}" ${e.details}');
           continue;
         } on UnavailableUserLinkCatalogException catch (e) {
           errors.add('$fileName: ${e.message}');
-          return;
+          return false;
         }
       }
       final target = targetCache[row.targetTitle];
@@ -778,43 +807,48 @@ class UserContentImporter {
         errors.add('$fileName: ספר היעד "${row.targetTitle}" לא נמצא בספרייה');
         continue;
       }
-      if (source.totalLines > 0 && row.sourceLineNumber > source.totalLines) {
+      final sourceLines = source.totalLines;
+      final targetLines = target.totalLines;
+      if (sourceLines != null && row.sourceLineNumber > sourceLines) {
         errors.add(
           '$fileName: שורה ${row.sourceLineNumber} חורגת מגבולות '
-          '"$baseTitle" (${source.totalLines} שורות)',
+          '"$baseTitle" ($sourceLines שורות)',
         );
         continue;
       }
-      if (target.totalLines > 0 && row.targetLineNumber > target.totalLines) {
+      if (targetLines != null && row.targetLineNumber > targetLines) {
         errors.add(
           '$fileName: שורה ${row.targetLineNumber} חורגת מגבולות '
-          '"${row.targetTitle}" (${target.totalLines} שורות)',
+          '"${row.targetTitle}" ($targetLines שורות)',
         );
         continue;
       }
-      if (source.totalLines > 0 &&
+      if (sourceLines != null &&
           row.sourceLineNumberEnd != null &&
-          row.sourceLineNumberEnd! > source.totalLines) {
+          row.sourceLineNumberEnd! > sourceLines) {
         errors.add(
           '$fileName: שורת-סיום ${row.sourceLineNumberEnd} חורגת מגבולות '
-          '"$baseTitle" (${source.totalLines} שורות)',
+          '"$baseTitle" ($sourceLines שורות)',
         );
         continue;
       }
-      if (target.totalLines > 0 &&
+      if (targetLines != null &&
           row.targetLineNumberEnd != null &&
-          row.targetLineNumberEnd! > target.totalLines) {
+          row.targetLineNumberEnd! > targetLines) {
         errors.add(
           '$fileName: שורת-סיום ${row.targetLineNumberEnd} חורגת מגבולות '
-          '"${row.targetTitle}" (${target.totalLines} שורות)',
+          '"${row.targetTitle}" ($targetLines שורות)',
         );
         continue;
       }
       // צמד קבצים דו-כיווני של הכלי מייצר גם רשומת מפרש→בסיס; מנרמלים אותה
       // לכיוון הקנוני (בסיס→מפרש) כך שהיא מתלכדת עם הרשומה מהקובץ של הבסיס.
-      final connectionType = row.connectionType == LinkTypes.linker
-          ? LinkTypes.commentary
-          : row.connectionType;
+      // ציטוט בטקסט נשמר כ-LINKER: מוצג בגוף הטקסט ונפתח ישר בספר היעד.
+      final connectionType = switch (row.connectionType) {
+        LinkTypes.linker => LinkTypes.commentary,
+        kInlineLinkerImportType => LinkTypes.linker,
+        final type => type,
+      };
       final flip =
           LinkTypes.isDependentTextLink(connectionType) &&
           source.isUserBook &&
@@ -867,6 +901,7 @@ class UserContentImporter {
               ),
       );
     }
+    return ambiguousTargets.isNotEmpty;
   }
 
   /// בונה רשומת קישור עם אינדקס-שורה ביעד. "מיקום_יעד" מספרי = אינדקס שורה
@@ -960,7 +995,7 @@ typedef _LocatedLinkBook = ({
   String title,
   bool isUserBook,
   int? categoryId,
-  int totalLines,
+  int? totalLines,
   bool isDependentOnly,
   String? db,
 });
@@ -974,6 +1009,9 @@ class UserImportIngest {
   final versions = <UserBookVersionRecord>[];
   final attachedVersions = <AttachedBookVersionRecord>[];
   final errors = <String>[];
+
+  /// שגיאות של קבצים שמורים שדולגו כי ספר בהם דו-משמעי; אינן חוסמות.
+  final skipped = <String>[];
 
   UserImportIngest._();
 
@@ -1015,6 +1053,7 @@ Future<UserImportIngest> Function() _backgroundIngestTask(
       sourceExists: resolvers.sourceExists,
       locateBook: resolvers.locateBook,
       attachedBooks: attachedBooks,
+      skipStoredAmbiguousLinks: true,
     );
   } finally {
     userDb.close();

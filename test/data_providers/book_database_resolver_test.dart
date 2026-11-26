@@ -438,6 +438,120 @@ void main() {
 
       expect(result, isNull);
     });
+
+    group('כותרת שנשמרה בלי גרשיים (#2766)', () {
+      List<ResolvedBookRepositoryCandidate> officialThenUser() => [
+        ResolvedBookRepositoryCandidate(
+          repository: seforimRepo,
+          source: BookSource.official,
+        ),
+        ResolvedBookRepositoryCandidate(
+          repository: userBooksRepo,
+          source: BookSource.user,
+        ),
+      ];
+
+      Future<String?> resolvedTitle(String title, {int? categoryId}) async {
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: title,
+          categoryId: categoryId,
+          candidates: officialThenUser(),
+        );
+        return record?.book.title;
+      }
+
+      Future<int> addOfficialRename() async {
+        final categoryId = await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו״ת באר מרדכי',
+        );
+        await seforimRepo.executeRawQuery('UPDATE book SET id = 7458');
+        return categoryId;
+      }
+
+      test('התאמה מדויקת במסד מאוחר גוברת על כותרת ישנה רשמית', () async {
+        await addOfficialRename();
+        await insertBookFor(repo: userBooksRepo, title: 'שות באר מרדכי');
+
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: 'שות באר מרדכי',
+          candidates: officialThenUser(),
+        );
+
+        expect(record?.source, BookSource.user);
+        expect(record?.book.title, 'שות באר מרדכי');
+      });
+
+      test('כותרת ישנה מוצאת רק את המזהה הרשמי מהדלתא', () async {
+        await insertBookFor(repo: seforimRepo, title: 'שו״ת באר מרדכי');
+        expect(await resolvedTitle('שות באר מרדכי'), isNull);
+        await seforimRepo.executeRawQuery('UPDATE book SET id = 7458');
+        expect(await resolvedTitle('שות באר מרדכי'), 'שו״ת באר מרדכי');
+        expect(await resolvedTitle('שו"ת באר מרדכי'), isNull);
+      });
+
+      test('כותרת קודמת של טקסט לא מחליפה בקשת PDF', () async {
+        await addOfficialRename();
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: 'שות באר מרדכי',
+          candidates: officialThenUser(),
+          fileType: 'pdf',
+        );
+        expect(record, isNull);
+      });
+
+      test('כותרת קודמת של ספר רשמי לא פונה למסד מצורף', () async {
+        await addOfficialRename();
+        final record = await BookDatabaseResolver.resolveBookInCandidates(
+          title: 'שות באר מרדכי',
+          candidates: [
+            ResolvedBookRepositoryCandidate(
+              repository: seforimRepo,
+              source: BookSource.attached('review'),
+            ),
+          ],
+        );
+        expect(record, isNull);
+      });
+
+      test('התאמה מדויקת גוברת על התאמה בלי גרשיים', () async {
+        await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו״ת חכם',
+          categoryTitle: 'א',
+        );
+        final plainCategoryId = await insertBookFor(
+          repo: seforimRepo,
+          title: 'שות חכם',
+          categoryTitle: 'ב',
+        );
+
+        expect(await resolvedTitle('שות חכם'), 'שות חכם');
+        expect(
+          await resolvedTitle('שות חכם', categoryId: plainCategoryId),
+          'שות חכם',
+        );
+      });
+
+      test('כמה מועמדים בלי קטגוריה מכריעה — לא מנחשים', () async {
+        final quotedCategoryId = await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו״ת דברי חיים',
+          categoryTitle: 'א',
+        );
+        await insertBookFor(
+          repo: seforimRepo,
+          title: 'שו"ת דברי חיים',
+          categoryTitle: 'ב',
+        );
+
+        expect(await resolvedTitle('שות דברי חיים'), isNull);
+        expect(
+          await resolvedTitle('שות דברי חיים', categoryId: quotedCategoryId),
+          isNull,
+        );
+      });
+    });
   });
 
   group('BookDatabaseResolver — integration (resolveBook / resolveBookById)', () {

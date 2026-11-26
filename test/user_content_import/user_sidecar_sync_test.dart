@@ -683,7 +683,7 @@ void main() {
           officialRepository: SeforimRepository(officialDb),
         );
 
-        expect(errors.single, contains('קיים גם בספרייה האישית וגם ברשמית'));
+        expect(errors.single, contains('קיים ביותר ממקור אחד'));
         expect(await linksOf('מגילה'), isEmpty);
       } finally {
         officialDb.close();

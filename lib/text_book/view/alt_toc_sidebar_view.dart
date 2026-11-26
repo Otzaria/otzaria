@@ -9,6 +9,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart'
+    show BookContentRange;
 import 'package:otzaria/migration/models/alt_toc_entry.dart';
 import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/models/books.dart';
@@ -24,6 +26,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/dibburim_structure.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
+import 'package:otzaria/text_book/utils/inline_section_marks_loader.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show HolyNameStyle, replaceHolyNames;
@@ -498,9 +501,11 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   /// מבנים שכותרותיהם מוזרקות לגוף הטקסט ([buildSectionHeadings]).
-  bool _hasInjectedHeadings(int structureId) => _structures.any(
-    (s) => s.id == structureId && (s.key == 'Topic' || s.key == 'Parasha'),
-  );
+  bool _hasInjectedHeadings(int structureId) =>
+      canLoadInlineSectionMarks(widget.book) &&
+      _structures.any(
+        (s) => s.id == structureId && injectsSectionHeadings(s.key),
+      );
 
   Future<int?> _entryIdForLine(int lineIndex, int structureId) async {
     if (structureId != kDibburimStructureId) {
@@ -744,6 +749,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     int lineIndex, {
     String? markerTitle,
     bool gemaraDapim = false,
+    bool alignSectionHeading = false,
   }) async {
     final request = ++_navigationRequest;
     final bloc = context.read<TextBookBloc>();
@@ -751,22 +757,47 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     if (state is! TextBookLoaded) {
       return;
     }
-    var line = lineIndex >= 0 && lineIndex < state.content.length
-        ? state.content[lineIndex]
-        : null;
-    if (markerTitle != null && !state.isContentLineLoaded(lineIndex)) {
-      final epoch = widget.lines.navigationEpoch.value;
-      final range = await bloc.repository.getBookContentRange(
+    final first = alignSectionHeading
+        ? (lineIndex >= 2 ? lineIndex - 2 : 0)
+        : lineIndex;
+    final last = alignSectionHeading ? lineIndex - 1 : lineIndex;
+    BookContentRange? range;
+    if ((alignSectionHeading || markerTitle != null) &&
+        first <= last &&
+        (!state.isContentLineLoaded(first) ||
+            !state.isContentLineLoaded(last))) {
+      final lines = widget.lines;
+      final epoch = lines.navigationEpoch.value;
+      range = await bloc.repository.getBookContentRange(
         state.book,
-        startLine: lineIndex,
-        endLine: lineIndex,
+        startLine: first,
+        endLine: last,
       );
       if (!mounted ||
           request != _navigationRequest ||
-          epoch != widget.lines.navigationEpoch.value) {
+          !identical(lines, widget.lines) ||
+          epoch != lines.navigationEpoch.value) {
         return;
       }
-      line = range?.lines.firstOrNull;
+    }
+    String? at(int index) {
+      final loaded = range;
+      if (loaded != null &&
+          index >= loaded.startLine &&
+          index <= loaded.endLine) {
+        return loaded.lines.elementAtOrNull(index - loaded.startLine);
+      }
+      return index >= 0 && index < state.content.length
+          ? state.content[index]
+          : null;
+    }
+
+    final line = at(lineIndex);
+    if (alignSectionHeading) {
+      lineIndex -= sectionHeadingLinesAbove([
+        at(lineIndex - 1),
+        at(lineIndex - 2),
+      ]);
     }
     final navigation = widget.lines.scrollToLine(
       lineIndex,
@@ -893,12 +924,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             link.path2 == widget.book.title &&
             state is TextBookLoaded) {
           // כותרת הנושא מוצגת מעל כותרות הסימן שלפני שורת היעד — אליה מנווטים.
-          final line = link.index2 - 1;
-          final content = state.content;
-          String? at(int i) => i >= 0 && i < content.length ? content[i] : null;
-          await _scrollToLine(
-            line - sectionHeadingLinesAbove([at(line - 1), at(line - 2)]),
-          );
+          await _scrollToLine(link.index2 - 1, alignSectionHeading: true);
         } else {
           if (link.path2 == widget.book.title) {
             _selectEntry(structureId, linkEntry.id, link.index2 - 1);

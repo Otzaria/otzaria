@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
-import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
@@ -298,23 +297,21 @@ void main() {
       openOtzarBook = defaultOpener;
     });
 
-    OtzarMappedBook mapped(
+    ExternalLibraryBook mapped(
       int id,
       String? volume, {
       String title = 'הלכות גדולות',
       String? pubDate,
       String? author,
       String? pubPlace,
-    }) => (
-      book: ExternalLibraryBook(
-        title: title,
-        id: id,
-        pubDate: pubDate,
-        author: author,
-        pubPlace: pubPlace,
-        link: 'https://tablet.otzar.org/book/book.php?book=$id',
-      ),
+    }) => ExternalLibraryBook(
+      title: title,
       volume: volume,
+      id: id,
+      pubDate: pubDate,
+      author: author,
+      pubPlace: pubPlace,
+      link: 'https://tablet.otzar.org/book/book.php?book=$id',
     );
 
     Future<void> openDialog(
@@ -535,7 +532,7 @@ void main() {
     }
 
     testWidgets('סגירת החלון לפני שהמיפוי נטען אינה זורקת', (tester) async {
-      final pending = Completer<List<OtzarMappedBook>>();
+      final pending = Completer<List<ExternalLibraryBook>>();
       otzarBooksForOtzariaId = (id) => pending.future;
       await openDialog(tester, TextBook(title: 'הלכות גדולות', id: 7));
 

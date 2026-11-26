@@ -851,6 +851,101 @@ void main() {
   </w:body>
 </w:document>''';
 
+    test('הדגשה מסגנון תו עוברת בירושה ומכבדת ביטול במקטע', () {
+      const styles =
+          '<w:styles $_xmlNs>'
+          '<w:style w:type="character" w:styleId="Strong">'
+          '<w:rPr><w:b/><w:bCs/></w:rPr></w:style>'
+          '<w:style w:type="character" w:styleId="Child">'
+          '<w:basedOn w:val="Strong"/>'
+          '</w:style>'
+          '<w:style w:type="character" w:styleId="On">'
+          '<w:basedOn w:val="Child"/><w:rPr><w:bCs/></w:rPr></w:style>'
+          '<w:style w:type="character" w:styleId="Off">'
+          '<w:basedOn w:val="Child"/><w:rPr><w:bCs w:val="0"/></w:rPr>'
+          '</w:style>'
+          '<w:style w:type="character" w:styleId="LatinOff">'
+          '<w:basedOn w:val="Child"/><w:rPr><w:b w:val="0"/></w:rPr>'
+          '</w:style>'
+          '</w:styles>';
+      String run(String style, String text, [String direct = '']) =>
+          '<w:r><w:rPr><w:rStyle w:val="$style"/>$direct</w:rPr>'
+          '<w:t>$text</w:t></w:r>';
+      final document =
+          '<w:document $_xmlNs><w:body>'
+          '<w:p>${run("Child", "ירושה")}</w:p>'
+          '<w:p>${run("On", "הדגשה")}</w:p>'
+          '<w:p>${run("Off", "ABCביטול")}</w:p>'
+          '<w:p>${run("LatinOff", "ABCביטול")}</w:p>'
+          '<w:p>${run("Child", "ישיר", '<w:bCs w:val="0"/>')}</w:p>'
+          '<w:p>${run("Off", "ישירה", "<w:bCs/>")}</w:p>'
+          '<w:p>${run("Missing", "ללא סגנון", "<w:bCs/>")}</w:p>'
+          '</w:body></w:document>';
+      final result = docxToText(
+        _buildDocx(_utf8Xml(document), stylesXmlBytes: _utf8Xml(styles)),
+        'בדיקה',
+      );
+      expect(result.split('\n'), [
+        '<h1>בדיקה</h1>',
+        '<b>ירושה</b>',
+        '<b>הדגשה</b>',
+        '<b>ABC</b>ביטול',
+        'ABC<b>ביטול</b>',
+        'ישיר',
+        '<b>ישירה</b>',
+        '<b>ללא סגנון</b>',
+      ]);
+    });
+
+    test('כתב עברי ולועזי שומרים את ההדגשה המוגדרת לכל כתב', () {
+      const styles =
+          '<w:styles $_xmlNs>'
+          '<w:style w:type="character" w:styleId="Latin">'
+          '<w:rPr><w:b/></w:rPr></w:style>'
+          '<w:style w:type="character" w:styleId="Both">'
+          '<w:rPr><w:b/><w:bCs/></w:rPr></w:style></w:styles>';
+      String convert(String properties, String text) => docxToText(
+        _buildDocx(
+          _utf8Xml(runWithProps(properties, text)),
+          stylesXmlBytes: _utf8Xml(styles),
+        ),
+        'בדיקה',
+      ).split('\n').last;
+      const latin = '<w:rStyle w:val="Latin"/>';
+      expect(convert(latin, 'עברית'), 'עברית');
+      expect(convert(latin, 'ABC'), '<b>ABC</b>');
+      expect(convert(latin, 'ABCעברית'), '<b>ABC</b>עברית');
+      expect(convert('$latin<w:rtl/>', 'ABC'), 'ABC');
+      expect(
+        convert('<w:rStyle w:val="Both"/><w:bCs w:val="0"/>', 'עברית'),
+        'עברית',
+      );
+    });
+
+    test('סגנון תו ללא הגדרת הדגשה משמר הדגשה ישירה', () {
+      const styles =
+          '<w:styles $_xmlNs>'
+          '<w:style w:type="character" w:styleId="ColorOnly">'
+          '<w:rPr><w:color w:val="FF0000"/></w:rPr></w:style>'
+          '<w:style w:type="character" w:styleId="Child">'
+          '<w:basedOn w:val="ColorOnly"/></w:style>'
+          '<w:style w:type="character" w:styleId="ExplicitOff">'
+          '<w:basedOn w:val="ColorOnly"/>'
+          '<w:rPr><w:bCs w:val="0"/></w:rPr></w:style>'
+          '</w:styles>';
+      String convert(String style, String direct, String text) => docxToText(
+        _buildDocx(
+          _utf8Xml(runWithProps('<w:rStyle w:val="$style"/>$direct', text)),
+          stylesXmlBytes: _utf8Xml(styles),
+        ),
+        'בדיקה',
+      ).split('\n').last;
+
+      expect(convert('ColorOnly', '<w:b/>', 'עברית'), '<b>עברית</b>');
+      expect(convert('Child', '<w:bCs/>', 'ABC'), '<b>ABC</b>');
+      expect(convert('ExplicitOff', '<w:b/>', 'עברית'), 'עברית');
+    });
+
     test('w:bCs בלבד (בלי w:b) מומר ל-<b>', () {
       final result = docxToText(
         _buildDocx(_utf8Xml(runWithProps('<w:bCs/>', 'מודגש'))),

@@ -38,7 +38,6 @@ TextBookLoaded _loaded(TextBook book) => TextBookLoaded(
   removeNikud: false,
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 
@@ -187,7 +186,7 @@ void main() {
     }
   });
 
-  testWidgets('אפשר לבטל נעיצה ולסגור מפרשי טקסט אחרי הקטנת החלון', (
+  testWidgets('אפשר לסגור את חלונית הניווט במפרשי טקסט אחרי הקטנת החלון', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1600, 900);
@@ -229,14 +228,19 @@ void main() {
       await tester.tap(find.byType(NavPanelToggleButton));
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.byTooltip('נעץ את החלונית'));
-    await tester.pumpAndSettle();
     tester.view.physicalSize = const Size(700, 900);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('בטל נעיצה'), findsOneWidget);
-    await tester.tap(find.byTooltip('בטל נעיצה'));
+    // מסך צר סוגר את החלונית; הכפתור פותח אותה מעל התוכן וסוגר שוב.
+    expect(
+      tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen,
+      isFalse,
+    );
+    await tester.tap(find.byType(NavPanelToggleButton));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('נעץ את החלונית'), findsNothing);
+    expect(
+      tester.widget<NavSidePanel>(find.byType(NavSidePanel)).isOpen,
+      isTrue,
+    );
     await tester.tap(find.byType(NavPanelToggleButton));
     await tester.pumpAndSettle();
     expect(

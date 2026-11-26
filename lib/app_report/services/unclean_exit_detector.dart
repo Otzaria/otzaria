@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
 import 'package:otzaria/app_report/services/breakpad_envelope.dart';
 import 'package:otzaria/app_report/services/minidump_signature.dart';
+import 'package:otzaria/app_report/services/system_exit_evidence.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
@@ -64,8 +65,8 @@ class CrashCandidate {
     this.minidump,
     this.minidumpSignature,
     this.kind = CrashIncidentKind.crash,
+    this.details,
   }) : hangDuration = null,
-       details = null,
        occurredInPreviousRun = true;
 
   /// תקיעה שזוהתה בזמן ריצה (או ANR של אנדרואיד). [details] נכנס לאבחון
@@ -125,12 +126,18 @@ class UncleanExitDetector {
     int? currentPid,
     DateTime? processStartedAt,
     DateTime Function()? clock,
+    SystemExitEvidenceReader? systemExitEvidence,
   }) : logsDirectory = logsDirectory ?? p.dirname(ErrorLogFile.resolvePath()),
        _sentryDirs = sentryDatabaseDirs,
        _isProcessAlive = isProcessAlive ?? defaultIsProcessAlive,
        _processCreatedAt =
            processCreatedAt ??
            (isProcessAlive == null ? defaultProcessCreatedAt : (_) => null),
+       _systemExitEvidence =
+           systemExitEvidence ??
+           (isProcessAlive == null
+               ? readSystemExitEvidence
+               : _noSystemEvidence),
        _currentPid = currentPid ?? pid,
        _processStartedAt = processStartedAt ?? (clock ?? DateTime.now)();
 
@@ -148,6 +155,7 @@ class UncleanExitDetector {
   final List<String>? _sentryDirs;
   final bool Function(int pid) _isProcessAlive;
   final DateTime? Function(int pid) _processCreatedAt;
+  final SystemExitEvidenceReader _systemExitEvidence;
   final int _currentPid;
   final DateTime _processStartedAt;
 
@@ -204,7 +212,8 @@ class UncleanExitDetector {
   }
 
   /// מחזיר מועמד לקריסה רק כשנשארה נעילה של תהליך שאינו חי, ויש ראיה לקריסה:
-  /// רשומת שגיאה מאז תחילתו, `Startup stall`, או minidump של Sentry.
+  /// רשומת שגיאה מאז תחילתו, `Startup stall`, minidump של Sentry, או אירוע
+  /// מערכת על אותו pid (קריסה, תקיעה שנסגרה, הריגת OOM).
   /// נעילת עלייה מכסה תהליך שמת לפני שכתב את `session.lock`.
   Future<CrashCandidate?> detectPreviousCrash() async {
     for (final dir in _sentryDirs ?? defaultSentryDatabaseDirs()) {
@@ -222,7 +231,8 @@ class UncleanExitDetector {
       lock = null;
     }
     // הוותיקה מכולן: רשומות של כל ההפעלות שלא נסגרו נכנסות לבדיקה.
-    final previous = [?lock, ...abandoned].fold<SessionLock?>(
+    final dead = [?lock, ...abandoned];
+    final previous = dead.fold<SessionLock?>(
       null,
       (oldest, next) =>
           oldest == null || next.startedAt.isBefore(oldest.startedAt)
@@ -247,7 +257,22 @@ class UncleanExitDetector {
     final evidence = blocks
         .where((b) => b.isCrashEvidence || unrecoveredHang(b))
         .toList();
-    if (evidence.isEmpty && !dump.found) return null;
+    if (evidence.isEmpty && !dump.found) {
+      // בלי אירוע מערכת אין להבדיל קריסה שקטה מכיבוי חשמל או הריגה ידנית.
+      final system = await _systemEvidenceFor(dead);
+      if (system == null) return null;
+      return CrashCandidate(
+        previousSession: system.session,
+        entries: blocks,
+        signature: system.evidence.signature,
+        hasStartupStall: false,
+        hasMinidump: false,
+        details: system.evidence.details,
+        kind: system.evidence.isHang
+            ? CrashIncidentKind.hang
+            : CrashIncidentKind.crash,
+      );
+    }
 
     final newestDump = dump.newest;
     final dumpSignature = newestDump == null
@@ -266,6 +291,29 @@ class UncleanExitDetector {
           : CrashIncidentKind.crash,
     );
   }
+
+  Future<({SessionLock session, SystemExitEvidence evidence})?>
+  _systemEvidenceFor(List<SessionLock> sessions) async {
+    for (final session in sessions) {
+      try {
+        final evidence = await _systemExitEvidence(
+          session.pid,
+          session.startedAt,
+          _processStartedAt,
+        );
+        if (evidence != null) return (session: session, evidence: evidence);
+      } catch (error) {
+        debugPrint('UncleanExitDetector: system events unreadable: $error');
+      }
+    }
+    return null;
+  }
+
+  static Future<SystemExitEvidence?> _noSystemEvidence(
+    int pid,
+    DateTime start,
+    DateTime end,
+  ) async => null;
 
   /// נעילות עלייה של תהליכים שמתו, ונמחקות מיד כדי שאותה הפעלה לא תוצע שוב.
   Future<List<SessionLock>> _takeAbandonedStartupLocks() async {

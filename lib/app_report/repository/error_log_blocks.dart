@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:otzaria/app_report/services/android_anr_source.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// רשומה אחת מ-errors.txt, כולל הטקסט המלא שלה.
@@ -124,7 +125,7 @@ const Set<String> _systemModules = {
 const int _hangDartFrames = 8;
 const int _hangDartFramesPerEntry = 4;
 
-/// הנייטיב כותב [_hangTopFrames] פריימים עליונים, `... (N frames omitted) ...` ותחתית.
+/// הנייטיב כותב [_hangTopFrames] פריימים עליונים ואחריהם קטעים, כל אחד אחרי `... (N frames omitted) ...`.
 /// החתימה רק מהראש, כמו ברשומות שנחתכו בעבר ב-48, כדי שלא תשתנה עם עומק המחסנית.
 const int _hangTopFrames = 48;
 
@@ -138,7 +139,19 @@ List<String> _hangSignatureFrames(String stackText) {
       .toList();
   bool isDart(String frame) => frame.toLowerCase().startsWith('app.so+');
   final dartAt = frames.indexWhere(isDart);
-  if (dartAt < 0) return _nativeHangFrames(frames);
+  if (dartAt < 0) {
+    // אנדרואיד (`HangMonitorChannel.kt`): מחסנית Java, ונבחרת כמו ב-ANR.
+    if (frames.any((f) => f.startsWith('at '))) {
+      // תקיעה ב-Dart או במנוע נראית בדיוק כמו looper במנוחה, בלי פריים שמבדיל.
+      if (frames.first.startsWith(
+        'at android.os.MessageQueue.nativePollOnce',
+      )) {
+        return const ['MessageQueue.nativePollOnce (Dart or engine)'];
+      }
+      return anrSignatureFromTrace(stackText).frames;
+    }
+    return _nativeHangFrames(frames);
+  }
 
   // מתחת לרצף הראשון יש רק כניסת המנוע ולולאת ההודעות, זהות לכל תקיעה.
   var run = frames.skip(dartAt).takeWhile(isDart);

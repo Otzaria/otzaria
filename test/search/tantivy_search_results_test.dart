@@ -267,6 +267,49 @@ void main() {
       expect(find.text('אוצריא'), findsWidgets);
     });
 
+    testWidgets('קפיצה לסוף אלפי תוצאות בונה רק את כרטיסי היעד '
+        '(issue #4766)', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+      searchBloc.emitState(
+        searchBloc.state.copyWith(
+          totalResults: 3000,
+          results: [
+            for (var i = 0; i < 3000; i++)
+              SearchResult(
+                id: BigInt.from(i + 1),
+                title: 'ספר $i',
+                reference: 'סימן $i',
+                text: 'טקסט ${'ארוך ' * (i % 9)}$i',
+                segment: BigInt.from(i),
+                isPdf: false,
+                filePath: 'book_$i.txt',
+                mergedCount: 1,
+                merged: const [],
+                textStatus: TextStatus.ok,
+                continuesToNextLine: false,
+              ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      var cardBuilds = 0;
+      debugOnRebuildDirtyWidget = (element, _) {
+        if (element.widget is EngineResultCard) cardBuilds++;
+      };
+      addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .controller!;
+      scroll.jumpTo(scroll.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+
+      // SliverList בונה בקפיצה כזו כל כרטיס שבדרך: אלפי בניות.
+      expect(cardBuilds, lessThan(200));
+    });
+
     testWidgets('גלילה לתחתית טוענת עוד תוצאות אוטומטית', (tester) async {
       await tester.pumpWidget(buildWidget());
 
@@ -355,7 +398,7 @@ void main() {
       await tester.pump();
 
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
-      await tester.pump();
+      await tester.pumpAndSettle();
       final scrolledOffset = tester
           .widget<CustomScrollView>(find.byType(CustomScrollView))
           .controller!

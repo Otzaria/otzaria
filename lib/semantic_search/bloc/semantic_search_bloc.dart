@@ -16,6 +16,8 @@ class SemanticSearchBloc
     extends Bloc<SemanticSearchEvent, SemanticSearchState> {
   final SemanticSearchRepository repository;
   StreamSubscription<Object?>? _subscription;
+  bool _coverageWanted = false;
+  int _coverageRequest = 0;
 
   SemanticSearchBloc({required this.repository})
     : super(
@@ -49,15 +51,33 @@ class SemanticSearchBloc
       );
     });
     on<SemanticDataRemovalRequested>(_onRemovalRequested);
-    on<SemanticAvailabilityUpdated>(
-      (event, emit) => emit(
+    on<SemanticAvailabilityUpdated>((event, emit) async {
+      emit(
         state.copyWith(
           availability: event.availability,
           modelChoice: repository.modelChoice,
           activeModelChoice: repository.activeModelChoice,
         ),
-      ),
-    );
+      );
+      await _loadCoverageIfWanted(emit);
+    });
+    on<SemanticCoveredBooksRequested>((event, emit) async {
+      _coverageWanted = true;
+      await _loadCoverageIfWanted(emit);
+    });
+  }
+
+  /// בלי חיפוש שמיש, או כשהטעינה נכשלה, הרשימה הקודמת כבר אינה נכונה.
+  Future<void> _loadCoverageIfWanted(Emitter<SemanticSearchState> emit) async {
+    final request = ++_coverageRequest;
+    if (!state.availability.isUsable) {
+      emit(state.copyWith(coveredBookFilePaths: () => null));
+      return;
+    }
+    if (!_coverageWanted) return;
+    final covered = await repository.loadCoveredBookFilePaths();
+    if (request != _coverageRequest || emit.isDone) return;
+    emit(state.copyWith(coveredBookFilePaths: () => covered));
   }
 
   Future<void> _onStarted(
@@ -69,6 +89,7 @@ class SemanticSearchBloc
     );
     final availability = await repository.refresh();
     emit(state.copyWith(availability: availability));
+    await _loadCoverageIfWanted(emit);
   }
 
   Future<void> _onQuantizationChanged(

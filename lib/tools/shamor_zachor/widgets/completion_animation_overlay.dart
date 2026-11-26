@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/semantics.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 
 import '../shamor_zachor_widget.dart';
 
@@ -58,10 +62,11 @@ class _CompletionAnimation extends StatefulWidget {
 }
 
 class _CompletionAnimationState extends State<_CompletionAnimation>
-    with TickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+  bool _announced = false;
 
   @override
   void initState() {
@@ -70,30 +75,32 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
       duration: AppMotion.controller(const Duration(milliseconds: 2000)),
       vsync: this,
     );
-
-    _scaleAnimation =
-        Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
-          ),
-        );
-
-    _opacityAnimation =
-        Tween<double>(
-          begin: 1.0,
-          end: 0.0,
-        ).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
-          ),
-        );
-
+    _scale = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
+    );
+    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
+      ),
+    );
     _controller.forward().then((_) => widget.onComplete());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_announced) return;
+    _announced = true;
+    // ההודעה צפה ב-Overlay בלי פוקוס, ולכן קורא מסך לא יקרא אותה בלי הכרזה.
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        widget.message,
+        Directionality.of(context),
+      ),
+    );
   }
 
   @override
@@ -104,55 +111,49 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     return Material(
       type: MaterialType.transparency,
       child: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _opacityAnimation.value,
-              child: Transform.scale(
-                scale: _scaleAnimation.value,
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  margin: const EdgeInsets.all(32),
+        child: FadeTransition(
+          opacity: _opacity,
+          child: ScaleTransition(
+            scale: _scale,
+            child: Padding(
+              padding: const EdgeInsets.all(AppTokens.spaceXL),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: LayoutConstraints.overlayPanelWidth,
+                ),
+                // AppCard בלי צל (DD-12); משטח צף מקבל את הצל של AppShadows.
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppSurfaces.card(context),
                     borderRadius: AppTokens.borderRadiusAll,
-                    boxShadow: [
-                      BoxShadow(
-                        color: cs.shadow.withValues(alpha: 0.24),
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                    boxShadow: AppShadows.floating(theme.colorScheme),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        FluentIcons.trophy_24_regular,
-                        size: AppTokens.iconXL,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        widget.message,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ],
+                  child: AppCard(
+                    padding: const EdgeInsets.all(AppTokens.spaceLG),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          OtzariaIcons.book_checkmark_24_regular,
+                          size: AppTokens.iconXL,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(height: AppTokens.spaceMD),
+                        Text(
+                          widget.message,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleLarge,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );

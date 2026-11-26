@@ -41,7 +41,7 @@ import 'package:xml/xml.dart' as xml;
 /// v15: קישורי OOXML ו-WordML 2003 נשמרים כ-`<a href="…">` מאומתים,
 /// וסימניות יעד הופכות לעוגנים באותה שורת פלט — גם כשאינן כותרות.
 /// v16: גוף הערת שוליים שומר הדגשה, ומעבר פסקה/שורה בו הוא `<br>`.
-const int kOoxmlWordConverterVersion = 16;
+const int kOoxmlWordConverterVersion = 18;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
@@ -111,6 +111,7 @@ class _DocxContext {
 
   /// `styleId` → רמת כותרת 1–6, מקובץ styles.xml.
   final Map<String, int> headingStyles;
+  final _CharacterBoldStyles boldStyles;
 
   /// `rId` → כתובת יעד, מיחסי `hyperlink` ב-document.xml.rels.
   final Map<String, String> hyperlinkRels;
@@ -131,7 +132,8 @@ class _DocxContext {
     this.footnotes,
     this.images,
     this.numbering,
-    this.headingStyles, {
+    this.headingStyles,
+    this.boldStyles, {
     String footnoteNumFmt = 'decimal',
     this.hyperlinkRels = const {},
     this.referencedAnchors = const {},
@@ -226,35 +228,10 @@ Map<String, Map<int, _NumLevel>> _extractNumbering(Archive archive) {
 /// שרשרת `w:basedOn` נפתרת: סגנון מותאם המבוסס על `Heading1` יורש ממנו את
 /// ה-`outlineLvl` ואין לו משלו. `outlineLvl` מפורש *עוצר* את הירושה — גם
 /// הערך 9 ("Body Text"), שהוא ביטול מכוון של רמת האב.
-Map<String, int> _extractHeadingStyles(Archive archive) {
-  ArchiveFile? stylesFile;
-  for (final f in archive) {
-    if (f.isFile && f.name == 'word/styles.xml') {
-      stylesFile = f;
-      break;
-    }
-  }
-  if (stylesFile == null) return const {};
-
-  try {
-    return _headingStylesFrom(
-      xml.XmlDocument.parse(
-        _decodeXmlBytes(
-          readArchiveEntry(stylesFile, format: DocumentFormat.docx),
-        ),
-      ),
-    );
-  } catch (_) {
-    return const {};
-  }
-}
-
-/// גוף [_extractHeadingStyles], על מסמך XML שכבר נקרא. WordML 2003 מחזיק
-/// את הסגנונות באותו מסמך עם אותו אוצר-מילים, ולכן שני הדיאלקטים חולקים
-/// את הפתירה הזו.
-Map<String, int> _headingStylesFrom(xml.XmlDocument doc) {
+Map<String, int> _headingStylesFrom(xml.XmlElement? root) {
+  if (root == null) return const {};
   final defs = <String, ({String? name, String? outline, String? basedOn})>{};
-  for (final style in doc.findAllElements('w:style')) {
+  for (final style in root.findAllElements('w:style')) {
     final type = style.getAttribute('w:type');
     if (type != null && type != 'paragraph') continue;
     final id = style.getAttribute('w:styleId');
@@ -299,6 +276,112 @@ Map<String, int> _headingStylesFrom(xml.XmlDocument doc) {
     if (level != null) result[id] = level;
   }
   return result;
+}
+
+typedef _Bold = ({bool latin, bool complex});
+typedef _StyleBold = ({bool? latin, bool? complex});
+const _StyleBold _unspecifiedBold = (latin: null, complex: null);
+
+class _CharacterBoldStyles {
+  _CharacterBoldStyles(xml.XmlElement? root) {
+    if (root == null) return;
+    for (final style in root.findAllElements('w:style')) {
+      final id = style.getAttribute('w:styleId');
+      if (id != null && style.getAttribute('w:type') == 'character') {
+        _definitions[id] = style;
+      }
+    }
+  }
+
+  final _definitions = <String, xml.XmlElement>{};
+  final _resolved = <String, _StyleBold>{};
+
+  _StyleBold _resolve(String id) {
+    final cached = _resolved[id];
+    if (cached != null) return cached;
+    final chain = <String>{};
+    String? current = id;
+    while (current != null &&
+        !_resolved.containsKey(current) &&
+        _definitions.containsKey(current)) {
+      if (!chain.add(current)) {
+        for (final member in chain) {
+          _resolved[member] = _unspecifiedBold;
+        }
+        return _unspecifiedBold;
+      }
+      current = _definitions[current]!
+          .getElement('w:basedOn')
+          ?.getAttribute('w:val');
+    }
+    var bold = _resolved[current] ?? _unspecifiedBold;
+    for (final member in chain.toList().reversed) {
+      final props = _definitions[member]!.getElement('w:rPr');
+      final latin = props?.getElement('w:b');
+      final complex = props?.getElement('w:bCs');
+      // לפי ECMA-376 §17.7.3, בתוך basedOn הערך המפורש הקרוב ביותר גובר.
+      bold = (
+        latin: latin == null ? bold.latin : _isOnOff(latin),
+        complex: complex == null ? bold.complex : _isOnOff(complex),
+      );
+      _resolved[member] = bold;
+    }
+    return bold;
+  }
+
+  _Bold forRun(xml.XmlElement? props) {
+    final style = props?.getElement('w:rStyle')?.getAttribute('w:val');
+    final latin = props?.getElement('w:b');
+    final complex = props?.getElement('w:bCs');
+    final inherited = style == null || !_definitions.containsKey(style)
+        ? _unspecifiedBold
+        : _resolve(style);
+    if (inherited.latin == null && inherited.complex == null) {
+      // סגנון ללא הגדרת הדגשה משאיר את פירוש העיצוב הישיר של הממיר.
+      final direct = _isOnOff(latin) || _isOnOff(complex);
+      return (latin: direct, complex: direct);
+    }
+    final latinBold = latin == null
+        ? inherited.latin ?? false
+        : _isOnOff(latin);
+    final complexBold = complex == null
+        ? inherited.complex ?? false
+        : _isOnOff(complex);
+    final forceComplex =
+        _isOnOff(props?.getElement('w:cs')) ||
+        _isOnOff(props?.getElement('w:rtl'));
+    return (
+      latin: forceComplex ? complexBold : latinBold,
+      complex: complexBold,
+    );
+  }
+}
+
+// טווחי הכתב המורכב בגופני Word כוללים עברית, ערבית וכתבים מדרום אסיה.
+final _complexText = RegExp(
+  r'[\u0590-\u109F\u1780-\u17FF\uFB1D-\uFDFF\uFE70-\uFEFC]+',
+);
+
+_Seg _boldSegment(String text, _Bold bold) {
+  _Seg segment(String part, bool enabled) =>
+      enabled ? _Seg('<b>', '</b>', part) : _Seg('', '', part);
+  if (bold.latin == bold.complex) return segment(text, bold.latin);
+  final match = _complexText.firstMatch(text);
+  if (match == null) return segment(text, bold.latin);
+  if (match.start == 0 && match.end == text.length) {
+    return segment(text, bold.complex);
+  }
+  String wrap(String part, bool enabled) =>
+      enabled && part.isNotEmpty ? '<b>$part</b>' : part;
+  return _Seg(
+    '',
+    '',
+    text.splitMapJoin(
+      _complexText,
+      onMatch: (match) => wrap(match[0]!, bold.complex),
+      onNonMatch: (part) => wrap(part, bold.latin),
+    ),
+  );
 }
 
 /// בונה מפת `rId` → `data:` URI עבור כל התמונות המוטמעות בקובץ — קריאה
@@ -650,7 +733,7 @@ int? _headingLevelFromOutline(String? val) {
 ///
 /// תגיות העטיפה נבנות מבפנים החוצה (עילי/תחתי הכי פנימי, מודגש הכי חיצוני),
 /// כך שכל run בעל אותו עיצוב מקבל [open] זהה וניתן למיזוג.
-_Seg? _processRunSeg(xml.XmlElement node) {
+_Seg? _processRunSeg(xml.XmlElement node, _CharacterBoldStyles boldStyles) {
   final rPr = node.getElement('w:rPr');
 
   // טקסט מוסתר (`w:vanish`) — לא מוצג (משמש לאינדקסים/הערות נסתרות).
@@ -730,11 +813,9 @@ _Seg? _processRunSeg(xml.XmlElement node) {
   }
 
   // מודגש — כולל וריאנט complex-script של עברית (הכי חיצוני)
-  if (_isOnOff(rPr.getElement('w:b')) || _isOnOff(rPr.getElement('w:bCs'))) {
-    wrap('<b>', '</b>');
-  }
-
-  return _Seg(opens.reversed.join(), closes.join(), text);
+  final segment = _boldSegment(text, boldStyles.forRun(rPr));
+  if (segment.open.isNotEmpty) wrap(segment.open, segment.close);
+  return _Seg(opens.reversed.join(), closes.join(), segment.text);
 }
 
 /// מחזיר את תג הקישור העוטף [run], אם יש כזה בפסקה הנוכחית.
@@ -763,7 +844,9 @@ String? _hrefForLink(xml.XmlElement link, _DocxContext ctx) {
     final relationId = link.getAttribute('r:id');
     if (relationId != null) {
       final target = ctx.hyperlinkRels[relationId];
-      return target == null ? null : safeLinkTarget(target);
+      return target == null
+          ? null
+          : safeLinkTarget(target, allowBookLinks: true);
     }
     final anchor = link.getAttribute('w:anchor');
     return anchor == null || anchor.isEmpty ? null : safeLinkTarget('#$anchor');
@@ -771,7 +854,7 @@ String? _hrefForLink(xml.XmlElement link, _DocxContext ctx) {
 
   final destination = link.getAttribute('w:dest');
   if (destination != null && destination.isNotEmpty) {
-    return safeLinkTarget(destination);
+    return safeLinkTarget(destination, allowBookLinks: true);
   }
   final bookmark = link.getAttribute('w:bookmark');
   return bookmark == null || bookmark.isEmpty
@@ -861,7 +944,7 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
     // ה-run עצמו. בלי הטיפול כאן הוא היה זולג לגוף הפסקה כטקסט רגיל.
     final inlineFootnote = run.getElement('w:footnote');
     if (inlineFootnote != null) {
-      final body = _footnoteHtml(inlineFootnote);
+      final body = _footnoteHtml(inlineFootnote, ctx.boldStyles);
       if (body.isNotEmpty) {
         target.add(_Seg.raw(otzariaFootnote(ctx.footnoteCounter.next(), body)));
       }
@@ -875,7 +958,7 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
       continue;
     }
 
-    final seg = _processRunSeg(run);
+    final seg = _processRunSeg(run, ctx.boldStyles);
     if (seg != null) target.add(seg);
   }
   flushLink();
@@ -1184,7 +1267,7 @@ final _footnoteWhitespace = RegExp(r'\s+');
 
 /// גוף הערה בשורת HTML אחת. עטיפת ההערה מסתיימת ב-</i> הראשון, לכן נשמרת
 /// כאן רק הדגשה. מפרידים בין מקטעי טקסט לפני שמוסיפים את תגי ההדגשה.
-String _footnoteHtml(xml.XmlElement footnote) {
+String _footnoteHtml(xml.XmlElement footnote, _CharacterBoldStyles boldStyles) {
   final segs = <_Seg>[];
   var pendingBreaks = 0;
   var pendingSpace = false;
@@ -1195,10 +1278,7 @@ String _footnoteHtml(xml.XmlElement footnote) {
     }
     if (node.name.qualified != 'w:r') continue;
     final rPr = node.getElement('w:rPr');
-    final bold =
-        _isOnOff(rPr?.getElement('w:b')) || _isOnOff(rPr?.getElement('w:bCs'));
-    final open = bold ? '<b>' : '';
-    final close = bold ? '</b>' : '';
+    final bold = boldStyles.forRun(rPr);
     for (final child in node.childElements) {
       switch (child.name.qualified) {
         case 'w:br':
@@ -1213,18 +1293,19 @@ String _footnoteHtml(xml.XmlElement footnote) {
             pendingSpace = true;
             continue;
           }
+          final segment = _boldSegment(escapeHtmlText(trimmed), bold);
           if (segs.isNotEmpty) {
             if (pendingBreaks > 0) {
               segs.add(_Seg.raw('<br>' * pendingBreaks));
             } else if (pendingSpace || text.startsWith(' ')) {
               segs.add(
-                segs.last.open == open
-                    ? _Seg(open, close, ' ')
+                segs.last.open == segment.open
+                    ? _Seg(segment.open, segment.close, ' ')
                     : const _Seg('', '', ' '),
               );
             }
           }
-          segs.add(_Seg(open, close, escapeHtmlText(trimmed)));
+          segs.add(segment);
           pendingBreaks = 0;
           pendingSpace = text.endsWith(' ');
       }
@@ -1234,7 +1315,10 @@ String _footnoteHtml(xml.XmlElement footnote) {
 }
 
 /// Extracts footnotes from the document
-Map<String, String> _extractFootnotes(Archive archive) {
+Map<String, String> _extractFootnotes(
+  Archive archive,
+  _CharacterBoldStyles boldStyles,
+) {
   final footnotes = <String, String>{};
 
   for (final file in archive) {
@@ -1252,7 +1336,7 @@ Map<String, String> _extractFootnotes(Archive archive) {
           final id = footnote.getAttribute('w:id');
           if (id != null && id != '-1' && id != '0') {
             // Skip automatic footnotes
-            footnotes[id] = _footnoteHtml(footnote);
+            footnotes[id] = _footnoteHtml(footnote, boldStyles);
           }
         }
       } catch (_) {
@@ -1366,11 +1450,14 @@ String ooxmlWordArchiveToText(
     );
   }
 
+  final styles = _archiveXmlRoot(archive, 'word/styles.xml');
+  final boldStyles = _CharacterBoldStyles(styles);
   final ctx = _DocxContext(
-    _extractFootnotes(archive),
+    _extractFootnotes(archive, boldStyles),
     _extractImages(archive, embedImages: embedImages),
     _extractNumbering(archive),
-    _extractHeadingStyles(archive),
+    _headingStylesFrom(styles),
+    boldStyles,
     // ברירת המחדל יושבת ב-settings.xml, וסקציה יכולה לעקוף אותה; הספר
     // מוצג כרצף אחד, ולכן העקיפה הראשונה קובעת לכולו.
     footnoteNumFmt:
@@ -1418,7 +1505,8 @@ String wordMl2003ToText(
     const {},
     _extractWordMlImages(root, embedImages: embedImages),
     _extractWordMlNumbering(root),
-    _headingStylesFrom(document),
+    _headingStylesFrom(root),
+    _CharacterBoldStyles(root),
     // ב-WordML 2003 הגדרות המסמך יושבות ב-`w:docPr`, ולא בקובץ נפרד.
     footnoteNumFmt: _footnoteNumFmtIn(root.getElement('w:docPr')) ?? 'decimal',
     referencedAnchors: _collectReferencedAnchors(body),

@@ -76,7 +76,6 @@ void main() {
       tableOfContents: const [],
       removeNikud: false,
       visibleIndices: const [10],
-      pinLeftPane: false,
       searchText: 'שלום',
     ),
     act: (bloc) => bloc.add(
@@ -112,7 +111,6 @@ void main() {
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: visibleIndices,
-    pinLeftPane: false,
     searchText: '',
   );
 
@@ -416,7 +414,6 @@ void main() {
       tableOfContents: const [],
       removeNikud: false,
       visibleIndices: const [0],
-      pinLeftPane: false,
       searchText: '',
     ),
     act: (bloc) => bloc.add(

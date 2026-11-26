@@ -575,11 +575,15 @@ class HtmlWrapRange {
   final String openTag;
   final String closeTag;
 
+  /// מקטעים ממוינים בטקסט המקורי שיש להותיר מחוץ לעטיפה.
+  final List<Match> exclusions;
+
   const HtmlWrapRange({
     required this.start,
     required this.end,
     required this.openTag,
     required this.closeTag,
+    this.exclusions = const [],
   });
 }
 
@@ -606,12 +610,31 @@ String wrapHtmlRanges(String text, List<HtmlWrapRange> ranges) {
     if (range.start > currentPos) {
       buffer.write(text.substring(currentPos, range.start));
     }
-    _appendWrapped(
-      buffer,
-      text.substring(range.start, range.end),
-      range.openTag,
-      range.closeTag,
-    );
+    var start = range.start;
+    for (final exclusion in range.exclusions) {
+      if (exclusion.end <= start) continue;
+      if (exclusion.start >= range.end) break;
+      if (start < exclusion.start) {
+        _appendWrapped(
+          buffer,
+          text.substring(start, exclusion.start),
+          range.openTag,
+          range.closeTag,
+        );
+        start = exclusion.start;
+      }
+      final end = exclusion.end < range.end ? exclusion.end : range.end;
+      buffer.write(text.substring(start, end));
+      start = end;
+    }
+    if (start < range.end) {
+      _appendWrapped(
+        buffer,
+        text.substring(start, range.end),
+        range.openTag,
+        range.closeTag,
+      );
+    }
     currentPos = range.end;
   }
 

@@ -18,6 +18,7 @@ import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_filter.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/models/library_match_filter.dart';
 import 'package:otzaria/library/models/library_navigation_history.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -101,6 +102,8 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     on<TravelLibraryHistory>(_onTravelLibraryHistory);
     on<SearchBooks>(_onSearchBooks);
     on<SelectTopics>(_onSelectTopics);
+    on<SelectMatchFilters>(_onSelectMatchFilters);
+    on<ShowAuthorBooks>(_onShowAuthorBooks);
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
     on<SelectBookForPreview>(_onSelectBookForPreview);
     on<SelectCategoryForPreview>(_onSelectCategoryForPreview);
@@ -489,7 +492,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       }
       visited.add(current);
 
-      path.insert(0, current.title);
+      path.insert(0, current.pathSegment ?? current.title);
       current = current.parent;
     }
 
@@ -502,16 +505,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
     Category current = rootCategory;
 
-    for (final categoryName in path) {
-      try {
-        final found = current.subCategories
-            .where((cat) => cat.title == categoryName)
-            .first;
-        current = found;
-      } catch (e) {
-        // אם לא מצאנו את התיקייה, נחזיר את הקרובה ביותר
-        return current;
-      }
+    for (final segment in path) {
+      final child = current.subCategories
+          .where(
+            (category) => (category.pathSegment ?? category.title) == segment,
+          )
+          .firstOrNull;
+      if (child == null) break;
+      current = child;
     }
 
     return current;
@@ -666,16 +667,22 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     NavigateToCategory event,
     Emitter<LibraryState> emit,
   ) {
+    final library = state.library;
+    if (library == null) return;
+    final category = _categoryByPath(library, event.category.path);
+    if (category == null) return;
+
     _searchGeneration++;
     // גם "בית" בתיקייה שכבר פתוחה מחזיר את התצוגה המקדימה אליה (#4626).
     emit(
       state.copyWith(
-        currentCategory: event.category,
+        currentCategory: category,
         searchQuery: null,
         searchResults: null,
+        clearAuthorFilter: true,
         isSearching: false,
         selectedTopics: null,
-        previewCategory: event.category,
+        previewCategory: category,
       ),
     );
   }
@@ -704,9 +711,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
   Category? _historyCategoryAtPath(Library library, String path) {
     Category category = library;
-    for (final title in path.split('/').where((part) => part.isNotEmpty)) {
+    for (final segment in path.split('/').where((part) => part.isNotEmpty)) {
       final child = category.subCategories
-          .where((sub) => sub.title == title)
+          .where((sub) => (sub.pathSegment ?? sub.title) == segment)
           .firstOrNull;
       if (child == null) return null;
       category = child;
@@ -728,6 +735,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         currentCategory: parent,
         searchQuery: null,
         searchResults: null,
+        clearAuthorFilter: true,
         isSearching: false,
         selectedTopics: null,
         previewCategory: parent,
@@ -742,6 +750,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     emit(
       state.copyWith(
         searchQuery: event.query,
+        selectedMatchFilters: event.query == state.searchQuery
+            ? null
+            : const {},
         searchResults: state.searchResults,
         searchCategoryResults: state.searchCategoryResults,
       ),
@@ -758,6 +769,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       emit(
         state.copyWith(
           searchResults: null,
+          clearAuthorFilter: true,
           isSearching: false,
           previewCategory: state.searchResults == null
               ? null
@@ -779,6 +791,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           isSearching: true,
           searchResults: state.searchResults,
           searchCategoryResults: state.searchCategoryResults,
+          clearAuthorFilter: true,
         ),
       );
 
@@ -813,30 +826,19 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         return;
       }
 
-      // בחירת הספר הראשון מתוצאות החיפוש לתצוגה מקדימה
-      Book? firstBook;
-      if (results.isNotEmpty) {
-        // העדפה לספר טקסט על פני PDF
-        firstBook = results.firstWhere(
-          (book) => book is TextBook,
-          orElse: () => results.first,
-        );
-      }
-
-      final previous = state.previewBook;
-      final keptPreview =
-          event.keepPreview && previous != null && results.contains(previous)
-          ? previous
-          : null;
-
-      emit(
-        state.copyWith(
-          searchResults: results,
-          searchCategoryResults: found.categories,
-          previewBook: keptPreview ?? firstBook,
-          isSearching: false,
+      final next = state.copyWith(
+        searchResults: results,
+        searchCategoryResults: found.categories,
+        searchMatchKinds: found.bookMatchKinds,
+        selectedMatchFilters: state.selectedMatchFilters.intersection(
+          LibraryMatchFilter.present(
+            found.bookMatchKinds.values,
+            hasFolders: found.categories.isNotEmpty,
+          ),
         ),
+        isSearching: false,
       );
+      _emitSearchPreview(emit, next, keepPreview: event.keepPreview);
     } on BookSearchSupersededException {
       // החיפוש החדש שהחליף אותו הוא שיעדכן את המצב.
     } catch (e, stackTrace) {
@@ -876,49 +878,102 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
   }
 
+  void _onShowAuthorBooks(
+    ShowAuthorBooks event,
+    Emitter<LibraryState> emit,
+  ) {
+    final author = event.author?.trim() ?? '';
+    final library = state.library;
+    _searchGeneration++;
+    if (author.isEmpty || library == null) {
+      emit(state.copyWith(clearAuthorFilter: true, isSearching: false));
+      return;
+    }
+    final books = library
+        .getAllBooks()
+        .where((book) => book.author?.trim() == author)
+        .toList();
+    emit(
+      state.copyWith(
+        searchQuery: '',
+        searchResults: books,
+        searchCategoryResults: const [],
+        authorFilter: author,
+        selectedTopics: const [],
+        selectedMatchFilters: const {},
+        isSearching: false,
+        previewBook: books.firstOrNull,
+      ),
+    );
+  }
+
   void _onSelectTopics(
     SelectTopics event,
     Emitter<LibraryState> emit,
-  ) {
-    // The preview only needs the first matching book, preferring text over
-    // PDF. Avoid allocating an entire filtered result list and a topic set for
-    // every book when the library search returns thousands of results.
-    Book? firstBook;
-    final results = state.searchResults;
-    if (results != null && results.isNotEmpty) {
-      final selected = event.topics.toSet();
-      Book? firstMatch;
-      for (final book in results) {
-        if (selected.isNotEmpty &&
-            !book.topics
-                .split(',')
-                .any(
-                  (topic) => selected.contains(topic.trim()),
-                )) {
-          continue;
-        }
-        firstMatch ??= book;
-        if (book is TextBook) {
-          firstBook = book;
-          break;
-        }
-      }
-      firstBook ??= firstMatch;
+  ) => _emitFilteredPreview(
+    emit,
+    topics: event.topics,
+    filters: state.selectedMatchFilters,
+  );
+
+  void _onSelectMatchFilters(
+    SelectMatchFilters event,
+    Emitter<LibraryState> emit,
+  ) => _emitFilteredPreview(
+    emit,
+    topics: state.selectedTopics ?? const [],
+    filters: event.filters,
+  );
+
+  void _emitFilteredPreview(
+    Emitter<LibraryState> emit, {
+    required List<String> topics,
+    required Set<LibraryMatchFilter> filters,
+  }) => _emitSearchPreview(
+    emit,
+    state.copyWith(
+      selectedTopics: topics,
+      selectedMatchFilters: filters,
+      searchResults: state.searchResults,
+      searchCategoryResults: state.searchCategoryResults,
+    ),
+  );
+
+  void _emitSearchPreview(
+    Emitter<LibraryState> emit,
+    LibraryState next, {
+    bool keepPreview = false,
+  }) {
+    final results = next.searchResults;
+    final previous = next.previewBook;
+    if (keepPreview &&
+        previous != null &&
+        next.matchesSearchBook(previous) &&
+        (results?.contains(previous) ?? false)) {
+      emit(next);
+      return;
     }
 
+    Book? preview;
+    for (final book in results ?? const <Book>[]) {
+      if (!next.matchesSearchBook(book)) continue;
+      preview ??= book;
+      if (book is TextBook) {
+        preview = book;
+        break;
+      }
+    }
     emit(
-      state.copyWith(
-        selectedTopics: event.topics,
-        previewBook: firstBook,
-        // A nonempty filter with no matching result must not keep showing
-        // a preview of a book that is no longer in the filtered list.
+      next.copyWith(
+        searchResults: results,
+        searchCategoryResults: next.searchCategoryResults,
+        previewBook: preview,
         clearPreviewBook:
             results != null &&
-            results.isNotEmpty &&
-            event.topics.isNotEmpty &&
-            firstBook == null,
-        searchResults: state.searchResults,
-        searchCategoryResults: state.searchCategoryResults,
+            previous != null &&
+            preview == null &&
+            (next.selectedMatchFilters.isNotEmpty ||
+                (next.selectedTopics?.isNotEmpty ?? false)),
       ),
     );
   }

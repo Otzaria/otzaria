@@ -111,6 +111,7 @@ void main() {
     WidgetTester tester, {
     bool preview = false,
     bool continuous = false,
+    List<String> content = _content,
     ValueChanged<String?>? onSelectionChanged,
   }) async {
     final book = TextBook(
@@ -123,7 +124,7 @@ void main() {
       TextBookLoaded(
         book: book,
         showLeftPane: false,
-        content: _content,
+        content: content,
         fontSize: 18,
         showSplitView: false,
         showPageShapeView: false,
@@ -138,7 +139,6 @@ void main() {
         visibleIndices: const [0],
         selectedIndex: 1,
         selectedIndices: const {1},
-        pinLeftPane: false,
         searchText: '',
         continuousReadingMode: continuous,
       ),
@@ -168,7 +168,7 @@ void main() {
           ],
           child: Scaffold(
             body: CombinedView(
-              data: _content,
+              data: content,
               openBookCallback: (_) {},
               openLeftPaneTab: (_, {searchText}) {},
               textSize: 18,
@@ -252,13 +252,20 @@ void main() {
   testWidgets('בפסקה רציפה הכותרת שבזרימה אינה נכללת בבחירה ובהעתקה', (
     tester,
   ) async {
-    final copied = <String>[];
-    debugSelectedTextCopyHandler = (content) => copied.add(content.plainText);
+    final copied = <({String plainText, String htmlText})>[];
+    debugSelectedTextCopyHandler = copied.add;
     addTearDown(() => debugSelectedTextCopyHandler = null);
     String? selectedText;
     await pumpBook(
       tester,
       continuous: true,
+      content: [
+        _content.first.replaceFirst(
+          'חן',
+          '<a href="https://example.org/doc">חן</a>',
+        ),
+        ..._content.skip(1),
+      ],
       onSelectionChanged: (text) => selectedText = text,
     );
     final paragraph = tester.allRenderObjects
@@ -300,7 +307,11 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
-    expect(copied, ['מצא חן בעיני ה׳ (ט) אלה תולדת']);
+    expect(copied.single.plainText, 'מצא חן בעיני ה׳ (ט) אלה תולדת');
+    expect(
+      copied.single.htmlText,
+      contains('<a href="https://example.org/doc">חן</a>'),
+    );
   });
 
   for (final preview in [false, true]) {

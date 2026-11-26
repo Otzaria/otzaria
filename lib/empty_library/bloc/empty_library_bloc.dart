@@ -1392,6 +1392,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   /// הבטחת המשך רק כשההורדה נקטעה (רשת או מכסת הרקע) ונשמר קובץ חלקי.
   Future<String> _downloadFailureMessage(Object error, String fallback) async {
+    if (error case FormatException(
+      source: final String source,
+    ) when source.trimLeft().startsWith('<')) {
+      return LibraryMessages.invalidLibraryReleaseResponse;
+    }
     final cause = error is PatchDownloadCancelled && _foregroundTimedOut
         ? LibraryMessages.backgroundTimeLimitReached
         : error is PatchDownloadCancelled && _downloadCancelled

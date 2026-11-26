@@ -64,6 +64,9 @@ enum AttachedUpdateError {
   fileLocked,
   downloadCorrupt,
   verifyFailed,
+
+  /// עותק רשמי שאינו תואם לגרסה שהותקנה — רק הורדה מלאה מתקנת אותו.
+  integrityMismatch,
   unknown,
 }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -56,6 +57,7 @@ class _ControlledSearcher extends PdfTextSearchSession {
 
   List<PdfTextSearchResult> current = const [];
   bool scanning = false;
+  double progress = 1;
   int? index;
   final actions = <String>[];
 
@@ -64,6 +66,9 @@ class _ControlledSearcher extends PdfTextSearchSession {
 
   @override
   bool get isSearching => scanning;
+
+  @override
+  double get searchProgress => scanning ? 0.5 : progress;
 
   @override
   int? get currentIndex => index;
@@ -98,7 +103,50 @@ class _ControlledSearcher extends PdfTextSearchSession {
   }
 
   @override
-  void stopTextSearch() => actions.add('stop');
+  Future<int> goToMatchOfIndex(int index) async {
+    actions.add('match:$index');
+    this.index = index;
+    return index;
+  }
+
+  @override
+  void stopTextSearch() {
+    actions.add('stop');
+    progress = searchProgress;
+    scanning = false;
+    notifyListeners();
+  }
+}
+
+class _CountedMatch extends Fake implements PdfTextSearchResult {
+  _CountedMatch(this.pageNumber, this.text, {this.start = 0});
+
+  @override
+  final int pageNumber;
+  @override
+  final String text;
+  int snippetReads = 0;
+
+  @override
+  final int start;
+  @override
+  int get end => start + 4;
+  @override
+  int get contextStart => start;
+  @override
+  int get pageTextLength => start + text.length;
+  @override
+  String get contextText {
+    snippetReads++;
+    return text;
+  }
+}
+
+class _InvalidCountedMatch extends _CountedMatch {
+  _InvalidCountedMatch(super.pageNumber, super.text);
+
+  @override
+  int get end => 10000;
 }
 
 PdfTextSearchResult _match(int page) => PdfTextSearchResult.fromRange(
@@ -185,6 +233,103 @@ Future<void> main() async {
   });
 
   group('סרגל התוצאות בחיפוש הפשוט', () {
+    testWidgets('התקדמות חיפוש ישן בזמן debounce שומרת את שאילתת ההקשר שלו', (
+      tester,
+    ) async {
+      final searcher = await _pump(tester);
+      searcher
+        ..scanning = true
+        ..current = [_match(1)];
+      await _notify(tester, searcher);
+      await tester.enterText(find.byType(EditableText), 'שאילתה חדשה');
+      await tester.pump(const Duration(milliseconds: 100));
+      searcher.current = [...searcher.current, _InvalidCountedMatch(2, 'קצר')];
+      await _notify(tester, searcher);
+      final tile = tester
+          .widgetList<SearchResultTile>(find.byType(SearchResultTile))
+          .singleWhere((tile) => tile.result.segment == BigInt.one);
+      expect(tile.result.text, 'שלום');
+      await tester.pump(const Duration(milliseconds: 300));
+      searcher.current = [_InvalidCountedMatch(2, 'קצר')];
+      await _notify(tester, searcher);
+      final updated = tester.widget<SearchResultTile>(
+        find.byType(SearchResultTile),
+      );
+      expect(updated.result.text, 'שאילתה חדשה');
+    });
+
+    testWidgets('wrap משמר קטעי הקשר וכרטיסים ומנווט לאינדקס העדכני', (
+      tester,
+    ) async {
+      final searcher = await _pump(tester);
+      final page5 = _CountedMatch(5, 'שלום בעמוד החמישי');
+      final page5b = _CountedMatch(5, 'שלום נוסף בעמוד החמישי', start: 30);
+      searcher
+        ..scanning = true
+        ..current = [page5, page5b];
+      await _notify(tester, searcher);
+      final original = tester
+          .widgetList<SearchResultTile>(find.byType(SearchResultTile))
+          .toList();
+      expect(original, hasLength(2));
+      expect(page5.snippetReads, 1);
+      expect(page5b.snippetReads, 1);
+
+      final page1 = _CountedMatch(1, 'שלום בעמוד הראשון');
+      searcher.current = [page1, page5, page5b];
+      await _notify(tester, searcher);
+      final afterWrap = tester
+          .widgetList<SearchResultTile>(find.byType(SearchResultTile))
+          .toList();
+      expect(afterWrap, hasLength(3));
+      expect(afterWrap[1].result, same(original[0].result));
+      expect(afterWrap[2].result, same(original[1].result));
+      expect(page5.snippetReads, 1);
+      expect(page5b.snippetReads, 1);
+
+      // ה-searcher יכול להתקדם בין הודעות ה-progress ובין build ללחיצה.
+      searcher.current = [
+        page1,
+        _CountedMatch(3, 'שלום בשלישי'),
+        page5,
+        page5b,
+      ];
+      afterWrap[2].onTap();
+      await tester.pump();
+      expect(searcher.actions, ['match:3']);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('פרסום אלפי התאמות בונה הקשרים רק לכרטיסים שנדרשים', (
+      tester,
+    ) async {
+      final searcher = await _pump(tester);
+      final matches = List.generate(
+        1000,
+        (i) => _CountedMatch(i + 1, 'שלום בעמוד ${i + 1}'),
+      );
+      searcher
+        ..scanning = true
+        ..current = matches;
+      await _notify(tester, searcher);
+      final reads = matches.fold<int>(
+        0,
+        (sum, match) => sum + match.snippetReads,
+      );
+      expect(reads, greaterThan(0));
+      expect(reads, lessThan(100));
+      expect(
+        find.text(PdfMessages.partialSearchResultCount(1000)),
+        findsOneWidget,
+      );
+      searcher.scanning = false;
+      await _notify(tester, searcher);
+      expect(
+        matches.fold<int>(0, (sum, match) => sum + match.snippetReads),
+        lessThan(100),
+      );
+    });
+
     testWidgets('נקודת החזרה נשמרת לפני ניווט לתוצאה הבאה', (tester) async {
       late _ControlledSearcher searcher;
       final targets = <int>[];
@@ -213,6 +358,31 @@ Future<void> main() async {
 
       await tester.tap(find.byTooltip('עצור את החיפוש'));
       expect(searcher.actions, ['stop']);
+    });
+
+    testWidgets('תוצאות חלקיות נשארות זמינות לניווט אחרי עצירה', (
+      tester,
+    ) async {
+      final searcher = await _pump(tester);
+      searcher
+        ..scanning = true
+        ..current = [_match(2), _match(3)]
+        ..index = 0;
+      await _notify(tester, searcher);
+      expect(
+        find.text(PdfMessages.currentPartialSearchResult(1, 2)),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byTooltip('עצור את החיפוש'));
+      await tester.pump();
+      expect(
+        find.text(PdfMessages.currentPartialSearchResult(1, 2)),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('עצור את החיפוש'), findsNothing);
+      await tester.tap(find.byTooltip('התוצאה הבאה'));
+      expect(searcher.actions, ['stop', 'next']);
     });
 
     testWidgets('אחרי הסריקה — אין עצירה; הבאה/הקודמת לפי המיקום', (

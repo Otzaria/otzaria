@@ -56,6 +56,23 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 void main() {
+  test('בדיקת מקום בכונן האינדקס מתבטלת כשהנתיב הפעיל מתחלף', () async {
+    final directory = await io.Directory.systemTemp.createTemp('index-drive-');
+    addTearDown(() => directory.delete(recursive: true));
+    final provider =
+        TantivyDataProvider.forTesting(
+            Future<SearchEngine>.value(_RecordingSearchEngine()),
+          )
+          ..activeIndexPath = directory.path
+          ..isInitialized.value = true;
+    final repository = IndexingRepository(provider);
+    expect(await repository.indexDriveFreeBytes(), greaterThanOrEqualTo(0));
+
+    final pending = repository.indexDriveFreeBytes();
+    provider.activeIndexPath = null;
+    expect(await pending, -1);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() {
     IndexingCrashCanary.writeLog = (_) {};
@@ -1892,16 +1909,18 @@ void main() {
       expect(changed, ['מצורף']);
     });
 
-    test('ספר אישי ו-PDF — רק metadata, בלי קריאת טקסט', () async {
+    test('PDF ישן מסומן לאינדוקס מחדש בלי קריאת טקסט', () async {
       final personal = TextBook(id: 9, title: 'אישי', source: BookSource.user);
       final pdf = PdfBook(title: 'סרוק', path: r'C:\pdfs\a.pdf');
+      final current = PdfBook(title: 'חדש', path: r'C:\pdfs\b.pdf');
       final engine = _RecordingSearchEngine()
         ..fingerprints = {
           BookIdentity.indexedFilePath(personal): BigInt.one,
           BookIdentity.indexedFilePath(pdf): BigInt.zero,
+          BookIdentity.indexedFilePath(current): BigInt.one,
         };
 
-      expect(await detect(engine, [personal, pdf]), isEmpty);
+      expect(await detect(engine, [personal, pdf, current]), [pdf.title]);
     });
 
     test('ספר שאינו באינדקס אינו נבדק', () async {
@@ -1967,6 +1986,116 @@ void main() {
         'id:6',
       ]);
       expect(engine.bytesByFilePath.keys, ['id:5']);
+    });
+  });
+
+  group('מיפוי הסדר — שליחה למנוע', () {
+    test('אותו סדר אינו נשלח שוב לאותו מנוע', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _CancellationRecordingEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      await repository.syncBookOrder(library);
+      await repository.syncBookOrder(library);
+      expect(engine.pushedOrders, hasLength(1));
+
+      IndexingRepository.invalidateBookOrder();
+      await repository.syncBookOrder(library);
+      expect(engine.pushedOrders, hasLength(2));
+    });
+
+    test('שתי קריאות במקביל בונות פעם אחת ושולחות פעם אחת', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _CancellationRecordingEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      final built = await Future.wait([
+        IndexingRepository.buildBookOrder(library),
+        IndexingRepository.buildBookOrder(library),
+      ]);
+      expect(built.last, same(built.first));
+
+      IndexingRepository.invalidateBookOrder();
+      await Future.wait([
+        repository.syncBookOrder(library),
+        repository.syncBookOrder(library),
+      ]);
+      expect(engine.pushedOrders, hasLength(1));
+    });
+
+    test('סנכרון כפול ממתין לכתיבת הסדר למנוע', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _DelayedOrderEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      final first = repository.syncBookOrder(library);
+      await engine.firstWriteStarted.future;
+      var duplicateCompleted = false;
+      final second = repository.syncBookOrder(library).then((_) {
+        duplicateCompleted = true;
+      });
+      await Future<void>.delayed(Duration.zero);
+      final completedBeforeWrite = duplicateCompleted;
+      engine.finishFirstWrite.complete();
+      await Future.wait([first, second]);
+
+      expect(completedBeforeWrite, isFalse);
+      expect(engine.pushedOrders, hasLength(1));
+    });
+
+    test('סדר חדש נכתב אחרי שסדר ישן שכבר נשלח מסתיים', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _DelayedOrderEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final original = TextBook(id: 5, title: 'שבת');
+      final replacement = TextBook(id: 19, title: 'נזיר');
+      final oldLibrary = Library(categories: [])..books.add(original);
+      final newLibrary = Library(categories: [])..books.add(replacement);
+
+      final first = repository.syncBookOrder(oldLibrary);
+      await engine.firstWriteStarted.future;
+      IndexingRepository.invalidateBookOrder();
+      final second = repository.syncBookOrder(newLibrary);
+      await Future<void>.delayed(Duration.zero);
+      engine.finishFirstWrite.complete();
+      await Future.wait([first, second]);
+
+      expect(
+        engine.pushedOrders.map((order) => order.single.filePath),
+        [
+          BookIdentity.indexedFilePath(original),
+          BookIdentity.indexedFilePath(replacement),
+        ],
+      );
+    });
+
+    test('invalidate באמצע בנייה אינו שולח את הסדר הישן', () async {
+      IndexingRepository.invalidateBookOrder();
+      final engine = _CancellationRecordingEngine();
+      final repository = _FakeExtractionRepository(
+        _RecordingTantivyDataProvider(engine),
+      );
+      final library = Library(categories: [])
+        ..books.add(TextBook(id: 5, title: 'שבת'));
+
+      final sync = repository.syncBookOrder(library);
+      IndexingRepository.invalidateBookOrder();
+      await sync;
+      expect(engine.pushedOrders, isEmpty);
     });
   });
 
@@ -3419,6 +3548,10 @@ void main() {
       expect(result.failures.single.kind, IndexingFailureKind.pdfUnsupported);
       expect(result.failures.single.isRetryable, isFalse);
       expect(provider.indexedFilePaths, contains(pdf.path));
+      expect(
+        engine.addedDocuments.single.textHash,
+        await _fakeContentFingerprint(text: const []),
+      );
     });
 
     test('PDF חלקי מאונדקס אך מוחזר כאזהרה מפורטת', () async {
@@ -5561,3 +5694,17 @@ class _PathCountingCategory extends Category {
 
 Future<BigInt> _fakeContentFingerprint({required List<int> text}) async =>
     BigInt.from(1000 + text.length);
+
+class _DelayedOrderEngine extends _RecordingSearchEngine {
+  final firstWriteStarted = Completer<void>();
+  final finishFirstWrite = Completer<void>();
+
+  @override
+  Future<BigInt> setBookOrder({required List<BookOrderEntry> entries}) async {
+    if (!firstWriteStarted.isCompleted) {
+      firstWriteStarted.complete();
+      await finishFirstWrite.future;
+    }
+    return super.setBookOrder(entries: entries);
+  }
+}

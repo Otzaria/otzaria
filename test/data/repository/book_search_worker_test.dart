@@ -30,8 +30,12 @@ BookSearchQuery _query(String text) => BookSearchQuery(
   normalizedQuery: text,
 );
 
-List<int> _direct(List<BookSearchEntry> entries, String text) =>
-    PreparedBookSearchIndex(entries).search(_query(text));
+Matcher _direct(List<BookSearchEntry> entries, String text) {
+  final expected = PreparedBookSearchIndex(entries).search(_query(text));
+  return isA<BookSearchMatches>()
+      .having((m) => m.indices, 'indices', expected.indices)
+      .having((m) => m.kinds, 'kinds', expected.kinds);
+}
 
 class _CountedEntry extends BookSearchEntry {
   _CountedEntry() : super(index: 0, title: 'שולחן', author: '', topics: '');
@@ -110,7 +114,9 @@ void main() {
       final replacement = <BookSearchEntry>[_CountedEntry()];
       await worker.search([first], _query('שולחן'));
       for (var i = 0; i < 4; i++) {
-        expect(await worker.search(replacement, _query('שולחן')), [0]);
+        expect((await worker.search(replacement, _query('שולחן'))).indices, [
+          0,
+        ]);
       }
       expect(first.comparisons, 1);
       expect(worker.indexUploads, 1);

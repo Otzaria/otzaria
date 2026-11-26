@@ -34,9 +34,6 @@ class LoadContent extends TextBookEvent {
   // לכבות מצב רצף שהמשתמש בחר.
   final bool preserveContinuousReadingMode;
 
-  /// רוחב החלון של הקורא, למדיניות החלונית השמאלית; null — ברירת המחדל.
-  final double? screenWidth;
-
   const LoadContent({
     this.startIndex,
     required this.fontSize,
@@ -49,7 +46,6 @@ class LoadContent extends TextBookEvent {
         false, // Default to false for backward compatibility
     this.preserveRemovePunctuation = false,
     this.preserveContinuousReadingMode = false,
-    this.screenWidth,
   });
 
   @override
@@ -64,7 +60,6 @@ class LoadContent extends TextBookEvent {
     preserveRemoveNikud,
     preserveRemovePunctuation,
     preserveContinuousReadingMode,
-    screenWidth,
   ];
 }
 
@@ -109,6 +104,24 @@ class UpdateFontSize extends TextBookEvent {
 
   @override
   List<Object?> get props => [fontSize];
+}
+
+/// גודל גופן המפרשים / מרווח השורות של הספר הזה בלבד (#2306).
+class UpdateBookReadingMetrics extends TextBookEvent {
+  final double? commentatorsFontSize;
+  final double? lineHeight;
+
+  /// הערכים שניתנו שווים להגדרה הכללית: הספר חוזר לרשת אותה, כמו בקובץ שלו.
+  final bool inherit;
+
+  const UpdateBookReadingMetrics({
+    this.commentatorsFontSize,
+    this.lineHeight,
+    this.inherit = false,
+  });
+
+  @override
+  List<Object?> get props => [commentatorsFontSize, lineHeight, inherit];
 }
 
 class ToggleLeftPane extends TextBookEvent {
@@ -217,6 +230,17 @@ class HighlightLine extends TextBookEvent {
   List<Object?> get props => [lineIndex];
 }
 
+/// מדגיש לרגע את [line] כשהיא גלויה בפועל בטאב הפעיל; זמן ההדגשה נספר משם.
+class HighlightLineWhenVisible extends TextBookEvent {
+  final int line;
+  final int? navigationEpoch;
+
+  const HighlightLineWhenVisible(this.line, {this.navigationEpoch});
+
+  @override
+  List<Object?> get props => [line, navigationEpoch];
+}
+
 class ClearHighlightedLine extends TextBookEvent {
   final int? lineIndex;
 
@@ -253,17 +277,11 @@ class SelectLineWhenVisible extends TextBookSelectionEvent {
   List<Object?> get props => [line];
 }
 
-class TogglePinLeftPane extends TextBookEvent {
-  final bool pin;
-
-  const TogglePinLeftPane(this.pin);
-
-  @override
-  List<Object?> get props => [pin];
-}
-
 class UpdateSearchText extends TextBookEvent {
   final String text;
+
+  /// זהות חלונית החיפוש. חיפוש חיצוני מקבל זהות חדשה לכל אירוע.
+  final Object? textSource;
   final Map<String, Map<String, bool>>? searchOptions;
   final Map<int, List<String>>? alternativeWords;
   final Map<String, String>? spacingValues;
@@ -278,6 +296,7 @@ class UpdateSearchText extends TextBookEvent {
 
   const UpdateSearchText(
     this.text, {
+    this.textSource,
     this.searchOptions,
     this.alternativeWords,
     this.spacingValues,
@@ -292,6 +311,7 @@ class UpdateSearchText extends TextBookEvent {
   @override
   List<Object?> get props => [
     text,
+    textSource,
     searchOptions,
     alternativeWords,
     spacingValues,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
+import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/user_content_import/services/user_link_ref_resolver.dart';
@@ -370,6 +371,130 @@ void main() {
       ),
       2,
     );
+  });
+
+  // issue #5795
+  Future<SeforimRepository> seferWithChildren(
+    String title,
+    List<String> children,
+  ) async {
+    final dir = await Directory.systemTemp.createTemp('otzaria_title_heading');
+    final database = MyDatabase.withPath('${dir.path}/seforim.db');
+    addTearDown(() async {
+      database.close();
+      await dir.delete(recursive: true);
+    });
+    final db = await database.database;
+    db.execute("INSERT INTO category(id,title,level) VALUES(1,'ספרייה',0)");
+    db.execute("INSERT INTO source(id,name) VALUES(1,'אוצריא')");
+    db.execute(
+      "INSERT INTO book(id,categoryId,sourceId,title,orderIndex,filePath,fileType) "
+      "VALUES(1,1,1,?,1,'/b.txt','txt')",
+      [title],
+    );
+    for (final (i, text) in [title, ...children].indexed) {
+      final id = i + 1;
+      db.execute(
+        'INSERT INTO line(id,bookId,lineIndex,content) VALUES(?,1,?,?)',
+        [id + 100, i, text],
+      );
+      db.execute('INSERT INTO tocText(id,text) VALUES(?,?)', [id, text]);
+      db.execute(
+        'INSERT INTO tocEntry(id,bookId,parentId,textId,level,lineId) '
+        'VALUES(?,1,?,?,?,?)',
+        [id, i == 0 ? null : 1, id, i == 0 ? 1 : 2, id + 100],
+      );
+    }
+    final seforim = SeforimRepository(database);
+    await seforim.ensureInitialized();
+    return seforim;
+  }
+
+  test('מילה שחוזרת על שם הספר מגיעה לכותרות שתחתיו', () async {
+    const title = 'חזון איש, טהרות';
+    final seforim = await seferWithChildren(title, [
+      'מסכת כלים',
+      'מסכת טהרות',
+      'הוספות לעניני טהרות',
+    ]);
+    final rows = await seforim.getTocEntriesForReference(
+      1,
+      title,
+      queryTokens: ['טהרות'],
+    );
+    expect(rows.map((e) => e['reference']), [
+      '$title מסכת טהרות',
+      '$title הוספות לעניני טהרות',
+    ]);
+  });
+
+  test('כותרת שחוזרת על שם הספר אינה מחליפה אותו', () async {
+    const title = 'האלף לך שלמה (אולינוב)';
+    final seforim = await seferWithChildren(title, ['האלף לך שלמה']);
+    final rows = await seforim.getTocEntriesForReference(
+      1,
+      title,
+      queryTokens: ['לך'],
+    );
+    expect(rows.map((e) => e['reference']), [title]);
+  });
+
+  test('"פ"ב" מגיע לפרק ב רק כשאין פרק פב', () async {
+    final mishna = await seferWithChildren('משנה ברכות', ['פרק א', 'פרק ב']);
+    expect(
+      (await mishna.getTocEntriesForReference(
+        1,
+        'משנה ברכות',
+        queryTokens: ['פב'],
+      )).map((e) => e['reference']),
+      ['משנה ברכות פרק ב'],
+    );
+
+    final tehillim = await seferWithChildren('תהלים', ['פרק ב', 'פרק פב']);
+    expect(
+      (await tehillim.getTocEntriesForReference(
+        1,
+        'תהלים',
+        queryTokens: ['פב'],
+      )).map((e) => e['reference']),
+      ['תהלים פרק פב'],
+    );
+  });
+
+  test('כינוי שבלע מילת כותרת אינו בולע אותה שוב מהזנב', () async {
+    ReferenceBookHit hit(String term, int rank) => ReferenceBookHit(
+      bookId: 1,
+      title: 'חזון איש, טהרות',
+      normalizedTitle: 'חזון איש טהרות',
+      filePath: '',
+      fileType: 'txt',
+      matchRank: rank,
+      matchedTerm: term,
+      orderIndex: 1,
+    );
+    final tocQueries = <List<String>>[];
+    final repo = FindRefRepository(
+      isReferenceBooksCacheLoaded: () => true,
+      warmUpReferenceBooksCache: () async {},
+      searchReferenceBooks: (query, {int limit = 50}) => [
+        if (query == 'חזוא טהרות טהרות')
+          hit(query, ReferenceBooksCache.fuzzyMatchRank),
+        if (query == 'חזוא טהרות') hit(query, 3),
+      ],
+      getTocEntriesForReference: (id, title, {queryTokens}) async {
+        tocQueries.add(queryTokens!);
+        return [];
+      },
+      getAltTocEntriesForReference: (id, title, {queryTokens}) async => [],
+      getAltStructureBookIds: () async => [],
+      getAllAltTocFlatEntries: () async => [],
+    );
+    addTearDown(repo.dispose);
+
+    await repo.findRefs('חזוא טהרות טהרות');
+
+    expect(tocQueries, isNotEmpty);
+    expect(tocQueries, everyElement(['טהרות']));
   });
 
   test('כותרת בהמשך הספר אינה מקוצרת', () async {

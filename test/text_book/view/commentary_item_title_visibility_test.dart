@@ -560,7 +560,6 @@ TextBookLoaded _loadedState({
     removeNikud: false,
     visibleIndices: visibleIndices,
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

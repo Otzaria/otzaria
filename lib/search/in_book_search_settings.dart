@@ -39,7 +39,7 @@ class InBookSearchSettings {
       searchMode: mode,
       distance: mode == SearchMode.fuzzy
           ? kMaxFuzzyDistance
-          : SearchDefaults.loadDistanceDefault(),
+          : SearchDefaults.loadDistanceDefault(mode),
       matchPolicy: SearchConfiguration(
         searchMode: mode,
         proximityScope: policy.proximityScope,
@@ -215,27 +215,43 @@ Future<List<SearchResult>> searchBookWithEngine(
       ),
     );
   }
-  final parameters = settings.activeParameters;
-  final policy = settings.requestedMatchPolicy.forQuery(query);
   return repository.searchTexts(
-    SearchEngineRequest(
+    inBookSearchRequest(
       query: query,
-      facets: [bookPath],
+      bookPath: bookPath,
       limit: limit,
-      searchOptions: parameters.searchOptions,
-      alternativeWords: parameters.alternativeWords,
-      customSpacing: parameters.customSpacing,
-      distance: settings.distance,
-      negativeDistance: settings.distance,
-      searchMode: settings.searchMode,
-      scope: policy.proximityScope,
-      negativeScope: policy.proximityScope,
-      wordMatchMode: policy.wordMatchMode,
-      wordMatchCount: policy.wordMatchCount,
-      anyOrder: policy.anyOrder,
-      order: ResultsOrder.catalogue,
+      settings: settings,
       cancelRequestId: cancelRequestId,
     ),
+  );
+}
+
+SearchEngineRequest inBookSearchRequest({
+  required String query,
+  required String bookPath,
+  int limit = 0,
+  required InBookSearchSettings settings,
+  int? cancelRequestId,
+}) {
+  final parameters = settings.activeParameters;
+  final policy = settings.requestedMatchPolicy.forQuery(query);
+  return SearchEngineRequest(
+    query: query,
+    facets: [bookPath],
+    limit: limit,
+    searchOptions: parameters.searchOptions,
+    alternativeWords: parameters.alternativeWords,
+    customSpacing: parameters.customSpacing,
+    distance: settings.distance,
+    negativeDistance: settings.distance,
+    searchMode: settings.searchMode,
+    scope: policy.proximityScope,
+    negativeScope: policy.proximityScope,
+    wordMatchMode: policy.wordMatchMode,
+    wordMatchCount: policy.wordMatchCount,
+    anyOrder: policy.anyOrder,
+    order: ResultsOrder.catalogue,
+    cancelRequestId: cancelRequestId,
   );
 }
 

@@ -176,14 +176,12 @@ class AppThemeData {
           side: BorderSide(color: cs.outlineVariant),
         ),
       ),
-      // כפתור אייקון בלבד עגול (DD-04, q9 שאלה 3). כפתור אייקון עם רקע גלוי
-      // משלו (filled, filledTonal או backgroundColor) קובע roundedShape בעצמו
-      // ונשאר 8 (q10 שאלה 22). components_contract_test בודק את שניהם.
+      // גם כפתור אייקון בלבד בפינות 8, כמו שאר הכפתורים (DD-04).
       iconButtonTheme: IconButtonThemeData(
         style: _hoverButtonStyle(
           cs,
           cs.primary,
-        ).copyWith(shape: const WidgetStatePropertyAll(CircleBorder())),
+        ).copyWith(shape: const WidgetStatePropertyAll(AppTokens.roundedShape)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: _hoverButtonStyle(cs, cs.onPrimary),
@@ -358,11 +356,22 @@ class AppThemeData {
     }),
   );
 
+  /// רוחב מרבי של tooltip: טקסט ארוך עובר שורה בעמודת קריאה, ולא נפרס בשורה
+  /// אחת על כל החלון (#5250). קצר מזה נשאר ברוחב התוכן.
+  static const double _tooltipMaxWidth = 420;
+
   static TooltipThemeData _tooltipTheme(
     ColorScheme cs, {
     required Color? regionBorder,
   }) {
     return TooltipThemeData(
+      // minHeight כמו ברירת המחדל של Flutter, שה-theme מחליף כשיש לו constraints.
+      constraints: BoxConstraints(
+        minHeight: _isDesktopPlatform(defaultTargetPlatform) ? 24 : 32,
+        maxWidth: _tooltipMaxWidth,
+      ),
+      textAlign: TextAlign.center,
+      margin: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSM),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh,
         borderRadius: AppTokens.borderRadiusAll,

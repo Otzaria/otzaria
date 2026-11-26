@@ -82,6 +82,8 @@ abstract class ToolsMessages {
       'שליחת התראת הבדיקה נכשלה. בדוק שההתראות עבור אוצריא מאופשרות בהגדרות מערכת ההפעלה.';
   static const String eventTitleRequired = 'יש למלא כותרת לאירוע.';
   static const String eventDateUnparsable = 'לא הצלחנו לפרש את התאריך.';
+  static const String eventAdarIIDay30 =
+      'באדר ב׳ יש 29 ימים. בחרו באדר א׳ או שנו את תאריך האירוע.';
   static const String eventDateOutOfRange = 'התאריך מחוץ לטווח הנתמך.';
   static const String eventEndTimeBeforeStart =
       'שעת הסיום חייבת להיות אחרי שעת ההתחלה.';

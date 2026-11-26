@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 /// אפשרות יחידה ב-[AppSegmentedControl]
 ///
@@ -18,11 +19,12 @@ class SegmentOption<T> {
   final IconData? icon;
   final IconData? rtlIcon;
 
-  /// הסבר שמוצג בריחוף; ברירת המחדל היא התווית המלאה.
+  /// הסבר שמוצג בריחוף. בלעדיו אין טולטיפ, חוץ ממקטע שהתווית המלאה לא
+  /// מוצגת בו במלואה (נחתכת, או [shortLabel] במקומה) — שם היא מוצגת בריחוף.
   final String? tooltip;
 
   /// התווית במקטע צר ([AppSegmentedControl.narrowBelowSegmentWidth]), כשהמלאה
-  /// לא נכנסת. המלאה נשארת ב-tooltip.
+  /// לא נכנסת. המלאה מוצגת אז בריחוף (אלא אם סופק [tooltip]).
   final String? shortLabel;
 
   /// מפתח לתווית — נקודת האחיזה של בדיקות, כי מקטע אינו מקבל מפתח.
@@ -177,21 +179,8 @@ class AppSegmentedControl<T> extends StatelessWidget {
       context,
     ).resolve(Directionality.of(context)).horizontal;
     final iconExtra = _iconSegmentExtra(context);
-    // הלחצן נותן לתווית DefaultTextStyle חדש מהסגנון הזה, בלי הסגנון שמסביב.
-    final style = _labelStyle(context);
-    bool fits(String label, double available) {
-      final painter = TextPainter(
-        text: TextSpan(text: label, style: style),
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-        maxLines: maxLabelLines,
-      )..layout(maxWidth: available < 0 ? 0 : available);
-      final clipped =
-          painter.didExceedMaxLines ||
-          (maxLabelLines == 1 && painter.maxIntrinsicWidth > available);
-      painter.dispose();
-      return !clipped;
-    }
+    bool fits(String label, double available) =>
+        _labelFits(context, label, available);
 
     if (shown.every(
       (o) => fits(
@@ -214,6 +203,22 @@ class AppSegmentedControl<T> extends StatelessWidget {
     return _Fit.clipped;
   }
 
+  /// האם [label] נכנס ברוחב [available] בלי להיחתך, בסגנון התווית במקטע.
+  bool _labelFits(BuildContext context, String label, double available) {
+    // הלחצן נותן לתווית DefaultTextStyle חדש מהסגנון הזה, בלי הסגנון שמסביב.
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: _labelStyle(context)),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: maxLabelLines,
+    )..layout(maxWidth: available < 0 ? 0 : available);
+    final clipped =
+        painter.didExceedMaxLines ||
+        (maxLabelLines == 1 && painter.maxIntrinsicWidth > available);
+    painter.dispose();
+    return !clipped;
+  }
+
   List<ButtonSegment<T>> _segments(
     List<SegmentOption<T>> shown, {
     required bool narrow,
@@ -221,28 +226,37 @@ class AppSegmentedControl<T> extends StatelessWidget {
   }) {
     final hasIcons =
         !narrow && options.any((o) => o.icon != null || o.rtlIcon != null);
-    return shown
-        .map(
-          (o) => ButtonSegment<T>(
-            value: o.value,
-            // בלי FittedBox: בתוך לחצן הוא פורס את הטקסט ברוחב מילה אחת,
-            // ואז maxLines חותך אותו למילה הראשונה.
-            label: _markIf(
-              markSelected && o.value == currentValue,
-              Text(
-                narrow ? o.shortLabel ?? o.label : o.label,
-                key: o.labelKey,
-                maxLines: maxLabelLines,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            icon: hasIcons ? _buildOptionIcon(o) : null,
-            // תווית ארוכה נחתכת ב-ellipsis; הטולטיפ מציג אותה במלואה.
-            tooltip: o.tooltip ?? o.label,
-          ),
-        )
-        .toList();
+    return shown.map((o) {
+      final label = narrow ? o.shortLabel ?? o.label : o.label;
+      // טולטיפ שתלוי בפריסה עוטף את התווית, כדי שהלחצן ישמור על המיקוד.
+      final Widget labelWidget;
+      if (o.tooltip != null || label != o.label) {
+        final text = Text(
+          label,
+          key: o.labelKey,
+          maxLines: maxLabelLines,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+        );
+        labelWidget = o.tooltip == null
+            ? Tooltip(message: o.label, child: text)
+            : text;
+      } else {
+        labelWidget = OverflowTooltipText(
+          key: o.labelKey,
+          text: label,
+          maxLines: maxLabelLines,
+          textAlign: TextAlign.center,
+          waitDuration: null,
+        );
+      }
+      return ButtonSegment<T>(
+        value: o.value,
+        label: _markIf(markSelected && o.value == currentValue, labelWidget),
+        icon: hasIcons ? _buildOptionIcon(o) : null,
+        tooltip: o.tooltip,
+      );
+    }).toList();
   }
 
   static Widget _markIf(bool mark, Widget label) =>

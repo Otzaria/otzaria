@@ -109,6 +109,5 @@ TextBookLoaded _state(List<Link> visibleLinks) => TextBookLoaded(
   linksByLine: const {},
   tableOfContents: const [],
   visibleIndices: const [0],
-  pinLeftPane: false,
   searchText: '',
 );

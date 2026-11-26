@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -23,6 +24,31 @@ class ScopeTree {
   /// העץ שכבר נבנה לספרייה הזו, או null. אינו בונה — מי שרק צריך שם להצגה
   /// לא ישלם בסריקת הספרייה.
   static ScopeTree? cachedFor(Library library) => _cache[library];
+
+  static final _opaqueBookKey = RegExp(r'^(id|uid|db|ext):');
+
+  /// שם להצגה של [facet] בלי לבנות את העץ: כותרת הצומת מ-[tree] אם נבנה,
+  /// אחרת המקטע האחרון של הנתיב. מפתח ספר אטום ('id:5') אינו שם — null.
+  static String? facetDisplayName(
+    String facet, {
+    ScopeTree? tree,
+    bool allowLegacyFallback = true,
+  }) {
+    final isDimension = FacetHelper.isDimensionFacet(facet);
+    final node = isDimension ? null : tree?.nodesByFacet[facet];
+    if (node != null) return node.title;
+
+    // מפתח ספר ישן ושם קטגוריה יכולים להכיל '|'.
+    final pipe = allowLegacyFallback && !isDimension ? facet.indexOf('|') : -1;
+    final head = pipe < 0 ? facet : facet.substring(0, pipe);
+    final segment = head
+        .split('/')
+        .lastWhere((segment) => segment.isNotEmpty, orElse: () => '');
+    if (segment.isEmpty) return null;
+    if (isDimension) return segment;
+    if (_opaqueBookKey.hasMatch(segment)) return null;
+    return Category.displayNameForPathSegment(segment);
+  }
 
   factory ScopeTree.fromLibrary(Library library) {
     return _cache[library] ??= ScopeTree._build(library);
@@ -151,6 +177,21 @@ class ScopeTree {
   /// העץ בלי ספרים אישיים, ובלי קטגוריות שנותרו ריקות.
   ScopeTree withoutUserBooks() =>
       _withoutUserBooksCache[this] ??= _pruned((book) => !book.source.isUser);
+
+  static final Expando<(Set<String>, ScopeTree)> _coveredOnlyCache = Expando(
+    'coveredOnlyScopeTree',
+  );
+
+  /// העץ רק עם הספרים שה-filePath שלהם באינדקס ב-[filePaths].
+  ScopeTree coveredOnly(Set<String> filePaths) {
+    final cached = _coveredOnlyCache[this];
+    if (cached != null && identical(cached.$1, filePaths)) return cached.$2;
+    final tree = _pruned(
+      (book) => filePaths.contains(BookIdentity.indexedFilePath(book)),
+    );
+    _coveredOnlyCache[this] = (filePaths, tree);
+    return tree;
+  }
 
   ScopeTree _pruned(bool Function(Book book) keep) {
     final nodesByFacet = <String, ScopeNode>{};
@@ -538,7 +579,7 @@ class CategoryScopeNode extends ScopeNode {
     : super(
         facet: FacetHelper.categoryFacet(category),
         title: category.title,
-        subtitle: category.path == '/' ? '' : category.path.substring(1),
+        subtitle: category.displayPath.substring(1),
       );
 
   CategoryScopeNode._pruned(ScopeNode source, List<ScopeNode> children)

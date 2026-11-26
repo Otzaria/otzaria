@@ -24,6 +24,9 @@ function scripts(file) {
 }
 const mergeScript = scripts('automerge.yml')[1];
 const revertScript = scripts('dev_health.yml')[0];
+const gateScript = scripts('ci_gate.yml')[0];
+const flutterRetryScript = scripts('flutter_tests.yml')
+  .find(script => script.includes('first_exit=$?')).replace(/\$\{\{[^}]+\}\}/g, '1');
 
 function check(name, suite, conclusion = 'success', id = suite * 10) {
   return { id, name, check_suite: { id: suite }, app: { slug: 'github-actions' },
@@ -41,7 +44,7 @@ function fixture(t, overrides = {}) {
   const data = {
     pr: { state: 'open', draft: false, labels: [{ name: 'automerge' }, { name: 'run-ci' }],
       head: { sha: 'pr-head' }, base: { ref: 'dev' } },
-    devHead: 'dev-head', devHeads: [], behind: 0,
+    devHead: 'dev-head', devHeads: [], behind: 0, devAncestry: 'ahead',
     devRuns: [{ head_sha: 'dev-head', status: 'completed', conclusion: 'success' }],
     workflowRuns: [workflow(1, 10)], checks: [check('CI result', 10)],
     originalPr: { merge_commit_sha: 'squash', commits: 3 }, ...overrides,
@@ -57,8 +60,9 @@ const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 fs.appendFileSync(process.env.CI_SAFETY_CALLS, JSON.stringify(args) + '\\n');
 let value;
 if (args[0] === 'api') {
-  const route = args.find(arg => arg.startsWith('repos/'));
-  if (route.endsWith('/pulls/42')) value = data.originalPr;
+  const route = args.find(arg => arg.startsWith('repos/') || arg.startsWith('users/'));
+  if (route.startsWith('users/')) value = { id: 1 };
+  else if (route.endsWith('/pulls/42')) value = data.originalPr;
   else if (/\\/pulls\\/\\d+$/.test(route)) value = data.pr;
   else if (route.includes('/permission')) value = { permission: 'write' };
   else if (route.includes('/git/ref/heads/')) {
@@ -73,9 +77,12 @@ if (args[0] === 'api') {
   } else if (route.includes('/actions/runs?')) value = { workflow_runs: data.workflowRuns };
   else if (route.includes('/check-runs?')) value = { check_runs: data.checks };
   else if (route.endsWith('/status')) value = { total_count: 0, state: 'pending' };
-  else if (route.includes('/compare/')) value = { behind_by: data.behind };
+  else if (route.endsWith('/comments')) value = data.comments ?? [];
+  else if (route.includes('/compare/')) value = route.endsWith('...' + data.devHead)
+    ? { status: data.devAncestry } : { behind_by: data.behind };
   else throw new Error('Unexpected API route: ' + route);
 } else if (args[0] === 'pr' && args[1] === 'merge') value = 'merged';
+else if (args[0] === 'pr' && args[1] === 'comment') value = 'commented';
 else throw new Error('Unexpected gh command: ' + args.join(' '));
 const queryIndex = args.indexOf('--jq');
 if (queryIndex >= 0) {
@@ -100,9 +107,94 @@ console.log(JSON.stringify(value));
   };
 }
 
-test('merges when the current dev commit and all PR checks pass', t => {
+test('merges when the latest completed dev CI and all PR checks pass', t => {
   const s = fixture(t); s.execute(); assert.equal(s.merged(), true);
 });
+
+test('a branch behind the base is rebased and merged in the same run', t => {
+  const s = fixture(t, { behind: 2, pr: { state: 'open', draft: false, labels: [{ name: 'automerge' }, { name: 'run-ci' }],
+    head: { sha: 'pr-head', ref: 'feature', repo: { full_name: 'Otzaria/otzaria' } }, base: { ref: 'dev' } } });
+  s.execute(`git() {
+  echo "$*" >> "$RUNNER_TEMP/git.log"
+  case "$1" in
+    clone) mkdir -p "\${@: -1}" ;;
+    rebase) touch "$RUNNER_TEMP/rebased" ;;
+    rev-parse) [ -f "$RUNNER_TEMP/rebased" ] && echo rebased-head || echo pr-head ;;
+  esac
+}
+${mergeScript}`, { BOT_SLUG: 'otzaria-bot' });
+  const log = readFileSync(path.join(s.dir, 'git.log'), 'utf8');
+  assert.match(log, /rebase -q FETCH_HEAD/);
+  assert.match(log, /push -q --force-with-lease=feature:pr-head origin HEAD:feature/);
+  const merge = s.calls().find(args => args[0] === 'pr' && args[1] === 'merge');
+  assert.ok(merge);
+  assert.equal(merge[merge.indexOf('--match-head-commit') + 1], 'rebased-head');
+});
+
+test('the CI gate discards output from a failed labels request', t => {
+  const s = fixture(t);
+  const output = path.join(s.dir, 'output');
+  s.execute(`set -eo pipefail
+sleep() { :; }
+gh() {
+  if [ ! -f "$RUNNER_TEMP/attempted" ]; then
+    touch "$RUNNER_TEMP/attempted"
+    echo run-ci
+    return 1
+  fi
+  echo unrelated
+}
+${gateScript}`, { ACTION: 'opened', GITHUB_OUTPUT: output });
+  assert.equal(readFileSync(output, 'utf8'), 'run=false\n');
+});
+
+const lateFlutterError = [
+  { type: 'suite', suite: { id: 1, path: 'test/watcher_test.dart' } },
+  { type: 'testStart', test: { id: 2, suiteID: 1, name: 'watcher closes' } },
+  { type: 'testDone', testID: 2, result: 'success', hidden: false },
+  { type: 'error', testID: 2, error: 'asynchronous watcher failure' },
+];
+const failedFlutterRun = { type: 'done', success: false };
+const unmappedFlutterError = { type: 'error', testID: 3, error: 'unmapped engine failure' };
+
+for (const [description, first, retry, expected] of [
+  ['retries a late failure in a completed Flutter shard', [...lateFlutterError, failedFlutterRun], null, 0],
+  ['keeps a truncated Flutter shard failed', lateFlutterError, null, 1],
+  ['keeps a Flutter shard with an unmapped error failed', [...lateFlutterError, unmappedFlutterError, failedFlutterRun], null, 1],
+  ['reports both late and unmapped errors on a failed Flutter retry', [...lateFlutterError, failedFlutterRun],
+    [...lateFlutterError, unmappedFlutterError, failedFlutterRun], 2],
+]) {
+  test(description, t => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'otzaria-flutter-retry-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(path.join(dir, 'test'));
+    writeFileSync(path.join(dir, 'first.json'), first.map(event => JSON.stringify(event)).join('\n'));
+    if (retry) writeFileSync(path.join(dir, 'second.json'), retry.map(event => JSON.stringify(event)).join('\n'));
+    const result = spawnSync('bash', ['-c', `
+dart() { printf '%s\\n' test/watcher_test.dart test/passing_test.dart; }
+flutter() {
+  if [[ " $* " == *" json:test-results.json "* ]]; then
+    cp first.json test-results.json
+    return 1
+  fi
+  printf '%s\\n' "$@" > retry-args
+  if [[ -f second.json ]]; then
+    cp second.json retry-results.json
+    return 2
+  fi
+}
+${flutterRetryScript}`], { cwd: dir, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: 'summary' } });
+    assert.equal(result.status, expected, result.stdout + result.stderr);
+    const retryArgs = path.join(dir, 'retry-args');
+    if (expected === 1) assert.equal(existsSync(retryArgs), false);
+    else assert.equal(readFileSync(retryArgs, 'utf8'), 'test\n--file-reporter\njson:retry-results.json\ntest/watcher_test.dart\n');
+    if (retry) {
+      const summary = readFileSync(path.join(dir, 'summary'), 'utf8');
+      assert.match(summary, /test\/watcher_test\.dart :: watcher closes/);
+      assert.match(summary, /unmapped engine failure/);
+    }
+  });
+}
 
 for (const conclusion of ['failure', null]) {
   test(`a same-name check from another workflow cannot hide ${conclusion ?? 'pending'} work`, t => {
@@ -156,19 +248,129 @@ test('a successful CI result is required even when other checks pass', t => {
   s.execute(); assert.equal(s.merged(), false);
 });
 
-for (const conclusion of [null, 'failure', 'timed_out', 'cancelled']) {
-  test(`dev ${conclusion ?? 'retry in progress'} cannot fall back to an older green run`, t => {
+const olderGreen = { head_sha: 'older-dev', status: 'completed', conclusion: 'success' };
+
+for (const status of ['queued', 'in_progress']) {
+  test(`first dev CI attempt (${status}) does not block a green PR after a green baseline`, t => {
     const s = fixture(t, { devRuns: [
-      { head_sha: 'dev-head', status: conclusion === null ? 'in_progress' : 'completed', conclusion },
-      { head_sha: 'older-dev', status: 'completed', conclusion: 'success' },
+      { head_sha: 'dev-head', status, conclusion: null, run_attempt: 1 },
+      olderGreen,
+    ] });
+    s.execute(); assert.equal(s.merged(), true);
+  });
+}
+
+for (const conclusion of ['failure', 'timed_out', 'cancelled']) {
+  test(`dev ${conclusion} blocks a stale PR even with an older green run`, t => {
+    const s = fixture(t, { behind: 1, devRuns: [
+      { head_sha: 'dev-head', status: 'completed', conclusion },
+      olderGreen,
     ] });
     s.execute(); assert.equal(s.merged(), false);
   });
 }
 
-test('dev with no CI run on its current commit waits', t => {
-  const s = fixture(t, { devRuns: [{ head_sha: 'older-dev', status: 'completed', conclusion: 'success' }] });
+test('dev recovery asks a stale PR to update its branch once per head', t => {
+  const devRuns = [{ head_sha: 'dev-head', status: 'completed', conclusion: 'failure' }, olderGreen];
+  const comments = s => s.calls().filter(args => args[0] === 'pr' && args[1] === 'comment');
+  const first = fixture(t, { behind: 1, devRuns });
+  first.execute();
+  assert.equal(comments(first).length, 1);
+  const repeat = fixture(t, { behind: 1, devRuns,
+    comments: [{ body: 'x <!-- automerge-recovery-behind:pr-head --> y' }] });
+  repeat.execute();
+  assert.equal(comments(repeat).length, 0);
+});
+
+for (const conclusion of ['failure', 'timed_out', 'cancelled']) {
+  test(`dev ${conclusion} permits recovery from an up-to-date, fully green PR`, t => {
+    const s = fixture(t, { devRuns: [
+      { head_sha: 'dev-head', status: 'completed', conclusion },
+      olderGreen,
+    ] });
+    s.execute(); assert.equal(s.merged(), true);
+  });
+}
+
+const failedDev = [{ head_sha: 'dev-head', status: 'completed', conclusion: 'failure' }, olderGreen];
+
+for (const conclusion of ['skipped', 'failure', null]) {
+  test(`dev recovery rejects a PR with CI result ${conclusion ?? 'pending'}`, t => {
+    const s = fixture(t, { devRuns: failedDev, checks: [check('CI result', 10, conclusion)] });
+    s.execute(); assert.equal(s.merged(), false);
+  });
+}
+
+test('dev recovery still requires every other check to pass', t => {
+  const s = fixture(t, { devRuns: failedDev, checks: [check('CI result', 10), check('Analyze', 10, 'failure')] });
   s.execute(); assert.equal(s.merged(), false);
+});
+
+test('dev recovery cannot merge a PR targeting a different base', t => {
+  const s = fixture(t, { devRuns: failedDev, pr: {
+    state: 'open', draft: false, labels: [{ name: 'automerge' }, { name: 'run-ci' }],
+    head: { sha: 'pr-head' }, base: { ref: 'main' },
+  } });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('dev recovery rejects failed CI from unrelated history', t => {
+  const s = fixture(t, { devRuns: [
+    { head_sha: 'unrelated-dev', status: 'completed', conclusion: 'failure' },
+  ], devAncestry: 'diverged' });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('a dev update during recovery checks prevents a stale-base merge', t => {
+  const s = fixture(t, { devRuns: failedDev, devHeads: ['dev-head', 'new-dev'] });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('a newer retry of dev CI blocks merges until it finishes successfully', t => {
+  const s = fixture(t, { devRuns: [
+    { head_sha: 'dev-head', status: 'in_progress', conclusion: null, run_attempt: 2 },
+    olderGreen,
+  ] });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('a pending first attempt does not hide a newer known dev failure for a stale PR', t => {
+  const s = fixture(t, { behind: 1, devRuns: [
+    { head_sha: 'dev-head', status: 'queued', conclusion: null, run_attempt: 1 },
+    { head_sha: 'failed-dev', status: 'completed', conclusion: 'failure' },
+    olderGreen,
+  ] });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('a dev push whose CI has not appeared yet can use an ancestor green baseline', t => {
+  const s = fixture(t, { devRuns: [olderGreen] });
+  s.execute(); assert.equal(s.merged(), true);
+});
+
+test('a green baseline from unrelated history cannot allow a merge', t => {
+  const s = fixture(t, { devRuns: [olderGreen], devAncestry: 'diverged' });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('dev with no completed CI waits', t => {
+  const s = fixture(t, { devRuns: [
+    { head_sha: 'dev-head', status: 'in_progress', conclusion: null, run_attempt: 1 },
+  ] });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('dev with no CI runs waits', t => {
+  const s = fixture(t, { devRuns: [] });
+  s.execute(); assert.equal(s.merged(), false);
+});
+
+test('an older retry does not block a newer successful dev CI', t => {
+  const s = fixture(t, { devRuns: [
+    { head_sha: 'dev-head', status: 'completed', conclusion: 'success' },
+    { head_sha: 'older-dev', status: 'in_progress', conclusion: null, run_attempt: 2 },
+  ] });
+  s.execute(); assert.equal(s.merged(), true);
 });
 
 test('a dev update during the PR checks prevents a stale-base merge', t => {

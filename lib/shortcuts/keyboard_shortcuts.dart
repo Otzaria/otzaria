@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/core/windowing/window_opener.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -47,12 +49,30 @@ class KeyboardShortcuts extends StatefulWidget {
   /// פתיחת/סגירת דיאלוג חיפוש חדש דרך MainWindowScreen (מעקב `_isSearchOpen`).
   final VoidCallback? onNewSearchRequested;
 
+  /// בוחר את לשונית ההגדרות שתוצג במעבר למסך ההגדרות.
+  final SettingsScreenController? settingsController;
+
   const KeyboardShortcuts({
     super.key,
     required this.child,
     required this.onFindRefRequested,
     this.onNewSearchRequested,
+    this.settingsController,
   });
+
+  /// מפעיל קיצור מוגדר לפני ברירת מחדל של הקורא.
+  static bool handleConfiguredShortcut(BuildContext context, KeyEvent event) {
+    final state = context.findAncestorStateOfType<_KeyboardShortcutsState>();
+    if (state == null || !state._isActiveWindow || !state._isReadingScreen) {
+      return false;
+    }
+    final result = state._handleKeyEvent(
+      event,
+      state.context.read<SettingsBloc>().state.shortcuts,
+      includeFixedShortcuts: false,
+    );
+    return result == KeyEventResult.handled;
+  }
 
   @override
   State<KeyboardShortcuts> createState() => _KeyboardShortcutsState();
@@ -101,46 +121,42 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         !route.isFirst &&
         route.popDisposition == RoutePopDisposition.doNotPop) {
       // תו שמסומן handled לא נכנס לשדה ב-Windows; חוסמים רק קיצורים.
-      return ShortcutHelper.shouldIgnoreWhileEditing(event) ||
-              _typesCharacterWithModifiers(event) ||
-              _isMacControlEditingEvent(event)
-          ? KeyEventResult.ignored
-          : KeyEventResult.handled;
+      final editing = ShortcutHelper.shouldIgnoreWhileEditing(
+        event,
+        preserveModifiedText: true,
+      );
+      return editing ? KeyEventResult.ignored : KeyEventResult.handled;
     }
     return _handleKeyEvent(event, context.read<SettingsBloc>().state.shortcuts);
   }
 
-  /// AltGr (Ctrl+Alt ב-Windows) או Option במק שמייצרים תו לשדה, כמו ₪ או ניקוד.
-  static bool _typesCharacterWithModifiers(KeyEvent event) =>
-      event.character != null &&
-      ShortcutHelper.isEditingText &&
-      !ShortcutHelper.isPlainCtrlOrCmdPressed &&
-      !HardwareKeyboard.instance.isMetaPressed;
-
-  // Cocoa מממש Ctrl+D/H רק אחרי שה-framework מחזיר ignored.
-  static bool _isMacControlEditingEvent(KeyEvent event) {
-    final keyboard = HardwareKeyboard.instance;
-    return ShortcutHelper.usesMacModifiers &&
-        ShortcutHelper.isEditingText &&
-        keyboard.isControlPressed &&
-        !keyboard.isMetaPressed &&
-        !keyboard.isAltPressed &&
-        !keyboard.isShiftPressed &&
-        (event.logicalKey == LogicalKeyboardKey.keyD ||
-            event.logicalKey == LogicalKeyboardKey.keyH);
-  }
-
   /// חץ בלי מקש צירוף, ומקש ששוחרר מאזור הקריאה, נבלעים בהעברת הפוקוס ובאזורי
   /// הבחירה לפני ה-late handler, ולכן קיצור שהוקצה להם מופעל כאן.
-  KeyEventResult _handleArrowShortcut(FocusNode _, KeyEvent event) {
+  KeyEventResult _handleScopedKeyEvent(FocusNode _, KeyEvent event) {
     if (event is KeyRepeatEvent && event.physicalKey == _arrowShortcutKey) {
       return KeyEventResult.handled;
     }
     if (event is! KeyRepeatEvent) _arrowShortcutKey = null;
     final keyboard = HardwareKeyboard.instance;
-    if (event is! KeyDownEvent ||
-        !_isActiveWindow ||
-        ShortcutHelper.isEditingText ||
+    if (event is! KeyDownEvent || !_isActiveWindow) {
+      return KeyEventResult.ignored;
+    }
+    // בקורא טקסט במסך מלא, Escape מגיע לכאן לפני ה-DismissIntent של WidgetsApp.
+    if (const SingleActivator(LogicalKeyboardKey.escape).accepts(
+          event,
+          keyboard,
+        ) &&
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS &&
+        _isReadingScreen &&
+        context.read<WindowFullscreenCubit?>()?.state == true &&
+        context.read<TabsBloc>().state.activePane is TextBookTab) {
+      return _handleKeyEvent(
+        event,
+        context.read<SettingsBloc>().state.shortcuts,
+      );
+    }
+    if (ShortcutHelper.isEditingText ||
         !(_focusArrows.any((arrow) => arrow.accepts(event, keyboard)) ||
             (ShortcutValidator.isReleasedReaderKey(event) &&
                 !hasFocusedSelectableRegionSelection()))) {
@@ -228,8 +244,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
   /// מטפל באירועי מקלדת ברמה הגלובלית - עובד גם כשיש TextField עם focus
   KeyEventResult _handleKeyEvent(
     KeyEvent event,
-    Map<String, String> shortcutSettings,
-  ) {
+    Map<String, String> shortcutSettings, {
+    bool includeFixedShortcuts = true,
+  }) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     if (ShortcutHelper.shouldIgnoreWhileEditing(event)) {
@@ -258,6 +275,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     );
     final appReportShortcut = shortcutOf(ShortcutValidator.openAppReportKey);
     final settingsShortcut = shortcutOf('key-shortcut-open-settings');
+    final shortcutsListShortcut = shortcutOf(
+      ShortcutValidator.openShortcutsListKey,
+    );
     final moreShortcut = shortcutOf('key-shortcut-open-more');
     final bookmarksShortcut = shortcutOf('key-shortcut-open-bookmarks');
     final historyShortcut = shortcutOf('key-shortcut-open-history');
@@ -355,7 +375,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     }
 
     // החלפת מצב תצוגה PDF→טקסט. הכיוון ההפוך מטופל במסך ספר הטקסט עצמו,
-    // שה-KeyboardListener שלו עוטף את כל המסך.
+    // שה-Focus שלו עוטף את כל המסך.
     if (isReadingScreen &&
         togglePdfViewShortcut.isNotEmpty &&
         ShortcutHelper.matchesShortcut(event, togglePdfViewShortcut)) {
@@ -538,9 +558,17 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       return KeyEventResult.handled;
     }
 
-    // הגדרות
-    if (ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
+    // הגדרות; רשימת קיצורי המקשים — הגדרות בלשונית הקיצורים
+    final opensShortcutsList = ShortcutHelper.matchesShortcut(
+      event,
+      shortcutsListShortcut,
+    );
+    if (opensShortcutsList ||
+        ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
       if (!closeOverlayRoutes()) return KeyEventResult.handled;
+      if (opensShortcutsList) {
+        widget.settingsController?.openTab(SettingsTab.shortcuts);
+      }
       context.read<NavigationBloc>().add(
         const NavigateToScreen(Screen.settings),
       );
@@ -639,7 +667,10 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // קיצור דינמי בעריכת טקסט (מחוץ לה הוא טופל כבר ב-early handler).
     final dynamicResult = _handleDynamicShortcut(event);
     if (dynamicResult != null) return dynamicResult;
+    if (!includeFixedShortcuts) return KeyEventResult.ignored;
 
+    // Ctrl+Tab, Ctrl+1..9, F11 ו-Esc מוצגים בהגדרות בכרטיס "קיצורים קבועים"
+    // (shortcuts_settings_tab.dart) — שינוי כאן מחייב עדכון גם שם.
     // Ctrl+Tab / Ctrl+Shift+Tab - מעבר בין טאבים.
     // לא משתמשים ב-matchesShortcut כדי לא להפוך ל-Cmd ב-Mac: Cmd+Tab
     // שמור למערכת ההפעלה, ולכן ב-Mac נשארים עם Ctrl פיזי (זמין שם).
@@ -689,6 +720,19 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       return KeyEventResult.handled;
     }
 
+    // F9 - הסתרת סרגל הקורא במסך מלא, או הצגתו הקבועה
+    if (ShortcutHelper.matchesShortcut(event, 'f9') &&
+        !DeviceChrome.isMobile &&
+        context.read<WindowFullscreenCubit>().state) {
+      final settings = context.read<SettingsBloc>();
+      settings.add(
+        UpdateFullscreenAutoHideToolbar(
+          !settings.state.fullscreenAutoHideToolbar,
+        ),
+      );
+      return KeyEventResult.handled;
+    }
+
     // ESC - יציאה ממסך מלא
     if (ShortcutHelper.matchesShortcut(event, 'escape')) {
       if (context.read<WindowFullscreenCubit>().state) {
@@ -707,7 +751,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     return FocusScope(
       node: _shortcutFocusScopeNode,
       autofocus: true,
-      onKeyEvent: _handleArrowShortcut,
+      onKeyEvent: _handleScopedKeyEvent,
       child: widget.child,
     );
   }

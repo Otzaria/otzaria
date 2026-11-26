@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_density.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// איפה [ReaderNavCenter] שם את החיצים בפריסה האחרונה: בסרגל, או (אין מקום
@@ -129,18 +130,42 @@ class ReaderNavCenter extends StatelessWidget {
               const SizedBox(width: navGap),
             ],
             Flexible(
-              child: ConstrainedBox(
-                // רוחב קבוע, כדי שהחיצים לא יזוזו לפי אורך הכותרת.
-                constraints: BoxConstraints.tightFor(width: remainingForTitle),
-                child: title,
-              ),
+              child: afterTitle == null
+                  ? ConstrainedBox(
+                      // רוחב קבוע, כדי שהחיצים לא יזוזו לפי אורך הכותרת.
+                      constraints: BoxConstraints.tightFor(
+                        width: remainingForTitle,
+                      ),
+                      child: title,
+                    )
+                  // הכותרת ו-afterTitle (מספר העמוד ב-PDF) קבוצה אחת, ממורכזת
+                  // באותו רוחב קבוע: המספר צמוד לכותרת ולא לחיצים (#4945).
+                  : SizedBox(
+                      width: remainingForTitle,
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(child: title),
+                            if (remainingForTitle > AppTokens.spaceSM)
+                              const SizedBox(width: AppTokens.spaceSM),
+                            // afterTitle מתכווץ ויזואלית (scaleDown) כשהמרחב אוזל.
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    (remainingForTitle - AppTokens.spaceSM)
+                                        .clamp(0.0, remainingForTitle),
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: afterTitle!,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
             ),
-            // afterTitle מתכווץ ויזואלית (scaleDown) כשהמרחב אוזל.
-            if (afterTitle != null)
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: remainingForTitle),
-                child: FittedBox(fit: BoxFit.scaleDown, child: afterTitle!),
-              ),
             if (showNav) ...[
               const SizedBox(width: navGap),
               BarButton.icon(

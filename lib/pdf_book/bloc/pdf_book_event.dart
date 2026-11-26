@@ -27,14 +27,10 @@ class DocumentReady extends PdfBookEvent {
   final List<PdfOutlineNode>? outline;
   final int totalPages;
 
-  /// רוחב החלון של הקורא, למדיניות החלונית השמאלית; null — ברירת המחדל.
-  final double? screenWidth;
-
   const DocumentReady({
     required this.documentRef,
     this.outline,
     required this.totalPages,
-    this.screenWidth,
   });
 
   @override
@@ -42,7 +38,6 @@ class DocumentReady extends PdfBookEvent {
     documentRef,
     outline?.length,
     totalPages,
-    screenWidth,
   ];
 }
 
@@ -190,16 +185,6 @@ class ToggleLeftPane extends PdfBookEvent {
 
   @override
   List<Object?> get props => [show];
-}
-
-/// Pin/unpin the left pane
-class TogglePinLeftPane extends PdfBookEvent {
-  final bool? pin;
-
-  const TogglePinLeftPane([this.pin]);
-
-  @override
-  List<Object?> get props => [pin];
 }
 
 /// Update sidebar width

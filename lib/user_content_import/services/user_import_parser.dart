@@ -552,6 +552,16 @@ class UserImportParser {
         );
         continue;
       }
+      if (type == kInlineLinkerImportType && anchorEnd == null) {
+        errors.add(ImportRowError(n, 'ציטוט בטקסט דורש start ו-end גדול ממנו'));
+        continue;
+      }
+      if (type == kInlineLinkerImportType &&
+          sourceLineEnd != null &&
+          sourceLineEnd != sourceLine) {
+        errors.add(ImportRowError(n, 'מקור הציטוט בטקסט חייב להיות בשורה אחת'));
+        continue;
+      }
       rows.add(
         ParsedNativeLink(
           sourceLineNumber: sourceLine,
@@ -641,10 +651,15 @@ class UserImportParser {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  /// סוג native מוכר (ריק → reference, כמו [Link.fromJson]); לא מוכר → null.
+  /// סוג native מוכר (ריק → reference, כמו [Link.fromJson]) או
+  /// [kInlineLinkerImportType]; לא מוכר → null.
   static String? _nativeConnectionType(Object? raw) {
     final value = Link.connectionTypeFromJson(raw).trim();
     final normalized = LinkTypes.normalize(value);
+    if (normalized == kInlineLinkerImportType ||
+        value == kInlineLinkerHebrewLabel) {
+      return kInlineLinkerImportType;
+    }
     final type =
         LinkTypes.nativeConnectionTypeAliases[normalized] ?? normalized;
     return kNativeConnectionTypes.contains(type) ? type : null;

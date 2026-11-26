@@ -21,6 +21,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -434,6 +435,164 @@ void main() {
     final reader = await pumpReader(tester, currentTabIndex: 0);
     await swipe(tester, -900);
     expect(reader.tabs.state.currentTabIndex, 1);
+  });
+
+  group('PDF touchpad fling (issue #3491)', () {
+    /// גלילה אנכית בשתי אצבעות: [steps] צעדים של [step] פיקסלים, [stepMs]
+    /// מילישניות בין צעד לצעד, ואז הרמת האצבעות.
+    Future<void> verticalPan(
+      WidgetTester tester, {
+      required double step,
+      required int steps,
+      required int stepMs,
+      bool settle = true,
+      Future<void> Function()? beforeEnd,
+    }) async {
+      final center = tester.getCenter(find.byType(PageView));
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(center, timeStamp: Duration.zero);
+      for (var i = 1; i <= steps; i++) {
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(0, step * i),
+          timeStamp: Duration(milliseconds: stepMs * i),
+        );
+        await tester.pump();
+      }
+      await beforeEnd?.call();
+      await gesture.panZoomEnd(
+        timeStamp: Duration(milliseconds: stepMs * (steps + 1)),
+      );
+      if (settle) await frames(tester, 90);
+    }
+
+    testWidgets('החלקה מהירה ממשיכה לגלול אחרי הרמת האצבעות', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      final top = controller.visibleRect.top;
+      // 240px ב-64ms: כ-3750 פיקסלים לשנייה, החלקה מהירה רגילה.
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8);
+      final fingers = 240 / controller.currentZoom;
+      expect(
+        controller.visibleRect.top - top,
+        greaterThan(fingers * 2),
+        reason: 'בלי המשך תנועה המסמך זז רק כמרחק האצבעות',
+      );
+    });
+
+    testWidgets('גלילה איטית זזה כמרחק האצבעות בלבד', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      final top = controller.visibleRect.top;
+      // 60px בשלוש שניות: מתחת לסף ההחלקה.
+      await verticalPan(tester, step: -1, steps: 60, stepMs: 50);
+      expect(
+        controller.visibleRect.top - top,
+        closeTo(60 / controller.currentZoom, 1),
+      );
+    });
+
+    testWidgets('זום עם Ctrl שמשתחרר לפני הרמת האצבעות אינו מחליק', (
+      tester,
+    ) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      late double releasedAt;
+      await verticalPan(
+        tester,
+        step: -30,
+        steps: 8,
+        stepMs: 8,
+        settle: false,
+        beforeEnd: () async {
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          releasedAt = controller.visibleRect.center.dy;
+        },
+      );
+      await frames(tester, 90);
+      // הזום מתייצב סביב המצביע שבמרכז, ולכן המרכז זז רק מעט; החלקה
+      // לפי דגימות הזום הייתה מזיזה אותו מאות פיקסלים.
+      expect(controller.visibleRect.center.dy, closeTo(releasedAt, 30));
+    });
+
+    testWidgets('הנחת אצבעות על לוח המגע עוצרת את ההחלקה', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      final top = controller.visibleRect.top;
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8, settle: false);
+      await frames(tester, 3);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(tester.getCenter(find.byType(PageView)));
+      final stoppedAt = controller.visibleRect.top;
+      await frames(tester, 60);
+      await gesture.panZoomEnd();
+      expect(stoppedAt - top, greaterThan(0));
+      expect(controller.visibleRect.top, closeTo(stoppedAt, 1));
+    });
+
+    testWidgets('מעבר לכרטיסייה אחרת עוצר את ההחלקה ב-PDF', (tester) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8, settle: false);
+      await frames(tester, 3);
+      reader.tabs.add(const SetCurrentTab(0));
+      await tester.pump();
+      final stoppedAt = controller.visibleRect.top;
+      await frames(tester, 15);
+      reader.tabs.add(const SetCurrentTab(1));
+      await frames(tester, 60);
+      expect(controller.visibleRect.top, closeTo(stoppedAt, 1));
+    });
+
+    testWidgets('צביטה באירוע PointerScaleEvent עוצרת החלקה פעילה', (
+      tester,
+    ) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await verticalPan(tester, step: -30, steps: 8, stepMs: 8, settle: false);
+      await frames(tester, 3);
+      final zoom = controller.currentZoom;
+      await tester.sendEventToBinding(
+        PointerScaleEvent(
+          kind: PointerDeviceKind.trackpad,
+          position: tester.getCenter(find.byType(PageView)),
+          scale: 1.3,
+        ),
+      );
+      await frames(tester, 60);
+      expect(controller.currentZoom, greaterThan(zoom * 1.15));
+    });
+
+    testWidgets('החלקה אנכית עם Shift ממשיכה אופקית גם אחרי שחרורו', (
+      tester,
+    ) async {
+      final reader = await pumpReader(tester, currentTabIndex: 1);
+      final controller = reader.pdf.pdfViewerController;
+      await controller.setZoom(
+        controller.centerPosition,
+        controller.currentZoom * 2,
+        duration: Duration.zero,
+      );
+      await frames(tester, 3);
+      final start = controller.visibleRect.center;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await verticalPan(
+        tester,
+        step: -15,
+        steps: 8,
+        stepMs: 8,
+        beforeEnd: () => tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft),
+      );
+      final end = controller.visibleRect.center;
+      final fingers = 120 / controller.currentZoom;
+      expect(end.dx - start.dx, greaterThan(fingers * 2));
+      expect(end.dy, closeTo(start.dy, 1));
+    });
   });
 
   // R7-5, #2988: גם בתפריט "עוד" הפריט מציע את ההתאמה הבאה.

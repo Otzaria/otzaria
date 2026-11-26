@@ -248,6 +248,18 @@ class LinkDao {
     return db.select(_queries['selectDefaultTargums']!, [bookId]).toMapList();
   }
 
+  /// מפרשי ברירת מחדל שהמסד הזה מציע לספר [targetTitle] במסד אחר.
+  /// כל שורה: `targetSource`, `commentatorTitle`, `kind` ו-`position`.
+  Future<List<Map<String, dynamic>>> selectExternalDefaultCommentators(
+    String targetTitle,
+  ) async {
+    if (!(await _capabilities).hasExternalDefaultCommentators) return const [];
+    final db = await database;
+    return db.select(_queries['selectExternalDefaultCommentators']!, [
+      targetTitle,
+    ]).toMapList();
+  }
+
   Future<int> insertLink(Link link, int connectionTypeId) async {
     final db = await database;
     db.execute(_queries['insert']!, [

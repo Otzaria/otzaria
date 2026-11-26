@@ -54,7 +54,8 @@ class _StubCalendarCubit extends Cubit<CalendarState> implements CalendarCubit {
 
 /// ספר שסופר כמה פעמים נקרא המחבר שלו: כל שורת רשימה שנבנית קוראת אותו.
 class _CountingBook extends TextBook {
-  _CountingBook(this.counter, {required super.title}) : super(author: 'מחבר');
+  _CountingBook(this.counter, {required super.title, super.order})
+    : super(author: 'מחבר');
 
   final List<int> counter;
 
@@ -119,24 +120,26 @@ Future<void> _pumpBrowser(WidgetTester tester, LibraryBloc libraryBloc) async {
   });
 
   await tester.pumpWidget(
-    MaterialApp(
-      builder: (context, child) =>
-          Directionality(textDirection: TextDirection.rtl, child: child!),
-      home: MultiProvider(
-        providers: [
-          Provider<FocusRepository>.value(value: FocusRepository()),
-          // create ולא value: הספק סוגר את ה-bloc בהסרת העץ, בתוך השעון
-          // המדומה. close() שנקרא מה-tearDown אינו מסתיים.
-          BlocProvider<LibraryBloc>(create: (_) => libraryBloc),
-          BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          BlocProvider<NavigationBloc>.value(value: navigationBloc),
-          BlocProvider<LibraryUpdateBloc>.value(value: libraryUpdateBloc),
-          BlocProvider<CalendarCubit>.value(value: calendarCubit),
-          BlocProvider<CustomFoldersBloc>(
-            create: (_) => CustomFoldersBloc(addLibraryEvent: (_) {}),
-          ),
-        ],
-        child: const LibraryBrowser(),
+    // הספקים מעל ה-MaterialApp, כמו באפליקציה: דיאלוגים נפתחים ב-Navigator
+    // שמעל ל-home ורואים רק אותם.
+    MultiProvider(
+      providers: [
+        Provider<FocusRepository>.value(value: FocusRepository()),
+        // create ולא value: הספק סוגר את ה-bloc בהסרת העץ, בתוך השעון
+        // המדומה. close() שנקרא מה-tearDown אינו מסתיים.
+        BlocProvider<LibraryBloc>(create: (_) => libraryBloc),
+        BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        BlocProvider<NavigationBloc>.value(value: navigationBloc),
+        BlocProvider<LibraryUpdateBloc>.value(value: libraryUpdateBloc),
+        BlocProvider<CalendarCubit>.value(value: calendarCubit),
+        BlocProvider<CustomFoldersBloc>(
+          create: (_) => CustomFoldersBloc(addLibraryEvent: (_) {}),
+        ),
+      ],
+      child: MaterialApp(
+        builder: (context, child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child!),
+        home: const LibraryBrowser(),
       ),
     ),
   );
@@ -209,6 +212,59 @@ void main() {
     expect(find.text('אברהם 2999'), findsOneWidget);
     // ListView בונה בקפיצה כזו כל שורה שבדרך: אלפי קריאות.
     expect(authorReads[0], lessThan(200));
+  });
+
+  testWidgets('קפיצה לסוף חלונית "כל הספרים" בונה רק את שורות היעד '
+      '(issue #4766)', (tester) async {
+    final authorReads = [0];
+    final folder = _folder(
+      'תיקייה',
+      books: [
+        for (var i = 0; i < 3000; i++)
+          _CountingBook(authorReads, title: 'ספר $i', order: i),
+      ],
+    );
+    final library = Library(categories: [folder]);
+    folder.parent = library;
+
+    final libraryBloc = _MockLibraryBloc();
+    whenListen(
+      libraryBloc,
+      const Stream<LibraryState>.empty(),
+      initialState: LibraryState(library: library, currentCategory: library),
+    );
+    await _pumpBrowser(tester, libraryBloc);
+
+    await tester.tap(find.text('תיקייה'));
+    await tester.pumpAndSettle();
+    final showMore = find.text('הצג עוד 2500 פריטים');
+    await tester.scrollUntilVisible(
+      showMore,
+      3000,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(showMore);
+    await tester.pumpAndSettle();
+
+    final dialogList = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(Scrollable),
+    );
+    expect(dialogList, findsOneWidget);
+    authorReads[0] = 0;
+
+    final position = tester.state<ScrollableState>(dialogList).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    // ListView בונה בקפיצה כזו כל שורה שבדרך: אלפי קריאות.
+    expect(authorReads[0], lessThan(200));
+
+    // הגובה בקצה משוער עד שנמדד: קפיצות נוספות מגיעות לסוף האמיתי.
+    for (var i = 0; i < 5 && find.text('ספר 2999').evaluate().isEmpty; i++) {
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('ספר 2999'), findsOneWidget);
   });
 
   testWidgets('פתיחת תיקייה שמעבירה את העץ את סף השיטוח שומרת את הגלילה '

@@ -94,7 +94,11 @@ class _TourCubit extends Cubit<TourState> implements TourCubit {
   _TourCubit() : super(const TourState.inactive());
 
   @override
-  Future<void> recordInteraction(TourInteraction interaction) async {}
+  Future<void> recordInteraction(TourInteraction interaction) async {
+    interactions.add(interaction.type);
+  }
+
+  final interactions = <TourInteractionType>[];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -220,6 +224,24 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('פתיחה מפורשת של הקיצורים מחליפה תוצאות חיפוש', (tester) async {
+    await mount(tester);
+    await tester.tap(find.byType(SettingsSearchField));
+    await tester.enterText(find.byType(EditableText), 'גופן');
+    await tester.pump();
+    expect(find.byType(SettingsSearchResultsView), findsOneWidget);
+
+    controller.openTab(SettingsTab.shortcuts);
+    await tester.pump();
+
+    expect(find.byType(SettingsSearchResultsView), findsNothing);
+    expect(find.byType(ShortcutsSettingsTab), findsOneWidget);
+    expect(
+      tour.interactions,
+      contains(TourInteractionType.shortcutsSettingsOpened),
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   Future<void> startScroll(WidgetTester tester) async {
     SettingsSearchRegistry.instance.navigateToEntry(
       _entry('shortcuts.nav.advanced_search'),
@@ -241,6 +263,10 @@ void main() {
   }
 
   const hiddenCases = [
+    (
+      id: 'shortcuts.nav.shortcuts_list',
+      key: ShortcutValidator.openShortcutsListKey,
+    ),
     (
       id: 'shortcuts.nav.advanced_search',
       key: ShortcutValidator.openAdvancedSearchKey,

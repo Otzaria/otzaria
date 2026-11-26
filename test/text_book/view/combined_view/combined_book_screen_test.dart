@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
 import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.dart';
@@ -330,13 +332,13 @@ void main() {
           );
           await tester.pump();
           expect((await latestSnapshot())['revision'], 3);
-          for (final rejected in ['שתי\nפסקאות', '<b>תגית</b>']) {
+          for (final rejected in ['שתי\n<b>פסקאות</b>', '<b>תגית</b>']) {
             await tester.enterText(firstEditor, rejected);
             await tester.pump();
             expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
             expect((await latestSnapshot())['revision'], 3);
           }
-          editor.controller!.text = 'הדבקה ידנית\nשאינה פסקה אחת';
+          editor.controller!.text = 'הדבקה ידנית\n<i>עם תגית</i>';
           editor.onChanged!(editor.controller!.text);
           await tester.pump();
           expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
@@ -1224,6 +1226,102 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final pageShape in [false, true]) {
+    final view = pageShape ? 'צורת הדף' : 'הקורא המשולב';
+    testWidgets('ציטוט מיובא ב$view נפתח במיקום המדויק גם אחרי קישור קיים', (
+      tester,
+    ) async {
+      const rawLine = 'ראשון 😀 &amp; אחרון';
+      final existing = Link(
+        heRef: 'קישור קודם',
+        index1: 1,
+        path2: 'ספר קודם',
+        index2: 1,
+        connectionType: LinkTypes.reference,
+        start: 0,
+        end: 5,
+      );
+      final citation = Link(
+        heRef: 'ציטוט',
+        index1: 1,
+        path2: 'ספר יעד',
+        index2: 3,
+        targetCategoryId: 7,
+        targetSource: BookSource.attached('test-source'),
+        connectionType: LinkTypes.linker,
+        anchorStart: rawLine.indexOf('&amp;'),
+        anchorEnd: rawLine.length,
+        anchorOffsetsAreRaw: true,
+      );
+      final links = [existing, citation];
+      final state = _loadedState().copyWith(
+        content: const [rawLine],
+        links: links,
+        linksByLine: {1: links},
+      );
+      final textBookBloc = _RecordingTextBookBloc(state);
+      final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
+      final settings = StubSettingsBloc(SettingsState.initial());
+      final tab = TextBookTab(book: state.book, index: 0);
+      final opened = <TextBookTab>[];
+      addTearDown(textBookBloc.close);
+      addTearDown(notes.close);
+      addTearDown(settings.close);
+      addTearDown(tab.dispose);
+      var linksPaneOpen = false;
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<PersonalNotesBloc>.value(value: notes),
+            BlocProvider<SettingsBloc>.value(value: settings),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: pageShape
+                  ? SimpleTextViewer(
+                      content: const [rawLine],
+                      isMainText: true,
+                      fontSize: 18,
+                      openBookCallback: (tab) => opened.add(tab as TextBookTab),
+                    )
+                  : CombinedView(
+                      data: const [rawLine],
+                      openBookCallback: (tab) => opened.add(tab as TextBookTab),
+                      openLeftPaneTab: (_, {searchText}) {},
+                      onOpenLinksPane: () => linksPaneOpen = true,
+                      textSize: 18,
+                      showCommentaryAsExpansionTiles: false,
+                      tab: tab,
+                    ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      const url = 'otzaria://anchor?ref=0_0&range=1';
+      final text = tester
+          .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+          .firstWhere(
+            (widget) => widget.text.contains('אחרון'),
+          );
+      expect(text.text, contains('otzaria://inline-link'));
+      expect(text.text, contains('href="$url">&amp; אחרון</a>'));
+      text.onAnchorTap!(url);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      final target = opened.single;
+      addTearDown(target.dispose);
+      expect(target.book.title, 'ספר יעד');
+      expect(target.book.source, citation.targetSource);
+      expect(target.book.categoryId, 7);
+      expect(target.index, 2);
+      expect(linksPaneOpen, isFalse);
+    });
+  }
+
   testWidgets('כניסה חוזרת לעוגן הפעיל אינה בונה מחדש את הפופאפ', (
     tester,
   ) async {
@@ -1632,7 +1730,6 @@ TextBookLoaded _loadedState() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: null,
-    pinLeftPane: false,
     searchText: '',
   );
 }

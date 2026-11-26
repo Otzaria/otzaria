@@ -68,7 +68,9 @@ class UserStateListStore {
     List<dynamic> value, {
     Object? origin,
   }) async {
-    await _database.enqueueWrite([_upsert(box, key, jsonEncode(value))]);
+    await _database.enqueueWrite([
+      upsertStatement(box, key, jsonEncode(value)),
+    ]);
     _notifyPeers(box, key, origin);
   }
 
@@ -146,7 +148,8 @@ class UserStateListStore {
     return rows.isEmpty ? null : rows.first['payload_json'] as String;
   }
 
-  static (String, List<Object?>) _upsert(
+  /// פקודת כתיבה לשילוב באצווה עם עדכונים מטבלאות אחרות.
+  static (String, List<Object?>) upsertStatement(
     String box,
     String key,
     String payload,
@@ -188,7 +191,7 @@ class UserStateListStore {
       if (next == null) {
         db.execute('ROLLBACK');
       } else {
-        final (sql, args) = _upsert(box, key, jsonEncode(next));
+        final (sql, args) = upsertStatement(box, key, jsonEncode(next));
         db.execute(sql, args);
         db.execute('COMMIT');
       }

@@ -7,11 +7,13 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 /// הטקסט: מיקום ובחירת מפרשים משלה, והיא לא נגררת אחרי הדפדוף בספר.
 class PdfCommentatorsTab extends OpenedTab {
   final PdfBookTab sourceTab;
+  bool applyBookSelection;
   SourceTabOwnership? _sourceTabOwnership;
 
   PdfCommentatorsTab({
     required this.sourceTab,
     bool disposeSourceTabOnDispose = false,
+    this.applyBookSelection = false,
   }) : super('מפרשים | ${sourceTab.title}') {
     if (disposeSourceTabOnDispose) {
       _sourceTabOwnership = SourceTabOwnership(sourceTab)..retain();
@@ -20,7 +22,10 @@ class PdfCommentatorsTab extends OpenedTab {
 
   /// כרטיסייה חדשה מתוך ספר פתוח. בלי העותק היא חלקה עם הספר את המפרשים
   /// הפעילים ואת רשימת הקישורים, ושדרוג הרשימה המלאה שלה כיבה את חלון הקישורים.
-  factory PdfCommentatorsTab.of(PdfBookTab book) {
+  factory PdfCommentatorsTab.of(
+    PdfBookTab book, {
+    bool applyBookSelection = true,
+  }) {
     final copiedSource = OpenedTab.from(book) as PdfBookTab;
     copiedSource.activeCommentators = Set<String>.of(book.activeCommentators);
     copiedSource.pdfHeadings = book.pdfHeadings;
@@ -29,6 +34,7 @@ class PdfCommentatorsTab extends OpenedTab {
     copiedSource.currentTitle.value = book.currentTitle.value;
     return PdfCommentatorsTab(
       sourceTab: copiedSource,
+      applyBookSelection: applyBookSelection,
       disposeSourceTabOnDispose: true,
     );
   }
@@ -45,16 +51,23 @@ class PdfCommentatorsTab extends OpenedTab {
     if (active != null) {
       sourceTab.activeCommentators = active.toSet();
     }
+    if (json['currentTitle'] case final String title) {
+      sourceTab.currentTitle.value = title;
+    }
 
     return PdfCommentatorsTab(
       sourceTab: sourceTab,
+      applyBookSelection:
+          active == null && sourceTab.activeCommentators.isEmpty,
       disposeSourceTabOnDispose: true,
     )..isPinned = json['isPinned'] ?? false;
   }
 
   /// לכל שכפול [sourceTab] משלו: [dispose] של אחד משחרר את הבקרים שלו.
   @override
-  OpenedTab clone() => PdfCommentatorsTab.of(sourceTab)..isPinned = isPinned;
+  OpenedTab clone() =>
+      PdfCommentatorsTab.of(sourceTab, applyBookSelection: false)
+        ..isPinned = isPinned;
 
   /// יורש את הבעלות על [sourceTab] כשטאב הספר שהחזיק אותו נסגר.
   ///
@@ -78,6 +91,8 @@ class PdfCommentatorsTab extends OpenedTab {
     'type': 'PdfCommentatorsTab',
     'isPinned': isPinned,
     'sourceTab': sourceTab.toJson(),
+    // הכותרת שאליה נווט בכרטיסייה; ה-sourceTab שומר רק את העמוד.
+    'currentTitle': sourceTab.currentTitle.value,
     'activeCommentators': sourceTab.activeCommentators.toList(),
   };
 }

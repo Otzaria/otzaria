@@ -30,6 +30,7 @@ import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
+import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 
@@ -228,7 +229,10 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                       builder: (context, settingsState) => CommentaryListBase(
                         key: const ValueKey('commentary_list_tabbed'),
                         openBookCallback: widget.openBookCallback,
-                        fontSize: settingsState.commentatorsFontSize,
+                        fontSize: commentatorsFontSizeOf(
+                          context,
+                          settingsState,
+                        ),
                         showSearch: widget.showSearch,
                         // ב-shrinkWrap כיווץ מפרש מעלים מהציור את המפרש שמעליו
                         shrinkWrap: false,

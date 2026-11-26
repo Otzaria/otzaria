@@ -1,4 +1,3 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
@@ -109,7 +108,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
 
     return AppDialogFrame(
       title: widget.title,
-      icon: FluentIcons.arrow_upload_24_regular,
+      icon: OtzariaIcons.note_export_24_regular,
       size: AppDialogSize.medium,
       actions: [
         ActionButton.neutral(
@@ -142,7 +141,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                     .map(
                       (bookId) => AppMenuEntry(
                         value: bookId,
-                        label: parsePersonalNotesBookKey(bookId).title,
+                        label: personalNotesBookDisplayTitle(bookId),
                       ),
                     )
                     .toList(),
@@ -188,9 +187,9 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                     itemBuilder: (context, index) {
                       final note = filteredNotes[index];
                       final selected = _manualSelection[note.id] ?? false;
-                      final bookTitle = parsePersonalNotesBookKey(
+                      final bookTitle = personalNotesBookDisplayTitle(
                         note.bookId,
-                      ).title;
+                      );
                       final location = note.displayTitle?.trim();
                       final title =
                           location == null ||

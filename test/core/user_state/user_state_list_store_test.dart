@@ -212,6 +212,67 @@ void main() {
       db.close();
     });
 
+    test(
+      'loadJson של רשימה גדולה בונה את ה-JSON מחוץ ל-isolate הנוכחי',
+      () async {
+        final db = UserStateDatabase.openAt(dbPath);
+        final store = UserStateListStore(database: db);
+        await store.write('history', 'history', entries(2000));
+        final here = Isolate.current.debugName;
+
+        final json = await UserStateListRepository<int>(
+          boxName: 'history',
+          key: 'history',
+          fromJson: (json) => json['v'] as int,
+          toJson: (value) => {'v': value, 'at': Isolate.current.debugName},
+          decodeInBackground: true,
+          store: store,
+        ).loadJson();
+
+        expect(json, hasLength(2000));
+        expect(json.first['v'], 0);
+        expect(json.first['at'], isNot(here));
+        db.close();
+      },
+    );
+
+    test(
+      'loadJson משמיט רשומות לא נתמכות, ו-overwriteJson משמר קלט גולמי',
+      () async {
+        final db = UserStateDatabase.openAt(dbPath);
+        final store = UserStateListStore(database: db);
+        final raw = [
+          ...entries(2000),
+          {'broken': true},
+          null,
+          17,
+        ];
+        await store.write('history', 'history', raw);
+        final repository = UserStateListRepository<int>(
+          boxName: 'history',
+          key: 'history',
+          fromJson: (json) => json['v'] as int,
+          toJson: (value) => {'v': value},
+          decodeInBackground: true,
+          store: store,
+        );
+
+        final json = await repository.loadJson();
+        expect(json, hasLength(2000));
+
+        await store.clear('history', 'history');
+        await repository.overwriteJson(raw);
+        expect(await repository.load(), hasLength(2000));
+        expect((await store.read('history', 'history')).skip(2000), [
+          {'broken': true},
+          null,
+          17,
+        ]);
+        expect(repository.decodeJson(raw), hasLength(2000));
+        db.close();
+      },
+    );
+
     test('רשימה קטנה נשארת בפענוח מקומי', () async {
       final db = UserStateDatabase.openAt(dbPath);
       final store = UserStateListStore(database: db);

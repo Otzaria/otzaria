@@ -178,7 +178,6 @@ TextBookLoaded _load({
     ),
     punctuationExemptByTanach: removePunctuation && isTanach,
     visibleIndices: const [0],
-    pinLeftPane: false,
     searchText: '',
   );
 }

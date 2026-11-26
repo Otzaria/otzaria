@@ -43,7 +43,6 @@ void main() {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: null,
-    pinLeftPane: false,
     searchText: '',
   );
 
@@ -331,7 +330,9 @@ void main() {
       );
     });
 
-    testWidgets('פעולות ספר והדגשה קיימת מוצגות יחד ללא סימון', (tester) async {
+    testWidgets('פעולות ספר והדגשה מקובצות יחד לפי מספר התוספים', (
+      tester,
+    ) async {
       const owner = 'reader-menu-highlight-test';
       final selection = buildReaderSelectionPayload(
         state: state(),
@@ -367,45 +368,81 @@ void main() {
           ),
         ),
       );
-      final entries = buildReaderPluginMenuEntries(
-        root: tester.renderObject(find.text('שלום עולם')),
-        tabId: 'clicked-tab',
-        state: state(),
-        lines: lines,
-        paragraphIndex: 0,
-        hasSelection: false,
-        selectedText: null,
-        anchor: (
-          lineStart: null,
-          lineEnd: null,
-          startColumn: null,
-          pointerColumn: null,
-        ),
-        settings: () => settings,
-        tapPosition: tester.getCenter(find.text('שלום עולם')),
-        menuContext: context,
-        pluginItems: const [
-          (
-            'plugin.book',
-            PluginContextMenuItem(
-              id: 'book',
-              label: 'פעולת ספר',
-              contexts: ['reader-book'],
-            ),
-          ),
-          (
-            owner,
-            PluginContextMenuItem(
-              id: 'highlight',
-              label: 'פעולת הדגשה',
-              contexts: ['reader-highlight'],
-            ),
-          ),
-        ],
+      const book = PluginContextMenuItem(
+        id: 'book',
+        label: 'פעולת ספר',
+        contexts: ['reader-book'],
       );
+      const highlight = PluginContextMenuItem(
+        id: 'highlight',
+        label: 'פעולת הדגשה',
+        contexts: ['reader-highlight'],
+      );
+      List<Object?> menuShape(List<(String, PluginContextMenuItem)> items) {
+        final entries = buildReaderPluginMenuEntries(
+          root: tester.renderObject(find.text('שלום עולם')),
+          tabId: 'clicked-tab',
+          state: state(),
+          lines: lines,
+          paragraphIndex: 0,
+          hasSelection: false,
+          selectedText: null,
+          anchor: (
+            lineStart: null,
+            lineEnd: null,
+            startColumn: null,
+            pointerColumn: null,
+          ),
+          settings: () => settings,
+          tapPosition: tester.getCenter(find.text('שלום עולם')),
+          menuContext: context,
+          pluginItems: items,
+        );
+        return [
+          for (final entry in entries)
+            if (entry.children case final children?)
+              [
+                entry.label,
+                ...children.map(
+                  (child) => child.isDivider ? '---' : child.label,
+                ),
+              ]
+            else
+              entry.isDivider ? '---' : entry.label,
+        ];
+      }
+
       expect(
-        [for (final entry in entries) entry.isDivider ? '---' : entry.label],
-        ['---', 'פעולת ספר', '---', 'פעולת הדגשה'],
+        [
+          menuShape(const [(owner, book), (owner, highlight)]),
+          menuShape(const [('plugin.book', book), (owner, highlight)]),
+          menuShape(const [
+            ('plugin.book', book),
+            ('plugin.extra', book),
+            (owner, highlight),
+            ('plugin.extra', highlight),
+          ]),
+        ],
+        [
+          ['---', 'פעולת ספר', '---', 'פעולת הדגשה'],
+          [
+            '---',
+            ['תוספים', 'פעולת ספר', '---', 'פעולת הדגשה'],
+          ],
+          [
+            '---',
+            [
+              'תוספים',
+              'פעולת ספר',
+              '---',
+              'פעולת ספר',
+              '---',
+              'פעולת הדגשה',
+              '---',
+              'פעולת הדגשה',
+            ],
+          ],
+        ],
       );
     });
     testWidgets('without a selection only a clicked highlight counts', (

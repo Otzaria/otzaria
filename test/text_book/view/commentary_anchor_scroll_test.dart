@@ -771,7 +771,6 @@ TextBookLoaded _loadedState({
   visibleIndices: [selectedLine],
   selectedIndex: selectedLine,
   selectedIndices: {selectedLine},
-  pinLeftPane: false,
   searchText: '',
 );
 

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 /// מקליט קריאות גלילה במקום להזיז רשימה אמיתית.
@@ -168,19 +169,24 @@ void main() {
         focus.requestFocus();
         await tester.pump();
         await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
-        for (var elapsed = 0; elapsed < 160; elapsed += frameMs) {
+        // הפריים הראשון מתחיל את הצעד, והגלילה הרציפה מתחילה כשהוא מסתיים.
+        await tester.pump(Duration(milliseconds: frameMs));
+        var elapsed = 0;
+        while (elapsed < 150 + 160) {
           await tester.pump(Duration(milliseconds: frameMs));
+          elapsed += frameMs;
         }
+        final held = (elapsed - 150) / 1000;
         final cappedAt = curve == 0 ? double.infinity : math.log(2) / curve;
         final double expected;
         if (curve == 0) {
-          expected = 500 * 0.16;
-        } else if (cappedAt >= 0.16) {
-          expected = 500 * (math.exp(curve * 0.16) - 1) / curve;
+          expected = 500 * held;
+        } else if (cappedAt >= held) {
+          expected = 500 * (math.exp(curve * held) - 1) / curve;
         } else {
-          expected = 500 / curve + 1000 * (0.16 - cappedAt);
+          expected = 500 / curve + 1000 * (held - cappedAt);
         }
-        expect(item.scrollController!.offset, closeTo(expected, 0.01));
+        expect(item.scrollController!.offset, closeTo(expected + 100, 0.01));
         await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
         await tester.pumpAndSettle();
         expect(item.scrollController!.offset, closeTo(expected + 100, 0.01));
@@ -188,19 +194,59 @@ void main() {
     }
   }
 
-  testWidgets('רק השחרור מפעיל אנימציה; פריימי הלחיצה נעים ישירות', (
+  testWidgets('שתי הקשות קצרות בתוך הצעד הראשון מצטברות לשני צעדים', (
+    tester,
+  ) async {
+    final item = ItemScrollController();
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProgressiveScroll(
+          focusNode: focus,
+          scrollController: item,
+          child: ScrollablePositionedList.builder(
+            itemScrollController: item,
+            itemCount: 10000,
+            estimateExtent: (_, width) => 100,
+            itemBuilder: (_, index) =>
+                SizedBox(height: 100, child: Text('שורה $index')),
+          ),
+        ),
+      ),
+    );
+    focus.requestFocus();
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 75));
+    final midway = item.scrollController!.offset;
+    expect(midway, greaterThan(0));
+    expect(midway, lessThan(100));
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(item.scrollController!.offset, closeTo(200, 0.01));
+  });
+
+  testWidgets('רק הצעד של הלחיצה מונפש; פריימי ההחזקה נעים ישירות', (
     tester,
   ) async {
     await pumpProgressiveScroll(tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
-    for (var i = 0; i < 10; i++) {
+    expect(offsetController.offsets, [100]);
+    expect(offsetController.directOffsets, isEmpty);
+    for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(offsetController.directOffsets.length, 10);
-    expect(offsetController.offsets, offsetController.directOffsets);
+    expect(offsetController.directOffsets, isNotEmpty);
+    expect(offsetController.offsets.skip(1), offsetController.directOffsets);
+    final count = offsetController.offsets.length;
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
-    expect(offsetController.offsets.length, 11);
-    expect(offsetController.offsets.last, 100);
+    expect(offsetController.offsets.length, count);
   });
 
   testWidgets('PageDown מתחיל רצף חדש אחרי עריכה בתוך אותו קורא', (
@@ -361,7 +407,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
     final count = offsetController.offsets.length;
-    await tester.pump(const Duration(milliseconds: 16));
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
     expect(offsetController.offsets.length, greaterThan(count));
     expect(offsetController.offsets.last, greaterThan(0));
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
@@ -585,11 +633,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(offsetController.offsets, isNotEmpty);
     expect(offsetController.offsets.every((offset) => offset > 0), isTrue);
+    final countBeforeRelease = offsetController.offsets.length;
 
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
     await tester.pump();
-    // שחרור מוסיף גלישה עדינה אחת (glide) של 100 בכיוון הגלילה
-    expect(offsetController.offsets.last, 100.0);
+    // הצעד ניתן כבר בלחיצה, ולכן השחרור אינו מוסיף קפיצה (issue #5638).
+    expect(offsetController.offsets.length, countBeforeRelease);
 
     final countAfterRelease = offsetController.offsets.length;
     await tester.pump(const Duration(seconds: 1));
@@ -818,6 +867,172 @@ void main() {
         closeTo(innerPosition.viewportDimension * 0.8, 0.1),
       );
       expect(outerPosition.pixels, 0);
+    });
+  });
+
+  group('גלילת חיצים מגיבה מיד ונשלטת (issue #5638)', () {
+    Widget reader(
+      ItemScrollController items,
+      FocusNode focus, {
+      bool reduceMotion = false,
+    }) => MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reduceMotion),
+        child: child!,
+      ),
+      home: ProgressiveScroll(
+        scrollController: items,
+        focusNode: focus,
+        child: ScrollablePositionedList.builder(
+          itemScrollController: items,
+          itemCount: 100000,
+          estimateExtent: (_, width) => 100,
+          itemBuilder: (_, index) =>
+              SizedBox(height: 100, child: Text('שורה $index')),
+        ),
+      ),
+    );
+
+    Future<ScrollPosition> pumpReader(
+      WidgetTester tester, {
+      bool reduceMotion = false,
+    }) async {
+      final items = ItemScrollController();
+      final focus = FocusNode();
+      addTearDown(focus.dispose);
+      await tester.pumpWidget(reader(items, focus, reduceMotion: reduceMotion));
+      focus.requestFocus();
+      await tester.pumpAndSettle();
+      return items.scrollController!.position;
+    }
+
+    Future<void> tapKey(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+    }
+
+    Future<void> pumpHalfStep(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump(AppTokens.animFast ~/ 2);
+    }
+
+    Future<void> hold(WidgetTester tester, Duration duration) async {
+      for (var ms = 0; ms < duration.inMilliseconds; ms += 16) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    }
+
+    testWidgets('לחיצה מזיזה צעד מיד, לפני השחרור', (tester) async {
+      final position = await pumpReader(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(position.pixels, greaterThan(0));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(position.pixels, closeTo(100, 0.01));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('הקשה קצרה היא צעד אחד בדיוק, גם למעלה', (tester) async {
+      final position = await pumpReader(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(position.pixels, closeTo(100, 0.01));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(position.pixels, closeTo(0, 0.01));
+    });
+
+    testWidgets('היפוך כיוון לפני הפריים הראשון מבטל את הצעד הראשון', (
+      tester,
+    ) async {
+      final position = await pumpReader(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(position.pixels, 0);
+    });
+
+    testWidgets('שתי הקשות לקצה שומרות את היעד להקשה בכיוון ההפוך', (
+      tester,
+    ) async {
+      final position = await pumpReader(tester);
+      final end = position.maxScrollExtent;
+      position.jumpTo(end - 60);
+      await tester.pumpAndSettle();
+
+      await tapKey(tester, LogicalKeyboardKey.arrowDown);
+      await pumpHalfStep(tester);
+      await tapKey(tester, LogicalKeyboardKey.arrowDown);
+      await pumpHalfStep(tester);
+      expect(position.pixels, lessThan(end));
+
+      await tapKey(tester, LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(position.pixels, closeTo(end - 100, 0.01));
+    });
+
+    testWidgets('החלפת בקר באמצע צעד מתחילה מההיסט בפועל', (tester) async {
+      final first = ItemScrollController();
+      final second = ItemScrollController();
+      final focus = FocusNode();
+      addTearDown(focus.dispose);
+      await tester.pumpWidget(reader(first, focus));
+      focus.requestFocus();
+      await tester.pumpAndSettle();
+      final position = first.scrollController!.position;
+
+      await tapKey(tester, LogicalKeyboardKey.arrowDown);
+      await pumpHalfStep(tester);
+      await tester.pumpWidget(reader(second, focus));
+      expect(second.scrollController!.position, same(position));
+      final actual = position.pixels;
+      expect(actual, inExclusiveRange(0, 100));
+
+      await tapKey(tester, LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(position.pixels, closeTo(actual + 100, 0.01));
+    });
+
+    testWidgets('הפחתת תנועה מבצעת צעדי חצים מיידיים ומצטברים', (
+      tester,
+    ) async {
+      final position = await pumpReader(tester, reduceMotion: true);
+      await tapKey(tester, LogicalKeyboardKey.arrowDown);
+      expect(position.pixels, 100);
+      await tapKey(tester, LogicalKeyboardKey.arrowDown);
+      expect(position.pixels, 200);
+      await tapKey(tester, LogicalKeyboardKey.arrowUp);
+      expect(position.pixels, 100);
+    });
+
+    testWidgets('החזקה של שנייה אינה מעיפה רחוק', (tester) async {
+      final position = await pumpReader(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await hold(tester, const Duration(seconds: 1));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(position.pixels, inInclusiveRange(800, 2000));
+    });
+
+    testWidgets('בהחזקה ארוכה המהירות מוגבלת', (tester) async {
+      final position = await pumpReader(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await hold(tester, const Duration(milliseconds: 2496));
+      final before = position.pixels;
+      await hold(tester, const Duration(milliseconds: 496));
+      final lastHalfSecond = position.pixels - before;
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(lastHalfSecond, inInclusiveRange(1000, 1300));
+      expect(position.pixels, lessThanOrEqualTo(2500 * 3 + 100));
     });
   });
 }

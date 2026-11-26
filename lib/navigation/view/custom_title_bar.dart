@@ -45,6 +45,7 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -228,6 +229,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   /// maximize/restore בלחיצה כפולה על האזור הריק שבשורת הטאבים (כמו DragToMoveArea).
   Future<void> _onTabsAreaDoubleTap() async {
+    if (!DeviceChrome.hasWindowCaption) return;
     final window = AppWindowScope.controllerOf(context);
     final isMaximized = await window.isMaximized();
     if (isMaximized) {
@@ -461,19 +463,32 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                   ),
                   onPressed: () => _showBookmarksDialog(context),
                 ),
-                AppIconButton(
-                  size: AppIconButtonSize.small,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  icon: const Icon(FluentIcons.add_square_24_regular),
-                  tooltip: context.settingsText(
-                    'החלף שולחן עבודה ({shortcut})',
-                    args: {
-                      'shortcut': ShortcutHelper.formatShortcutForDisplay(
-                        workspaceShortcut,
-                      ),
-                    },
-                  ),
-                  onPressed: () => _showSaveWorkspaceDialog(context),
+                // Builder: החלפת שולחן בונה מחדש רק את הכפתור. בלי
+                // WorkspaceBloc (בדיקות, חלון משני) ה-tooltip נשאר כמקודם.
+                Builder(
+                  builder: (context) {
+                    final name = context.select<WorkspaceBloc?, String?>(
+                      (bloc) => bloc?.state.activeWorkspace?.name,
+                    );
+                    final shortcut = ShortcutHelper.formatShortcutForDisplay(
+                      workspaceShortcut,
+                    );
+                    return AppIconButton(
+                      size: AppIconButtonSize.small,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      icon: const Icon(FluentIcons.add_square_24_regular),
+                      tooltip: name == null
+                          ? context.settingsText(
+                              'החלף שולחן עבודה ({shortcut})',
+                              args: {'shortcut': shortcut},
+                            )
+                          : context.settingsText(
+                              'החלף שולחן עבודה ({shortcut}) · נוכחי: {name}',
+                              args: {'shortcut': shortcut, 'name': name},
+                            ),
+                      onPressed: () => _showSaveWorkspaceDialog(context),
+                    );
+                  },
                 ),
               ],
             ),
@@ -740,6 +755,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         behavior: HitTestBehavior.translucent,
         // גרירה על טאב מסדרת אותו (reorder); רק גרירה על האזור הריק גוררת חלון.
         onPanStart: (details) {
+          if (!DeviceChrome.hasWindowCaption) return;
           if (_hitTestTab(context, details.globalPosition)) return;
           // ⚠️ ב-Windows זהו no-op במסך מלא — `window_manager.startDragging`
           // יוצא מוקדם כש-`isFullScreen()` מחזיר true. גרירת החלון מסרגל
@@ -787,6 +803,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         behavior: HitTestBehavior.translucent,
         dragStartBehavior: DragStartBehavior.down,
         onPanStart: (details) {
+          if (!DeviceChrome.hasWindowCaption) return;
           if (_isOverTabBehindDialog(details.globalPosition)) return;
           AppWindowScope.controllerOf(context).startDragging();
         },
@@ -1456,11 +1473,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                     padding: const EdgeInsetsDirectional.only(
                                       end: 4,
                                     ),
-                                    child: Icon(
-                                      contentIconData,
-                                      size: 14,
-                                      color: colorScheme.onSurface,
-                                    ),
+                                    child: tab is SearchingTab
+                                        ? SearchTabLeading(
+                                            tab: tab,
+                                            size: 14,
+                                            color: colorScheme.onSurface,
+                                          )
+                                        : Icon(
+                                            contentIconData,
+                                            size: 14,
+                                            color: colorScheme.onSurface,
+                                          ),
                                   ),
                                 if (toolIcon != null)
                                   Padding(

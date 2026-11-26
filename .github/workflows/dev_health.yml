@@ -2,7 +2,8 @@ name: Dev health
 
 # כש-Flutter Tests נכשל על dev גם בהרצה החוזרת (ci_failure.yml), הבוט פותח PR שמחזיר
 # את הקומיט ששבר ומודיע ב-PR המקורי. רק במעבר מירוק לאדום, כדי שקומיטים שבאו אחריו
-# (ונכשלים בגללו) לא יפתחו PR נוסף. כל עוד dev אדום, automerge.yml לא ממזג.
+# (ונכשלים בגללו) לא יפתחו PR נוסף. כשל ידוע ב-dev חוסם את automerge.yml;
+# ריצות ראשונות חדשות יכולות להתבצע במקביל למיזוגים.
 on:
   workflow_run:
     workflows: [Flutter Tests]
@@ -14,6 +15,7 @@ permissions: {}
 concurrency:
   group: dev-health
   cancel-in-progress: false
+  queue: max
 
 jobs:
   revert:

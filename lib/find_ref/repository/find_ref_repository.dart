@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math' show Random;
+import 'dart:math' show Random, min;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
@@ -14,6 +14,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/find_ref/book_name_match.dart';
+import 'package:otzaria/find_ref/find_ref_preference_store.dart';
 import 'package:otzaria/find_ref/repository/alt_toc_flat_entry.dart';
 import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
@@ -416,6 +417,10 @@ class FindRefRepository {
   })?
   resolveDibburim;
 
+  /// Injection for testing: שורות `book_base_text` (bookId, baseBookId,
+  /// baseTitle). In production: [FindRefDbIsolate.getBookBaseTexts].
+  final Future<List<Map<String, dynamic>>> Function()? loadBookBaseTexts;
+
   /// סדר הדור של ספר רשמי מקאש בזיכרון, או null כשהקאש לא נטען.
   /// In production: [GenerationCache].
   final int? Function(int bookId)? cachedEraOrder;
@@ -490,6 +495,12 @@ class FindRefRepository {
 
   /// קאש מזהי הספרים בעלי מבנה AltToc (ראה [getAltStructureBookIds]).
   Set<int>? _altBookIdsCache;
+
+  /// ספרי הבסיס של כל ספר רשמי, לדירוג האישי ולרישום פתיחות.
+  Map<int, List<FindRefPreferenceBook>>? _baseBooksCache;
+
+  /// מתחלף ב-[clearCaches], כדי ששליפה שהתחילה לפניו לא תקבע מפה ישנה.
+  int _baseBooksEpoch = 0;
 
   /// מפתחות הדירוג של ספרים רשמיים ונתיב הקטגוריה שממנו חושבו.
   final Map<int, ({String? path, String title, FindRefBookRank rank})>
@@ -577,6 +588,7 @@ class FindRefRepository {
     this.resolveLineRefs,
     this.resolvePartialLineRefs,
     this.resolveDibburim,
+    this.loadBookBaseTexts,
     this.cachedEraOrder,
     this.getBookEras,
     this.getCategoryPathSync,
@@ -631,6 +643,8 @@ class FindRefRepository {
     _commentatorsCache.clear();
     _altTocFlatCache = null;
     _altBookIdsCache = null;
+    _baseBooksCache = null;
+    _baseBooksEpoch++;
     _bookRanks.clear();
     _altBookRanksCache = null;
     _dropUserBooks();
@@ -671,6 +685,102 @@ class FindRefRepository {
     } catch (e) {
       debugPrint('[FindRef] alt book ids fetch failed: $e');
       return null;
+    }
+  }
+
+  /// ספרי הבסיס מ-`book_base_text`. כשל מחזיר ריק בלי לקבע אותו בקאש.
+  Future<Map<int, List<FindRefPreferenceBook>>> _getBaseBooks() async {
+    final cached = _baseBooksCache;
+    if (cached != null) return cached;
+    final epoch = _baseBooksEpoch;
+    try {
+      final fn = loadBookBaseTexts;
+      final List<Map<String, dynamic>> rows;
+      if (fn != null) {
+        rows = await fn();
+      } else {
+        final repository = SqliteDataProvider.instance.repository;
+        if (repository == null) return const {};
+        rows = await repository.loadBookBaseTexts();
+      }
+      final map = <int, List<FindRefPreferenceBook>>{};
+      for (final row in rows) {
+        final bookId = row['bookId'];
+        final baseId = row['baseBookId'];
+        final baseTitle = row['baseTitle'];
+        if (bookId is! int || baseId is! int || baseTitle is! String) continue;
+        (map[bookId] ??= []).add((
+          key: FindRefPreferences.officialBaseKey(baseId),
+          title: baseTitle,
+        ));
+      }
+      if (epoch == _baseBooksEpoch) _baseBooksCache = map;
+      return map;
+    } catch (e) {
+      debugPrint('[FindRef] base books fetch failed: $e');
+      return const {};
+    }
+  }
+
+  /// רושם בהעדפות האישיות ספר שנפתח מדיאלוג האיתור. כשל נבלע.
+  /// [openedFrom] — שורת התוצאה שמתפריט המפרשים שלה נפתח הספר; נרשמת איתו.
+  Future<void> recordFindRefOpen({
+    required BookSource source,
+    required int? bookId,
+    required String title,
+    bool isPdf = false,
+    String filePath = '',
+    DbReferenceResult? openedFrom,
+  }) async {
+    try {
+      if (!FindRefPreferenceStore.isEnabled) return;
+      final configuration = FindRefPreferenceStore.configurationRevision;
+      final libraryEpoch = _baseBooksEpoch;
+      // הספר שנפתח ואחריו ספר השורה; מי שאין לו זהות מדולג, והשני נרשם לבדו.
+      final opened = <FindRefPreferenceBook>[];
+      final bases = <FindRefPreferenceBook>[];
+      Future<void> add(
+        BookSource source,
+        int? bookId,
+        String title, {
+        bool isPdf = false,
+        String filePath = '',
+      }) async {
+        final key = FindRefPreferences.bookKey(
+          source: source,
+          bookId: bookId,
+          isPdf: isPdf,
+          filePath: filePath,
+        );
+        if (key == null || opened.any((book) => book.key == key)) return;
+        opened.add((key: key, title: title));
+        if (source.isOfficial && bookId != null && bookId > 0) {
+          bases.addAll((await _getBaseBooks())[bookId] ?? const []);
+        }
+      }
+
+      await add(source, bookId, title, isPdf: isPdf, filePath: filePath);
+      if (openedFrom != null) {
+        await add(
+          openedFrom.source,
+          openedFrom.bookId,
+          openedFrom.title,
+          isPdf: openedFrom.isPdf,
+          filePath: openedFrom.filePath,
+        );
+      }
+      if (opened.isEmpty ||
+          libraryEpoch != _baseBooksEpoch ||
+          configuration != FindRefPreferenceStore.configurationRevision) {
+        return;
+      }
+      await FindRefPreferenceStore.recordOpen(
+        opened.first,
+        baseBooks: bases,
+        companions: opened.skip(1),
+      );
+    } catch (e) {
+      debugPrint('[FindRef] recording opened book failed: $e');
     }
   }
 
@@ -1160,17 +1270,25 @@ class FindRefRepository {
     return [for (final order in orders) order!];
   }
 
+  /// [preferences] — העדפות אישיות לדירוג; רק דיאלוג האיתור מעביר אותן.
+  /// בלעדיהן הסדר דטרמיניסטי ואינו תלוי במשתמש.
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) {
     if (_disposed) return Future.error(const FindRefQueryCancelled());
     cancelPendingSearch();
-    return _runSearch(ref, includePersonalBooks: includePersonalBooks);
+    return _runSearch(
+      ref,
+      includePersonalBooks: includePersonalBooks,
+      preferences: preferences,
+    );
   }
 
   /// כמו [findRefs] בלי לבטל איתורים קודמים — לקוראים שמריצים כמה במקביל
   /// (תוספים). עדיין מתבטל ב-[cancelPendingSearch], ב-[findRefs] וב-dispose.
+  /// לעולם אינו מותאם אישית: תוסף חייב לקבל אותו סדר אצל כל משתמש.
   Future<List<DbReferenceResult>> findRefsConcurrently(
     String ref, {
     bool includePersonalBooks = false,
@@ -1182,10 +1300,15 @@ class FindRefRepository {
   Future<List<DbReferenceResult>> _runSearch(
     String ref, {
     required bool includePersonalBooks,
+    FindRefPreferences? preferences,
   }) {
     final generation = _searchGeneration;
     return runZoned(
-      () => _findRefs(ref, includePersonalBooks: includePersonalBooks),
+      () => _findRefs(
+        ref,
+        includePersonalBooks: includePersonalBooks,
+        preferences: preferences,
+      ),
       zoneValues: {_searchGenerationZoneKey: generation},
     );
   }
@@ -1204,8 +1327,34 @@ class FindRefRepository {
   Future<List<DbReferenceResult>> _findRefs(
     String rawRef, {
     bool includePersonalBooks = false,
+    FindRefPreferences? preferences,
   }) async {
-    final query = _parseQuery(rawRef);
+    final ref = expandQueryAmudMarks(rawRef);
+    final expanded = expandQueryLocatorAbbreviations(ref);
+    Future<List<DbReferenceResult>> search(String query) => _findRefsForQuery(
+      query,
+      includePersonalBooks: includePersonalBooks,
+      preferences: preferences,
+    );
+    if (expanded == ref) return search(ref);
+
+    // ציטוט קיים (תהילים פ״ט מ״ג, פמ״ג מ״ג) קודם להרחבת המיקום.
+    final literalResults = await search(ref);
+    if (literalResults.any(
+      (r) => r.isSourceLine || (r.tocLevel > 0 && !r.isPartialTocMatch),
+    )) {
+      return literalResults;
+    }
+    final expandedResults = await search(expanded);
+    return expandedResults.isEmpty ? literalResults : expandedResults;
+  }
+
+  Future<List<DbReferenceResult>> _findRefsForQuery(
+    String ref, {
+    required bool includePersonalBooks,
+    FindRefPreferences? preferences,
+  }) async {
+    final query = _parseQuery(ref);
     if (query == null) return const [];
     var queryTokens = query.tokens;
 
@@ -1218,6 +1367,14 @@ class FindRefRepository {
     await _ensureReferenceBooksLoaded();
 
     final visibility = await _currentVisibility();
+    final personal = preferences == null || preferences.isEmpty
+        ? null
+        : _PersonalRanking(
+            preferences,
+            preferences.bases.isEmpty
+                ? const {}
+                : await _awaitCurrent(_getBaseBooks()),
+          );
     // בדיקת הגרסה ב-worker רצה בזמן הזיהוי הרשמי, ולא אחריו.
     final userBooks = includePersonalBooks
         ? (_loadUserBooks()..ignore())
@@ -1228,7 +1385,7 @@ class FindRefRepository {
     final eraQuery = _detectEraQuery(queryTokens);
     if (eraQuery != null) {
       final eraResults = await _awaitCurrent(
-        _findByEra(eraQuery.era, eraQuery.topicTokens, visibility),
+        _findByEra(eraQuery.era, eraQuery.topicTokens, visibility, personal),
       );
       if (eraResults.isNotEmpty) return eraResults;
     }
@@ -1269,6 +1426,7 @@ class FindRefRepository {
         bookMatchRanks: _bookMatchRanks(detection, tokens),
         includePersonalBooks: includePersonalBooks,
         userBooks: userBooks,
+        personal: personal,
       );
       return tokens.length == 1
           ? _singleWordResults(search)
@@ -1276,6 +1434,43 @@ class FindRefRepository {
     }
 
     final results = await resultsFor(queryTokens, books, detection);
+    final soleResult = results.singleOrNull;
+    // שו"ת/תשובות עוברים קודם בהחלפת הסוגה, שמוצאת את השם המלא.
+    if (queryTokens.length > 1 &&
+        query.dibbur == null &&
+        !_genrePrefixes.contains(query.tokens.first) &&
+        (results.isEmpty ||
+            (soleResult != null &&
+                detection.phraseTokenCount == queryTokens.length &&
+                _isExactAliasBookResult(soleResult, detection)))) {
+      final truncated = _truncatedLastWordHits(books, queryTokens);
+      // "נימוקי יוסף בב": הכינוי לבבא בתרא נשאר ראשון, ואחריו השלמות ל"בב".
+      if (soleResult != null) {
+        truncated.removeWhere(
+          (hit) => !hit.acronymLastWordTruncated || hit.matchesExactAlias,
+        );
+      }
+      if (truncated.isNotEmpty) {
+        final completions = await _awaitCurrent(
+          _enrichWithPaths(
+            _rankResults(
+              [for (final hit in truncated) _bookResult(hit)],
+              queryTokens,
+              bookMatchRanks: _bookMatchRanks((
+                hits: truncated,
+                phraseTokenCount: queryTokens.length,
+                secondaryPhraseTokenCount: const {},
+              ), queryTokens),
+              rawQuery: query.ref,
+            ),
+          ),
+        );
+        return [
+          ...results,
+          ...completions.take(_maxResultCap - results.length),
+        ];
+      }
+    }
     final original = query.tokens;
     if (results.isNotEmpty ||
         original.length < 2 ||
@@ -1326,15 +1521,54 @@ class FindRefRepository {
 
   static const _genrePrefixes = {'שות', 'תשובות'};
 
+  static bool _isExactAliasBookResult(
+    DbReferenceResult result,
+    _BookDetection detection,
+  ) =>
+      result.source.isOfficial &&
+      result.reference == result.title &&
+      result.segment == 0 &&
+      result.sourceLineId == 0 &&
+      !result.isAltToc &&
+      !result.isSourceLine &&
+      !result.isCategoryMatch &&
+      !result.isPartialTocMatch &&
+      detection.hits.any(
+        (hit) =>
+            hit.matchesExactAlias &&
+            hit.bookId == result.bookId &&
+            (hit.bookId > 0 || hit.filePath == result.filePath),
+      );
+
+  /// ספרים שכל מילות השאילתה הן תחיליות רצופות בשמם, למשל "נימוקי יוסף בבא ק".
+  List<ReferenceBookHit> _truncatedLastWordHits(
+    _BookSearch books,
+    List<String> queryTokens,
+  ) {
+    return [
+      // הצירוף שכבר בסריקה המשותפת; ההתאמה לכל השאילתה נבדקת כאן.
+      for (final hit in books.search(
+        queryTokens.take(books.maxPhraseTokens).join(' '),
+        limit: books.bookSearchLimit,
+      ))
+        if (hit.matchRank == 4
+            ? _phraseAppearsAsTokens(
+                bookNameMatchForm(hit.matchedTerm ?? '').split(' '),
+                queryTokens,
+              )
+            : hit.matchRank <= 2 &&
+                  _phraseAppearsAsTokens(hit.titleTokens, queryTokens))
+          hit,
+    ];
+  }
+
   /// הטוקנים המנורמלים של השאילתה; `null` כשלא נשאר בה דבר לחפש.
   ({
     String ref,
     List<String> tokens,
     ({List<String> headTokens, String prefix})? dibbur,
   })?
-  _parseQuery(String rawRef) {
-    // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
-    final ref = expandQueryAmudMarks(rawRef);
+  _parseQuery(String ref) {
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) return null;
     final tokens = _tokenize(cleanedQuery);
@@ -1492,6 +1726,15 @@ class FindRefRepository {
       }
     }
 
+    // התאמה מקורבת לספר שזוהה גם במילים בולעת את הזנב ("חזוא טהרות טהרות").
+    final exactBooks = {for (final hit in bookHits) (hit.bookId, hit.filePath)};
+    secondaryHits.removeWhere(
+      (hit) =>
+          bookQueryTokenCount > 1 &&
+          hit.matchRank == ReferenceBooksCache.fuzzyMatchRank &&
+          exactBooks.contains((hit.bookId, hit.filePath)),
+    );
+
     // ה-secondary בסוף, כך שיופיעו אחרי ה-primary בדירוג — גם כשאין primary.
     if (secondaryHits.isNotEmpty) {
       bookHits = [...bookHits, ...secondaryHits];
@@ -1512,6 +1755,22 @@ class FindRefRepository {
     Map<_BookKey, _BookMatchRank>? into,
   }) {
     final bookMatchRanks = into ?? <_BookKey, _BookMatchRank>{};
+    // שם ואחריו מיקום. כינוי שמשותף לכמה ספרים ("רשב"א") אינו שמו של אחד מהם.
+    final named = <String, Set<_BookKey>>{};
+    if (source.isOfficial && detection.phraseTokenCount < queryTokens.length) {
+      for (final hit in detection.hits) {
+        if (hit.namesBookExactly &&
+            (hit.bookId > 0 || hit.filePath.isNotEmpty) &&
+            !detection.secondaryPhraseTokenCount.containsKey(hit)) {
+          (named[hit.normalizedTitle] ??= {}).add(
+            _bookKey(source, hit.bookId, hit.filePath),
+          );
+        }
+      }
+    }
+    final namedBooks = named.length == 1
+        ? named.values.single
+        : const <_BookKey>{};
     for (final hit in detection.hits) {
       if (hit.bookId > 0 || hit.filePath.isNotEmpty) {
         final key = _bookKey(source, hit.bookId, hit.filePath);
@@ -1542,6 +1801,7 @@ class FindRefRepository {
                     (token) => titleWords.contains(bookNameMatchToken(token)),
                   )) ||
               (previous?.wholeName ?? false),
+          namesBook: namedBooks.contains(key) || (previous?.namesBook ?? false),
         );
       }
     }
@@ -1624,6 +1884,7 @@ class FindRefRepository {
       dibburMatches: dibburMatches,
       preserveSubstringTail: true,
       rawQuery: search.rawQuery,
+      personal: search.personal,
     );
     return await _awaitCurrent(_enrichWithPaths(ranked));
   }
@@ -1682,10 +1943,19 @@ class FindRefRepository {
       remainingByHit: remainingByHit,
     );
     final plans = await _planTocLookups(search, bookHits, remainingByHit);
+    final tocResponses = plans.requests.isEmpty
+        ? const <TocBatchResult>[]
+        : await _awaitCurrent(_fetchTocBatch(repository, plans.requests));
     final exactLines = await _awaitCurrent(
       _resolveExactLines(
         bookHits,
         remainingByHit,
+        namedSectionBookIds: {
+          for (var i = 0; i < bookHits.length; i++)
+            if (plans.plans[i].requestIndex case final index?)
+              if (_tocNamesSection(bookHits[i], tocResponses[index].toc))
+                bookHits[i].bookId,
+        },
         // זנב הדיבור כבר נחתך מהטוקנים, וספירת טווח מול השאילתה הגולמית
         // הייתה מודדת אותו.
         tokensAfterRange: search.isDibburQuery
@@ -1693,9 +1963,6 @@ class FindRefRepository {
             : _tokensAfterRange(search.rawQuery, queryTokens),
       ),
     );
-    final tocResponses = plans.requests.isEmpty
-        ? const <TocBatchResult>[]
-        : await _awaitCurrent(_fetchTocBatch(repository, plans.requests));
 
     // התוצאות, בסדר הספרים.
     final results = <DbReferenceResult>[];
@@ -1755,6 +2022,7 @@ class FindRefRepository {
       directMatches: directMatches,
       dibburMatches: dibburMatches,
       rawQuery: search.rawQuery,
+      personal: search.personal,
     );
     return await _awaitCurrent(_enrichWithPaths(ranked));
   }
@@ -1816,9 +2084,13 @@ class FindRefRepository {
           bookTitle: hit.title,
           queryTokens: [...sectionTokens, ...remainingTokens],
           fallbackTokens: sectionTokens.isEmpty ? null : remainingTokens,
+          // "טור חומ לג ב": סעיף ב בחלק חושן משפט בלבד; הנסיגה כמו ב-TOC.
           altTocTokens: altBookIds != null && !altBookIds.contains(hit.bookId)
               ? null
-              : remainingTokens,
+              : [
+                  ..._spelledOutSection(hit.bookId, sectionTokens),
+                  ...remainingTokens,
+                ],
         ));
       }
     }
@@ -2072,7 +2344,8 @@ class FindRefRepository {
         ),
       );
       final fallback = book.fallbackTokens;
-      if (toc.isEmpty && fallback != null) {
+      final tocFellBack = toc.isEmpty && fallback != null;
+      if (tocFellBack) {
         toc = await _awaitCurrent(
           _fetchTocEntries(
             repository,
@@ -2083,19 +2356,22 @@ class FindRefRepository {
         );
       }
       final altTokens = book.altTocTokens;
-      out.add((
-        toc: toc,
-        altToc: altTokens == null
-            ? const <Map<String, dynamic>>[]
-            : await _awaitCurrent(
-                _fetchAltTocEntries(
-                  repository,
-                  book.bookId,
-                  book.bookTitle,
-                  queryTokens: altTokens,
-                ),
-              ),
-      ));
+      var altToc = const <Map<String, dynamic>>[];
+      for (final tokens in [
+        altTokens,
+        if (altTokens != null && tocFellBack) fallback,
+      ]) {
+        if (tokens == null || altToc.isNotEmpty) continue;
+        altToc = await _awaitCurrent(
+          _fetchAltTocEntries(
+            repository,
+            book.bookId,
+            book.bookTitle,
+            queryTokens: tokens,
+          ),
+        );
+      }
+      out.add((toc: toc, altToc: altToc));
     }
     return out;
   }
@@ -2161,6 +2437,7 @@ class FindRefRepository {
     CommentaryEra era,
     List<String> topicTokens,
     FindRefVisibility visibility,
+    _PersonalRanking? personal,
   ) async {
     final injected = searchByEraAndTopic;
     final List<ReferenceBookHit> hits;
@@ -2210,7 +2487,7 @@ class FindRefRepository {
     ];
 
     final unique = _dedupeRefs(results);
-    final ranked = _rankResults(unique, topicTokens);
+    final ranked = _rankResults(unique, topicTokens, personal: personal);
     return await _enrichWithPaths(ranked);
   }
 
@@ -2344,7 +2621,7 @@ class FindRefRepository {
               search,
               index: index,
               source: BookSource.attached(library.slug),
-              rootPath: library.displayName,
+              rootPath: library.rootFolder ?? library.displayName,
               fetchTocBatch: (books) => worker.runBatch(
                 library.path,
                 immutable: library.immutable,
@@ -3135,6 +3412,29 @@ class FindRefRepository {
     return section;
   }
 
+  /// האם זנב הכינוי ("טור יוד") הוא חלק שנמצא בתוכן העניינים, ולא סתם המשך
+  /// השם ("חזקוני על התורה").
+  bool _tocNamesSection(ReferenceBookHit hit, List<Map<String, dynamic>> toc) {
+    final section = _spelledOutSection(hit.bookId, _acronymSectionTokens(hit));
+    if (section.isEmpty) return false;
+    for (final entry in toc) {
+      final words = _tokenize(_normalizeForMatch(entry['reference'] as String));
+      for (var i = 0; i < words.length; i++) {
+        for (var n = 2; section.length == 1 && n <= 3; n++) {
+          final window = words.sublist(i, min(i + n, words.length));
+          if (hebrewAbbreviationMatchesWords(section.single, window)) {
+            return true;
+          }
+        }
+        if (i + section.length <= words.length &&
+            listEquals(words.sublist(i, i + section.length), section)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /// מזהה שאילתת דיבור-המתחיל: סמן ד"ה אחרי שם הספר, ואחריו לפחות מילה אחת.
   /// מחזיר את ראש השאילתה (שם הספר וציון פנימי) ואת טקסט הדיבור.
   @visibleForTesting
@@ -3225,6 +3525,7 @@ class FindRefRepository {
     List<ReferenceBookHit> bookHits,
     Map<ReferenceBookHit, List<String>> remainingByHit, {
     int tokensAfterRange = 0,
+    Set<int> namedSectionBookIds = const {},
   }) async {
     final resolve = resolveLineRefs;
     if (resolve == null) return const {};
@@ -3279,13 +3580,14 @@ class FindRefRepository {
     }
 
     // שם החלק הושמט ("טור שט ג"): ההפניה עשויה להתקיים בכמה חלקים, וכל אחד
-    // מוצע. רק לספרים שהמפתח המלא לא פתר.
+    // מוצע. רק לספרים שהמפתח המלא לא פתר, ולא כשהשאילתה נקבה בחלק ("טור יוד").
     final resolvePartial = resolvePartialLineRefs;
     if (resolvePartial != null) {
       for (final entry in bookIdsByKey.entries) {
         final unresolved = [
           for (final id in entry.value)
-            if (!resolved.containsKey(id)) id,
+            if (!resolved.containsKey(id) && !namedSectionBookIds.contains(id))
+              id,
         ];
         if (unresolved.isEmpty) continue;
         final partialKey = buildPartialRefKey(entry.key)!;
@@ -3393,9 +3695,11 @@ class FindRefRepository {
     int prefixMatchTokensCount = 0,
   }) {
     final remaining = List<String>.from(queryTokens);
+    final stripped = <String>[];
 
     if (stripLeadingTokensCount > 0) {
       final toRemove = stripLeadingTokensCount.clamp(0, remaining.length);
+      stripped.addAll(remaining.take(toRemove));
       remaining.removeRange(0, toRemove);
     }
 
@@ -3405,6 +3709,8 @@ class FindRefRepository {
 
     for (var ti = 0; ti < titleTokens.length; ti++) {
       final token = titleTokens[ti];
+      // מילת כותרת שהכינוי כבר בלע ("חזוא טהרות") אינה בולעת שוב את הזנב.
+      if (stripped.remove(token)) continue;
       var idx = remaining.indexOf(token);
       // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו
       // [titleTokenWithoutConjunction].
@@ -3566,6 +3872,7 @@ class FindRefRepository {
     Set<DbReferenceResult> dibburMatches = const {},
     bool preserveSubstringTail = false,
     String rawQuery = '',
+    _PersonalRanking? personal,
   }) {
     if (results.length < 2) return results;
     final quotedWords = quotedWordsOf(rawQuery, _normalizeForMatch);
@@ -3681,6 +3988,7 @@ class FindRefRepository {
                     r.reference,
                   ))),
           exactAliasMatch: bookMatch?.exactAlias ?? false,
+          namesBook: !r.isPartialTocMatch && (bookMatch?.namesBook ?? false),
           startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
@@ -3740,7 +4048,14 @@ class FindRefRepository {
     // את מפתח-הרלוונטיות של התוצאה האחרונה שבחיתוך — כך שתוצאות שווֹת-רלוונטיות
     // מוצגות יחד. הרשימה נעצרת רק כשמגיעים לתוצאה *פחות* רלוונטית.
     if (decorated.length <= _baseResultCap) {
-      return decorated.map((d) => d.item).toList();
+      if (personal == null) return decorated.map((d) => d.item).toList();
+      return _rankedItems(
+        decorated,
+        [for (var i = 0; i < decorated.length; i++) i],
+        decorated.length,
+        rankQuery,
+        personal,
+      );
     }
     final boundary = decorated[_baseResultCap - 1];
     var end = _baseResultCap;
@@ -3755,27 +4070,71 @@ class FindRefRepository {
       end = _maxResultCap;
     }
 
-    final capped = [for (var i = 0; i < end; i++) decorated[i]];
+    final kept = [for (var i = 0; i < end; i++) i];
 
     // issue #839: התאמות תת-מחרוזת מדורגות אחרי כל התאמות-התחילית, וחיתוך
     // שגבולו בתוכן מחק אותן כליל — מובטחת להן מכסה בזנב, בלי לשנות דירוג.
     if (preserveSubstringTail && end < decorated.length) {
       var quota =
           _substringTailQuota -
-          capped.where((d) => d.isSubstringMatch(query.text)).length;
-      for (
-        var i = end;
-        i < decorated.length && quota > 0 && capped.length < _maxResultCap;
-        i++
-      ) {
+          decorated
+              .take(end)
+              .where((d) => d.isSubstringMatch(query.text))
+              .length;
+      for (var i = end; i < decorated.length && quota > 0; i++) {
         if (decorated[i].isSubstringMatch(query.text)) {
-          capped.add(decorated[i]);
+          // בתקרה מלאה המכסה דוחקת את התאמת-התחילית האחרונה, ולא נמחקת.
+          if (kept.length >= _maxResultCap) {
+            kept.removeAt(
+              kept.lastIndexWhere(
+                (k) => !decorated[k].isSubstringMatch(query.text),
+              ),
+            );
+          }
+          kept.add(i);
           quota--;
         }
       }
     }
 
-    return [for (final d in capped) d.item];
+    return _rankedItems(decorated, kept, end, rankQuery, personal);
+  }
+
+  /// [kept] — מה שנשאר מ-[decorated] אחרי החיתוך ב-[cutoff]. בלי העדפות זה
+  /// הפלט כולו; איתן הסידור האישי רק מזיז שורות בתוכו ומוסיף מעטות.
+  static List<DbReferenceResult> _rankedItems(
+    List<FindRefRankKey<DbReferenceResult>> decorated,
+    List<int> kept,
+    int cutoff,
+    FindRefRankQuery query,
+    _PersonalRanking? personal,
+  ) {
+    if (personal == null) return [for (final i in kept) decorated[i].item];
+    final books = <String?>[];
+    final affinities = <double>[];
+    final byBookTitle = <(String, String), double>{};
+    for (final key in decorated) {
+      final r = key.item;
+      final book = personal.keyOf(r);
+      books.add(book);
+      affinities.add(
+        book == null
+            ? 0
+            : byBookTitle.putIfAbsent(
+                (book, r.title),
+                () => personal.affinityOf(r, book),
+              ),
+      );
+    }
+    final order = personalizeFindRefOrder(
+      decorated,
+      kept,
+      query,
+      cutoff: cutoff,
+      books: books,
+      affinities: affinities,
+    );
+    return [for (final i in order) decorated[i].item];
   }
 
   String _normalizeForMatch(String input) => normalizeForFindRefMatch(input);
@@ -3859,7 +4218,12 @@ typedef _UserBooksVersion = ({
 /// ספר בכל מסד: מקור, מזהה, ונתיב הקובץ רק ל-PDF שמחוץ למסד (מזהה שלילי).
 typedef _BookKey = (String source, int bookId, String filePath);
 
-typedef _BookMatchRank = ({int rank, bool exactAlias, bool wholeName});
+typedef _BookMatchRank = ({
+  int rank,
+  bool exactAlias,
+  bool wholeName,
+  bool namesBook,
+});
 
 _BookKey _bookKey(BookSource source, int bookId, String filePath) =>
     (source.wireKey, bookId, bookId > 0 ? '' : filePath);
@@ -4014,6 +4378,7 @@ class _FindRefSearch {
     required this.bookMatchRanks,
     required this.includePersonalBooks,
     this.userBooks,
+    this.personal,
   });
 
   /// השאילתה אחרי הרחבת ע"א/ע"ב, לפני הנרמול.
@@ -4031,8 +4396,35 @@ class _FindRefSearch {
   /// טעינת הספרים האישיים, שהתחילה עם השאילתה.
   final Future<_SecondaryIndex>? userBooks;
 
+  /// הדירוג האישי של השאילתה; `null` לכל קורא שאינו דיאלוג האיתור.
+  final _PersonalRanking? personal;
+
   bool get isDibburQuery => dibburPrefix != null;
 
   FindRefVisibility? get visibilityFilter =>
       visibility.selection.isEmpty ? null : visibility;
+}
+
+/// ההעדפות האישיות של שאילתה אחת, עם ספרי הבסיס שלפיהם מחושבת הזיקה.
+class _PersonalRanking {
+  _PersonalRanking(this.preferences, this.baseBooks);
+
+  final FindRefPreferences preferences;
+  final Map<int, List<FindRefPreferenceBook>> baseBooks;
+
+  String? keyOf(DbReferenceResult r) => FindRefPreferences.bookKey(
+    source: r.source,
+    bookId: r.bookId,
+    isPdf: r.isPdf,
+    filePath: r.filePath,
+  );
+
+  double affinityOf(DbReferenceResult r, String key) => preferences.affinity(
+    key: key,
+    title: r.title,
+    // מזהה של ספר לא-רשמי שייך למסד אחר, ואין לו שורות ב-book_base_text.
+    baseBooks: r.source.isOfficial && r.bookId > 0
+        ? baseBooks[r.bookId] ?? const []
+        : const [],
+  );
 }

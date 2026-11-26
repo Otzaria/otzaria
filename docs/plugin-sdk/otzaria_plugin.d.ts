@@ -576,6 +576,133 @@ export interface SearchOptionsCatalog {
   defaultLimit: number;
 }
 
+// ---------------------------------------------------------------------------
+// semantic.* — the meaning-based search space (from 0.9.99)
+// ---------------------------------------------------------------------------
+
+/** What `semantic.getStatus` reports. Access to search data requires `phase: 'ready'`. */
+export type SemanticPhase =
+  | 'ready'
+  | 'consentRequired'
+  | 'needsDownload'
+  | 'vectorsNotPublished'
+  | 'downloading'
+  | 'installing'
+  | 'failed'
+  | 'hidden';
+
+export interface SemanticLimits {
+  maxPoints: number;
+  maxK: number;
+  defaultK: number;
+  maxCandidates: number;
+  defaultMaxCandidates: number;
+  /** All the lists of one `semantic.nearest` answer together. */
+  maxHits: number;
+  maxExcludeSpans: number;
+  maxPointTextLength: number;
+  maxTokenTexts: number;
+  maxTokenTextsLength: number;
+  maxScopeEntries: number;
+}
+
+export interface SemanticStatus {
+  phase: SemanticPhase;
+  /** With `hidden`: `unsupportedPlatform` | `engineNotInBuild`. */
+  hiddenReason?: string;
+  /** With `failed`: the kind of the last failure. */
+  failure?: string;
+  /** While downloading or installing; `fraction` is null when the size is unknown. */
+  progress?: { item: 'model' | 'vectors' | 'install'; fraction: number | null };
+  modelFamilyId: string | null;
+  /** The width of the vectors. */
+  dim: number | null;
+  vectorsReleaseTag: string | null;
+  vectorsLibraryVersion: number | null;
+  /** Changes with every install and compaction of the vectors. Scores are
+   *  comparable only within one `modelFamilyId` and one generation. */
+  generation: number | null;
+  limits: SemanticLimits;
+}
+
+/** A text, embedded as a query (default) or as a stored line is embedded; or a
+ *  vector of the set's width, base64 of float32 little-endian, scaled to unit length. */
+export type SemanticPoint =
+  | { text: string; as?: 'query' | 'passage' }
+  | { vector: string };
+
+/** Lines `from` to `to` (inclusive) of one book, by line index. */
+export type SemanticLineSpan = BookIdentity & { from: number; to: number };
+
+export interface SemanticNearestParams {
+  /** 1 to 64 points, searched in one pass over the vectors. */
+  from: SemanticPoint[];
+  /** Vectors each point's scan returns; default 50, at most 2000. A vector can
+   *  stand for several lines (the same text in several books). */
+  k?: number;
+  /** `best` (default): one list, every line once at its best score over the points.
+   *  `perPoint`: one list per point, in their order. */
+  pool?: 'best' | 'perPoint';
+  /** `best` only: the most vectors kept before they are resolved to lines;
+   *  default 1000, at most 5000. */
+  maxCandidates?: number;
+  /** `best` only: score every line against every point, in `pointScores`. */
+  rescore?: boolean;
+  minScore?: number;
+  /** Lines never returned, such as the passage the points were taken from. */
+  exclude?: SemanticLineSpan[];
+  // Scope, as in `search.query`; all official books by default.
+  categories?: string[];
+  books?: BookIdentity[];
+  authors?: string[];
+  eras?: string[];
+  baseBooksOnly?: boolean;
+  facets?: string[];
+}
+
+/** A line found. The text is not included: read it with `library.getBookContent`
+ *  under `library.content.read`. */
+export interface SemanticHit extends BookIdentity {
+  book: string;
+  categoryPath?: string | null;
+  reference: string;
+  index: number;
+  /** Which window of a long line matched; 0 for the line's start. */
+  window: number;
+  /** Ranked as the search screen ranks, with its long-line penalties. */
+  score: number;
+  /** The point that found the line best, by its index in `from`. */
+  point: number;
+  /** With `rescore`: the score for each point; null where the line has no vector. */
+  pointScores?: Array<number | null>;
+}
+
+export type SemanticNearestChunk =
+  | { type: 'progress'; phase: 'searching' }
+  /** `point` is set with `pool: 'perPoint'`; a list may come in several chunks. */
+  | { type: 'hits'; point?: number; hits: SemanticHit[] }
+  | {
+      type: 'done';
+      generation: number;
+      vectorsLibraryVersion: number;
+      /** More lines than `limits.maxHits`; the lists were cut. */
+      clipped: boolean;
+    };
+
+export interface SemanticTokenCounts {
+  /** Each text as the query sequence the model sees, role prefix and special tokens
+   *  included: a text fits one window when its count is at most `queryMaxTokens`. */
+  counts: number[];
+  queryMaxTokens: number;
+  /** What an empty query counts. */
+  overheadTokens: number;
+}
+
+export interface SemanticCoveredBooks {
+  /** Official books in the current catalog with at least one covered line. */
+  books: Array<BookIdentity & { title: string }>;
+}
+
 /**
  * ההרשאה נקבעת לפי ה-host שב-`url`: `localhost` / `::1` / `127.0.0.0`–`127.0.0.255`
  * דורשים `network.localhost`; כל יעד אחר (אינטרנט) דורש `network.access`.
@@ -741,6 +868,29 @@ export interface BookLink {
   targetCategoryId: number | null;
   /** מוחזר רק כאשר `includeAnchors: true` ולקישור יש עוגן. */
   anchor?: LinkAnchor;
+  /** רק עם `direction: 'both'` (מ-0.9.99). */
+  direction?: 'outgoing';
+}
+
+/**
+ * קישור נכנס מ-`library.getLinks` עם `direction: 'incoming'` או `'both'`
+ * (מ-0.9.99): הקישור כפי שנשמר בספר האחר, בסוג החיבור המקורי. כל השורות 0-based.
+ */
+export interface IncomingBookLink {
+  direction: 'incoming';
+  /** הספר ששומר את הקישור. */
+  sourceTitle: string;
+  sourceLine: number;
+  /** סוף טווח בצד הספר האחר, או `null`. */
+  sourceLineEnd: number | null;
+  sourceHeRef: string;
+  /** מקור הספר האחר: `'o'` רשמי או `'d:<slug>'` למסד ספרים מצורף. */
+  sourceSource: string;
+  sourceCategoryId: number | null;
+  /** השורה בחלון שהקישור מצביע אליה. */
+  targetLine: number;
+  connectionType: string;
+  isCommentary: boolean;
 }
 
 /** הערת שוליים אחת, כפי שמוחזרת מ-`library.getLineNotes`. */
@@ -761,8 +911,10 @@ export interface GetLineNotesResult {
   notes: LineNote[];
 }
 
-export interface GetLinksResult {
-  links: BookLink[];
+export interface GetLinksResult<Direction extends 'outgoing' | 'incoming' | 'both' = 'outgoing'> {
+  links: (Direction extends 'outgoing' ? BookLink
+    : Direction extends 'incoming' ? IncomingBookLink
+    : BookLink | IncomingBookLink)[];
   /** `true` כשהתשובה נחתכה בתקרת 2,000 הרשומות. */
   truncated: boolean;
 }
@@ -1630,7 +1782,12 @@ export type ContextMenuContext =
    * `ReaderSelection.pageNumber`. From 0.9.98.1. */
   | 'reader-pdf'
   /** Like `reader-pdf`, with selected text on the page. From 0.9.98.1. */
-  | 'reader-pdf-selection';
+  | 'reader-pdf-selection'
+  /** Right-click on a book in the library (tree row, grid card or search
+   * result). Opt-in. The selection carries the book identity and
+   * `categoryPath`, with no text or position. Not shown for external
+   * provider books. From 0.9.99. */
+  | 'library-book';
 
 export interface ContextMenuColor {
   id: string;
@@ -1712,25 +1869,52 @@ export interface UpdateContextMenuItemArgs {
   patch: Partial<Omit<ContextMenuItem, 'id'>>;
 }
 
-export interface ContextMenuItemClickedEvent {
+/** The book targeted by a `library-book` menu item. From 0.9.99. */
+export interface LibraryBookSelection {
+  id: number | null;
+  bookId: string;
+  bookUid: string;
+  bookTitle: string;
+  type: Exclude<BookType, 'external'>;
+  source: 'library' | 'user' | 'attached';
+  external?: BookMeta['external'];
+  /** The category path as returned by `library.getTree`. */
+  categoryPath: string | null;
+  text: '';
+}
+
+interface ContextMenuItemClickedEventBase {
   itemId: string;
-  selection: ReaderSelection;
-  /** Legacy fields retained for existing plugins. `selectedText` follows the
-   * user's divine-names setting unless the item set `rawDivineNames`. */
-  selectedText: string;
-  currentRef: string | null;
   currentBook: string;
   currentBookId: string;
-  currentIndex: number;
   /** The `param` value passed to `reader.addContextMenuItem`, or null. */
   param: unknown;
 }
+
+export interface ReaderContextMenuItemClickedEvent extends ContextMenuItemClickedEventBase {
+  selection: ReaderSelection;
+  /** Follows the user's divine-names setting unless the item set `rawDivineNames`. */
+  selectedText: string;
+  currentRef: string | null;
+  currentIndex: number;
+}
+
+export interface LibraryBookContextMenuItemClickedEvent extends ContextMenuItemClickedEventBase {
+  selection: LibraryBookSelection;
+  selectedText: '';
+  currentRef: null;
+  currentIndex: null;
+}
+
+export type ContextMenuItemClickedEvent =
+  | ReaderContextMenuItemClickedEvent
+  | LibraryBookContextMenuItemClickedEvent;
 
 export interface ContextMenuColorClickedEvent {
   itemId: string;
   colorId: string;
   color: string;
-  selection: ReaderSelection;
+  selection: ReaderSelection | LibraryBookSelection;
 }
 
 export type ToolbarContext = 'reader-text' | 'reader-pdf';
@@ -1900,16 +2084,7 @@ export interface OtzariaEventMap {
    */
   'app.command': PluginCommandPayload;
   /** User clicked a plugin-registered context menu item. Sent only to the registering plugin. */
-  'reader.context_menu_item_clicked': {
-    itemId: string;
-    selectedText: string;
-    currentRef: string;
-    currentBook: string;
-    currentBookId: string;
-    currentIndex: number;
-    /** The `param` value passed to `reader.addContextMenuItem`, or null. */
-    param: unknown;
-  };
+  'reader.context_menu_item_clicked': ContextMenuItemClickedEvent;
   /**
    * The plugin page was opened via `plugin.openSelf`, or by another plugin via
    * `plugin.openOther` — in which case `openedBy` holds that plugin's id.
@@ -2557,6 +2732,23 @@ export interface SubmitBookCorrectionParams {
   requireTextCorrection?: boolean;
 }
 
+export interface GetBookCorrectionStatusParams {
+  /** The `reportId` that was passed to `feedback.submitBookCorrection`. */
+  reportId: string;
+}
+
+export interface GetBookCorrectionStatusResult {
+  /**
+   * `queued`: still in Otzaria's local queue. `sent`: recorded as sent. `rejected`:
+   * permanently rejected by the server. `unknown`: not found (deleted, trimmed
+   * from the sent history, restored from a backup, or caught between the queue
+   * and the history). `unknown` is not final: keep the previous state.
+   */
+  status: 'queued' | 'sent' | 'rejected' | 'unknown';
+  reportId: string;
+  nativeReportId: string;
+}
+
 export interface SubmitBookCorrectionResult {
   /** `sent`: delivered now. `queued`: stored in Otzaria's local queue. */
   status: 'sent' | 'queued';
@@ -2622,6 +2814,10 @@ export type OtzariaMethod =
   | 'search.setFieldText'
   | 'search.setFieldActionState'
   | 'search.endFieldSession'
+  | 'semantic.getStatus'
+  | 'semantic.countTokens'
+  | 'semantic.nearest'
+  | 'semantic.getCoveredBooks'
   | 'reader.openBook'
   | 'reader.openBookAtRef'
   | 'reader.printRange'
@@ -2704,6 +2900,7 @@ export type OtzariaMethod =
   | 'publishedData.listOwn'
   | 'feedback.sendEmail'
   | 'feedback.submitBookCorrection'
+  | 'feedback.getBookCorrectionStatus'
   | 'feedback.report'
   | 'feedback.hasReporterEmail'
   | 'history.list'
@@ -2820,6 +3017,31 @@ export interface OtzariaGlobal {
     method: 'network.fetchStream',
     payload: NetworkFetchParams
   ): AsyncIterable<NetworkFetchStreamChunk>;
+
+  /** The state of the meaning-based search (from 0.9.99). Requires search.semantic.read. */
+  call(method: 'semantic.getStatus'): Promise<OtzariaResponse<SemanticStatus>>;
+
+  /** Token counts, to cut a long passage into windows that fit (from 0.9.99). */
+  call(
+    method: 'semantic.countTokens',
+    payload: { texts: string[] }
+  ): Promise<OtzariaResponse<SemanticTokenCounts>>;
+
+  /**
+   * The lines nearest up to 64 points, in one pass (from 0.9.99). A new call from
+   * the same plugin page ends the previous one (it finishes without a `done`
+   * chunk); a search the user runs in Otzaria ends it with `error.preempted`;
+   * `return()` on the iterator cancels it.
+   */
+  call(
+    method: 'semantic.nearest',
+    payload: SemanticNearestParams
+  ): AsyncIterable<SemanticNearestChunk>;
+
+  /** The books the installed vectors cover (from 0.9.99). */
+  call(
+    method: 'semantic.getCoveredBooks'
+  ): Promise<OtzariaResponse<SemanticCoveredBooks>>;
 
   /** Waits for the print dialog to finish, without the generic 30-second RPC timeout. */
   call(
@@ -2951,6 +3173,22 @@ export interface OtzariaGlobal {
     method: 'feedback.submitBookCorrection',
     payload: SubmitBookCorrectionParams
   ): Promise<OtzariaResponse<SubmitBookCorrectionResult>>;
+
+  /** Requests incoming library links, or both directions (from 0.9.99). */
+  call<Direction extends 'incoming' | 'both'>(
+    method: 'library.getLinks',
+    payload: Record<string, unknown> & { direction: Direction }
+  ): Promise<OtzariaResponse<GetLinksResult<Direction>>>;
+
+  /**
+   * State of a correction report this plugin submitted (`queued` reports are
+   * sent later by Otzaria's own queue). Read-only, own reports only.
+   * Since 0.9.99.
+   */
+  call(
+    method: 'feedback.getBookCorrectionStatus',
+    payload: GetBookCorrectionStatusParams
+  ): Promise<OtzariaResponse<GetBookCorrectionStatusResult>>;
 
   /**
    * Call a Host API method.

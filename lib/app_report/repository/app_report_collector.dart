@@ -20,7 +20,9 @@ import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/windowing/multiview/view_window_registry.dart';
 import 'package:otzaria/core/windowing/multiview/window_event_log.dart';
+import 'package:otzaria/data/repository/book_title_search_diagnostics.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/plugin_book_content_gate.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/search/active_lexical_searches.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -144,6 +146,11 @@ class AppReportCollector {
         'searches': await _guard(
           'searches',
           () async => ActiveLexicalSearches.instance.collect(),
+        ),
+      if (_includeCurrentContext)
+        'bookTitleSearch': await _guard(
+          'bookTitleSearch',
+          () async => BookTitleSearchDiagnostics.instance.collect(),
         ),
       if (previousRun != null && previousRun.isNotEmpty)
         'previousRun': previousRun,
@@ -285,6 +292,7 @@ class AppReportCollector {
     return {
       'portable': AppPaths.isPortable,
       'webview2Prewarm': ?WebView2CreationDiagnostics.prewarmOutcome,
+      'pluginBookContent': ?PluginBookContentGate.diagnostics,
       if (Settings.isInitialized) ...{
         'offlineMode':
             Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false,

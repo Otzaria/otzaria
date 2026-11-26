@@ -34,6 +34,7 @@ class PluginHostShortcut {
   Map<String, Object> toJson() => {
     'id': id,
     'codes': codes,
+    if (mainKey == 'slash') 'key': '/',
     'ctrl': ctrl,
     'shift': shift,
     'alt': alt,
@@ -51,7 +52,8 @@ class PluginHostShortcut {
 ///
 /// מועברים רק קיצורים שנצרכים גם כשתוסף פתוח (מעבר מסך, לשוניות, כלים).
 /// לתוסף עדיפות אם טיפל בקיצור (#1336). בשדה עריכה מועברים רק הקיצורים
-/// הקבועים וחיפוש חדש; שאר הקיצורים נשארים בתוסף (#2203).
+/// הקבועים וחיפוש חדש (#2203), וקיצורי הלשוניות רק אחרי שהדף לא טיפל בהם
+/// (#3942); שאר הקיצורים נשארים בתוסף.
 class PluginHostShortcuts {
   const PluginHostShortcuts._();
 
@@ -70,6 +72,7 @@ class PluginHostShortcuts {
     ShortcutValidator.openAppReportKey,
     ShortcutValidator.openNewWindowKey,
     'key-shortcut-open-settings',
+    ShortcutValidator.openShortcutsListKey,
     'key-shortcut-open-more',
     'key-shortcut-open-bookmarks',
     'key-shortcut-open-history',
@@ -109,7 +112,10 @@ class PluginHostShortcuts {
 
   /// בונה את הרשימה שתוזרק לתוסף מהגדרות המשתמש [shortcutSettings];
   /// ערך חסר נופל לברירת המחדל, וערך ריק או לא-מוכר מושמט.
-  static List<PluginHostShortcut> build(Map<String, String> shortcutSettings) {
+  static List<PluginHostShortcut> build(
+    Map<String, String> shortcutSettings, {
+    bool includeFullscreenToolbarShortcut = false,
+  }) {
     final result = <PluginHostShortcut>[];
     for (final key in forwardedSettingKeys) {
       final value =
@@ -119,7 +125,10 @@ class PluginHostShortcuts {
       final parsed = _parse(key, value, ctrlIsMeta: _treatCtrlAsMeta);
       if (parsed != null) result.add(parsed);
     }
-    for (final shortcut in fixedShortcuts) {
+    for (final shortcut in [
+      ...fixedShortcuts,
+      if (includeFullscreenToolbarShortcut) 'f9',
+    ]) {
       final parsed = _parse('fixed:$shortcut', shortcut, ctrlIsMeta: false);
       if (parsed != null) result.add(parsed);
     }
@@ -156,6 +165,7 @@ class PluginHostShortcuts {
   static List<String>? codesForToken(String mainKey) {
     if (_isLetter(mainKey)) return ['Key${mainKey.toUpperCase()}'];
     if (_isDigit(mainKey)) return ['Digit$mainKey', 'Numpad$mainKey'];
+    if (mainKey == 'slash') return ['NumpadDivide'];
     final entry = _tokenKeys[mainKey];
     return entry == null ? null : [entry.code];
   }

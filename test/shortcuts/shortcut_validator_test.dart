@@ -416,6 +416,32 @@ void main() {
       },
     );
 
+    test('קיצור F5 של תוסף קודם לברירת המחדל של הרענון', () async {
+      const withF5 = (
+        pluginId: pluginId,
+        shortcutId: 'refresh',
+        label: 'רענון מהתוסף',
+        defaultKey: 'f5',
+        command: 'refresh',
+        contextMenuItemId: null,
+      );
+      final pluginKey = ShortcutValidator.pluginShortcutKey(
+        pluginId,
+        'refresh',
+      );
+      const refreshKey = ShortcutValidator.refreshBookKey;
+      ShortcutValidator.registerPluginShortcuts({pluginKey: withF5});
+
+      expect(ShortcutValidator.getShortcutValue(pluginKey), 'f5');
+      expect(ShortcutValidator.hasConflict(refreshKey), isTrue);
+
+      await Settings.setValue<String>(refreshKey, 'f5');
+
+      expect(ShortcutValidator.getShortcutValue(pluginKey), isNull);
+      expect(ShortcutValidator.getShortcutValue(refreshKey), 'f5');
+      expect(ShortcutValidator.hasConflict(refreshKey), isFalse);
+    });
+
     test('ברירת מחדל באותיות גדולות מתנגשת עם קיצור מובנה', () {
       const conflicting = (
         pluginId: pluginId,
