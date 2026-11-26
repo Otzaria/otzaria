@@ -201,6 +201,18 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     selectionLineEnd: selectionLineEnd,
     divineNames: showsSubstitutedNames ? textBookState.divineNames : null,
   );
+  // הפרופיל חל על הטקסט לפני הכותרות — הסרת פיסוק מחברת שורה שאינה
+  // מסתיימת בנקודה לבאה, ו"כותרת בשורה נפרדת" נדבקה לטקסט (#5463).
+  final copy = CopyUtils.applyCopyPreferencesForClipboard(
+    plainText: plainText,
+    htmlText: htmlContentToUse,
+    replaceHolyNames: settingsState.replaceHolyNames,
+    holyNameStyle: settingsState.holyNameStyle,
+    removeNikud: removeNikud,
+    profile: profile,
+  );
+  plainText = copy.plainText;
+  htmlContentToUse = copy.htmlText;
 
   var finalPlainText = plainText;
   final headerBook = headerBookOverride ?? textBookState?.book;
@@ -236,12 +248,5 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     );
   }
 
-  return CopyUtils.applyCopyPreferencesForClipboard(
-    plainText: finalPlainText,
-    htmlText: htmlContentToUse,
-    replaceHolyNames: settingsState.replaceHolyNames,
-    holyNameStyle: settingsState.holyNameStyle,
-    removeNikud: removeNikud,
-    profile: profile,
-  );
+  return (plainText: finalPlainText, htmlText: htmlContentToUse);
 }
