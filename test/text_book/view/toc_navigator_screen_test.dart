@@ -1675,6 +1675,52 @@ Future<void> main() async {
       expect(find.text('seif 0'), findsNWidgets(3));
     });
   });
+
+  testWidgets('מעבר הכותרת הפעילה בונה מחדש רק את השורות שסימונן השתנה', (
+    tester,
+  ) async {
+    final toc = _buildLargeToc(simanim: 60, seifim: 10);
+    final bloc = _TestTextBookBloc(
+      _loadedState(toc: toc, visibleIndices: const [2]),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          lines: LineScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    var tileBuilds = 0;
+    debugOnRebuildDirtyWidget = (element, builtOnce) {
+      if (element.widget is NavTreeTile) tileBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    bloc.emitState(_loadedState(toc: toc, visibleIndices: const [3]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final selected = tester
+        .widgetList<NavTreeTile>(find.byType(NavTreeTile))
+        .where((tile) => tile.isSelected)
+        .toList();
+    expect(selected, hasLength(1));
+    expect(selected.single.title, 'seif 2');
+    expect(
+      tileBuilds,
+      lessThanOrEqualTo(2),
+      reason: 'רק השורה שהייתה פעילה והשורה הפעילה החדשה',
+    );
+  });
 }
 
 const _expansionMenuTooltip = 'הרחבה וכיווץ של הכותרות';
