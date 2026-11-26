@@ -869,6 +869,28 @@ class _RtlTextFieldState extends State<RtlTextField> {
         return;
       }
 
+      void replaceSelection(String replacement) {
+        if (!mounted ||
+            controller != _effectiveController ||
+            controller.text != currentText) {
+          return;
+        }
+        if (controller.selection != currentSelection) {
+          controller.selection = currentSelection;
+        }
+        controller.value = TextEditingValue(
+          text: currentText.replaceRange(
+            currentSelection.start,
+            currentSelection.end,
+            replacement,
+          ),
+          selection: TextSelection.collapsed(
+            offset: currentSelection.start + replacement.length,
+          ),
+        );
+        widget.onChanged?.call(controller.text);
+      }
+
       switch (value) {
         case 'cut':
           final selectedText = currentText.substring(
@@ -876,17 +898,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
             currentSelection.end,
           );
           await Clipboard.setData(ClipboardData(text: selectedText));
-          if (!mounted || controller != _effectiveController) return;
-          final textAfterCut =
-              currentText.substring(0, currentSelection.start) +
-              currentText.substring(currentSelection.end);
-          controller.text = textAfterCut;
-          controller.selection = TextSelection.collapsed(
-            offset: currentSelection.start,
-          );
-          // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
-          // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).
-          widget.onChanged?.call(textAfterCut);
+          replaceSelection('');
           break;
         case 'copy':
           final selectedText = currentText.substring(
@@ -904,17 +916,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
             final pasted = _hardBreakWorkaroundActive
                 ? collapseHardBreaks(data!.text!)
                 : data!.text!;
-            final newText =
-                currentText.substring(0, currentSelection.start) +
-                pasted +
-                currentText.substring(currentSelection.end);
-            controller.text = newText;
-            controller.selection = TextSelection.collapsed(
-              offset: currentSelection.start + pasted.length,
-            );
-            // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
-            // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).
-            widget.onChanged?.call(newText);
+            replaceSelection(pasted);
           }
           break;
         case 'selectAll':

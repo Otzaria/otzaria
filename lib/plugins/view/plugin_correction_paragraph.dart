@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -65,6 +66,10 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   bool _corrected = false;
   bool _showEditor = false;
   PluginCorrectionController? _controller;
+  final _editorKey = GlobalKey();
+  GlobalKey<State<UndoHistory<CorrectionUndoValue>>> _undoHistory = GlobalKey();
+  ValueNotifier<CorrectionUndoValue>? _historyValue;
+  final _systemUndo = UndoHistoryController();
   FocusNode? _focus;
   FocusNode? _activationFocus;
   Offset? _editPosition;
@@ -201,6 +206,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   void _focusChanged() {
     if (!mounted) return;
     if (_focus!.hasFocus) _claimActive();
+    _registerSystemUndo();
     final handoff = _handoff;
     if (!_focus!.hasFocus || handoff == null) return;
     _handoff = null;
@@ -214,6 +220,26 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       final top = render.localToGlobal(Offset(0, y));
       editor.widget.controller.selection = TextSelection.fromPosition(
         render.getPositionForPoint(Offset(handoff.dx, top.dy)),
+      );
+    });
+  }
+
+  void _registerSystemUndo() {
+    if (defaultTargetPlatform != TargetPlatform.iOS || !_focus!.hasFocus) {
+      return;
+    }
+    // גם לשדה הפנימי יש היסטוריה. מערכת ההפעלה צריכה את זו של המקור המלא.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final Object? history = _undoHistory.currentState;
+      if (!mounted ||
+          _focus?.hasFocus != true ||
+          history is! UndoManagerClient) {
+        return;
+      }
+      UndoManager.client = history;
+      UndoManager.setUndoState(
+        canUndo: _systemUndo.value.canUndo,
+        canRedo: _systemUndo.value.canRedo,
       );
     });
   }
@@ -337,11 +363,20 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       return false;
     }
     if (_controller == null) {
-      _controller = PluginCorrectionController(widget.sourceText);
+      _controller = PluginCorrectionController(
+        widget.sourceText,
+        removeNikud: widget.settings.removeNikud,
+        removeTeamim: widget.settings.removeTeamim,
+        onEdit: _applyText,
+      );
       _focus = FocusNode(onKeyEvent: _onEditorKey)..addListener(_focusChanged);
       _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
+    controller.setHiding(
+      nikud: widget.settings.removeNikud,
+      teamim: widget.settings.removeTeamim,
+    );
     controller.formatParentheses = widget.settings.formatParentheses;
     controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
@@ -349,21 +384,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       widget.sectionIndex,
       widget.sourceText,
     );
-    if (controller.forService(controller.text) == canonical) return false;
-    final text = controller.forEditor(canonical);
-    if (controller.text == text) return false;
-    final selection = controller.selection;
-    controller.restoreDraftValue(
-      TextEditingValue(
-        text: text,
-        selection: selection.isValid
-            ? selection.copyWith(
-                baseOffset: selection.baseOffset.clamp(0, text.length),
-                extentOffset: selection.extentOffset.clamp(0, text.length),
-              )
-            : TextSelection.collapsed(offset: text.length),
-      ),
-    );
+    if (controller.canonical == canonical) return false;
+    controller.restoreCanonical(canonical);
     return true;
   }
 
@@ -410,7 +432,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        _controller!.forService(newValue.text),
+        _controller!.canonicalAfter(newValue),
       );
       return newValue;
     } on PluginCorrectionException catch (error) {
@@ -419,13 +441,13 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     }
   }
 
-  void _applyText(String text) {
+  void _applyText() {
     try {
       _registry.editParagraph(
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        _controller!.forService(text),
+        _controller!.canonical,
       );
     } on PluginCorrectionException catch (error) {
       _showRejection(error);
@@ -503,7 +525,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     // שדה טקסט ממזג את bodyLarge (ריווח אותיות 0.5) והקורא יורש את ברירת
     // המחדל; ריווח שונה שובר שורות אחרת, ולכן לוקחים אותו מאותו מקור.
     final inherited = DefaultTextStyle.of(context).style;
-    return RtlTextField(
+    final field = RtlTextField(
+      key: _editorKey,
       controller: _controller!,
       focusNode: _focus!,
       maxLines: null,
@@ -528,7 +551,22 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         wordSpacing: inherited.wordSpacing ?? 0,
       ),
       inputFormatters: [TextInputFormatter.withFunction(_validate)],
-      onChanged: _applyText,
+    );
+    final controller = _controller!;
+    if (!identical(_historyValue, controller.undoValue)) {
+      _historyValue = controller.undoValue;
+      _undoHistory = GlobalKey();
+      _registerSystemUndo();
+    }
+    return UndoHistory<CorrectionUndoValue>(
+      key: _undoHistory,
+      value: controller.undoValue,
+      controller: _systemUndo,
+      focusNode: _focus!,
+      shouldChangeUndoStack: (before, next) =>
+          next.editing.selection.isValid && before?.canonical != next.canonical,
+      onTriggered: controller.applyUndoValue,
+      child: field,
     );
   }
 
@@ -540,6 +578,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _controller?.dispose();
     _focus?.dispose();
     _activationFocus?.dispose();
+    _systemUndo.dispose();
     super.dispose();
   }
 }
