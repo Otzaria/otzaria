@@ -222,6 +222,31 @@ Future<void> main() async {
     skip: !engineReady,
   );
 
+  for (final scope in [SearchScope.sameParagraph, SearchScope.wordDistance]) {
+    testWidgets('גיבוי למנוע ריק שומר על גבול הפסקה: $scope', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'דרך ביאה',
+        searchMode: SearchMode.advanced,
+        searchDistance: 3,
+        matchPolicy: SearchMatchPolicy(proximityScope: scope),
+        content: const ['וזהו דרך', 'ביאה שאמרו'],
+      );
+      await harness.settle();
+
+      expect(repository.requests, hasLength(1));
+      if (scope == SearchScope.sameParagraph) {
+        expect(find.text('אין תוצאות'), findsOneWidget);
+      } else {
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      }
+    }, skip: !engineReady);
+  }
+
   testWidgets('המנוע לא מצא דבר ויש מילים חלופיות: אין סריקה מקומית', (
     tester,
   ) async {

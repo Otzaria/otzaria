@@ -622,10 +622,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         }
       }
 
-      // מנוע בלי התאמות בספר שהקורא מדגיש בו התאמות: האינדקס חסר או ישן
-      // לספר. רצף המילים המילולי צר מכל שאילתת מנוע, ולכן כל התאמה מקומית
-      // היא התאמה גם של שאילתת המנוע — חוץ ממילים חלופיות ומרווח ידני.
+      // הגיבוי הליטרלי חוצה שורות, ולכן אינו מתאים לדרישה לפסקה אחת.
       if (results.isEmpty &&
+          _matchPolicy.proximityScope != SearchScope.sameParagraph &&
           !InBookSearchRouting.hasAlternativeWords(_alternativeWords) &&
           !InBookSearchRouting.hasSpacingValues(_spacingValues)) {
         final content = await _ensureContent().then<List<String>?>(
