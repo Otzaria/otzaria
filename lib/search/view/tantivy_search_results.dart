@@ -45,6 +45,7 @@ import 'package:otzaria/search/view/plugin_search_results_actions.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
+import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/result_card_frame.dart';
@@ -313,6 +314,27 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       continuesToNextLine: next.continuesToNextLine,
     );
     _ensureResultVisible(nextIndex, forward: isDown);
+    return KeyEventResult.handled;
+  }
+
+  /// PageDown/PageUp — גלילת הרשימה במסך: ה-`ScrollAction` של Flutter מחפש
+  /// Scrollable מעל הפוקוס, והפוקוס כאן יושב מעל הרשימה (issue #4966).
+  KeyEventResult _handleResultsKey(FocusNode node, KeyEvent event) {
+    final isPageDown = event.logicalKey == LogicalKeyboardKey.pageDown;
+    if (!isPageDown && event.logicalKey != LogicalKeyboardKey.pageUp) {
+      return _handleArrowNavKey(node, event);
+    }
+    final keyboard = HardwareKeyboard.instance;
+    // צירופים (Ctrl+PageDown וכו') שמורים לקיצורים.
+    if (event is KeyUpEvent ||
+        keyboard.isControlPressed ||
+        keyboard.isShiftPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed ||
+        !_scrollController.hasClients) {
+      return KeyEventResult.ignored;
+    }
+    animatePageScroll(_scrollController.position, forward: isPageDown);
     return KeyEventResult.handled;
   }
 
@@ -711,17 +733,20 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constrains) {
-        final resultsArea = _buildListenerArea();
-        if (!widget.showPreviewPane) return resultsArea;
         // רק סביב הרשימה: חץ שנלחץ בתוך התצוגה המקדימה גולל אותה (issue #5145).
-        return _wrapWithPreviewPane(
-          Focus(
+        // לחיצה אינה מעבירה פוקוס ב-Flutter — בלי זה המקשים לא מגיעים לאזור.
+        final resultsArea = Listener(
+          onPointerDown: (_) {
+            if (!_arrowNavFocusNode.hasFocus) _arrowNavFocusNode.requestFocus();
+          },
+          child: Focus(
             focusNode: _arrowNavFocusNode,
-            onKeyEvent: _handleArrowNavKey,
-            child: resultsArea,
+            onKeyEvent: _handleResultsKey,
+            child: _buildListenerArea(),
           ),
-          constrains,
         );
+        if (!widget.showPreviewPane) return resultsArea;
+        return _wrapWithPreviewPane(resultsArea, constrains);
       },
     );
   }
