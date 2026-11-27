@@ -40,6 +40,9 @@ abstract class LibraryMessages {
   // ===== חיפוש =====
   static String savedScopeDeleted(String name) => 'ההיקף "$name" נמחק';
 
+  static const String openBooksNotSearchable =
+      'אף אחד מהספרים הפתוחים אינו בספרייה שבה מחפשים';
+
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 
