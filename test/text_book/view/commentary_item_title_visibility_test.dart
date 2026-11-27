@@ -22,6 +22,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_display/models/text_display_layer.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
+
 import '../../test_helpers/fake_commentary_library_provider.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
@@ -43,10 +44,7 @@ void main() {
     });
 
     test('כל הקישורים מאותה שורת מקור — true', () {
-      expect(
-        groupSharesSingleSource([link(3), link(3, index2: 2)]),
-        isTrue,
-      );
+      expect(groupSharesSingleSource([link(3), link(3, index2: 2)]), isTrue);
     });
 
     test('שורות מקור שונות (כל הפרק / בחירה מרובה) — false', () {
@@ -192,6 +190,11 @@ void main() {
         mapping: {
           BookCompositeKey.create(
             title: 'מפרש בדיקה',
+            categoryId: 1,
+            fileType: 'txt',
+          ): FakeCommentaryLibraryProvider(),
+          BookCompositeKey.create(
+            title: 'באר הגולה על שולחן ערוך אורח חיים',
             categoryId: 1,
             fileType: 'txt',
           ): FakeCommentaryLibraryProvider(),
@@ -342,16 +345,23 @@ void main() {
       expect(_markerText(), findsOneWidget);
     });
 
-    testWidgets('סימן מודפס שונה ממספר הרשומה — הכותרת בלי המספר הסותר '
+    testWidgets('באר הגולה — הכותרת מבחינה בין הסימן למספר הרשומה '
         '(issue #1979)', (tester) async {
+      const title = 'באר הגולה על שולחן ערוך אורח חיים';
       final link = _link(
-        heRef: 'מפרש בדיקה, סימן ב, ד',
+        path2: title,
+        heRef: '$title, תרסד, ד',
         index1: 1,
         index2: 2,
-        anchorStart: 0,
+        anchorStart: 738,
         anchorLabel: 'ג',
       );
-      final bloc = StubTextBookBloc(_loadedState(links: [link]));
+      final bloc = StubTextBookBloc(
+        _loadedState(links: [link]).copyWith(
+          activeCommentators: const [title],
+          availableCommentators: const [title],
+        ),
+      );
       addTearDown(() async => bloc.close());
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
@@ -361,7 +371,7 @@ void main() {
           (w) =>
               w is Text &&
               RegExp(
-                r'^[(\[{]ג[)\]}] מפרש בדיקה, סימן ב$',
+                r'^[(\[{]ג[)\]}] (?:באר הגולה על שולחן ערוך אורח חיים, )?תרסד, רשומה ד$',
               ).hasMatch(w.data ?? ''),
         ),
         findsOneWidget,
@@ -519,6 +529,7 @@ const _kFakeContent = 'זהו פירוש לבדיקה עם טקסט שניתן �
 
 Link _link({
   required String heRef,
+  String path2 = 'מפרש בדיקה.txt',
   required int index1,
   required int index2,
   int? anchorStart,
@@ -527,7 +538,7 @@ Link _link({
   return Link(
     heRef: heRef,
     index1: index1,
-    path2: 'מפרש בדיקה.txt',
+    path2: path2,
     index2: index2,
     connectionType: 'commentary',
     targetCategoryId: 1,

@@ -35,21 +35,28 @@ String? anchorMarkerText(Link link) {
   return wrapLinkAnchorLetter(letter, _stableStyleIndex(link.path2));
 }
 
-/// כותרת קישור מעוגן: הסמן ואחריו הכתובת.
-///
-/// כשהתווית המודפסת שונה ממספר הרשומה (הרכיב האחרון של heRef) והכתובת
-/// מסתיימת במספר הזה, הוא מושמט — אחרת הכותרת מציגה שני ציונים סותרים, למשל
-/// "[ג] באר הגולה …, תרסד, ד" (issue #1979). סמן שאינו אות (•) אינו משמיט.
+const _beerHagolah = 'באר הגולה על שולחן ערוך אורח חיים';
+
+/// כותרת מעוגנת המבחינה בבאר הגולה בין הציון המודפס למספר הרשומה (#1979).
 String anchoredLinkTitle(Link link, String marker, String reference) {
-  final printed = _ordinal(link.anchorLabel ?? '');
-  final ordinal = _ordinal(link.heRef.split(',').last);
-  final cut = reference.lastIndexOf(', ');
-  if (printed != null &&
-      ordinal != null &&
-      printed != ordinal &&
-      cut > 0 &&
-      _ordinal(reference.substring(cut + 2)) == ordinal) {
-    reference = reference.substring(0, cut);
+  if (link.path2 == _beerHagolah &&
+      link.targetSource.isOfficial &&
+      link.index2End == null &&
+      link.heRefEnd == null &&
+      LinkTypes.normalize(link.connectionType) == LinkTypes.commentary) {
+    final parts = link.heRef.split(',').map((part) => part.trim()).toList();
+    final printed = _ordinal(link.anchorLabel ?? '');
+    if (parts.length == 3 && parts.first == _beerHagolah && printed != null) {
+      final ordinal = _ordinal(parts.last);
+      final location = '${parts[1]}, ${parts[2]}';
+      // אות מודפסת יכולה לחזור בתוך אותו סימן; מספר הרשומה מבדיל בין היעדים.
+      if (ordinal != null &&
+          printed != ordinal &&
+          (reference == '$_beerHagolah, $location' || reference == location)) {
+        final cut = reference.lastIndexOf(', ');
+        return '$marker ${reference.substring(0, cut)}, רשומה ${parts.last}';
+      }
+    }
   }
   return '$marker $reference';
 }
