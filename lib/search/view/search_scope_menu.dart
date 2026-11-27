@@ -12,6 +12,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
@@ -56,6 +57,10 @@ class SearchScopeMenuButton extends StatefulWidget {
   /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
   final bool excludeUserBooks;
 
+  /// הספרים הפתוחים בחלון, להיקף "ספרים פתוחים"; null — בלי ההיקף.
+  /// נקרא רק כשהתפריט פתוח, כדי שהבחירה תשקף את הכרטיסיות של אותו רגע.
+  final List<Book> Function()? openBooks;
+
   const SearchScopeMenuButton({
     super.key,
     required this.selected,
@@ -63,6 +68,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     this.officialBooksOnly = false,
     this.coveredFilePaths,
     this.excludeUserBooks = false,
+    this.openBooks,
   });
 
   @override
@@ -273,6 +279,30 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         if (mounted) setState(() => _savedScopes = restored);
       },
     );
+  }
+
+  /// בחירת הספרים הפתוחים כעת שבעץ הגלוי (רק הם ברי חיפוש). בחירה ריקה
+  /// הייתה חיפוש בכל הספרייה, ולכן אז הבחירה אינה משתנה.
+  Future<void> _selectOpenBooks() async {
+    final tree = await _ensureTree();
+    if (tree == null || !mounted) return;
+    final keys = {
+      for (final book in widget.openBooks?.call() ?? const <Book>[])
+        BookIdentity.indexedFilePath(book),
+    };
+    final facets = {
+      for (final node in tree.allBookNodes())
+        if (keys.contains(BookIdentity.indexedFilePath(node.book))) node.facet,
+    };
+    if (facets.isEmpty) {
+      UiSnack.show(LibraryMessages.openBooksNotSearchable);
+      return;
+    }
+    widget.onChanged({
+      ...facets,
+      ...FacetHelper.dimensionFacetsOf(widget.selected),
+    });
+    _fieldFocus.requestFocus();
   }
 
   Future<void> _loadBaseBookIds() async {
@@ -570,6 +600,8 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               onSaveCurrent: () => unawaited(_saveCurrentScope()),
               onUpdateSaved: (name) => unawaited(_updateSavedScope(name)),
               onDeleteSaved: (name) => unawaited(_deleteSavedScope(name)),
+              openBooksCount: widget.openBooks?.call().length,
+              onSelectOpenBooks: () => unawaited(_selectOpenBooks()),
             ),
           ),
         ),
@@ -656,6 +688,12 @@ class _MenuItem {
   final VoidCallback? onDelete;
   final bool isHeader;
 
+  /// הסבר בריחוף; בשורה מושבתת — הסיבה.
+  final String? tooltip;
+
+  /// שורה מושבתת אינה מגיבה ללחיצה.
+  final bool enabled;
+
   bool get isDrill => onDrill != null;
 
   const _MenuItem({
@@ -670,6 +708,8 @@ class _MenuItem {
     this.onOnly,
     this.onUpdate,
     this.onDelete,
+    this.tooltip,
+    this.enabled = true,
   }) : isHeader = false;
 
   const _MenuItem.header(this.label)
@@ -683,6 +723,8 @@ class _MenuItem {
       onOnly = null,
       onUpdate = null,
       onDelete = null,
+      tooltip = null,
+      enabled = true,
       isHeader = true;
 }
 
@@ -700,6 +742,10 @@ class _ScopeMenuPanel extends StatefulWidget {
   final ValueChanged<String> onUpdateSaved;
   final ValueChanged<String> onDeleteSaved;
 
+  /// null — אין בתפריט היקף "ספרים פתוחים"; 0 — השורה מושבתת.
+  final int? openBooksCount;
+  final VoidCallback onSelectOpenBooks;
+
   const _ScopeMenuPanel({
     super.key,
     required this.tree,
@@ -714,6 +760,8 @@ class _ScopeMenuPanel extends StatefulWidget {
     required this.onSaveCurrent,
     required this.onUpdateSaved,
     required this.onDeleteSaved,
+    required this.openBooksCount,
+    required this.onSelectOpenBooks,
   });
 
   @override
@@ -1115,6 +1163,8 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final hasAllCategories = categoryPart.contains('/');
     final hasPartialCategories = categoryPart.isNotEmpty && !hasAllCategories;
     final baseSelected = _selection.contains(FacetHelper.baseDimensionFacet);
+    final openBooksCount = widget.openBooksCount;
+    final hasOpenBooks = (openBooksCount ?? 0) > 0;
 
     return [
       if (!isEverything)
@@ -1139,6 +1189,19 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
         onToggle: (v) => _toggleDimension(FacetHelper.baseDimensionFacet, v),
         onDrill: () => _enterView(_View.base),
       ),
+      if (openBooksCount != null)
+        _MenuItem(
+          label: context.settingsText('ספרים פתוחים'),
+          icon: OtzariaIcons.book_open_medium_24_regular,
+          check: null,
+          onTap: widget.onSelectOpenBooks,
+          enabled: hasOpenBooks,
+          tooltip: context.settingsText(
+            hasOpenBooks
+                ? 'הבחירה נלקחת מהספרים הפתוחים ברגע הלחיצה'
+                : 'אין ספרים פתוחים',
+          ),
+        ),
       const _MenuItem.header('תקופה'),
       for (final era in _eraNames)
         _MenuItem(
@@ -1375,8 +1438,13 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final isFolder =
         item.icon == FluentIcons.folder_24_regular ||
         item.icon == FluentIcons.library_24_regular ||
-        item.icon == OtzariaIcons.book_star_24_regular;
-    final iconColor = isFolder
+        item.icon == OtzariaIcons.book_star_24_regular ||
+        item.icon == OtzariaIcons.book_open_medium_24_regular;
+    final disabled = !item.enabled;
+    final disabledColor = Theme.of(context).disabledColor;
+    final iconColor = disabled
+        ? disabledColor
+        : isFolder
         ? colorScheme.primary
         : colorScheme.onSurfaceVariant;
 
@@ -1392,9 +1460,9 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
     // במגע אין hover — "רק" מוצג תמיד; בעכבר הוא נחשף בריחוף או בניווט מקלדת.
 
-    return InkWell(
+    final row = InkWell(
       canRequestFocus: false,
-      onTap: onRowTap,
+      onTap: disabled ? null : onRowTap,
       onHover: (hovering) {
         if (hovering) {
           _hoveredRow.value = index;
@@ -1450,7 +1518,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                     item.label,
                     style: TextStyle(
                       fontSize: 14,
-                      color: colorScheme.onSurface,
+                      color: disabled ? disabledColor : colorScheme.onSurface,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1524,5 +1592,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
         ),
       ),
     );
+    final tooltip = item.tooltip;
+    return tooltip == null ? row : Tooltip(message: tooltip, child: row);
   }
 }
