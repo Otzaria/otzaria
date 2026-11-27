@@ -318,6 +318,132 @@ void main() {
       expect(bottom, greaterThanOrEqualTo(third.bottom - 0.5));
       expect(bottom - top, lessThan(gutter.size.height));
     });
+
+    group(
+      '$screen: רקע עדין לפסוק הנבחר בקריאה רציפה (issue #4665, #3492)',
+      () {
+        List<Color?> backgrounds(WidgetTester tester) => [
+          for (final line
+              in tester
+                  .widget<ContinuousReadingParagraph>(
+                    find.byType(ContinuousReadingParagraph),
+                  )
+                  .lines)
+            line.background,
+        ];
+
+        RenderReaderParagraphLines render(WidgetTester tester) =>
+            tester.renderObject(find.byType(ReaderParagraphLines));
+
+        testWidgets('שני פסוקים בשורה אחת: רק מלבני הנבחר נצבעים', (
+          tester,
+        ) async {
+          await _pump(
+            tester,
+            simple: simple,
+            adjust: (s) => s.copyWith(selectedIndex: 2, selectedIndices: {2}),
+          );
+          expect(
+            (_textRect(tester, 'שניה').top - _textRect(tester, 'שלישית').top)
+                .abs(),
+            lessThan(0.5),
+          );
+          final tint = backgrounds(tester)[2];
+          expect(tint, isNotNull);
+          expect(tint!.a, lessThan(0.2));
+          expect(backgrounds(tester), [null, null, tint, null, null]);
+          final lines = render(tester);
+          final rects = lines.lineRects(2);
+          expect(rects, isNotEmpty);
+          for (final word in ['שניה', 'רביעית']) {
+            final other = lines.globalToLocal(_textRect(tester, word).center);
+            expect(rects.any((rect) => rect.contains(other)), isFalse);
+          }
+          var expected = paints;
+          for (final rect in rects) {
+            expected = expected..rect(rect: rect, color: tint);
+          }
+          expect(lines, expected);
+        });
+
+        testWidgets('פסוק שנמשך על כמה שורות נצבע בכולן', (tester) async {
+          final long = List.filled(40, 'פסוק ארוך').join(' ');
+          await _pump(
+            tester,
+            simple: simple,
+            data: [..._lines.take(2), long, ..._lines.skip(3)],
+            adjust: (s) => s.copyWith(selectedIndex: 2, selectedIndices: {2}),
+          );
+          final tint = backgrounds(tester)[2]!;
+          final rects = render(tester).lineRects(2);
+          expect(rects.length, greaterThan(1));
+          var expected = paints;
+          for (final rect in rects) {
+            expected = expected..rect(rect: rect, color: tint);
+          }
+          expect(render(tester), expected);
+        });
+
+        testWidgets('בחירה מרובה: כל שורה נבחרת נצבעת', (tester) async {
+          await _pump(
+            tester,
+            simple: simple,
+            adjust: (s) =>
+                s.copyWith(selectedIndex: 3, selectedIndices: {1, 3}),
+          );
+          final tint = backgrounds(tester)[1];
+          expect(tint, isNotNull);
+          expect(backgrounds(tester), [null, tint, null, tint, null]);
+        });
+
+        testWidgets('סימון קבוע והדגשה זמנית קודמים לרקע הבחירה', (
+          tester,
+        ) async {
+          await _pump(
+            tester,
+            simple: simple,
+            adjust: (s) => s.copyWith(
+              selectedIndex: 2,
+              selectedIndices: {1, 2, 3},
+              permanentHighlightLine: 1,
+              highlightedLine: 3,
+            ),
+          );
+          final cs = Theme.of(
+            tester.element(find.byType(ContinuousReadingParagraph)),
+          ).colorScheme;
+          final tint = backgrounds(tester)[2];
+          expect(tint, isNotNull);
+          expect(backgrounds(tester), [
+            null,
+            AppSurfaces.permanentMark(cs),
+            tint,
+            AppSurfaces.highlightedLineBackground(cs),
+            null,
+          ]);
+        });
+
+        testWidgets('בערכה כהה הגוון נגזר מהערכה', (tester) async {
+          Future<Color?> tintIn(ThemeData theme) async {
+            await _pump(
+              tester,
+              simple: simple,
+              theme: theme,
+              adjust: (s) => s.copyWith(selectedIndex: 2, selectedIndices: {2}),
+            );
+            final tint = backgrounds(tester)[2];
+            await tester.pumpWidget(const SizedBox.shrink());
+            return tint;
+          }
+
+          final light = await tintIn(ThemeData.light());
+          final dark = await tintIn(ThemeData.dark());
+          expect(light, isNotNull);
+          expect(dark, isNotNull);
+          expect(dark, isNot(light));
+        });
+      },
+    );
   }
 
   testWidgets('שני המסכים מציירים אותו רקע לשורה המודגשת', (tester) async {
@@ -609,6 +735,7 @@ Future<_Harness> _pump(
   SettingsState? settings,
   bool commentaryCards = false,
   bool notesPanelOpen = false,
+  ThemeData? theme,
   TextBookLoaded Function(TextBookLoaded state)? adjust,
 }) async {
   book ??= TextBook(title: 'ספר בדיקה');
@@ -650,6 +777,7 @@ Future<_Harness> _pump(
 
   await tester.pumpWidget(
     MaterialApp(
+      theme: theme,
       locale: const Locale('he', 'IL'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('he', 'IL')],

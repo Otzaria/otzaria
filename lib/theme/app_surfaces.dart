@@ -220,6 +220,10 @@ class AppSurfaces {
   static Color highlightedLineBackground(ColorScheme cs) =>
       cs.secondaryContainer.withValues(alpha: 0.4);
 
+  /// רקע עדין לשורה הנבחרת בפסקה רציפה, בגוון סמן הבחירה שבשוליים.
+  static Color selectedReaderLine(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.08);
+
   /// רקע הדגשה לשורה שמעליה מרחפים בגרירה (drag target).
   ///
   /// 8% primary — רמז עדין למקום השחרור מבלי להסתיר את תוכן השורה.
