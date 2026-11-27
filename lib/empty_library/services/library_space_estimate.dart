@@ -312,6 +312,22 @@ String libraryDownloadDir(
     ? '$libraryPath.download'
     : systemTemp;
 
+/// בוחר מקום לכל ההורדה, תוך שימוש בשריד תקף מהאחסון הישן אם אפשר.
+Future<({String directory, String? spaceError})> selectLibraryDownloadDir({
+  required String preferredDir,
+  required String legacyDir,
+  required Future<bool> Function(String directory) hasReusable,
+  required Future<String?> Function(String directory) checkSpace,
+}) async {
+  if (preferredDir != legacyDir &&
+      !await hasReusable(preferredDir) &&
+      await hasReusable(legacyDir) &&
+      await checkSpace(legacyDir) == null) {
+    return (directory: legacyDir, spaceError: null);
+  }
+  return (directory: preferredDir, spaceError: await checkSpace(preferredDir));
+}
+
 /// האם [a] ו-[b] על אותו כונן, לפי [comparableVolumeId].
 bool isSameVolume(
   String a,
