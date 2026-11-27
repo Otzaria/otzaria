@@ -13,7 +13,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -265,21 +265,13 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   Future<void> _loadBaseBookIds() async {
-    final repo = SqliteDataProvider.instance.repository;
-    final ids = repo == null ? <int>{} : await repo.loadBaseBookIds();
-    var userIds = <int>{};
-    final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
-    if (userRepo != null) {
-      try {
-        userIds = await userRepo.loadBaseBookIds();
-      } catch (_) {
-        userIds = <int>{};
-      }
-    }
+    // מהמטמון שנקרא ב-isolate: סריקת טבלת book על חיבור ה-UI חוסמת בדיסק איטי.
+    final cache = BookFacetMetadataCache.instance;
+    await cache.warmUp();
     if (mounted) {
       setState(() {
-        _baseBookIds = ids;
-        _baseUserBookIds = userIds;
+        _baseBookIds = cache.baseBookIds;
+        _baseUserBookIds = cache.baseUserBookIds;
         _baseBookGeneration++;
         _baseBookNodesCache = null;
       });
