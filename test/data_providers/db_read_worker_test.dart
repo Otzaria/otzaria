@@ -1115,77 +1115,58 @@ void main() {
   );
 
   test(
-    'issue #4490: with the control queue full the suspend is refused at once '
-    'and a long read ends only after its full duration',
+    'תור בקרה מלא דוחה השהיה בזמן קריאת ספר ומאפשר לקרוא עד השורה האחרונה',
     () async {
-      const lines = 200000;
-      final dbPath = await seedDb('seforim', bigBookLines: lines);
-      Future<Object?> bigRead() => DbReadWorker.request('bookTextBytes', {
+      const rowsPerCheckpoint = 4096;
+      const checkpointCount = 49;
+      final dbPath = await seedDb(
+        'seforim',
+        bigBookLines: rowsPerCheckpoint * checkpointCount,
+      );
+      final port = ReceivePort();
+      final checkpoints = StreamIterator<dynamic>(port);
+      addTearDown(port.close);
+      addTearDown(checkpoints.cancel);
+      DbReadWorker.bookReadCheckpointPort = port.sendPort;
+      final fullRead = DbReadWorker.request('bookTextBytes', {
         'dbPath': dbPath,
         'bookId': 3,
         'title': 'ספר גדול',
-      }).then<Object?>((value) => value, onError: (Object error) => error);
-      Future<void> sent(int before) async {
-        final deadline = DateTime.now().add(const Duration(seconds: 10));
-        while (DbReadWorker.sentMessageCount <= before) {
-          if (DateTime.now().isAfter(deadline)) fail('the read was not sent');
-          await Future<void>.delayed(const Duration(milliseconds: 1));
+      }).then<Object?>((result) => result, onError: (Object error) => error);
+      const timeout = Duration(seconds: 10);
+      expect(await checkpoints.moveNext().timeout(timeout), isTrue);
+
+      try {
+        final before = DbReadWorker.sentMessageCount;
+        for (var i = 0; i < 4; i++) {
+          DbReadWorker.allowReopen();
         }
+        expect(DbReadWorker.sentMessageCount - before, 4);
+        expect(
+          await DbReadWorker.suspendForExternalWrite().timeout(timeout),
+          isFalse,
+        );
+        expect(DbReadWorker.sentMessageCount - before, 4);
+      } finally {
+        (checkpoints.current as SendPort).send(null);
       }
 
-      // חימום: פתיחת החיבור ו-cache של ה-worker לא נכנסים למדידה.
-      expect(await bigRead(), isA<Object>());
-      final plain = Stopwatch()..start();
-      final plainResult = await bigRead();
-      plain.stop();
-      expect(plainResult, isNot(isA<Exception>()));
-
-      var before = DbReadWorker.sentMessageCount;
-      final interrupted = Stopwatch()..start();
-      final suspendedRead = bigRead();
-      await sent(before);
-      expect(await DbReadWorker.suspendForExternalWrite(), isTrue);
-      final suspendedResult = await suspendedRead;
-      interrupted.stop();
-      await DbReadWorker.resumeAfterExternalWrite();
-
-      before = DbReadWorker.sentMessageCount;
-      final deferred = Stopwatch()..start();
-      final fullRead = bigRead();
-      await sent(before);
-      for (var i = 0; i < 4; i++) {
-        DbReadWorker.allowReopen();
+      // האות האחרון מגיע מתוך SQLite אחרי השורה האחרונה, לפני החזרת התוצאה.
+      for (var i = 1; i < checkpointCount; i++) {
+        expect(await checkpoints.moveNext().timeout(timeout), isTrue);
+        (checkpoints.current as SendPort).send(null);
       }
-      final refuse = Stopwatch()..start();
-      final released = await DbReadWorker.suspendForExternalWrite();
-      refuse.stop();
-      final fullResult = await fullRead.timeout(const Duration(seconds: 30));
-      deferred.stop();
-
-      // ignore: avoid_print
-      print(
-        '[#4490] $lines lines: plain read ${plain.elapsedMilliseconds}ms; '
-        'suspend with a free queue cut it after '
-        '${interrupted.elapsedMilliseconds}ms; with 4 slots busy the suspend '
-        'was refused after ${refuse.elapsedMilliseconds}ms and the read '
-        'ended after ${deferred.elapsedMilliseconds}ms',
-      );
-      expect(suspendedResult, isA<DbReadWorkerSuspended>());
-      expect(released, isFalse, reason: 'no release ack while the queue full');
-      // התוצאה נזרקת אחרי שהקריאה כולה רצה: משך הקריאה הוא תקרת ההשהיה.
-      expect(fullResult, isA<DbReadWorkerSuspended>());
+      expect(await fullRead.timeout(timeout), isA<DbReadWorkerSuspended>());
       await DbReadWorker.resumeAfterExternalWrite();
-      DbReadWorker.allowReopen();
       expect(
         await DbReadWorker.request('bookText', {
           'dbPath': dbPath,
           'bookId': 1,
           'title': 'בראשית',
-        }),
+        }).timeout(timeout),
         List.generate(5, (i) => 'שורה $i').join('\n'),
       );
     },
-    timeout: const Timeout(Duration(seconds: 120)),
   );
 
   test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {

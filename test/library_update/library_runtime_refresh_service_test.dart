@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -217,6 +218,73 @@ void main() {
       }
     },
   );
+
+  test('תור בקרה מלא מכשיל רענון עם הודעת ניסיון חוזר', () async {
+    final writer = sqlite3.open(dbPath);
+    try {
+      writer.execute(
+        "INSERT INTO line (id, bookId, lineIndex, content) "
+        "WITH RECURSIVE rows(n) AS (VALUES (0) UNION ALL "
+        "SELECT n + 1 FROM rows WHERE n < 4096) "
+        "SELECT n + 1, 5, n, 'שורה' FROM rows",
+      );
+    } finally {
+      writer.close();
+    }
+
+    final cachedLibrary = Future.value(Library(categories: []));
+    DataRepository.instance.library = cachedLibrary;
+    final checkpoint = ReceivePort();
+    addTearDown(checkpoint.close);
+    DbReadWorker.bookReadCheckpointPort = checkpoint.sendPort;
+    final read = DbReadWorker.request('bookTextBytes', {
+      'dbPath': dbPath,
+      'bookId': 5,
+      'title': 'ספר',
+    }).then<Object?>((result) => result, onError: (Object error) => error);
+    const timeout = Duration(seconds: 10);
+    final release = await checkpoint.first.timeout(timeout) as SendPort;
+    try {
+      for (var i = 0; i < 4; i++) {
+        DbReadWorker.allowReopen();
+      }
+      await expectLater(
+        refresh.refreshAfterDbUpdate().timeout(timeout),
+        throwsA(
+          isA<LibraryDbNotReleased>().having(
+            (error) => error.message,
+            'message',
+            'מסד הספרייה בשימוש כרגע. יש לנסות לרענן את הספרייה בעוד רגע.',
+          ),
+        ),
+      );
+      expect(
+        DataRepository.instance.lastSuccessfulLibrary,
+        await cachedLibrary,
+      );
+    } finally {
+      release.send(null);
+      expect(await read.timeout(timeout), isA<DbReadWorkerSuspended>());
+      // פתיחת קורא ממתינה להשלמת פקודת ההתאוששות.
+      await SqliteDataProvider.instance.initialize();
+      expect(
+        await DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 99,
+          'title': 'ספר חסר',
+        }).timeout(timeout),
+        isNull,
+      );
+    }
+
+    await refresh.refreshAfterDbUpdate().timeout(timeout);
+    expect(DataRepository.instance.lastSuccessfulLibrary, isNull);
+    expect(SqliteDataProvider.instance.isInitialized, isTrue);
+    expect(await DbReadWorker.lines(dbPath, 5, 0, 0), [
+      (content: 'שורה', heRef: null),
+    ]);
+    await expectUserDatabasesPreserved();
+  });
 
   test('רענון מסיים תיקונים על המקור הישן ושומר טיוטה ואירוע סיום', () async {
     final events = <String>[];

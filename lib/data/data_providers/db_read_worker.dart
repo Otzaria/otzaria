@@ -54,7 +54,7 @@ class DbReadWorkerSuspended implements Exception {
   String toString() => 'DbReadWorkerSuspended';
 }
 
-/// seforim.db לא שוחרר לפני כתיבה חיצונית. [message] מוצגת למשתמש כמות שהיא.
+/// שחרור seforim.db לא אומת. [message] מוצגת למשתמש כמות שהיא.
 class LibraryDbNotReleased extends StateError {
   LibraryDbNotReleased(super.message);
 

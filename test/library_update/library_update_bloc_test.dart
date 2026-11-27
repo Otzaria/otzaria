@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/foreground_work.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart'
-    show DbReadWorkerNotReleased;
+    show DbReadWorkerNotReleased, LibraryDbNotReleased;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
@@ -699,6 +699,45 @@ void main() {
             .having((s) => s.status, 'status', LibraryUpdateStatus.error)
             .having((s) => s.hasUpdate, 'hasUpdate', true)
             .having((s) => s.appliedReleaseTags, 'tags', ['v2-t']),
+      ],
+    );
+
+    final refreshError = LibraryDbNotReleased(
+      LibraryMessages.libraryRefreshDbBusy,
+    );
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'תור מלא ברענון מציג שהדלתא נשמרה ומדווח את הספרים שהשתנו',
+      build: () => _bloc(
+        _FakeService(
+          twoStepPlan,
+          applyError: PartiallyAppliedLibraryDeltaException(
+            cause: refreshError,
+            refreshError: refreshError,
+            appliedResult: const LibraryDeltaApplyResult(
+              appliedSteps: 2,
+              changedBookIds: {5},
+            ),
+          ),
+        ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.error)
+            .having(
+              (s) => s.message,
+              'message',
+              LibraryMessages.updateSavedRefreshFailed,
+            )
+            .having(
+              (s) => s.errorMessage,
+              'detail',
+              LibraryMessages.libraryRefreshDbBusy,
+            )
+            .having((s) => s.hasUpdate, 'hasUpdate', true)
+            .having((s) => s.changedBookIds, 'changed ids', {5})
+            .having((s) => s.appliedReleaseTags, 'tags', ['v2-t', 'v3-t']),
       ],
     );
 
