@@ -338,6 +338,22 @@ void main() {
     },
   );
 
+  test('עדכון ספק חיצוני משאיר סינון פעיל לפי מחבר', () async {
+    const author = 'מחבר לדוגמה';
+    final book = TextBook(title: 'ספר בספרייה', author: author);
+    before.subCategories.first.books.add(book);
+    final filtered = bloc.stream.firstWhere((s) => s.authorFilter == author);
+    bloc.add(const ShowAuthorBooks(author));
+    await filtered;
+
+    bloc.add(const ExternalBooksChanged());
+    await Future<void>.delayed(Duration.zero);
+
+    expect(bloc.state.authorFilter, author);
+    expect(bloc.state.searchResults, [book]);
+    expect(repo.searches, 1);
+  });
+
   for (final hidden in [false, true]) {
     final change = hidden ? 'שינוי הסתרות' : 'רענון';
 
@@ -372,6 +388,36 @@ void main() {
       final state = await searched;
       expect(state.searchResults!.map((b) => b.title), ['מבחן א ספר']);
       expect(repo.searches, 2);
+    });
+
+    test('$change מעדכן סינון פעיל לפי מחבר על העץ החדש', () async {
+      const author = 'מחבר לדוגמה';
+      before.subCategories.first.books.add(
+        TextBook(title: 'ספר ישן', author: author),
+      );
+      final filtered = bloc.stream.firstWhere((s) => s.authorFilter == author);
+      bloc.add(const ShowAuthorBooks(author));
+      expect((await filtered).searchResults!.single.title, 'ספר ישן');
+
+      await startChange();
+      final changed = bloc.stream.firstWhere(
+        (s) => !identical(s.library, before),
+      );
+      final after = _library();
+      final newBook = TextBook(
+        title: 'ספר חדש',
+        author: '$author, מחבר נוסף',
+        authorNames: const [author, 'מחבר נוסף'],
+      );
+      after.subCategories.last.books.add(newBook);
+      files.next.complete(after);
+      await changed;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.authorFilter, author);
+      expect(bloc.state.searchResults, [newBook]);
+      expect(bloc.state.previewBook, same(newBook));
+      expect(repo.searches, 1);
     });
 
     test('ניקוי האיתור בזמן $change אינו מחזיר תוצאות', () async {
