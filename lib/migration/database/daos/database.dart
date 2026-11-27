@@ -379,28 +379,25 @@ class MyDatabase {
     db.execute('ALTER TABLE user_book_version_new RENAME TO user_book_version');
   }
 
-  final _backgroundWrites = <Future<void>>{};
+  Future<void> _writeQueue = Future.value();
 
-  /// ראה [writeWithoutWaitingInBackground]; [backgroundWritesDone] ממתין לסיומן.
-  Future<void> writeInBackground(List<SqlStatement> statements) async {
-    if (statements.isEmpty) return;
-    final write = writeWithoutWaitingInBackground(
-      await database,
-      _path,
-      statements,
+  /// ראה [writeWithoutWaitingInBackground]. הכתיבות רצות בתור: שני חיבורים
+  /// משניים במקביל היו נכשלים זה מול זה ב-SQLITE_BUSY.
+  Future<void> writeInBackground(List<SqlStatement> statements) {
+    if (statements.isEmpty) return Future.value();
+    final write = _writeQueue.then(
+      (_) async => writeWithoutWaitingInBackground(
+        await database,
+        _path,
+        statements,
+      ),
     );
-    _backgroundWrites.add(write);
-    try {
-      await write;
-    } finally {
-      _backgroundWrites.remove(write);
-    }
+    _writeQueue = write.catchError((Object _) {});
+    return write;
   }
 
-  /// מושלם כשאין כתיבות רקע פתוחות, גם אם נכשלו.
-  Future<void> get backgroundWritesDone => Future.wait(
-    _backgroundWrites.map((write) => write.catchError((Object _) {})),
-  );
+  /// מושלם כשתור כתיבות הרקע מתרוקן, גם אם חלקן נכשלו.
+  Future<void> get backgroundWritesDone => _writeQueue;
 
   bool _retired = false;
 

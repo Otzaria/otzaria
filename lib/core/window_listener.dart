@@ -239,10 +239,11 @@ class AppWindowListener extends WindowListener {
   }
 
   Future<void> _closeWritableDatabases() async {
-    await CacheDatabaseHolder.instance.close();
     await PersonalNotesDatabase.instance.close();
     await PluginSystemDatabase.instance.close();
     UserStateDatabase.instance.close();
+    // אחרון: ממתין לכתיבות המטמון ברקע, ו-timeout שלו לא ידלג על השאר.
+    await CacheDatabaseHolder.instance.close();
   }
 
   Future<void> _armForceExitWatchdog() async {

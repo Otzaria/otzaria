@@ -74,8 +74,8 @@ Future<void> writeWithoutWaitingInBackground(
   String path,
   List<SqlStatement> statements,
 ) async {
-  // בנעילה בלעדית (journal רגיל, ראה [_openInRollbackJournal]) אין חיבור משני.
-  if (db.select('PRAGMA locking_mode').first.values.first == 'exclusive') {
+  // בלי WAL הכותב המשני חוסם את קריאות החיבור הראשי, ובמסד בזיכרון אין קובץ.
+  if (db.select('PRAGMA journal_mode').first.values.first != 'wal') {
     return withoutBusyWait(db, () => _executeAll(db, statements));
   }
   await compute(

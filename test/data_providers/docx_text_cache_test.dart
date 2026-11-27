@@ -55,6 +55,20 @@ void main() {
       expect(got.lastModified, 5000);
     });
 
+    test('כתיבות מקבילות אינן נכשלות זו מול זו', () async {
+      await Future.wait([
+        for (var i = 0; i < 4; i++)
+          repository.upsertDocxTextCacheEntry(entry(filePath: '/lib/$i.docx')),
+        repository.touchDocxTextCacheEntry('/lib/0.docx', 7),
+      ]);
+      for (var i = 0; i < 4; i++) {
+        expect(
+          await repository.getDocxTextCacheEntry('/lib/$i.docx'),
+          isNotNull,
+        );
+      }
+    });
+
     test('נתיב שלא נשמר מחזיר null', () async {
       final got = await repository.getDocxTextCacheEntry('/lib/אחר.docx');
       expect(got, isNull);
