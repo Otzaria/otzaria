@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
@@ -166,6 +167,40 @@ class InBookSearchSettings {
         alternativeWords: alternativeWords,
         searchOptions: searchOptions,
       );
+}
+
+/// מקור השאילתה והעדפת "מילים שלמות בלבד", המשותפים לחלוניות הטקסט וה-PDF.
+class InBookSearchQueryState {
+  // הגדרות מתוצאה גלובלית חלות רק על השאילתה שהגיעה איתן.
+  String? _carriedQuery;
+  bool _wholeWord = InBookSearchPreferences.loadWholeWord();
+  bool get wholeWord => _wholeWord;
+  InBookSearchOrigin get origin => _carriedQuery == null
+      ? InBookSearchOrigin.inBook
+      : InBookSearchOrigin.globalResult;
+
+  /// [query] הגיעה מ-[origin]. ההעדפה גלובלית ונקראת מחדש: החלפת המתג בטאב
+  /// אחר משאירה כאן ערך ישן, וההדגשה בספר הייתה סותרת את התוצאות.
+  void open(String query, InBookSearchOrigin origin) {
+    _wholeWord = InBookSearchPreferences.loadWholeWord();
+    _carriedQuery = origin == InBookSearchOrigin.globalResult
+        ? searchableInBookQuery(query)
+        : null;
+  }
+
+  void dropCarried() => _carriedQuery = null;
+
+  /// מבטל את ההורשה כשהשאילתה נערכה, ומחזיר אם בוטלה.
+  bool dropCarriedIfEdited(String? query) {
+    if (_carriedQuery == null || query == _carriedQuery) return false;
+    _carriedQuery = null;
+    return true;
+  }
+
+  void toggleWholeWord() {
+    _carriedQuery = null;
+    unawaited(InBookSearchPreferences.saveWholeWord(_wholeWord = !_wholeWord));
+  }
 }
 
 /// The query an in-book search runs for [raw]: trimmed and without nikud (a

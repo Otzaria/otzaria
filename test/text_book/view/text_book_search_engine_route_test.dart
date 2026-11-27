@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
@@ -1334,6 +1336,128 @@ Future<void> main() async {
     // שתי ההופעות באותו קטע מוצגות בשורה אחת (issue #3083).
     expect(find.text('נמצאו 2 הופעות במקום אחד'), findsOneWidget);
   }, skip: !engineReady);
+
+  group('מצב החיפוש המשותף לחלוניות (issue #1692)', () {
+    setUp(() => InBookSearchPreferences.saveWholeWord(false));
+    tearDown(() => InBookSearchPreferences.saveWholeWord(false));
+
+    Future<List<TextSearchResult>> noResults(List<String> _, String _) async =>
+        const [];
+
+    testWidgets('מתג מילים שלמות נשמר ומבטל את ההורשה מתוצאה גלובלית', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'שמים',
+        searchOrigin: InBookSearchOrigin.globalResult,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+
+      await tester.tap(find.byIcon(OtzariaIcons.alef_mix_24_regular));
+      await harness.settle();
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+      final update = harness.bloc.searchTextUpdates.last;
+      expect(update.searchOrigin, InBookSearchOrigin.inBook);
+      expect(update.searchWholeWord, isTrue);
+      expect(repository.requests, isEmpty);
+    });
+
+    testWidgets('השאילתה מתוצאה גלובלית נושאת את מקורה רק עד שנערכת', (
+      tester,
+    ) async {
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'שמים',
+        searchOrigin: InBookSearchOrigin.globalResult,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+      // ניקוד ורווחים בקצוות אינם עריכה של השאילתה.
+      await harness.type(' שָׁמַיִם ');
+      await harness.settle();
+      expect(
+        harness.bloc.searchTextUpdates.last.searchOrigin,
+        InBookSearchOrigin.globalResult,
+      );
+
+      await harness.type('ארץ');
+      await harness.settle();
+      expect(
+        harness.bloc.searchTextUpdates.last.searchOrigin,
+        InBookSearchOrigin.inBook,
+      );
+    });
+
+    testWidgets('איפוס מבטל את ההורשה ומשאיר את מתג מילים שלמות', (
+      tester,
+    ) async {
+      await InBookSearchPreferences.saveWholeWord(true);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'שמים',
+        searchOrigin: InBookSearchOrigin.globalResult,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+
+      await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+      await harness.settle();
+
+      final update = harness.bloc.searchTextUpdates.last;
+      expect(update.text, isEmpty);
+      expect(update.searchOrigin, InBookSearchOrigin.inBook);
+      expect(update.searchWholeWord, isTrue);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+    });
+
+    testWidgets('שאילתה חיצונית קוראת מחדש את ההעדפה שהשתנתה בטאב אחר', (
+      tester,
+    ) async {
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'שמים',
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+
+      await InBookSearchPreferences.saveWholeWord(true);
+      await harness.rebuildFromBloc('ארץ', 0, SearchMatchPolicy.standard);
+      await harness.settle();
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+      expect(harness.bloc.searchTextUpdates.last.searchWholeWord, isTrue);
+    });
+
+    testWidgets('חיפוש במנוע מדגיש מילים שלמות גם כשהמתג כבוי', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע זרעך',
+        searchMode: SearchMode.advanced,
+        searchDistance: 3,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+
+      expect(repository.requests, isNotEmpty);
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsNothing);
+      expect(harness.bloc.searchTextUpdates.last.searchWholeWord, isTrue);
+      expect(InBookSearchPreferences.loadWholeWord(), isFalse);
+    });
+  });
 }
 
 class _Harness {
