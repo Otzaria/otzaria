@@ -14,7 +14,8 @@ import 'package:otzaria/text_display/view/copy_as_menu.dart';
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, ValueNotifier, listEquals;
 import 'package:flutter/gestures.dart' show kPrimaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
@@ -2574,12 +2575,42 @@ class _CombinedViewState extends State<CombinedView> {
     return layout.itemForLine(line);
   }
 
+  // פריטים המחוברים לרשימה נשמרים לשימוש חוזר כשהבחירה בתוכם לא השתנתה.
+  final Map<int, ({List<int> selected, Widget item})> _readerItems = {};
+  ({TextBookLoaded state, Object notes, double viewport})? _readerItemsInputs;
+
   Widget buildOuterList(
     TextBookLoaded state,
     Map<int, List<PersonalNote>> noteMap,
   ) {
     // פריט לכל שורה במצב רגיל ולכל פסקה במצב רציף; tab.index הוא שורת מקור.
     final layout = readingLayoutOf(state);
+    final previous = _readerItemsInputs;
+    // מדיניות הבנייה משווה חלק מאוספי המצב לפי גודל, והפריט קורא את תוכנם.
+    if (previous == null ||
+        !identical(previous.notes, noteMap) ||
+        previous.viewport != _viewportHeight ||
+        !identical(previous.state.links, state.links) ||
+        !identical(previous.state.linksByLine, state.linksByLine) ||
+        !identical(
+          previous.state.availableCommentators,
+          state.availableCommentators,
+        ) ||
+        !identical(previous.state.tableOfContents, state.tableOfContents) ||
+        !identical(previous.state.loadedLineFlags, state.loadedLineFlags) ||
+        shouldRebuildIgnoringSelection(previous.state, state)) {
+      _readerItems.clear();
+    }
+    _readerItemsInputs = (
+      state: state,
+      notes: noteMap,
+      viewport: _viewportHeight,
+    );
+    final selectedLinesByItem = <int, List<int>>{};
+    for (final line in state.selectedIndices) {
+      if (line < 0 || line >= layout.lineCount) continue;
+      (selectedLinesByItem[layout.itemForLine(line)] ??= []).add(line);
+    }
     _commentaryCardKeys.removeWhere(
       (line, _) => !state.selectedIndices.contains(line),
     );
@@ -2632,6 +2663,11 @@ class _CombinedViewState extends State<CombinedView> {
             scrollOffsetController: widget.tab.lines.offsetController,
             itemCount: itemCount,
             itemBuilder: (context, index) {
+              final selected = selectedLinesByItem[index] ?? const <int>[];
+              final cached = _readerItems[index];
+              if (cached != null && listEquals(cached.selected, selected)) {
+                return cached.item;
+              }
               // מבודד את שכבת הצביעה של כל פריט - rebuild של פריט בודד (בחירה/
               // הדגשה) או emit של warming לא יצבע מחדש את כל ה-viewport.
               final tile = RepaintBoundary(
@@ -2652,12 +2688,20 @@ class _CombinedViewState extends State<CombinedView> {
                       )
                     : tile,
               );
-              return wrapReaderItem(
+              late final ReaderItemBox wrapped;
+              wrapped = ReaderItemBox(
                 item: index,
-                layout: readingSegmentsOf(state).layout,
                 boxes: widget.tab.lines.itemBoxes,
+                onUnmount: () {
+                  if (identical(_readerItems[index]?.item, wrapped) &&
+                      wrapped.boxes.boxForItem(index) == null) {
+                    _readerItems.remove(index);
+                  }
+                },
                 child: item,
               );
+              _readerItems[index] = (selected: selected, item: wrapped);
+              return wrapped;
             },
           ),
     );
@@ -3452,6 +3496,8 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   Widget build(BuildContext context) {
+    // הפריטים קוראים שדות של ה-State ושל ההקשר; כאן הם אולי השתנו.
+    _readerItems.clear();
     // קישורים פנימיים מנווטים דרך ה-scope — גם בתצוגה המקדימה, שאינה בתוך הקורא.
     final bloc = context.select<TextBookBloc, TextBookBloc>((bloc) => bloc);
     return LineScrollScope(
