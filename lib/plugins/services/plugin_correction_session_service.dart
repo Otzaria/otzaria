@@ -9,6 +9,19 @@ import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.da
 import 'package:otzaria/plugins/storage/plugin_correction_draft_store.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
+const _nativeMarkupKey = '_nativeMarkup';
+
+Map<String, dynamic> _publicChange(Map change) =>
+    Map<String, dynamic>.from(change)..remove(_nativeMarkupKey);
+
+List<int>? _nativeMarkup(Object? value, int textLength) =>
+    value is List &&
+        value.length <= textLength * 3 &&
+        value.length % 3 == 0 &&
+        value.every((unit) => unit is int)
+    ? List<int>.unmodifiable(value.cast<int>())
+    : null;
+
 class PluginCorrectionException implements Exception {
   final String code;
   final String message;
@@ -303,6 +316,10 @@ class PluginCorrectionSessionService extends ChangeNotifier {
           index,
           change['originalSourceText'] as String,
           change['proposedText'] as String,
+          markup: _nativeMarkup(
+            change[_nativeMarkupKey],
+            (change['proposedText'] as String).length,
+          ),
         );
         continue;
       }
@@ -344,7 +361,7 @@ class PluginCorrectionSessionService extends ChangeNotifier {
       'draftId': session.draftId,
       'fromVersion': lease.version,
       'restoredSectionIndices': restored.keys.toList()..sort(),
-      'conflicts': [for (final conflict in conflicts) Map.of(conflict)],
+      'conflicts': [for (final conflict in conflicts) _publicChange(conflict)],
     };
   }
 
@@ -468,6 +485,14 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     prepared.removeWhere(
       (_, value) => value['originalText'] == value['proposedText'],
     );
+    for (final entry in prepared.entries) {
+      final previous = session.changes[entry.key];
+      final markup = previous?[_nativeMarkupKey];
+      if (markup != null &&
+          jsonEncode(_publicChange(previous!)) == jsonEncode(entry.value)) {
+        entry.value[_nativeMarkupKey] = markup;
+      }
+    }
     final touched = <int>{
       for (final index in {...session.changes.keys, ...prepared.keys})
         if (jsonEncode(session.changes[index]) != jsonEncode(prepared[index]))
@@ -1041,7 +1066,24 @@ class PluginCorrectionSessionService extends ChangeNotifier {
       _fail('error.storage_failed', 'קריאת הטיוטה נכשלה: $error');
     }
     if (draft == null) _fail('error.not_found', 'טיוטת התיקון אינה קיימת.');
-    return Map<String, dynamic>.from(draft);
+    return {
+      ...draft,
+      'changes': [
+        for (final change in draft['changes'] as List)
+          _publicChange(change as Map),
+      ],
+      'conflicts': [
+        for (final conflict in draft['conflicts'] as List)
+          _publicChange(conflict as Map),
+      ],
+    };
+  }
+
+  List<int>? editableMarkup(String tabId, int index, String source) {
+    final change = _sessionForTab(tabId)?.changes[index];
+    return change?['originalSourceText'] == source
+        ? change![_nativeMarkupKey] as List<int>?
+        : null;
   }
 
   String displayText(String tabId, int index, String source) {
@@ -1120,17 +1162,27 @@ class PluginCorrectionSessionService extends ChangeNotifier {
   }
 
   /// ההקלדה מוצגת מיד; השמירה העמידה והאירוע מוגבלים בקצב בנפרד.
-  void editParagraph(String tabId, int index, String source, String proposed) {
+  void editParagraph(
+    String tabId,
+    int index,
+    String source,
+    String proposed, {
+    List<int>? markup,
+  }) {
     validateNativeEdit(tabId, index, source, proposed);
     final session = _sessionForTab(tabId)!;
     final previous = session.changes[index];
     final original = TextRendererService.stripHtml(source);
-    if ((previous?['proposedText'] ?? original) == proposed) return;
+    if ((previous?['proposedText'] ?? original) == proposed &&
+        (markup == null ||
+            listEquals(previous?[_nativeMarkupKey] as List<int>?, markup))) {
+      return;
+    }
     session.changesBytes -= previous == null ? 0 : _changeBytes(previous);
     if (proposed == original) {
       session.changes.remove(index);
     } else {
-      final change = _nativeChange(index, source, proposed);
+      final change = _nativeChange(index, source, proposed, markup: markup);
       session.changes[index] = change;
       session.changesBytes += _changeBytes(change);
     }
@@ -1140,16 +1192,23 @@ class PluginCorrectionSessionService extends ChangeNotifier {
   Map<String, dynamic> _nativeChange(
     int index,
     String source,
-    String proposed,
-  ) => {
+    String proposed, {
+    List<int>? markup,
+  }) => {
     'sectionIndex': index,
     'originalSourceText': source,
     'originalText': TextRendererService.stripHtml(source),
     'proposedText': proposed,
+    if (markup != null) _nativeMarkupKey: List<int>.unmodifiable(markup),
   };
 
-  static int _changeBytes(Map<String, dynamic> change) =>
-      utf8.encode(jsonEncode(change)).length;
+  static int _changeBytes(Map<String, dynamic> change) => utf8
+      .encode(
+        jsonEncode(
+          change.containsKey(_nativeMarkupKey) ? _publicChange(change) : change,
+        ),
+      )
+      .length;
 
   _Session? _sessionForTab(String tabId) {
     for (final session in _sessions.values) {
@@ -1349,7 +1408,7 @@ class _Session {
     },
     'changes': [
       for (final index in (changes.keys.toList()..sort()))
-        Map<String, dynamic>.of(changes[index]!),
+        _publicChange(changes[index]!),
     ],
     'draft': {
       'draftId': draftId,
@@ -1359,7 +1418,7 @@ class _Session {
       'pending': !persisted && error == null,
       'displaced': lost,
       'error': error == null ? null : '$error',
-      'conflicts': [for (final conflict in conflicts) Map.of(conflict)],
+      'conflicts': [for (final conflict in conflicts) _publicChange(conflict)],
     },
   };
 }

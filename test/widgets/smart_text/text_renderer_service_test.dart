@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/theme/search_highlight_css.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -11,6 +12,47 @@ Future<void> main() async {
   // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
   // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
   final engineReady = await tryInitSearchEngine();
+
+  group('visitSearchHighlights', () {
+    test('מחזיר את טווחי המקור בלי ניקוד, פיסוק מוסתר או גוף הערה', () {
+      const raw = '<b>בּרא</b>-גד<i class="footnote"> ברא גד</i> ברא גד';
+      const settings = RenderSettings(
+        searchText: 'ברא גד',
+        removePunctuation: true,
+        removeNikud: true,
+        currentSearchIndex: 1,
+        highlightYellowBackground: true,
+      );
+      final ranges = <({String text, String css})>[];
+      TextRendererService.visitSearchHighlights(raw, settings, (offsets, css) {
+        ranges.add((text: offsets.map((i) => raw[i]).join(), css: css));
+      });
+      expect(ranges.map((range) => range.text), ['ברא', 'גד', 'ברא', 'גד']);
+      expect(
+        ranges.take(2).map((range) => range.css),
+        everyElement(contains(SearchHighlightCss.hit)),
+      );
+      expect(
+        ranges.skip(2).map((range) => range.css),
+        everyElement(contains(SearchHighlightCss.currentBackground)),
+      );
+    }, skip: !engineReady);
+
+    test('מדלג על ציון עוגן גם כשההדגשה הרציפה חוצה אותו', () {
+      const anchor = '<span class="link-anchor">ברא</span>';
+      const raw = 'אב $anchor גד';
+      const settings = RenderSettings(
+        searchText: 'אב גד',
+        highlightYellowBackground: true,
+      );
+      final ranges = <String>[];
+      TextRendererService.visitSearchHighlights(raw, settings, (offsets, css) {
+        expect(css, contains(SearchHighlightCss.mark));
+        ranges.add(offsets.map((i) => raw[i]).join());
+      });
+      expect(ranges, ['אב ', ' גד']);
+    }, skip: !engineReady);
+  });
 
   group('prepareInlineMarkers', () {
     test('משתמש באותו עיבוד סימונים של הקורא ללא שינוי בפלט', () {

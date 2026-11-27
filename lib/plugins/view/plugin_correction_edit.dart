@@ -1,7 +1,8 @@
 import 'package:flutter/services.dart';
+import 'package:otzaria/plugins/services/plugin_correction_text.dart';
 import 'package:otzaria/plugins/view/plugin_correction_projection.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
-    show TextDiffOp, computeTextDiff;
+    show TextDiffOp, TextDiffSegment, computeTextDiff;
 
 /// עיצוב תו בעורך: תת-קבוצה של תגיות המקור שהעורך יודע להציג.
 typedef CorrectionFormat = ({
@@ -24,6 +25,24 @@ const CorrectionFormat plainCorrectionFormat = (
   heading: null,
 );
 
+typedef CorrectionAttributes = ({
+  CorrectionFormat format,
+  CorrectionHtmlOrigin? origin,
+});
+
+const CorrectionAttributes plainCorrectionAttributes = (
+  format: plainCorrectionFormat,
+  origin: null,
+);
+
+CorrectionHtmlOrigin? _inheritedOrigin(CorrectionHtmlOrigin? origin) =>
+    origin == null ? null : (slot: origin.slot, spelling: null);
+
+CorrectionAttributes _inheritedAttributes(CorrectionAttributes attributes) => (
+  format: attributes.format,
+  origin: _inheritedOrigin(attributes.origin),
+);
+
 /// הטקסט המלא של פסקה, עיצובו, והטקסט הגלוי ממנו. כל עריכה ממוזגת אליו, וכל ערך
 /// בהיסטוריית הביטול נושא אותו.
 class EditorState {
@@ -31,14 +50,14 @@ class EditorState {
 
   factory EditorState.of(
     String full,
-    List<CorrectionFormat> formats, {
+    List<CorrectionAttributes> attributes, {
     required bool nikud,
     required bool teamim,
   }) {
-    final runs = <({int end, CorrectionFormat format})>[];
-    for (var i = 0; i < formats.length; i++) {
-      if (i + 1 == formats.length || formats[i] != formats[i + 1]) {
-        runs.add((end: i + 1, format: formats[i]));
+    final runs = <({int end, CorrectionAttributes attributes})>[];
+    for (var i = 0; i < attributes.length; i++) {
+      if (i + 1 == attributes.length || attributes[i] != attributes[i + 1]) {
+        runs.add((end: i + 1, attributes: attributes[i]));
       }
     }
     return EditorState(
@@ -48,19 +67,22 @@ class EditorState {
   }
 
   final CorrectionProjection projection;
-  final List<({int end, CorrectionFormat format})> runs;
+  final List<({int end, CorrectionAttributes attributes})> runs;
 
-  late final List<CorrectionFormat> fullFormats = _expand();
-  late final List<CorrectionFormat> visibleFormats = [
+  late final List<CorrectionAttributes> fullAttributes = _expand();
+  late final List<CorrectionAttributes> visibleAttributes = [
     for (var i = 0; i < projection.visible.length; i++)
-      fullFormats[projection.fullOffset(i)],
+      fullAttributes[projection.fullOffset(i)],
+  ];
+  late final List<CorrectionFormat> visibleFormats = [
+    for (final item in visibleAttributes) item.format,
   ];
 
-  List<CorrectionFormat> _expand() {
-    final result = <CorrectionFormat>[];
+  List<CorrectionAttributes> _expand() {
+    final result = <CorrectionAttributes>[];
     var start = 0;
     for (final run in runs) {
-      result.addAll(List.filled(run.end - start, run.format));
+      result.addAll(List.filled(run.end - start, run.attributes));
       start = run.end;
     }
     return result;
@@ -100,21 +122,25 @@ CorrectionEdit mergeEdit(
   final projection = base.projection;
   final start = projection.fullOffset(range.start + prefix);
   final end = projection.fullOffset(range.end - suffix);
-  final visibleFormats = base.visibleFormats;
-  final insertedFormats = replaceFormats(
+  final visibleAttributes = base.visibleAttributes;
+  final insertedAttributes = _replaceAttributes(
     removed,
     added,
-    visibleFormats.sublist(range.start, range.end),
-    previous: range.start > 0 ? visibleFormats[range.start - 1] : null,
-    next: range.end < visibleFormats.length ? visibleFormats[range.end] : null,
+    visibleAttributes.sublist(range.start, range.end),
+    fallback: plainCorrectionAttributes,
+    inherit: _inheritedAttributes,
+    previous: range.start > 0 ? visibleAttributes[range.start - 1] : null,
+    next: range.end < visibleAttributes.length
+        ? visibleAttributes[range.end]
+        : null,
   ).sublist(prefix, added.length - suffix);
-  final fullFormats = base.fullFormats;
+  final fullAttributes = base.fullAttributes;
   final state = EditorState.of(
     projection.full.replaceRange(start, end, inserted),
     [
-      ...fullFormats.sublist(0, start),
-      ...insertedFormats,
-      ...fullFormats.sublist(end),
+      ...fullAttributes.sublist(0, start),
+      ...insertedAttributes,
+      ...fullAttributes.sublist(end),
     ],
     nikud: projection.nikud,
     teamim: projection.teamim,
@@ -216,9 +242,9 @@ class CorrectionComposition {
           original.full.substring(originalStart, originalEnd),
         ),
         [
-          ...edit.state.fullFormats.take(fullStart),
-          ...source.fullFormats.sublist(originalStart, originalEnd),
-          ...edit.state.fullFormats.skip(fullEnd),
+          ...edit.state.fullAttributes.take(fullStart),
+          ...source.fullAttributes.sublist(originalStart, originalEnd),
+          ...edit.state.fullAttributes.skip(fullEnd),
         ],
         nikud: old.nikud,
         teamim: old.teamim,
@@ -319,12 +345,14 @@ TextRange _editRange(TextEditingValue before, TextEditingValue after) {
 
 /// עיצוב הטקסט החדש [added] במקום [removed]: מה שנשאר זהה שומר את עיצובו, והשאר
 /// יורש מהטקסט שהוחלף או מהתו שלפניו.
-List<CorrectionFormat> replaceFormats(
+List<T> _replaceAttributes<T>(
   String removed,
   String added,
-  List<CorrectionFormat> old, {
-  CorrectionFormat? previous,
-  CorrectionFormat? next,
+  List<T> old, {
+  required T fallback,
+  T Function(T)? inherit,
+  T? previous,
+  T? next,
 }) {
   final (prefix, suffix) = commonAffixes(removed, added);
   final replaced = prefix < removed.length - suffix;
@@ -332,26 +360,35 @@ List<CorrectionFormat> replaceFormats(
       ? old[prefix]
       : (prefix > 0 ? old[prefix - 1] : previous) ??
             (prefix < old.length ? old[prefix] : next) ??
-            plainCorrectionFormat;
+            fallback;
   return [
     ...old.sublist(0, prefix),
-    ...List.filled(added.length - prefix - suffix, inherited),
+    ...List.filled(
+      added.length - prefix - suffix,
+      inherit == null ? inherited : inherit(inherited),
+    ),
     ...old.sublist(old.length - suffix),
   ];
 }
 
 /// מעביר עיצוב מ-[before] ל-[after]: טקסט שלא השתנה שומר את עיצובו, וטקסט
 /// חדש יורש מהטקסט שהחליף או מהתו שלפניו.
-List<CorrectionFormat> remapFormats(
+List<T> _remapAttributes<T>(
   String before,
   String after,
-  List<CorrectionFormat> formats,
-) {
+  List<T> formats,
+  List<TextDiffSegment> diff, {
+  required T fallback,
+  T Function(T)? inherit,
+  bool Function(T, T)? equivalent,
+  bool suppressAmbiguousRepeats = false,
+}) {
   if (formats.length != before.length) {
-    return List.filled(after.length, plainCorrectionFormat);
+    return List.filled(after.length, fallback);
   }
-  final result = <CorrectionFormat>[];
+  final result = <T>[];
   var offset = 0;
+  bool same(T a, T b) => equivalent?.call(a, b) ?? a == b;
   final removed = StringBuffer();
   final added = StringBuffer();
   void flush() {
@@ -359,12 +396,14 @@ List<CorrectionFormat> remapFormats(
     final old = formats.sublist(offset, offset + removed.length);
     final end = offset + removed.length;
     result.addAll(
-      old.isNotEmpty && old.any((format) => format != old.first)
-          ? List.filled(added.length, plainCorrectionFormat)
-          : replaceFormats(
+      old.isNotEmpty && old.any((format) => !same(format, old.first))
+          ? List.filled(added.length, fallback)
+          : _replaceAttributes(
               removed.toString(),
               added.toString(),
               old,
+              fallback: fallback,
+              inherit: inherit,
               previous: result.isEmpty ? null : result.last,
               next: end < formats.length ? formats[end] : null,
             ),
@@ -374,7 +413,7 @@ List<CorrectionFormat> remapFormats(
     added.clear();
   }
 
-  for (final segment in computeTextDiff(before, after)) {
+  for (final segment in diff) {
     switch (segment.op) {
       case TextDiffOp.removed:
         removed.write(segment.text);
@@ -388,9 +427,8 @@ List<CorrectionFormat> remapFormats(
   }
   flush();
   if (before == after) return result;
-  // טיוטה שומרת נוסח בלבד; אין דרך לזהות איזה מופע חוזר נמחק.
-  final words =
-      <String, ({int count, List<CorrectionFormat> formats, bool ambiguous})>{};
+  // כשמשחזרים מנוסח בלבד, אי אפשר לזהות איזה מופע חוזר נמחק.
+  final words = <String, ({int count, List<T> formats, bool ambiguous})>{};
   final tokens = RegExp(r'\S+');
   for (final match in tokens.allMatches(before)) {
     final word = match[0]!;
@@ -404,20 +442,65 @@ List<CorrectionFormat> remapFormats(
           (previous.ambiguous ||
               Iterable<int>.generate(
                 current.length,
-              ).any((index) => previous.formats[index] != current[index])),
+              ).any((index) => !same(previous.formats[index], current[index]))),
     );
   }
   final counts = <String, int>{};
-  for (final match in tokens.allMatches(after)) {
-    counts.update(match[0]!, (count) => count + 1, ifAbsent: () => 1);
+  if (!suppressAmbiguousRepeats) {
+    for (final match in tokens.allMatches(after)) {
+      counts.update(match[0]!, (count) => count + 1, ifAbsent: () => 1);
+    }
   }
   for (final match in tokens.allMatches(after)) {
     final original = words[match[0]!];
     if (original != null &&
         original.ambiguous &&
-        original.count != counts[match[0]!]) {
-      result.fillRange(match.start, match.end, plainCorrectionFormat);
+        (suppressAmbiguousRepeats || original.count != counts[match[0]!])) {
+      result.fillRange(match.start, match.end, fallback);
     }
   }
   return result;
+}
+
+List<CorrectionAttributes> remapCorrectionAttributes(
+  String before,
+  String after,
+  List<CorrectionAttributes> attributes, {
+  required bool hasMarkup,
+  List<CorrectionHtmlOrigin?>? restoredOrigins,
+}) {
+  if (before == after) return attributes;
+  final diff = computeTextDiff(before, after);
+  final formats = _remapAttributes(
+    before,
+    after,
+    [for (final item in attributes) item.format],
+    diff,
+    fallback: plainCorrectionFormat,
+  );
+  final origins =
+      restoredOrigins ??
+      (hasMarkup
+          ? _remapAttributes<CorrectionHtmlOrigin?>(
+              before,
+              after,
+              [for (final item in attributes) item.origin],
+              diff,
+              fallback: ambiguousCorrectionOrigin,
+              inherit: _inheritedOrigin,
+              equivalent: (a, b) => a?.slot == b?.slot,
+              suppressAmbiguousRepeats: true,
+            )
+          : null);
+  final formatsBySlot = {
+    if (restoredOrigins != null)
+      for (final item in attributes) item.origin?.slot: item.format,
+  };
+  return [
+    for (var i = 0; i < formats.length; i++)
+      (
+        format: formatsBySlot[origins?[i]?.slot] ?? formats[i],
+        origin: origins?[i],
+      ),
+  ];
 }

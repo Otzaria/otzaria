@@ -60,22 +60,30 @@ class TextRendererService {
   }
 
   /// שלבי העיבוד שלפני הדגשת החיפוש — גם לשורה סמוכה שהדגשה עוברת אליה.
-  static String _beforeHighlight(String rawText, RenderSettings settings) {
+  static String _beforeHighlight(
+    String rawText,
+    RenderSettings settings, {
+    List<int>? sourceOffsets,
+  }) {
     String processed = rawText;
 
     // 0b. הסרת גוף הערות inline (<i class="footnote">...</i>) - מוצגות כמפרש בצד.
-    processed = notes.stripInlineNotes(processed);
+    processed = notes.stripInlineNotes(processed, sourceOffsets: sourceOffsets);
 
     // 1+2. טעמים וניקוד — בנפרד, כדי ש"בלי ניקוד, עם טעמים" יהיה אפשרי.
     processed = utils.removeMarks(
       processed,
       nikud: settings.removeNikud,
       teamim: settings.removeTeamim,
+      sourceOffsets: sourceOffsets,
     );
 
     // 2b. הסרת סימני פיסוק (אם נדרש)
     if (settings.removePunctuation) {
-      processed = utils.removePunctuation(processed);
+      processed = utils.removePunctuation(
+        processed,
+        sourceOffsets: sourceOffsets,
+      );
     }
 
     return processed;
@@ -88,25 +96,7 @@ class TextRendererService {
     // 3. הדגשת טקסט חיפוש (אם יש) — לפני החלפת שם הוי"ה: תבנית ההדגשה
     // מכירה את הכתיב שבשאילתה, ואחרי ההחלפה "יהוה" כבר לא נמצא בטקסט.
     if (settings.searchText.isNotEmpty) {
-      String? neighbour(String? text) =>
-          text == null ? null : _beforeHighlight(text, settings);
-      processed = utils.highLight(
-        processed,
-        settings.searchText,
-        currentIndex: settings.currentSearchIndex,
-        searchOptions: settings.searchOptions,
-        alternativeWords: settings.alternativeWords,
-        spacingValues: settings.spacingValues,
-        isFuzzy: settings.isFuzzySearch,
-        searchDistance: settings.searchDistance,
-        matchPolicy: settings.matchPolicy,
-        isSearchResultLine: settings.isSearchResultLine,
-        yellowBackground: settings.highlightYellowBackground,
-        partialWordMatch: settings.partialWordHighlight,
-        punctuationHidden: settings.removePunctuation,
-        previousLine: neighbour(settings.previousLineText),
-        nextLine: neighbour(settings.nextLineText),
-      );
+      processed = _highlight(processed, settings);
     }
 
     // ההדגשה זקוקה ל-sup/sub המקוריים כדי לזהות גבולות מילים ואות תלויה.
@@ -138,6 +128,55 @@ class TextRendererService {
     }
 
     return processed;
+  }
+
+  static String _highlight(
+    String processed,
+    RenderSettings settings, {
+    void Function(int start, int end, String style)? visit,
+  }) {
+    String? neighbour(String? text) =>
+        text == null ? null : _beforeHighlight(text, settings);
+    return utils.highLight(
+      processed,
+      settings.searchText,
+      currentIndex: settings.currentSearchIndex,
+      searchOptions: settings.searchOptions,
+      alternativeWords: settings.alternativeWords,
+      spacingValues: settings.spacingValues,
+      isFuzzy: settings.isFuzzySearch,
+      searchDistance: settings.searchDistance,
+      matchPolicy: settings.matchPolicy,
+      isSearchResultLine: settings.isSearchResultLine,
+      yellowBackground: settings.highlightYellowBackground,
+      partialWordMatch: settings.partialWordHighlight,
+      punctuationHidden: settings.removePunctuation,
+      previousLine: neighbour(settings.previousLineText),
+      nextLine: neighbour(settings.nextLineText),
+      visit: visit,
+    );
+  }
+
+  /// מוסר את טווחי ההדגשה של הקורא בהיסטי ה-HTML המקורי, לפני החלפת שמות.
+  static void visitSearchHighlights(
+    String rawText,
+    RenderSettings settings,
+    void Function(Iterable<int> offsets, String style) visit,
+  ) {
+    if (settings.searchText.isEmpty || rawText.isEmpty) return;
+    final offsets = List<int>.generate(rawText.length, (index) => index);
+    final processed = _beforeHighlight(
+      rawText,
+      settings,
+      sourceOffsets: offsets,
+    );
+    _highlight(
+      processed,
+      settings,
+      visit: (start, end, style) {
+        visit(offsets.getRange(start, end), style);
+      },
+    );
   }
 
   /// מכין סימוני עילית ותחתית לציור המשותף; [unhighlighted] מכיל אותן תגיות
@@ -304,21 +343,30 @@ class TextRendererService {
     return '<div style="text-align: $textAlign; direction: rtl;">$text</div>';
   }
 
+  /// הגדרות שמשפיעות על טווחי החיפוש, לשימוש במטמון של [visitSearchHighlights].
+  static RenderSettings searchHighlightSettings(RenderSettings settings) =>
+      _processingOnlySettings(settings, includePostProcessing: false);
+
   /// מנרמל את ההגדרות לשדות שבאמת משפיעים על [processText] (שדות עיצוב כמו
   /// גופן/יישור נשארים בברירת מחדל) — אחרת שינוי גודל גופן מרוקן את המטמון.
   /// חובה לעדכן כאן כל שדה חדש ש-processText יתחיל להשתמש בו.
-  static RenderSettings _processingOnlySettings(RenderSettings settings) {
+  static RenderSettings _processingOnlySettings(
+    RenderSettings settings, {
+    bool includePostProcessing = true,
+  }) {
     const defaults = RenderSettings();
     final search = settings.searchText.isEmpty ? defaults : settings;
+    final replaceHolyNames = includePostProcessing && settings.replaceHolyNames;
     return RenderSettings(
       removeNikud: settings.removeNikud,
       removePunctuation: settings.removePunctuation,
       removeTeamim: settings.removeTeamim,
-      replaceHolyNames: settings.replaceHolyNames,
-      holyNameStyle: settings.replaceHolyNames
+      replaceHolyNames: replaceHolyNames,
+      holyNameStyle: replaceHolyNames
           ? settings.holyNameStyle
           : defaults.holyNameStyle,
-      substituteDivineNames: settings.substituteDivineNames,
+      substituteDivineNames:
+          includePostProcessing && settings.substituteDivineNames,
       searchText: search.searchText,
       currentSearchIndex: search.currentSearchIndex,
       searchOptions: search.searchOptions,
@@ -328,7 +376,7 @@ class TextRendererService {
       searchDistance: search.searchDistance,
       matchPolicy: search.matchPolicy,
       isSearchResultLine: search.isSearchResultLine,
-      formatParentheses: settings.formatParentheses,
+      formatParentheses: includePostProcessing && settings.formatParentheses,
       highlightYellowBackground: search.highlightYellowBackground,
       partialWordHighlight: search.partialWordHighlight,
       previousLineText: search.previousLineText,

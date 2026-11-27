@@ -166,12 +166,11 @@ String addInlineNotePreviewLinks(
 
 /// עיבוד גוף ההערה [note] (מיקום ב-`notesAt`) של שורה [lineIndex] מהטבלה, למשל
 /// הזרקת חלקי עוגני הקישורים שבו.
-typedef BookNoteBodyDecorator =
-    String Function(
-      int lineIndex,
-      int note,
-      String body,
-    );
+typedef BookNoteBodyDecorator = String Function(
+  int lineIndex,
+  int note,
+  String body,
+);
 
 /// מחזיר את תוכן ההערה שאליה מפנה [url] — מהשורה או מהטבלה ([dbNotes]).
 String? inlineNoteFromPreviewUrl(
@@ -200,16 +199,25 @@ String? inlineNoteFromPreviewUrl(
 
 /// מסיר את גוף ההערות (<i class="footnote">...</i>) משורה אחת.
 /// משאיר את ה-<sup> במקומו כעוגן ויזואלי לאיפה הייתה ההערה.
-String stripInlineNotes(String html) {
+String stripInlineNotes(String html, {List<int>? sourceOffsets}) {
   if (!html.contains('footnote')) return html;
   StringBuffer? result;
   var last = 0;
+  var written = 0;
+  void copy(int end) {
+    (result ??= StringBuffer()).write(html.substring(last, end));
+    sourceOffsets?.setRange(written, written + end - last, sourceOffsets, last);
+    written += end - last;
+  }
+
   for (final body in _footnoteBodies(html)) {
-    (result ??= StringBuffer()).write(html.substring(last, body.start));
+    copy(body.start);
     last = body.end;
   }
   if (result == null) return html;
-  return (result..write(html.substring(last))).toString();
+  copy(html.length);
+  if (sourceOffsets != null) sourceOffsets.length = written;
+  return result.toString();
 }
 
 /// מסיר גם את אות ההפניה וגם את גוף ההערה — לחיפוש ולאינדוקס, שבהם תגי ה-HTML

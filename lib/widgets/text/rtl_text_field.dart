@@ -1,6 +1,9 @@
 import 'dart:async';
+
 import 'package:otzaria/theme/app_tokens.dart';
+
 import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -172,6 +175,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
     _rawController = _HardBreakController(
       _effectiveController,
       _expandMapper.map(_effectiveController.value),
+      _collapseMapper,
     );
     _rawController!.addListener(_syncCleanFromRawLive);
     _effectiveController.addListener(_syncRawFromCleanExternally);
@@ -961,9 +965,13 @@ class _RtlTextFieldState extends State<RtlTextField> {
 /// מציג את העיצוב של ה-controller של הקורא כשהעוקף לא הוסיף לטקסט CR.
 class _HardBreakController extends TextEditingController {
   final TextEditingController source;
+  final HardBreakValueMapper _collapseMapper;
 
-  _HardBreakController(this.source, TextEditingValue initial)
-    : super.fromValue(initial);
+  _HardBreakController(
+    this.source,
+    TextEditingValue initial,
+    this._collapseMapper,
+  ) : super.fromValue(initial);
 
   @override
   TextEditingValue get value {
@@ -1012,15 +1020,19 @@ class _HardBreakController extends TextEditingController {
         withComposing: withComposing,
       );
     }
-    // הטקסט מורחב ל-\r\n, לכן מרחיבים גם את העלים של הקורא. בהרכבה (IME)
-    // ההיסטים אינם תואמים ונשארים עם הציור הרגיל.
-    final span = withComposing && value.isComposingRangeValid
-        ? null
-        : source.buildTextSpan(
+    // אם ההיסטים הנקיים של ההרכבה תואמים, אפשר להרחיב גם את העלים שלה.
+    final composing = withComposing && stored.isComposingRangeValid;
+    final sameComposing =
+        !composing ||
+        _collapseMapper.map(stored, matchingText: source.text).composing ==
+            source.value.composing;
+    final span = sameComposing
+        ? source.buildTextSpan(
             context: context,
             style: style,
-            withComposing: false,
-          );
+            withComposing: composing,
+          )
+        : null;
     final expanded = span?.children == null ? null : _expandSpan(span!);
     if (expanded != null &&
         expanded.toPlainText(includeSemanticsLabels: false) == text) {

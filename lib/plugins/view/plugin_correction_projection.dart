@@ -29,56 +29,24 @@ class CorrectionProjection {
     required bool teamim,
   }) {
     final visible = utils.removeMarks(full, nikud: nikud, teamim: teamim);
-    final toFull = visible == full
-        ? null
-        : _align(full, visible, nikud, teamim);
-    // יישור שנכשל משאיר את הטקסט המלא גלוי: עדיף מסך עמוס מאשר עריכה שגויה.
-    return toFull == null && visible != full
-        ? CorrectionProjection._(full, nikud, teamim, full, null)
-        : CorrectionProjection._(full, nikud, teamim, visible, toFull);
-  }
-
-  static final Map<int, String> _images = {};
-
-  /// מה שהקורא מציג במקום יחידת קוד אחת (ריק כשהיא מוסתרת).
-  static String _image(int unit, bool nikud, bool teamim) =>
-      _images.putIfAbsent(
-        unit | (nikud ? 1 << 16 : 0) | (teamim ? 1 << 17 : 0),
-        () => utils.removeMarks(
-          String.fromCharCode(unit),
-          nikud: nikud,
-          teamim: teamim,
-        ),
-      );
-
-  /// מתאים כל תו גלוי ליחידה שבטקסט המלא, מהסוף להתחלה: כשהקורא מוחק רווח
-  /// שלפני פסק, הרווח שנשאר גלוי הוא האחרון.
-  static Int32List? _align(
-    String full,
-    String visible,
-    bool nikud,
-    bool teamim,
-  ) {
-    final toFull = Int32List(visible.length + 1);
-    toFull[visible.length] = full.length;
-    var j = visible.length - 1;
-    for (var k = full.length - 1; k >= 0 && j >= 0; k--) {
-      // הסרת טעמים בלבד מוחקת גם את הרווח או המקף שמיד לפני פסק.
-      if (teamim &&
-          !nikud &&
-          full.codeUnitAt(k) == 0x05C0 &&
-          k > 0 &&
-          (full.codeUnitAt(k - 1) == 0x20 ||
-              full.codeUnitAt(k - 1) == 0x05BE)) {
-        k--;
-        continue;
-      }
-      final image = _image(full.codeUnitAt(k), nikud, teamim);
-      if (image.length == 1 && image.codeUnitAt(0) == visible.codeUnitAt(j)) {
-        toFull[j--] = k;
-      }
+    if (visible == full) {
+      return CorrectionProjection._(full, nikud, teamim, full, null);
     }
-    return j < 0 ? toFull : null;
+    final offsets = List<int>.generate(full.length, (index) => index);
+    utils.removeMarks(
+      full,
+      nikud: nikud,
+      teamim: teamim,
+      sourceOffsets: offsets,
+    );
+    offsets.add(full.length);
+    return CorrectionProjection._(
+      full,
+      nikud,
+      teamim,
+      visible,
+      Int32List.fromList(offsets),
+    );
   }
 
   /// ההיסט בטקסט המלא של התו הגלוי שב-[visibleOffset]. סימנים מוסתרים שאחרי

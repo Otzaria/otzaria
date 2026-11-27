@@ -11,6 +11,7 @@ import 'package:otzaria/plugins/services/plugin_correction_session_service.dart'
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -378,6 +379,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       teamim: widget.settings.removeTeamim,
     );
     controller.formatParentheses = widget.settings.formatParentheses;
+    controller.setHighlight(widget.settings);
     controller.setSource(widget.sourceText);
     final canonical = _registry.editableText(
       widget.tabId,
@@ -385,7 +387,14 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       widget.sourceText,
     );
     if (controller.canonical == canonical) return false;
-    controller.restoreCanonical(canonical);
+    controller.restoreCanonical(
+      canonical,
+      markup: _registry.editableMarkup(
+        widget.tabId,
+        widget.sectionIndex,
+        widget.sourceText,
+      ),
+    );
     return true;
   }
 
@@ -448,6 +457,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.sectionIndex,
         widget.sourceText,
         _controller!.canonical,
+        markup: _controller!.draftMarkup,
       );
     } on PluginCorrectionException catch (error) {
       _showRejection(error);
@@ -504,7 +514,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
             },
             child: _CaretRoom(
               suppressReveal: () => _suppressReveal,
-              child: _buildEditor(),
+              child: ListenableBuilder(
+                listenable: widget.settings.searchText.isEmpty
+                    ? const AlwaysStoppedAnimation(0)
+                    : utils.highlightPatternRevision,
+                builder: (context, child) => _buildEditor(),
+              ),
             ),
           ),
         ),
