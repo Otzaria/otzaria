@@ -19,6 +19,7 @@ class NavigationKeyTracker with WidgetsBindingObserver {
 
   void release(KeyEvent event) {
     if (event is KeyUpEvent &&
+        !HardwareKeyboard.instance.isLogicalKeyPressed(event.logicalKey) &&
         _keys.remove(event.logicalKey) &&
         _keys.isEmpty) {
       clear();

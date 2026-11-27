@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "engineRevision": "deb287481e3ce9468f3434937ced4240a70539ca",
+  "patchSha256": {
+    "windows-numpad.patch": "544bd5c5799b8227636c3e4b53f36ff184f334003cf09b2552f8a54ff88b4a57"
+  },
+  "releases": [
+    {
+      "patches": [],
+      "url": "https://github.com/palmoni5/flutter/releases/download/otzaria-3.47.7-a11y.1",
+      "sha256": {
+        "x64": "cc04e8c75d7b8740b3b2705e87a9f9d6839366518ad1eb842e33c6efd2048818",
+        "arm64": "ed7d43bbc77af371cb44303d9484503417761c2ba36480982bc467552c888eab"
+      }
+    },
+    {
+      "patches": ["windows-numpad.patch"],
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.7-a11y-numpad.1",
+      "sha256": {
+        "x64": "502d7c7675f7a1b36c7fe4984fd404009f3cc94bd1a191ecbf95bc5fe31f1b20",
+        "arm64": "dbe8932f9821f41a5b6fdffd3df4f37790554ae60cd697c600e897870ab0eb1c"
+      }
+    }
+  ]
+}

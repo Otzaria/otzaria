@@ -1,0 +1,3 @@
+patches/*.patch text eol=lf
+# A blank context line in a unified diff consists of one space.
+patches/*.patch whitespace=-blank-at-eol
