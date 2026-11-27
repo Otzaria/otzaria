@@ -253,6 +253,42 @@ void main() {
     );
   });
 
+  testWidgets('בחירת שורה בספר מעדכנת רק את סימון הכותרות שהשתנו', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    final toc = find.byType(TocViewer);
+    final bloc = tester.element(toc).read<TextBookBloc>() as _TestTextBookBloc;
+    bloc.update(
+      (bloc.state as TextBookLoaded).copyWith(
+        tableOfContents: [
+          TocEntry(text: 'כותרת א', index: 0, level: 1),
+          TocEntry(text: 'כותרת ב', index: 1, level: 1),
+          TocEntry(text: 'כותרת ג', index: 2, level: 1),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    NavTreeTile tile(String title) => tester.widget<NavTreeTile>(
+      find.descendant(
+        of: toc,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is NavTreeTile && widget.title == title,
+        ),
+      ),
+    );
+    final untouched = tile('כותרת ג');
+    expect(tile('כותרת א').isSelected, isTrue);
+
+    bloc.add(UpdateSelectedIndex(1));
+    await tester.pumpAndSettle();
+
+    expect(tile('כותרת א').isSelected, isFalse);
+    expect(tile('כותרת ב').isSelected, isTrue);
+    expect(tile('כותרת ג'), same(untouched));
+  });
+
   testWidgets('הקלדה בחיפוש-בספר שורדת את סיום בדיקת הכותרות החלופיות', (
     tester,
   ) async {
