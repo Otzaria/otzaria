@@ -15,6 +15,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
@@ -811,6 +812,114 @@ Future<void> main() async {
 
     await tester.pump(const Duration(milliseconds: 800));
   }, skip: !engineReady);
+
+  group('מצב החיפוש המשותף לחלוניות (issue #1692)', () {
+    setUp(() => InBookSearchPreferences.saveWholeWord(false));
+    tearDown(() => InBookSearchPreferences.saveWholeWord(false));
+
+    UpdateSearchOptions lastOptions(_RecordingSearchRepository repository) =>
+        verify(
+          () =>
+              repository.bloc.add(captureAny(that: isA<UpdateSearchOptions>())),
+        ).captured.cast<UpdateSearchOptions>().last;
+
+    testWidgets('מתג מילים שלמות נשמר ומבטל את ההורשה מתוצאה גלובלית', (
+      tester,
+    ) async {
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+
+      await tester.tap(find.byIcon(OtzariaIcons.alef_mix_24_regular));
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+      expect(lastOptions(repository).searchOrigin, InBookSearchOrigin.inBook);
+      // ה-PDF ממשיך לסרוק את שכבת הטקסט של pdfrx ולא את המנוע.
+      expect(repository.requests, isEmpty);
+      expect(repository.textSearcher.pattern, isA<RegExp>());
+    });
+
+    testWidgets('השאילתה מתוצאה גלובלית נושאת את מקורה רק עד שנערכת', (
+      tester,
+    ) async {
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+
+      // ניקוד ורווחים בקצוות אינם עריכה של השאילתה.
+      await tester.enterText(find.byType(TextField).first, ' שָׁמַיִם ');
+      await tester.pump(const Duration(milliseconds: 800));
+      verifyNever(
+        () => repository.bloc.add(
+          any(
+            that: isA<UpdateSearchOptions>().having(
+              (event) => event.searchOrigin,
+              'searchOrigin',
+              InBookSearchOrigin.inBook,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField).first, 'ארץ');
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(lastOptions(repository).searchOrigin, InBookSearchOrigin.inBook);
+    });
+
+    testWidgets('איפוס מבטל את ההורשה ומשאיר את מתג מילים שלמות', (
+      tester,
+    ) async {
+      await InBookSearchPreferences.saveWholeWord(true);
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+
+      await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(lastOptions(repository).searchOrigin, InBookSearchOrigin.inBook);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+    });
+
+    testWidgets('שאילתה חיצונית קוראת מחדש את ההעדפה שהשתנתה בטאב אחר', (
+      tester,
+    ) async {
+      final incoming = ValueNotifier<ReadingTabSearchState?>(null);
+      addTearDown(incoming.dispose);
+      await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        incomingSearchConfiguration: incoming,
+      );
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+
+      await InBookSearchPreferences.saveWholeWord(true);
+      incoming.value = const ReadingTabSearchState(
+        searchText: 'ארץ',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+    });
+  });
 }
 
 class _SearchRequest {
