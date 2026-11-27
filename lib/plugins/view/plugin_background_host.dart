@@ -27,6 +27,8 @@ import 'package:otzaria/plugins/view/plugin_webrtc_block_script.dart';
 import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 
 /// תקרה רכה למופעי רקע לפי-דרישה: מעליה מפונה הוותיק שאינו keepAlive,
 /// אינו באמצע boot ואינו עסוק ב-RPC. כשאין מועמד כזה הסט גדל מעל התקרה.
@@ -221,6 +223,11 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
     }
     if (plugin == null) {
       throw StateError('plugin $pluginId is not installed or disabled');
+    }
+    // אותו כלל שחוסם את טאב התוסף במצב מנותק — אחרת הרקע ניגש לרשת בכל זאת.
+    if (plugin.blockedInOfflineMode &&
+        (Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false)) {
+      throw StateError('plugin $pluginId requires internet in offline mode');
     }
     if (!_runtimeAvailable) {
       _runtimeAvailable = await WebViewEnvironmentHolder.isRuntimeAvailable();
