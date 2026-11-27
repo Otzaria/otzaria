@@ -49,6 +49,21 @@ void main() {
     expect(backend.retireDirs, hasLength(1));
   });
 
+  test('פינוי מתחיל רק אחרי שחימום הסשן הסתיים', () async {
+    final gate = Completer<void>();
+    final backend = FakeBackend()
+      ..vectors = generation(7)
+      ..warmUpGate = gate;
+    final repo = buildRepository(root: root, backend: backend);
+
+    await repo.ensureOpen();
+    expect(backend.searchRequests, hasLength(1));
+    expect(backend.retireDirs, isEmpty);
+
+    gate.complete();
+    await waitFor(() => backend.retiredDirs.isNotEmpty);
+  });
+
   test('פתיחה שנפלה לדור הקודם לא מוחקת אותו', () async {
     final backend = FakeBackend()..vectors = generation(7, recovered: true);
     final repo = buildRepository(root: root, backend: backend);
@@ -112,6 +127,39 @@ void main() {
       backend.calls.where((call) => call == 'retire' || call == 'install'),
       orderedEquals(['retire', 'install', 'retire']),
     );
+  });
+
+  test('התקנה מבטלת פינוי פעיל ומנסה לפנות שוב אם נכשלה', () async {
+    final gate = Completer<void>();
+    final backend = FakeBackend()
+      ..vectors = SemanticVectorsSummary(
+        present: true,
+        modelFamilyId: installedV30.modelFamilyId,
+        libraryVersion: 29,
+        libraryReleaseTag: 'v29',
+        generation: 7,
+      )
+      ..retireGate = gate
+      ..installFailures.add(
+        const SemanticFailure(SemanticFailureKind.internal),
+      );
+    final repo = buildRepository(
+      root: root,
+      backend: backend,
+      locator: FakeLocator(releaseV30()),
+    );
+
+    await repo.ensureOpen();
+    await waitFor(() => backend.retireDirs.isNotEmpty);
+    final install = repo.enableAndDownload();
+    await waitFor(() => backend.retireCancel!.isCancelled);
+    expect(backend.installRequests, isEmpty);
+    gate.complete();
+    await install;
+    await waitFor(() => backend.retiredDirs.isNotEmpty);
+
+    expect(backend.retireDirs, hasLength(2));
+    expect(backend.installRequests, hasLength(1));
   });
 
   for (final move in [false, true]) {

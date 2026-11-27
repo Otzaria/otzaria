@@ -78,14 +78,20 @@ class _FakeEngine implements SearchEngine {
   );
 
   String? retiredDir;
+  SemanticCancellationToken? retireToken;
+  Completer<void>? retirePause;
 
   @override
-  Future<SemanticGenerationRetireReport> retirePreviousSemanticGeneration({
+  Future<SemanticGenerationRetireReport>
+  retirePreviousOpenedSemanticGeneration({
     required String vectorsDir,
+    required SemanticCancellationToken cancellation,
   }) async {
     final error = failure;
     if (error != null) throw error;
     retiredDir = vectorsDir;
+    retireToken = cancellation;
+    await retirePause?.future;
     return SemanticGenerationRetireReport(
       generation: BigInt.two,
       retired: true,
@@ -397,15 +403,67 @@ void main() {
     );
   });
 
-  test('retirePreviousGeneration שומר את הגיבוי במנוע 7.5.3', () async {
+  const openRequest = SemanticOpenRequest(
+    vectorsDir: '/v',
+    modelPath: '/m/query.onnx',
+    modelIdentityJson: '{}',
+  );
+
+  test('פינוי גיבוי מעביר למנוע שפתח את הסשן את הנתיב ואת הביטול', () async {
+    await adapter.open(openRequest);
+    final pause = engine.retirePause = Completer<void>();
+    final cancel = SemanticCancelHandle();
+    final pending = adapter.retirePreviousGeneration('/v', cancel: cancel);
+    await Future<void>.delayed(Duration.zero);
+    expect(engine.retiredDir, '/v');
+    expect(engine.retireToken, same(tokens.single));
+    cancel.cancel();
+    expect(tokens.single.isCancelled, isTrue);
+    expect(tokens.single.isDisposed, isFalse);
+    pause.complete();
+    expect(await pending, isTrue);
+    expect(tokens.single.isDisposed, isTrue);
+  });
+
+  test('פינוי גיבוי שומר את הגיבוי עד שהמנוע החדש פותח את הסשן', () async {
+    await adapter.open(openRequest);
+    final previous = engine;
+    engine = _FakeEngine();
+    final cancel = SemanticCancelHandle();
+
     expect(
-      await adapter.retirePreviousGeneration(
-        '/v',
-        cancel: SemanticCancelHandle(),
-      ),
+      await adapter.retirePreviousGeneration('/v', cancel: cancel),
       isFalse,
     );
+    expect(previous.retiredDir, isNull);
     expect(engine.retiredDir, isNull);
+    expect(tokens, isEmpty);
+
+    await adapter.open(openRequest);
+    expect(
+      await adapter.retirePreviousGeneration('/v', cancel: cancel),
+      isTrue,
+    );
+    expect(engine.retiredDir, '/v');
+  });
+
+  test('פינוי גיבוי ממפה סט תפוס', () async {
+    await adapter.open(openRequest);
+    engine.failure = const SemanticError(
+      kind: SemanticErrorKind.vectorsBusy,
+      message: 'compaction is running',
+      field: 'vectors_dir',
+    );
+    await expectLater(
+      adapter.retirePreviousGeneration('/v', cancel: SemanticCancelHandle()),
+      throwsA(
+        isA<SemanticFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          SemanticFailureKind.vectorsBusy,
+        ),
+      ),
+    );
   });
 
   test('search: ביטול מגיע ל-token, והדירוג ו-fallbackKind ממופים', () async {

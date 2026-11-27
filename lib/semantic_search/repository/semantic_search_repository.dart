@@ -223,6 +223,7 @@ class SemanticSearchRepository {
   SemanticCancelHandle _compactCancel = SemanticCancelHandle();
 
   String? _openVectorsDirectory;
+  Future<void>? _retirementWarmUp;
   bool _retirementPending = false;
   SemanticCancelHandle? _retirementCancel;
   Timer? _retirementRetry;
@@ -944,8 +945,14 @@ class SemanticSearchRepository {
     _openQuantization = quantization;
     _openVectorsDirectory = paths.vectorsDirectory;
     _retirementPending = true;
-    unawaited(_warmUp());
-    _retirePreviousIfNeeded();
+    final warmUp = _retirementWarmUp = _warmUp();
+    unawaited(
+      warmUp.whenComplete(() {
+        if (!identical(_retirementWarmUp, warmUp)) return;
+        _retirementWarmUp = null;
+        _retirePreviousIfNeeded();
+      }),
+    );
   }
 
   Future<void> _warmUp() async {
@@ -980,6 +987,7 @@ class SemanticSearchRepository {
     final wasOpen = _openQuantization != null;
     _openQuantization = null;
     _openVectorsDirectory = null;
+    _retirementWarmUp = null;
     _retirementPending = false;
     _retirementRetry?.cancel();
     _retirementRetry = null;
@@ -1498,7 +1506,9 @@ class SemanticSearchRepository {
       );
       if (_jobCancel.isCancelled) return;
     }
-    if (_retirementCancel != null) await _compaction;
+    if (_vectors?.needsCompaction == true && _retirementCancel != null) {
+      await _stopCompaction(retryRetirement: true);
+    }
     if (!_jobCancel.isCancelled) _compactIfNeeded();
   }
 
@@ -1512,7 +1522,7 @@ class SemanticSearchRepository {
     SemanticFileDownloader? download,
   }) async {
     final plan = chain ?? [base];
-    await _stopCompaction();
+    await _stopCompaction(retryRetirement: true);
     if (_jobCancel.isCancelled) return;
     await _ensureOwnedOrAbsent(paths.vectorsDirectory, allowEmpty: true);
     await _ensureOwnedOrAbsent(paths.vectorsDownloadDirectory);
@@ -1686,6 +1696,7 @@ class SemanticSearchRepository {
     final dir = _openVectorsDirectory;
     if (dir == null ||
         !_retirementPending ||
+        _retirementWarmUp != null ||
         _retirementRetry != null ||
         _compaction != null ||
         _job != null ||
@@ -1728,7 +1739,12 @@ class SemanticSearchRepository {
   }
 
   /// מבטל איחוד שרץ וממתין לו: התקנה, מחיקה והעברה צריכות את הסט פנוי.
-  Future<void> _stopCompaction() async {
+  Future<void> _stopCompaction({bool retryRetirement = false}) async {
+    final retirement = _retirementCancel;
+    if (retryRetirement && retirement != null) {
+      _retirementPending = true;
+      retirement.cancel();
+    }
     _compactCancel.cancel();
     await _compaction;
   }

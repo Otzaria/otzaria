@@ -292,6 +292,7 @@ class FakeBackend implements SemanticEngineBackend {
   final List<String> retireDirs = [];
   final List<String> retiredDirs = [];
   Completer<void>? retireGate;
+  SemanticCancelHandle? retireCancel;
 
   @override
   Future<bool> retirePreviousGeneration(
@@ -300,6 +301,7 @@ class FakeBackend implements SemanticEngineBackend {
   }) async {
     calls.add('retire');
     retireDirs.add(vectorsDir);
+    retireCancel = cancel;
     final gate = retireGate;
     if (gate != null) await gate.future;
     if (cancel.isCancelled) {
