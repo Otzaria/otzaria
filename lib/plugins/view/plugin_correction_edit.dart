@@ -150,6 +150,85 @@ CorrectionEdit mergeEdit(
   );
 }
 
+/// מקטעי ההרכבה שומרים טווחי מקור גם כשהמקלדת מזיזה או מרחיבה את ההרכבה.
+class CorrectionComposition {
+  CorrectionComposition(this.source)
+    : pieces = [
+        for (var i = 0; i < source.projection.visible.length; i++)
+          (start: i, end: i + 1, length: 1),
+      ];
+
+  CorrectionComposition._(this.source, this.pieces);
+
+  final EditorState source;
+  final List<({int start, int end, int length})> pieces;
+
+  ({CorrectionEdit edit, CorrectionComposition composition}) apply(
+    EditorState current,
+    TextEditingValue before,
+    TextEditingValue after,
+  ) {
+    if (after.text == source.projection.visible) {
+      return (
+        edit: (state: source, value: after),
+        composition: CorrectionComposition(source),
+      );
+    }
+    final range = _editRange(before, after);
+    var first = 0;
+    var start = 0;
+    while (first < pieces.length &&
+        (pieces[first].length == 0
+            ? start < range.start
+            : start + pieces[first].length <= range.start)) {
+      start += pieces[first++].length;
+    }
+    var last = first;
+    var end = start;
+    while (last < pieces.length &&
+        (end < range.end || (pieces[last].length == 0 && end == range.end))) {
+      end += pieces[last++].length;
+    }
+    final originStart = first < pieces.length
+        ? pieces[first].start
+        : source.projection.visible.length;
+    final originEnd = last > first ? pieces[last - 1].end : originStart;
+    final delta = after.text.length - before.text.length;
+    final replacement = after.text.substring(start, end + delta);
+    final next = CorrectionComposition._(source, [
+      ...pieces.take(first),
+      (start: originStart, end: originEnd, length: replacement.length),
+      ...pieces.skip(last),
+    ]);
+    var edit = mergeEdit(current, before, after);
+    if (replacement ==
+        source.projection.visible.substring(originStart, originEnd)) {
+      final old = edit.state.projection;
+      final fullStart = old.fullOffset(start);
+      final fullEnd = old.fullOffset(start + replacement.length);
+      final original = source.projection;
+      final originalStart = original.fullOffset(originStart);
+      final originalEnd = original.fullOffset(originEnd);
+      final state = EditorState.of(
+        old.full.replaceRange(
+          fullStart,
+          fullEnd,
+          original.full.substring(originalStart, originalEnd),
+        ),
+        [
+          ...edit.state.fullFormats.take(fullStart),
+          ...source.fullFormats.sublist(originalStart, originalEnd),
+          ...edit.state.fullFormats.skip(fullEnd),
+        ],
+        nikud: old.nikud,
+        teamim: old.teamim,
+      );
+      edit = (state: state, value: edit.value);
+    }
+    return (edit: edit, composition: next);
+  }
+}
+
 /// הטווח ב-[before] ש-[after] החליף: לפי הבחירה, ההרכבה או מחיקה בסמן. רק בלי
 /// הסבר כזה משווים את הטקסטים, בעוגן בסמן החדש.
 TextRange _editRange(TextEditingValue before, TextEditingValue after) {
@@ -163,6 +242,21 @@ TextRange _editRange(TextEditingValue before, TextEditingValue after) {
       after.text.endsWith(before.text.substring(end));
 
   final selection = before.selection;
+  if (selection.isValid &&
+      !selection.isCollapsed &&
+      replaces(selection.start, selection.end)) {
+    return selection;
+  }
+  if (before.isComposingRangeValid &&
+      !before.composing.isCollapsed &&
+      after.isComposingRangeValid &&
+      !after.composing.isCollapsed &&
+      (after.composing.end <= before.composing.start ||
+          after.composing.start >= before.composing.end)) {
+    final start = after.composing.start;
+    final end = after.composing.end - delta;
+    if (replaces(start, end)) return TextRange(start: start, end: end);
+  }
   if (selection.isValid && replaces(selection.start, selection.end)) {
     return selection;
   }
@@ -308,9 +402,9 @@ List<CorrectionFormat> remapFormats(
       ambiguous:
           previous != null &&
           (previous.ambiguous ||
-              Iterable<int>.generate(current.length).any(
-                (index) => previous.formats[index] != current[index],
-              )),
+              Iterable<int>.generate(
+                current.length,
+              ).any((index) => previous.formats[index] != current[index])),
     );
   }
   final counts = <String, int>{};

@@ -23,11 +23,15 @@ class PluginCorrectionController extends TextEditingController {
   late EditorState _sourceState;
   TextEditingValue? _editingValue;
   Object _epoch = Object();
-  ({TextEditingValue before, TextEditingValue after, CorrectionEdit result})?
+  ({
+    TextEditingValue before,
+    TextEditingValue after,
+    CorrectionEdit result,
+    CorrectionComposition composition,
+  })?
   _pending;
 
-  /// המצב והערך שלפני תחילת הרכבת מקלדת; כל קלט של ההרכבה נמדד מולם.
-  ({EditorState state, TextEditingValue value})? _composition;
+  CorrectionComposition? _composition;
   final VoidCallback? onEdit;
   ValueNotifier<CorrectionUndoValue>? _undoValue;
 
@@ -158,7 +162,8 @@ class PluginCorrectionController extends TextEditingController {
     final previous = _state;
     final before = value;
     if (newValue is _FormattedEditingValue &&
-        identical(newValue.epoch, _epoch)) {
+        identical(newValue.epoch, _epoch) &&
+        !identical(newValue.state, _state)) {
       newValue = _adoptHistoryValue(newValue);
     } else if (newValue.text != text) {
       final edit = _editAfter(newValue);
@@ -191,11 +196,18 @@ class PluginCorrectionController extends TextEditingController {
     required EditorState previous,
     required TextEditingValue before,
   }) {
+    final pending = _pending;
+    final composition =
+        pending != null &&
+            pending.before == before &&
+            pending.result.value == newValue
+        ? pending.composition
+        : null;
     _pending = null;
     _setFormattedValue(newValue);
     _composition = value.composing.isCollapsed
         ? null
-        : (_composition ?? (state: previous, value: before));
+        : (composition ?? _composition ?? CorrectionComposition(previous));
     final changed = previous.projection.full != _state.projection.full;
     if (changed) onEdit?.call();
     if (value.composing.isCollapsed &&
@@ -239,18 +251,22 @@ class PluginCorrectionController extends TextEditingController {
         after.text == _sourceState.projection.visible) {
       return (state: _sourceState, value: after);
     }
-    final base = _composition ?? (state: _state, value: value);
-    // הרכבה שבוטלה מחזירה את הטקסט שלפניה, ואיתו הסימנים המוסתרים.
-    if (after.text == base.value.text) return (state: base.state, value: after);
     final pending = _pending;
-    if (pending != null &&
-        pending.before == base.value &&
-        pending.after == after) {
+    if (pending != null && pending.before == value && pending.after == after) {
       return pending.result;
     }
-    final result = mergeEdit(base.state, base.value, after);
-    _pending = (before: base.value, after: after, result: result);
-    return result;
+    if (_composition == null && after.composing.isCollapsed) {
+      return mergeEdit(_state, value, after);
+    }
+    final composition = _composition ?? CorrectionComposition(_state);
+    final result = composition.apply(_state, value, after);
+    _pending = (
+      before: value,
+      after: after,
+      result: result.edit,
+      composition: result.composition,
+    );
+    return result.edit;
   }
 
   String _stripMargins(String canonical) {
