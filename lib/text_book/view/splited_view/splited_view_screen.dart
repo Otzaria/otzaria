@@ -158,17 +158,16 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
     });
   }
 
-  /// טוגל חכם של חלונית המפרשים מקיצור מקלדת:
-  /// - במצב מפרשים בצד: פותח/סוגר את חלונית המפרשים.
-  /// - במצב מפרשים מתחת: פותח/סוגר את חלונית סינון/בחירת המפרשים (issue #1161).
-  /// - פאנל סגור או פתוח על טאב אחר → פתח על המפרשים (או סינון מפרשים).
-  /// - פאנל פתוח על המפרשים → סגור.
+  /// קיצור מקלדת: פותח וסוגר את החלונית כולה. הפתיחה מציגה את הלשונית
+  /// שהייתה פתוחה בה בפעם הקודמת (מפרשים, קישורים או הערות).
   void _onToggleCommentatorsPaneRequest() {
     if (!mounted) return;
-    final isOnCommentary = _paneOpen && _currentTabIndex == kCommentaryTabIndex;
-    if (isOnCommentary) {
+    if (_paneOpen) {
       _closePane();
-    } else {
+      return;
+    }
+    final tabIndex = _currentTabIndex ?? kCommentaryTabIndex;
+    if (tabIndex == kCommentaryTabIndex) {
       // רישום interaction של TourCubit לפני הפתיחה — בעקבי עם השאר
       // המסלולים שפותחים את חלונית המפרשים (ע' text_book_screen).
       context.read<TourCubit>().recordInteraction(
@@ -177,11 +176,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
           primaryValue: widget.tab.title,
         ),
       );
-      setState(() {
-        _paneOpen = true;
-        _currentTabIndex = kCommentaryTabIndex;
-      });
     }
+    setState(() {
+      _paneOpen = true;
+      _currentTabIndex = tabIndex;
+    });
   }
 
   @override

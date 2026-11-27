@@ -771,24 +771,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     };
     widget.tab.toggleNavPaneNotifier.addListener(_toggleNavPaneListener);
 
-    // קיצור Ctrl+Shift+C: טוגל לחלונית המפרשים (פאנל ימני, טאב מפרשים).
-    // אם הפאנל סגור או על טאב אחר — פתח על המפרשים. אם פתוח על המפרשים — סגור.
+    // קיצור Ctrl+Shift+C: פותח וסוגר את הפאנל הימני כולו. הפתיחה מציגה את
+    // הלשונית שהייתה פתוחה בו בפעם הקודמת.
     _toggleCommentatorsPaneListener = () {
       final current = _bloc.state;
       if (current is! PdfBookLoaded) return;
-      final isOnCommentary = _currentRightPaneTabIndex == _kCommentaryTabIndex;
-      if (current.showRightPane && isOnCommentary) {
+      if (current.showRightPane) {
         _setRightPaneVisibility(false);
-      } else {
+        return;
+      }
+      if (_currentRightPaneTabIndex == _kCommentaryTabIndex) {
         // בדומה ל-_openCommentaryPane: רישום interaction של TourCubit לפני
         // הפתיחה, כדי שטור/אונבורדינג ידע שהמשתמש השתמש במפרשים.
         _recordCommentaryOpenedIfNeeded();
-        setState(() {
-          _rightPaneInitialTabIndex = _kCommentaryTabIndex;
-          _currentRightPaneTabIndex = _kCommentaryTabIndex;
-        });
-        _setRightPaneVisibility(true);
       }
+      setState(() => _rightPaneInitialTabIndex = _currentRightPaneTabIndex);
+      _setRightPaneVisibility(true);
     };
     widget.tab.toggleCommentatorsPaneNotifier.addListener(
       _toggleCommentatorsPaneListener,

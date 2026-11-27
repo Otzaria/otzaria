@@ -207,6 +207,44 @@ void main() {
       expect(find.byType(PanelOpenHandle), findsOneWidget);
     });
   });
+
+  // #5947: הקיצור פותח וסוגר את החלונית כולה, בלי קשר ללשונית שמוצגת בה.
+  group('קיצור מפרשים כשהחלונית על לשונית הקישורים', () {
+    int shownTab(WidgetTester tester) => tester
+        .widget<TabbedCommentaryPanel>(find.byType(TabbedCommentaryPanel))
+        .initialTabIndex!;
+
+    Future<TextBookTab> openOnLinksTab(WidgetTester tester) async {
+      final tab = await pumpSplitedView(tester, showSplitView: true);
+      tab.toggleCommentatorsPaneNotifier.value++;
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('קישורים'));
+      await tester.pumpAndSettle();
+      expect(shownTab(tester), kLinksTabIndex);
+      return tab;
+    }
+
+    testWidgets('הקיצור סוגר את החלונית ולא עובר למפרשים', (tester) async {
+      final tab = await openOnLinksTab(tester);
+
+      tab.toggleCommentatorsPaneNotifier.value++;
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PanelOpenHandle), findsOneWidget);
+    });
+
+    testWidgets('פתיחה חוזרת מציגה את הלשונית שהייתה פתוחה', (tester) async {
+      final tab = await openOnLinksTab(tester);
+      tab.toggleCommentatorsPaneNotifier.value++;
+      await tester.pumpAndSettle();
+
+      tab.toggleCommentatorsPaneNotifier.value++;
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PanelOpenHandle), findsNothing);
+      expect(shownTab(tester), kLinksTabIndex);
+    });
+  });
 }
 
 TextBookLoaded _loadedState(TextBook book, {required bool showSplitView}) {

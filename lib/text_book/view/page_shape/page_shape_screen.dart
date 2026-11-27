@@ -1114,20 +1114,11 @@ class _PageShapeScreenState extends State<PageShapeScreen>
     widget.sidebarTabNotifier?.value = null;
   }
 
-  /// טוגל חלונית הצד מקיצור Ctrl+Shift+C:
-  /// סגורה או פתוחה על לשונית אחרת → פתח על "מפרשים".
-  /// פתוחה על "מפרשים" → סגור.
+  /// קיצור מקלדת: פותח וסוגר את חלונית הצד כולה. הפתיחה מציגה את הלשונית
+  /// שהייתה פתוחה בה בפעם הקודמת.
   void _onToggleCommentatorsPaneRequest() {
     if (!mounted) return;
-    _reanchorMainText();
-    setState(() {
-      if (_isLeftSidebarOpen && _leftSidebarTabIndex == kCommentaryTabIndex) {
-        _isLeftSidebarOpen = false;
-      } else {
-        _isLeftSidebarOpen = true;
-        _leftSidebarTabIndex = kCommentaryTabIndex;
-      }
-    });
+    _toggleLeftSidebar();
   }
 
   /// פתיחת חלונית הצד על לשונית המפרשים (מתפריט ההקשר של גוף הספר).
