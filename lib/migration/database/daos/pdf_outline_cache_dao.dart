@@ -1,5 +1,6 @@
+import 'dart:convert';
+
 import '../../models/pdf_outline_cache_entry.dart';
-import '../sqlite3_utils.dart';
 import 'database.dart';
 import 'file_cache_dao.dart';
 
@@ -19,21 +20,11 @@ class PdfOutlineCacheDao extends FileCacheDao<PdfOutlineCacheEntry> {
         ],
       );
 
-  Future<List<String>> selectAllFilePaths() async {
-    final db = await database;
-    return db
-        .select(queries['selectAllFilePaths']!)
-        .toMapList()
-        .map((row) => row['filePath'] as String)
-        .toList();
-  }
-
-  Future<void> deleteAllExceptFilePaths(Set<String> keepFilePaths) async {
-    final allPaths = await selectAllFilePaths();
-    await writeInBackground([
-      for (final path in allPaths)
-        if (!keepFilePaths.contains(path))
-          (queries['deleteByFilePath']!, [path]),
-    ]);
-  }
+  Future<void> deleteAllExceptFilePaths(Set<String> keepFilePaths) =>
+      writeInBackground([
+        (
+          queries['deleteAllExceptFilePaths']!,
+          [jsonEncode(keepFilePaths.toList())],
+        ),
+      ]);
 }

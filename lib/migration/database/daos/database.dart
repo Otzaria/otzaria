@@ -390,6 +390,7 @@ class MyDatabase {
         await database,
         _path,
         statements,
+        readOnly: _readOnly,
       ),
     );
     _writeQueue = write.catchError((Object _) {});

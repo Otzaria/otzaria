@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/docx_text_cache_entry.dart';
@@ -67,6 +68,28 @@ void main() {
           isNotNull,
         );
       }
+    });
+
+    test('חיבור לקריאה בלבד אינו כותב למטמון במצב WAL', () async {
+      final readOnly = MyDatabase.withPath(database.path, readOnly: true);
+      addTearDown(readOnly.close);
+      final connection = await readOnly.database;
+      expect(
+        connection.select('PRAGMA journal_mode').single.values.single,
+        'wal',
+      );
+
+      await expectLater(
+        SeforimRepository(readOnly).upsertDocxTextCacheEntry(entry()),
+        throwsA(
+          isA<SqliteException>().having(
+            (error) => error.resultCode,
+            'resultCode',
+            SqlError.SQLITE_READONLY,
+          ),
+        ),
+      );
+      expect(await repository.getDocxTextCacheEntry(entry().filePath), isNull);
     });
 
     test('נתיב שלא נשמר מחזיר null', () async {

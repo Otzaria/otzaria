@@ -72,10 +72,12 @@ typedef SqlStatement = (String sql, List<Object?> args);
 Future<void> writeWithoutWaitingInBackground(
   Database db,
   String path,
-  List<SqlStatement> statements,
-) async {
+  List<SqlStatement> statements, {
+  required bool readOnly,
+}) async {
   // בלי WAL הכותב המשני חוסם את קריאות החיבור הראשי, ובמסד בזיכרון אין קובץ.
-  if (db.select('PRAGMA journal_mode').first.values.first != 'wal') {
+  if (readOnly ||
+      db.select('PRAGMA journal_mode').first.values.first != 'wal') {
     return withoutBusyWait(db, () => _executeAll(db, statements));
   }
   await compute(
