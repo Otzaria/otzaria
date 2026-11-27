@@ -56,8 +56,8 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # pdfrx 3.x דורש Flutter 3.50 ומעלה.
-  pdfrx: ^2.13.1
+  # pdfrx 3.0.1 ומעלה דורש Flutter 3.50.
+  pdfrx: 3.0.0
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.3
   url_launcher: ^6.3.3
