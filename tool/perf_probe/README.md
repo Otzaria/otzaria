@@ -67,9 +67,9 @@ service או `flutter drive`; מדדי Dart heap במצב release נשארים `
 עם הסבר שהם אינם זמינים. הזיהוי הנפרד של build mode נשמר. בחירה ב־
 `framework` עם תרחיש `all` או עם יעד legacy נדחית במפורש.
 
-ה־CI מפעיל profile של reader וגם book-view ב־Windows בכל אחד משני
-ה־bindings. באותם jobs של Linux ו־macOS מופעלות שתי ריצות reader נפרדות
-עם guards נפרדים. ה־guard שומר על דרישות מוכנות, מקור נקי, hash של ה־PDF,
+ה־CI מפעיל profile של reader ושל book-view ב־Windows עם `framework`,
+וכן ריצת reader אחת ב־Linux וב־macOS. `integration` נשאר זמין להרצה
+יזומה כאשר צריך לבדוק את השפעת סביבת הבדיקה. ה־guard שומר על דרישות מוכנות, מקור נקי, hash של ה־PDF,
 תקציב תמונות וכיסוי CPU/RSS בזמן התצפית. הרצה ירוקה נדרשת עבור כל יעד
 ממשי; חוזי הקלט לבדם אינם מוכיחים שהבינארי הופעל. גם במצב הרגיל זו אפליקציה
 עם מכשור מדידה, ולא טענה לאפס overhead או תוצאה של הפצת release.
@@ -411,7 +411,7 @@ native-only memory. גם הפרש RSS פחות Dart heap אינו מדד native 
 ## שתי גרסאות באותו מחשב CI
 
 `Paired PDF measurements` מריץ את שני הצדדים ברצף בתוך **אותו job ומחשב**
-ב־Windows, Linux וב־macOS. לכל מערכת יש jobs נפרדים ל־cold ול־warm;
+ב־Windows, Linux וב־macOS, במצב cold או warm שנבחר להפעלה;
 אין השוואה מספרית בין jobs, מערכות הפעלה או מצבי מטמון. בכל צד
 נוצרים checkout מנותק ונקי ונתוני אפליקציה מבודדים. ה־SDK נשאר Flutter
 3.47.7, והכלי דורש זהות של עצי כלי המדידה, integration tests, driver,
@@ -422,15 +422,12 @@ diagnostics וקובצי `pubspec.yaml`/`pubspec.lock`. הוא מריץ `pub get
 וב־Xvfb/Openbox; זהות תצוגת התוכנה נשמרת בדוח ואינה מייצגת GPU פיזי.
 ב־macOS נדרשים Python 3.13 ומעלה ו־`lsof`, המותקן במערכת.
 
-הניסוי הקבוע ב־`pdf_layout_pair.json` משווה את שיפור פריסת הספר של #5800.
-גרסת הביקורת היא snapshot שנוצר מהגרסה המועמדת בהחזרה מדויקת של ששת
-קובצי אותו שינוי; **זו קבוצת ביקורת מחושבת, ולא גרסת release היסטורית**.
-שני המקורות מזוהים ב־SHA מלא, ורשימת הקבצים שביניהם נבדקת לפני הרצה.
-תוספת אימות ה־engine ב־POSIX משותפת לשני ה־snapshots ואינה חלק מדלתת
-פריסת הספר הנמדדת; ה־runner אינו משנה את המקור הנמדד בזמן ההרצה.
-ההרצה האוטומטית ב־PR בודקת את הזוג הקבוע הזה, ולא בהכרח את קוד האפליקציה
-של ה־PR שמפעיל אותה. היא מופעלת רק בשינויים לכלי הזוגי או להגדרת הניסוי,
-דרך `ci_gate.yml` ו־`run-ci`.
+הרצת השוואה דורשת בחירה מפורשת של שני המקורות ב־SHA מלא: `--baseline`
+ו־`--candidate` ב־CLI, או אותם inputs ב־`workflow_dispatch`. אין זוג
+ברירת מחדל. רשימת הקבצים שבין שני המקורות נשמרת ב־receipt; כלי המדידה
+והתלויות חייבים להיות זהים. ה־runner אינו משנה את המקור הנמדד בזמן ההרצה.
+ב־PR רצות רק בדיקות החוזה המהירות של הכלי, דרך `ci_gate.yml` ו־`run-ci`;
+בניית שני המקורות והמדידות בכל שלוש המערכות מופעלות רק ב־`workflow_dispatch`.
 
 ברירת המחדל היא `pdf-book-view` עם binding רגיל, profile, קובץ סינתטי
 בעל 1,000 עמודים וגדלים מעורבים, שלוש הפעלות וחמש חזרות לכל פעולה בכל
@@ -457,7 +454,7 @@ manifest של `PerfPdfCase` המתואר לעיל, עם SHA-256, מספר עמו
 ההעתקה וה־hash נעשים מחוץ לחלונות המדידה; cold עדיין מאפס רק נתוני אפליקציה,
 ומטמון הקבצים של מערכת ההפעלה עשוי להיות חם לאחר הקריאה הזאת.
 
-ב־CI, אותו generator דטרמיניסטי של הפרויקט מכין קובץ עם מספר העמודים שנבחר
+בהרצה יזומה ב־CI, אותו generator דטרמיניסטי של הפרויקט מכין קובץ עם מספר העמודים שנבחר
 וגדלים מעורבים, ו־`prepare_pair_ci_case.dart` כותב לו manifest חתום. ה־jobs
 הקיימים מודדים אותו במסלול `external` כדי לבדוק את החיבור גם ב־Windows,
 Linux ו־macOS. זהו קלט בדיקת שילוב סינתטי; הוא אינו מדידת corpus אמיתי של
@@ -569,7 +566,8 @@ dart tool/perf_probe/analyze.dart C:\perf\candidate-cold `
 ה-workflow `Performance probe tools` משתמש ב-`ci_gate.yml` ובתווית `run-ci`.
 לצד בדיקות החוזה ותרחיש WebView, ה-job הקיים של Windows מריץ ב-PR בדיקת
 קורא קצרה במצב `profile`: נתונים קרים, הפעלה אחת, חזרה אחת, ללא warmup,
-בשני jobs נפרדים: `pdf-reader` ו־`pdf-book-view`. אין ספי זמן או זיכרון; הכשל הוא פונקציונלי או
+בשני jobs נפרדים עם `framework`: `pdf-reader` ו־`pdf-book-view`.
+תרחיש רב־החלונות רץ בנפרד ב־profile וב־release. אין ספי זמן או זיכרון; הכשל הוא פונקציונלי או
 timeout מפורש. זו בדיקת הפעלה של המדידה, ולא בסיס לאחוזונים יציבים.
 ה-job דורש גם דגימות תקציב מלאות לפני פתיחה/סגירה/idle ואחריהן, ואת חלון
 השקט המסומן כחלון תצפית. שלב או דגימה חסרים מכשילים אותו; ערך גבוה של
@@ -590,7 +588,7 @@ artifact של manifest, דגימות, דוח ולוגים, כולל פלט חל�
 ```powershell
 # אותה הרצה קצרה כמו ב-PR, ללא ספי ביצועים:
 pwsh -File tool/perf_probe/run_perf_probe.ps1 `
-  -Mode profile -CacheState cold -ScenarioSet pdf-reader `
+  -Mode profile -CacheState cold -BindingMode framework -ScenarioSet pdf-reader `
   -Warmup 0 -Repetitions 1 -Launches 1
 
 pwsh -File tool/perf_probe/test_sample_resources.ps1
@@ -614,10 +612,6 @@ flutter analyze --no-pub
 חלק מקובצי Hive; אין להריצו במקביל או על פרופיל שלא ניתן לשחזר מגיבוי מלא.
 קלט זה מזוהה כ-legacy במנתח ואינו baseline. ברירת המחדל החדשה אינה משתמשת
 במסלול זה או בנתוני המשתמש.
-
-בפרט, `pdf_bookview_idle_probe_test.dart` הוא אבחון של ספר ברכות PDF בספרייה
-מותקנת. הוא נכשל אם אין קובץ מתאים, אם הגדרות הפרופיל החליפו את מצבי התצוגה
-הנדרשים או אם תנאי מוכנות לא התקיים בזמן; דוח חסר אינו הצלחה שקטה.
 
 מקורות להגדרות המדידה: [Flutter profiling](https://docs.flutter.dev/cookbook/testing/integration/profiling),
 [FrameTiming](https://api.flutter.dev/flutter/dart-ui/FrameTiming-class.html),
