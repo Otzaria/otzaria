@@ -491,13 +491,15 @@ void main() {
       const header = 'ספר בדיקה, פרק א';
 
       Future<({String plainText, String htmlText})> copyVerse(
-        String format,
-      ) async {
+        String format, {
+        String heading = 'פרק א',
+        bool removeNikud = false,
+      }) async {
         final state = _state(
           verse,
           link,
           const TextDisplayPatch(punctuation: MarkVisibility.hide),
-        ).copyWith(content: const ['<h2>פרק א</h2>', verse]);
+        ).copyWith(content: ['<h2>$heading</h2>', verse]);
         final copied = await buildSelectedTextCopy(
           plainText: plainVerse,
           selectedIndex: 1,
@@ -508,6 +510,7 @@ void main() {
             copyHeaderFormat: format,
           ),
           copyTarget: TextTarget.body,
+          removeNikud: removeNikud,
         );
         return copied!;
       }
@@ -541,6 +544,32 @@ void main() {
           allOf(contains('>$verse</div>'), endsWith('>$header</span>')),
         );
       });
+
+      test('העתק בלי ניקוד מסיר ניקוד וטעמים גם מכותרת נפרדת', () async {
+        final copied = await copyVerse(
+          'separate_line_before',
+          heading: 'פֶּ֖רֶק א',
+          removeNikud: true,
+        );
+        const unmarked = '(א) בראשית ברא אלהים את השמים ואת הארץ';
+        const htmlUnmarked =
+            '(א) <big>ב</big>ראשית ברא אלהים את השמים ואת הארץ';
+        expect(copied.plainText, '$header\n$unmarked');
+        expect(copied.htmlText, '$header\n$htmlUnmarked');
+      });
+
+      for (final entry in const {
+        'same_line_after_brackets': '$plainVerse (ספר בדיקה פרק א)',
+        'same_line_after_no_brackets': '$plainVerse ספר בדיקה פרק א',
+        'same_line_before_brackets': '(ספר בדיקה פרק א) $plainVerse',
+        'same_line_before_no_brackets': 'ספר בדיקה פרק א $plainVerse',
+      }.entries) {
+        test('סינון כותרת נשמר בתבנית ${entry.key}', () async {
+          final copied = await copyVerse(entry.key);
+          expect(copied.plainText, entry.value);
+          expect(copied.htmlText, entry.value.replaceFirst(plainVerse, verse));
+        });
+      }
     });
   });
 }
