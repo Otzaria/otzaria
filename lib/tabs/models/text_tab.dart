@@ -183,6 +183,10 @@ class TextBookTab extends OpenedTab {
       PageShapePluginController();
 
   List<String>? commentators;
+
+  /// בקשה מפורשת לפתוח את חלונית המפרשים בפתיחת הטאב, גם כשההגדרה
+  /// "פתיחת חלונית המפרשים בפתיחת ספר" כבויה ("הצג את כל המפרשים", issue #4993).
+  final bool openCommentaryPane;
   bool _lastSplitView = false;
   bool _lastShowPageShapeView = false;
 
@@ -208,6 +212,7 @@ class TextBookTab extends OpenedTab {
     this.matchPolicy = SearchMatchPolicy.standard,
     this.initialSearchResultLines,
     this.commentators,
+    this.openCommentaryPane = false,
     bool openLeftPane = false,
     bool? splitedView,
     bool? showPageShapeView,

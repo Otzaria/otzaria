@@ -4,6 +4,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
@@ -22,6 +23,7 @@ import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/bloc/tour_state.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -50,20 +52,24 @@ void main() {
   Future<TextBookTab> pumpSplitedView(
     WidgetTester tester, {
     required bool showSplitView,
+    TextBookTab? openedTab,
+    List<String> activeCommentators = const [],
   }) async {
     final book = TextBook(title: bookTitle);
     final textBookBloc = StubTextBookBloc(
-      _loadedState(book, showSplitView: showSplitView),
+      _loadedState(
+        book,
+        showSplitView: showSplitView,
+        activeCommentators: activeCommentators,
+      ),
     );
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
     final settingsBloc = StubSettingsBloc(SettingsState.initial());
-    final tab = TextBookTab(
-      book: book,
-      index: 0,
-      blocOverride: textBookBloc,
-    );
+    final tab =
+        openedTab ??
+        TextBookTab(book: book, index: 0, blocOverride: textBookBloc);
     final tabsBloc = StubTabsBloc(
       TabsState(tabs: [tab], currentTabIndex: 0),
     );
@@ -191,6 +197,33 @@ void main() {
     );
   });
 
+  testWidgets(
+    '"הצג את כל המפרשים" פותח את חלונית המפרשים גם כשפתיחתה האוטומטית כבויה '
+    '(issue #4993)',
+    (tester) async {
+      expect(SettingsState.initial().defaultCommentaryOpen, isFalse);
+      final opened = await buildLinkTargetTab(
+        Link(
+          heRef: 'משנה מכות א א',
+          index1: 1,
+          path2: 'משנה מכות',
+          index2: 1,
+          connectionType: LinkTypes.source,
+        ),
+        commentators: const ['ברטנורא'],
+      );
+      await pumpSplitedView(
+        tester,
+        showSplitView: true,
+        openedTab: opened as TextBookTab,
+        activeCommentators: const ['ברטנורא'],
+      );
+
+      expect(find.byType(TabbedCommentaryPanel), findsOneWidget);
+      expect(find.byType(PanelOpenHandle), findsNothing);
+    },
+  );
+
   group('קיצור מפרשים (toggleCommentatorsPaneNotifier) במצב "מפרשים בצד"', () {
     testWidgets('פתיחה וסגירה פועלות כסדרן', (tester) async {
       final tab = await pumpSplitedView(tester, showSplitView: true);
@@ -209,14 +242,18 @@ void main() {
   });
 }
 
-TextBookLoaded _loadedState(TextBook book, {required bool showSplitView}) {
+TextBookLoaded _loadedState(
+  TextBook book, {
+  required bool showSplitView,
+  List<String> activeCommentators = const [],
+}) {
   return TextBookLoaded(
     book: book,
     showLeftPane: false,
     content: const ['פסקה א', 'פסקה ב'],
     fontSize: 18,
     showSplitView: showSplitView,
-    activeCommentators: const [],
+    activeCommentators: activeCommentators,
     commentatorGroups: const [],
     availableCommentators: const [],
     links: const <Link>[],

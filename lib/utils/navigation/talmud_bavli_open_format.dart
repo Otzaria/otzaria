@@ -158,7 +158,12 @@ ResolvingTab buildTalmudBavliResolvingTab({
 
 /// בונה טאב לפתיחת יעד קישור (תפריט הקשר, עוגן-מילה, מפרשים אחאים).
 /// יעד השייך לתלמוד בבלי נפתח מיידית כטאב טעינה שמוחלף ב-PDF בדף הממופה.
-Future<OpenedTab> buildLinkTargetTab(Link link) async {
+/// [commentators] — המפרשים שיוצגו ביעד ("הצג את כל המפרשים", issue #4993);
+/// אז היעד נפתח תמיד כטקסט.
+Future<OpenedTab> buildLinkTargetTab(
+  Link link, {
+  List<String>? commentators,
+}) async {
   final textBook = TextBook(
     title: utils.getTitleFromPath(link.path2),
     source: link.targetSource,
@@ -170,10 +175,15 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
     book: textBook,
     index: textIndex,
     dedupeKey: dedupeKey,
+    commentators: commentators,
+    openCommentaryPane: commentators != null,
     openLeftPane:
         (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
   );
-  final target = await resolveTalmudBavliPdfBook(textBook);
+  // בחירת מפרשים נשמרת רק בטאב טקסט; ב-PDF ההגדרות השמורות של הספר גוברות.
+  final target = commentators == null
+      ? await resolveTalmudBavliPdfBook(textBook)
+      : null;
   if (target == null) return buildTextTab(null);
   return buildTalmudBavliResolvingTab(
     target: target,
@@ -190,8 +200,12 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
 
 /// פותח את יעד הקישור ב-[open], אם הווידג'ט עדיין מוצג כשהטאב מוכן.
 extension OpenLinkTarget on State {
-  Future<void> openLinkTarget(Link link, void Function(OpenedTab) open) async {
-    final tab = await buildLinkTargetTab(link);
+  Future<void> openLinkTarget(
+    Link link,
+    void Function(OpenedTab) open, {
+    List<String>? commentators,
+  }) async {
+    final tab = await buildLinkTargetTab(link, commentators: commentators);
     if (mounted) open(tab);
   }
 }

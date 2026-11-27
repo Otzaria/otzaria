@@ -1,9 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/models/links.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
+
+import '../helpers/memory_settings_cache.dart';
 
 Category _category(String title, {Category? parent}) {
   final category = Category(
@@ -285,4 +291,27 @@ void main() {
       expect(findTextBookByExactCategory(library, 'ברכות', 99), isNull);
     });
   });
+  test(
+    'buildLinkTargetTab פותח את המקור עם המפרשים שהתבקשו (issue #4993)',
+    () async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      final tab = await buildLinkTargetTab(
+        Link(
+          heRef: 'משנה מכות א א',
+          index1: 1,
+          path2: 'משנה מכות',
+          index2: 3,
+          connectionType: LinkTypes.source,
+        ),
+        commentators: const ['תוספות יום טוב על משנה מכות', 'ברטנורא'],
+      );
+      expect(tab, isA<TextBookTab>());
+      final textTab = tab as TextBookTab;
+      expect(textTab.index, 2);
+      expect(textTab.commentators, [
+        'תוספות יום טוב על משנה מכות',
+        'ברטנורא',
+      ]);
+    },
+  );
 }
