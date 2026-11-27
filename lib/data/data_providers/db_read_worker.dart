@@ -54,8 +54,16 @@ class DbReadWorkerSuspended implements Exception {
   String toString() => 'DbReadWorkerSuspended';
 }
 
+/// שחרור seforim.db לא אומת. [message] מוצגת למשתמש כמות שהיא.
+class LibraryDbNotReleased extends StateError {
+  LibraryDbNotReleased(super.message);
+
+  @override
+  String toString() => message;
+}
+
 /// נזרק כשרק ה-worker לא שחרר את הקובץ, כדי שעדכון שכבר הצליח יוכל להמשיך.
-class DbReadWorkerNotReleased extends StateError {
+class DbReadWorkerNotReleased extends LibraryDbNotReleased {
   DbReadWorkerNotReleased(super.message);
 }
 

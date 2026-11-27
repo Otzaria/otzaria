@@ -1955,6 +1955,58 @@ void main() {
     timeout: const Timeout(Duration(seconds: 30)),
   );
 
+  test('כשל ברענון אחרי commit שומר את תוצאת הדלתא להמשך האינדוקס', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeSchema4SourceDb(dbPath, version: 1, sourceName: 'old');
+    final expectedPath = p.join(tmp.path, 'expected.db');
+    _writeSchema4SourceDb(expectedPath, version: 2, sourceName: 'new');
+    final patchPath = p.join(tmp.path, 'patch-1-2.db');
+    _writeSourcePatch(
+      patchPath,
+      fromVersion: 1,
+      toVersion: 2,
+      sourceName: 'new',
+    );
+    final refresh = _ThrowingRefreshService();
+    final repository = LibraryUpdateRepository(
+      fullDbSizeProbe: (_) async => null,
+      discovery: _unusedDiscovery(),
+      downloader: _PatchMapDownloader({'patch-1-2.db': patchPath}),
+      refreshService: refresh,
+      dbPathProvider: () => dbPath,
+      dataRootProvider: () async => tmp.path,
+    );
+
+    await expectLater(
+      repository.applyDeltaPlan(
+        _schema4DeltaPlan([
+          _schema4Edge(
+            fromVersion: 1,
+            toVersion: 2,
+            patchName: 'patch-1-2.db',
+            toHash: _logicalHash(expectedPath),
+          ),
+        ]),
+      ),
+      throwsA(
+        isA<PartiallyAppliedLibraryDeltaException>()
+            .having((error) => error.cause, 'cause', isA<StateError>())
+            .having(
+              (error) => error.appliedResult.appliedSteps,
+              'applied steps',
+              1,
+            )
+            .having(
+              (error) => error.appliedResult.requiresFullIndexRefresh,
+              'requires full index refresh',
+              isTrue,
+            ),
+      ),
+    );
+    expect(refresh.called, isTrue);
+    expect(const LocalDbVersionReader().read(dbPath).dbVersion, 2);
+  });
+
   test(
     'a read worker that does not release after a committed WAL patch does not fail the update',
     () async {
