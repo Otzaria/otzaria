@@ -145,8 +145,8 @@ test('a rejected rebase push logs scoped diagnostics and never merges', t => {
       else echo pr-head; fi ;;
     push)
       echo "$*" > "$RUNNER_TEMP/push-args"
-      [ "$GIT_TRACE_CURL_NO_DATA" = 1 ] && [ "$GIT_TRACE_REDACT" = 1 ] || return 99printf '%s\\n' '<= Recv header: HTTP/2 200' '<= Recv header: x-github-request-id: ABCD:1234' \
-        '=> Send header: Authorization: secret-sentinel' '<= Recv header: Set-Cookie: secret-cookie' > "$GIT_TRACE_CURL"
+      [ "$GIT_TRACE_CURL_NO_DATA" = 1 ] && [ "$GIT_TRACE_REDACT" = 1 ] || return 99
+      printf '%s\\n' '<= Recv header: HTTP/2 200' '<= Recv header: x-github-request-id: ABCD:1234' '=> Send header: Authorization: secret-sentinel' '<= Recv header: Set-Cookie: secret-cookie' > "$GIT_TRACE_CURL"
       return 1 ;;
     rev-list) echo 792 ;;
     diff) printf 'M\\t.github/workflows/automerge.yml\\n' ;;
