@@ -17,7 +17,9 @@ import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+
 import 'dart:math';
+
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/book_locator.dart';
@@ -129,6 +131,7 @@ Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
 }
 
 final _libraryOverflowCache = newTextOverflowCache();
+const double _kLibraryInfoButtonExtent = 28;
 
 /// כפתור "פרטים" של פריט ברשת, עם [tooltip] מלא כשיש.
 Widget _libraryInfoButton(
@@ -138,8 +141,8 @@ Widget _libraryInfoButton(
 }) {
   final cs = Theme.of(context).colorScheme;
   final button = Container(
-    width: 28,
-    height: 28,
+    width: _kLibraryInfoButtonExtent,
+    height: _kLibraryInfoButtonExtent,
     decoration: BoxDecoration(
       color: cs.surfaceContainerHighest,
       borderRadius: AppTokens.borderRadiusAll,
@@ -147,7 +150,10 @@ Widget _libraryInfoButton(
     child: IconButton(
       onPressed: onPressed,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      constraints: const BoxConstraints.tightFor(
+        width: _kLibraryInfoButtonExtent,
+        height: _kLibraryInfoButtonExtent,
+      ),
       icon: Icon(
         FluentIcons.info_24_regular,
         size: 15,
@@ -247,9 +253,7 @@ class CategoryGridItem extends StatelessWidget {
   /// נתיב האב שמוצג מתחת לכותרת — בתוצאות חיפוש, כדי להבחין בין תיקיות באותו שם.
   final String? parentPath;
 
-  /// משבצת מדף רשמי בתוצאות האיתור (#2691): שורה אחת בגובה
-  /// [compactCategoryCardHeight], רקע `surfaceContainerHigh` ([AppCardTone.inset])
-  /// וכותרת במשקל אחד מעל כרטיס תיקייה; הנתיב באותה שורה.
+  /// משבצת מדף רשמי בתוצאות האיתור, עם הכותרת והנתיב בשורה אחת.
   final bool compact;
 
   const CategoryGridItem({
@@ -265,10 +269,10 @@ class CategoryGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final infoText = categoryInfoText(category);
     if (compact) return _buildCompact(context, infoText);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final personalSource = category.personalSource;
     final folderIcon = Container(
       width: 32,
@@ -377,7 +381,7 @@ class CategoryGridItem extends StatelessWidget {
               ),
             ),
             if (path != null && path.isNotEmpty) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: AppTokens.spaceSM),
               Expanded(
                 child: LibraryOverflowTooltipText(
                   text: path,
@@ -1013,12 +1017,10 @@ double narrowCategoryCardHeight(BuildContext context) {
 /// הריפוד האנכי של משבצת מדף מצומצמת ([CategoryGridItem.compact]).
 const double _kCompactCategoryCardPaddingV = AppTokens.spaceXS;
 
-/// משבצת המדף הרשמי בתוצאות האיתור היא כשליש מגובה כרטיס ספר (#2691).
-const double kCompactCategoryCardHeightRatio = 1 / 3;
+const double _kCompactCategoryCardHeightRatio = 1 / 3;
 
-/// רצפת הגובה של משבצת מדף מצומצמת: שורת כותרת אחת (בגופן ובמידת הטקסט
-/// בפועל) או כפתור המידע (28), והריפוד.
-double compactCategoryCardHeight(BuildContext context) {
+/// רצפת הגובה של משבצת מדף מצומצמת, שמכילה שורת טקסט או כפתור מידע וריפוד.
+double _compactCategoryCardHeight(BuildContext context) {
   final painter = TextPainter(
     text: TextSpan(text: 'א', style: _compactTitleStyle(context)),
     textDirection: TextDirection.rtl,
@@ -1027,7 +1029,9 @@ double compactCategoryCardHeight(BuildContext context) {
   )..layout();
   final line = painter.height;
   painter.dispose();
-  return (max(line, 28.0) + 2 * _kCompactCategoryCardPaddingV).ceilToDouble();
+  return (max(line, _kLibraryInfoButtonExtent) +
+          2 * _kCompactCategoryCardPaddingV)
+      .ceilToDouble();
 }
 
 /// השוליים של רשת הספרייה — משמשים גם בחישוב רוחב התא בפועל.
@@ -1268,9 +1272,7 @@ class MyGridView extends StatelessWidget {
   /// מתחילים בשורה חדשה בגובה הרגיל.
   final int leadingCategoryCount;
 
-  /// [leadingCategoryCount] הפריטים הראשונים הם משבצות מדף מצומצמות
-  /// ([CategoryGridItem.compact]) בכל רוחב: פס בגובה שליש מכרטיס ספר
-  /// ([kCompactCategoryCardHeightRatio]), ולא פחות מ-[compactCategoryCardHeight].
+  /// [leadingCategoryCount] הפריטים הראשונים הם משבצות מדף מצומצמות בכל רוחב.
   final bool compactLeadingCategories;
 
   /// גולל בעצמו ובונה רק את הכרטיסים שבתצוגה; אחרת נבנים כולם בתוך גלילה חיצונית.
@@ -1306,9 +1308,13 @@ class MyGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final itemCount = _itemCount ?? _items.length;
+    final compactLeadingHeight =
+        compactLeadingCategories && leadingCategoryCount > 0 && itemCount > 0
+        ? _compactCategoryCardHeight(context)
+        : null;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final itemCount = _itemCount ?? _items.length;
         final textScale = MediaQuery.textScalerOf(context).scale(1.0);
         final width = constraints.maxWidth;
         final baseRatio = width >= _kGridWideMinWidth
@@ -1344,7 +1350,7 @@ class MyGridView extends StatelessWidget {
 
         // בתצוגה צרה כרטיסי התיקייה נמוכים מכרטיסי הספר (ss4).
         final categoryCount =
-            (compactLeadingCategories ||
+            (compactLeadingHeight != null ||
                 width < _kGridNarrowBelow && minItemHeight <= 0)
             ? min(leadingCategoryCount, itemCount)
             : 0;
@@ -1352,10 +1358,10 @@ class MyGridView extends StatelessWidget {
             ? LibraryBandedGridDelegate(
                 crossAxisCount: crossAxisCount,
                 bandCount: categoryCount,
-                bandExtent: compactLeadingCategories
+                bandExtent: compactLeadingHeight != null
                     ? max(
-                        compactCategoryCardHeight(context),
-                        childHeight * kCompactCategoryCardHeightRatio,
+                        compactLeadingHeight,
+                        childHeight * _kCompactCategoryCardHeightRatio,
                       )
                     : narrowCategoryCardHeight(context),
                 restExtent: childHeight,

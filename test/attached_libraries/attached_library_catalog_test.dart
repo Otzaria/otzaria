@@ -349,6 +349,30 @@ void main() {
     },
   );
 
+  test('מדפים אישיים שנשארו ב-seforim.db אינם רשמיים', () async {
+    final db = sqlite3.sqlite3.open(
+      p.join(libraryPath, DatabaseConstants.databaseFileName),
+    );
+    try {
+      db.execute(
+        'INSERT INTO category (id, parentId, title) VALUES '
+        '(-1, NULL, ?), (-2, -1, ?), (-3, -2, ?)',
+        [_personalRoot, 'משנה', 'מפרשים'],
+      );
+    } finally {
+      db.close();
+    }
+
+    final catalog = await buildCatalog();
+    final personal = _child(catalog, _personalRoot)!;
+    expect(personal.isOfficial, isFalse);
+    expect(personal.getAllCategories().map((c) => c.isOfficial), [
+      false,
+      false,
+    ]);
+    expect(_child(catalog, 'תנ"ך')!.isOfficial, isTrue);
+  });
+
   test('מיזוג: ספרי המסד נכנסים לקטגוריות הספרייה לפי שם', () async {
     final library = await attach(
       attachedFixture('ממוזג', SeforimFixtureVariant.full),

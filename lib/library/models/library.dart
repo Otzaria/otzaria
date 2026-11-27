@@ -29,10 +29,8 @@ class Category {
   /// Defaults to 999 if no order is specified for this category.
   int order;
 
-  /// מדף מקטלוג הספרייה הרשמית. נקבע כשהעץ הרשמי נבנה, ונשאר גם כשספרים
-  /// אישיים מצטרפים אליו. [personalSource] אינו מבחן לכך: הוא null גם לתיקייה
-  /// מעורבת או ריקה.
-  bool isOfficial;
+  /// מדף מקטלוג הספרייה הרשמית, גם כשספרים אישיים מצטרפים אליו.
+  final bool isOfficial;
 
   /// מזהה נתיב אופציונלי כשהכותרת אינה ייחודית בין קטגוריות אחיות.
   final String? pathSegment;

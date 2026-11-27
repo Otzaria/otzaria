@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
+
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
@@ -1272,28 +1274,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return visible.where(state.matchesSearchBook).toList();
   }
 
-  /// מדפים רשמיים מוצגים לפני הספרים, ושאר התיקיות (אישיות ומצורפות)
-  /// אחריהם (#2691).
-  ({List<Category> official, List<Category> other}) _splitOfficial(
-    List<Category> categories,
-  ) => (
-    official: [
-      for (final c in categories)
-        if (c.isOfficial) c,
-    ],
-    other: [
-      for (final c in categories)
-        if (!c.isOfficial) c,
-    ],
-  );
-
-  List<Category> _displayedSearchCategories(LibraryState state) =>
-      LibraryMatchFilter.showsFolders(state.selectedMatchFilters)
-      ? _filterByTopics(
-          state.searchCategoryResults ?? const <Category>[],
-          state.selectedTopics,
-        )
-      : const [];
+  ({List<Category> official, List<Category> other}) _displayedSearchCategories(
+    LibraryState state,
+  ) {
+    if (!LibraryMatchFilter.showsFolders(state.selectedMatchFilters)) {
+      return (official: const [], other: const []);
+    }
+    final official = <Category>[];
+    final other = <Category>[];
+    final categories = _filterByTopics(
+      state.searchCategoryResults ?? const <Category>[],
+      state.selectedTopics,
+    );
+    for (final category in categories) {
+      (category.isOfficial ? official : other).add(category);
+    }
+    return (official: official, other: other);
+  }
 
   // ── Body row ──────────────────────────────────────────────────────────────
 
@@ -1836,9 +1833,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               return _buildEmptyState(context, state, settingsState, repo);
             }
             final displayBooks = _displayedSearchBooks(state, books);
-            final (:official, :other) = _splitOfficial(
-              _displayedSearchCategories(state),
-            );
+            final (:official, :other) = _displayedSearchCategories(state);
             final displayLimit = min(
               displayBooks.length,
               _kSearchGridBooksCap,
@@ -1873,9 +1868,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final repo = context.read<FocusRepository>();
             return _buildEmptyState(context, state, settingsState, repo);
           }
-          final (:official, :other) = _splitOfficial(
-            _displayedSearchCategories(state),
-          );
+          final (:official, :other) = _displayedSearchCategories(state);
           return _buildSearchListView(
             _displayedSearchBooks(state, visibleResults),
             _buildResultFilters(context, state),
@@ -3736,11 +3729,10 @@ class _LibraryBrowserListState extends State<_LibraryBrowserList> {
 }
 
 typedef _BookSelectionModifiers = ({bool shift, bool additive});
-typedef _BindBookPointer =
-    VoidCallback Function(
-      void Function(_BookSelectionModifiers) activate, {
-      bool requestsFocus,
-    });
+typedef _BindBookPointer = VoidCallback Function(
+  void Function(_BookSelectionModifiers) activate, {
+  bool requestsFocus,
+});
 
 _BookSelectionModifiers _currentBookModifiers() {
   final keyboard = HardwareKeyboard.instance;

@@ -82,7 +82,7 @@ Future<void> _pumpLibraryBrowser(
   WidgetTester tester,
   LibraryState state, {
   required Size size,
-  double textScale = 1,
+  double? textScale,
   bool showPreview = true,
   bool isLibraryEmpty = false,
   String viewMode = 'grid',
@@ -135,7 +135,7 @@ Future<void> _pumpLibraryBrowser(
       locale: const Locale('he', 'IL'),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.linear(textScale),
+          textScaler: textScale == null ? null : TextScaler.linear(textScale),
         ),
         child: Directionality(textDirection: TextDirection.rtl, child: child!),
       ),
@@ -235,9 +235,17 @@ void main() {
   );
 
   group('מדפים רשמיים לפני הספרים ובמשבצת מצומצמת (issue #2691)', () {
-    LibraryState mishnaSearch() {
+    LibraryState mishnaSearch({bool nestedOfficial = false}) {
       final library = Library(categories: []);
-      final official = _category('משנה', library, isOfficial: true);
+      final parent = nestedOfficial
+          ? _category('מדף האב', library, isOfficial: true)
+          : library;
+      final official = _category(
+        'משנה',
+        parent,
+        isOfficial: true,
+        description: nestedOfficial ? 'תיאור המדף' : '',
+      );
       final personal = _category(
         'משנה - סיכומים',
         _category('ספרים אישיים', library),
@@ -309,6 +317,40 @@ void main() {
         }
       });
     }
+
+    testWidgets('המדף מתאים עצמו להגדלת טקסט ולשינוי גודל החלון', (
+      tester,
+    ) async {
+      await _pumpLibraryBrowser(
+        tester,
+        mishnaSearch(nestedOfficial: true),
+        size: const Size(1200, 800),
+        showPreview: false,
+      );
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(822, 1462);
+      await tester.pump();
+
+      final shelf = find.widgetWithText(CategoryGridItem, 'משנה');
+      final initialHeight = tester.getSize(shelf).height;
+      final platform = tester.platformDispatcher;
+      addTearDown(platform.clearTextScaleFactorTestValue);
+      platform.textScaleFactorTestValue = 2;
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      final bounds = tester.getRect(shelf);
+      expect(bounds.height, greaterThan(initialHeight));
+      for (final item in [find.text('מדף האב'), find.byTooltip('תיאור המדף')]) {
+        final rect = tester.getRect(item);
+        expect(rect.top, greaterThanOrEqualTo(bounds.top));
+        expect(rect.bottom, lessThanOrEqualTo(bounds.bottom));
+      }
+      expect(
+        bounds.bottom,
+        lessThan(tester.getTopLeft(find.byType(BookGridItem).first).dy),
+      );
+    });
 
     testWidgets('המדף הרשמי מקבל את המיקוד הראשון וחץ מטה עובר לספרים', (
       tester,
