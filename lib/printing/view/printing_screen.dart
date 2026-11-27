@@ -35,6 +35,7 @@ import 'package:otzaria/printing/print_pdf_source.dart';
 import 'package:otzaria/printing/pdf_file_stream.dart';
 import 'package:otzaria/printing/pdf_file_cleanup.dart';
 import 'package:otzaria/printing/print_pdf_file_cache.dart';
+import 'package:otzaria/printing/print_layout_queue.dart';
 import 'package:otzaria/printing/pdf_export_cancellation.dart';
 import 'package:otzaria/printing/print_preview_controller.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
@@ -247,6 +248,7 @@ class PrintingScreen extends StatefulWidget {
   static Future<void> get debugRasterIdle async {
     await Future.wait<void>([
       ?_PrintingScreenState._rasterLock,
+      ?PrintLayoutQueue.idle,
       ..._PrintingScreenState._fileCleanups,
     ]);
   }
@@ -1447,7 +1449,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final fullBackFont = pw.Font.ttf(fallbackBytes.buffer.asByteData());
 
     // הגופנים נרשמים ומשתחררים ב-worker; אותם בתים משמשים גם להטמעה ב-PDF.
-    return Isolate.run(
+    Future<Uint8List?> layout() => Isolate.run(
       () => withShaperFontPair(
         createPrimary: () => ShaperFont.register(primaryBytes),
         createFallback: () => ShaperFont.register(fallbackBytes),
@@ -1615,7 +1617,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
         },
       ),
     );
+    // tear-off: closure שלוכד את this היה נשלח ל-isolate יחד עם layout.
+    return PrintLayoutQueue.run(layout, isCancelled: _isLayoutCancelled);
   }
+
+  bool _isLayoutCancelled() => _preview.isStopped;
 
   Future<List<Link>> _loadLinksForPrintRange(
     int selectedStart,
