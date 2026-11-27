@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 
 class InstalledPlugin {

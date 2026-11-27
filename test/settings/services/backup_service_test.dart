@@ -1,6 +1,7 @@
 import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -104,11 +105,9 @@ void main() {
 
     expect(result.skippedSections, isEmpty);
 
-    final backupJson =
-        jsonDecode(
-              await File(result.path).readAsString(),
-            )
-            as Map<String, dynamic>;
+    final backupJson = jsonDecode(
+      await File(result.path).readAsString(),
+    ) as Map<String, dynamic>;
     expect(backupJson['version'], '2.0');
     final shamorZachor = backupJson['shamorZachor'] as Map<String, dynamic>;
 
@@ -243,9 +242,9 @@ void main() {
         includePlugins: false,
       );
       expect(result.skippedSections, isNot(contains('userBooks')));
-      final backup =
-          jsonDecode(await File(result.path).readAsString())
-              as Map<String, dynamic>;
+      final backup = jsonDecode(
+        await File(result.path).readAsString(),
+      ) as Map<String, dynamic>;
       expect(backup['userBooks'], isA<String>());
 
       open
@@ -350,9 +349,9 @@ void main() {
           includeShamorZachor: false,
           includePlugins: false,
         );
-        final manifest =
-            jsonDecode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        final manifest = jsonDecode(
+          await File(backup.path).readAsString(),
+        ) as Map<String, dynamic>;
         var bytes = base64Decode(manifest['userBooks'] as String);
         switch (defect) {
           case 'truncated':
@@ -760,9 +759,9 @@ void main() {
       final db = PluginSystemDatabase.instance;
       await installTestPlugin('grouped.plugin');
       final backup = await createPluginsBackup();
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       json
         ..remove('pluginGroups')
         ..remove('pluginGroupScope');
@@ -784,9 +783,9 @@ void main() {
         'failed.plugin',
         'restored.plugin',
       ]);
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final failed = (json['plugins'] as List).cast<Map>().singleWhere(
         (p) => (p['installation'] as Map)['plugin_id'] == 'failed.plugin',
       );
@@ -879,9 +878,9 @@ void main() {
       );
 
       final backup = await createPluginsBackup();
-      final backupJson =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final backupJson = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
 
       expect(backupJson['plugins'], isEmpty);
     });
@@ -899,9 +898,9 @@ void main() {
       final bystander = File(p.join(dataRoot.path, 'bystander.txt'))
         ..writeAsStringSync('חייב לשרוד');
 
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final entry = (json['plugins'] as List).single as Map<String, dynamic>;
       (entry['installation'] as Map)['plugin_id'] = '..';
       await File(backup.path).writeAsString(jsonEncode(json));
@@ -952,9 +951,9 @@ void main() {
       );
       final backup = await createPluginsBackup();
 
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final entry = (json['plugins'] as List).single as Map<String, dynamic>;
       (entry['installation'] as Map)
         ..['enabled'] = 1
@@ -1048,9 +1047,9 @@ void main() {
       }
 
       final backup = await createPluginsBackup();
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final entry = (json['plugins'] as List).single as Map<String, dynamic>;
       final data = (entry['data'] as Map).cast<String, dynamic>();
 
@@ -1068,9 +1067,9 @@ void main() {
 
       expect(backup.oversized, ['small.plugin']);
       expect(backup.skipped, isEmpty);
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       expect(json['plugins'], isEmpty);
       // הקובץ עצמו מצהיר שחסרים בו תוספים, כדי שהשחזור ידווח על כך.
       expect(json['partial_sections'], ['plugins']);
@@ -1176,9 +1175,9 @@ void main() {
         final backup = await createPluginsBackup();
         expect(backup.skipped, isEmpty);
 
-        final backupJson =
-            jsonDecode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        final backupJson = jsonDecode(
+          await File(backup.path).readAsString(),
+        ) as Map<String, dynamic>;
         final pluginEntry =
             (backupJson['plugins'] as List).first as Map<String, dynamic>;
         final allValues = [
@@ -1227,9 +1226,9 @@ void main() {
         final backup = await createPluginsBackup(isAutoBackup: true);
         expect(backup.skipped, isEmpty);
 
-        final backupJson =
-            jsonDecode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        final backupJson = jsonDecode(
+          await File(backup.path).readAsString(),
+        ) as Map<String, dynamic>;
         final pluginEntry =
             (backupJson['plugins'] as List).first as Map<String, dynamic>;
         for (final value in (pluginEntry['files'] as Map).values) {
