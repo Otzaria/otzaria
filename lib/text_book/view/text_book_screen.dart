@@ -200,8 +200,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   String? _selectedTextForSearch;
   int?
   _selectedLineForNote; // שורת המקור של הטקסט המסומן, ליצירת הערה בקיצור מקשים
-  int?
-  _selectedColumnForNote; // עמודת הבחירה — לזיהוי המופע הנכון כשהטקסט חוזר בשורה
+  int? _selectedColumnForNote; // עמודת הבחירה — לזיהוי המופע הנכון כשהטקסט חוזר בשורה
   Book? _pdfBook; // Companion PDF
   bool _hasResolvedCompanionPdf = false;
   // מהדורות מקבילות ללחצן המובנה: המובנית ראשונה, אחריה היברובוקס מקומיות.

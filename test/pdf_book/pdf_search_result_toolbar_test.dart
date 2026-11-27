@@ -80,6 +80,7 @@ class _ControlledSearcher extends PdfTextSearchSession {
     bool goToFirstMatch = true,
     bool searchImmediately = false,
     int? startPageNumber,
+    int? maxResults,
   }) {}
 
   @override
