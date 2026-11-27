@@ -84,11 +84,14 @@ void main() {
     expect(html, contains('href="https://example.com/%40foo"'));
     expect(html, matches(RegExp('תוכן ראשון.*תוכן שני', dotAll: true)));
 
-    // השמירה במטמון מסתיימת ברקע לאחר החזרת הפלט.
-    await Future<void>.delayed(Duration.zero);
-    final refreshed = await repository.getDocxTextCacheEntry(
-      '${file.path}#markdown',
-    );
+    // השמירה במטמון רצה ב-isolate אחרי החזרת הפלט.
+    DocxTextCacheEntry? refreshed;
+    for (var i = 0; i < 250 && refreshed?.converterVersion != 9; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      refreshed = await repository.getDocxTextCacheEntry(
+        '${file.path}#markdown',
+      );
+    }
     expect(refreshed?.converterVersion, 9);
   });
 }

@@ -44,9 +44,6 @@ class DocxTextCacheDao {
   Future<void> deleteAccessedBefore(int cutoffMillis) =>
       _write('deleteAccessedBefore', [cutoffMillis]);
 
-  // כמו ב-[FileCacheDao]: כתיבת מטמון לא ממתינה לנעילה של כותב אחר.
-  Future<void> _write(String query, List<Object?> args) async {
-    final db = await database;
-    withoutBusyWait(db, () => db.execute(_queries[query]!, args));
-  }
+  Future<void> _write(String query, List<Object?> args) =>
+      _db.writeInBackground([(_queries[query]!, args)]);
 }

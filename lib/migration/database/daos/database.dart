@@ -379,6 +379,27 @@ class MyDatabase {
     db.execute('ALTER TABLE user_book_version_new RENAME TO user_book_version');
   }
 
+  Future<void> _writeQueue = Future.value();
+
+  /// ראה [writeWithoutWaitingInBackground]. הכתיבות רצות בתור: שני חיבורים
+  /// משניים במקביל היו נכשלים זה מול זה ב-SQLITE_BUSY.
+  Future<void> writeInBackground(List<SqlStatement> statements) {
+    if (statements.isEmpty) return Future.value();
+    final write = _writeQueue.then(
+      (_) async => writeWithoutWaitingInBackground(
+        await database,
+        _path,
+        statements,
+        readOnly: _readOnly,
+      ),
+    );
+    _writeQueue = write.catchError((Object _) {});
+    return write;
+  }
+
+  /// מושלם כשתור כתיבות הרקע מתרוקן, גם אם חלקן נכשלו.
+  Future<void> get backgroundWritesDone => _writeQueue;
+
   bool _retired = false;
 
   /// סוגר לצמיתות: גישה נוספת זורקת במקום לפתוח את הקובץ מחדש — מאגר

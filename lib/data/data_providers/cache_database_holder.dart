@@ -96,6 +96,8 @@ class CacheDatabaseHolder {
 
   Future<void> _close() async {
     await _initFuture?.then<void>((_) {}, onError: (Object _) {});
+    // כתיבה בחיבור משני מחזיקה את הקובץ; העברת מיקום חייבת לחכות לה.
+    await _database?.backgroundWritesDone;
     _database?.retire();
     _database = null;
     _repository = null;

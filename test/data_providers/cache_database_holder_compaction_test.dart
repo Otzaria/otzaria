@@ -4,6 +4,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
+import 'package:otzaria/migration/models/docx_text_cache_entry.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -163,6 +164,39 @@ void main() {
     } finally {
       await Future.wait([opening, closing, closingAgain, reopening]);
     }
+  });
+
+  test('סגירה מנקזת כתיבה שכבר בתור ומשחררת את הקובץ', () async {
+    final holder = CacheDatabaseHolder.instance;
+    final repository = await holder.repository;
+    final dbPath = await CacheDatabaseHolder.resolveDbPath();
+    const entry = DocxTextCacheEntry(
+      filePath: '/queued.docx',
+      fileSize: 1,
+      lastModified: 1,
+      converterVersion: 1,
+      text: 'תוכן',
+      createdAt: 1,
+      accessedAt: 1,
+    );
+
+    final write = repository.upsertDocxTextCacheEntry(entry);
+    final closing = holder.close();
+    await Future<void>.delayed(Duration.zero);
+    await expectLater(
+      repository.touchDocxTextCacheEntry(entry.filePath, 2),
+      throwsStateError,
+    );
+    await Future.wait([write, closing]);
+    final movedFile = await File(dbPath).rename('$dbPath.moved');
+    final movedDb = sqlite3.open(movedFile.path, mode: OpenMode.readOnly);
+    addTearDown(movedDb.close);
+    expect(
+      movedDb
+          .select('SELECT accessedAt FROM docx_text_cache')
+          .single['accessedAt'],
+      1,
+    );
   });
 
   test('פתיחה ממתינה לנעילת SQLite בלי לחסום את ה-isolate', () async {

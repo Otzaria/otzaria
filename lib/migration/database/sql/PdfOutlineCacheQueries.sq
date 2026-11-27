@@ -6,10 +6,6 @@ FROM pdf_outline_cache
 WHERE filePath = ?
 LIMIT 1;
 
-selectAllFilePaths:
-SELECT filePath
-FROM pdf_outline_cache;
-
 upsert:
 INSERT INTO pdf_outline_cache (
   filePath,
@@ -35,6 +31,10 @@ WHERE filePath = ?;
 deleteByFilePath:
 DELETE FROM pdf_outline_cache
 WHERE filePath = ?;
+
+deleteAllExceptFilePaths:
+DELETE FROM pdf_outline_cache
+WHERE filePath NOT IN (SELECT value FROM json_each(?));
 
 deleteAccessedBefore:
 DELETE FROM pdf_outline_cache
