@@ -20,6 +20,8 @@ import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
+
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
@@ -42,11 +44,12 @@ void main() {
     LibraryProviderManager.instance.resetForTesting();
     LibraryProviderManager.instance.seedMappingsForTesting(
       mapping: {
-        BookCompositeKey.create(
-          title: 'מפרש בדיקה',
-          categoryId: 1,
-          fileType: 'txt',
-        ): _FakeLibraryProvider(),
+        for (final title in ['מפרש בדיקה', 'מפרש שני'])
+          BookCompositeKey.create(
+            title: title,
+            categoryId: 1,
+            fileType: 'txt',
+          ): _FakeLibraryProvider(),
       },
       providers: [_FakeLibraryProvider()],
     );
@@ -283,6 +286,88 @@ void main() {
     expect(copied, [contains('פירוש לבדיקה עם טקסט')]);
   });
 
+  for (final acrossBooks in [false, true]) {
+    testWidgets(
+      acrossBooks
+          ? 'העתקה לשני מפרשים מקדימה רק את שם המפרש הראשון'
+          : 'העתקת שתי כתובות מקוצרות שומרת את שם המפרש פעם אחת',
+      (tester) async {
+        final copied = <String>[];
+        debugSelectedTextCopyHandler = (content) =>
+            copied.add(content.plainText);
+        addTearDown(() => debugSelectedTextCopyHandler = null);
+        final bloc = StubTextBookBloc(
+          _loadedState(
+            refs: const ['סימן ב', 'סימן ג'],
+            includeSecondBook: acrossBooks,
+          ),
+        );
+        addTearDown(bloc.close);
+        final controller = SelectionSyncController();
+        addTearDown(controller.dispose);
+        await _pump(
+          tester,
+          textBookBloc: bloc,
+          settingsBloc: settingsBloc,
+          controller: controller,
+          autofocus: true,
+        );
+
+        final area = _regionState(tester);
+        final delegate =
+            SelectionContainer.maybeOf(
+                  tester.element(find.byType(SuperSliverList).first),
+                )!
+                as MultiSelectableSelectionContainerDelegate;
+        Future<void> copySelection() async {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+          await tester.pump();
+        }
+
+        area.selectAll();
+        await tester.pump();
+        final groupHeader = delegate.selectables.singleWhere(
+          (selectable) =>
+              selectable.getSelectedContent()?.plainText == 'מפרש בדיקה',
+        );
+        await copySelection();
+        expect('מפרש בדיקה'.allMatches(copied.removeLast()), hasLength(1));
+
+        area.clearSelection();
+        // בוחרים את אותם פרגמנטים כמו בגרירה שמתחילה אחרי כותרת הקבוצה.
+        delegate.remove(groupHeader);
+        await tester.pump();
+        try {
+          area.selectAll();
+          await tester.pump();
+          final rawSelection = delegate.getSelectedContent()?.plainText;
+          expect(rawSelection, isNot(contains('מפרש בדיקה')));
+          expect(controller.activeSelectionText, contains('סימן ג'));
+
+          await copySelection();
+
+          expect(copied.single, startsWith('מפרש בדיקה\n'));
+          expect('מפרש בדיקה'.allMatches(copied.single), hasLength(1));
+          if (acrossBooks) {
+            final secondBook = 'מפרש שני'.allMatches(copied.single).single;
+            expect(
+              secondBook.start,
+              greaterThan(copied.single.indexOf('סימן ג')),
+            );
+            expect(secondBook.end, lessThan(copied.single.indexOf('סימן ד')));
+          }
+        } finally {
+          area.clearSelection();
+          delegate.add(groupHeader);
+          await tester.pump();
+        }
+      },
+    );
+  }
+
   testWidgets('בחירת מפרש מתפרסמת ב-controller', (tester) async {
     final controller = SelectionSyncController();
     addTearDown(controller.dispose);
@@ -417,16 +502,33 @@ Future<void> _pump(
   expect(_selectionAreaFinder(), findsOneWidget);
 }
 
-TextBookLoaded _loadedState() {
-  final link = Link(
-    heRef: 'בראשית א',
-    index1: 1,
-    path2: 'מפרש בדיקה.txt',
-    index2: 1,
-    connectionType: 'COMMENTARY',
-    targetCategoryId: 1,
-    targetFileType: 'txt',
-  );
+TextBookLoaded _loadedState({
+  List<String> refs = const ['בראשית א'],
+  bool includeSecondBook = false,
+}) {
+  final titles = ['מפרש בדיקה', if (includeSecondBook) 'מפרש שני'];
+  final links = [
+    for (var i = 0; i < refs.length; i++)
+      Link(
+        heRef: refs[i],
+        index1: 1,
+        path2: 'מפרש בדיקה.txt',
+        index2: i + 1,
+        connectionType: 'COMMENTARY',
+        targetCategoryId: 1,
+        targetFileType: 'txt',
+      ),
+    if (includeSecondBook)
+      Link(
+        heRef: 'סימן ד',
+        index1: 1,
+        path2: 'מפרש שני.txt',
+        index2: 1,
+        connectionType: 'COMMENTARY',
+        targetCategoryId: 1,
+        targetFileType: 'txt',
+      ),
+  ];
 
   return TextBookLoaded(
     book: TextBook(title: 'ספר בדיקה'),
@@ -434,14 +536,12 @@ TextBookLoaded _loadedState() {
     content: const ['שורה א'],
     fontSize: 18,
     showSplitView: false,
-    activeCommentators: const ['מפרש בדיקה'],
+    activeCommentators: titles,
     commentatorGroups: const [],
-    availableCommentators: const ['מפרש בדיקה'],
-    links: [link],
+    availableCommentators: titles,
+    links: links,
     visibleLinks: const [],
-    linksByLine: {
-      1: [link],
-    },
+    linksByLine: {1: links},
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [0],
@@ -485,7 +585,7 @@ class _FakeLibraryProvider implements LibraryProvider {
 
   @override
   Future<Set<String>> getAvailableBookTitles() async {
-    return {'מפרש בדיקה|1|txt'};
+    return {'מפרש בדיקה|1|txt', 'מפרש שני|1|txt'};
   }
 
   @override
@@ -515,7 +615,7 @@ class _FakeLibraryProvider implements LibraryProvider {
 
   @override
   Future<bool> hasBook(String title, int categoryId, String fileType) async {
-    return title == 'מפרש בדיקה';
+    return title == 'מפרש בדיקה' || title == 'מפרש שני';
   }
 
   @override

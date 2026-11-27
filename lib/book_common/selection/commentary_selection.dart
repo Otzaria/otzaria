@@ -27,7 +27,9 @@ String? restoreCommentaryLineBreaks(
 }
 
 /// The global endpoints of the selection that holds [itemKeys], or null.
-(Offset, Offset)? _selectionEndpoints(Map<String, GlobalKey> itemKeys) {
+(Offset, Offset)? commentarySelectionEndpoints(
+  Map<String, GlobalKey> itemKeys,
+) {
   SelectableRegionState? sa;
   for (final k in itemKeys.values) {
     sa = k.currentContext?.findAncestorStateOfType<SelectableRegionState>();
@@ -58,7 +60,7 @@ Rect? _itemRect(GlobalKey key) {
 /// Such a selection gets no source title of a single item. Returns false
 /// when the ends cannot be located.
 bool selectionSpansMultipleItems(Map<String, GlobalKey> itemKeys) {
-  final ends = _selectionEndpoints(itemKeys);
+  final ends = commentarySelectionEndpoints(itemKeys);
   if (ends == null) return false;
   String? k1;
   String? k2;
@@ -73,7 +75,7 @@ bool selectionSpansMultipleItems(Map<String, GlobalKey> itemKeys) {
 
 /// The keys of the items that lie between the selection ends (inclusive).
 Set<String> selectedItemKeys(Map<String, GlobalKey> itemKeys) {
-  final ends = _selectionEndpoints(itemKeys);
+  final ends = commentarySelectionEndpoints(itemKeys);
   if (ends == null) return const {};
   final top = ends.$1.dy < ends.$2.dy ? ends.$1.dy : ends.$2.dy;
   final bottom = ends.$1.dy < ends.$2.dy ? ends.$2.dy : ends.$1.dy;
