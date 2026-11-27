@@ -18,8 +18,10 @@ import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../support/search_engine_test_init.dart';
+
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/widgets/navigation/nav_tree_collapse_all_button.dart';
+import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 
 /// Bloc בדיקה שמאפשר emit ידני של states ל-TocViewer.
 /// מאפשר לאמת ש-buildWhen מסנן emits לא רלוונטיים — ההגנה המרכזית של
@@ -53,13 +55,11 @@ List<TocEntry> _buildLargeToc({required int simanim, required int seifim}) {
 /// ה-TOC האמיתי של "מיקרופדיה תלמודית" (ספר 7414): שורש, 600 ערכי רמה 2
 /// ותת-העץ המלא של הראשון, שנפתח כברירת מחדל.
 List<TocEntry> _loadMikropediaToc() {
-  final json =
-      jsonDecode(
-            File(
-              'test/fixtures/toc/mikropedia_talmudit_toc.json',
-            ).readAsStringSync(),
-          )
-          as Map<String, dynamic>;
+  final json = jsonDecode(
+    File(
+      'test/fixtures/toc/mikropedia_talmudit_toc.json',
+    ).readAsStringSync(),
+  ) as Map<String, dynamic>;
   final roots = <TocEntry>[];
   final stack = <TocEntry>[];
   for (final row in json['entries'] as List) {
@@ -836,6 +836,66 @@ Future<void> main() async {
 
       // שינוי שאילתה מאפס את סימון הדפדוף — חוזרת הדגשת מיקום הקריאה.
       expect(selectedTitles(), equals(['ספר']));
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
+    'חץ למטה גולל לתוצאה הראשונה גם כשהיא כבר מסומנת ממיקום הקריאה',
+    (tester) async {
+      final toc = List.generate(
+        50,
+        (index) => TocEntry(text: 'alpha $index', index: index, level: 1),
+      );
+      final bloc = _TestTextBookBloc(
+        _loadedState(toc: toc, visibleIndices: const [1]),
+      );
+      addTearDown(bloc.close);
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          TocViewer(
+            lines: LineScrollController(),
+            closeLeftPaneCallback: () {},
+            focusNode: focusNode,
+          ),
+          bloc,
+        ),
+      );
+      await _typeInSearch(tester, 'alpha');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      final active = tester
+          .widgetList<NavTreeTile>(find.byType(NavTreeTile))
+          .singleWhere((tile) => tile.isSelected);
+      expect(active.title, 'alpha 1');
+
+      final controller = tester
+          .widget<ScrollablePositionedList>(
+            find.byType(ScrollablePositionedList),
+          )
+          .itemScrollController!;
+      double offset() => controller.scrollController!.offset;
+      controller.jumpTo(index: 30);
+      await tester.pumpAndSettle();
+      final scrolledOffset = offset();
+      expect(scrolledOffset, greaterThan(0));
+      expect(tester.binding.hasScheduledFrame, isFalse);
+
+      tester
+          .widget<NavPanelCollapsibleSearch>(
+            find.byType(NavPanelCollapsibleSearch),
+          )
+          .delegate
+          .onArrowDown!();
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.pumpAndSettle();
+
+      expect(offset(), lessThan(scrolledOffset));
+      expect(find.text('alpha 1').hitTestable(), findsOneWidget);
     },
     skip: !engineReady,
   );

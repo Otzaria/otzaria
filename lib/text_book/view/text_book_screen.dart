@@ -240,6 +240,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   final GlobalKey _searchTabKey = GlobalKey();
   Object? _searchViewInputs;
   TextBookSearchView? _searchView;
+  TocViewer? _tocView;
 
   // בקשה לפתיחת דיאלוג הגדרות צורת הדף מתוך PageShapeScreen (עדכון חי)
   final ValueNotifier<int> _pageShapeOpenSettingsNotifier = ValueNotifier<int>(
@@ -2527,7 +2528,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             children: [
               NavPanelSearchSlot(
                 index: 0,
-                child: _buildTocViewer(context, state),
+                child: _buildTocViewer(),
               ),
               if (_hasAltTitles)
                 NavPanelSearchSlot(
@@ -2619,9 +2620,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildTocViewer(BuildContext context, TextBookLoaded state) {
-    return TocViewer(
-      lines: widget.tab.lines,
+  TocViewer _buildTocViewer() {
+    final lines = widget.tab.lines;
+    // בחירת שורה בונה את הקורא; עץ הכותרות מאזין לבחירה בעצמו.
+    final view = _tocView;
+    if (view != null && identical(view.lines, lines)) return view;
+    return _tocView = TocViewer(
+      lines: lines,
       focusNode: navigationSearchFocusNode,
       closeLeftPaneCallback: _closeLeftPaneIfCovering,
     );

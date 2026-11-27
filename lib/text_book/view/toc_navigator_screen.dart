@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -170,7 +171,8 @@ class _TocViewerState extends State<TocViewer>
     if (next == current) return;
 
     final targetIndex = flat[next].entry.index;
-    _selectedEntry.value = _highlightedEntryIndex = targetIndex;
+    _highlightedEntryIndex = targetIndex;
+    _selectedEntry.value = targetIndex;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final current = _displayDataFor(state);
@@ -179,6 +181,8 @@ class _TocViewerState extends State<TocViewer>
         display: current,
       );
     });
+    // כשהתוצאה כבר מסומנת ממיקום הקריאה, ה-notifier לא מבקש פריים.
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   /// גולל את הספר אל השורה של ערך ה-TOC (לחיצה על שורה או אנטר בחיפוש).
@@ -269,9 +273,7 @@ class _TocViewerState extends State<TocViewer>
     return activeIndex;
   }
 
-  /// בזמן דפדוף בחיצים הסימון הוא של תוצאת הדפדוף, לא של מיקום הקריאה.
-  /// נקרא מה-state הנוכחי של ה-bloc: ה-state של ה-BlocBuilder נשאר ישן
-  /// כשהכותרת הפעילה זזה בלי build.
+  // ה-state שנשלח ל-BlocBuilder לא מתעדכן כשמשתנה רק מיקום הקריאה.
   void _syncSelectedEntry() {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
@@ -647,7 +649,6 @@ class _TocViewerState extends State<TocViewer>
         }
       },
       child: BlocBuilder<TextBookBloc, TextBookState>(
-        bloc: context.read<TextBookBloc>(),
         // build רק כשהעץ משתנה: בניית העץ בכל שורה של גלילה יוצרת frames
         // ארוכים בספרים עם אלפי כותרות. הכותרת הפעילה מתעדכנת ב-listener.
         buildWhen: (previous, current) {
