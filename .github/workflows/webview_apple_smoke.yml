@@ -108,7 +108,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
           cache: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v7.1.0
@@ -185,7 +185,7 @@ jobs:
           flutter drive --"$PROBE_MODE" -d "$target" --no-pub \
             --driver=test_driver/webview_resource_probe.dart \
             --target=integration_test/webview_resource_probe_test.dart \
-            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 \
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.9 \
             --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} \
             --dart-define=WEBVIEW_PROBE_TABS=3 \
             --dart-define=WEBVIEW_PROBE_IDLE_MS=3000 \
@@ -234,7 +234,7 @@ jobs:
           flutter drive --profile -d macos --no-dds --no-pub \
             --driver=test_driver/installed_plugin_resource_probe.dart \
             --target=integration_test/installed_plugin_resource_probe_test.dart \
-            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7 \
+            --dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.9 \
             --dart-define=INSTALLED_PROBE_COMMIT="$GITHUB_SHA" \
             --dart-define=INSTALLED_PROBE_IDLE_MS=1500 \
             2>&1 | tee "$RUNNER_TEMP/apple-installed-pdf/run.log"
@@ -355,7 +355,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
           cache: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve locked dependencies and verify PDF contracts

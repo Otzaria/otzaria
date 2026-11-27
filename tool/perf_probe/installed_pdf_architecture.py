@@ -87,7 +87,7 @@ def validate_bundle(report, *, executable, platform, architecture, commit):
             "Expected a full source commit")
     require(isinstance(report, dict) and report.get("status") == "passed"
             and report.get("platform") == platform and report.get("buildMode") == "profile"
-            and report.get("commit") == commit and report.get("flutterVersion") == "3.47.7"
+            and report.get("commit") == commit and report.get("flutterVersion") == "3.47.9"
             and report.get("errors") == [] and report.get("contractErrors") == [],
             "Missing successful current-commit installed-app report")
     require(type(report.get("pid")) is int and report["pid"] > 0

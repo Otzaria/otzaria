@@ -130,7 +130,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - name: Resolve pinned dependencies
         shell: pwsh
         run: |
@@ -165,7 +165,7 @@ jobs:
           flutter drive --profile -d windows --no-pub `
             --driver=test_driver/webview_resource_probe.dart `
             --target=integration_test/webview_resource_probe_test.dart `
-            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.9 `
             --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} `
             --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run.log'
@@ -181,7 +181,7 @@ jobs:
           flutter drive --profile -d windows --no-pub `
             --driver=test_driver/webview_resource_probe.dart `
             --target=integration_test/webview_resource_probe_test.dart `
-            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.9 `
             --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} `
             --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run-hwnd.log'
@@ -220,7 +220,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve pinned dependencies
         shell: pwsh

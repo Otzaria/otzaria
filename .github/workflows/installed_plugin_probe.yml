@@ -90,13 +90,13 @@ jobs:
         if: matrix.arch == 'x64'
         with:
           channel: stable
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
           cache: false
       - name: Bootstrap the locked native ARM64 Flutter SDK
         if: matrix.arch == 'arm64'
         run: |
           $ErrorActionPreference = 'Stop'
-          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
@@ -150,7 +150,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run installed plugin and PDF runtime in the actual bundle
         run: |
-          & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.7' -Architecture '${{ matrix.arch }}'
+          & ./tool/perf_probe/run_installed_plugin_windows.ps1 -Commit '${{ github.sha }}' -FlutterVersion '3.47.9' -Architecture '${{ matrix.arch }}'
           exit $LASTEXITCODE
       - name: Validate native PDF desktop recovery and repeated closes
         run: |

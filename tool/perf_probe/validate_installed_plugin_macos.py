@@ -97,7 +97,7 @@ def validate(wrapper, bundle, output, commit):
     report = wrapper.get("installedPluginProbe")
     require(isinstance(report, dict), "Missing installed app report")
     for key, expected in {"schemaVersion": 1, "status": "passed", "platform": "macos",
-                          "buildMode": "profile", "flutterVersion": "3.47.7", "commit": commit,
+                          "buildMode": "profile", "flutterVersion": "3.47.9", "commit": commit,
                           "errors": [], "contractErrors": [], "testFailures": []}.items():
         require(type(report.get(key)) is type(expected) and report[key] == expected,
                 f"Incomplete macOS profile result: {key}")
