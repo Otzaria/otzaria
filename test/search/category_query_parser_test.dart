@@ -87,6 +87,102 @@ void main() {
     String facetOf(Book book) =>
         FacetHelper.buildBookFacet(FacetHelper.resolveCategoryPath(book), book);
 
+    test('@רבינו בחיי כולל ספר לפי הכינוי וספר לפי המחבר (#5502)', () {
+      final torah = TextBook(
+        id: 3560,
+        title: 'רבנו בחיי',
+        author: 'רבנו בחיי אבן חלאווה',
+        categoryPath: '/ראשונים',
+      );
+      final duties = TextBook(
+        id: 3162,
+        title: 'חובות הלבבות',
+        author: 'רבינו בחיי אבן פקודה',
+        categoryPath: '/ראשונים',
+      );
+      final bookList = [torah, duties];
+      final library = Library(categories: [_category('ראשונים', bookList)]);
+      AcronymsCache.instance.setAcronymsForTesting({
+        3560: ['רבינו בחיי'],
+      });
+
+      expect(parseCategoryQuery('שלום@רבינו בחיי', library).facets, [
+        facetOf(torah),
+        facetOf(duties),
+      ]);
+      expect(parseCategoryQuery('שלום@רבינו בחיי אבן פקודה', library).facets, [
+        facetOf(duties),
+      ]);
+      expect(parseCategoryQuery('שלום@רבנו בחיי', library).facets, [
+        facetOf(torah),
+      ]);
+      expect(parseCategoryQuery('שלום@ראשונים/רבינו בחיי', library).facets, [
+        facetOf(torah),
+      ]);
+    });
+
+    test('@מחבר מקבל שם שלם או תחילית חד-משמעית של מילים', () {
+      final first = TextBook(
+        title: 'חיבור ראשון',
+        author: 'מחבר ראשון, רבי אברהם יצחק הכהן קוק',
+        authorNames: ['מחבר ראשון', 'רבי אברהם יצחק הכהן קוק'],
+      );
+      final second = TextBook(
+        title: 'חיבור שני',
+        author: 'רבי אברהם יצחק הכהן אחר',
+      );
+      final lib = Library(
+        categories: [
+          _category('ספרים', [first, second]),
+        ],
+      );
+
+      for (final author in [
+        'מחבר ראשון',
+        'רבי אברהם יצחק הכהן קוק',
+        'רבי אברהם יצחק הכהן אחר',
+      ]) {
+        expect(
+          parseCategoryQuery('שלום@$author', lib).facets,
+          [facetOf(author.endsWith('אחר') ? second : first)],
+        );
+      }
+      for (final name in ['רבי', 'רבי אברהם יצחק', 'רבי אברה', 'אברהם יצחק']) {
+        expect(parseCategoryQuery('שלום@$name', lib).notFoundNames, [name]);
+      }
+    });
+
+    test('התאמת ספר לכינוי ולמחבר באותו רכיב מחזירה אותו פעם אחת', () {
+      final book = TextBook(id: 1, title: 'חיבור', author: 'מחבר ראשון');
+      final lib = Library(
+        categories: [
+          _category('ספרים', [book]),
+        ],
+      );
+      AcronymsCache.instance.setAcronymsForTesting({
+        1: ['מחבר ראשון'],
+      });
+
+      expect(parseCategoryQuery('שלום@מחבר ראשון', lib).facets, [
+        facetOf(book),
+      ]);
+    });
+
+    test('מחבר מדויק מכריע לפני כותרת עם שגיאת כתיב', () {
+      final book = TextBook(title: 'חיבור', author: 'יונתן שטרן');
+      final similarTitle = TextBook(title: 'יהונתן שטרן');
+      final lib = Library(
+        categories: [
+          _category('ספרים', [book, similarTitle]),
+        ],
+      );
+      final query = 'שלום@יונתן שטרן';
+
+      expect(parseCategoryQuery(query, lib).facets, [facetOf(book)]);
+      book.author = 'מחבר אחר';
+      expect(parseCategoryQuery(query, lib).facets, [facetOf(similarTitle)]);
+    });
+
     for (final pair in [('שורש', 'שרש'), ('דובר', 'דבר')]) {
       test('@${pair.$1} אינו מרחיב את התחום לפי כלל כתיב שמות הספרים', () {
         final library = Library(categories: [_category(pair.$2, [])]);

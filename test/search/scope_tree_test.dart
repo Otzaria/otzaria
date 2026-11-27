@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -335,6 +336,50 @@ void main() {
 
     test('search על מחרוזת ריקה מחזיר רשימה ריקה', () {
       expect(tree.search(''), isEmpty);
+    });
+
+    test('שם חלופי מהקטלוג מוצא את הספר בהקלדה חלקית (#5502)', () {
+      final cache = AcronymsCache.instance;
+      addTearDown(cache.clear);
+      final t = ScopeTree.fromLibrary(
+        _lib([
+          _mkCat(
+            'ראשונים',
+            books: [
+              TextBook(
+                id: 3560,
+                title: 'רבנו בחיי',
+                author: 'רבנו בחיי אבן חלאווה',
+              ),
+              TextBook(
+                id: 3162,
+                title: 'חובות הלבבות',
+                author: 'רבינו בחיי אבן פקודה',
+              ),
+              TextBook(
+                id: 3560,
+                title: 'ספר מקטלוג חיצוני',
+                externalLibraryId: 'other-catalog',
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      expect(t.search('רבינו ב').map((result) => result.title), [
+        'חובות הלבבות',
+      ]);
+      cache.setAcronymsForTesting({
+        3560: ['רבינו בחיי'],
+      });
+      expect(t.search('רבינו בח').map((result) => result.title), [
+        'חובות הלבבות',
+        'רבנו בחיי',
+      ]);
+      expect(t.search('רבינו בחיי').map((result) => result.title), [
+        'חובות הלבבות',
+        'רבנו בחיי',
+      ]);
     });
 
     test('הטקסט המנורמל של צומת מחושב פעם אחת ונשמר בין חיפושים', () {

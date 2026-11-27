@@ -111,7 +111,7 @@ class _AttachedCatalogBuild {
   final AttachedBookSource source;
   final List<Map<String, dynamic>> rows;
   final List<Map<String, dynamic>> categoryRows;
-  final Map<int, String> authors;
+  final Map<int, List<String>> authors;
   final Map<String, Map<String, dynamic>> metadata;
   final List<Map<String, dynamic>> versionLinks;
   final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
@@ -2980,6 +2980,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           id: dbBook.id,
           title: dbBook.title,
           author: dbBook.authors.isNotEmpty ? dbBook.authors.first.name : null,
+          authorNames: dbBook.authors.map((author) => author.name).toList(),
           heShortDesc: dbBook.heShortDesc,
           pubDate: dbBook.pubDates.isNotEmpty
               ? dbBook.pubDates.first.date
@@ -3875,7 +3876,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     db_models.Category dbCategory,
     Map<int, List<Map<String, dynamic>>> booksByCategory,
     Map<int?, List<db_models.Category>> categoriesByParent,
-    Map<int, String> authorsByBookId,
+    Map<int, List<String>> authorsByBookId,
     Category parent,
     Map<String, Map<String, dynamic>> metadata,
   ) {
@@ -3902,7 +3903,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         dbBook,
         category,
         metadata,
-        authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
+        authorsFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
         categoryPathInfo: categoryPathInfo,
       );
       if (book == null) continue;
@@ -4111,7 +4112,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           dbBook,
           directBooksParent,
           metadata,
-          authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
+          authorsFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
           source: BookSource.user,
           idOverride: dbBook['id'] as int? ?? 0,
           categoryIdOverride: personalRootId,
@@ -4186,7 +4187,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             dbBook,
             looseBooksParent,
             metadata,
-            authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
+            authorsFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
             source: BookSource.user,
             idOverride: dbBook['id'] as int? ?? 0,
             categoryIdOverride: pickedFolder.id,
@@ -4541,7 +4542,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         },
         category,
         build.metadata,
-        authorFromDatabase: build.authors[id],
+        authorsFromDatabase: build.authors[id],
         source: build.source,
         idOverride: id,
         categoryIdOverride: categoryId,
@@ -4655,7 +4656,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required db_models.Category dbCategory,
     required Map<int, List<Map<String, dynamic>>> booksByCategory,
     required Map<int?, List<db_models.Category>> categoriesByParent,
-    required Map<int, String> authorsByBookId,
+    required Map<int, List<String>> authorsByBookId,
     required Map<String, Map<String, dynamic>> metadata,
   }) {
     _appendUserBooksContentToCategoryRecursive(
@@ -4675,7 +4676,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     db_models.Category dbCategory,
     Map<int, List<Map<String, dynamic>>> booksByCategory,
     Map<int?, List<db_models.Category>> categoriesByParent,
-    Map<int, String> authorsByBookId,
+    Map<int, List<String>> authorsByBookId,
     Category parent,
     Map<String, Map<String, dynamic>> metadata,
   ) {
@@ -4706,7 +4707,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     db_models.Category dbCategory,
     Map<int, List<Map<String, dynamic>>> booksByCategory,
     Map<int?, List<db_models.Category>> categoriesByParent,
-    Map<int, String> authorsByBookId,
+    Map<int, List<String>> authorsByBookId,
     Map<String, Map<String, dynamic>> metadata,
   ) {
     // categoryId טבעי מ-user_books.db (בלי offset). הבידול נעשה דרך
@@ -4728,7 +4729,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         dbBook,
         category,
         metadata,
-        authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
+        authorsFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
         source: BookSource.user,
         idOverride: dbBook['id'] as int? ?? 0,
         categoryIdOverride: nativeCategoryId,
@@ -4788,7 +4789,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Map<String, dynamic> bookMap,
     Category category,
     Map<String, Map<String, dynamic>> metadata, {
-    String? authorFromDatabase,
+    List<String>? authorsFromDatabase,
     BookSource source = BookSource.official,
     int? idOverride,
     int? categoryIdOverride,
@@ -4810,7 +4811,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final (:categoryPath, :topics) =
         categoryPathInfo ?? _categoryPathInfo(category);
 
-    final author = authorFromDatabase ?? (bookMeta?['author'] as String?);
+    final author =
+        authorsFromDatabase?.join(', ') ?? (bookMeta?['author'] as String?);
     final pubDate = bookMeta?['pubDate'] as String?;
     final pubPlace = bookMeta?['pubPlace'] as String?;
     final metaHeShortDesc = heShortDesc ?? bookMeta?['heShortDesc'] as String?;
@@ -4836,6 +4838,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       path: resolvedFilePath ?? title,
       filePath: resolvedFilePath,
       author: author,
+      authorNames: authorsFromDatabase,
       heShortDesc: metaHeShortDesc,
       heDesc: metaHeDesc,
       pubDate: pubDate,

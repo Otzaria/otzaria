@@ -13,7 +13,7 @@ typedef AttachedCatalogRows = ({
   bool missing,
   List<Map<String, dynamic>> books,
   List<Map<String, dynamic>> categories,
-  Map<int, String> authors,
+  Map<int, List<String>> authors,
   List<Map<String, dynamic>> versionLinks,
 });
 
@@ -37,7 +37,7 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
     final capabilities = DbCapabilities.probe(db);
     late final List<Map<String, dynamic>> books;
     late final List<Map<String, dynamic>> categories;
-    late final Map<int, String> authors;
+    late final Map<int, List<String>> authors;
     var versionLinks = const <Map<String, dynamic>>[];
     withTransaction(db, () {
       books = [

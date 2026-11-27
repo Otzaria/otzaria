@@ -129,33 +129,28 @@ class BookDao {
   }
 
   /// Loads authors for all local books in one query to keep catalog build fast.
-  Map<int, String> getBookAuthorsMap(sqlite3.Database db) =>
+  Map<int, List<String>> getBookAuthorsMap(sqlite3.Database db) =>
       selectBookAuthorsMap(db, DbCapabilities.forDatabase(_db.path, db));
 
   /// גוף [getBookAuthorsMap] בלי תלות במופע — לקריאה ב-isolate.
-  static Map<int, String> selectBookAuthorsMap(
+  static Map<int, List<String>> selectBookAuthorsMap(
     sqlite3.Database db,
     DbCapabilities capabilities,
   ) {
     if (!capabilities.hasAuthors) return {};
     final rows = db.select('''
-      SELECT author_rows.bookId,
-             GROUP_CONCAT(author_rows.name, ', ') AS author
-      FROM (
-        SELECT ba.bookId AS bookId,
-               a.name AS name
-        FROM book_author ba
-        JOIN author a ON a.id = ba.authorId
-        ORDER BY ba.bookId, a.name
-      ) AS author_rows
-      GROUP BY author_rows.bookId
-    ''').toMapList();
-
-    return {
-      for (final row in rows)
-        if ((row['author'] as String?)?.isNotEmpty == true)
-          row['bookId'] as int: row['author'] as String,
-    };
+      SELECT ba.bookId, a.name
+      FROM book_author ba
+      JOIN author a ON a.id = ba.authorId
+      ORDER BY ba.bookId, a.name
+    ''');
+    final authors = <int, List<String>>{};
+    for (final row in rows) {
+      if (row['name'] case final String name when name.isNotEmpty) {
+        (authors[row['bookId'] as int] ??= []).add(name);
+      }
+    }
+    return authors;
   }
 
   /// השדות שהקאש המשותף של טבלת `book` צורך, כמפות. ההקרנה הרזה שומרת את

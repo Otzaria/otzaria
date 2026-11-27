@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -424,7 +425,7 @@ class ScopeTree {
 
   /// ההתאמות של החיפוש האחרון: הקשה שמאריכה את השאילתה בודקת רק אותן — נכון
   /// כל עוד [findNormalizedTextMatches] מתאים לתחילת כל שאילתה שהוא מתאים לה.
-  ({String query, List<ScopeNode> matches})? _lastSearch;
+  ({String query, int aliasRevision, List<ScopeNode> matches})? _lastSearch;
 
   List<ScopeSearchResultItem> search(String normalizedQuery) {
     if (normalizedQuery.isEmpty) {
@@ -433,7 +434,11 @@ class ScopeTree {
 
     debugSearchScans++;
     final last = _lastSearch;
-    final candidates = last != null && normalizedQuery.startsWith(last.query)
+    final aliasRevision = AcronymsCache.instance.revision;
+    final candidates =
+        last != null &&
+            last.aliasRevision == aliasRevision &&
+            normalizedQuery.startsWith(last.query)
         ? last.matches
         : _nodesInTreeOrder;
     final matchedNodes = <ScopeNode>[];
@@ -447,8 +452,14 @@ class ScopeTree {
         normalizedPrimaryText: normalizedTitle,
         normalizedSecondaryText: normalizedSubtitle,
       );
+      final alias = !matches && node is BookScopeNode
+          ? node
+                ._aliasesAt(aliasRevision)
+                .where((alias) => alias.contains(normalizedQuery))
+                .firstOrNull
+          : null;
 
-      if (matches) {
+      if (matches || alias != null) {
         matchedNodes.add(node);
         results.add(
           ScopeSearchResultItem(
@@ -456,21 +467,30 @@ class ScopeTree {
             title: node.title,
             subtitle: node.subtitle,
             isBook: node.isBook,
-            score: findNormalizedTextMatchRank(
-              normalizedQuery: normalizedQuery,
-              normalizedPrimaryText: normalizedTitle,
-              normalizedSecondaryText: normalizedSubtitle,
-            ),
-            lengthDelta: findNormalizedTextMatchLengthDelta(
-              normalizedQuery: normalizedQuery,
-              normalizedPrimaryText: normalizedTitle,
-              normalizedSecondaryText: normalizedSubtitle,
-            ),
+            // תוצאה לפי כינוי בלבד מופיעה אחרי התאמות כותרת וכותרת משנה.
+            score: alias != null
+                ? 6
+                : findNormalizedTextMatchRank(
+                    normalizedQuery: normalizedQuery,
+                    normalizedPrimaryText: normalizedTitle,
+                    normalizedSecondaryText: normalizedSubtitle,
+                  ),
+            lengthDelta: alias != null
+                ? alias.length - normalizedQuery.length
+                : findNormalizedTextMatchLengthDelta(
+                    normalizedQuery: normalizedQuery,
+                    normalizedPrimaryText: normalizedTitle,
+                    normalizedSecondaryText: normalizedSubtitle,
+                  ),
           ),
         );
       }
     }
-    _lastSearch = (query: normalizedQuery, matches: matchedNodes);
+    _lastSearch = (
+      query: normalizedQuery,
+      aliasRevision: aliasRevision,
+      matches: matchedNodes,
+    );
 
     results.sort((a, b) {
       final scoreCompare = a.score.compareTo(b.score);
@@ -596,6 +616,8 @@ class CategoryScopeNode extends ScopeNode {
 
 class BookScopeNode extends ScopeNode {
   final Book book;
+  int _aliasRevision = -1;
+  List<String> _aliases = const [];
 
   BookScopeNode({required this.book, required String categoryPath})
     : super(
@@ -607,6 +629,18 @@ class BookScopeNode extends ScopeNode {
         ].join(' • '),
         children: const [],
       );
+
+  List<String> _aliasesAt(int revision) {
+    if (_aliasRevision != revision) {
+      _aliases =
+          book is ExternalLibraryBook ||
+              (book.source.isOfficial && !book.isOfficialLibraryBook)
+          ? const []
+          : AcronymsCache.instance.aliasesFor(book.source, book.id, title);
+      _aliasRevision = revision;
+    }
+    return _aliases;
+  }
 
   @override
   bool get isBook => true;

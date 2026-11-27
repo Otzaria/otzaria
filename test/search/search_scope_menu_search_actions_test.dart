@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -63,12 +64,13 @@ Future<void> main() async {
     WidgetTester tester,
     Set<String> selected, {
     ValueNotifier<Set<String>?>? coverage,
+    Library? library,
   }) async {
     final libraryBloc = _MockLibraryBloc();
     whenListen(
       libraryBloc,
       const Stream<LibraryState>.empty(),
-      initialState: LibraryState(library: _buildLibrary()),
+      initialState: LibraryState(library: library ?? _buildLibrary()),
     );
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
@@ -144,6 +146,29 @@ Future<void> main() async {
   group(
     'פעולות בתוצאות סינון ההיקף (issue #933)',
     () {
+      testWidgets('הקלדת רבינו בח מציעה את הספר רבנו בחיי (#5502)', (
+        tester,
+      ) async {
+        final cache = AcronymsCache.instance;
+        cache.setAcronymsForTesting({
+          3560: ['רבינו בחיי'],
+        });
+        addTearDown(cache.clear);
+        final library = _buildLibrary();
+        library.subCategories.single.subCategories.single.books.add(
+          TextBook(
+            id: 3560,
+            title: 'רבנו בחיי',
+            author: 'רבנו בחיי אבן חלאווה',
+            categoryPath: '/תנ״ך/תורה',
+          ),
+        );
+        await pumpMenu(tester, {'/'}, library: library);
+        await typeQuery(tester, 'רבינו בח');
+
+        expect(textInList('רבנו בחיי'), findsOneWidget);
+      });
+
       testWidgets('עץ שכבר נפתח מתעדכן כשמגיעה רשימת הכיסוי', (tester) async {
         final coverage = ValueNotifier<Set<String>?>(null);
         addTearDown(coverage.dispose);

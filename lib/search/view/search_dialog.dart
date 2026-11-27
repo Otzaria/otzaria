@@ -1324,7 +1324,7 @@ class _SearchDialogState extends State<SearchDialog> {
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
-    final selection = switch ((bookFacet, parsedCategory?.facets)) {
+    var selection = switch ((bookFacet, parsedCategory?.facets)) {
       (final facet?, _) => [facet],
       (null, final facets?) => [
         ...facets,
@@ -1369,14 +1369,19 @@ class _SearchDialogState extends State<SearchDialog> {
       final library = _library;
       final isOfficialCategory = officialCategoryFilter(library);
       final isCoveredFacet = coveredFacetFilter(library, covered);
-      if (!selection.every(
-        (facet) => isSemanticScopeFacetSupported(
-          facet,
-          includeLexical: includeLexical,
-          isOfficialCategory: isOfficialCategory,
-          isCoveredFacet: isCoveredFacet,
-        ),
-      )) {
+      bool isSupported(String facet) => isSemanticScopeFacetSupported(
+        facet,
+        includeLexical: includeLexical,
+        isOfficialCategory: isOfficialCategory,
+        isCoveredFacet: isCoveredFacet,
+      );
+      if (!includeLexical && parsedCategory?.facets != null) {
+        selection = [
+          ...parsedCategory!.facetsWithSupportedAuthors(isSupported),
+          ...FacetHelper.dimensionFacetsOf(selection),
+        ];
+      }
+      if (!selection.every(isSupported)) {
         UiSnack.showError(SemanticSearchMessages.unsupportedScope);
         return;
       }
