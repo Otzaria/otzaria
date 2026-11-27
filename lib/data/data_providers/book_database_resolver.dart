@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/official_book_title_renames.dart';
@@ -70,6 +71,7 @@ class BookDatabaseResolver {
   /// מאתר ספר לפי מאפייניו במסדי הספרייה.
   ///
   /// [preferSource] נבדק ראשון; [officialOnly] מונע fallback ל-`user_books.db`.
+  /// [throwIfUnavailable] מדווח על מסד קיים שקריאה ממנו אינה זמינה.
   static Future<ResolvedDbBookRecord?> resolveBook({
     required String title,
     int? categoryId,
@@ -77,6 +79,7 @@ class BookDatabaseResolver {
     String? filePath,
     BookSource preferSource = BookSource.official,
     bool officialOnly = false,
+    bool throwIfUnavailable = false,
   }) async {
     final List<ResolvedBookRepositoryCandidate> candidates;
     if (officialOnly) {
@@ -91,6 +94,19 @@ class BookDatabaseResolver {
             ];
     } else {
       candidates = await _loadRepositoryCandidates(preferSource: preferSource);
+    }
+
+    if (throwIfUnavailable &&
+        !preferSource.isAttached &&
+        SqliteDataProvider.instance.isClosedForExternalWrite) {
+      throw const DbReadWorkerSuspended();
+    }
+    if (throwIfUnavailable &&
+        candidates.isEmpty &&
+        preferSource is AttachedBookSource &&
+        AttachedLibraryRegistry.instance.libraryFor(preferSource.slug) !=
+            null) {
+      throw StateError('Cannot read attached library ${preferSource.slug}');
     }
 
     return resolveBookInCandidates(
