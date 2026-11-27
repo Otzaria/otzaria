@@ -160,6 +160,12 @@ class ToolTileAction {
   });
 }
 
+/// מכשיר מגע: גרירה בלחיצה ארוכה, ובלי פוקוס אוטומטי שפותח את המקלדת.
+bool get _isTouchPlatform => switch (defaultTargetPlatform) {
+  TargetPlatform.android || TargetPlatform.iOS => true,
+  _ => false,
+};
+
 /// תוכן פאנל הכלים: חיפוש למעלה, ומתחתיו רשת קוביות מקובצת.
 class ToolsLauncherPanel extends StatefulWidget {
   final ValueChanged<ToolCatalogEntry> onToolSelected;
@@ -225,7 +231,8 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     // autofocus אינו עובד כאן: הפאנל נפתח בתוך FocusScope שכבר יש בו
     // focusedChild (מסך הקריאה), ואז בקשת ה-autofocus נזנחת.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocusNode.requestFocus();
+      // במכשיר מגע הפוקוס פותח את המקלדת הווירטואלית בכל פתיחה (#6062).
+      if (mounted && !_isTouchPlatform) _searchFocusNode.requestFocus();
     });
   }
 
@@ -956,7 +963,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         movePulse: entry.toolId == _movedToolId ? _moveNonce : 0,
         // בלי זה הפוקוס נשאר על מסלול התפריט שנסגר, ומקשי הפאנל (Escape,
         // חצים, Enter) מפסיקים לעבוד עד לחיצה על שדה החיפוש.
-        onMenuClosed: () => _searchFocusNode.requestFocus(),
+        onMenuClosed: _isTouchPlatform
+            ? null
+            : () => _searchFocusNode.requestFocus(),
         actions: _tileActions(
           entry,
           onMoveEarlier: moveTo(
@@ -1168,11 +1177,6 @@ class _ReorderableToolTileState extends State<_ReorderableToolTile> {
   /// `true` = הקובייה הנגררת תיפול *אחרי* הקובייה הזאת בסדר.
   bool _placeAfter = false;
 
-  bool get _isTouch => switch (defaultTargetPlatform) {
-    TargetPlatform.android || TargetPlatform.iOS => true,
-    _ => false,
-  };
-
   /// בכיוון RTL "לפני" הוא הצד הימני של הקובייה, ולכן סמן בחצי הימני מציב
   /// לפניה וסמן בחצי השמאלי מציב אחריה.
   void _updateSide(ToolCatalogEntry source, Offset globalPointer) {
@@ -1210,7 +1214,7 @@ class _ReorderableToolTileState extends State<_ReorderableToolTile> {
 
         final feedback = _ToolDragFeedback(entry: widget.entry);
         final placeholder = Opacity(opacity: 0.35, child: widget.tile);
-        return _isTouch
+        return _isTouchPlatform
             ? LongPressDraggable<ToolCatalogEntry>(
                 data: widget.entry,
                 dragAnchorStrategy: pointerDragAnchorStrategy,

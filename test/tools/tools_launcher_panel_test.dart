@@ -226,100 +226,161 @@ void main() {
   testWidgets('שדה החיפוש בפאנל הכלים מקבל פוקוס גם כשהמסך כבר ממוקד', (
     tester,
   ) async {
-    final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
-    final backgroundFocusNode = FocusNode();
-    final settingsBloc = StubSettingsBloc(SettingsState.initial());
-    final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
-    final tabsBloc = _TestTabsBloc(TabsState.initial());
-    addTearDown(() async {
-      backgroundFocusNode.dispose();
-      await settingsBloc.close();
-      await pluginSystemBloc.close();
-      await tabsBloc.close();
-    });
+    await _asDesktop(() async {
+      final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
+      final backgroundFocusNode = FocusNode();
+      final settingsBloc = StubSettingsBloc(SettingsState.initial());
+      final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
+      final tabsBloc = _TestTabsBloc(TabsState.initial());
+      addTearDown(() async {
+        backgroundFocusNode.dispose();
+        await settingsBloc.close();
+        await pluginSystemBloc.close();
+        await tabsBloc.close();
+      });
 
-    await tester.pumpWidget(
-      MultiBlocProvider(
-        providers: [
-          BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          BlocProvider<PluginSystemBloc>.value(value: pluginSystemBloc),
-          BlocProvider<TabsBloc>.value(value: tabsBloc),
-        ],
-        child: MaterialApp(
-          home: Scaffold(
-            body: _ToolsLauncherOverlayHarness(
-              key: key,
-              backgroundFocusNode: backgroundFocusNode,
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            BlocProvider<PluginSystemBloc>.value(value: pluginSystemBloc),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: _ToolsLauncherOverlayHarness(
+                key: key,
+                backgroundFocusNode: backgroundFocusNode,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    backgroundFocusNode.requestFocus();
-    await tester.pump();
-    expect(backgroundFocusNode.hasFocus, isTrue);
+      backgroundFocusNode.requestFocus();
+      await tester.pump();
+      expect(backgroundFocusNode.hasFocus, isTrue);
 
-    key.currentState!.open();
-    await tester.pump();
-    await tester.pump();
-    await tester.pump();
+      key.currentState!.open();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
 
-    final searchField = tester.widget<TextField>(
-      find.descendant(
-        of: find.byType(ToolsLauncherPanel),
-        matching: find.byType(TextField),
-      ),
-    );
-    expect(searchField.focusNode!.hasFocus, isTrue);
-    expect(backgroundFocusNode.hasFocus, isFalse);
+      final searchField = tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(ToolsLauncherPanel),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(searchField.focusNode!.hasFocus, isTrue);
+      expect(backgroundFocusNode.hasFocus, isFalse);
+    });
   });
+
+  testWidgets(
+    'במכשיר מגע פתיחת פאנל הכלים אינה ממקדת את שדה החיפוש (issue #6062)',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
+        final backgroundFocusNode = FocusNode();
+        final settingsBloc = StubSettingsBloc(SettingsState.initial());
+        final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
+        final tabsBloc = _TestTabsBloc(TabsState.initial());
+        addTearDown(() async {
+          backgroundFocusNode.dispose();
+          await settingsBloc.close();
+          await pluginSystemBloc.close();
+          await tabsBloc.close();
+        });
+
+        await tester.pumpWidget(
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+              BlocProvider<PluginSystemBloc>.value(value: pluginSystemBloc),
+              BlocProvider<TabsBloc>.value(value: tabsBloc),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: _ToolsLauncherOverlayHarness(
+                  key: key,
+                  backgroundFocusNode: backgroundFocusNode,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        backgroundFocusNode.requestFocus();
+        await tester.pump();
+
+        key.currentState!.open();
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
+
+        final searchField = tester.widget<TextField>(
+          find.descendant(
+            of: find.byType(ToolsLauncherPanel),
+            matching: find.byType(TextField),
+          ),
+        );
+        // פוקוס לשדה הטקסט הוא מה שפותח את המקלדת הווירטואלית.
+        expect(searchField.focusNode!.hasFocus, isFalse);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
 
   testWidgets('חצים ו-Enter פותחים את הקובייה המסומנת משדה החיפוש', (
     tester,
   ) async {
-    final settingsBloc = _MockSettingsBloc();
-    final pluginSystemBloc = _MockPluginSystemBloc();
-    final tabsBloc = _MockTabsBloc();
-    ToolCatalogEntry? selected;
+    await _asDesktop(() async {
+      final settingsBloc = _MockSettingsBloc();
+      final pluginSystemBloc = _MockPluginSystemBloc();
+      final tabsBloc = _MockTabsBloc();
+      ToolCatalogEntry? selected;
 
-    whenListen(
-      settingsBloc,
-      const Stream<SettingsState>.empty(),
-      initialState: SettingsState.initial(),
-    );
-    whenListen(
-      pluginSystemBloc,
-      const Stream<PluginSystemState>.empty(),
-      initialState: PluginSystemInitial(),
-    );
-    whenListen(
-      tabsBloc,
-      const Stream<TabsState>.empty(),
-      initialState: TabsState.initial(),
-    );
+      whenListen(
+        settingsBloc,
+        const Stream<SettingsState>.empty(),
+        initialState: SettingsState.initial(),
+      );
+      whenListen(
+        pluginSystemBloc,
+        const Stream<PluginSystemState>.empty(),
+        initialState: PluginSystemInitial(),
+      );
+      whenListen(
+        tabsBloc,
+        const Stream<TabsState>.empty(),
+        initialState: TabsState.initial(),
+      );
 
-    await tester.pumpWidget(
-      _launcherHost(
-        settingsBloc: settingsBloc,
-        pluginSystemBloc: pluginSystemBloc,
-        tabsBloc: tabsBloc,
-        onToolSelected: (entry) => selected = entry,
-      ),
-    );
-    await tester.pump();
+      await tester.pumpWidget(
+        _launcherHost(
+          settingsBloc: settingsBloc,
+          pluginSystemBloc: pluginSystemBloc,
+          tabsBloc: tabsBloc,
+          onToolSelected: (entry) => selected = entry,
+        ),
+      );
+      await tester.pump();
 
-    final searchField = tester.widget<TextField>(find.byType(TextField));
-    expect(searchField.focusNode!.hasFocus, isTrue);
+      final searchField = tester.widget<TextField>(find.byType(TextField));
+      expect(searchField.focusNode!.hasFocus, isTrue);
 
-    await tester.enterText(find.byType(TextField), 'ה');
-    await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pump();
+      await tester.enterText(find.byType(TextField), 'ה');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
 
-    expect(selected?.toolId, 'builtin.notes');
+      expect(selected?.toolId, 'builtin.notes');
+    });
   });
 
   group('normalizeToolSearchText', () {
@@ -1021,29 +1082,31 @@ void main() {
     testWidgets('דיאלוג התקנה אינו מעלים את התוספים מהפאנל (issue #1225)', (
       tester,
     ) async {
-      await pumpPanel(tester);
-      expect(find.text('תוסף א'), findsOneWidget);
-      expect(find.text('תוסף ב'), findsOneWidget);
+      await _asDesktop(() async {
+        await pumpPanel(tester);
+        expect(find.text('תוסף א'), findsOneWidget);
+        expect(find.text('תוסף ב'), findsOneWidget);
 
-      pluginSystemBloc.pushState(
-        const PluginSystemOverwriteRequired(
-          archivePath: '/tmp/a.otzplugin',
-          pluginName: 'תוסף א',
-          version: '1.0.0',
-        ),
-      );
-      await tester.pump();
-      expect(find.text('תוסף א'), findsOneWidget);
-      expect(find.text('תוסף ב'), findsOneWidget);
+        pluginSystemBloc.pushState(
+          const PluginSystemOverwriteRequired(
+            archivePath: '/tmp/a.otzplugin',
+            pluginName: 'תוסף א',
+            version: '1.0.0',
+          ),
+        );
+        await tester.pump();
+        expect(find.text('תוסף א'), findsOneWidget);
+        expect(find.text('תוסף ב'), findsOneWidget);
 
-      pluginSystemBloc.pushState(PluginSystemLoading());
-      await tester.pump();
-      expect(find.text('תוסף א'), findsOneWidget);
+        pluginSystemBloc.pushState(PluginSystemLoading());
+        await tester.pump();
+        expect(find.text('תוסף א'), findsOneWidget);
 
-      pluginSystemBloc.pushState(PluginSystemLoaded([plugins().first]));
-      await tester.pump();
-      expect(find.text('תוסף א'), findsOneWidget);
-      expect(find.text('תוסף ב'), findsNothing);
+        pluginSystemBloc.pushState(PluginSystemLoaded([plugins().first]));
+        await tester.pump();
+        expect(find.text('תוסף א'), findsOneWidget);
+        expect(find.text('תוסף ב'), findsNothing);
+      });
     });
 
     // ── סימון מקלדת ─────────────────────────────────────────────────────────
@@ -1057,12 +1120,14 @@ void main() {
     });
 
     testWidgets('החץ הראשון מסמן את הקובייה הראשונה', (tester) async {
-      await pumpPanel(tester);
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-      await tester.pump();
+      await _asDesktop(() async {
+        await pumpPanel(tester);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
 
-      expect(_selectedCardCount(tester), 1);
-      expect(_isCardSelected(tester, 'לוח שנה'), isTrue);
+        expect(_selectedCardCount(tester), 1);
+        expect(_isCardSelected(tester, 'לוח שנה'), isTrue);
+      });
     });
 
     testWidgets('חיפוש מסמן את התוצאה הראשונה', (tester) async {
@@ -1085,11 +1150,13 @@ void main() {
     });
 
     testWidgets('Enter בלי סימון פותח את הכלי הראשון', (tester) async {
-      await pumpPanel(tester);
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pump();
+      await _asDesktop(() async {
+        await pumpPanel(tester);
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
 
-      expect(selected.single.toolId, 'builtin.calendar');
+        expect(selected.single.toolId, 'builtin.calendar');
+      });
     });
 
     // ── פס הגלילה ───────────────────────────────────────────────────────────
@@ -1889,12 +1956,14 @@ void main() {
     testWidgets('חץ למטה ראשון מסמן את הקובייה הראשונה, לא את השורה הבאה', (
       tester,
     ) async {
-      await pumpPanel(tester);
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-      await tester.pump();
+      await _asDesktop(() async {
+        await pumpPanel(tester);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
 
-      expect(_selectedCardCount(tester), 1);
-      expect(_isCardSelected(tester, 'לוח שנה'), isTrue);
+        expect(_selectedCardCount(tester), 1);
+        expect(_isCardSelected(tester, 'לוח שנה'), isTrue);
+      });
     });
 
     testWidgets('הפאנל מצייר את הסדר השמור', (tester) async {
