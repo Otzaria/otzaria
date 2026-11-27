@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -14,6 +15,7 @@ import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:positioned_sliver_list/positioned_list.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 import '../../../test_helpers/stub_personal_notes_bloc.dart';
@@ -52,8 +54,11 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  Future<EmittingStubTextBookBloc> mount(WidgetTester tester) async {
-    final initial = _state();
+  Future<EmittingStubTextBookBloc> mount(
+    WidgetTester tester, {
+    TextBookLoaded? state,
+  }) async {
+    final initial = state ?? _state();
     final bloc = EmittingStubTextBookBloc(initial);
     final notes = StubPersonalNotesBloc(const PersonalNotesState.initial());
     final settings = StubSettingsBloc(SettingsState.initial());
@@ -160,6 +165,75 @@ void main() {
       await emit(tester, bloc, _state(selectedIndex: 3, highlightedLine: 6));
     });
     expect(builds, greaterThanOrEqualTo(visible));
+    expect(gutterOn(3), findsOneWidget);
+  });
+
+  testWidgets('גלילה משחררת פריטי קורא שיצאו מהעץ גם בלי שינוי בחירה', (
+    tester,
+  ) async {
+    final bloc = await mount(tester);
+    final initial = bloc.state;
+    final list = tester.widget<ScrollablePositionedList>(
+      find.byType(ScrollablePositionedList),
+    );
+    final firstItem = find.byWidgetPredicate(
+      (widget) => widget is ReaderItemBox && widget.item == 0,
+    );
+    final original = tester.widget<ReaderItemBox>(firstItem);
+
+    list.itemScrollController!.jumpTo(index: 90);
+    await tester.pumpAndSettle();
+    expect(firstItem, findsNothing);
+
+    list.itemScrollController!.jumpTo(index: 0);
+    await tester.pumpAndSettle();
+    expect(bloc.state, same(initial));
+    expect(tester.widget<ReaderItemBox>(firstItem), isNot(same(original)));
+  });
+
+  testWidgets('בחירה שמגיעה עם החלפת קישור מעדכנת גם שורה מחוץ לבחירה', (
+    tester,
+  ) async {
+    Link link(String path) => Link(
+      heRef: '',
+      index1: 1,
+      path2: path,
+      index2: 1,
+      connectionType: 'reference',
+      start: 0,
+      end: 4,
+    );
+    final before = link('first');
+    final after = link('second');
+    final initial = _state().copyWith(
+      links: [before],
+      linksByLine: {
+        1: [before],
+      },
+    );
+    final bloc = await mount(tester, state: initial);
+    final firstLine = find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) => widget is ReaderLineBlock && widget.lineIndex == 0,
+      ),
+      matching: find.byType(SmartTextWidget),
+    );
+    String html() => tester.widget<SmartTextWidget>(firstLine).text;
+    expect(html(), contains('path=first&'));
+
+    await emit(
+      tester,
+      bloc,
+      initial.copyWith(
+        selectedIndex: 3,
+        selectedIndices: {3},
+        links: [after],
+        linksByLine: {
+          1: [after],
+        },
+      ),
+    );
+    expect(html(), contains('path=second&'));
     expect(gutterOn(3), findsOneWidget);
   });
 }

@@ -502,11 +502,13 @@ class ReaderItemBox extends SingleChildRenderObjectWidget {
     super.key,
     required this.item,
     required this.boxes,
+    this.onUnmount,
     required super.child,
   });
 
   final int item;
   final ReaderItemBoxes boxes;
+  final VoidCallback? onUnmount;
 
   @override
   RenderReaderItemBox createRenderObject(BuildContext context) =>
@@ -518,6 +520,11 @@ class ReaderItemBox extends SingleChildRenderObjectWidget {
     RenderReaderItemBox renderObject,
   ) {
     renderObject.update(item: item, boxes: boxes);
+  }
+
+  @override
+  void didUnmountRenderObject(RenderReaderItemBox renderObject) {
+    onUnmount?.call();
   }
 }
 

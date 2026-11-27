@@ -2575,21 +2575,9 @@ class _CombinedViewState extends State<CombinedView> {
     return layout.itemForLine(line);
   }
 
-  /// פריטי הקורא האחרונים ובחירת השורות שבכל אחד. בבנייה שבה השתנתה רק
-  /// הבחירה, פריט שהבחירה בו לא השתנתה מוחזר כמו שהוא ו-Flutter מדלג עליו;
-  /// כל בנייה של ה-State עצמו (setState, תלויות, ווידג'ט) מרוקנת אותו.
+  // פריטים המחוברים לרשימה נשמרים לשימוש חוזר כשהבחירה בתוכם לא השתנתה.
   final Map<int, ({List<int> selected, Widget item})> _readerItems = {};
   ({TextBookLoaded state, Object notes, double viewport})? _readerItemsInputs;
-
-  /// השורות הנבחרות שבפריט [index], בסדר הבחירה — כמו ב-[buildExpansiomTile].
-  List<int> _selectedLinesInItem(int index, TextBookLoaded state) {
-    final segments = readingSegmentsOf(state);
-    final segment = index < segments.length ? segments[index] : null;
-    return [
-      for (final line in state.selectedIndices)
-        if (segment?.containsLine(line) ?? line == index) line,
-    ];
-  }
 
   Widget buildOuterList(
     TextBookLoaded state,
@@ -2598,21 +2586,31 @@ class _CombinedViewState extends State<CombinedView> {
     // פריט לכל שורה במצב רגיל ולכל פסקה במצב רציף; tab.index הוא שורת מקור.
     final layout = readingLayoutOf(state);
     final previous = _readerItemsInputs;
+    // מדיניות הבנייה משווה חלק מאוספי המצב לפי גודל, והפריט קורא את תוכנם.
     if (previous == null ||
         !identical(previous.notes, noteMap) ||
         previous.viewport != _viewportHeight ||
+        !identical(previous.state.links, state.links) ||
+        !identical(previous.state.linksByLine, state.linksByLine) ||
+        !identical(
+          previous.state.availableCommentators,
+          state.availableCommentators,
+        ) ||
+        !identical(previous.state.tableOfContents, state.tableOfContents) ||
+        !identical(previous.state.loadedLineFlags, state.loadedLineFlags) ||
         shouldRebuildIgnoringSelection(previous.state, state)) {
       _readerItems.clear();
-    } else {
-      _readerItems.removeWhere(
-        (item, _) => widget.tab.lines.itemBoxes.boxForItem(item) == null,
-      );
     }
     _readerItemsInputs = (
       state: state,
       notes: noteMap,
       viewport: _viewportHeight,
     );
+    final selectedLinesByItem = <int, List<int>>{};
+    for (final line in state.selectedIndices) {
+      if (line < 0 || line >= layout.lineCount) continue;
+      (selectedLinesByItem[layout.itemForLine(line)] ??= []).add(line);
+    }
     _commentaryCardKeys.removeWhere(
       (line, _) => !state.selectedIndices.contains(line),
     );
@@ -2665,7 +2663,7 @@ class _CombinedViewState extends State<CombinedView> {
             scrollOffsetController: widget.tab.lines.offsetController,
             itemCount: itemCount,
             itemBuilder: (context, index) {
-              final selected = _selectedLinesInItem(index, state);
+              final selected = selectedLinesByItem[index] ?? const <int>[];
               final cached = _readerItems[index];
               if (cached != null && listEquals(cached.selected, selected)) {
                 return cached.item;
@@ -2690,10 +2688,16 @@ class _CombinedViewState extends State<CombinedView> {
                       )
                     : tile,
               );
-              final wrapped = wrapReaderItem(
+              late final ReaderItemBox wrapped;
+              wrapped = ReaderItemBox(
                 item: index,
-                layout: readingSegmentsOf(state).layout,
                 boxes: widget.tab.lines.itemBoxes,
+                onUnmount: () {
+                  if (identical(_readerItems[index]?.item, wrapped) &&
+                      wrapped.boxes.boxForItem(index) == null) {
+                    _readerItems.remove(index);
+                  }
+                },
                 child: item,
               );
               _readerItems[index] = (selected: selected, item: wrapped);
