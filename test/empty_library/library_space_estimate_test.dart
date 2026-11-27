@@ -7,6 +7,7 @@ import 'package:otzaria/empty_library/services/library_package/library_package_i
 import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/empty_library/services/library_space_estimate.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
+import 'package:otzaria/utils/file/download_space.dart';
 import 'package:path/path.dart' as p;
 
 import '../support/zstd_test_lib.dart';
@@ -231,6 +232,107 @@ void main() {
       expect(comparableVolumeId('/data/x', 'C:', isAndroid: false), 'C:');
       expect(comparableVolumeId('/data/x', null, isAndroid: true), isNull);
     });
+  });
+
+  group('libraryDownloadDir', () {
+    const temp = '/data/user/0/com.otzaria/cache';
+
+    test('ספרייה על כרטיס SD מורדת לכרטיס, לא לאחסון הפנימי (#4645)', () {
+      const sdBooks = '/storage/1234-ABCD/Android/data/com.otzaria/files/books';
+      final dir = libraryDownloadDir(
+        sdBooks,
+        systemTemp: temp,
+        isAndroid: true,
+      );
+      // אותו כרך כמו היעד: המקום הפנוי נמדד, והארכיון נכתב, על הכרטיס.
+      expect(p.isWithin('/storage/1234-ABCD', dir), isTrue);
+      expect(p.isWithin(temp, dir), isFalse);
+      expect(p.isWithin(sdBooks, dir), isFalse);
+    });
+
+    test('אחסון פנימי ומחשב — ללא שינוי, תיקיית ה-temp של המערכת', () {
+      expect(
+        libraryDownloadDir(
+          '/storage/emulated/0/Android/data/com.otzaria/files/books',
+          systemTemp: temp,
+          isAndroid: true,
+        ),
+        temp,
+      );
+      expect(
+        libraryDownloadDir(
+          '/data/user/0/com.otzaria/app_flutter/books',
+          systemTemp: temp,
+          isAndroid: true,
+        ),
+        temp,
+      );
+      expect(
+        libraryDownloadDir(
+          r'D:\otzaria\books',
+          systemTemp: r'C:\Temp',
+          isAndroid: false,
+        ),
+        r'C:\Temp',
+      );
+    });
+  });
+
+  group('המשך הורדה לאחר מעבר לאחסון בכרטיס SD', () {
+    for (final scenario in const [
+      (hasSdPartial: false, legacyFits: true, useLegacy: true),
+      (hasSdPartial: false, legacyFits: false, useLegacy: false),
+      (hasSdPartial: true, legacyFits: true, useLegacy: false),
+    ]) {
+      test('בחירת מיקום לפי שריד ומקום פנוי: $scenario', () async {
+        final root = await Directory.systemTemp.createTemp('library-resume-');
+        addTearDown(() => root.delete(recursive: true));
+        final legacy = await Directory(p.join(root.path, 'internal')).create();
+        final sd = await Directory(p.join(root.path, 'sd')).create();
+        const identity = 'asset-v1|100';
+        String destPath(String directory) => p.join(directory, 'database.zst');
+
+        Future<void> writePartial(String directory) async {
+          final dest = destPath(directory);
+          await File(dest).writeAsBytes(List.filled(50, 1));
+          await File('$dest.resume').writeAsString('$identity\nasset-v1');
+        }
+
+        await writePartial(legacy.path);
+        if (scenario.hasSdPartial) await writePartial(sd.path);
+        final checked = <String, int>{};
+
+        final location = await selectLibraryDownloadDir(
+          preferredDir: sd.path,
+          legacyDir: legacy.path,
+          hasReusable: (directory) => hasReusableDownload(
+            destPath: destPath(directory),
+            identity: identity,
+            size: 100,
+          ),
+          checkSpace: (directory) async {
+            final space = await additionalDownloadSpace(
+              destPath: destPath(directory),
+              identity: identity,
+              size: 100,
+            );
+            checked[directory] = space.peak;
+            return directory == legacy.path && !scenario.legacyFits
+                ? 'אין מקום פנוי'
+                : null;
+          },
+        );
+
+        expect(location.spaceError, isNull);
+        expect(location.directory, scenario.useLegacy ? legacy.path : sd.path);
+        expect(checked[legacy.path], scenario.hasSdPartial ? isNull : 50);
+        expect(
+          checked[sd.path],
+          scenario.useLegacy ? isNull : (scenario.hasSdPartial ? 50 : 100),
+        );
+        expect(await File(destPath(legacy.path)).length(), 50);
+      });
+    }
   });
 
   group('insufficientSpaceMessage', () {
