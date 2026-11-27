@@ -129,6 +129,9 @@ void main() {
     WidgetTester tester, {
     bool hideBook = false,
     bool multiAuthor = false,
+    Size viewport = const Size(1400, 900),
+    Color seed = AppSeedColors.defaultLight,
+    Brightness brightness = Brightness.light,
   }) async {
     final data = _library();
     final visibleLibrary = hideBook
@@ -172,7 +175,7 @@ void main() {
     );
 
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = viewport;
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       tester.view.reset();
@@ -184,13 +187,14 @@ void main() {
       await calendarCubit.close();
     });
 
-    final cs = AppThemeData.createColorScheme(
-      AppSeedColors.defaultLight,
-      Brightness.light,
-    );
+    final cs = AppThemeData.createColorScheme(seed, brightness);
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppThemeData.light(cs, compactMenuMode: false),
+        theme: AppThemeData.light(
+          cs,
+          compactMenuMode: false,
+          variant: AppThemeVariant.ofSeed(seed),
+        ),
         builder: (context, child) =>
             Directionality(textDirection: TextDirection.rtl, child: child!),
         home: MultiProvider(
@@ -378,6 +382,54 @@ void main() {
       expect(find.text('$_eliyahu, $_teitelbaum'), findsNothing);
       expect(find.byTooltip('כל ספרי המחבר'), findsNWidgets(3));
     });
+
+    for (final (label, seed, brightness) in const [
+      ('בהיר', AppSeedColors.defaultLight, Brightness.light),
+      ('כהה', AppSeedColors.defaultDark, Brightness.dark),
+      ('לבן', AppSeedColors.white, Brightness.light),
+    ]) {
+      testWidgets('שני המחברים נגישים במקלדת במסך צר ובערכת $label', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final data = await pump(
+          tester,
+          multiAuthor: true,
+          viewport: const Size(360, 900),
+          seed: seed,
+          brightness: brightness,
+        );
+
+        final firstAuthor = link('ספר ב', _eliyahu);
+        final secondAuthor = link('ספר ב', _teitelbaum);
+        expect(firstAuthor.hitTestable(), findsOneWidget);
+        expect(secondAuthor.hitTestable(), findsOneWidget);
+        expect(
+          tester.getRect(firstAuthor).left,
+          greaterThan(tester.getRect(secondAuthor).right),
+        );
+
+        Focus.of(tester.element(find.text('ספר ב'))).requestFocus();
+        await tester.pump();
+        for (final author in [firstAuthor, secondAuthor]) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(Focus.of(tester.element(author)).hasPrimaryFocus, isTrue);
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await settle(tester);
+
+        expect(libraryBloc.state.authorFilter, _teitelbaum);
+        expect(
+          libraryBloc.state.searchResults,
+          unorderedEquals([
+            data.books[5],
+            data.books[6],
+          ]),
+        );
+      });
+    }
 
     testWidgets('המחבר של ספר יחיד מציג גם את הספר המשותף', (tester) async {
       final data = await pump(tester, multiAuthor: true);

@@ -584,9 +584,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               current.error == null &&
               LibraryState.reloadCompleted(previous, current),
           listener: (context, state) {
-            context.read<LibraryBloc>().add(
-              SelectCategoryForPreview(state.currentCategory ?? state.library!),
-            );
+            if (state.authorFilter == null || state.searchResults == null) {
+              context.read<LibraryBloc>().add(
+                SelectCategoryForPreview(
+                  state.currentCategory ?? state.library!,
+                ),
+              );
+            }
             if (_reportHebrewBooksAfterReload) {
               _reportHebrewBooksAfterReload = false;
               unawaited(_reportUnrecognizedHebrewBooks());
@@ -2734,7 +2738,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         _RowLinks(
                           links: [
                             for (final author in authorLinks)
-                              (author, () => _showAuthorBooks(author)),
+                              (
+                                authorLinks.length == 1 ? subtitle : author,
+                                () => _showAuthorBooks(author),
+                              ),
                           ],
                           tooltip: context.settingsText('כל ספרי המחבר'),
                           style: subtitleStyle,
@@ -3288,6 +3295,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   void _showAuthorBooks(String author) {
     _searchDebounce?.cancel();
+    _searchDebounce = null;
     context.read<FocusRepository>().librarySearchController.clear();
     context.read<LibraryBloc>().add(ShowAuthorBooks(author));
   }

@@ -31,6 +31,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/text_book/utils/book_versions_action.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:provider/provider.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -383,6 +384,31 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expect(opened(), isEmpty);
+  });
+
+  testWidgets('בחירת מחבר מבטלת את החיפוש המושהה ומאפשרת פתיחה ב-Enter', (
+    tester,
+  ) async {
+    final book = TextBook(title: 'ספר ראשון', author: 'מחבר לדוגמה');
+    await pumpBrowser(tester, books: [book], previewBook: book);
+
+    final search = tester.widget<OtzariaSearchField>(
+      find.byType(OtzariaSearchField),
+    );
+    search.controller.text = 'חיפוש חדש';
+    search.onChanged!(search.controller.text);
+    Focus.of(tester.element(find.text('מחבר לדוגמה'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(search.controller.text, isEmpty);
+    expect(opened(), isEmpty);
+
+    search.onSubmitted!(search.controller.text);
+    await tester.pump();
+
+    expect(opened(), hasLength(1));
+    expect(opened().single.tab.title, book.title);
   });
 
   testWidgets('Enter בשדה החיפוש לא פותח ספר מסומן שאינו בתוצאות', (

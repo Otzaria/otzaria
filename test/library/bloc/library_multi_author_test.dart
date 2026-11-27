@@ -61,13 +61,13 @@ void main() {
   });
 
   /// "בראשית" של רש"י ושל [_teitelbaum] יחד; "רש"י על בראשית" של רש"י לבדו.
-  Future<Library> buildCatalog() async {
+  Future<Library> buildCatalog({String secondAuthor = _teitelbaum}) async {
     final created = SeforimFixtureDb.create(
       Directory(libraryPath),
       SeforimFixtureVariant.full,
     );
     final db = sqlite3.sqlite3.open(created);
-    db.execute('INSERT INTO author VALUES (2, ?)', [_teitelbaum]);
+    db.execute('INSERT INTO author VALUES (2, ?)', [secondAuthor]);
     db.execute('INSERT INTO book_author VALUES (?, 1), (?, 2)', [
       SeforimFixtureIds.bereshitId,
       SeforimFixtureIds.bereshitId,
@@ -111,6 +111,15 @@ void main() {
         SeforimFixtureIds.bereshitTitle,
       ]);
       expect(await authorBooks(library, 'האדמו"ר מסאטמר'), isEmpty);
+    });
+
+    test('רווחי שוליים בשם מהמסד אינם מסתירים את ספרי המחבר', () async {
+      const paddedAuthor = '  $_teitelbaum ';
+      final library = await buildCatalog(secondAuthor: paddedAuthor);
+
+      expect(await authorBooks(library, paddedAuthor), [
+        SeforimFixtureIds.bereshitTitle,
+      ]);
     });
 
     test('המחרוזת המוצגת עדיין מחברת את כל השמות ב-", "', () async {

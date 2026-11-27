@@ -61,6 +61,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         isLoading: false,
         searchResults: null,
         searchQuery: null,
+        clearAuthorFilter: true,
         selectedTopics: null,
         changedHebrewBooksPath: changedHebrewBooksPath,
       ),
@@ -205,12 +206,17 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     final preview = state.previewCategory == null
         ? null
         : _categoryByPath(library, state.previewCategory!.path);
+    final authorResults = _activeAuthorResults(library);
     emit(
       state.copyWith(
         library: library,
         currentCategory: current,
-        previewCategory: preview,
-        clearPreviewBook: preview == null && state.previewCategory != null,
+        searchResults: authorResults,
+        previewBook: authorResults?.firstOrNull,
+        previewCategory: authorResults == null ? preview : null,
+        clearPreviewBook:
+            authorResults?.isEmpty == true ||
+            (preview == null && state.previewCategory != null),
       ),
     );
     _repeatSearch(hadResults);
@@ -219,10 +225,18 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
   bool get _showsSearch => state.searchResults != null || state.isSearching;
 
-  // עץ חדש מאפס את התוצאות; איתור שהוצג לפניו רץ שוב עליו.
+  String? get _activeAuthorFilter =>
+      state.searchQuery == '' ? state.authorFilter : null;
+
+  List<Book>? _activeAuthorResults(Library library) {
+    final author = _activeAuthorFilter;
+    return author == null ? null : _booksByAuthor(library, author);
+  }
+
+  // סינון מחבר מחושב עם העץ הגלוי; רק איתור טקסטואלי נשלח שוב לחיפוש.
   void _repeatSearch(bool hadResults) {
     final last = _lastSearch;
-    if (hadResults && last != null) add(last);
+    if (hadResults && last != null && _activeAuthorFilter == null) add(last);
   }
 
   /// מאתר בעץ [library] את הקטגוריה שנתיבה [path]. `null` כשהיא הוסתרה.
@@ -398,11 +412,15 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         _getCurrentCategoryPath(state.currentCategory),
       );
 
+      final authorResults = _activeAuthorResults(library);
       emit(
         state.copyWith(
           library: library,
           currentCategory: targetCategory ?? library,
           isLoading: false,
+          searchResults: authorResults,
+          previewBook: authorResults?.firstOrNull,
+          clearPreviewBook: authorResults?.isEmpty == true,
           newBooksToIndex: newBooksToIndex.isNotEmpty ? newBooksToIndex : null,
           changedBooksToIndex: changedBooksToIndex.isNotEmpty
               ? changedBooksToIndex
@@ -889,10 +907,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       emit(state.copyWith(clearAuthorFilter: true, isSearching: false));
       return;
     }
-    final books = library
-        .getAllBooks()
-        .where((book) => book.authors.contains(author))
-        .toList();
+    final books = _booksByAuthor(library, author);
     emit(
       state.copyWith(
         searchQuery: '',
@@ -903,9 +918,19 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         selectedMatchFilters: const {},
         isSearching: false,
         previewBook: books.firstOrNull,
+        clearPreviewBook: books.isEmpty,
       ),
     );
   }
+
+  List<Book> _booksByAuthor(Library library, String author) => library
+      .getAllBooks()
+      .where(
+        (book) => book.authors.any(
+          (name) => name == author || name.trim() == author,
+        ),
+      )
+      .toList();
 
   void _onSelectTopics(
     SelectTopics event,
