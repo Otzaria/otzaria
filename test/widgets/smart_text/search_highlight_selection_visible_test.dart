@@ -186,6 +186,12 @@ Future<void> main() async {
             expect(matchedSpans, isNotEmpty);
             expect(matchedSpans.last.style?.color, foreground);
             final unselected = await pixel();
+            // #3127: גם מילת חיפוש רגילה מסומנת ברקע, לא רק בצבע הטקסט.
+            expect(
+              unselected,
+              isNot(theme.scaffoldBackgroundColor),
+              reason: 'להדגשה צריך להיות רקע',
+            );
             tester
                 .state<SelectionAreaState>(find.byType(SelectionArea))
                 .selectableRegion

@@ -133,11 +133,15 @@ Future<void> main() async {
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">לֵ</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">לֵ</span>',
+        ),
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">אלֹקִים</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אלֹקִים</span>',
+        ),
       );
       expect(out, isNot(contains('divine-name')));
     });
@@ -149,15 +153,21 @@ Future<void> main() async {
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">ויאמר</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">ויאמר</span>',
+        ),
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">אלֹקִים</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אלֹקִים</span>',
+        ),
       );
       expect(
         out,
-        contains('<span style="color: otzaria-search-hit">שלום</span>'),
+        contains(
+          '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שלום</span>',
+        ),
       );
     });
 
@@ -171,7 +181,7 @@ Future<void> main() async {
       );
       expect(
         out,
-        'אמר <span style="color: otzaria-search-hit">אד-\u2060ני</span>',
+        'אמר <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">אד-\u2060ני</span>',
       );
       expect(stripHtmlIfNeeded(out), 'אמר אד-\u2060ני');
     });
@@ -191,7 +201,7 @@ Future<void> main() async {
             marked,
             substitute.copyWith(searchText: form.word),
           ),
-          'אמר <span style="color: otzaria-search-hit">${form.shown}</span>',
+          'אמר <span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">${form.shown}</span>',
           reason: form.word,
         );
       }

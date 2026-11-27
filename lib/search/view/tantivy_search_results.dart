@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:otzaria/search/view/search_result_rank_badge.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:positioned_sliver_list/positioned_sliver_list.dart'
@@ -1098,6 +1099,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                   fontSize: settingsState.searchResultsFontSize,
                   fontFamily: fontFamily,
                   color: colorScheme.error,
+                  backgroundColor: AppSurfaces.searchHitBackground(colorScheme),
                 ),
               );
               final snippet = _snippetCache.putIfAbsent(snippetKey, () {

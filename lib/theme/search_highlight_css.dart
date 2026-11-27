@@ -7,13 +7,15 @@ import 'package:otzaria/theme/app_surfaces.dart';
 /// במטמון), והסימנים מוחלפים בצבעי [AppSurfaces] רגע לפני הרינדור.
 abstract final class SearchHighlightCss {
   static const String hit = 'otzaria-search-hit';
+  static const String hitBackground = 'otzaria-search-hit-bg';
   static const String current = 'otzaria-search-current';
   static const String currentBackground = 'otzaria-search-current-bg';
   static const String mark = 'otzaria-mark';
   static const String onMark = 'otzaria-on-mark';
 
   static final RegExp _token = RegExp(
-    r'otzaria-(?:search-current-bg|search-current|search-hit|on-mark|mark)'
+    r'otzaria-(?:search-current-bg|search-current|search-hit-bg|search-hit|'
+    r'on-mark|mark)'
     r'(?![\w-])',
   );
 
@@ -27,6 +29,7 @@ abstract final class SearchHighlightCss {
     return html.replaceAllMapped(_token, (match) {
       final color = switch (match[0]) {
         hit => AppSurfaces.searchHit(cs),
+        hitBackground => AppSurfaces.searchHitBackground(cs),
         current => AppSurfaces.searchHitCurrent(cs),
         currentBackground => AppSurfaces.searchHitCurrentBackground(cs),
         mark => AppSurfaces.permanentMark(cs),

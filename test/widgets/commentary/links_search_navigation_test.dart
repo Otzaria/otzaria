@@ -125,7 +125,9 @@ void main() {
     final widget = tester.widget<SmartTextWidget>(find.byType(SmartTextWidget));
     expect(
       TextRendererService.processText(widget.text, widget.settings),
-      contains('<span style="color: otzaria-search-hit">שלום</span>'),
+      contains(
+        '<span style="color: otzaria-search-hit; background-color: otzaria-search-hit-bg">שלום</span>',
+      ),
     );
   });
 
