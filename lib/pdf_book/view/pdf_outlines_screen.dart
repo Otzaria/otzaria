@@ -47,27 +47,56 @@ List<PdfOutlineSearchEntry> filterPdfOutline(
   // הנרמול מוחק "." ו-":", ולכן "ב." היה תואם כל כותרת עם האות ב ו"קיא:"
   // היה שווה ל"קיא.". שאילתה שמסתיימת בסימן עמוד מחפשת את הדף כמילה שלמה.
   final amud = _amudMark(rawQuery);
-  final daf = amud == null
-      ? null
-      : normalizedQuery.substring(normalizedQuery.lastIndexOf(' ') + 1);
-  final matches = <({int rank, int index})>[];
-  for (var i = 0; i < entries.length; i++) {
-    final title = entries[i].normalizedTitle;
-    if (!title.contains(normalizedQuery)) continue;
-    if (daf != null && !_titleHasDaf(entries[i].node.title, daf, amud!)) {
-      continue;
+  final dafStart = normalizedQuery.lastIndexOf(' ') + 1;
+  final daf = amud == null ? null : normalizedQuery.substring(dafStart);
+  final exact = <PdfOutlineSearchEntry>[];
+  final exactUnmarked = <PdfOutlineSearchEntry>[];
+  final prefix = <PdfOutlineSearchEntry>[];
+  final prefixUnmarked = <PdfOutlineSearchEntry>[];
+  final contains = <PdfOutlineSearchEntry>[];
+  final containsUnmarked = <PdfOutlineSearchEntry>[];
+  for (final entry in entries) {
+    final title = entry.normalizedTitle;
+    final firstMatch = title.indexOf(normalizedQuery);
+    final rank = title == normalizedQuery
+        ? 0
+        : firstMatch == 0
+        ? 1
+        : firstMatch > 0
+        ? 2
+        : -1;
+    if (rank < 0) continue;
+    final dafMatch = daf == null
+        ? (matches: true, marked: false)
+        : _titleDafMatch(
+            entry.node.title,
+            title,
+            normalizedQuery,
+            firstMatch,
+            daf,
+            dafStart,
+            amud!,
+          );
+    if (!dafMatch.matches) continue;
+    final prefersMarked = amud != null && dafMatch.marked;
+    switch (rank) {
+      case 0:
+        (prefersMarked ? exact : exactUnmarked).add(entry);
+      case 1:
+        (prefersMarked ? prefix : prefixUnmarked).add(entry);
+      default:
+        (prefersMarked ? contains : containsUnmarked).add(entry);
     }
-    final rank = findNormalizedTextMatchRank(
-      normalizedQuery: normalizedQuery,
-      normalizedPrimaryText: title,
-    );
-    matches.add((rank: rank, index: i));
   }
-  // מדויק, תחילית ואז הכלה; בתוך כל דרגה — סדר תוכן העניינים.
-  matches.sort(
-    (a, b) => a.rank != b.rank ? a.rank - b.rank : a.index - b.index,
-  );
-  return [for (final m in matches) entries[m.index]];
+  // מדויק, תחילית ואז הכלה. סימן עמוד תואם קודם באותה דרגה.
+  return [
+    ...exact,
+    ...exactUnmarked,
+    ...prefix,
+    ...prefixUnmarked,
+    ...contains,
+    ...containsUnmarked,
+  ];
 }
 
 String? _amudMark(String text) {
@@ -78,16 +107,43 @@ String? _amudMark(String text) {
 }
 
 /// האם יש בכותרת מילה שהיא הדף [daf], בלי סימן עמוד או עם הסימן [amud].
-bool _titleHasDaf(String rawTitle, String daf, String amud) {
-  for (final word in rawTitle.split(_whitespace)) {
-    if (normalizeFindText(word) != daf) continue;
-    final mark = _amudMark(word);
-    if (mark == null || mark == amud) return true;
+({bool matches, bool marked}) _titleDafMatch(
+  String rawTitle,
+  String normalizedTitle,
+  String normalizedQuery,
+  int firstMatch,
+  String daf,
+  int dafStart,
+  String amud,
+) {
+  final matches = <int>{};
+  for (var start = firstMatch; start >= 0;) {
+    matches.add(start + dafStart);
+    start = normalizedTitle.indexOf(normalizedQuery, start + 1);
   }
-  return false;
+  var normalizedOffset = 0;
+  var hasWord = false;
+  var unmarked = false;
+  for (final word in rawTitle.split(_whitespace)) {
+    final normalizedWord = normalizeFindText(word);
+    if (normalizedWord.isEmpty) continue;
+    if (hasWord) normalizedOffset++;
+    hasWord = true;
+    final dafOffset = normalizedWord.length - daf.length;
+    if (normalizedWord.endsWith(daf) &&
+        (dafOffset == 0 || normalizedWord[dafOffset - 1] == ' ') &&
+        matches.contains(normalizedOffset + dafOffset)) {
+      final mark = _amudMark(word.replaceFirst(_closingPunctuation, ''));
+      if (mark == amud) return (matches: true, marked: true);
+      if (mark == null) unmarked = true;
+    }
+    normalizedOffset += normalizedWord.length;
+  }
+  return (matches: unmarked, marked: false);
 }
 
 final RegExp _whitespace = RegExp(r'\s+');
+final RegExp _closingPunctuation = RegExp(r'''[)\]}"'׳״”’»›]+$''');
 
 class OutlineView extends StatefulWidget {
   const OutlineView({
