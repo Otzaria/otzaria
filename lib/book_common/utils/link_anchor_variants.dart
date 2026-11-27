@@ -11,12 +11,6 @@ import 'package:otzaria/theme/app_fonts.dart';
 /// הסוגריים שבהם נתונה האות המודפסת בסמן — ההבדל הראשון שהעין תופסת בין
 /// שני מפרשים על אותו דף, לפני הבדלי המשקל והנטייה.
 enum LinkAnchorDelimiter {
-  /// לוכסנים — ממד הבחנה שאינו תלוי בגופן: גופן הקריאה עצמו עשוי להיות כתב
-  /// רש"י, ואז [LinkAnchorVariant.rashiScript] אינו משנה דבר. תו ASCII שקיים
-  /// בכל הגופנים המובנים, בטוח ב-HTML ואינו מושפע מכיווניות; לא `|` — זה פסק
-  /// בטקסט המקרא, ו-removeVolwels הופך אותו לרווח.
-  slashes('/', '/'),
-
   parentheses('(', ')'),
   brackets('[', ']'),
   braces('{', '}');
@@ -43,41 +37,34 @@ class LinkAnchorVariant {
   final bool bold;
   final bool italic;
   final bool rashiScript;
+  final bool underline;
   final LinkAnchorDelimiter delimiter;
 
   const LinkAnchorVariant({
     this.bold = false,
     this.italic = false,
     this.rashiScript = false,
+    this.underline = false,
     this.delimiter = LinkAnchorDelimiter.parentheses,
   });
 }
 
-/// הווריאנטים לפי האינדקס במחלקה `link-anchor-<index>`: מכפלת סוגי הסוגריים
-/// בהדגשות, כדי שמפרשים על אותו דף יתנגשו לעתים רחוקות. האינדקסים קבועים —
-/// הם השיבוץ של המפרשים.
+/// הווריאנטים לפי האינדקס במחלקה `link-anchor-<index>`: מכפלת שלושת סוגי
+/// הסוגריים בארבע ההדגשות, כדי שמפרשים על אותו דף יתנגשו לעתים רחוקות.
 const List<LinkAnchorVariant> kLinkAnchorVariants = [
   LinkAnchorVariant(bold: true),
   LinkAnchorVariant(italic: true),
   LinkAnchorVariant(bold: true, italic: true),
   LinkAnchorVariant(rashiScript: true),
   LinkAnchorVariant(rashiScript: true, bold: true),
-  LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.slashes),
+  LinkAnchorVariant(underline: true),
   LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(italic: true, delimiter: LinkAnchorDelimiter.brackets),
-  LinkAnchorVariant(
-    bold: true,
-    italic: true,
-    delimiter: LinkAnchorDelimiter.brackets,
-  ),
+  LinkAnchorVariant(underline: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(rashiScript: true, delimiter: LinkAnchorDelimiter.brackets),
   LinkAnchorVariant(bold: true, delimiter: LinkAnchorDelimiter.braces),
   LinkAnchorVariant(italic: true, delimiter: LinkAnchorDelimiter.braces),
-  LinkAnchorVariant(
-    bold: true,
-    italic: true,
-    delimiter: LinkAnchorDelimiter.braces,
-  ),
+  LinkAnchorVariant(underline: true, delimiter: LinkAnchorDelimiter.braces),
   LinkAnchorVariant(rashiScript: true, delimiter: LinkAnchorDelimiter.braces),
 ];
 
@@ -117,6 +104,7 @@ Map<String, String> linkAnchorVariantCss(LinkAnchorVariant? variant) {
     if (variant.bold) 'font-weight': 'bold',
     if (variant.italic) 'font-style': 'italic',
     if (variant.rashiScript) 'font-family': kLinkAnchorRashiFont,
+    if (variant.underline) 'text-decoration': 'underline',
   };
 }
 
@@ -136,5 +124,6 @@ TextStyle applyLinkAnchorVariant(LinkAnchorVariant? variant, TextStyle style) {
         ? AppFonts.boldFontVariations(fontFamily)
         : null,
     fontStyle: variant.italic ? FontStyle.italic : null,
+    decoration: variant.underline ? TextDecoration.underline : null,
   );
 }

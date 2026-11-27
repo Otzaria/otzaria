@@ -501,8 +501,8 @@ List<InlineSpan> _nodeToSpans(
       // כשהגליפים מוסתרים (hideRaisedMarkers) עוגן-מילה וסימון הערה נשארים
       // שקופים: הצבע והרקע עוברים לציור המורם של RaisedMarkerOverlay.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
-          // הווריאנט שב-childStyle נשמר גם ב-active; מיזוג linkStyle היה
-          // מוסיף לסמן קו תחתון של קישור.
+          // הווריאנט שב-childStyle נשמר גם ב-active (מיזוג linkStyle היה גורר
+          // קו תחתון של קישור ומוחק את קו-התחתון שהוא סימנו של וריאנט 5).
           ? (hideRaisedMarkers
                 ? childStyle
                 : childStyle.copyWith(
@@ -676,7 +676,7 @@ TextStyle _styleForElement(
       ),
     );
     // הגליף שקוף; הווריאנט נשאר עליו כדי שרוחב המקום יתאים לציור המורם.
-    // decorationColor מונע מעיטור שבירושה להיצבע על הגליף השקוף.
+    // גם הקו התחתון שלו — אחרת נצבע בצבע ה-decoration שבירושה (#2758).
     if (hideRaisedMarkers) {
       style = style.copyWith(
         color: const Color(0x00000000),

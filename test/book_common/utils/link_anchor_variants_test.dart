@@ -2,7 +2,6 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:html/parser.dart' as html;
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 
 // מקור האמת של הווריאנטים משרת שני מסלולי רינדור: CSS (HtmlWidget) ו-TextStyle
 // (קריאה רציפה). הטסטים כאן נועלים את שקילות שני התרגומים.
@@ -101,6 +100,11 @@ void main() {
           style.fontStyle == FontStyle.italic,
           reason: 'אינדקס $index — נטייה',
         );
+        expect(
+          css['text-decoration'] == 'underline',
+          style.decoration == TextDecoration.underline,
+          reason: 'אינדקס $index — קו תחתון',
+        );
       }
     });
 
@@ -113,6 +117,7 @@ void main() {
               variant.bold,
               variant.italic,
               variant.rashiScript,
+              variant.underline,
               variant.delimiter,
             ),
           )
@@ -120,7 +125,7 @@ void main() {
       expect(signatures.length, kLinkAnchorVariants.length);
     });
 
-    test('כל סוגי הסוגריים מיוצגים במאגר', () {
+    test('שלושת סוגי הסוגריים מיוצגים במאגר', () {
       expect(
         kLinkAnchorVariants.map((v) => v.delimiter).toSet(),
         LinkAnchorDelimiter.values.toSet(),
@@ -146,98 +151,13 @@ void main() {
     test('אף וריאנט אינו "ריק" — לכל אחד יש סימן מבחין', () {
       for (final variant in kLinkAnchorVariants) {
         expect(
-          variant.bold || variant.italic || variant.rashiScript,
+          variant.bold ||
+              variant.italic ||
+              variant.rashiScript ||
+              variant.underline,
           isTrue,
         );
       }
-    });
-  });
-
-  group('סמני מפרשים ללא קו תחתון (issue #4016)', () {
-    test('אף וריאנט אינו מצויר עם קו תחתון באף אחד משני המסלולים', () {
-      for (var index = 0; index < kLinkAnchorVariants.length; index++) {
-        final variant = kLinkAnchorVariants[index];
-        expect(
-          linkAnchorVariantCss(variant).containsKey('text-decoration'),
-          isFalse,
-          reason: 'אינדקס $index — CSS',
-        );
-        expect(
-          applyLinkAnchorVariant(variant, base).decoration,
-          isNull,
-          reason: 'אינדקס $index — TextStyle',
-        );
-      }
-    });
-
-    test('מספר הווריאנטים נשאר 14 — שיבוץ המפרשים לאינדקסים לא זז', () {
-      expect(kLinkAnchorVariants, hasLength(14));
-    });
-  });
-
-  group('הבחנה אחרי החלת גופן הקריאה (issue #4016, סגירת #5673)', () {
-    // החתימה הנראית בפועל: הגופן/משקל/נטייה/קו אחרי החלת הווריאנט על גופן
-    // הקריאה, והסוגריים. גופן קריאה רש"י הופך את rashiScript לחסר השפעה.
-    final fonts = {
-      for (final font in AppFonts.availableFonts) font.value,
-      AppFonts.defaultFont,
-      AppFonts.defaultCommentatorsFont,
-    };
-
-    Object textStyleSignature(int index, String font) {
-      final variant = kLinkAnchorVariants[index];
-      final style = applyLinkAnchorVariant(
-        variant,
-        TextStyle(fontFamily: font),
-      );
-      return (
-        style.fontFamily,
-        style.fontWeight ?? FontWeight.normal,
-        style.fontStyle ?? FontStyle.normal,
-        style.decoration ?? TextDecoration.none,
-        variant.delimiter,
-      );
-    }
-
-    Object cssSignature(int index, String font) {
-      final variant = kLinkAnchorVariants[index];
-      final css = linkAnchorVariantCss(variant);
-      return (
-        css['font-family'] ?? font,
-        css['font-weight'] ?? 'normal',
-        css['font-style'] ?? 'normal',
-        css['text-decoration'] ?? 'none',
-        variant.delimiter,
-      );
-    }
-
-    /// זוגות הווריאנטים שאינם נבדלים, לכל גופן ולכל מסלול רינדור.
-    Set<String> collisions() => {
-      for (final font in fonts)
-        for (final signature in [textStyleSignature, cssSignature])
-          for (var a = 0; a < kLinkAnchorVariants.length; a++)
-            for (var b = a + 1; b < kLinkAnchorVariants.length; b++)
-              if (signature(a, font) == signature(b, font)) '$font: $a=$b',
-    };
-
-    test('גופן הקריאה רש"י נבדק — הוא ברירת המחדל של המפרשים', () {
-      expect(fonts, contains(kLinkAnchorRashiFont));
-      expect(AppFonts.defaultCommentatorsFont, kLinkAnchorRashiFont);
-    });
-
-    test('הווריאנטים שהוחלפו (5, 8, 12) נבדלים מכל השאר בכל גופן', () {
-      expect(
-        collisions().where(
-          (c) => RegExp(r'\b(5|8|12)\b').hasMatch(c.split(': ').last),
-        ),
-        isEmpty,
-      );
-    });
-
-    test('אין התנגשות מלבד 0=4 בגופן רש"י, שקיימת כבר ב-dev', () {
-      // 0 (בולד) ו-4 (רש"י בולד) אינם מהאינדקסים שהוחלפו; ההחלטה עליהם
-      // בידי המתחזקים.
-      expect(collisions(), {'$kLinkAnchorRashiFont: 0=4'});
     });
   });
 

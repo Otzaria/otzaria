@@ -561,7 +561,7 @@ void main() {
               [
                 _point('מפרש', 20),
               ],
-              styles: {'מפרש': 1},
+              styles: {'מפרש': 5},
             ),
             settings: RenderSettings(fontSize: 24, fontFamily: family),
           );
