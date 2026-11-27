@@ -152,9 +152,16 @@ void main() {
 
   // #3260: גרירה בתצוגת הקריאה של ההערה משאירה בחירה בלי פוקוס ב-Quill.
   // לכן Ctrl+C הגיע לקורא, גם כשהטקסט המסומן היה בגוף ההערה.
-  for (final withSelectionArea in [false, true]) {
+  // #5989: גם במקלדת עברית, שבה המקש C מפיק את התו 'ב'.
+  for (final (withSelectionArea, character) in [
+    (false, null),
+    (true, null),
+    (false, 'ב'),
+    (true, 'ב'),
+  ]) {
     testWidgets(
-      'Ctrl+C אחרי גרירה בהערה לא ממוקדת מעתיק אותה (מארח: $withSelectionArea)',
+      'Ctrl+C אחרי גרירה בהערה לא ממוקדת מעתיק אותה '
+      '(מארח: $withSelectionArea, תו: $character)',
       (tester) async {
         await onPlatform(TargetPlatform.windows, () async {
           final clipboardWrites = <String>[];
@@ -209,7 +216,10 @@ void main() {
           expect(selectedText, isNot(noteText));
 
           await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-          await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+          await tester.sendKeyEvent(
+            LogicalKeyboardKey.keyC,
+            character: character,
+          );
           await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
           await tester.pumpAndSettle();
 
