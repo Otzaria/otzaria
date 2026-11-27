@@ -24,6 +24,7 @@ import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
 
 import '../../test_helpers/fake_commentary_library_provider.dart';
+import '../../test_helpers/link_anchor_marker_pattern.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
 
@@ -264,7 +265,7 @@ void main() {
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
       // הסוגריים משתנים לפי וריאנט המפרש; הציפייה היא האות בכל אחד מהם בלבד.
-      final marker = RegExp(r'^[(\[{]א[)\]}]$');
+      final marker = RegExp('^${anyAnchorMarker('א')}\$');
       expect(
         find.byWidgetPredicate(
           (w) => w is Text && marker.hasMatch(w.data ?? ''),
@@ -371,7 +372,8 @@ void main() {
           (w) =>
               w is Text &&
               RegExp(
-                r'^[(\[{]ג[)\]}] (?:באר הגולה על שולחן ערוך אורח חיים, )?תרסד, רשומה ד$',
+                '^${anyAnchorMarker('ג')}'
+                r' (?:באר הגולה על שולחן ערוך אורח חיים, )?תרסד, רשומה ד$',
               ).hasMatch(w.data ?? ''),
         ),
         findsOneWidget,
@@ -444,7 +446,7 @@ void main() {
         ),
       ]);
 
-      final marker = RegExp(r'^[(\[{]א[)\]}]$');
+      final marker = RegExp('^${anyAnchorMarker('א')}\$');
       expect(
         find.byWidgetPredicate(
           (w) => w is Text && marker.hasMatch(w.data ?? ''),
@@ -563,7 +565,7 @@ TextBookLoaded _withBodyMarkersHidden(TextBookLoaded state) {
 
 /// אות הסימון א בכל אחד מסוגרי הווריאנטים, לבד או לפני כותרת.
 Finder _markerText() => find.byWidgetPredicate(
-  (w) => w is Text && RegExp(r'[(\[{]א[)\]}]').hasMatch(w.data ?? ''),
+  (w) => w is Text && RegExp(anyAnchorMarker('א')).hasMatch(w.data ?? ''),
 );
 
 TextBookLoaded _loadedState({

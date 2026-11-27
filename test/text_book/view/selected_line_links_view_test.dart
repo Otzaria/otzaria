@@ -16,6 +16,7 @@ import 'package:otzaria/text_display/models/text_display_layer.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
 
+import '../../test_helpers/link_anchor_marker_pattern.dart';
 import '../../test_helpers/stub_settings_bloc.dart';
 
 void main() {
@@ -1957,7 +1958,7 @@ void main() {
       anchorStart: 0,
       anchorLabel: 'א',
     );
-    final marker = RegExp(r'^[(\[{]א[)\]}] הפניה ראשונים א$');
+    final marker = RegExp('^${anyAnchorMarker('א')} הפניה ראשונים א\$');
     final hidden = TextDisplayLayer({
       TextDisplaySlot.root: const TextDisplayPatch(
         anchorMarkers: MarkVisibility.hide,
