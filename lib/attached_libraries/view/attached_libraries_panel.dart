@@ -539,9 +539,12 @@ class _AttachedLibraryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final separateLabel = context.settingsText('בנפרד ב׳ספרים אישיים׳');
+    final mergeLabel = context.settingsText('מיזוג לעץ הספרייה הכללי');
     return SettingsActionTile(
-      // הכותרת כוללת תגיות; בחלון צר הבורר יורד מתחתיה ולא דוחס אותה.
-      columnBelowWidth: 620,
+      // הבורר לצד הכותרת, כמו בשורות שמעליו; כשהתוויות המלאות לא משאירות
+      // מקום לכותרת ולתגיות — מתחתיה.
+      columnBelowWidth: _sideBySideWidth(context, [separateLabel, mergeLabel]),
       icon: library.hidden
           ? OtzariaIcons.library_database_24_regular
           : OtzariaIcons.library_database_24_filled,
@@ -659,15 +662,19 @@ class _AttachedLibraryTile extends StatelessWidget {
             child: AppSegmentedControl<AttachedLibraryPlacement>(
               currentValue: library.placement,
               onChanged: onPlacementChanged,
+              // בטלפון ובהגדלת טקסט התווית המלאה נשברת לשתי שורות ולא נחתכת.
+              maxLabelLines: 2,
               options: [
                 SegmentOption(
                   value: AttachedLibraryPlacement.separateRoot,
-                  label: context.settingsText('בנפרד'),
+                  label: separateLabel,
+                  shortLabel: context.settingsText('בנפרד'),
                   icon: FluentIcons.folder_24_regular,
                 ),
                 SegmentOption(
                   value: AttachedLibraryPlacement.mergeIntoLibrary,
-                  label: context.settingsText('ממוזג'),
+                  label: mergeLabel,
+                  shortLabel: context.settingsText('ממוזג'),
                   icon: FluentIcons.merge_24_regular,
                 ),
               ],
@@ -675,6 +682,26 @@ class _AttachedLibraryTile extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// הרוחב שממנו הבורר נכנס לצד הכותרת: התוויות בסגנון המקטע, ולכל מקטע
+  /// אייקון וריווח (64), ועוד הסמל, הריווח, התפריט ומקום לכותרת (360).
+  static double _sideBySideWidth(BuildContext context, List<String> labels) {
+    final theme = Theme.of(context);
+    final style =
+        theme.segmentedButtonTheme.style?.textStyle?.resolve(const {}) ??
+        theme.textTheme.labelLarge;
+    var width = 360.0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      width += painter.width + 64;
+      painter.dispose();
+    }
+    return width;
   }
 
   Widget _statusChip(BuildContext context) {

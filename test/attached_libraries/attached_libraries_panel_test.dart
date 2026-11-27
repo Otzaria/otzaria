@@ -15,6 +15,7 @@ import 'package:otzaria/attached_libraries/repository/attached_libraries_reposit
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -27,6 +28,7 @@ class _FakeRepository extends AttachedLibrariesRepository {
 
   List<AttachedLibrary> items;
   final removed = <AttachedLibrary>[];
+  final placements = <(String, AttachedLibraryPlacement)>[];
   final _controller = StreamController<Set<String>>.broadcast();
 
   @override
@@ -47,6 +49,21 @@ class _FakeRepository extends AttachedLibrariesRepository {
     ];
     _controller.add(const {});
   }
+
+  @override
+  Future<void> setPlacement(
+    AttachedLibrary library,
+    AttachedLibraryPlacement placement,
+  ) async {
+    placements.add((library.slug, placement));
+    items = [
+      for (final other in items)
+        other.path == library.path
+            ? other.copyWith(placement: placement)
+            : other,
+    ];
+    _controller.add({library.slug});
+  }
 }
 
 AttachedLibrary _library(
@@ -54,6 +71,7 @@ AttachedLibrary _library(
   AttachedLibraryMode mode = AttachedLibraryMode.link,
   AttachedLibraryStatus status = AttachedLibraryStatus.ok,
   bool hidden = false,
+  AttachedLibraryPlacement placement = AttachedLibraryPlacement.separateRoot,
 }) => AttachedLibrary(
   slug: name,
   displayName: name,
@@ -61,6 +79,7 @@ AttachedLibrary _library(
   mode: mode,
   status: status,
   hidden: hidden,
+  placement: placement,
   bookCount: 12,
   capabilities: const {AttachedLibraryCapability.toc},
   addedAt: DateTime(2026),
@@ -170,7 +189,74 @@ void main() {
     expect(find.text('הוסף קובץ מסד'), findsOneWidget);
     expect(find.text('הוסף תיקיית מסדים'), findsOneWidget);
     // מסד לא נגיש אינו מציע בחירת מיקום בעץ.
-    expect(find.text('בנפרד'), findsNWidgets(2));
+    expect(find.text('בנפרד ב׳ספרים אישיים׳'), findsNWidgets(2));
+  });
+
+  group('attached DB placement labels explain the result (issue #2387)', () {
+    const separate = 'בנפרד ב׳ספרים אישיים׳';
+    const merge = 'מיזוג לעץ הספרייה הכללי';
+
+    testWidgets('תוויות הבורר אומרות לאן הולכים הספרים, בלי שורת הסבר', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final repository = _FakeRepository([
+        _library('ראשון'),
+        _library('שני', placement: AttachedLibraryPlacement.mergeIntoLibrary),
+      ]);
+      await pumpPanel(tester, repository);
+
+      expect(find.text('בנפרד'), findsNothing);
+      expect(find.text('ממוזג'), findsNothing);
+      expect(find.text(separate), findsNWidgets(2));
+      expect(find.text(merge), findsNWidgets(2));
+      // כמו שאר השורות בכרטיס — בלי שורת הסבר נוספת מתחת לכותרת.
+      expect(find.textContaining('ספרים אישיים/'), findsNothing);
+      expect(find.textContaining('ההגדרה למסד זה בלבד'), findsNothing);
+
+      // לחיצה על מקטע עדיין משנה את המיקום.
+      await tester.tap(find.text(merge).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(repository.placements, [
+        ('ראשון', AttachedLibraryPlacement.mergeIntoLibrary),
+      ]);
+    });
+
+    testWidgets('בחלון רחב הבורר לצד הכותרת, כמו בשורות שמעליו', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpPanel(tester, _FakeRepository([_library('ראשון')]));
+
+      final title = tester.getRect(find.textContaining('ראשון').first);
+      final control = tester.getRect(
+        find.byType(AppSegmentedControl<AttachedLibraryPlacement>),
+      );
+      expect(control.top, lessThan(title.bottom));
+    });
+
+    testWidgets('בחלון צר הבורר מתחת לכותרת, בתוויות המלאות ובלי גלישה', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpPanel(tester, _FakeRepository([_library('ראשון')]));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(separate), findsOneWidget);
+      expect(find.text(merge), findsOneWidget);
+      final title = tester.getRect(find.textContaining('ראשון').first);
+      final control = tester.getRect(
+        find.byType(AppSegmentedControl<AttachedLibraryPlacement>),
+      );
+      expect(control.top, greaterThanOrEqualTo(title.bottom));
+    });
   });
 
   testWidgets('אייקון מסד הספרים: רגיל למצורף ולמוסתר, מלא למצורף פעיל', (

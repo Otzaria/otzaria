@@ -9,7 +9,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// The "דיווחים" card in System settings: a summary of saved and sent reports
-/// of every kind, with the reports dialog behind "הדיווחים ששלחתי".
+/// of every kind, with the reports dialog behind "הדיווחים שלי".
 class ReportsCard extends StatefulWidget {
   const ReportsCard({
     super.key,
@@ -109,7 +109,7 @@ class _ReportsCardState extends State<ReportsCard> {
             ),
             ActionButton.recommended(
               key: const ValueKey('reports-card-manage'),
-              text: context.settingsText('הדיווחים ששלחתי'),
+              text: context.settingsText('הדיווחים שלי'),
               onPressed: _openDialog,
             ),
           ],
