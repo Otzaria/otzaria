@@ -292,6 +292,7 @@ void main() {
       double width = 360,
       double textScale = 1,
       ThemeData? theme,
+      Set<String> visibleBuiltIns = const {},
     }) async {
       pluginBloc = _PluginBloc(
         state ??
@@ -301,7 +302,8 @@ void main() {
       settingsBloc = StubSettingsBloc(
         SettingsState.initial().copyWith(
           hiddenBuiltInToolIds: {
-            for (final tool in kBuiltInToolsCatalog) tool.toolId,
+            for (final tool in kBuiltInToolsCatalog)
+              if (!visibleBuiltIns.contains(tool.toolId)) tool.toolId,
           },
           isOfflineMode: offline,
           settingsLanguageCode: 'he',
@@ -415,6 +417,68 @@ void main() {
       expect(closed, 0);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       expect(closed, 1);
+    });
+
+    testWidgets('folder navigation does not focus search on touch', (
+      tester,
+    ) async {
+      await pumpLauncher(
+        tester,
+        state: PluginSystemLoaded(
+          plugins,
+          groups: [
+            folder,
+            _group('empty', [], name: 'קבוצה ריקה'),
+          ],
+          groupsLoaded: true,
+        ),
+      );
+      final search = tester.widget<TextField>(find.byType(TextField));
+      expect(search.focusNode!.hasFocus, isFalse);
+
+      await tester.tap(find.text('כתיבה'));
+      await tester.pumpAndSettle();
+      expect(tile('הערות'), findsOneWidget);
+      expect(search.focusNode!.hasFocus, isFalse);
+
+      await tester.tap(find.byTooltip('חזרה לכל הכלים'));
+      await tester.pumpAndSettle();
+      expect(tile('כתיבה'), findsOneWidget);
+      expect(search.focusNode!.hasFocus, isFalse);
+
+      await tester.tap(find.text('קבוצה ריקה'));
+      await tester.pumpAndSettle();
+      expect(find.text('אין תוספים זמינים בקבוצה'), findsOneWidget);
+      expect(search.focusNode!.hasFocus, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(tile('קבוצה ריקה'), findsOneWidget);
+      expect(search.focusNode!.hasFocus, isFalse);
+      expect(closed, 0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      expect(closed, 1);
+    }, variant: const TargetPlatformVariant({TargetPlatform.android}));
+
+    testWidgets('a matching built-in ID does not make it a folder member', (
+      tester,
+    ) async {
+      const id = 'builtin.calendar';
+      await pumpLauncher(
+        tester,
+        state: PluginSystemLoaded(
+          [_plugin(id, 'תוסף לוח')],
+          groups: [
+            _group('writing', [id]),
+          ],
+          groupsLoaded: true,
+        ),
+        visibleBuiltIns: {id},
+      );
+      expect(tile('לוח שנה'), findsOneWidget);
+      await tester.tap(find.text('כתיבה'));
+      await tester.pumpAndSettle();
+      expect(tile('תוסף לוח'), findsOneWidget);
+      expect(tile('לוח שנה'), findsNothing);
     });
 
     testWidgets('unframed plugin menu does not launch the plugin', (

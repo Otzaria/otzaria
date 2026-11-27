@@ -251,6 +251,43 @@ void main() {
   );
 
   test(
+    'an upgrade prepared before grouping keeps the folder in place',
+    () async {
+      final previous = (await db.getInstalledPlugin('a'))!;
+      final grouped = await db.createPluginGroup('לימוד', ['c', 'a']);
+      expect(grouped.userOrders, {'b': 0, 'c': 1, 'a': 2});
+
+      await db.insertOrUpdatePluginWithPermissions(
+        previous.copyWith(version: '2.0.0'),
+        {},
+      );
+
+      expect((await db.getInstalledPlugin('a'))!.version, '2.0.0');
+      final after = await db.getPluginGroupsSnapshot();
+      expect(after.groups, grouped.groups);
+      expect(after.userOrders, grouped.userOrders);
+    },
+  );
+
+  test(
+    'an install uses its initial order and an upgrade preserves null',
+    () async {
+      await db.insertOrUpdatePluginWithPermissions(
+        _plugin('new').copyWith(userOrder: 7),
+        {},
+      );
+      await db.insertOrUpdatePluginWithPermissions(_plugin('default'), {});
+      await db.insertOrUpdatePluginWithPermissions(
+        _plugin('a').copyWith(version: '2.0.0', userOrder: 9),
+        {},
+      );
+      expect((await db.getInstalledPlugin('new'))!.userOrder, 7);
+      expect((await db.getInstalledPlugin('default'))!.userOrder, isNull);
+      expect((await db.getInstalledPlugin('a'))!.userOrder, isNull);
+    },
+  );
+
+  test(
     'uninstall removes membership and retains the empty personal group',
     () async {
       await db.createPluginGroup('א', ['a']);

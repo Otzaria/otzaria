@@ -194,6 +194,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   late final FocusNode _searchFocusNode = FocusNode(
     onKeyEvent: _handleSearchFieldKey,
   );
+  final _panelFocusNode = FocusNode();
   String _query = '';
   String? _activeGroupId;
   Map<String, PluginGroup> _groupsById = const {};
@@ -250,6 +251,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     _searchController.dispose();
     _gridScrollController.dispose();
     _searchFocusNode.dispose();
+    _panelFocusNode.dispose();
     super.dispose();
   }
 
@@ -335,7 +337,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_gridScrollController.hasClients) _gridScrollController.jumpTo(0);
-      _searchFocusNode.requestFocus();
+      (_isTouchPlatform ? _panelFocusNode : _searchFocusNode).requestFocus();
     });
   }
 
@@ -772,6 +774,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         : allEntries
               .where(
                 (entry) =>
+                    entry.isPlugin &&
                     _groupsByPluginId[entry.toolId]?.id == activeGroup.id,
               )
               .toList();
@@ -790,7 +793,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       hiddenOfflineCount: hiddenOfflineCount,
     );
 
-    return PluginDropZone(
+    final panel = PluginDropZone(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -864,6 +867,14 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
           ),
         ],
       ),
+    );
+    return Focus(
+      focusNode: _panelFocusNode,
+      skipTraversal: true,
+      onKeyEvent: (node, event) => node.hasPrimaryFocus
+          ? _handleSearchFieldKey(node, event)
+          : KeyEventResult.ignored,
+      child: panel,
     );
   }
 

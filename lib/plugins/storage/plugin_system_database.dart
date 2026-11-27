@@ -742,7 +742,7 @@ class PluginSystemDatabase {
           throw StateError('Plugin changed during bundled upgrade');
         }
       }
-      _insertOrUpdatePlugin(db, plugin);
+      _insertOrUpdatePlugin(db, plugin, preserveUserOrder: true);
       db.execute(
         'DELETE FROM plugin_permission_grant WHERE plugin_id = ? '
         'AND (permission != ? OR ? = 0)',
@@ -785,14 +785,25 @@ class PluginSystemDatabase {
     }
   }
 
-  static void _insertOrUpdatePlugin(Database db, InstalledPlugin plugin) {
+  static void _insertOrUpdatePlugin(
+    Database db,
+    InstalledPlugin plugin, {
+    bool preserveUserOrder = false,
+  }) {
     final m = plugin.toDbMap();
     final cols = m.keys.join(', ');
     final placeholders = List.filled(m.length, '?').join(', ');
-    db.execute(
-      'INSERT OR REPLACE INTO plugin_installation ($cols) VALUES ($placeholders)',
-      m.values.toList(),
-    );
+    final values = 'INTO plugin_installation ($cols) VALUES ($placeholders)';
+    var sql = 'INSERT OR REPLACE $values';
+    if (preserveUserOrder) {
+      // סידור או קיבוץ יכולים לשנות את הסדר בזמן הכנת ההתקנה.
+      final updates = [
+        for (final col in m.keys)
+          if (col != 'plugin_id' && col != 'user_order') '$col = excluded.$col',
+      ].join(', ');
+      sql = 'INSERT $values ON CONFLICT(plugin_id) DO UPDATE SET $updates';
+    }
+    db.execute(sql, m.values.toList());
   }
 
   /// המחיקות עוברות בתור הכתיבה, באותה טרנזקציה, ב-isolate (#5869).

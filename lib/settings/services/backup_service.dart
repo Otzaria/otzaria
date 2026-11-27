@@ -30,6 +30,7 @@ import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_group.dart';
+import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
 import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
@@ -196,15 +197,26 @@ class BackupService {
         );
         backupData['plugins'] = plugins;
         try {
+          final snapshot = await PluginSystemDatabase.instance
+              .getPluginGroupsSnapshot();
+          final scope = <String>{};
+          for (final plugin in plugins) {
+            final installation = plugin['installation'] as Map<String, dynamic>;
+            final id = installation['plugin_id'] as String;
+            if (!snapshot.userOrders.containsKey(id)) continue;
+            installation['user_order'] = snapshot.userOrders[id];
+            scope.add(id);
+          }
           backupData['pluginGroups'] = [
-            for (final group
-                in await PluginSystemDatabase.instance.getPluginGroups())
-              group.toJson(),
+            for (final group in snapshot.groups)
+              if (group.pluginIds.isEmpty ||
+                  group.pluginIds.any(scope.contains))
+                {
+                  ...group.toJson(),
+                  'pluginIds': group.pluginIds.where(scope.contains).toList(),
+                },
           ];
-          backupData['pluginGroupScope'] = [
-            for (final plugin in plugins)
-              (plugin['installation'] as Map)['plugin_id'],
-          ];
+          backupData['pluginGroupScope'] = scope.toList();
         } catch (error) {
           _logger.warning('Skipping plugin groups backup: $error');
           if (!skippedSections.contains('plugins')) {
@@ -1112,7 +1124,7 @@ class BackupService {
                   ?.cast<String>()
                   .toSet() ??
               pluginsResult.restoredIds;
-          await PluginSystemDatabase.instance.restorePluginGroups(
+          await PluginRegistryRepository().restorePluginGroups(
             [
               for (final group in groups)
                 PluginGroup.fromJson((group as Map).cast<String, dynamic>()),

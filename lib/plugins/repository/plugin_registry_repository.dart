@@ -25,6 +25,19 @@ class PluginRegistryRepository {
   Future<PluginGroupsSnapshot> getPluginGroupsSnapshot() =>
       _db.getPluginGroupsSnapshot();
 
+  Future<void> restorePluginGroups(
+    List<PluginGroup> groups, {
+    required Set<String> pluginScope,
+    required bool keepExisting,
+  }) async {
+    await _db.restorePluginGroups(
+      groups,
+      pluginScope: pluginScope,
+      keepExisting: keepExisting,
+    );
+    _groupChanges.add(this);
+  }
+
   Future<PluginGroupsSnapshot> createPluginGroup(
     String name,
     List<String> pluginIds,

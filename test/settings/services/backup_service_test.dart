@@ -2,6 +2,7 @@ import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,6 +25,7 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
@@ -755,6 +757,29 @@ void main() {
       },
     );
 
+    test('ייבוא קבוצות ממזג מפרסם מצב מעודכן לחלון אחר', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('grouped.plugin');
+      await db.createPluginGroup('מקור', ['grouped.plugin']);
+      final original = (await db.getPluginGroups()).single;
+      final backup = await createPluginsBackup();
+      await db.deletePluginGroup(original.id);
+
+      final observer = PluginRegistryRepository();
+      final update = Completer<PluginGroupsSnapshot>();
+      final subscription = PluginRegistryRepository.groupChanges.listen(
+        (_) => update.complete(observer.getPluginGroupsSnapshot()),
+      );
+      addTearDown(subscription.cancel);
+      await BackupService.restoreFromBackup(
+        backup.path,
+        mode: BackupImportMode.merge,
+      );
+      final snapshot = await update.future.timeout(const Duration(seconds: 2));
+      expect(snapshot.groups, [original]);
+      expect(snapshot.userOrders, {'grouped.plugin': null});
+    });
+
     test('גיבוי ישן ללא קבוצות משאיר את הקבוצות המקומיות', () async {
       final db = PluginSystemDatabase.instance;
       await installTestPlugin('grouped.plugin');
@@ -876,13 +901,27 @@ void main() {
           devRootPath: devPath,
         ),
       );
+      await installTestPlugin('packaged.plugin');
+      await db.createPluginGroup('מעורבת', [
+        'packaged.plugin',
+        'dev.plugin',
+      ]);
+      await db.createPluginGroup('פיתוח', ['dev.plugin']);
 
       final backup = await createPluginsBackup();
       final backupJson = jsonDecode(
         await File(backup.path).readAsString(),
-      ) as Map<String, dynamic>;
+      ) as Map;
 
-      expect(backupJson['plugins'], isEmpty);
+      final installations = (backupJson['plugins'] as List).cast<Map>();
+      expect(
+        installations.single['installation']['plugin_id'],
+        'packaged.plugin',
+      );
+      expect(backupJson['pluginGroupScope'], ['packaged.plugin']);
+      final groups = (backupJson['pluginGroups'] as List).cast<Map>();
+      expect(groups.single['name'], 'מעורבת');
+      expect(groups.single['pluginIds'], ['packaged.plugin']);
     });
 
     // ה-plugin_id מגיע מקובץ הגיבוי ומרכיב נתיב שנמחק ב-recursive; `..` היה
