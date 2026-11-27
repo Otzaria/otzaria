@@ -86,6 +86,9 @@ class SettingsState extends Equatable {
   final bool downloadsWifiOnly;
   final bool enableHtmlLinks;
   final bool personalNotesCollapsedByDefault;
+
+  /// [SettingsRepository.keyCommentaryOpensOnTextTap].
+  final bool commentaryOpensOnTextTap;
   final bool protectedModeEnabled;
 
   /// האם הוגדרה סיסמה למצב סייפר. נגזר מה-repository בטעינה ומעודכן בעת שמירה,
@@ -196,6 +199,7 @@ class SettingsState extends Equatable {
     this.downloadsWifiOnly = false,
     required this.enableHtmlLinks,
     required this.personalNotesCollapsedByDefault,
+    this.commentaryOpensOnTextTap = true,
     required this.protectedModeEnabled,
     this.protectedModePasswordSet = false,
     this.compactMenuMode = false,
@@ -323,6 +327,7 @@ class SettingsState extends Equatable {
     bool? downloadsWifiOnly,
     bool? enableHtmlLinks,
     bool? personalNotesCollapsedByDefault,
+    bool? commentaryOpensOnTextTap,
     bool? protectedModeEnabled,
     bool? protectedModePasswordSet,
     bool? compactMenuMode,
@@ -421,6 +426,8 @@ class SettingsState extends Equatable {
       personalNotesCollapsedByDefault:
           personalNotesCollapsedByDefault ??
           this.personalNotesCollapsedByDefault,
+      commentaryOpensOnTextTap:
+          commentaryOpensOnTextTap ?? this.commentaryOpensOnTextTap,
       protectedModeEnabled: protectedModeEnabled ?? this.protectedModeEnabled,
       protectedModePasswordSet:
           protectedModePasswordSet ?? this.protectedModePasswordSet,
@@ -522,6 +529,7 @@ class SettingsState extends Equatable {
     downloadsWifiOnly,
     enableHtmlLinks,
     personalNotesCollapsedByDefault,
+    commentaryOpensOnTextTap,
     protectedModeEnabled,
     protectedModePasswordSet,
     compactMenuMode,

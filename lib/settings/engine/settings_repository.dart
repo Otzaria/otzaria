@@ -206,6 +206,10 @@ class SettingsRepository {
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
+
+  /// במפרשים מתחת לטקסט: לחיצה על הטקסט פותחת וסוגרת את המפרשים (#2835).
+  static const String keyCommentaryOpensOnTextTap =
+      'key-commentary-opens-on-text-tap';
   static const String keyCompactMenuMode = 'key-compact-menu-mode';
   static const String keyFullscreenAutoHideToolbar =
       'key-fullscreen-auto-hide-toolbar';
@@ -407,6 +411,7 @@ class SettingsRepository {
     keyRejectedOfficialPackages,
     keyEnableHtmlLinks,
     keyPersonalNotesCollapsedByDefault,
+    keyCommentaryOpensOnTextTap,
     keyCompactMenuMode,
     keyFullscreenAutoHideToolbar,
     keyFullscreenToolbarHintShown,
@@ -652,6 +657,10 @@ class SettingsRepository {
       ),
       'personalNotesCollapsedByDefault': _settings.getValue<bool>(
         keyPersonalNotesCollapsedByDefault,
+        defaultValue: true,
+      ),
+      'commentaryOpensOnTextTap': _settings.getValue<bool>(
+        keyCommentaryOpensOnTextTap,
         defaultValue: true,
       ),
       // null: המשתמש לא בחר, והצפיפות לפי גודל החלון
@@ -1052,6 +1061,10 @@ class SettingsRepository {
 
   Future<void> updatePersonalNotesCollapsedByDefault(bool value) async {
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, value);
+  }
+
+  Future<void> updateCommentaryOpensOnTextTap(bool value) async {
+    await _settings.setValue(keyCommentaryOpensOnTextTap, value);
   }
 
   Future<void> updateAutoSync(bool value) async {
@@ -1498,6 +1511,7 @@ class SettingsRepository {
     await _settings.setValue(keyQueueErrorReportsWhenOffline, true);
     await _settings.setValue(keyAppCrashReportMode, 'ask');
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, true);
+    await _settings.setValue(keyCommentaryOpensOnTextTap, true);
 
     // Calendar Notification Settings
     await _settings.setValue(keyCalendarNotificationsEnabled, true);

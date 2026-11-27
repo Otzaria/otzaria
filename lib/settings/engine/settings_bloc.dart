@@ -95,6 +95,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdatePersonalNotesCollapsedByDefault>(
       _onUpdatePersonalNotesCollapsedByDefault,
     );
+    on<UpdateCommentaryOpensOnTextTap>(_onUpdateCommentaryOpensOnTextTap);
     on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
     on<UpdateFullscreenAutoHideToolbar>(_onUpdateFullscreenAutoHideToolbar);
     on<UpdateAutoSync>(_onUpdateAutoSync);
@@ -235,6 +236,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
+      commentaryOpensOnTextTap: settings['commentaryOpensOnTextTap'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
       compactMenuModeIsSet: settings['compactMenuMode'] != null,
       fullscreenAutoHideToolbar: settings['fullscreenAutoHideToolbar'] ?? true,
@@ -341,6 +343,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(
       state.copyWith(personalNotesCollapsedByDefault: event.collapsedByDefault),
     );
+  }
+
+  Future<void> _onUpdateCommentaryOpensOnTextTap(
+    UpdateCommentaryOpensOnTextTap event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateCommentaryOpensOnTextTap(event.opensOnTextTap);
+    emit(state.copyWith(commentaryOpensOnTextTap: event.opensOnTextTap));
   }
 
   Future<void> _onUpdateAutoSync(
