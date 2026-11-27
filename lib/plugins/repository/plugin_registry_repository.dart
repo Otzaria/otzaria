@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/models/plugin_published_record.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
@@ -7,16 +10,76 @@ import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
 
 class PluginRegistryRepository {
   final PluginSystemDatabase _db;
+  static final _groupChanges =
+      StreamController<PluginRegistryRepository>.broadcast();
+
+  /// חלונות באותו isolate מתרעננים אחרי שינוי בקבוצות או בסדר התוספים.
+  static Stream<PluginRegistryRepository> get groupChanges =>
+      _groupChanges.stream;
 
   PluginRegistryRepository({PluginSystemDatabase? database})
     : _db = database ?? PluginSystemDatabase.instance;
+
+  Future<List<PluginGroup>> getPluginGroups() => _db.getPluginGroups();
+
+  Future<PluginGroupsSnapshot> getPluginGroupsSnapshot() =>
+      _db.getPluginGroupsSnapshot();
+
+  Future<void> restorePluginGroups(
+    List<PluginGroup> groups, {
+    required Set<String> pluginScope,
+    required bool keepExisting,
+  }) async {
+    await _db.restorePluginGroups(
+      groups,
+      pluginScope: pluginScope,
+      keepExisting: keepExisting,
+    );
+    _groupChanges.add(this);
+  }
+
+  Future<PluginGroupsSnapshot> createPluginGroup(
+    String name,
+    List<String> pluginIds,
+  ) async {
+    final groups = await _db.createPluginGroup(name, pluginIds);
+    _groupChanges.add(this);
+    return groups;
+  }
+
+  Future<PluginGroupsSnapshot> updatePluginGroup(
+    PluginGroup group, {
+    PluginGroup? expectedGroup,
+  }) async {
+    final groups = await _db.updatePluginGroup(
+      group,
+      expectedGroup: expectedGroup,
+    );
+    _groupChanges.add(this);
+    return groups;
+  }
+
+  Future<PluginGroupsSnapshot> deletePluginGroup(String groupId) async {
+    final groups = await _db.deletePluginGroup(groupId);
+    _groupChanges.add(this);
+    return groups;
+  }
+
+  Future<PluginGroupsSnapshot> movePluginToGroup(
+    String pluginId,
+    String? groupId,
+  ) async {
+    final groups = await _db.movePluginToGroup(pluginId, groupId);
+    _groupChanges.add(this);
+    return groups;
+  }
 
   Future<List<InstalledPlugin>> getAllPlugins() async {
     await PluginSafeMode.ready;
     final plugins = (await _db.getAllInstalledPlugins())
         .map(_sessionView)
         .toList();
-    plugins.sort(_compareForDisplay);
+    plugins.sort(InstalledPlugin.compareForDisplay);
     return plugins;
   }
 
@@ -34,19 +97,6 @@ class PluginRegistryRepository {
     if (!PluginSafeMode.isActive) return plugin;
     final saved = await _db.getInstalledPlugin(plugin.pluginId);
     return saved == null ? plugin : plugin.copyWith(enabled: saved.enabled);
-  }
-
-  /// השוואת תוספים לצורך תצוגה — קודם לפי [InstalledPlugin.effectiveToolTabOrder],
-  /// ואז tie-breakers דטרמיניסטיים: [InstalledPlugin.installedAt] ובסוף
-  /// [InstalledPlugin.pluginId]. בלי tie-breaker, כש-N תוספים חולקים את
-  /// אותו `toolTabOrder` (ברירת מחדל 900 ב-manifest), הסדר ביניהם משתנה
-  /// בין הרצות.
-  static int _compareForDisplay(InstalledPlugin a, InstalledPlugin b) {
-    final orderCmp = a.effectiveToolTabOrder.compareTo(b.effectiveToolTabOrder);
-    if (orderCmp != 0) return orderCmp;
-    final timeCmp = a.installedAt.compareTo(b.installedAt);
-    if (timeCmp != 0) return timeCmp;
-    return a.pluginId.compareTo(b.pluginId);
   }
 
   /// מחזיר את [InstalledPlugin.userOrder] שיש להקצות לתוסף חדש כך שהוא
@@ -136,6 +186,7 @@ class PluginRegistryRepository {
     }
     await _db.deletePlugin(pluginId);
     _revokeSemanticAccess(pluginId);
+    _groupChanges.add(this);
   }
 
   /// מוחק את כל הנתונים שהתוסף אגר (KV, רשומות שפורסמו, לוג) ומשאיר את
@@ -177,6 +228,7 @@ class PluginRegistryRepository {
     }
     await _db.deletePlugin(pluginId);
     _revokeSemanticAccess(pluginId);
+    _groupChanges.add(this);
   }
 
   Future<void> updateNavRailPinState(
@@ -199,6 +251,7 @@ class PluginRegistryRepository {
       for (var i = 0; i < orderedPluginIds.length; i++) orderedPluginIds[i]: i,
     };
     await _db.updatePluginsUserOrder(ordering);
+    _groupChanges.add(this);
   }
 
   static final Map<String, int> _fileAccessGenerations = {};

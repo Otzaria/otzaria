@@ -157,14 +157,14 @@ Finder _menuButtonOf(String label) => find.descendant(
 );
 
 bool _isCardSelected(WidgetTester tester, String label) => tester
-    .widget<AppCard>(
-      find.ancestor(of: find.text(label), matching: find.byType(AppCard)).first,
+    .widget<ToolTile>(
+      find.ancestor(of: find.text(label), matching: find.byType(ToolTile)),
     )
-    .selected;
+    .isHighlighted;
 
 int _selectedCardCount(WidgetTester tester) => tester
-    .widgetList<AppCard>(find.byType(AppCard))
-    .where((card) => card.selected)
+    .widgetList<ToolTile>(find.byType(ToolTile))
+    .where((tile) => tile.isHighlighted)
     .length;
 
 /// מריץ גוף בדיקה כפלטפורמת שולחן עבודה. האיפוס חייב לקרות בתוך גוף הבדיקה,
@@ -715,6 +715,45 @@ void main() {
       await tester.tap(find.byType(ToolTile));
       await tester.pump();
       expect(taps, 1);
+    });
+
+    testWidgets('תוסף ללא מסגרת נגיש במקלדת ובכל שטח האריח', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        _tileHost(
+          buildTile(
+            entry: _pluginEntry('com.example.x', 'תוסף'),
+            onTap: () => taps++,
+          ),
+        ),
+      );
+      final tile = find.byType(ToolTile);
+      final bounds = tester.getRect(tile);
+      expect(find.byType(AppCard), findsNothing);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(bounds.center);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(tile), bounds);
+      await mouse.removePointer();
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(bounds.bottomLeft + const Offset(8, -8));
+      await tester.pumpAndSettle();
+      expect(taps, 1);
+
+      final focus = Focus.of(tester.element(find.text('תוסף')));
+      focus.requestFocus();
+      await tester.pumpAndSettle();
+      expect(focus.hasPrimaryFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(taps, 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(taps, 3);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('סימן "פתוח" מוצג רק כשהכלי פתוח', (tester) async {

@@ -184,10 +184,12 @@ void main() {
               enabled: false,
               pinnedToNavRail: true,
               showInTools: false,
-              userOrder: 4,
             ),
         {'ui.feedback': false},
       );
+      await PluginSystemDatabase.instance.updatePluginsUserOrder({
+        'test.bundled': 4,
+      });
       await repository.setKV('test.bundled', 'default', 'saved', '"data"');
       fixture.writePluginArchive(
         p.join(root.path, 'test.bundled.otzplugin'),

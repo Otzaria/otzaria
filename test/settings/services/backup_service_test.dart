@@ -1,6 +1,8 @@
 import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
+
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -21,7 +23,9 @@ import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
@@ -103,11 +107,9 @@ void main() {
 
     expect(result.skippedSections, isEmpty);
 
-    final backupJson =
-        jsonDecode(
-              await File(result.path).readAsString(),
-            )
-            as Map<String, dynamic>;
+    final backupJson = jsonDecode(
+      await File(result.path).readAsString(),
+    ) as Map<String, dynamic>;
     expect(backupJson['version'], '2.0');
     final shamorZachor = backupJson['shamorZachor'] as Map<String, dynamic>;
 
@@ -242,9 +244,9 @@ void main() {
         includePlugins: false,
       );
       expect(result.skippedSections, isNot(contains('userBooks')));
-      final backup =
-          jsonDecode(await File(result.path).readAsString())
-              as Map<String, dynamic>;
+      final backup = jsonDecode(
+        await File(result.path).readAsString(),
+      ) as Map<String, dynamic>;
       expect(backup['userBooks'], isA<String>());
 
       open
@@ -349,9 +351,9 @@ void main() {
           includeShamorZachor: false,
           includePlugins: false,
         );
-        final manifest =
-            jsonDecode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        final manifest = jsonDecode(
+          await File(backup.path).readAsString(),
+        ) as Map<String, dynamic>;
         var bytes = base64Decode(manifest['userBooks'] as String);
         switch (defect) {
           case 'truncated':
@@ -705,6 +707,124 @@ void main() {
       return (installPath: installPath, dataPath: dataPath);
     }
 
+    test('קבוצות תוספים נשמרות בגיבוי ומשוחזרות עם המזהים שלהן', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('grouped.plugin');
+      await db.createPluginGroup('לימוד', ['grouped.plugin']);
+      await db.createPluginGroup('קבוצה ריקה', []);
+      final original = await db.getPluginGroups();
+      final backup = await createPluginsBackup();
+      final json = jsonDecode(await File(backup.path).readAsString()) as Map;
+      expect(json['pluginGroups'], original.map((g) => g.toJson()).toList());
+      expect(json['pluginGroupScope'], ['grouped.plugin']);
+      for (final group in original) {
+        await db.deletePluginGroup(group.id);
+      }
+
+      final result = await BackupService.restoreFromBackup(backup.path);
+      expect(result.skippedSections, isEmpty);
+      expect(await db.getPluginGroups(), original);
+    });
+
+    test(
+      'ייבוא קבוצות אינו דורס ארגון מקומי או מכפיל קבוצות בייבוא חוזר',
+      () async {
+        final db = PluginSystemDatabase.instance;
+        await installTestPlugin('grouped.plugin');
+        await db.createPluginGroup('מקור', ['grouped.plugin']);
+        final source = (await db.getPluginGroups()).single;
+        final backup = await createPluginsBackup();
+        await installTestPlugin('local.plugin');
+        await db.updatePluginGroup(
+          PluginGroup(
+            id: source.id,
+            name: 'שם מקומי',
+            pluginIds: ['local.plugin'],
+          ),
+        );
+        await db.createPluginGroup('בחירה מקומית', ['grouped.plugin']);
+        final local = await db.getPluginGroups();
+
+        await BackupService.restoreFromBackup(
+          backup.path,
+          mode: BackupImportMode.merge,
+        );
+        await BackupService.restoreFromBackup(
+          backup.path,
+          mode: BackupImportMode.merge,
+        );
+        expect(await db.getPluginGroups(), local);
+      },
+    );
+
+    test('ייבוא קבוצות ממזג מפרסם מצב מעודכן לחלון אחר', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('grouped.plugin');
+      await db.createPluginGroup('מקור', ['grouped.plugin']);
+      final original = (await db.getPluginGroups()).single;
+      final backup = await createPluginsBackup();
+      await db.deletePluginGroup(original.id);
+
+      final observer = PluginRegistryRepository();
+      final update = Completer<PluginGroupsSnapshot>();
+      final subscription = PluginRegistryRepository.groupChanges.listen(
+        (_) => update.complete(observer.getPluginGroupsSnapshot()),
+      );
+      addTearDown(subscription.cancel);
+      await BackupService.restoreFromBackup(
+        backup.path,
+        mode: BackupImportMode.merge,
+      );
+      final snapshot = await update.future.timeout(const Duration(seconds: 2));
+      expect(snapshot.groups, [original]);
+      expect(snapshot.userOrders, {'grouped.plugin': null});
+    });
+
+    test('גיבוי ישן ללא קבוצות משאיר את הקבוצות המקומיות', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('grouped.plugin');
+      final backup = await createPluginsBackup();
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
+      json
+        ..remove('pluginGroups')
+        ..remove('pluginGroupScope');
+      await File(backup.path).writeAsString(jsonEncode(json));
+      await db.createPluginGroup('מקומית', ['grouped.plugin']);
+      final before = await db.getPluginGroups();
+
+      await BackupService.restoreFromBackup(backup.path);
+      expect(await db.getPluginGroups(), before);
+    });
+
+    test('תוסף ששחזורו נכשל שומר את שיוכו המקומי', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('failed.plugin');
+      await installTestPlugin('restored.plugin');
+      await db.createPluginGroup('בגיבוי', ['failed.plugin']);
+      final backup = await createPluginsBackup();
+      await db.createPluginGroup('מקומית', [
+        'failed.plugin',
+        'restored.plugin',
+      ]);
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
+      final failed = (json['plugins'] as List).cast<Map>().singleWhere(
+        (p) => (p['installation'] as Map)['plugin_id'] == 'failed.plugin',
+      );
+      failed['files'] = {'index.html': '%%%'};
+      await File(backup.path).writeAsString(jsonEncode(json));
+
+      final result = await BackupService.restoreFromBackup(backup.path);
+      expect(result.skippedSections, contains('plugins'));
+      final local = (await db.getPluginGroups()).singleWhere(
+        (g) => g.name == 'מקומית',
+      );
+      expect(local.pluginIds, ['failed.plugin']);
+    });
+
     test('משחזר תוסף packaged עם קבצים, נתונים, הרשאות ו-KV', () async {
       final db = PluginSystemDatabase.instance;
       const pluginId = 'test.plugin';
@@ -781,13 +901,27 @@ void main() {
           devRootPath: devPath,
         ),
       );
+      await installTestPlugin('packaged.plugin');
+      await db.createPluginGroup('מעורבת', [
+        'packaged.plugin',
+        'dev.plugin',
+      ]);
+      await db.createPluginGroup('פיתוח', ['dev.plugin']);
 
       final backup = await createPluginsBackup();
-      final backupJson =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final backupJson = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map;
 
-      expect(backupJson['plugins'], isEmpty);
+      final installations = (backupJson['plugins'] as List).cast<Map>();
+      expect(
+        installations.single['installation']['plugin_id'],
+        'packaged.plugin',
+      );
+      expect(backupJson['pluginGroupScope'], ['packaged.plugin']);
+      final groups = (backupJson['pluginGroups'] as List).cast<Map>();
+      expect(groups.single['name'], 'מעורבת');
+      expect(groups.single['pluginIds'], ['packaged.plugin']);
     });
 
     // ה-plugin_id מגיע מקובץ הגיבוי ומרכיב נתיב שנמחק ב-recursive; `..` היה
@@ -803,9 +937,9 @@ void main() {
       final bystander = File(p.join(dataRoot.path, 'bystander.txt'))
         ..writeAsStringSync('חייב לשרוד');
 
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final entry = (json['plugins'] as List).single as Map<String, dynamic>;
       (entry['installation'] as Map)['plugin_id'] = '..';
       await File(backup.path).writeAsString(jsonEncode(json));
@@ -856,9 +990,9 @@ void main() {
       );
       final backup = await createPluginsBackup();
 
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final entry = (json['plugins'] as List).single as Map<String, dynamic>;
       (entry['installation'] as Map)
         ..['enabled'] = 1
@@ -952,9 +1086,9 @@ void main() {
       }
 
       final backup = await createPluginsBackup();
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       final entry = (json['plugins'] as List).single as Map<String, dynamic>;
       final data = (entry['data'] as Map).cast<String, dynamic>();
 
@@ -972,9 +1106,9 @@ void main() {
 
       expect(backup.oversized, ['small.plugin']);
       expect(backup.skipped, isEmpty);
-      final json =
-          jsonDecode(await File(backup.path).readAsString())
-              as Map<String, dynamic>;
+      final json = jsonDecode(
+        await File(backup.path).readAsString(),
+      ) as Map<String, dynamic>;
       expect(json['plugins'], isEmpty);
       // הקובץ עצמו מצהיר שחסרים בו תוספים, כדי שהשחזור ידווח על כך.
       expect(json['partial_sections'], ['plugins']);
@@ -1080,9 +1214,9 @@ void main() {
         final backup = await createPluginsBackup();
         expect(backup.skipped, isEmpty);
 
-        final backupJson =
-            jsonDecode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        final backupJson = jsonDecode(
+          await File(backup.path).readAsString(),
+        ) as Map<String, dynamic>;
         final pluginEntry =
             (backupJson['plugins'] as List).first as Map<String, dynamic>;
         final allValues = [
@@ -1131,9 +1265,9 @@ void main() {
         final backup = await createPluginsBackup(isAutoBackup: true);
         expect(backup.skipped, isEmpty);
 
-        final backupJson =
-            jsonDecode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        final backupJson = jsonDecode(
+          await File(backup.path).readAsString(),
+        ) as Map<String, dynamic>;
         final pluginEntry =
             (backupJson['plugins'] as List).first as Map<String, dynamic>;
         for (final value in (pluginEntry['files'] as Map).values) {

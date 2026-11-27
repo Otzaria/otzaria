@@ -1,5 +1,10 @@
 /// ריכוז הודעות המערכת (UiSnack) של מערכת התוספים.
 abstract class PluginMessages {
+  static const String pluginGroupSaveFailed =
+      'לא ניתן לשמור את קבוצת התוספים. בדוק אם הקבוצה השתנתה ונסה שוב.';
+  static const String pluginGroupLoadFailed =
+      'לא ניתן לטעון את קבוצות התוספים. נסה לרענן את רשימת התוספים.';
+
   static String correctionEditRejected(String message) =>
       'התיקון לא הוחל: $message';
   static String correctionRecovered({
