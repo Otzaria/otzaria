@@ -106,10 +106,16 @@ class _CommentaryLinkItem extends StatefulWidget {
   final void Function(Link link, String renderedPlainText)? onLinkRendered;
 
   /// מדווח את כותרת הפריט המרונדרת (displayReference) — לשחזור מעברי שורה.
-  final void Function(Link link, String renderedTitle)? onLinkTitleRendered;
+  final void Function(
+    Link link,
+    String renderedTitle,
+    GlobalKey? shortenedTitleKey,
+  )?
+  onLinkTitleRendered;
 
   /// משחזר מעברי שורה בטקסט נבחר רב-שורתי (להעתקה מתפריט ההקשר).
   final String? Function(String?)? restoreLineBreaks;
+  final ({String? text, Link? link}) Function(String?, Link?) selectionForCopy;
 
   /// מחרוזת להדגשה מה-BLoC החיצוני, ללא שדה החיפוש הפנימי.
   final ValueListenable<String>? highlightQueryListenable;
@@ -149,6 +155,7 @@ class _CommentaryLinkItem extends StatefulWidget {
     this.onLinkRendered,
     this.onLinkTitleRendered,
     this.restoreLineBreaks,
+    required this.selectionForCopy,
     this.highlightQueryListenable,
     this.onOpenPersonalNote,
     this.shouldShowItemTitle,
@@ -160,19 +167,20 @@ class _CommentaryLinkItem extends StatefulWidget {
 }
 
 class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
+  final _titleKey = GlobalKey();
+
   Future<void> _copySelection(
     BuildContext menuContext,
-    String? savedText,
-    Link link, {
+    ({String? text, Link? link}) selection, {
     bool removeNikud = false,
   }) async {
     final guard = await widget.multiItemCopyGuard();
     if (!menuContext.mounted) return;
     await ContextMenuUtils.copyFormattedText(
       context: menuContext,
-      savedSelectedText: _restoreLineBreaks(savedText),
+      savedSelectedText: selection.text,
       fontSize: widget.fontSize,
-      link: link,
+      link: selection.link,
       removeNikud: removeNikud,
       protection: guard?.protection,
       segmentCount: guard?.segmentCount,
@@ -266,17 +274,19 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                         // דיווח ריק דורס כותרת שדווחה קודם — לשחזור העתקה נכון.
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (!mounted) return;
-                          widget.onLinkTitleRendered?.call(link, '');
+                          widget.onLinkTitleRendered?.call(link, '', null);
                         });
                         return const SizedBox.shrink();
                       }
                       final groupBookTitle = widget.groupBookTitle;
+                      final originalTitle = displayTitle;
                       if (showTitle && groupBookTitle != null) {
                         displayTitle = commentaryTitleWithoutBook(
                           displayTitle: displayTitle,
                           groupBookTitle: groupBookTitle,
                         );
                       }
+                      final shortened = displayTitle != originalTitle;
                       if (!showTitle) {
                         displayTitle = markerText!;
                       } else if (markerText != null) {
@@ -295,12 +305,17 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                       final reportedTitle = displayTitle;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (!mounted) return;
-                        widget.onLinkTitleRendered?.call(link, reportedTitle);
+                        widget.onLinkTitleRendered?.call(
+                          link,
+                          reportedTitle,
+                          shortened ? _titleKey : null,
+                        );
                       });
                       return Padding(
                         padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
                         child: Text(
                           displayTitle,
+                          key: _titleKey,
                           style: TextStyle(
                             fontSize: widget.fontSize * 0.75,
                             fontWeight: FontWeight.normal,
@@ -370,6 +385,10 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                     final savedTextAtBuild = captureSelectedTextForMenu(
                       widget.savedSelectedTextListenable,
                     );
+                    final selection = widget.selectionForCopy(
+                      savedTextAtBuild,
+                      widget.lastSelectedLinkListenable.value ?? link,
+                    );
                     return ContextMenuUtils.buildCommentaryContextMenu(
                       context: menuCtx,
                       link: link,
@@ -379,20 +398,9 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                       copyDisplayProfile: widget.copyDisplayProfile,
                       savedSelectedText: savedTextAtBuild,
                       onNavigateToLink: _navigateToLink,
-                      onCopySelected: () => _copySelection(
-                        menuCtx,
-                        savedTextAtBuild,
-                        // במצב הפאנל/כרטיסייה אין מעקב פר-פריט אחר
-                        // המפרש הנבחר (אין SelectionArea פר-פריט), לכן
-                        // נופלים חזרה ל-link של הפריט שעליו נפתח התפריט.
-                        widget.lastSelectedLinkListenable.value ?? link,
-                      ),
-                      onCopySelectedWithoutNikud: () => _copySelection(
-                        menuCtx,
-                        savedTextAtBuild,
-                        widget.lastSelectedLinkListenable.value ?? link,
-                        removeNikud: true,
-                      ),
+                      onCopySelected: () => _copySelection(menuCtx, selection),
+                      onCopySelectedWithoutNikud: () =>
+                          _copySelection(menuCtx, selection, removeNikud: true),
                     )..addAll(_pluginEntries(menuCtx, savedTextAtBuild));
                   },
                   child: CommentaryContent(

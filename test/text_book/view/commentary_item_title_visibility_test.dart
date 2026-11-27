@@ -218,7 +218,7 @@ void main() {
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
       expect(find.text(_kFakeContent), findsOneWidget);
-      expect(find.text('ג ב'), findsNothing);
+      expect(find.textContaining('ג ב'), findsNothing);
     });
 
     testWidgets('יעד במקום אחר — הכותרת מוצגת', (tester) async {
@@ -446,7 +446,7 @@ void main() {
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
-      final title = RegExp(r'^[(\[{]א[)\]}] סימן ב$');
+      final title = RegExp('^${anyAnchorMarker('א')} סימן ב\$');
       expect(
         find.byWidgetPredicate(
           (w) => w is Text && title.hasMatch(w.data ?? ''),
