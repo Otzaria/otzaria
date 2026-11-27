@@ -18,7 +18,7 @@
 | נגישות, הגדלת טקסט וביצועים | `meetsGuideline` והגדלת טקסט ברכיבים המשותפים (חוסמים), ומדידת ביצועים בלי ספים (מדפיסה בלבד) (§4) | ה־shards של Linux |
 | Pre-commit | `dart_pre_commit`, אופציונלי ולא נשמר בגיט. לא נקודת אכיפה | `tool/install_git_hooks.dart` |
 
-גרסת Flutter מוצמדת כליטרל בכל workflow (3.47.7).
+גרסת Flutter מוצמדת כליטרל בכל workflow (3.47.9).
 
 ## 2. עקרונות
 1. **AST עדיף על regex** כשצריך להבין תחביר: שם בנאי, ארגומנט בשם, ערך ליטרלי, מחלקה עוטפת (`extends CustomPainter`) או prefix (`pw.`).

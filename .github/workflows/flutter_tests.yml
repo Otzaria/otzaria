@@ -91,12 +91,12 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - name: Setup Flutter (retry)
         if: steps.flutter.outcome == 'failure'
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
       - name: Test native SHA-256 (macOS)
@@ -139,7 +139,7 @@ jobs:
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -237,7 +237,7 @@ jobs:
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -485,7 +485,7 @@ jobs:
         with:
           # ⚠️ חייב להתאים לשאר ה-jobs: `pubspec.lock` דורש Flutter >=3.47.0.
           # ה-cache של Windows נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Install dependencies
         shell: pwsh
@@ -629,7 +629,7 @@ jobs:
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Install dependencies
         shell: pwsh
@@ -665,7 +665,7 @@ jobs:
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Install dependencies
         shell: pwsh
@@ -734,7 +734,7 @@ jobs:
         uses: ./.github/actions/setup-flutter
         with:
           # ה-cache של הקונטיינר נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Install Linux build dependencies
         run: |

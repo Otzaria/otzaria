@@ -26,7 +26,8 @@ msix_config:
 version: 0.9.98+99803
 
 environment:
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.9"
 
 dependencies:
   sentry_flutter: ^10.6.0
@@ -56,10 +57,10 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # pdfrx 3.x דורש Flutter 3.50 ומעלה.
-  pdfrx: ^2.13.1
+  # הפורק המוצמד ב-overrides מאפשר את שיפורי PDF על Flutter 3.47.9.
+  pdfrx: 3.2.0
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
-  pdfium_dart: ^0.4.3
+  pdfium_dart: ^0.4.4
   url_launcher: ^6.3.3
   # ליבה בלבד: החבילה המורחבת רושמת בעלייה plugins של וידאו/אודיו/WebView.
   flutter_widget_from_html_core: ^0.17.4
@@ -178,6 +179,28 @@ dependencies:
   wakelock_plus: ^1.8.2
 
 dependency_overrides:
+  # TODO: לחזור ל-pub.dev לאחר המעבר ל-Flutter 3.50 ואימות מנוע Windows.
+  # כל ארבע החבילות מאותו פורק, עם דרישת SDK שמאפשרת Flutter 3.47.9.
+  pdfrx:
+    git:
+      url: https://github.com/Y-PLONI/pdfrx
+      ref: 0ec79a92f9466c64da902acda8c8ed599bf8b7e3
+      path: packages/pdfrx
+  pdfrx_engine:
+    git:
+      url: https://github.com/Y-PLONI/pdfrx
+      ref: 0ec79a92f9466c64da902acda8c8ed599bf8b7e3
+      path: packages/pdfrx_engine
+  pdfium_dart:
+    git:
+      url: https://github.com/Y-PLONI/pdfrx
+      ref: 0ec79a92f9466c64da902acda8c8ed599bf8b7e3
+      path: packages/pdfium_dart
+  pdfium_flutter:
+    git:
+      url: https://github.com/Y-PLONI/pdfrx
+      ref: 0ec79a92f9466c64da902acda8c8ed599bf8b7e3
+      path: packages/pdfium_flutter
   # TODO: לחזור לגרסת timezone הרשמית אחרי מיזוג ה-PRים ב-dart-lang/labs
   # ופרסום גרסה שכוללת את התיקונים.
   # ענף codex/timezone-integrated-20261111. מוצמד לקומיט שעבר QA.

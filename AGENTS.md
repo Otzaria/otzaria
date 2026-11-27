@@ -260,8 +260,9 @@ published symbols. Windows builds published by `build-and-announce.yml` ship a p
 (`.github/actions/patched-flutter-engine`): find the engine release selected by
 `.github/otzaria-engine/releases.json` and the checked-in patches at the app's build commit.
 Name its frames with that archive's `.pdb`, matching the GUID in the record's `Module PDB:` line.
-For older builds without this manifest, use the `palmoni5/flutter` release
-`otzaria-3.47.7-a11y.1` when its PDB GUID matches (x64
+For builds without this manifest, match the PDB GUID to the corresponding release:
+`Y-PLONI/flutter` release `otzaria-3.47.9-a11y.1` (x64 `839DA06A-80CF-4384-8AB1-2C12419AAD6D`, arm64
+`1A6943B5-D409-4961-A793-F57E47334725`), or `palmoni5/flutter` release `otzaria-3.47.7-a11y.1` (x64
 `9A3F8E48-5EA7-4A0A-8316-21352F723250`, arm64 `7324F4D1-92B4-455F-BA47-E65B47E2E69B`). Other builds use the official PDB from
 `flutter_infra_release/flutter/<engine.version>/windows-x64-release/windows-x64-flutter.zip`.
 For `otzaria.exe` and the DLLs CMake builds from source (e.g. `flutter_inappwebview_windows_plugin.dll`), use the PDBs in the release

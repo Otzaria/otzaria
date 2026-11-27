@@ -194,7 +194,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         WidgetsBindingObserver {
   AppLifecycleState? _appLifecycleState;
   final _snapshotBudgetEntries = <ui.Image, PdfImageCacheEntry>{};
-  final _bookViewLayoutMemo = BookViewLayoutMemo();
 
   /// האם חיצי הניווט נכנסו לסרגל בפריסה האחרונה. כשלא, הם בראש "עוד".
   final _navPlacement = ReaderNavPlacement();
@@ -1387,14 +1386,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _pageNumberNotifier.value = pageNumber;
         if (mounted) _onPdfViewerControllerUpdate();
       },
-      layoutPages: layoutMode.isBookView
-          ? (pages, params) => _bookViewLayoutMemo.layout(
-              pages,
-              hasCover: layoutMode.hasCoverPage,
-              // המרווח הוכפל יחד עם הפריסה, לשמירת אותה פרופורציה בין כפולות.
-              verticalMargin: params.margin * 2,
-            )
-          : null,
+      layoutStrategy: layoutMode.isBookView
+          ? BookViewLayout(hasCover: layoutMode.hasCoverPage)
+          : const SequentialPagesLayout(),
       calculateCurrentPageNumber: pdfCurrentPageCalculatorFor(layoutMode),
       normalizeMatrix: layoutMode.isBookView
           ? (matrix, viewSize, layout, controller) {
@@ -5153,7 +5147,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final fits = pdfFitZooms(
       shown: shown,
       viewSize: controller.viewSize,
-      margin: controller.params.margin,
+      margin: layout.margin,
     );
     return (
       shown: shown,

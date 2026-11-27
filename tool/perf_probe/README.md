@@ -414,7 +414,7 @@ native-only memory. גם הפרש RSS פחות Dart heap אינו מדד native 
 ב־Windows, Linux וב־macOS, במצב cold או warm שנבחר להפעלה;
 אין השוואה מספרית בין jobs, מערכות הפעלה או מצבי מטמון. בכל צד
 נוצרים checkout מנותק ונקי ונתוני אפליקציה מבודדים. ה־SDK נשאר Flutter
-3.47.7, והכלי דורש זהות של עצי כלי המדידה, integration tests, driver,
+3.47.9, והכלי דורש זהות של עצי כלי המדידה, integration tests, driver,
 diagnostics וקובצי `pubspec.yaml`/`pubspec.lock`. הוא מריץ `pub get
 --enforce-lockfile`, ניתוח מלא ובדיקות PDF רלוונטיות בשני הצדדים לפני
 בנייה והרצה של האפליקציה דרך `run_perf_probe.ps1` או
@@ -855,7 +855,7 @@ PDF חיצוני מתאים למדידות הקורא הרגילות, אך אי�
 
 ב־CI מתווספות הרצות profile ו־release נפרדות של התרחיש. הרצת release בלבד
 משתמשת בפעולה הקיימת `.github/actions/patched-flutter-engine` עבור Flutter
-3.47.7 x64. ה־runner מאמת את `flutter_windows.dll` שבתוך ה־bundle מול
+3.47.9 x64. ה־runner מאמת את `flutter_windows.dll` שבתוך ה־bundle מול
 `PATCHED_FLUTTER_DLL_SHA256` לפני כל launch; `engineRevision`, build mode
 ושני ה־hashes נשמרים ב־manifest וב־settings של ההשוואה. הוא אינו מסתפק
 בבדיקת קובץ המנוע שב־SDK cache.

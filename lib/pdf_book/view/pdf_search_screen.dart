@@ -1,6 +1,7 @@
 import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
+
 import 'dart:async';
 
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';

@@ -879,7 +879,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           horizontalCacheExtent: 0,
           verticalCacheExtent: 1,
           pageAnchor: PdfPageAnchor.top,
-          margin: 4,
+          layoutStrategy: const SequentialPagesLayout(margin: 4, spacing: 4),
           // כמו בקורא: ברירת המחדל של pdfrx (0.2) איטית פי 5 מגלגלת בטקסט.
           scrollByMouseWheel: 1.0,
           pagePaintCallbacks: [_paintPdfHighlights],

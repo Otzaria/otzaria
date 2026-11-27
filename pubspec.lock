@@ -1359,35 +1359,39 @@ packages:
   pdfium_dart:
     dependency: "direct main"
     description:
-      name: pdfium_dart
-      sha256: "7d09706ebac2acb4ad8e3ebf6030281a36be14f86ee2deaad9bd81d5c30d2e85"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.3"
+      path: "packages/pdfium_dart"
+      ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      resolved-ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      url: "https://github.com/Y-PLONI/pdfrx"
+    source: git
+    version: "0.4.4"
   pdfium_flutter:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: pdfium_flutter
-      sha256: "98c310ea9bef76d4b08700784f3863098d3739c9ed340e99c61d448a25406d9c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.3"
+      path: "packages/pdfium_flutter"
+      ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      resolved-ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      url: "https://github.com/Y-PLONI/pdfrx"
+    source: git
+    version: "0.4.4"
   pdfrx:
     dependency: "direct main"
     description:
-      name: pdfrx
-      sha256: "69e2fdfae25c9686b336d89c3841766a1043bc5ba7f24bb8252224b837018440"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.13.1"
+      path: "packages/pdfrx"
+      ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      resolved-ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      url: "https://github.com/Y-PLONI/pdfrx"
+    source: git
+    version: "3.2.0"
   pdfrx_engine:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: pdfrx_engine
-      sha256: "001090d220b2773747ce396f2bcda3d6ac9389d87f937ef12d64ed3a9e80e8b0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.3"
+      path: "packages/pdfrx_engine"
+      ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      resolved-ref: "0ec79a92f9466c64da902acda8c8ed599bf8b7e3"
+      url: "https://github.com/Y-PLONI/pdfrx"
+    source: git
+    version: "0.10.0"
   petitparser:
     dependency: "direct overridden"
     description:
@@ -2234,4 +2238,4 @@ packages:
     version: "1.5.0"
 sdks:
   dart: ">=3.13.0 <4.0.0"
-  flutter: ">=3.47.0"
+  flutter: ">=3.47.9"

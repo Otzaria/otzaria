@@ -63,7 +63,7 @@ jobs:
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
 
       - name: Cache native build hook output
         uses: actions/cache@v6.1.0
