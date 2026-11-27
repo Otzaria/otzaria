@@ -16,12 +16,20 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 /// (במקום תפריט ברירת המחדל של Flutter). לתוכן קריא כללי —
 /// דיאלוגים, חלוניות וכותרות.
 class AppSelectionArea extends StatefulWidget {
-  const AppSelectionArea({super.key, required this.child, this.protection});
+  const AppSelectionArea({
+    super.key,
+    required this.child,
+    this.protection,
+    this.renderedSelectionText,
+  });
 
   final Widget child;
 
   /// הגבלת המו"ל של הטקסט שבאזור, כשהוא תוכן ספר.
   final Future<BookProtection> Function()? protection;
+
+  /// הטקסט הגלוי שנבחר, כשבחירת Flutter מחזירה תוכן מלא לצורך העתקה.
+  final String? Function()? renderedSelectionText;
 
   @override
   State<AppSelectionArea> createState() => AppSelectionAreaState();
@@ -134,7 +142,9 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
               ? _buildTouchToolbar
               : (context, _) => const SizedBox.shrink(),
           onSelectionChanged: (selection) {
-            trackRtlSelection(selection?.plainText);
+            trackRtlSelection(
+              widget.renderedSelectionText?.call() ?? selection?.plainText,
+            );
             // שינוי בחירה זמני בזמן priming (קיצורי RTL) — לא לעבד.
             if (rtlSelectionPriming) return;
             _selectedText = selection?.plainText;
@@ -150,7 +160,8 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
               return clickIsOnSelectionWithinArea(
                     root: root,
                     globalPosition: globalPosition,
-                    selectedText: _selectedText!,
+                    selectedText:
+                        widget.renderedSelectionText?.call() ?? _selectedText!,
                   ) ??
                   true;
             },

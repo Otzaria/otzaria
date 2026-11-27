@@ -1171,20 +1171,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state, {
     TextAlign textAlign = TextAlign.end,
   }) {
-    if (state.currentTitle == null) {
-      return const SizedBox.shrink();
-    }
+    final currentTitle = state.currentTitle;
+    if (currentTitle == null) return const SizedBox.shrink();
 
-    // הסתרת שם השם חלה גם על הכותרת, כמו על גוף הטקסט.
     final holyNameStyle = state.bodyDisplayProfile.holyName.style;
     String hideHolyNames(String text) => holyNameStyle == null
         ? text
         : replaceHolyNames(text, style: holyNameStyle);
 
-    // שימוש בפונקציה העזר להוספת שם הספר
-    String displayText = hideHolyNames(
-      addBookTitleToRef(state.currentTitle!, state.book.title),
-    );
+    final fullTitle = addBookTitleToRef(currentTitle, state.book.title);
+    final displayText = hideHolyNames(fullTitle);
 
     // בכרטיסייה של נוסח חלופי הכותרת זהה לזו של הנוסח הראשי; שם המהדורה הוא מה
     // שמבחין ביניהן, ולכן הוא מוצג במקום שם המחבר.
@@ -1201,59 +1197,87 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         final authorStyle = AppTopBar.subtitleStyle(
           context,
         ).copyWith(height: 1.1);
-        TextPainter measure(String text) => TextPainter(
-          text: TextSpan(text: text, style: titleStyle),
+        final painter = TextPainter(
           textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
           maxLines: 1,
-        )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
+        );
+        void measure(String text) => painter
+          ..text = TextSpan(text: text, style: titleStyle)
+          ..layout(maxWidth: constraints.maxWidth);
 
-        final textPainter = measure(displayText);
-
-        // כשהכותרת בפורמט "שם הספר, מיקום" מציגים אותם כשני חלקים: השם מתקצר
-        // (ellipsis) לפי המקום הפנוי, אך המיקום נשאר גלוי במלואו — נחוץ לחברותא
-        // שבה אין מידע אחר על המיקום.
         final namePrefix = hideHolyNames('${state.book.title}, ');
-        // מיקום שאינו משאיר לצדו מקום אף ל"..." של השם חייב להיחתך כמחרוזת
-        // אחת — כשני חלקים ה-Row גולש מהסרגל ומצייר את פס האזהרה (#891).
-        final hasSeparateLocation =
-            displayText.startsWith(namePrefix) &&
-            measure(displayText.substring(namePrefix.length)).width +
-                    measure('…').width <=
-                constraints.maxWidth;
+        final location = displayText.startsWith(namePrefix)
+            ? displayText.substring(namePrefix.length)
+            : null;
+        final bool titleOverflows;
+        var hasSeparateLocation = false;
+        ElidedTitle? elided;
+        try {
+          measure(displayText);
+          titleOverflows = painter.didExceedMaxLines;
+          // מפצלים את שם הספר רק כשנשאר מקום למיקום ולאליפסה (#891).
+          if (location != null) {
+            measure(location);
+            final locationWidth = painter.width;
+            measure('…');
+            hasSeparateLocation =
+                locationWidth + painter.width <= constraints.maxWidth;
+          }
+          final firstVisible = state.visibleIndices.firstOrNull;
+          if (!hasSeparateLocation && titleOverflows && firstVisible != null) {
+            final headings = headingPathFromTocList(
+              firstVisible,
+              state.tableOfContents,
+            );
+            if (headings.join(', ') == currentTitle) {
+              final titleHeadings = [
+                if (fullTitle != currentTitle) state.book.title,
+                ...headings,
+              ].map(hideHolyNames).toList();
+              if (titleHeadings.join(', ') == displayText) {
+                elided = startTruncatedTitle(titleHeadings, (text) {
+                  measure(text);
+                  return !painter.didExceedMaxLines;
+                });
+              }
+            }
+          }
+        } finally {
+          painter.dispose();
+        }
         final rowAlignment = switch (textAlign) {
           TextAlign.center => MainAxisAlignment.center,
           TextAlign.start => MainAxisAlignment.start,
           _ => MainAxisAlignment.end,
         };
 
-        final titleWidget = AppSelectionArea(
-          child: hasSeparateLocation
-              ? Row(
-                  mainAxisAlignment: rowAlignment,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        namePrefix,
-                        style: titleStyle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      displayText.substring(namePrefix.length),
+        final title = hasSeparateLocation
+            ? Row(
+                mainAxisAlignment: rowAlignment,
+                children: [
+                  Flexible(
+                    child: Text(
+                      namePrefix,
                       style: titleStyle,
                       maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                )
-              : Text(
-                  displayText,
-                  style: titleStyle,
-                  textAlign: textAlign,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-        );
+                  ),
+                  Text(location!, style: titleStyle, maxLines: 1),
+                ],
+              )
+            : Text(
+                elided?.shown ?? displayText,
+                semanticsLabel: elided == null ? null : displayText,
+                style: titleStyle,
+                textAlign: textAlign,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+        final titleWidget = elided == null
+            ? AppSelectionArea(child: title)
+            : _ElidedTitleSelection(elided: elided, child: title);
 
         // אם יש מחבר (או שם מהדורה), מציגים אותו מתחת לכותרת
         final child = subtitle != null && subtitle.isNotEmpty
@@ -1273,7 +1297,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               )
             : titleWidget;
 
-        if (textPainter.didExceedMaxLines) {
+        if (titleOverflows) {
           return Tooltip(
             message: subtitle != null ? '$displayText\n$subtitle' : displayText,
             child: child,
@@ -3322,4 +3346,95 @@ class _NavPanelTourTargetBuilder extends StatelessWidget {
     isActiveTab: TourTargetsScope.enabledOf(context),
     child: child,
   );
+}
+
+/// כותרת שקוצרה מתחילתה: [shown] מוצג, ו-[omitted] הוא מה שהושמט לפני
+/// התו ה-[markerLength] של [shown] ("…" או כלום), כך שהכותרת המלאה היא
+/// `omitted + shown.substring(markerLength)`.
+typedef ElidedTitle = ({String shown, String omitted, int markerLength});
+
+/// מקצרת כותרת לפי [headings] (שם הספר והכותרות, מהעליונה לעמוקה) מתחילתה:
+/// "…, " ואחריו הסיפא הארוכה ביותר של כותרות שלמות שנכנסת לפי [fits]. כשאין
+/// מקום אף ל"…, " ולכותרת העמוקה מוצגת הכותרת העמוקה לבדה (ותיחתך מסופה אם
+/// צריך). פחות משתי כותרות — null.
+@visibleForTesting
+ElidedTitle? startTruncatedTitle(
+  List<String> headings,
+  bool Function(String text) fits,
+) {
+  if (headings.length < 2) return null;
+  String before(int i) => headings.sublist(0, i).join(', ');
+  final last = headings.length - 1;
+  if (!fits('…, ${headings[last]}')) {
+    return (
+      shown: headings[last],
+      omitted: '${before(last)}, ',
+      markerLength: 0,
+    );
+  }
+  var first = last;
+  while (first > 1 && fits('…, ${headings.sublist(first - 1).join(', ')}')) {
+    first--;
+  }
+  return (
+    shown: '…, ${headings.sublist(first).join(', ')}',
+    omitted: before(first),
+    markerLength: 1,
+  );
+}
+
+/// משחזר את החלק שהושמט כשבוחרים את סימן ההשמטה, או את כל הכותרת בלעדיו.
+class _ElidedTitleSelection extends StatefulWidget {
+  const _ElidedTitleSelection({required this.elided, required this.child});
+
+  final ElidedTitle elided;
+  final Widget child;
+
+  @override
+  State<_ElidedTitleSelection> createState() => _ElidedTitleSelectionState();
+}
+
+class _ElidedTitleSelectionState extends State<_ElidedTitleSelection> {
+  final _delegate = _ElidedTitleSelectionDelegate();
+
+  @override
+  void dispose() {
+    _delegate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _delegate.elided = widget.elided;
+    return AppSelectionArea(
+      renderedSelectionText: () => _delegate.renderedSelectionText,
+      child: SelectionContainer(delegate: _delegate, child: widget.child),
+    );
+  }
+}
+
+class _ElidedTitleSelectionDelegate extends StaticSelectionContainerDelegate {
+  late ElidedTitle elided;
+  String? renderedSelectionText;
+
+  @override
+  SelectedContent? getSelectedContent() {
+    final content = super.getSelectedContent();
+    renderedSelectionText = content?.plainText;
+    if (content == null) return null;
+    final range = getSelection();
+    if (range == null ||
+        range.startOffset == range.endOffset ||
+        min(range.startOffset, range.endOffset) != 0 ||
+        (elided.markerLength == 0 &&
+            max(range.startOffset, range.endOffset) != elided.shown.length)) {
+      return content;
+    }
+    final text = content.plainText;
+    return SelectedContent(
+      plainText:
+          elided.omitted +
+          text.substring(min(elided.markerLength, text.length)),
+    );
+  }
 }
