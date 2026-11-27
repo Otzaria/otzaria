@@ -166,8 +166,7 @@ void main() {
         expect(
           find.byType(CommentatorsListView),
           findsOneWidget,
-          reason:
-              'במצב מפרשים מתחת, הקיצור צריך לפתוח את חלונית בחירת המפרשים (issue #1161)',
+          reason: 'במצב מפרשים מתחת, הקיצור צריך לפתוח את חלונית בחירת המפרשים (issue #1161)',
         );
       },
     );
