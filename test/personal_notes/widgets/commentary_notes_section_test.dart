@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -36,12 +38,15 @@ void main() {
 
   Widget build(List<String> bookIds) => MaterialApp(
     home: Scaffold(
-      body: SingleChildScrollView(
-        child: CommentaryNotesSection(
-          bookIds: bookIds,
-          revision: revision,
-          loader: (bookId, {categoryId}) async => store[bookId] ?? const [],
-          onOpenNote: (bookId, line) => opened.add((bookId, line)),
+      body: Directionality(
+        textDirection: TextDirection.rtl,
+        child: SingleChildScrollView(
+          child: CommentaryNotesSection(
+            bookIds: bookIds,
+            revision: revision,
+            loader: (bookId, {categoryId}) async => store[bookId] ?? const [],
+            onOpenNote: (bookId, line) => opened.add((bookId, line)),
+          ),
         ),
       ),
     ),
@@ -86,7 +91,7 @@ void main() {
     expect(find.text('חדשה'), findsOneWidget);
   });
 
-  testWidgets('אפשר לסמן את תוכן ההערה ולהעתיק ב-Ctrl+C (issue #5989)', (
+  testWidgets('בחירת הערות והעתקתן שומרת מעברי שורה וניווט בעכבר', (
     tester,
   ) async {
     final copied = <String>[];
@@ -105,10 +110,12 @@ void main() {
         null,
       ),
     );
+    const firstContent = 'תוכן ההערה להעתקה';
     store = {
-      'רש"י': [_note('רש"י', 4, 'תוכן ההערה להעתקה')],
+      'רש"י': [_note('רש"י', 4, firstContent)],
+      'תוספות': [_note('תוספות', 5, 'תוכן נוסף', title: 'הערה שנייה')],
     };
-    await tester.pumpWidget(build(['רש"י']));
+    await tester.pumpWidget(build(['רש"י', 'תוספות']));
     await tester.pumpAndSettle();
 
     // לחיצה על הכותרת מעבירה את המיקוד לאזור בלי לפתוח הערה; Ctrl+A מסמן.
@@ -120,13 +127,63 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, isEmpty);
 
-    // מקלדת עברית: המקש הלוגי C, והתו שהוא מפיק הוא 'ב'.
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-    await tester.sendKeyEvent(LogicalKeyboardKey.keyC, character: 'ב');
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await tester.pumpAndSettle();
+    Future<void> copy() async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC, character: 'ב');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+    }
 
-    expect(copied, hasLength(1));
-    expect(copied.single, contains('תוכן ההערה להעתקה'));
-  });
+    await copy();
+    expect(copied, [
+      'הערות על המפרשים המוצגים\nרש"י\nשורה 4\n'
+          '$firstContent\nתוספות\nהערה שנייה\nתוכן נוסף',
+    ]);
+
+    final content = find.text(firstContent);
+    final richText = find.descendant(
+      of: content,
+      matching: find.byType(RichText),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(richText);
+    final bounds = tester.getRect(richText);
+    const partialContent = 'תוכן ההערה';
+    final endCaret = paragraph.getOffsetForCaret(
+      TextPosition(offset: partialContent.length),
+      Rect.zero,
+    );
+    final dragEnd = Offset(
+      paragraph.localToGlobal(endCaret).dx,
+      bounds.center.dy,
+    );
+    final drag = await tester.startGesture(
+      bounds.centerRight - const Offset(1, 0),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await drag.moveBy(const Offset(-30, 0));
+    await tester.pump();
+    await drag.moveTo(dragEnd);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+    await copy();
+    expect(copied.last, partialContent);
+
+    final rightClick = await tester.startGesture(
+      Offset.lerp(bounds.centerRight, dragEnd, 0.5)!,
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await rightClick.up();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('העתק'));
+    await tester.pumpAndSettle();
+    expect(copied, hasLength(3));
+    expect(copied.last, partialContent);
+    expect(opened, isEmpty);
+
+    await tester.tap(content, kind: PointerDeviceKind.mouse);
+    expect(opened, [('רש"י', 4)]);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
@@ -29,6 +30,7 @@ class CommentaryNotesSection extends StatefulWidget {
 }
 
 class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
+  final _selectionDelegate = _CommentaryNotesSelectionDelegate();
   List<(String, List<PersonalNote>)> _groups = const [];
   int _loadToken = 0;
 
@@ -52,6 +54,7 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
   @override
   void dispose() {
     widget.revision?.removeListener(_load);
+    _selectionDelegate.dispose();
     super.dispose();
   }
 
@@ -59,9 +62,9 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
     final token = ++_loadToken;
     final groups = <(String, List<PersonalNote>)>[];
     for (final bookId in widget.bookIds) {
-      final notes = (await widget.loader(
-        bookId,
-      )).where((note) => note.lineNumber != null).toList();
+      final notes = (await widget.loader(bookId))
+          .where((note) => note.lineNumber != null)
+          .toList();
       if (notes.isNotEmpty) groups.add((bookId, notes));
     }
     if (!mounted || token != _loadToken) return;
@@ -74,47 +77,65 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
     final theme = Theme.of(context);
 
     return AppSelectionArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text(
-              'הערות על המפרשים המוצגים',
-              style: theme.textTheme.titleSmall,
-            ),
-          ),
-          for (final (bookId, notes) in _groups) ...[
+      child: SelectionContainer(
+        delegate: _selectionDelegate,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Text(
-                bookId,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                ),
+                'הערות על המפרשים המוצגים',
+                style: theme.textTheme.titleSmall,
               ),
             ),
-            for (final note in notes)
-              ListTile(
-                dense: true,
-                title: Text(
-                  note.title.isNotEmpty
-                      ? note.title
-                      : 'שורה ${note.lineNumber}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            for (final (bookId, notes) in _groups) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Text(
+                  bookId,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-                subtitle: Text(
-                  note.contentPlain,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: () => widget.onOpenNote(bookId, note.lineNumber!),
               ),
+              for (final note in notes)
+                ListTile(
+                  dense: true,
+                  title: Text(
+                    note.title.isNotEmpty
+                        ? note.title
+                        : 'שורה ${note.lineNumber}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    note.contentPlain,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => widget.onOpenNote(bookId, note.lineNumber!),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
+  }
+}
+
+// כל רכיב טקסט באזור מייצג שורה נפרדת בתוכן המועתק.
+class _CommentaryNotesSelectionDelegate
+    extends StaticSelectionContainerDelegate {
+  @override
+  SelectedContent? getSelectedContent() {
+    final lines = [
+      for (final selectable in selectables)
+        if (selectable.getSelectedContent()?.plainText case final text?
+            when text.isNotEmpty)
+          text,
+    ];
+    return lines.isEmpty ? null : SelectedContent(plainText: lines.join('\n'));
   }
 }
