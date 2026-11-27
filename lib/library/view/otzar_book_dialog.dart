@@ -286,13 +286,12 @@ class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
       if (savedPath != null && !libraryBloc.isClosed) {
         libraryBloc.add(const ExternalBooksChanged());
       }
-      if (!mounted) return;
       if (savedPath == null && result != null) {
         savedPath = await saveFileWithExtension(
           fileName: result.fileName,
           extension: 'pdf',
           bytes: result.bytes,
-          context: context,
+          context: mounted ? context : null,
         );
       }
 
