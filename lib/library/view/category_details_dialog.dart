@@ -1,8 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/book_common/view/book_source_dialog.dart'
-    show splitShortAndFullDescription;
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/view/shelf_description.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -15,7 +14,7 @@ Future<void> showCategoryDetailsDialog(
 ) async {
   await showSingleActionDialog(
     context: context,
-    title: 'אודות הקטגוריה',
+    title: 'תיאור המדף',
     icon: FluentIcons.folder_24_regular,
     size: AppDialogSize.medium,
     confirmText: 'סגור',
@@ -46,16 +45,6 @@ class _CategoryDetailsDialogContentState
   @override
   Widget build(BuildContext context) {
     final category = widget.category;
-    final shortDescription = category.shortDescription.trim();
-    // התיאור הקצר כבר בכותרת; כשהמורחב מתחיל בו, בכרטיס נשאר רק ההמשך.
-    final split = splitShortAndFullDescription(
-      shortDescription,
-      category.description,
-    );
-    final fullDescription = split == null
-        ? category.description.trim()
-        : split.rest;
-
     // פס גלילה קבוע: תיאור מורחב ארוך נחתך בתחתית הדיאלוג, ובלי פס אין סימן
     // שיש המשך.
     return SizedBox(
@@ -70,17 +59,12 @@ class _CategoryDetailsDialogContentState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                DetailsHeading(
-                  title: category.title,
-                  subtitle: shortDescription,
-                ),
-                if (fullDescription.isNotEmpty) ...[
+                DetailsHeading(title: category.title),
+                // הקצר (מודגש) והארוך ברצף, תחת כותרת אחת. כשזה כל התוכן אין
+                // צורך בכותרת מקטע.
+                if (categoryHasDescription(category)) ...[
                   const SizedBox(height: AppTokens.spaceMD),
-                  DetailsCard(
-                    title: 'תיאור',
-                    icon: FluentIcons.document_text_24_regular,
-                    children: [DetailsText(fullDescription)],
-                  ),
+                  ShelfDescription(category: category),
                 ],
               ],
             ),

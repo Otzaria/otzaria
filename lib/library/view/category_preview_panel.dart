@@ -3,7 +3,7 @@ import 'package:positioned_sliver_list/positioned_sliver_list.dart'
     show SuperListView;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/library/view/grid_items.dart';
+import 'package:otzaria/library/view/shelf_description.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
@@ -40,7 +40,7 @@ class CategoryPreviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final description = categoryInfoText(category);
+    final hasDescription = categoryHasDescription(category);
     final counts = categoryContentCountsText(
       subCategories: subCategories.length,
       books: books.length,
@@ -67,11 +67,11 @@ class CategoryPreviewPanel extends StatelessWidget {
               padding: headerInset,
               child: _header(theme, cs),
             ),
-            if (description != null) ...[
+            if (hasDescription) ...[
               const SizedBox(height: 16),
               Padding(
                 padding: headerInset,
-                child: Text(description, style: theme.textTheme.bodyMedium),
+                child: ShelfDescription(category: category),
               ),
             ],
             if (counts != null) ...[
@@ -80,9 +80,11 @@ class CategoryPreviewPanel extends StatelessWidget {
                 padding: headerInset,
                 child: Text(
                   counts,
+                  // שורת סיכום: קטנה, דקה ואפורה.
                   style: AppTextStyles.settingTitle.copyWith(
-                    fontSize: AppTokens.fontMD,
-                    color: cs.onSurfaceVariant,
+                    fontSize: AppTokens.fontSM,
+                    fontWeight: FontWeight.w300,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                 ),
               ),

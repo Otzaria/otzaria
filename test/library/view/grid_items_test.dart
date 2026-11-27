@@ -413,7 +413,7 @@ void main() {
     Future<void> closeDialog(WidgetTester tester) async {
       await tester.tap(find.text('סגור'));
       await tester.pumpAndSettle();
-      expect(find.text('אודות הקטגוריה'), findsNothing);
+      expect(find.text('תיאור המדף'), findsNothing);
     }
 
     testWidgets('קצר וארוך: הקצר אינו בכרטיס (זמני), הארוך בריחוף ובדיאלוג', (
@@ -439,11 +439,11 @@ void main() {
       await tester.tap(infoButton());
       await tester.pumpAndSettle();
 
-      expect(find.text('אודות הקטגוריה'), findsOneWidget);
-      // הכותרת: שם הקטגוריה ומתחתיו התיאור הקצר; התיאור המורחב בכרטיס.
+      expect(find.text('תיאור המדף'), findsOneWidget);
+      // הכותרת: שם הקטגוריה; ומתחתיה הקצר והארוך ברצף, בלי כותרת מקטע.
       expect(find.text('קטגוריית בדיקה'), findsNWidgets(2));
       expect(find.text('תיאור קצר'), findsOneWidget);
-      expect(find.text('תיאור'), findsOneWidget);
+      expect(find.text('תיאור'), findsNothing);
       expect(find.text('תיאור מורחב'), findsOneWidget);
       await closeDialog(tester);
     });
@@ -468,7 +468,7 @@ void main() {
       await tester.tap(infoButton());
       await tester.pumpAndSettle();
 
-      expect(find.text('אודות הקטגוריה'), findsOneWidget);
+      expect(find.text('תיאור המדף'), findsOneWidget);
       expect(find.text('תיאור קצר בלבד'), findsOneWidget);
       expect(find.text('תיאור'), findsNothing);
       await closeDialog(tester);
@@ -494,8 +494,8 @@ void main() {
       await tester.tap(infoButton());
       await tester.pumpAndSettle();
 
-      expect(find.text('אודות הקטגוריה'), findsOneWidget);
-      expect(find.text('תיאור'), findsOneWidget);
+      expect(find.text('תיאור המדף'), findsOneWidget);
+      expect(find.text('תיאור'), findsNothing);
       expect(find.text('תיאור מורחב בלבד'), findsOneWidget);
       await closeDialog(tester);
     });
@@ -511,7 +511,7 @@ void main() {
             .map((tooltip) => tooltip.message),
         isNot(contains('')),
       );
-      expect(find.text('אודות הקטגוריה'), findsNothing);
+      expect(find.text('תיאור המדף'), findsNothing);
     });
   });
 
