@@ -36,6 +36,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -52,6 +53,7 @@ import 'package:collection/collection.dart';
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
@@ -1925,6 +1927,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   static const int _windowLookBehindLines = 120;
   static const int _windowLookAheadLines = 260;
   static const int _windowReloadThresholdLines = 60;
+  static const _loadRetryDelay = Duration(milliseconds: 250);
 
   // המטמון מחזיק ספרי מפרשים שלמים — בלי חסם LRU כל מפרש שהוצג אי-פעם
   // בצורת הדף היה נשאר ב-RAM עד סגירת האפליקציה. LinkedHashMap במפורש:
@@ -1944,6 +1947,19 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     final cached = _fullCommentaryCache.remove(cacheKey);
     final future = cached ?? load();
     _fullCommentaryCache[cacheKey] = future;
+    if (cached == null) {
+      void forget() {
+        if (identical(_fullCommentaryCache[cacheKey], future)) {
+          _fullCommentaryCache.remove(cacheKey);
+        }
+      }
+
+      unawaited(
+        future.then<void>((data) {
+          if (data == null) forget();
+        }, onError: (Object _, StackTrace _) => forget()),
+      );
+    }
     while (_fullCommentaryCache.length > _maxFullCommentaryCacheEntries) {
       _fullCommentaryCache.remove(_fullCommentaryCache.keys.first);
     }
@@ -1952,11 +1968,17 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
   List<String>? _content;
   TextBook? _reportBook;
+  Object _commentaryRequest = Object();
+  Timer? _loadRetry;
+
+  bool _isCurrentRequest(Object request) =>
+      mounted && identical(_commentaryRequest, request);
 
   // טעינת-חלונות לספרי DB: _content באורך הספר המלא עם placeholders ריקים,
   // ורק חלונות סביב יעד הסנכרון/הגלילה נטענים בפועל.
   bool _useWindowedLoading = false;
   TextBook? _rangeBook;
+  BookSource _rangeSource = BookSource.official;
   List<({int startLine, int endLine})> _loadedRanges = const [];
   bool _isLoadingRange = false;
   bool _pendingRangeReload = false;
@@ -2071,6 +2093,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         endLine: last + _windowLookAheadLines,
         categoryId: book.categoryId,
         fileType: book.fileType,
+        preferSource: _rangeSource,
       );
       if (!mounted ||
           range == null ||
@@ -2112,8 +2135,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   /// מחזיר false כשאין לספר טעינת-טווחים — הקורא נופל לטעינה מלאה.
   Future<bool> _loadInitialWindow(
     TextBook book,
+    BookSource source,
     int targetIndex,
-    String requestedCommentatorName,
+    Object request,
   ) async {
     final range = await SqliteDataProvider.instance.getBookTextRangeFromDb(
       book.title,
@@ -2121,11 +2145,10 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       endLine: targetIndex + _windowLookAheadLines,
       categoryId: book.categoryId,
       fileType: book.fileType,
+      preferSource: source,
+      throwReadErrors: true,
     );
-    if (!mounted || widget.commentatorName != requestedCommentatorName) {
-      return true; // הבקשה התיישנה — אין טעם גם בטעינה מלאה
-    }
-    if (range == null || range.totalLines <= 0) {
+    if (!_isCurrentRequest(request) || range == null || range.text.isEmpty) {
       return false;
     }
 
@@ -2140,6 +2163,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
     _useWindowedLoading = true;
     _rangeBook = book;
+    _rangeSource = source;
     _loadedRanges = TextBookBloc.mergeLoadedContentRanges(
       const [],
       startLine: range.startLine,
@@ -2194,6 +2218,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
   @override
   void dispose() {
+    _loadRetry?.cancel();
     _positionsListener.itemPositions.removeListener(_onPanePositionsChanged);
     widget.mainLines?.positionsListener.itemPositions.removeListener(
       _onMainPositionsChanged,
@@ -2361,14 +2386,15 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     );
   }
 
-  String _commentaryCacheKey(TextBook book, {required bool preferDatabase}) {
-    return '${book.title}|${book.categoryId}|${book.categoryPath ?? ''}|$preferDatabase';
+  String _commentaryCacheKey(TextBook book, ResolvedDbBookRecord? record) {
+    return '${(record?.source ?? book.source).wireKey}|${book.title}|${book.categoryId}|'
+        '${book.categoryPath ?? ''}|${record?.book.id}';
   }
 
   /// בודק אם לספר המפרש יש מפרשים משלו (שער הציון על המשנה ברורה וכד') או
   /// לינקר, ואם כן טוען את עוגניהם לטווחים שבזיכרון. בלי יעדים — אין שליפות.
   Future<void> _initCommentaryAnchors(TextBook book) async {
-    final requested = widget.commentatorName;
+    final request = _commentaryRequest;
     final categoryId = book.categoryId;
     if (categoryId == null) return;
     final provider = LibraryProviderManager.instance.databaseProvider;
@@ -2377,7 +2403,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       categoryId,
       source: book.source,
     );
-    if (!mounted || widget.commentatorName != requested) return;
+    if (!_isCurrentRequest(request)) return;
     final targets = commentaryAnchorTargetTitles(
       summary?.targets ?? const <LinkTargetSummary>[],
     );
@@ -2512,21 +2538,14 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   }
 
   Future<_LoadedCommentaryData?> _fetchFullCommentaryData(
-    TextBook book, {
-    required bool preferDatabase,
-  }) async {
-    final String bookContent;
-    if (preferDatabase && book.categoryId != null) {
-      final dbProvider = LibraryProviderManager.instance.databaseProvider;
-      final text = await dbProvider.getBookText(
-        book.title,
-        book.categoryId!,
-        'txt',
-      );
-      bookContent = text ?? '';
-    } else {
-      bookContent = await book.text;
-    }
+    TextBook book,
+    ResolvedDbBookRecord? record,
+  ) async {
+    final bookContent = record == null
+        ? await book.text
+        : await LibraryProviderManager.instance.databaseProvider
+                  .readResolvedBookText(record) ??
+              '';
 
     if (bookContent.isEmpty) {
       return null;
@@ -2538,22 +2557,13 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
   Future<void> _applyFullCommentaryData(
     Future<_LoadedCommentaryData?> dataFuture,
-    String requestedCommentatorName,
+    Object request,
   ) async {
     final data = await dataFuture;
-    if (!mounted || widget.commentatorName != requestedCommentatorName) {
-      return;
-    }
+    if (!_isCurrentRequest(request)) return;
 
     if (data == null) {
-      if (_content == null || _content!.isEmpty) {
-        _notifyCommentaryLoadFailed();
-        setState(() {
-          _reportBook = null;
-          _content = null;
-          _isLoading = false;
-        });
-      }
+      _finishUnavailableCommentary();
       return;
     }
 
@@ -2568,10 +2578,20 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     _scheduleInitialSync();
   }
 
+  void _finishUnavailableCommentary() {
+    _notifyCommentaryLoadFailed();
+    setState(() {
+      _reportBook = null;
+      _content = null;
+      _isLoading = false;
+    });
+  }
+
   void _notifyCommentaryLoadFailed() {
+    final request = _commentaryRequest;
     if (widget.onLoadFailed != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (_isCurrentRequest(request)) {
           widget.onLoadFailed!();
         }
       });
@@ -2615,14 +2635,14 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   /// טוען את תוכן העניינים של ספר המפרש (אם קיים) ושומר אותו לתווית היעד.
   /// כישלון אינו קריטי — פשוט לא תוצג תווית.
   Future<void> _loadCommentaryToc(TextBook book) async {
-    final requested = widget.commentatorName;
+    final request = _commentaryRequest;
     try {
       final toc = await LibraryProviderManager.instance.getBookToc(
         book.title,
         categoryId: book.categoryId,
         fileType: book.fileType,
       );
-      if (!mounted || widget.commentatorName != requested) return;
+      if (!_isCurrentRequest(request)) return;
       setState(() => _commentaryToc = toc ?? const <TocEntry>[]);
     } catch (_) {
       // ללא תווית — לא מפילים את טעינת המפרש בגלל זה.
@@ -2638,8 +2658,11 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     return addBookTitleToRef(ref, widget.commentatorName);
   }
 
-  Future<void> _loadCommentary() async {
+  Future<void> _loadCommentary({bool allowRetry = true}) async {
     if (!mounted) return;
+    _loadRetry?.cancel();
+    final request = _commentaryRequest = Object();
+    final commentatorName = widget.commentatorName;
     setState(() {
       _isLoading = true;
       _commentaryToc = null;
@@ -2672,7 +2695,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         }
       }
 
-      if (!mounted) return;
+      if (!_isCurrentRequest(request)) return;
 
       // מפרש שאינו מקושר לספר הנוכחי שייך לספר אחר, ו-BookLocator היה טוען
       // אותו לפי שמו ומציג את הספר הזר. ההגדרה השמורה נשארת על כנה.
@@ -2690,18 +2713,13 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         } catch (e, stackTrace) {
           debugPrint('Failed to load super-commentary links: $e\n$stackTrace');
         }
-        if (!mounted || !identical(superLinks, _superLinks)) return;
+        if (!_isCurrentRequest(request)) return;
       }
       if (state is TextBookLoaded &&
           _superLinks == null &&
           state.availableCommentators.isNotEmpty &&
-          !state.availableCommentators.contains(widget.commentatorName)) {
-        _notifyCommentaryLoadFailed();
-        setState(() {
-          _reportBook = null;
-          _content = null;
-          _isLoading = false;
-        });
+          !state.availableCommentators.contains(commentatorName)) {
+        _finishUnavailableCommentary();
         return;
       }
 
@@ -2714,135 +2732,122 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         _refreshRelevantLinks(state);
       }
 
-      // מציאת הספר המלא של המפרש עם categoryId
-      TextBook book;
-      final attachedSource = _relevantLinks
-          .map((link) => link.targetSource)
-          .where((source) => source.isAttached)
-          .firstOrNull;
-      // מפרש ממסד מצורף יושב באותו מסד — לא ספר רשמי בשם זהה.
-      final attachedRecord = attachedSource == null
-          ? null
-          : await BookDatabaseResolver.resolveBook(
-              title: widget.commentatorName,
-              preferSource: attachedSource,
-            );
-      final bookLocation = attachedSource != null
-          ? null
-          : await BookLocator.locateBook(widget.commentatorName);
+      await _loadCommentaryText(state, commentatorName, request);
+    } catch (error, stackTrace) {
+      if (!_isCurrentRequest(request)) return;
+      if (allowRetry) {
+        _loadRetry = Timer(_loadRetryDelay, () {
+          unawaited(_loadCommentary(allowRetry: false));
+        });
+        return;
+      }
+      ErrorLogFile.appendInBackground(
+        title: 'כשל בטעינת מפרש בצורת הדף',
+        error: error,
+        stackTrace: stackTrace,
+        details: {'commentator': commentatorName},
+      );
+      _finishUnavailableCommentary();
+    }
+  }
 
-      if (attachedRecord != null) {
+  Future<void> _loadCommentaryText(
+    TextBookState state,
+    String commentatorName,
+    Object request,
+  ) async {
+    final attachedSource = _relevantLinks
+        .map((link) => link.targetSource)
+        .where((source) => source.isAttached)
+        .firstOrNull;
+    final record = await BookDatabaseResolver.resolveBook(
+      title: commentatorName,
+      preferSource: attachedSource ?? BookSource.official,
+      throwIfUnavailable: true,
+    );
+    if (!_isCurrentRequest(request)) return;
+    if (attachedSource != null && record == null) {
+      _finishUnavailableCommentary();
+      return;
+    }
+
+    final TextBook book;
+    if (record != null) {
+      book = TextBook(
+        id: record.source.isUser ? null : record.book.id,
+        title: commentatorName,
+        categoryId: record.book.categoryId,
+        source: record.source.isAttached ? record.source : BookSource.official,
+      );
+    } else {
+      // ננסה למצוא את ה-categoryPath מהקישורים הקיימים
+      String? categoryPath;
+      if (_relevantLinks.isNotEmpty) {
+        // נחלץ את ה-categoryPath מהקישור הראשון
+        final firstLinkPath = _relevantLinks.first.path2;
+        var normalizedPath = firstLinkPath;
+        if (normalizedPath.startsWith('/') || normalizedPath.startsWith('\\')) {
+          normalizedPath = normalizedPath.substring(1);
+        }
+
+        final lastSeparatorIndex = normalizedPath.lastIndexOf('/');
+        if (lastSeparatorIndex != -1) {
+          final directoryPath = normalizedPath.substring(
+            0,
+            lastSeparatorIndex,
+          );
+          categoryPath = directoryPath
+              .replaceAll('/', ', ')
+              .replaceAll('\\', ', ');
+        }
+      }
+
+      // יצירת ספר עם categoryPath (שיומר ל-categoryId באמצעות hashCode)
+      if (categoryPath != null && categoryPath.isNotEmpty) {
+        final categoryId = categoryPath.hashCode;
         book = TextBook(
-          id: attachedRecord.book.id,
-          title: widget.commentatorName,
-          categoryId: attachedRecord.book.categoryId,
-          source: attachedRecord.source,
-        );
-      } else if (bookLocation != null &&
-          bookLocation.book != null &&
-          bookLocation.categoryId != null) {
-        // נמצא ספר ב-DB - נשתמש בנתונים שלו
-        // המזהה מאפשר את אייקון "קישור" בתפריט ההקשר של המפרש. רק לספר
-        // רשמי: ה-TextBook כאן נשאר במקור הרשמי, ומזהה של ספר אישי היה
-        // מפנה לספר רשמי אחר בעל אותו מזהה.
-        book = TextBook(
-          id: bookLocation.source.isOfficial ? bookLocation.book!.id : null,
-          title: widget.commentatorName,
-          categoryId: bookLocation.categoryId,
+          title: commentatorName,
+          categoryPath: categoryPath,
+          categoryId: categoryId,
         );
       } else {
-        // ננסה למצוא את ה-categoryPath מהקישורים הקיימים
-        String? categoryPath;
-        if (_relevantLinks.isNotEmpty) {
-          // נחלץ את ה-categoryPath מהקישור הראשון
-          final firstLinkPath = _relevantLinks.first.path2;
-          var normalizedPath = firstLinkPath;
-          if (normalizedPath.startsWith('/') ||
-              normalizedPath.startsWith('\\')) {
-            normalizedPath = normalizedPath.substring(1);
-          }
-
-          final lastSeparatorIndex = normalizedPath.lastIndexOf('/');
-          if (lastSeparatorIndex != -1) {
-            final directoryPath = normalizedPath.substring(
-              0,
-              lastSeparatorIndex,
-            );
-            categoryPath = directoryPath
-                .replaceAll('/', ', ')
-                .replaceAll('\\', ', ');
-          }
-        }
-
-        // יצירת ספר עם categoryPath (שיומר ל-categoryId באמצעות hashCode)
-        if (categoryPath != null && categoryPath.isNotEmpty) {
-          final categoryId = categoryPath.hashCode;
-          book = TextBook(
-            title: widget.commentatorName,
-            categoryPath: categoryPath,
-            categoryId: categoryId,
-          );
-        } else {
-          // fallback - ספר ללא categoryId (לא יטען קישורים)
-          book = TextBook(title: widget.commentatorName);
-        }
+        // fallback - ספר ללא categoryId (לא יטען קישורים)
+        book = TextBook(title: commentatorName);
       }
+    }
 
-      // טעינת תוכן העניינים של המפרש ברקע — עבור תווית היעד בריחוף על הסרגל.
-      unawaited(_loadCommentaryToc(book));
+    // טעינת תוכן העניינים של המפרש ברקע — עבור תווית היעד בריחוף על הסרגל.
+    unawaited(_loadCommentaryToc(book));
 
-      final useDatabaseSource =
-          bookLocation != null &&
-          bookLocation.book != null &&
-          bookLocation.categoryId != null;
-      final requestedCommentatorName = widget.commentatorName;
-
-      // ספרי DB נטענים בחלונות סביב יעד הסנכרון — לא כל ספר המפרש לזיכרון.
-      final currentState = state;
-      if (useDatabaseSource && currentState is TextBookLoaded) {
-        final targetIndex =
-            _resolveInitialCommentaryTargetIndex(currentState) ?? 0;
-        if (await _loadInitialWindow(
-          book,
-          targetIndex,
-          requestedCommentatorName,
-        )) {
-          unawaited(_initCommentaryAnchors(book));
-          return;
-        }
-        if (!mounted || widget.commentatorName != requestedCommentatorName) {
-          return;
-        }
-      }
-
-      final fullCommentaryFuture = _getOrLoadFullCommentary(
-        _commentaryCacheKey(book, preferDatabase: useDatabaseSource),
-        () => _fetchFullCommentaryData(book, preferDatabase: useDatabaseSource),
+    // ספר ממסד מצורף או ספר מבוסס-קובץ משתמש במסלול הטעינה המלאה.
+    if (record != null &&
+        !record.source.isAttached &&
+        !record.book.isFileBacked &&
+        state is TextBookLoaded) {
+      final targetIndex = _resolveInitialCommentaryTargetIndex(state) ?? 0;
+      final loadedWindow = await _loadInitialWindow(
+        book,
+        record.source,
+        targetIndex,
+        request,
       );
-      await _applyFullCommentaryData(
-        fullCommentaryFuture,
-        requestedCommentatorName,
-      );
-      if (useDatabaseSource &&
-          mounted &&
-          widget.commentatorName == requestedCommentatorName) {
+      if (!_isCurrentRequest(request)) return;
+      if (loadedWindow) {
         unawaited(_initCommentaryAnchors(book));
+        return;
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-          '⚠️ CommentaryPane::loadCommentary failed '
-          'for ${widget.commentatorName}: $e',
-        );
-      }
-      _notifyCommentaryLoadFailed();
-      if (mounted) {
-        setState(() {
-          _reportBook = null;
-          _content = null;
-          _isLoading = false;
-        });
-      }
+    }
+
+    final fullCommentary = _getOrLoadFullCommentary(
+      _commentaryCacheKey(book, record),
+      () => _fetchFullCommentaryData(book, record),
+    );
+    await _applyFullCommentaryData(fullCommentary, request);
+    if (record != null &&
+        !record.source.isAttached &&
+        _isCurrentRequest(request) &&
+        _content != null) {
+      unawaited(_initCommentaryAnchors(book));
     }
   }
 

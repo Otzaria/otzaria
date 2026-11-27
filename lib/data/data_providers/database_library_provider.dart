@@ -3328,20 +3328,30 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         preferSource: source,
       );
       if (record == null || record.source != source) return null;
-      final text = await BookTextReader.text(record.repository, record.book);
-      if (text != null) return text;
-      // ספר מבוסס-קובץ: filePath כבר נפתר בתוך תיקיית המסד (או null).
-      final file = record.book.filePath;
-      if (file == null || !await File(file).exists()) return null;
-      return await readFileBackedBookText(
-        File(file),
-        record.book.fileType,
-        title,
-      );
+      return await readResolvedBookText(record);
     } catch (e) {
       debugPrint('⚠️ Error reading attached book text: $e');
       return null;
     }
+  }
+
+  /// קורא ספר שכבר אותר, ומעביר כשל קריאה לקורא.
+  Future<String?> readResolvedBookText(ResolvedDbBookRecord record) async {
+    final book = record.book;
+    if (record.source.isAttached) {
+      final text = await BookTextReader.text(record.repository, book);
+      if (text != null) return text;
+    }
+    final path = book.filePath;
+    if (path != null && (book.isFileBacked || record.source.isAttached)) {
+      final file = File(path);
+      if (await file.exists()) {
+        return readFileBackedBookText(file, book.fileType, book.title);
+      }
+    }
+    return record.source.isAttached
+        ? null
+        : BookTextReader.text(record.repository, book);
   }
 
   Future<List<TocEntry>?> _readAttachedBookToc(

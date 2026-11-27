@@ -223,6 +223,9 @@ class SqliteDataProvider {
   /// פתח מחדש את ה-RO.
   int _activeWriteSessions = 0;
 
+  /// סשן כתיבה חיצוני מונע זמנית פתיחה של חיבור הקריאה.
+  bool get isClosedForExternalWrite => _activeWriteSessions > 0;
+
   /// gate לכתיבה חיצונית (isolate סנכרון/generator) — נוצר ב-
   /// [closeForExternalWrite] ומושלם ב-[reopenAfterExternalWrite]. קוראים
   /// מקבילים ממתינים עליו ב-[initialize] במקום לקבל null, כדי שספרים/מפרשים
@@ -412,6 +415,7 @@ class SqliteDataProvider {
     }
   }
 
+  /// [throwReadErrors] מבדיל בין כשל קריאה לספר חסר או ריק.
   Future<({int startLine, int endLine, int totalLines, String text})?>
   getBookTextRangeFromDb(
     String title, {
@@ -420,11 +424,17 @@ class SqliteDataProvider {
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
+    bool throwReadErrors = false,
   }) async {
     if (!_isInitialized) {
       await initialize();
     }
-    if (!_isInitialized) return null;
+    if (!_isInitialized) {
+      if (throwReadErrors && isClosedForExternalWrite) {
+        throw const DbReadWorkerSuspended();
+      }
+      return null;
+    }
 
     try {
       final resolvedBook = await _resolveBookRecord(
@@ -449,6 +459,7 @@ class SqliteDataProvider {
     } on DbReadWorkerBusy {
       rethrow;
     } catch (e, st) {
+      if (throwReadErrors) rethrow;
       debugPrint(
         '[SqliteDataProvider] getBookTextRangeFromDb failed for '
         '"$title": $e\n$st',
