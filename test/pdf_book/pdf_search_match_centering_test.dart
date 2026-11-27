@@ -115,6 +115,25 @@ Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
   final engineReady = await tryInitSearchEngine();
 
+  test('הגבלת תוצאות נשמרת גם בסשן החיפוש הממורכז', () async {
+    final session = _Session(
+      _RecordingController(),
+      pageText: 'שלום שלום שלום',
+    );
+    addTearDown(session.dispose);
+    session.startTextSearch(
+      'שלום',
+      maxResults: 2,
+      goToFirstMatch: false,
+      searchImmediately: true,
+    );
+    await pumpEventQueue();
+
+    expect(session.matches, hasLength(2));
+    expect(session.isResultLimitReached, isTrue);
+    expect(session.isSearching, isFalse);
+  });
+
   test(
     'תבנית המרווח רצה בסריקה של pdfrx, ותבנית שווה אינה מתחילה אותה מחדש',
     () async {

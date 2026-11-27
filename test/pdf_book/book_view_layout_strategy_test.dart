@@ -115,7 +115,11 @@ void main() {
     const cover = BookViewLayout(hasCover: true);
     const noCover = BookViewLayout(hasCover: false);
     final first = _resolve(cover, pages);
+    for (final page in pages) {
+      page.sizeReads = 0;
+    }
     final withoutCover = _resolve(noCover, pages);
+    expect(pages.map((page) => page.sizeReads), everyElement(2));
     expect(first.pageLayouts, isNot(withoutCover.pageLayouts));
     expect(_resolve(cover, _pages(5)), isNot(same(first)));
     expect(_resolve(cover, pages), same(first));
