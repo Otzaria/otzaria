@@ -80,7 +80,7 @@ String refFromTocList(int index, List<TocEntry> toc) =>
 
 /// שרשרת הכותרות של שורה [index], מהעליונה לעמוקה — אותה כתובת כמו
 /// [refFromTocList] לפני החיבור בפסיקים, כך שפסיק שבתוך כותרת אינו גבול.
-List<String> headingPathFromTocList(int index, List<TocEntry> toc) =>
+Iterable<String> headingPathFromTocList(int index, List<TocEntry> toc) =>
     (_tocRefLookups[toc] ??= _TocRefLookup(toc)).pathAt(index);
 
 final _tocRefLookups = Expando<_TocRefLookup>();
@@ -182,7 +182,7 @@ class _TocRefLookup {
     );
   }
 
-  List<String> pathAt(int index) {
+  Iterable<String> pathAt(int index) {
     final lo = _countAtMost(_sortedKeys, index);
     if (lo == 0) return const [];
     final root = _roots[lo - 1];
@@ -192,7 +192,7 @@ class _TocRefLookup {
       parts.add(_entries[pos].text.trim());
       pos = _lastBelow(root, 0, _levelCount, _ranks[pos]);
     }
-    return parts.reversed.where((part) => part.isNotEmpty).toList();
+    return parts.reversed.where((part) => part.isNotEmpty);
   }
 }
 

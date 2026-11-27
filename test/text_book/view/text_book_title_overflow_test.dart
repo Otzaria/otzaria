@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
@@ -31,6 +32,7 @@ import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
@@ -546,13 +548,71 @@ void main() {
       expect(shown.where((d) => d?.contains('…') ?? false), isEmpty);
     });
 
-    testWidgets('העתקת כותרת מקוצרת מחזירה את הכותרת המלאה', (tester) async {
-      String? copied;
+    testWidgets('לחיצה ימנית מחוץ לבחירה חלקית מזהה את הטקסט הגלוי', (
+      tester,
+    ) async {
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: location,
+        tableOfContents: toc,
+      );
+      final text = deepestTitleText(tester)!;
+      expect(text.data, startsWith('…, '));
+      final title = find.byWidget(text);
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: title, matching: find.byType(RichText)),
+      );
+      Rect character(int offset) => paragraph
+          .getBoxesForSelection(
+            TextSelection(
+              baseOffset: offset,
+              extentOffset: offset + 1,
+            ),
+          )
+          .single
+          .toRect();
+      final first = character(0);
+      final gesture = await tester.startGesture(
+        paragraph.localToGlobal(first.centerRight - const Offset(1, 0)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveTo(paragraph.localToGlobal(character(5).centerLeft));
+      await gesture.up();
+      await tester.pump();
+
+      final menu = tester.widget<AppContextMenuRegion>(
+        find.ancestor(of: title, matching: find.byType(AppContextMenuRegion)),
+      );
+      final preserve = menu.shouldPreserveSelectionOnSecondaryTap!;
+      expect(preserve(paragraph.localToGlobal(character(3).center)), isTrue);
+      expect(preserve(paragraph.localToGlobal(character(8).center)), isFalse);
+    });
+
+    testWidgets('קורא המסך מקבל את הכותרת המלאה גם כשהתצוגה מקוצרת', (
+      tester,
+    ) async {
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: location,
+        tableOfContents: toc,
+      );
+      final text = deepestTitleText(tester)!;
+      expect(text.data, startsWith('…, '));
+      expect(
+        tester.getSemantics(find.byWidget(text)).label,
+        contains(fullTitle),
+      );
+    });
+
+    List<String> trackClipboard(WidgetTester tester) {
+      final copied = <String>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
         (call) async {
           if (call.method == 'Clipboard.setData') {
-            copied = (call.arguments as Map)['text'] as String?;
+            copied.add((call.arguments as Map)['text'] as String);
           }
           return null;
         },
@@ -563,6 +623,29 @@ void main() {
           null,
         ),
       );
+      return copied;
+    }
+
+    SelectableRegionState titleSelection(WidgetTester tester) =>
+        tester.state<SelectableRegionState>(
+          find.descendant(
+            of: find.byType(AppSelectionArea),
+            matching: find.byType(SelectableRegion),
+          ),
+        );
+
+    Future<void> copySelection(
+      WidgetTester tester,
+      SelectableRegionState region,
+    ) async {
+      region.contextMenuButtonItems
+          .firstWhere((item) => item.type == ContextMenuButtonType.copy)
+          .onPressed!();
+      await tester.pump();
+    }
+
+    testWidgets('העתקת כותרת מקוצרת מחזירה את הכותרת המלאה', (tester) async {
+      final copied = trackClipboard(tester);
       await pumpWithTitle(
         tester,
         bookTitle: bookTitle,
@@ -571,20 +654,54 @@ void main() {
       );
       expect(deepestTitleText(tester)?.data, startsWith('…, '));
 
-      final region = tester.state<SelectableRegionState>(
-        find.descendant(
-          of: find.byType(AppSelectionArea),
-          matching: find.byType(SelectableRegion),
-        ),
-      );
+      final region = titleSelection(tester);
       region.selectAll(SelectionChangedCause.keyboard);
       await tester.pump();
-      region.contextMenuButtonItems
-          .firstWhere((item) => item.type == ContextMenuButtonType.copy)
-          .onPressed!();
+      await copySelection(tester, region);
+
+      expect(copied, [fullTitle]);
+    });
+
+    testWidgets('בלי סימן השמטה, רק בחירה מלאה משחזרת את החלק שהושמט', (
+      tester,
+    ) async {
+      final copied = trackClipboard(tester);
+      await pumpWithTitle(
+        tester,
+        bookTitle: bookTitle,
+        currentTitle: location,
+        tableOfContents: toc,
+        size: const Size(900, 900),
+      );
+      final title = find.byWidget(deepestTitleText(tester)!);
+      expect(tester.widget<Text>(title).data, 'סעיף יג');
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: title, matching: find.byType(RichText)),
+      );
+      final prefix = paragraph
+          .getBoxesForSelection(
+            const TextSelection(baseOffset: 0, extentOffset: 3),
+          )
+          .single
+          .toRect();
+      final gesture = await tester.startGesture(
+        paragraph.localToGlobal(prefix.centerRight - const Offset(1, 0)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveTo(
+        paragraph.localToGlobal(prefix.centerLeft + const Offset(1, 0)),
+      );
+      await gesture.up();
       await tester.pump();
 
-      expect(copied, fullTitle);
+      final region = titleSelection(tester);
+      await copySelection(tester, region);
+      expect(copied, ['סעי']);
+
+      region.selectAll(SelectionChangedCause.keyboard);
+      await tester.pump();
+      await copySelection(tester, region);
+      expect(copied, ['סעי', fullTitle]);
     });
   });
 
