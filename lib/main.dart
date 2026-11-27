@@ -744,11 +744,6 @@ Future<void> _initializeProcessSingletons() async {
   });
 
   await _timedPhase('initHive', initHive);
-  // מצב נייד: אם תיקיית הנתונים זזה (אות כונן אחרת / מיקום אחר), הנתיבים
-  // האבסולוטיים השמורים משוכתבים לפני שכל קוד אחר צורך אותם. חייב לרוץ
-  // אחרי Settings.init ואחרי initHive (ה-boxes פתוחים), ולפני
-  // SqliteDataProvider ו-FileSystemData שקוראים את נתיב הספרייה.
-  await _timedPhase('portablePaths', PortablePaths.migrateIfMoved);
   // נתיב הספרייה נרשם לקובץ טקסט שה-uninstaller קורא; ההגדרות עצמן
   // ב-Hive בינארי שאינו נגיש לו (issue #1020).
   unawaited(AppPaths.recordLibraryPathForUninstaller());
@@ -911,9 +906,6 @@ Future<void> _initializeRestartableRuntime() async {
   );
   await _timedPhase('recoverOrphanedBackup', _recoverOrphanedDbBackup);
 
-  // initHive נקרא כבר ב-_initializeProcessSingletons. הקריאה הכפולה כאן
-  // הייתה no-op (Hive.openBox מחזיר box קיים), אבל בכל זאת חוסכת קצת זמן
-  // בקריאה הראשונה. ב-restart אין צורך לפתוח שוב — boxes לא נסגרים.
   await _timedPhase('sqlite', SqliteDataProvider.instance.initialize);
 
   // הגדרת cache של pdfrx — לא חיונית להצגת המסך הראשי. PDF הראשון יקבל
@@ -1713,6 +1705,8 @@ Future<void> initHive() async {
   // הגירה לגרסה אחת: שורשי Hive ו-pdfium-window-N.dll שהשאירו מנועים נוספים.
   await deleteStaleWindowRoots();
   Hive.init(await AppPaths.getDataRootPath());
+  // נתיב מסד מצב המשתמש נגזר ממיקום הספרייה או המסדים שבהגדרות.
+  await _timedPhase('portablePaths', PortablePaths.migrateIfMoved);
   // המסד נפתח כאן ולא בעצלות: `TabsRepository.loadTabs` קורא אותו
   // סינכרונית מבנאי של bloc.
   await UserStateDatabase.instance.database;

@@ -8,6 +8,11 @@ import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/runner_window_channel.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/main.dart' as app;
+import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:path/path.dart' as p;
+
+import '../../test_helpers/memory_cache_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,10 +20,11 @@ void main() {
   late Directory tmp;
   final database = UserStateDatabase.instance;
 
-  setUp(() {
+  setUp(() async {
     tmp = Directory.systemTemp.createTempSync('otzaria_user_state_startup_');
     AppPaths.debugOverrideDataRootPath(tmp.path);
-    database.overridePath('${tmp.path}/user_state.db');
+    await Settings.init(cacheProvider: MemoryCacheProvider());
+    await Settings.setValue(SettingsRepository.keyDatabasesPath, tmp.path);
     RunnerWindowChannel.debugSupportedOverride = false;
     Hive.init(tmp.path);
   });
@@ -28,8 +34,28 @@ void main() {
     await pendingStaleRootsDeletion;
     database.close();
     RunnerWindowChannel.debugSupportedOverride = null;
+    AppPaths.debugOverrideResolvedExecutable(null);
     AppPaths.debugOverrideDataRootPath(null);
+    await Settings.clearCache();
     tmp.deleteSync(recursive: true);
+  });
+
+  test('אתחול נייד מעדכן את מיקום המסדים לפני פתיחת מצב המשתמש', () async {
+    await File(p.join(tmp.path, AppPaths.portableMarkerFileName)).create();
+    AppPaths.debugOverrideResolvedExecutable(p.join(tmp.path, 'otzaria.exe'));
+    AppPaths.debugOverrideDataRootPath(tmp.path);
+    final oldRoot = p.join(tmp.path, 'old', 'otzaria_data');
+    await File(
+      p.join(tmp.path, '.otzaria_portable_root'),
+    ).writeAsString(oldRoot);
+    final oldDatabases = p.join(oldRoot, 'databases');
+    await Settings.setValue(SettingsRepository.keyDatabasesPath, oldDatabases);
+    final newDatabases = p.join(tmp.path, 'databases');
+
+    await app.initHive();
+
+    expect(await File(p.join(newDatabases, 'user_state.db')).exists(), isTrue);
+    expect(await Directory(oldDatabases).exists(), isFalse);
   });
 
   for (final hasSavedSession in [false, true]) {
