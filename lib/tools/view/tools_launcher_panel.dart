@@ -1744,9 +1744,8 @@ class ToolTile extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: isHighlighted,
-        child: AppCard(
-          onTap: onTap,
-          selected: isHighlighted,
+        child: _buildSurface(
+          context,
           child: Stack(
             children: [
               // האייקון והכותרת ממורכזים כגוש אחד.
@@ -1817,6 +1816,30 @@ class ToolTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSurface(BuildContext context, {required Widget child}) {
+    if (!entry.isPlugin || entry is PluginGroupCatalogEntry) {
+      return AppCard(onTap: onTap, selected: isHighlighted, child: child);
+    }
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: isHighlighted ? AppSurfaces.selectedRow(cs) : Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      shape: isHighlighted
+          ? AppCard.shape(
+              cs,
+              selectedBorder: AppSurfaces.selectedBorder(context),
+            )
+          : AppTokens.roundedShape,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        mouseCursor: SystemMouseCursors.click,
+        hoverDuration: Durations.medium1,
+        child: child,
       ),
     );
   }

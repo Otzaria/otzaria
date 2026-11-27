@@ -21,6 +21,7 @@ import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/tools/plugin_group_entries.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 
 import '../test_helpers/stub_settings_bloc.dart';
@@ -351,6 +352,38 @@ void main() {
     Finder tile(String label) =>
         find.ancestor(of: find.text(label), matching: find.byType(ToolTile));
 
+    Material surface(WidgetTester tester, String label) =>
+        tester.widget<Material>(
+          find
+              .descendant(of: tile(label), matching: find.byType(Material))
+              .first,
+        );
+
+    Future<void> verifyFolderAndPluginSurfaces(WidgetTester tester) async {
+      final context = tester.element(tile('כתיבה'));
+      final cs = Theme.of(context).colorScheme;
+      expect(surface(tester, 'כתיבה').color, AppSurfaces.card(context));
+      expect(surface(tester, 'כתיבה').shape, AppCard.shape(cs));
+      expect(surface(tester, 'חזרות').color, Colors.transparent);
+      expect(surface(tester, 'חזרות').shape, AppTokens.roundedShape);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(tester.widget<ToolTile>(tile('חזרות')).isHighlighted, isTrue);
+      expect(surface(tester, 'חזרות').color, AppSurfaces.selectedRow(cs));
+      expect(
+        surface(tester, 'חזרות').shape,
+        AppCard.shape(cs, selectedBorder: AppSurfaces.selectedBorder(context)),
+      );
+    }
+
     Future<void> menu(WidgetTester tester, String label) async {
       await tester.tap(
         find.descendant(
@@ -382,6 +415,22 @@ void main() {
       expect(closed, 0);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       expect(closed, 1);
+    });
+
+    testWidgets('unframed plugin menu does not launch the plugin', (
+      tester,
+    ) async {
+      await pumpLauncher(tester);
+      await menu(tester, 'חזרות');
+      expect(opened, isEmpty);
+      expect(find.text('העבר לקבוצה'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await tester.tapAt(
+        tester.getRect(tile('חזרות')).bottomLeft + const Offset(8, -8),
+      );
+      await tester.pumpAndSettle();
+      expect(opened.single.toolId, 'com.test.review');
     });
 
     testWidgets(
@@ -709,8 +758,11 @@ void main() {
                   : AppThemeData.light(colors, compactMenuMode: false),
             );
             expect(tester.takeException(), isNull);
+            await verifyFolderAndPluginSurfaces(tester);
             await tester.tap(find.text('כתיבה'));
             await tester.pumpAndSettle();
+            expect(surface(tester, 'הערות').color, Colors.transparent);
+            expect(surface(tester, 'הערות').shape, AppTokens.roundedShape);
             expect(tester.takeException(), isNull);
           },
         );
@@ -728,9 +780,12 @@ void main() {
           compactMenuMode: false,
         ),
       );
+      await verifyFolderAndPluginSurfaces(tester);
       await tester.tap(find.text('כתיבה'));
       await tester.pumpAndSettle();
       expect(tile('הערות'), findsOneWidget);
+      expect(surface(tester, 'הערות').color, Colors.transparent);
+      expect(surface(tester, 'הערות').shape, AppTokens.roundedShape);
       expect(tester.takeException(), isNull);
     });
   });
