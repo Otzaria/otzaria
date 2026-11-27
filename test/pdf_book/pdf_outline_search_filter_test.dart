@@ -16,12 +16,11 @@ void main() {
     _node('מסכת חולין', [_node('דף קו')]),
   ];
 
-  test('הסינון זהה לבדיקת כותרת בודדת, באותו סדר ועם אותן רמות', () {
+  test('הסינון זהה לבדיקת כותרת בודדת, עם אותן רמות', () {
     final entries = flattenPdfOutlineForSearch(outline);
     for (final query in [
       '',
       'בבא',
-      'דף',
       'מסכת',
       'הקדמה',
       'חולין קו',
@@ -33,6 +32,12 @@ void main() {
           .toList();
       expect(filterPdfOutline(entries, query), expected, reason: query);
     }
+    // תחילית קודמת להכלה (issue #4497); בתוך דרגה — סדר תוכן העניינים.
+    expect(filterPdfOutline(entries, 'דף').map((e) => e.node.title), [
+      'דף ג',
+      'דף קו',
+      'בָּבָא בַּתְרָא דף ב',
+    ]);
     expect(entries.map((e) => (e.node.title, e.level)).toList(), [
       ('הַקְדָּמָה', 0),
       ('מסכת ב"ב', 0),

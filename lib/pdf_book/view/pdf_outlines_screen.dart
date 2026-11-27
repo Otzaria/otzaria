@@ -44,15 +44,106 @@ List<PdfOutlineSearchEntry> filterPdfOutline(
 ) {
   final normalizedQuery = normalizeFindText(rawQuery);
   if (normalizedQuery.isEmpty) return entries;
-  return entries
-      .where(
-        (e) => findNormalizedTextMatches(
-          normalizedQuery: normalizedQuery,
-          normalizedPrimaryText: e.normalizedTitle,
-        ),
-      )
-      .toList();
+  // הנרמול מוחק "." ו-":", ולכן "ב." היה תואם כל כותרת עם האות ב ו"קיא:"
+  // היה שווה ל"קיא.". שאילתה שמסתיימת בסימן עמוד מחפשת את הדף כמילה שלמה.
+  final amud = _amudMark(rawQuery);
+  final dafStart = normalizedQuery.lastIndexOf(' ') + 1;
+  final daf = amud == null ? null : normalizedQuery.substring(dafStart);
+  final exact = <PdfOutlineSearchEntry>[];
+  final exactUnmarked = <PdfOutlineSearchEntry>[];
+  final prefix = <PdfOutlineSearchEntry>[];
+  final prefixUnmarked = <PdfOutlineSearchEntry>[];
+  final contains = <PdfOutlineSearchEntry>[];
+  final containsUnmarked = <PdfOutlineSearchEntry>[];
+  for (final entry in entries) {
+    final title = entry.normalizedTitle;
+    final firstMatch = title.indexOf(normalizedQuery);
+    final rank = title == normalizedQuery
+        ? 0
+        : firstMatch == 0
+        ? 1
+        : firstMatch > 0
+        ? 2
+        : -1;
+    if (rank < 0) continue;
+    final dafMatch = daf == null
+        ? (matches: true, marked: false)
+        : _titleDafMatch(
+            entry.node.title,
+            title,
+            normalizedQuery,
+            firstMatch,
+            daf,
+            dafStart,
+            amud!,
+          );
+    if (!dafMatch.matches) continue;
+    final prefersMarked = amud != null && dafMatch.marked;
+    switch (rank) {
+      case 0:
+        (prefersMarked ? exact : exactUnmarked).add(entry);
+      case 1:
+        (prefersMarked ? prefix : prefixUnmarked).add(entry);
+      default:
+        (prefersMarked ? contains : containsUnmarked).add(entry);
+    }
+  }
+  // מדויק, תחילית ואז הכלה. סימן עמוד תואם קודם באותה דרגה.
+  return [
+    ...exact,
+    ...exactUnmarked,
+    ...prefix,
+    ...prefixUnmarked,
+    ...contains,
+    ...containsUnmarked,
+  ];
 }
+
+String? _amudMark(String text) {
+  final trimmed = text.trimRight();
+  if (trimmed.endsWith('.')) return '.';
+  if (trimmed.endsWith(':')) return ':';
+  return null;
+}
+
+/// האם יש בכותרת מילה שהיא הדף [daf], בלי סימן עמוד או עם הסימן [amud].
+({bool matches, bool marked}) _titleDafMatch(
+  String rawTitle,
+  String normalizedTitle,
+  String normalizedQuery,
+  int firstMatch,
+  String daf,
+  int dafStart,
+  String amud,
+) {
+  final matches = <int>{};
+  for (var start = firstMatch; start >= 0;) {
+    matches.add(start + dafStart);
+    start = normalizedTitle.indexOf(normalizedQuery, start + 1);
+  }
+  var normalizedOffset = 0;
+  var hasWord = false;
+  var unmarked = false;
+  for (final word in rawTitle.split(_whitespace)) {
+    final normalizedWord = normalizeFindText(word);
+    if (normalizedWord.isEmpty) continue;
+    if (hasWord) normalizedOffset++;
+    hasWord = true;
+    final dafOffset = normalizedWord.length - daf.length;
+    if (normalizedWord.endsWith(daf) &&
+        (dafOffset == 0 || normalizedWord[dafOffset - 1] == ' ') &&
+        matches.contains(normalizedOffset + dafOffset)) {
+      final mark = _amudMark(word.replaceFirst(_closingPunctuation, ''));
+      if (mark == amud) return (matches: true, marked: true);
+      if (mark == null) unmarked = true;
+    }
+    normalizedOffset += normalizedWord.length;
+  }
+  return (matches: unmarked, marked: false);
+}
+
+final RegExp _whitespace = RegExp(r'\s+');
+final RegExp _closingPunctuation = RegExp(r'''[)\]}"'׳״”’»›]+$''');
 
 class OutlineView extends StatefulWidget {
   const OutlineView({
