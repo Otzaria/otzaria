@@ -146,7 +146,7 @@ class SearchingTab extends OpenedTab {
       searchMode: searchMode,
       distance: searchMode == SearchMode.fuzzy
           ? kMaxFuzzyDistance
-          : SearchDefaults.initialDistanceForNewSearch(),
+          : SearchDefaults.initialDistanceForNewSearch(searchMode),
       proximityScope: policy.proximityScope,
       wordMatchMode: policy.wordMatchMode,
       wordMatchCount: policy.wordMatchCount,

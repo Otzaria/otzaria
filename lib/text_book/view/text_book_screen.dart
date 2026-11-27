@@ -84,6 +84,7 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
@@ -101,6 +102,8 @@ import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -116,10 +119,9 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 /// המקום המינימלי לתוכן הספר כדי שחלונית הניווט תידחק ליד התוכן. מתחת לזה
-/// היא נפתחת כ-overlay, ואין טעם בכפתור נעיצה.
+/// היא נפתחת כ-overlay.
 const double _kNavMinMainContentWidth = 520;
 
 // קבועים למצבי תצוגה (למניעת magic strings)
@@ -198,8 +200,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   String? _selectedTextForSearch;
   int?
   _selectedLineForNote; // שורת המקור של הטקסט המסומן, ליצירת הערה בקיצור מקשים
-  int?
-  _selectedColumnForNote; // עמודת הבחירה — לזיהוי המופע הנכון כשהטקסט חוזר בשורה
+  int? _selectedColumnForNote; // עמודת הבחירה — לזיהוי המופע הנכון כשהטקסט חוזר בשורה
   Book? _pdfBook; // Companion PDF
   bool _hasResolvedCompanionPdf = false;
   // מהדורות מקבילות ללחצן המובנה: המובנית ראשונה, אחריה היברובוקס מקומיות.
@@ -211,6 +212,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   // האם החלונית דוחקת את התוכן (wide). ב-overlay הרוחב לא משתנה ולכן ה-reanchor
   // מיותר — וה-jumpTo שלו מבטל אנימציית ניווט פעילה מבחירה בסרגל הצד.
   bool _paneUsesPushLayout = false;
+  final _navPeek = NavPanelPeekController();
 
   /// מונה כמה פעמים רץ ה-reanchor בעקבות פתיחה/סגירת החלונית. לבדיקת הרגרסיה:
   /// חייב לרוץ במצב push ולהידכא ב-overlay.
@@ -238,6 +240,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   final GlobalKey _searchTabKey = GlobalKey();
   Object? _searchViewInputs;
   TextBookSearchView? _searchView;
+  TocViewer? _tocView;
 
   // בקשה לפתיחת דיאלוג הגדרות צורת הדף מתוך PageShapeScreen (עדכון חי)
   final ValueNotifier<int> _pageShapeOpenSettingsNotifier = ValueNotifier<int>(
@@ -491,7 +494,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         showSplitView: currentState.showSplitView,
         removeNikud: settings.defaultRemoveNikud,
         forceCloseLeftPane: widget.isInCombinedView,
-        screenWidth: readingLayoutWidthOf(context),
         preserveState: true,
         preserveRemoveNikud: !nikudSettingsChanged,
         preserveRemovePunctuation: !punctuationSettingsChanged,
@@ -700,7 +702,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         preserveState: true,
         // בתצוגה משולבת, חלונית הצד תמיד סגורה
         forceCloseLeftPane: widget.isInCombinedView,
-        screenWidth: readingLayoutWidthOf(context),
       ),
     );
 
@@ -714,6 +715,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   @override
   void dispose() {
+    _navPeek.dispose();
     // ביטול רישום ה-FocusNode מ-FocusRepository (שימוש בהפניה שנשמרה)
     _focusRepository?.unregisterBookContentFocusNode(_bookContentFocusNode);
 
@@ -962,7 +964,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   removeNikud: settingsState.defaultRemoveNikud,
                   // בתצוגה משולבת, חלונית הצד תמיד סגורה
                   forceCloseLeftPane: widget.isInCombinedView,
-                  screenWidth: readingLayoutWidthOf(context),
                 ),
               );
             }
@@ -1015,7 +1016,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
 
                 if (state.showPageShapeView) {
-                  // hasPrimaryFocus ולא hasFocus: ה-KeyboardListener הזה עוטף
+                  // hasPrimaryFocus ולא hasFocus: ה-Focus הזה עוטף
                   // את כל גוף המסך (כולל פאנל החיפוש), ו-hasFocus מחזיר true
                   // גם כשצאצא (שדה החיפוש) ממוקד. unfocus כזה היה מסיר פוקוס
                   // מכל התת-עץ ומבריח את הסמן משדה החיפוש בכל הקלדה. כאן
@@ -1049,7 +1050,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     !navigationSearchFocusNode.hasFocus &&
                     !altTitlesSearchFocusNode.hasFocus) {
                   // ממקד את אזור הגלילה (ProgressiveScroll) דרך ה-requester
-                  // שרשם CombinedView; הוא צאצא של ה-KeyboardListener הזה,
+                  // שרשם CombinedView; הוא צאצא של ה-Focus הזה,
                   // לכן Ctrl+P/Home וכו' ממשיכים לעבוד. fallback ל-node הזה
                   // אם אין requester (למשל צורת הדף).
                   final didFocus =
@@ -1059,25 +1060,30 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               });
 
-              return KeyboardListener(
+              return Focus(
                 focusNode: _bookContentFocusNode,
-                autofocus: false,
-                onKeyEvent: (event) => _handleGlobalKeyEvent(
-                  event,
-                  context,
-                  state,
-                  widget.tab,
-                  openSearchFromToolbar: _openSearchFromToolbar,
-                  onPrint: () => handlePrintPress(state),
-                  openNotesForCurrentView: () =>
-                      _openPersonalNotesForCurrentView(state),
-                  isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
-                  selectedTextForNote: _selectedTextForSearch,
-                  selectedLineForNote: _selectedLineForNote,
-                  selectedColumnForNote: _selectedColumnForNote,
-                ),
+                onKeyEvent: (_, event) {
+                  final handled = _handleGlobalKeyEvent(
+                    event,
+                    context,
+                    state,
+                    widget.tab,
+                    openSearchFromToolbar: _openSearchFromToolbar,
+                    onPrint: () => handlePrintPress(state),
+                    openNotesForCurrentView: () =>
+                        _openPersonalNotesForCurrentView(state),
+                    isNotesPanelOpen: _isPersonalNotesPanelOpen(state),
+                    selectedTextForNote: _selectedTextForSearch,
+                    selectedLineForNote: _selectedLineForNote,
+                    selectedColumnForNote: _selectedColumnForNote,
+                  );
+                  // מקש שהספר טיפל בו לא ממשיך לקיצורים הקבועים.
+                  return handled
+                      ? KeyEventResult.handled
+                      : KeyEventResult.ignored;
+                },
                 child: Scaffold(
-                  body: Column(
+                  body: AppTopBarLayout(
                     children: [
                       // בטלפון הסרגל נעלם בגלילה למטה וחוזר בגלילה למעלה
                       // או בהקשה (ChromeAutoHideScope בחלון הראשי).
@@ -1122,24 +1128,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             compact: AppDensity.of(context).isCompact,
           ),
         ),
-        if (state.showLeftPane &&
-            (state.pinLeftPane ||
-                NavSidePanel.canPin(
-                  context,
-                  paneWidth: _sidebarWidth.value,
-                  minMainContentWidth: _kNavMinMainContentWidth,
-                )))
-          AppTopBarItem(
-            widget: NavPanelPinButton(
-              isPinned: state.pinLeftPane,
-              isGloballyPinned:
-                  Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ??
-                  false,
-              onToggle: () => context.read<TextBookBloc>().add(
-                TogglePinLeftPane(!state.pinLeftPane),
-              ),
-            ),
-          ),
         if (state.showPageShapeView)
           AppTopBarItem(widget: _buildPageShapeSettingsButton(context, state)),
       ],
@@ -1183,20 +1171,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state, {
     TextAlign textAlign = TextAlign.end,
   }) {
-    if (state.currentTitle == null) {
-      return const SizedBox.shrink();
-    }
+    final currentTitle = state.currentTitle;
+    if (currentTitle == null) return const SizedBox.shrink();
 
-    // הסתרת שם השם חלה גם על הכותרת, כמו על גוף הטקסט.
     final holyNameStyle = state.bodyDisplayProfile.holyName.style;
     String hideHolyNames(String text) => holyNameStyle == null
         ? text
         : replaceHolyNames(text, style: holyNameStyle);
 
-    // שימוש בפונקציה העזר להוספת שם הספר
-    String displayText = hideHolyNames(
-      addBookTitleToRef(state.currentTitle!, state.book.title),
-    );
+    final fullTitle = addBookTitleToRef(currentTitle, state.book.title);
+    final displayText = hideHolyNames(fullTitle);
 
     // בכרטיסייה של נוסח חלופי הכותרת זהה לזו של הנוסח הראשי; שם המהדורה הוא מה
     // שמבחין ביניהן, ולכן הוא מוצג במקום שם המחבר.
@@ -1213,59 +1197,87 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         final authorStyle = AppTopBar.subtitleStyle(
           context,
         ).copyWith(height: 1.1);
-        TextPainter measure(String text) => TextPainter(
-          text: TextSpan(text: text, style: titleStyle),
+        final painter = TextPainter(
           textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
           maxLines: 1,
-        )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
+        );
+        void measure(String text) => painter
+          ..text = TextSpan(text: text, style: titleStyle)
+          ..layout(maxWidth: constraints.maxWidth);
 
-        final textPainter = measure(displayText);
-
-        // כשהכותרת בפורמט "שם הספר, מיקום" מציגים אותם כשני חלקים: השם מתקצר
-        // (ellipsis) לפי המקום הפנוי, אך המיקום נשאר גלוי במלואו — נחוץ לחברותא
-        // שבה אין מידע אחר על המיקום.
         final namePrefix = hideHolyNames('${state.book.title}, ');
-        // מיקום שאינו משאיר לצדו מקום אף ל"..." של השם חייב להיחתך כמחרוזת
-        // אחת — כשני חלקים ה-Row גולש מהסרגל ומצייר את פס האזהרה (#891).
-        final hasSeparateLocation =
-            displayText.startsWith(namePrefix) &&
-            measure(displayText.substring(namePrefix.length)).width +
-                    measure('…').width <=
-                constraints.maxWidth;
+        final location = displayText.startsWith(namePrefix)
+            ? displayText.substring(namePrefix.length)
+            : null;
+        final bool titleOverflows;
+        var hasSeparateLocation = false;
+        ElidedTitle? elided;
+        try {
+          measure(displayText);
+          titleOverflows = painter.didExceedMaxLines;
+          // מפצלים את שם הספר רק כשנשאר מקום למיקום ולאליפסה (#891).
+          if (location != null) {
+            measure(location);
+            final locationWidth = painter.width;
+            measure('…');
+            hasSeparateLocation =
+                locationWidth + painter.width <= constraints.maxWidth;
+          }
+          final firstVisible = state.visibleIndices.firstOrNull;
+          if (!hasSeparateLocation && titleOverflows && firstVisible != null) {
+            final headings = headingPathFromTocList(
+              firstVisible,
+              state.tableOfContents,
+            );
+            if (headings.join(', ') == currentTitle) {
+              final titleHeadings = [
+                if (fullTitle != currentTitle) state.book.title,
+                ...headings,
+              ].map(hideHolyNames).toList();
+              if (titleHeadings.join(', ') == displayText) {
+                elided = startTruncatedTitle(titleHeadings, (text) {
+                  measure(text);
+                  return !painter.didExceedMaxLines;
+                });
+              }
+            }
+          }
+        } finally {
+          painter.dispose();
+        }
         final rowAlignment = switch (textAlign) {
           TextAlign.center => MainAxisAlignment.center,
           TextAlign.start => MainAxisAlignment.start,
           _ => MainAxisAlignment.end,
         };
 
-        final titleWidget = AppSelectionArea(
-          child: hasSeparateLocation
-              ? Row(
-                  mainAxisAlignment: rowAlignment,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        namePrefix,
-                        style: titleStyle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      displayText.substring(namePrefix.length),
+        final title = hasSeparateLocation
+            ? Row(
+                mainAxisAlignment: rowAlignment,
+                children: [
+                  Flexible(
+                    child: Text(
+                      namePrefix,
                       style: titleStyle,
                       maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                )
-              : Text(
-                  displayText,
-                  style: titleStyle,
-                  textAlign: textAlign,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-        );
+                  ),
+                  Text(location!, style: titleStyle, maxLines: 1),
+                ],
+              )
+            : Text(
+                elided?.shown ?? displayText,
+                semanticsLabel: elided == null ? null : displayText,
+                style: titleStyle,
+                textAlign: textAlign,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+        final titleWidget = elided == null
+            ? AppSelectionArea(child: title)
+            : _ElidedTitleSelection(elided: elided, child: title);
 
         // אם יש מחבר (או שם מהדורה), מציגים אותו מתחת לכותרת
         final child = subtitle != null && subtitle.isNotEmpty
@@ -1285,7 +1297,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               )
             : titleWidget;
 
-        if (textPainter.didExceedMaxLines) {
+        if (titleOverflows) {
           return Tooltip(
             message: subtitle != null ? '$displayText\n$subtitle' : displayText,
             child: child,
@@ -1305,6 +1317,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ? TourTargetKeys.of(context).textBookNavigation
             : null,
         isOpen: state.showLeftPane,
+        peek: _navPeek,
         onToggle: () => context.read<TextBookBloc>().add(
           ToggleLeftPane(!state.showLeftPane),
         ),
@@ -1966,8 +1979,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   void _scrollToNextLine(TextBookLoaded state) => _scrollByLines(state, 1);
 
-  /// שורת מקור אחת בכל לחיצה, והיעד נבחר (המפרשים נפתחים עליו). המיקום
-  /// מתעדכן ליעד מיד, ולכן לחיצות רצופות ממשיכות ממנו גם לפני שהגלילה נחתה.
+  /// שורת מקור אחת בכל לחיצה, והיעד נבחר (המפרשים נפתחים עליו). ממשיכים
+  /// מהקטע הנבחר כשהוא על המסך, ואחרת ממיקום הקריאה. המיקום מתעדכן ליעד מיד,
+  /// ולכן לחיצות רצופות ממשיכות ממנו גם לפני שהגלילה נחתה.
   void _scrollByLines(TextBookLoaded state, int delta) {
     if (PluginTextReaderRegistry.instance.usesPlugin(widget.tab)) {
       PluginTextReaderRegistry.instance.command(
@@ -1978,7 +1992,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return;
     }
     if (state.content.isEmpty) return;
-    final current = widget.tab.index;
+    final selected = state.selectedIndex;
+    final visible = widget.tab.lines.position.value?.visibleLines;
+    final current = selected != null && (visible?.contains(selected) ?? false)
+        ? selected
+        : widget.tab.index;
     final target = (current + delta).clamp(0, state.content.length - 1);
     if (target == current) return;
     context.read<TextBookBloc>().add(UpdateSelectedIndex(target));
@@ -2344,9 +2362,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildBody(BuildContext context, TextBookLoaded state) {
     return NavSidePanel(
       isOpen: state.showLeftPane,
-      isPinned: state.pinLeftPane,
-      isGloballyPinned:
-          Settings.getValue<bool>(SettingsRepository.keyPinSidebar) ?? false,
+      peek: _navPeek,
       alignment: AlignmentDirectional.centerEnd,
       paneWidth: _sidebarWidth.value,
       minMainContentWidth: _kNavMinMainContentWidth,
@@ -2512,7 +2528,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             children: [
               NavPanelSearchSlot(
                 index: 0,
-                child: _buildTocViewer(context, state),
+                child: _buildTocViewer(),
               ),
               if (_hasAltTitles)
                 NavPanelSearchSlot(
@@ -2604,16 +2620,20 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildTocViewer(BuildContext context, TextBookLoaded state) {
-    return TocViewer(
-      lines: widget.tab.lines,
+  TocViewer _buildTocViewer() {
+    final lines = widget.tab.lines;
+    // בחירת שורה בונה את הקורא; עץ הכותרות מאזין לבחירה בעצמו.
+    final view = _tocView;
+    if (view != null && identical(view.lines, lines)) return view;
+    return _tocView = TocViewer(
+      lines: lines,
       focusNode: navigationSearchFocusNode,
       closeLeftPaneCallback: _closeLeftPaneIfCovering,
     );
   }
 
-  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay או
-  /// צפה); חלונית מוצמדת לצד התוכן נשארת פתוחה.
+  /// אחרי מעבר מחלונית הניווט: סוגרים רק חלונית שמכסה את התוכן (overlay);
+  /// חלונית שדוחקת את התוכן, או פתוחה בריחוף, נשארת.
   void _closeLeftPaneIfCovering() {
     if (!mounted || _paneUsesPushLayout) return;
     context.read<TextBookBloc>().add(const ToggleLeftPane(false));
@@ -2679,6 +2699,39 @@ Future<void> _setFontSize(
   return savePerBookDisplaySettings(context, state, fontSize: size);
 }
 
+int _nextRescanRequestId = 0;
+
+/// מחכה לסריקה של ההקשה הזו: סריקה אחרת שרצה במקביל מסתיימת בנפרד.
+Future<void> _rescanPersonalBook(
+  CustomFoldersBloc bloc,
+  TextBook book,
+  AppWindowKeys window,
+) async {
+  // שלילי: המזהים החיוביים של תוספים ושל בקשות האינדוקס מגיעים גם הם
+  // ל-RefreshLibrary.requestIds.
+  final requestId = --_nextRescanRequestId;
+  final done = bloc.stream.cast<CustomFoldersState?>().firstWhere(
+    (state) => state?.completedScan?.requestId == requestId,
+    orElse: () => null,
+  );
+  bloc.add(
+    RescanCustomFolders(folderOfFile: book.filePath, requestId: requestId),
+  );
+  final result = await done;
+  if (result == null || bloc.isClosed) return;
+  final scan = result.completedScan!;
+  if (!scan.isSuccess) {
+    UiSnack.showError(SettingsMessages.customFolderSyncFailed, window: window);
+  } else if (scan.errors.isNotEmpty) {
+    UiSnack.showError(
+      SettingsMessages.customFolderScanErrors(scan.errors),
+      window: window,
+    );
+  } else if (result.message != null) {
+    UiSnack.show(result.message!, window: window);
+  }
+}
+
 bool _handleGlobalKeyEvent(
   KeyEvent event,
   BuildContext context,
@@ -2692,6 +2745,15 @@ bool _handleGlobalKeyEvent(
   int? selectedLineForNote,
   int? selectedColumnForNote,
 }) {
+  if (event is! KeyDownEvent) return false;
+  final keyboard = HardwareKeyboard.instance;
+  if (ShortcutHelper.shouldIgnoreWhileEditing(
+    event,
+    preserveModifiedText:
+        keyboard.isControlPressed || ShortcutHelper.isAltModifierPressed,
+  )) {
+    return false;
+  }
   // קריאת קיצורים מההגדרות
   final searchInBookShortcut =
       ShortcutValidator.getShortcutValue(
@@ -2710,6 +2772,9 @@ bool _handleGlobalKeyEvent(
       '';
   final togglePdfShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.togglePdfViewKey) ??
+      '';
+  final refreshBookShortcut =
+      ShortcutValidator.getShortcutValue(ShortcutValidator.refreshBookKey) ??
       '';
   final copyBookLinkShortcut =
       ShortcutValidator.getShortcutValue(ShortcutValidator.copyBookLinkKey) ??
@@ -2791,6 +2856,22 @@ bool _handleGlobalKeyEvent(
       fontSize: state.fontSize,
       bookTitle: state.book.title,
       savedSelectedIndex: reportLineIndex,
+    );
+    return true;
+  }
+
+  // רענון ספר אישי: הסריקה מעדכנת אותו, ו-_libraryReloadSub טוען את הטאב מחדש.
+  // משתמש שכבר הקצה F5 לפעולה אחרת שומר על הקיצור הקיים שלו.
+  if (refreshBookShortcut.isNotEmpty &&
+      state.book.isUserBook &&
+      ShortcutHelper.matchesShortcut(event, refreshBookShortcut) &&
+      !ShortcutValidator.hasConflict(ShortcutValidator.refreshBookKey)) {
+    unawaited(
+      _rescanPersonalBook(
+        context.read<CustomFoldersBloc>(),
+        state.book,
+        AppWindowKeys.of(context),
+      ),
     );
     return true;
   }
@@ -2924,14 +3005,12 @@ bool _handleGlobalKeyEvent(
 
   // Home/End, לבד או עם Ctrl - קצות הספר. ה-listener עוטף גם את שדות הקלט
   // של החלונית, ושם המקשים מזיזים את הסמן בלבד.
-  final keyboard = HardwareKeyboard.instance;
   final isBareKey =
       !keyboard.isShiftPressed &&
       !keyboard.isControlPressed &&
       !keyboard.isMetaPressed &&
       !ShortcutHelper.isAltModifierPressed;
-  if (event is KeyDownEvent &&
-      (isCtrlOrCmd || isBareKey) &&
+  if ((isCtrlOrCmd || isBareKey) &&
       !isTextInputFocusNode(FocusManager.instance.primaryFocus)) {
     switch (event.logicalKey) {
       // Home - תחילת הספר
@@ -2960,26 +3039,30 @@ bool _handleGlobalKeyEvent(
     }
   }
 
-  // יציאה ממסך מלא מטופלת בקיצורים הגלובליים, אחרי הקיצורים המותאמים.
-  if (event is KeyDownEvent && !isCtrlOrCmd) {
-    switch (event.logicalKey) {
-      // ESC ללא Ctrl/Cmd מנקה את הדגשת החיפוש או ה־?mark.
-      case LogicalKeyboardKey.escape:
-        if (state.searchText.isNotEmpty) {
-          context.read<TextBookBloc>().add(
-            const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
-          );
-          return true;
-        }
-        if (state.permanentHighlightLine != null) {
-          context.read<TextBookBloc>().add(const ApplyMarkHighlight());
-          context.read<TourCubit>().recordInteraction(
-            TourInteraction(type: TourInteractionType.linkHighlightCleared),
-          );
-          return true;
-        }
-        break;
+  // קיצור מוגדר קודם לניקוי ההדגשה, שקודם ליציאה ממסך מלא.
+  if (!isCtrlOrCmd && event.logicalKey == LogicalKeyboardKey.escape) {
+    final bookBloc = context.read<TextBookBloc>();
+    // לחיצה נוספת יכולה להגיע אחרי עדכון הבלוק ולפני הבנייה מחדש.
+    final current = bookBloc.state;
+    if (current is! TextBookLoaded ||
+        (current.searchText.isEmpty &&
+            current.permanentHighlightLine == null)) {
+      return false;
     }
+    if (KeyboardShortcuts.handleConfiguredShortcut(context, event)) {
+      return true;
+    }
+    if (current.searchText.isNotEmpty) {
+      bookBloc.add(
+        const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
+      );
+    } else {
+      bookBloc.add(const ApplyMarkHighlight());
+      context.read<TourCubit>().recordInteraction(
+        TourInteraction(type: TourInteractionType.linkHighlightCleared),
+      );
+    }
+    return true;
   }
 
   return false;
@@ -3267,4 +3350,95 @@ class _NavPanelTourTargetBuilder extends StatelessWidget {
     isActiveTab: TourTargetsScope.enabledOf(context),
     child: child,
   );
+}
+
+/// כותרת שקוצרה מתחילתה: [shown] מוצג, ו-[omitted] הוא מה שהושמט לפני
+/// התו ה-[markerLength] של [shown] ("…" או כלום), כך שהכותרת המלאה היא
+/// `omitted + shown.substring(markerLength)`.
+typedef ElidedTitle = ({String shown, String omitted, int markerLength});
+
+/// מקצרת כותרת לפי [headings] (שם הספר והכותרות, מהעליונה לעמוקה) מתחילתה:
+/// "…, " ואחריו הסיפא הארוכה ביותר של כותרות שלמות שנכנסת לפי [fits]. כשאין
+/// מקום אף ל"…, " ולכותרת העמוקה מוצגת הכותרת העמוקה לבדה (ותיחתך מסופה אם
+/// צריך). פחות משתי כותרות — null.
+@visibleForTesting
+ElidedTitle? startTruncatedTitle(
+  List<String> headings,
+  bool Function(String text) fits,
+) {
+  if (headings.length < 2) return null;
+  String before(int i) => headings.sublist(0, i).join(', ');
+  final last = headings.length - 1;
+  if (!fits('…, ${headings[last]}')) {
+    return (
+      shown: headings[last],
+      omitted: '${before(last)}, ',
+      markerLength: 0,
+    );
+  }
+  var first = last;
+  while (first > 1 && fits('…, ${headings.sublist(first - 1).join(', ')}')) {
+    first--;
+  }
+  return (
+    shown: '…, ${headings.sublist(first).join(', ')}',
+    omitted: before(first),
+    markerLength: 1,
+  );
+}
+
+/// משחזר את החלק שהושמט כשבוחרים את סימן ההשמטה, או את כל הכותרת בלעדיו.
+class _ElidedTitleSelection extends StatefulWidget {
+  const _ElidedTitleSelection({required this.elided, required this.child});
+
+  final ElidedTitle elided;
+  final Widget child;
+
+  @override
+  State<_ElidedTitleSelection> createState() => _ElidedTitleSelectionState();
+}
+
+class _ElidedTitleSelectionState extends State<_ElidedTitleSelection> {
+  final _delegate = _ElidedTitleSelectionDelegate();
+
+  @override
+  void dispose() {
+    _delegate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _delegate.elided = widget.elided;
+    return AppSelectionArea(
+      renderedSelectionText: () => _delegate.renderedSelectionText,
+      child: SelectionContainer(delegate: _delegate, child: widget.child),
+    );
+  }
+}
+
+class _ElidedTitleSelectionDelegate extends StaticSelectionContainerDelegate {
+  late ElidedTitle elided;
+  String? renderedSelectionText;
+
+  @override
+  SelectedContent? getSelectedContent() {
+    final content = super.getSelectedContent();
+    renderedSelectionText = content?.plainText;
+    if (content == null) return null;
+    final range = getSelection();
+    if (range == null ||
+        range.startOffset == range.endOffset ||
+        min(range.startOffset, range.endOffset) != 0 ||
+        (elided.markerLength == 0 &&
+            max(range.startOffset, range.endOffset) != elided.shown.length)) {
+      return content;
+    }
+    final text = content.plainText;
+    return SelectedContent(
+      plainText:
+          elided.omitted +
+          text.substring(min(elided.markerLength, text.length)),
+    );
+  }
 }

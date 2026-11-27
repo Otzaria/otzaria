@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/utils/book_note_report.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show buildCorrectionTemplate;
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
@@ -82,6 +83,7 @@ import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.da
 import 'package:flutter/foundation.dart';
 
 import 'dart:async';
+import 'dart:math' show min, max;
 
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
@@ -308,6 +310,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   // כותרת מרונדרת (displayReference) לכל מפרש מוצג — לשחזור מעברי שורה כשהבחירה
   // כוללת גם כותרות.
   final Map<String, String> _renderedTitleByKey = {};
+  final Map<String, GlobalKey> _shortenedTitleKeys = {};
   final ValueNotifier<int> _currentSearchIndexNotifier = ValueNotifier<int>(0);
   final ValueNotifier<int> _totalSearchResultsNotifier = ValueNotifier<int>(0);
   Map<String, int> get _searchResultsPerLink => _searchBloc.state.counts;
@@ -372,6 +375,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   ); // ה-link האחרון שנוגעו בו (לכותרות בהעתקה)
   final Object _selectionOwner = Object(); // מזהה ייחודי לבעלות על הבחירה
   final GlobalKey<SelectionAreaState> _selectionAreaKey = GlobalKey();
+  final _selectionAreaFocusNode = KeepSelectionOnWindowBlurFocusNode();
   bool _showCommentatorsFilter = false; // האם להציג את מסך בחירת המפרשים
   bool _filterWasAutoOpened = false; // האם מסך הסינון נפתח אוטומטית (לא ידנית)
   // הבקשה אינה בונה מחדש, ולכן זוכרים שנשלחה עד שנבחרו מפרשים,
@@ -409,9 +413,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (state is! TextBookLoaded) return null;
     return buildCommentaryCopyGuard(
       links,
-      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
-        _itemKeys[_getLinkKey(link)]!,
-      ),
+      selectionOf: (link) =>
+          CommentarySelectionTracker.selectionIn(_itemKeys[_getLinkKey(link)]!),
       renderSettings: RenderSettings.fromProfile(
         state.commentaryDisplayProfile,
       ),
@@ -580,6 +583,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
     _renderedTextByKey.removeWhere((key, _) => !currentLinkKeys.contains(key));
     _renderedTitleByKey.removeWhere((key, _) => !currentLinkKeys.contains(key));
+    _shortenedTitleKeys.removeWhere((key, _) => !currentLinkKeys.contains(key));
   }
 
   Key _flatItemKey(CommentaryFlatItem item) => item.link == null
@@ -660,9 +664,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
   }
 
-  Future<CommentaryNotesByLine> _personalNotesForGroup(
-    CommentaryGroup group,
-  ) {
+  Future<CommentaryNotesByLine> _personalNotesForGroup(CommentaryGroup group) {
     // המפתח כמו בשמירה מתפריט המפרש: לפי מקור ספר היעד.
     final key = personalNotesBookKeyFor(
       group.bookTitle,
@@ -1434,17 +1436,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   void deactivate() {
     if (widget.shrinkWrap && _inlineStorageIdentifier != null) {
       // ה-sliver עשוי לנתק את הפריט מאבותיו לפני deactivate.
-      _inlineStorage?.writeState(
-        context,
-        (_allExpanded, Map<String, bool>.of(_expansionStates)),
-        identifier: _inlineStorageIdentifier,
-      );
+      _inlineStorage?.writeState(context, (
+        _allExpanded,
+        Map<String, bool>.of(_expansionStates),
+      ), identifier: _inlineStorageIdentifier);
     }
     super.deactivate();
   }
 
   @override
   void dispose() {
+    _selectionAreaFocusNode.dispose();
     unawaited(_searchSubscription?.cancel());
     unawaited(_searchBloc.close());
 
@@ -1802,14 +1804,21 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       // מטמון הטקסט/הכותרת המרונדרים לכל מפרש מוצג — לשחזור מעברי שורה בהעתקה.
       onLinkRendered: (link, text) =>
           _renderedTextByKey[_getLinkKey(link)] = text,
-      onLinkTitleRendered: (link, title) =>
-          _renderedTitleByKey[_getLinkKey(link)] = title
-              .replaceAll(RegExp(r'\s+'), ' ')
-              .trim(),
+      onLinkTitleRendered: (link, title, shortenedTitleKey) {
+        final key = _getLinkKey(link);
+        _renderedTitleByKey[key] = title.replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (shortenedTitleKey != null) {
+          _shortenedTitleKeys[key] = shortenedTitleKey;
+        } else {
+          _shortenedTitleKeys.remove(key);
+        }
+      },
       onOpenPersonalNote: widget.onOpenPersonalNote,
       shouldShowItemTitle: (title) => _shouldShowItemTitle(group, state, title),
+      groupBookTitle: group.bookTitle,
       personalNotes: _personalNotesForGroup(group),
       restoreLineBreaks: _restoreLineBreaks,
+      selectionForCopy: _selectionForCopy,
     );
   }
 
@@ -1823,14 +1832,15 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (rtlSelectionPriming) return;
     if (text != null && text.trim().isNotEmpty) {
       _savedSelectedText.value = text;
-      widget.selectionSyncController?.activate(
-        _selectionOwner,
-        selectionText: _restoreLineBreaks(text),
-        selectionLink: selectionSpansMultipleItems(_itemKeys)
-            ? null
-            : _lastSelectedLink.value ?? _singleSelectedLink(),
-        copyGuard: _multiItemCopyGuard,
-      );
+      if (widget.selectionSyncController case final controller?) {
+        final selection = _selectionForCopy(text, _lastSelectedLink.value);
+        controller.activate(
+          _selectionOwner,
+          selectionText: selection.text,
+          selectionLink: selection.link,
+          copyGuard: _multiItemCopyGuard,
+        );
+      }
     } else {
       _savedSelectedText.value = null;
       _lastSelectedLink.value = null;
@@ -1846,6 +1856,54 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     titlesByKey: _renderedTitleByKey,
     textsByKey: _renderedTextByKey,
   );
+
+  ({String? text, Link? link}) _selectionForCopy(String? flat, Link? fallback) {
+    final text = _restoreLineBreaks(flat);
+    if (!selectionSpansMultipleItems(_itemKeys)) {
+      return (text: text, link: fallback ?? _singleSelectedLink());
+    }
+    if (text == null || _shortenedTitleKeys.isEmpty) {
+      return (text: text, link: null);
+    }
+    final links = selectedItemLinks(_itemKeys, _orderedLinks, _getLinkKey);
+    if (links.isEmpty) return (text: text, link: null);
+
+    final selectionBounds = commentarySelectionEndpoints(_itemKeys);
+    if (selectionBounds == null) return (text: text, link: null);
+    final top = min(selectionBounds.$1.dy, selectionBounds.$2.dy);
+    final bottom = max(selectionBounds.$1.dy, selectionBounds.$2.dy);
+    final firstTitle = utils.getTitleFromPath(links.first.path2);
+    final fullySelectedAddress = links
+        .takeWhile((link) => utils.getTitleFromPath(link.path2) == firstTitle)
+        .map(_getLinkKey)
+        .any(
+          (key) =>
+              _includesShortenedAddress(key, text, top: top, bottom: bottom),
+        );
+    if (!fullySelectedAddress) return (text: text, link: null);
+
+    final settings = context.read<SettingsBloc>().state;
+    final title = settings.replaceHolyNames
+        ? utils.replaceHolyNames(firstTitle, style: settings.holyNameStyle)
+        : firstTitle;
+    // כששני הקצוות בתוך מקטעים, כותרת הקבוצה הראשונה נמצאת מעל הבחירה.
+    return (text: '$title\n$text', link: null);
+  }
+
+  bool _includesShortenedAddress(
+    String key,
+    String selectedText, {
+    required double top,
+    required double bottom,
+  }) {
+    final box = _shortenedTitleKeys[key]?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return false;
+    final bounds = box.localToGlobal(Offset.zero) & box.size;
+    if (bounds.bottom > bottom + 1 || bounds.bottom < top - 1) return false;
+    if (bounds.top >= top) return true;
+    final title = _renderedTitleByKey[key];
+    return title != null && selectedText.trimLeft().startsWith(title);
+  }
 
   Widget? _lastView;
 
@@ -2150,20 +2208,17 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   // שכותבת ללוח את הבחירה כמות שהיא — גם כשהיא ריקה (#674).
                   return SelectionCopyShortcuts(
                     onCopy: () async {
-                      // בחירה החוצה כמה מפרשים — לא מייחסים כותרת מקור
-                      // (היא הייתה משתייכת למפרש בודד בלבד).
-                      final link = selectionSpansMultipleItems(_itemKeys)
-                          ? null
-                          : _lastSelectedLink.value ?? _singleSelectedLink();
+                      final selection = _selectionForCopy(
+                        _savedSelectedText.value,
+                        _lastSelectedLink.value,
+                      );
                       final guard = await _multiItemCopyGuard();
                       if (!context.mounted) return;
                       await ContextMenuUtils.copyFormattedText(
                         context: context,
-                        savedSelectedText: _restoreLineBreaks(
-                          _savedSelectedText.value,
-                        ),
+                        savedSelectedText: selection.text,
                         fontSize: widget.fontSize,
-                        link: link,
+                        link: selection.link,
                         protection: guard?.protection,
                         segmentCount: guard?.segmentCount,
                       );
@@ -2225,49 +2280,48 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             _schedulePendingCommentatorScroll();
                           }
 
-                          Widget buildList(
-                            ScrollPhysics physics,
-                          ) => ScrollablePositionedList.builder(
-                            itemScrollController: _itemScrollController,
-                            itemPositionsListener: _itemPositionsListener,
-                            listController: _listController,
-                            restorePosition: widget.shrinkWrap,
-                            findChildIndexCallback: (key) =>
-                                _flatIndexByKey[key],
-                            initialScrollIndex: flatItems.isEmpty
-                                ? 0
-                                : _lastScrollIndex.clamp(
-                                    0,
-                                    flatItems.length - 1,
-                                  ),
-                            physics: physics,
-                            shrinkWrap: widget.shrinkWrap,
-                            itemCount: flatItems.length,
-                            itemBuilder: (context, index) {
-                              final item = flatItems[index];
-                              final link = item.link;
-                              final child = link == null
-                                  ? _buildGroupHeader(item.group)
-                                  : _buildLinkItem(
-                                      item.group,
-                                      link,
-                                      item.previousVisibleLink,
-                                      state,
-                                    );
-                              return KeyedSubtree(
-                                key: _flatItemKey(item),
-                                child: item.showDivider
-                                    ? Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          child,
-                                          const Divider(height: 1),
-                                        ],
-                                      )
-                                    : child,
+                          Widget buildList(ScrollPhysics physics) =>
+                              ScrollablePositionedList.builder(
+                                itemScrollController: _itemScrollController,
+                                itemPositionsListener: _itemPositionsListener,
+                                listController: _listController,
+                                restorePosition: widget.shrinkWrap,
+                                findChildIndexCallback: (key) =>
+                                    _flatIndexByKey[key],
+                                initialScrollIndex: flatItems.isEmpty
+                                    ? 0
+                                    : _lastScrollIndex.clamp(
+                                        0,
+                                        flatItems.length - 1,
+                                      ),
+                                physics: physics,
+                                shrinkWrap: widget.shrinkWrap,
+                                itemCount: flatItems.length,
+                                itemBuilder: (context, index) {
+                                  final item = flatItems[index];
+                                  final link = item.link;
+                                  final child = link == null
+                                      ? _buildGroupHeader(item.group)
+                                      : _buildLinkItem(
+                                          item.group,
+                                          link,
+                                          item.previousVisibleLink,
+                                          state,
+                                        );
+                                  return KeyedSubtree(
+                                    key: _flatItemKey(item),
+                                    child: item.showDivider
+                                        ? Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              child,
+                                              const Divider(height: 1),
+                                            ],
+                                          )
+                                        : child,
+                                  );
+                                },
                               );
-                            },
-                          );
                           final listView = widget.handOffEdgeDragsToParent
                               ? EdgeDragHandoff(
                                   builder: (_, physics) => buildList(physics),
@@ -2295,6 +2349,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                             child: RtlSelectionShortcuts(
                               child: SelectionArea(
                                 key: _selectionAreaKey,
+                                focusNode: _selectionAreaFocusNode,
                                 contextMenuBuilder: (context, _) =>
                                     const SizedBox.shrink(),
                                 onSelectionChanged: (selection) =>

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -130,6 +131,10 @@ class RtlSelectionShortcuts extends StatelessWidget {
             _PhysicalExtendSelectionIntent(physicalLeft: true, word: false),
         SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
             _PhysicalExtendSelectionIntent(physicalLeft: false, word: false),
+        SingleActivator(LogicalKeyboardKey.arrowUp, shift: true):
+            _LockSelectionEdgeIntent(forward: false),
+        SingleActivator(LogicalKeyboardKey.arrowDown, shift: true):
+            _LockSelectionEdgeIntent(forward: true),
       };
 
   // רמת מילה: Ctrl ב-Windows/Linux, Alt ב-macOS/iOS — תואם למיפוי הפלטפורמה
@@ -185,6 +190,12 @@ class RtlSelectionShortcuts extends StatelessWidget {
   static final Map<ShortcutActivator, Intent> _ctrlPlatformShortcuts = {
     ..._charShortcuts,
     ..._ctrlWordShortcuts,
+    for (final control in [false, true]) ...{
+      SingleActivator(LogicalKeyboardKey.home, shift: true, control: control):
+          const _LockSelectionEdgeIntent(forward: false),
+      SingleActivator(LogicalKeyboardKey.end, shift: true, control: control):
+          const _LockSelectionEdgeIntent(forward: true),
+    },
   };
 
   static final Map<ShortcutActivator, Intent> _altPlatformShortcuts = {
@@ -207,6 +218,7 @@ class RtlSelectionShortcuts extends StatelessWidget {
       child: Actions(
         actions: <Type, Action<Intent>>{
           _PhysicalExtendSelectionIntent: _PhysicalExtendSelectionAction(),
+          _LockSelectionEdgeIntent: _LockSelectionEdgeAction(),
         },
         child: child,
       ),
@@ -360,6 +372,99 @@ class _PhysicalExtendSelectionAction
     }
     return (multiLine: false, reversed: base.dx > extent.dx);
   }
+}
+
+/// הרחבת בחירה ש-Flutter מבצע בעצמו לפי שורות (Shift+למטה/למעלה,
+/// Shift+Home/End, Ctrl+Shift+Home/End). [forward] = לכיוון סוף הטקסט.
+@immutable
+class _LockSelectionEdgeIntent extends Intent {
+  const _LockSelectionEdgeIntent({required this.forward});
+
+  final bool forward;
+}
+
+/// נועל קצה בחירה RTL באותה פסקה: Flutter מכריע בין קצוות באותה שורה לפי X כ-LTR.
+/// בשאר המקרים משאיר את הטיפול ל-Flutter.
+class _LockSelectionEdgeAction extends Action<_LockSelectionEdgeIntent> {
+  @override
+  Object? invoke(_LockSelectionEdgeIntent intent) {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null ||
+        Directionality.maybeOf(focusContext) != TextDirection.rtl ||
+        isTextInputContext(focusContext)) {
+      return null;
+    }
+    final state = focusContext.findAncestorStateOfType<SelectableRegionState>();
+    final points = state == null ? null : _selectionEndpoints(state);
+    if (points == null ||
+        points.length < 2 ||
+        (points.first.point.dy - points.last.point.dy).abs() > 1.0 ||
+        !_hasRtlSelectionEdges(state!, points)) {
+      return null;
+    }
+    rtlSelectionPriming = true;
+    try {
+      for (final forward in [!intent.forward, intent.forward]) {
+        Actions.maybeInvoke(
+          focusContext,
+          ExtendSelectionByCharacterIntent(
+            forward: forward,
+            collapseSelection: false,
+          ),
+        );
+      }
+    } finally {
+      rtlSelectionPriming = false;
+    }
+    return null;
+  }
+
+  bool _hasRtlSelectionEdges(
+    SelectableRegionState state,
+    List<TextSelectionPoint> points,
+  ) {
+    final root = state.context.findRenderObject();
+    if (root is! RenderBox) return false;
+    RenderParagraph? selectedParagraph;
+    for (var i = 0; i < 2; i++) {
+      final point = points[i].point;
+      final other = points[1 - i].point;
+      final height = i == 0 ? state.startGlyphHeight : state.endGlyphHeight;
+      final inside = point + Offset((other.dx - point.dx).sign, -height / 2);
+      final hit = BoxHitTestResult();
+      root.hitTest(hit, position: inside);
+      final paragraphs = hit.path
+          .map((entry) => entry.target)
+          .whereType<RenderParagraph>();
+      if (paragraphs.isEmpty) return false;
+      final paragraph = paragraphs.first;
+      if (selectedParagraph != null &&
+          !identical(selectedParagraph, paragraph)) {
+        return false;
+      }
+      selectedParagraph = paragraph;
+      final local = paragraph.globalToLocal(root.localToGlobal(inside));
+      final word = paragraph.getWordBoundary(
+        paragraph.getPositionForOffset(local),
+      );
+      final boxes = paragraph
+          .getBoxesForSelection(
+            TextSelection(baseOffset: word.start, extentOffset: word.end),
+          )
+          .where((box) => box.toRect().contains(local));
+      if (boxes.isEmpty ||
+          boxes.any((box) => box.direction != TextDirection.rtl)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  KeyEventResult toKeyEventResult(
+    _LockSelectionEdgeIntent intent,
+    Object? invokeResult,
+  ) => KeyEventResult.ignored;
 }
 
 /// האם ה-context הנתון נמצא בתוך שדה קלט טקסטואלי (כולל עורכי Quill,

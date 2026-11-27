@@ -22,7 +22,9 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_display/models/text_display_layer.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
+
 import '../../test_helpers/fake_commentary_library_provider.dart';
+import '../../test_helpers/link_anchor_marker_pattern.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 import '../../test_helpers/stub_text_book_bloc.dart';
 
@@ -43,10 +45,7 @@ void main() {
     });
 
     test('כל הקישורים מאותה שורת מקור — true', () {
-      expect(
-        groupSharesSingleSource([link(3), link(3, index2: 2)]),
-        isTrue,
-      );
+      expect(groupSharesSingleSource([link(3), link(3, index2: 2)]), isTrue);
     });
 
     test('שורות מקור שונות (כל הפרק / בחירה מרובה) — false', () {
@@ -195,6 +194,11 @@ void main() {
             categoryId: 1,
             fileType: 'txt',
           ): FakeCommentaryLibraryProvider(),
+          BookCompositeKey.create(
+            title: 'באר הגולה על שולחן ערוך אורח חיים',
+            categoryId: 1,
+            fileType: 'txt',
+          ): FakeCommentaryLibraryProvider(),
         },
         providers: [FakeCommentaryLibraryProvider()],
       );
@@ -214,7 +218,7 @@ void main() {
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
       expect(find.text(_kFakeContent), findsOneWidget);
-      expect(find.text('מפרש בדיקה, ג ב'), findsNothing);
+      expect(find.textContaining('ג ב'), findsNothing);
     });
 
     testWidgets('יעד במקום אחר — הכותרת מוצגת', (tester) async {
@@ -224,7 +228,7 @@ void main() {
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
-      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+      expect(find.text('סימן ב'), findsOneWidget);
     });
 
     testWidgets('קבוצה מכמה שורות מקור — הכותרות מוצגות', (tester) async {
@@ -243,8 +247,8 @@ void main() {
 
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
-      expect(find.text('מפרש בדיקה, ג ב'), findsOneWidget);
-      expect(find.text('מפרש בדיקה, ד א'), findsOneWidget);
+      expect(find.text('ג ב'), findsOneWidget);
+      expect(find.text('ד א'), findsOneWidget);
     });
 
     testWidgets('עוגן-מילה עם כותרת מוסתרת — אות הסימון נשארת', (tester) async {
@@ -261,14 +265,14 @@ void main() {
       await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
       // הסוגריים משתנים לפי וריאנט המפרש; הציפייה היא האות בכל אחד מהם בלבד.
-      final marker = RegExp(r'^[(\[{]א[)\]}]$');
+      final marker = RegExp('^${anyAnchorMarker('א')}\$');
       expect(
         find.byWidgetPredicate(
           (w) => w is Text && marker.hasMatch(w.data ?? ''),
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('מפרש בדיקה, ג ב'), findsNothing);
+      expect(find.textContaining('ג ב'), findsNothing);
     });
 
     testWidgets(
@@ -289,7 +293,7 @@ void main() {
 
         expect(find.text(_kFakeContent), findsOneWidget);
         expect(_markerText(), findsNothing);
-        expect(find.textContaining('מפרש בדיקה, ג ב'), findsNothing);
+        expect(find.textContaining('ג ב'), findsNothing);
       },
     );
 
@@ -309,7 +313,7 @@ void main() {
 
         await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
 
-        expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+        expect(find.text('סימן ב'), findsOneWidget);
         expect(_markerText(), findsNothing);
       },
     );
@@ -334,12 +338,121 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_markerText(), findsNothing);
-      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+      expect(find.text('סימן ב'), findsOneWidget);
 
       bloc.emitState(shown);
       await tester.pumpAndSettle();
 
       expect(_markerText(), findsOneWidget);
+    });
+
+    testWidgets('באר הגולה — הכותרת מבחינה בין הסימן למספר הרשומה '
+        '(issue #1979)', (tester) async {
+      const title = 'באר הגולה על שולחן ערוך אורח חיים';
+      final link = _link(
+        path2: title,
+        heRef: '$title, תרסד, ד',
+        index1: 1,
+        index2: 2,
+        anchorStart: 738,
+        anchorLabel: 'ג',
+      );
+      final bloc = StubTextBookBloc(
+        _loadedState(links: [link]).copyWith(
+          activeCommentators: const [title],
+          availableCommentators: const [title],
+        ),
+      );
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Text &&
+              RegExp(
+                '^${anyAnchorMarker('ג')}'
+                r' (?:באר הגולה על שולחן ערוך אורח חיים, )?תרסד, רשומה ד$',
+              ).hasMatch(w.data ?? ''),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('CommentaryListBase - כותרת מקטע בלי שם הספר (issue #3599)', () {
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemoryCacheProvider());
+    });
+
+    late _TestSettingsBloc settingsBloc;
+
+    setUp(() {
+      LibraryProviderManager.instance.resetForTesting();
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.create(
+            title: 'מפרש בדיקה',
+            categoryId: 1,
+            fileType: 'txt',
+          ): FakeCommentaryLibraryProvider(),
+        },
+        providers: [FakeCommentaryLibraryProvider()],
+      );
+      settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    });
+
+    tearDown(() async {
+      await settingsBloc.close();
+      LibraryProviderManager.instance.resetForTesting();
+    });
+
+    testWidgets('שתי שורות מקור — הכתובות מוצגות בלי שם הספר שבקבוצה', (
+      tester,
+    ) async {
+      final links = [
+        _link(heRef: 'מפרש בדיקה ו, ה', index1: 1, index2: 3),
+        _link(heRef: 'מפרש בדיקה ו, ח', index1: 2, index2: 4),
+      ];
+      final bloc = StubTextBookBloc(
+        _loadedState(
+          links: links,
+          content: const ['שורה א', 'שורה ב'],
+          visibleIndices: const [0, 1],
+        ),
+      );
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+      // כותרת הקבוצה מציגה את שם הספר פעם אחת.
+      expect(find.text('מפרש בדיקה'), findsOneWidget);
+      expect(find.text('ו, ה'), findsOneWidget);
+      expect(find.text('ו, ח'), findsOneWidget);
+      expect(find.textContaining('מפרש בדיקה ו'), findsNothing);
+    });
+
+    testWidgets('עם אות סימון — האות לפני הכתובת המקוצרת', (tester) async {
+      final link = _link(
+        heRef: 'מפרש בדיקה, סימן ב',
+        index1: 1,
+        index2: 2,
+        anchorStart: 0,
+        anchorLabel: 'א',
+      );
+      final bloc = StubTextBookBloc(_loadedState(links: [link]));
+      addTearDown(() async => bloc.close());
+
+      await _pump(tester, textBookBloc: bloc, settingsBloc: settingsBloc);
+
+      final title = RegExp('^${anyAnchorMarker('א')} סימן ב\$');
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Text && title.hasMatch(w.data ?? ''),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -383,7 +496,7 @@ void main() {
       ]);
 
       expect(find.text(_kFakeContent), findsNWidgets(2));
-      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
+      expect(find.text('סימן ב'), findsOneWidget);
     });
 
     testWidgets('כותרות שונות — שתיהן מוצגות', (tester) async {
@@ -392,8 +505,8 @@ void main() {
         _link(heRef: 'מפרש בדיקה, סימן ג', index1: 1, index2: 2),
       ]);
 
-      expect(find.text('מפרש בדיקה, סימן ב'), findsOneWidget);
-      expect(find.text('מפרש בדיקה, סימן ג'), findsOneWidget);
+      expect(find.text('סימן ב'), findsOneWidget);
+      expect(find.text('סימן ג'), findsOneWidget);
     });
 
     testWidgets('כותרת חוזרת עם עוגן-מילה — אות הסימון נשארת', (tester) async {
@@ -408,14 +521,14 @@ void main() {
         ),
       ]);
 
-      final marker = RegExp(r'^[(\[{]א[)\]}]$');
+      final marker = RegExp('^${anyAnchorMarker('א')}\$');
       expect(
         find.byWidgetPredicate(
           (w) => w is Text && marker.hasMatch(w.data ?? ''),
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('מפרש בדיקה, סימן ב'), findsOneWidget);
+      expect(find.textContaining('סימן ב'), findsOneWidget);
     });
   });
 
@@ -472,7 +585,7 @@ void main() {
         _link(heRef: 'מפרש בדיקה, סימן ב', index1: 1, index2: 1),
         _link(heRef: 'מפרש בדיקה, סימן ג', index1: 1, index2: 2),
       ]);
-      final title = find.text('מפרש בדיקה, סימן ג');
+      final title = find.text('סימן ג');
 
       expect(gap, greaterThan(8.0));
       expect(
@@ -493,6 +606,7 @@ const _kFakeContent = 'זהו פירוש לבדיקה עם טקסט שניתן �
 
 Link _link({
   required String heRef,
+  String path2 = 'מפרש בדיקה.txt',
   required int index1,
   required int index2,
   int? anchorStart,
@@ -501,7 +615,7 @@ Link _link({
   return Link(
     heRef: heRef,
     index1: index1,
-    path2: 'מפרש בדיקה.txt',
+    path2: path2,
     index2: index2,
     connectionType: 'commentary',
     targetCategoryId: 1,
@@ -526,7 +640,7 @@ TextBookLoaded _withBodyMarkersHidden(TextBookLoaded state) {
 
 /// אות הסימון א בכל אחד מסוגרי הווריאנטים, לבד או לפני כותרת.
 Finder _markerText() => find.byWidgetPredicate(
-  (w) => w is Text && RegExp(r'[(\[{]א[)\]}]').hasMatch(w.data ?? ''),
+  (w) => w is Text && RegExp(anyAnchorMarker('א')).hasMatch(w.data ?? ''),
 );
 
 TextBookLoaded _loadedState({
@@ -560,7 +674,6 @@ TextBookLoaded _loadedState({
     removeNikud: false,
     visibleIndices: visibleIndices,
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

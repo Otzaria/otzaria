@@ -33,6 +33,12 @@ class _FakeAdapter implements PluginBridgeAdapter {
   String? lastAction;
 
   @override
+  Object pageToken = Object();
+
+  @override
+  bool isCurrentPage(Object page) => identical(page, pageToken);
+
+  @override
   Future<dynamic> execute(
     String domain,
     String action,
@@ -60,6 +66,17 @@ class _StubRegistry extends PluginRegistryRepository {
   @override
   Future<bool?> getPermission(String pluginId, String permission) async {
     return grantValue;
+  }
+}
+
+class _PendingRegistry extends PluginRegistryRepository {
+  final checked = Completer<void>();
+  final grant = Completer<bool>();
+
+  @override
+  Future<bool?> getPermission(String pluginId, String permission) {
+    checked.complete();
+    return grant.future;
   }
 }
 
@@ -182,6 +199,47 @@ List<dynamic> _cancelNetworkFetchRequest({bool includeExtraKey = false}) => [
 ];
 
 void main() {
+  group('semantic RPC', () {
+    final request = [
+      {'method': 'semantic.getStatus', 'payload': <String, dynamic>{}},
+    ];
+
+    test('גישה דורשת הצהרה והענקה של ההרשאה הייעודית', () async {
+      for (final (permissions, grant) in [
+        (const ['search.fulltext.read'], true),
+        (const ['search.semantic.read'], false),
+        (const ['search.semantic.read'], true),
+      ]) {
+        final adapter = _FakeAdapter(result: 'ready');
+        final handler = PluginBridgeHandler(
+          _buildInstalledPlugin(permissions: permissions),
+          adapter: adapter,
+          registry: _StubRegistry(grant),
+        );
+        final response = await handler.handleRpcForTesting(request) as Map;
+        final allowed = grant && permissions.contains('search.semantic.read');
+        expect(response['success'], allowed);
+        expect(adapter.executeCalls, allowed ? 1 : 0);
+      }
+    });
+
+    test('דף שהוחלף בזמן בדיקת ההרשאה לא מתחיל עבודה', () async {
+      final adapter = _FakeAdapter();
+      final registry = _PendingRegistry();
+      final handler = PluginBridgeHandler(
+        _buildInstalledPlugin(permissions: const ['search.semantic.read']),
+        adapter: adapter,
+        registry: registry,
+      );
+      final response = handler.handleRpcForTesting(request);
+      await registry.checked.future;
+      adapter.pageToken = Object();
+      registry.grant.complete(true);
+      expect((await response as Map)['error']['code'], 'error.unavailable');
+      expect(adapter.executeCalls, 0);
+    });
+  });
+
   group('PluginBridgeHandler.isRateLimitExempt', () {
     test('library.getBookContent מוחרג ממגביל הקצב', () {
       // טעינת ספר מלא מחולקת ל-chunks ומחייבת עשרות קריאות רצופות; ספירתן

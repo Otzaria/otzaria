@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' show min;
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart' show ZipDecoder;
 
@@ -9,6 +11,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/search/search_engine_gateway.dart'
@@ -41,7 +44,10 @@ import 'package:otzaria/utils/file/zip_entry_io.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
         SemanticHighlightTarget,
+        SemanticNearestInput,
+        SemanticNearestResponse,
         SemanticPassageHighlight,
+        SemanticQueryTokens,
         SemanticRetrievalMode;
 import 'package:path/path.dart' as p;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
@@ -86,8 +92,10 @@ class SemanticSearchRepository {
     bool Function()? isPlatformSupported,
     Future<DiskSpaceInfo> Function(String path)? diskSpace,
     Map<SemanticQuantization, SemanticModelRelease?>? modelReleases,
+    Future<String> Function()? indexStamp,
     this._busyRetryDelay = const Duration(minutes: 2),
-  }) : _backend = backend ?? createSemanticEngineBackend(),
+  }) : _indexStamp = indexStamp ?? _defaultIndexStamp,
+       _backend = backend ?? createSemanticEngineBackend(),
        _consentFactory = consent ?? (() => SearchFeedbackService.instance),
        _settings = settings ?? const SettingsSemanticSettingsStore(),
        _basePaths = paths ?? _defaultPaths,
@@ -131,6 +139,7 @@ class SemanticSearchRepository {
   final String? Function() _onnxRuntimePath;
   final bool Function() _isPlatformSupported;
   final Future<DiskSpaceInfo> Function(String path) _diskSpace;
+  final Future<String> Function() _indexStamp;
   final Map<SemanticQuantization, SemanticModelRelease?>?
   _modelReleaseOverrides;
 
@@ -175,6 +184,7 @@ class SemanticSearchRepository {
     _jobCancel.cancel();
     await _job;
     await _settings.setModelChoice(value);
+    _invalidateCoveredBooks();
     await _settings.setSkippedVectorsRelease(null);
     _lastFailure = null;
     _unpublishedVersion = null;
@@ -250,6 +260,12 @@ class SemanticSearchRepository {
   SemanticQuantization? _openQuantization;
   final SemanticSearchSession _defaultSession = SemanticSearchSession();
   final Set<SemanticCancelHandle> _activeSearches = {};
+  _CoveredBooks? _covered;
+  bool _coveredValid = false;
+  int _coveredEpoch = 0;
+  Future<Set<String>?>? _coveredJob;
+  final Set<SemanticBackgroundCall> _backgroundCalls = {};
+  final Set<SemanticCancelHandle> _foregroundSearches = {};
 
   /// המצב האחרון שחושב.
   SemanticAvailability get availability => _availability;
@@ -460,6 +476,10 @@ class SemanticSearchRepository {
   }) async {
     final handle = (session ?? _defaultSession)._next();
     _activeSearches.add(handle);
+    _foregroundSearches.add(handle);
+    for (final call in List.of(_backgroundCalls)) {
+      call.preempt();
+    }
     try {
       await ensureOpen();
       if (handle.isCancelled) return null;
@@ -472,6 +492,7 @@ class SemanticSearchRepository {
       rethrow;
     } finally {
       _activeSearches.remove(handle);
+      _foregroundSearches.remove(handle);
     }
   }
 
@@ -492,12 +513,91 @@ class SemanticSearchRepository {
     }
   }
 
+  /// רושם פעולה סמנטית של תוסף מתחילת הבקשה ועד מסירת התשובה.
+  void Function() registerBackgroundCall(SemanticBackgroundCall call) {
+    _listenToConsent();
+    if (_foregroundSearches.isNotEmpty) {
+      call.preempt();
+    } else if (_moveInProgress || !_isConsentGranted()) {
+      call.cancel();
+    }
+    if (!call.isCancelled) _backgroundCalls.add(call);
+    return () => _backgroundCalls.remove(call);
+  }
+
+  /// בודק שניתן לגשת לנתונים גם לאחר המתנה לטעינת הספרייה או לשיגור.
+  void checkBackgroundCall(SemanticBackgroundCall call) {
+    if (!call.isCancelled && (_moveInProgress || !_isConsentGranted())) {
+      call.cancel();
+    }
+    if (call.isCancelled || !_backgroundCalls.contains(call)) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+  }
+
+  /// השורות הקרובות לנקודות של [input].
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticBackgroundCall call,
+    required Future<void> Function() onSearching,
+  }) async {
+    checkBackgroundCall(call);
+    await ensureOpen();
+    checkBackgroundCall(call);
+    final passageGraph = _modelReleases[_openQuantization]?.passageGraph;
+    if (passageGraph != null && input.points.any((point) => point.asPassage)) {
+      final path = (await _paths()).modelFile(SemanticQuantization.fp32);
+      checkBackgroundCall(call);
+      if (!await _verifyPassageModelFile(path, passageGraph)) {
+        throw const SemanticFailure(SemanticFailureKind.notReady);
+      }
+    }
+    checkBackgroundCall(call);
+    await onSearching();
+    checkBackgroundCall(call);
+    return _backend.nearest(input, cancel: call);
+  }
+
+  /// אורך כל אחד מ-[texts] כשאילתה, בטוקנים.
+  Future<SemanticQueryTokens> queryTokens(
+    List<String> texts, {
+    required SemanticBackgroundCall call,
+  }) async {
+    checkBackgroundCall(call);
+    if (texts.isEmpty) {
+      throw const SemanticFailure(SemanticFailureKind.invalidInput);
+    }
+    await ensureOpen();
+    // הקריאה במנוע אינה מקבלת token לביטול, לכן יש נקודת עצירה בין מנות.
+    final counts = Uint32List(texts.length);
+    SemanticQueryTokens? first;
+    const batchSize = 16;
+    for (var start = 0; start < texts.length; start += batchSize) {
+      checkBackgroundCall(call);
+      final end = min(start + batchSize, texts.length);
+      final result = await _backend.queryTokens(texts.sublist(start, end));
+      first ??= result;
+      counts.setRange(start, end, result.counts);
+    }
+    return SemanticQueryTokens(
+      counts: counts,
+      queryMaxTokens: first!.queryMaxTokens,
+      overheadTokens: first.overheadTokens,
+    );
+  }
+
+  /// חישוב כיסוי עבור תוסף משתמש באותה בדיקת גרסאות ומטמון כמו החיפוש.
+  Future<Set<String>?> loadBackgroundCoveredBooks(SemanticBackgroundCall call) {
+    checkBackgroundCall(call);
+    return _loadCovered(call);
+  }
+
   /// מבטל את החיפוש הרץ של [session] (ברירת המחדל: מי שלא העביר session).
   void cancelSearch({SemanticSearchSession? session}) =>
       (session ?? _defaultSession).cancel();
 
   void _cancelAllSearches() {
-    for (final handle in List.of(_activeSearches)) {
+    for (final handle in [..._activeSearches, ..._backgroundCalls]) {
       handle.cancel();
     }
   }
@@ -507,6 +607,7 @@ class SemanticSearchRepository {
   /// עד [finishLibraryMove] לא מתחילות הורדות והתקנות חדשות.
   Future<void> releaseForLibraryMove() async {
     _moveInProgress = true;
+    _cancelAllSearches();
     _busyRetry?.cancel();
     await _stopPassageModelDownload();
     _jobCancel.cancel();
@@ -542,6 +643,80 @@ class SemanticSearchRepository {
     (await _paths()).vectorsDirectory,
     cancel: cancel ?? SemanticCancelHandle(),
   );
+
+  /// ה-filePath באינדקס של הספרים שיש להם וקטורים, כפי שחושב לאחרונה;
+  /// `null` לפני חישוב או אחרי ביטול. יש לטעון מחדש כדי לאמת עדכניות.
+  Set<String>? get coveredBookFilePaths =>
+      _coveredValid ? _covered?.filePaths : null;
+
+  /// מחשב את [coveredBookFilePaths] כשצריך, בלי לפתוח session; קוראים
+  /// במקביל חולקים חישוב אחד. בלי חיפוש שמיש, בכשל או בביטול: `null`.
+  Future<Set<String>?> loadCoveredBookFilePaths() =>
+      _coveredJob ??= _loadCovered().whenComplete(() => _coveredJob = null);
+
+  Future<Set<String>?> _loadCovered([SemanticCancelHandle? request]) async {
+    final cancel = request ?? SemanticCancelHandle();
+    if (request == null) _activeSearches.add(cancel);
+    try {
+      final current = _availability.isUsable ? _availability : await refresh();
+      if (!current.isUsable || _moveInProgress || !_isConsentGranted()) {
+        return null;
+      }
+      for (var attempt = 0; attempt < 2 && !cancel.isCancelled; attempt++) {
+        final epoch = _coveredEpoch;
+        final directory = (await _paths()).vectorsDirectory;
+        final stamp = await _coverageStamp(directory);
+        if (cancel.isCancelled || !_isConsentGranted()) return null;
+        if (epoch != _coveredEpoch) continue;
+        final previous = _covered;
+        if (_coveredValid &&
+            stamp.vectors != null &&
+            previous?.cacheable == true &&
+            previous?.stamp == stamp) {
+          return previous!.filePaths;
+        }
+        _coveredValid = false;
+        final answer = await _backend.coveredBooks(directory, cancel: cancel);
+        final after = await _coverageStamp(directory);
+        if (cancel.isCancelled || !_isConsentGranted()) return null;
+        if (epoch != _coveredEpoch || stamp != after) continue;
+        final paths =
+            previous?.setKey == answer.setKey &&
+                setEquals(previous?.filePaths, answer.filePaths.toSet())
+            ? previous!.filePaths
+            : Set<String>.unmodifiable(answer.filePaths);
+        _covered = _CoveredBooks(
+          setKey: answer.setKey,
+          stamp: stamp,
+          cacheable: !answer.recoveredFromPrevious,
+          filePaths: paths,
+        );
+        _coveredValid = true;
+        return paths;
+      }
+      return null;
+    } catch (error, stackTrace) {
+      if (!cancel.isCancelled) _coveredValid = false;
+      if (error is! SemanticFailure ||
+          error.kind != SemanticFailureKind.cancelled) {
+        _log('coveredBooks', error, stackTrace);
+      }
+      return null;
+    } finally {
+      if (request == null) _activeSearches.remove(cancel);
+    }
+  }
+
+  Future<_CoverageStamp> _coverageStamp(String directory) async => (
+    directory: directory,
+    index: await _indexStamp(),
+    vectors: await _backend.coveredBooksStamp(directory),
+  );
+
+  void _invalidateCoveredBooks() {
+    _coveredEpoch++;
+    _coveredValid = false;
+  }
 
   /// תמונת המנוע לטלמטריה: מצב, זהות המודל, החבילה והוקטורים המותקנים.
   Future<SemanticEngineSnapshot> engineSnapshot() async {
@@ -778,7 +953,11 @@ class SemanticSearchRepository {
     bool waitForOpening = true,
     bool invalidateOpening = true,
   }) async {
-    if (invalidateOpening) _lifecycleEpoch++;
+    // הסגירה שבתוך פתיחה אינה משנה את הסט; סגירה מבחוץ (מחיקה, העברה) כן.
+    if (invalidateOpening) {
+      _lifecycleEpoch++;
+      _invalidateCoveredBooks();
+    }
     final wasOpen = _openQuantization != null;
     _openQuantization = null;
     _passageModelVerification = null;
@@ -1429,6 +1608,7 @@ class SemanticSearchRepository {
     }
     _needsRepair = false;
     if (repair) _lastFailure = null;
+    _invalidateCoveredBooks();
     _vectors = await _backend.vectorsInfo(paths.vectorsDirectory);
     return true;
   }
@@ -1450,6 +1630,7 @@ class SemanticSearchRepository {
       // גרסת המסד אינה מוכיחה שהאינדקס מלא ועדכני; בלי גרסת אינדקס מאומתת
       // מאחדים בלי לנפות רשומות מול האינדקס, שעשוי להיות חלקי.
       await _backend.compactVectors(dir, cancel: cancel);
+      _invalidateCoveredBooks();
       if (!cancel.isCancelled) _vectors = await _backend.vectorsInfo(dir);
     } on SemanticFailure catch (failure) {
       if (failure.kind == SemanticFailureKind.vectorsBusy) {
@@ -1941,6 +2122,10 @@ class SemanticSearchRepository {
     );
   }
 
+  /// משתנה בכל שינוי בתוכן האינדקס הלקסיקלי, שגם בו תלוי הכיסוי.
+  static Future<String> _defaultIndexStamp() async =>
+      (await TantivyDataProvider.instance.engine).searchSnapshot();
+
   static Future<int?> _defaultLibraryVersion() async =>
       int.tryParse(await DataCollectionService().readLibraryVersion());
 
@@ -1948,6 +2133,23 @@ class SemanticSearchRepository {
     debugPrint('[SemanticSearch] $step: $error\n$stackTrace');
   }
 }
+
+/// תשובת הכיסוי האחרונה, והמצב של הסט והאינדקס שהיא נכונה להם.
+class _CoveredBooks {
+  const _CoveredBooks({
+    required this.setKey,
+    required this.stamp,
+    required this.cacheable,
+    required this.filePaths,
+  });
+
+  final String setKey;
+  final _CoverageStamp stamp;
+  final bool cacheable;
+  final Set<String> filePaths;
+}
+
+typedef _CoverageStamp = ({String directory, String index, String? vectors});
 
 /// release של רכיב החיפוש והקבצים ממנו שחסרים במכשיר.
 typedef _ModelPlan = ({

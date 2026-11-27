@@ -48,7 +48,6 @@ TextBookLoaded _loaded(TextBook book, Map<int, List<Link>> links) =>
       linksByLine: links,
       tableOfContents: const [],
       visibleIndices: [for (final line in links.keys) line - 1],
-      pinLeftPane: false,
       searchText: '',
     );
 

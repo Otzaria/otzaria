@@ -6,11 +6,142 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
+import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 void main() {
+  group('rich copy across source rows (#5290)', () {
+    const rows = [
+      '<a href="outside">before</a>',
+      'skip <a href="one">first </a>',
+      '<i>middle</i>',
+      '<a href="two">last</a> skip',
+    ];
+    for (final gap in ['\n', ' ']) {
+      test(
+        'copies both hrefs using the selected separator ${gap.codeUnits}',
+        () async {
+          final plain = ['first', 'middle', 'last'].join(gap);
+          final copy = await buildSelectedTextCopy(
+            plainText: plain,
+            selectedIndex: 1,
+            selectionLineStart: 1,
+            selectionLineEnd: 3,
+            sourceContent: rows,
+            textBookState: null,
+            settingsState: SettingsState.initial(),
+          );
+          expect(copy!.plainText, plain);
+          expect(
+            copy.htmlText,
+            '<a href="one">first</a>$gap<i>middle</i>$gap<a href="two">last</a>',
+          );
+          final html = CopyUtils.buildStyledHtml(
+            htmlText: copy.htmlText,
+            fontFamily: 'Arial',
+            fontSize: 16,
+          );
+          expect(html, contains('<a href="one">first</a>'));
+          expect(html, contains('<a href="two">last</a>'));
+        },
+      );
+    }
+
+    test('uses displayed text when punctuation is hidden in the source', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'one two three',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const ['<b>one,two</b>', '<a href="three">three</a>'],
+        ),
+        '<b>one two</b> <a href="three">three</a>',
+      );
+    });
+
+    test(
+      'preserves the link when the selection ends on visible punctuation',
+      () {
+        expect(
+          resolveHtmlTextForSelection(
+            plainText: 'first\n.',
+            selectedIndex: 0,
+            selectionLineStart: 0,
+            selectionLineEnd: 1,
+            sourceContent: const ['<a href="one">first</a>', '.'],
+          ),
+          '<a href="one">first</a>\n.',
+        );
+      },
+    );
+
+    test('escapes displayed punctuation and link attributes in rich HTML', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: '<first> & last',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const [
+            '<a href="https://example.org/?x=1&amp;y=2">&lt;first&gt;</a>',
+            '&amp; last',
+          ],
+        ),
+        '<a href="https://example.org/?x=1&amp;y=2">&lt;first&gt;</a> '
+        '&amp; last',
+      );
+    });
+
+    test('keeps link text when the source destination is not allowed', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'first\nlast',
+          selectedIndex: 0,
+          selectionLineStart: 0,
+          selectionLineEnd: 1,
+          sourceContent: const [
+            '<a href="file:///fixtures/reference.txt">first</a>',
+            '<a href="https://example.org/reference">last</a>',
+          ],
+        ),
+        '<a>first</a>\n<a href="https://example.org/reference">last</a>',
+      );
+    });
+
+    test('ignores matches outside either end of the known source range', () {
+      expect(
+        resolveHtmlTextForSelection(
+          plainText: 'middle',
+          selectedIndex: 2,
+          selectionLineStart: 1,
+          selectionLineEnd: 3,
+          sourceContent: rows,
+        ),
+        'middle',
+      );
+    });
+
+    test(
+      'different markup on repeated matches across the same boundary is ambiguous',
+      () {
+        const selected = 'one one one';
+        expect(
+          resolveHtmlTextForSelection(
+            plainText: selected,
+            selectedIndex: 0,
+            selectionLineStart: 0,
+            selectionLineEnd: 1,
+            sourceContent: const ['one <a href="a">one</a>', '<b>one</b> one'],
+          ),
+          selected,
+        );
+      },
+    );
+  });
+
   group('resolveHtmlTextForSelection', () {
     test('מחזיר HTML מקורי כשהבחירה מכסה את כל השורה', () {
       final resolved = resolveHtmlTextForSelection(
@@ -350,6 +481,96 @@ void main() {
       );
       expect(copied, isNull);
     });
+
+    group('כותרת בשורה נפרדת כשערוץ ההעתקה מסתיר פיסוק (#5463)', () {
+      // פסוק כפי שהוא בספר בראשית; הכותרת "פרק א" אינה מסתיימת בנקודה.
+      const verse =
+          '(א) <big>בְּ</big>רֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃';
+      const plainVerse =
+          '(א) בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃';
+      const header = 'ספר בדיקה, פרק א';
+
+      Future<({String plainText, String htmlText})> copyVerse(
+        String format, {
+        String heading = 'פרק א',
+        bool removeNikud = false,
+      }) async {
+        final state = _state(
+          verse,
+          link,
+          const TextDisplayPatch(punctuation: MarkVisibility.hide),
+        ).copyWith(content: ['<h2>$heading</h2>', verse]);
+        final copied = await buildSelectedTextCopy(
+          plainText: plainVerse,
+          selectedIndex: 1,
+          sourceContent: state.content,
+          textBookState: state,
+          settingsState: SettingsState.initial().copyWith(
+            copyWithHeaders: 'book_and_path',
+            copyHeaderFormat: format,
+          ),
+          copyTarget: TextTarget.body,
+          removeNikud: removeNikud,
+        );
+        return copied!;
+      }
+
+      test('כותרת לפני הטקסט', () async {
+        final copied = await copyVerse('separate_line_before');
+        expect(copied.plainText, '$header\n$plainVerse');
+        expect(
+          CopyUtils.buildStyledHtml(
+            htmlText: copied.htmlText,
+            fontFamily: 'Arial',
+            fontSize: 16,
+          ),
+          allOf(
+            startsWith('<div dir="rtl" style='),
+            contains('>$header</div><span dir="rtl" style='),
+            endsWith('>$verse</span>'),
+          ),
+        );
+      });
+
+      test('כותרת אחרי הטקסט', () async {
+        final copied = await copyVerse('separate_line_after');
+        expect(copied.plainText, '$plainVerse\n$header');
+        expect(
+          CopyUtils.buildStyledHtml(
+            htmlText: copied.htmlText,
+            fontFamily: 'Arial',
+            fontSize: 16,
+          ),
+          allOf(contains('>$verse</div>'), endsWith('>$header</span>')),
+        );
+      });
+
+      test('העתק בלי ניקוד מסיר ניקוד וטעמים גם מכותרת נפרדת', () async {
+        final copied = await copyVerse(
+          'separate_line_before',
+          heading: 'פֶּ֖רֶק א',
+          removeNikud: true,
+        );
+        const unmarked = '(א) בראשית ברא אלהים את השמים ואת הארץ';
+        const htmlUnmarked =
+            '(א) <big>ב</big>ראשית ברא אלהים את השמים ואת הארץ';
+        expect(copied.plainText, '$header\n$unmarked');
+        expect(copied.htmlText, '$header\n$htmlUnmarked');
+      });
+
+      for (final entry in const {
+        'same_line_after_brackets': '$plainVerse (ספר בדיקה פרק א)',
+        'same_line_after_no_brackets': '$plainVerse ספר בדיקה פרק א',
+        'same_line_before_brackets': '(ספר בדיקה פרק א) $plainVerse',
+        'same_line_before_no_brackets': 'ספר בדיקה פרק א $plainVerse',
+      }.entries) {
+        test('סינון כותרת נשמר בתבנית ${entry.key}', () async {
+          final copied = await copyVerse(entry.key);
+          expect(copied.plainText, entry.value);
+          expect(copied.htmlText, entry.value.replaceFirst(plainVerse, verse));
+        });
+      }
+    });
   });
 }
 
@@ -372,7 +593,6 @@ TextBookLoaded _state(String line, Link link, TextDisplayPatch copy) {
     removeNikud: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     displayPolicy: TextDisplayPolicy.empty.merged(
       TextDisplayBookClass.general,

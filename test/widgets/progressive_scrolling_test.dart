@@ -307,6 +307,28 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.pageDown);
   });
 
+  testWidgets('שחרור PageDown בספרון שומר על רצף המקש הייעודי', (tester) async {
+    var navigations = 0;
+    await pumpProgressiveScroll(tester, onNavigationStart: () => navigations++);
+    const pageDown = LogicalKeyboardKey.pageDown;
+    const numpad = PhysicalKeyboardKey.numpad3;
+    await tester.sendKeyDownEvent(pageDown, platform: 'windows');
+    await tester.sendKeyDownEvent(
+      pageDown,
+      platform: 'windows',
+      physicalKey: numpad,
+    );
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(
+      pageDown,
+      platform: 'windows',
+      physicalKey: numpad,
+    );
+    await tester.sendKeyRepeatEvent(pageDown, platform: 'windows');
+    expect(navigations, 2);
+    await tester.sendKeyUpEvent(pageDown, platform: 'windows');
+  });
+
   testWidgets('החלפת בקר מתחילה רצף PageDown חדש גם ללא KeyDown', (
     tester,
   ) async {
@@ -414,6 +436,44 @@ void main() {
     expect(offsetController.offsets.last, greaterThan(0));
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
   });
+
+  for (final handleRelease in [false, true]) {
+    testWidgets('שחרור חץ בספרון משאיר גלילה (callback: $handleRelease)', (
+      tester,
+    ) async {
+      await pumpProgressiveScroll(
+        tester,
+        onKeyEvent: (_, event) => handleRelease && event is KeyUpEvent
+            ? KeyEventResult.handled
+            : KeyEventResult.ignored,
+      );
+      const arrowDown = LogicalKeyboardKey.arrowDown;
+      const numpad = PhysicalKeyboardKey.numpad2;
+      await tester.sendKeyDownEvent(arrowDown, platform: 'windows');
+      await tester.sendKeyDownEvent(
+        arrowDown,
+        platform: 'windows',
+        physicalKey: numpad,
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(offsetController.directOffsets, isNotEmpty);
+      await tester.sendKeyUpEvent(
+        arrowDown,
+        platform: 'windows',
+        physicalKey: numpad,
+      );
+      final duringHold = offsetController.directOffsets.length;
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(offsetController.directOffsets.length, greaterThan(duringHold));
+
+      await tester.sendKeyUpEvent(arrowDown, platform: 'windows');
+      final afterRelease = offsetController.directOffsets.length;
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(offsetController.directOffsets.length, afterRelease);
+    });
+  }
 
   testWidgets('איבוד חלון עוצר לחיצה בלי לחכות ל-KeyUp', (tester) async {
     await pumpProgressiveScroll(tester);

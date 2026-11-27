@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
@@ -221,6 +222,32 @@ class FakeBackend implements SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   }) async => throw UnimplementedError();
 
+  /// מה [coveredBooks] מחזיר; `null` = כשל.
+  SemanticCoveredBooksSummary? coveredBooksValue;
+  Completer<void>? coveredBooksGate;
+
+  String? coveredBooksStampValue = 'vectors';
+
+  @override
+  Future<String?> coveredBooksStamp(String vectorsDir) async =>
+      coveredBooksStampValue;
+
+  @override
+  Future<SemanticCoveredBooksSummary> coveredBooks(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('coveredBooks');
+    final answer = coveredBooksValue;
+    final gate = coveredBooksGate;
+    if (gate != null) await gate.future;
+    if (cancel.isCancelled) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+    return answer ??
+        (throw const SemanticFailure(SemanticFailureKind.artifactMissing));
+  }
+
   @override
   Future<SemanticBackendStatus> open(SemanticOpenRequest request) async {
     calls.add('open');
@@ -312,7 +339,62 @@ class FakeBackend implements SemanticEngineBackend {
         ),
     ];
   }
+
+  final List<SemanticNearestInput> nearestInputs = [];
+  final List<SemanticCancelHandle> nearestHandles = [];
+
+  /// התשובה ל-nearest; `null` = [emptyNearestResponse].
+  SemanticNearestResponse? nearestResponse;
+  SemanticFailure? nearestFailure;
+
+  @override
+  Future<SemanticNearestResponse> nearest(
+    SemanticNearestInput input, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('nearest:${input.points.length}');
+    nearestInputs.add(input);
+    nearestHandles.add(cancel);
+    final gate = searchGate;
+    if (gate != null) await gate.future;
+    if (cancel.isCancelled) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+    final failure = nearestFailure;
+    if (failure != null) throw failure;
+    return nearestResponse ?? emptyNearestResponse();
+  }
+
+  final List<List<String>> tokenRequests = [];
+
+  @override
+  Future<SemanticQueryTokens> queryTokens(List<String> texts) async {
+    calls.add('tokens:${texts.length}');
+    tokenRequests.add(texts);
+    return SemanticQueryTokens(
+      counts: Uint32List.fromList([for (final text in texts) text.length + 2]),
+      queryMaxTokens: 256,
+      overheadTokens: 2,
+    );
+  }
 }
+
+SemanticNearestResponse emptyNearestResponse({
+  List<SemanticNearestHit> hits = const [],
+  List<SemanticNearestList> perPoint = const [],
+}) => SemanticNearestResponse(
+  hits: hits,
+  perPoint: perPoint,
+  generation: BigInt.from(3),
+  vectorsLibraryVersion: 30,
+  unresolved: 0,
+  staleDropped: 0,
+  truncated: false,
+  embedMs: BigInt.one,
+  scanMs: BigInt.two,
+  resolveMs: BigInt.from(3),
+  rescoreMs: BigInt.zero,
+);
 
 SemanticSearchResponse emptyResponse() => SemanticSearchResponse(
   results: const [],
@@ -419,6 +501,7 @@ SemanticSearchRepository buildRepository({
   Duration busyRetryDelay = const Duration(milliseconds: 20),
   Future<String> Function(SemanticVectorsFamily family)? identityLoader,
   String? Function()? onnxRuntimePath,
+  Future<String> Function()? indexStamp,
 }) {
   return SemanticSearchRepository(
     backend: backend ?? FakeBackend(),
@@ -438,6 +521,7 @@ SemanticSearchRepository buildRepository({
         (_) async => DiskSpaceInfo(volumeId: 'C', freeBytes: freeBytes),
     modelReleases: modelReleases ?? testModelReleases,
     busyRetryDelay: busyRetryDelay,
+    indexStamp: indexStamp ?? () async => 'index',
   );
 }
 

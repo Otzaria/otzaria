@@ -48,6 +48,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../support/search_engine_test_init.dart';
 import 'semantic_test_support.dart';
 import 'semantic_ui_test_support.dart';
 
@@ -83,6 +84,8 @@ class _FakeRepository extends SemanticSearchRepository {
   final _controller = StreamController<SemanticAvailability>.broadcast();
   int downloads = 0;
   int cancels = 0;
+  Completer<void>? coverageGate;
+  Set<String>? coveredFilePaths;
 
   @override
   SemanticAvailability get availability => current;
@@ -104,6 +107,12 @@ class _FakeRepository extends SemanticSearchRepository {
 
   @override
   Future<void> cancelDownload() async => cancels++;
+
+  @override
+  Future<Set<String>?> loadCoveredBookFilePaths() async {
+    await coverageGate?.future;
+    return coveredFilePaths;
+  }
 }
 
 SemanticAvailability _availability(
@@ -679,6 +688,104 @@ void main() {
     await completionCheck;
     expect(tester.takeException(), isNull);
   });
+  testWidgets('חיפוש חכם בכל הספרייה נשלח בזמן שסריקת הכיסוי ממתינה', (
+    tester,
+  ) async {
+    final harness = await pumpDialog(
+      tester,
+      _availability(SemanticAvailabilityPhase.ready),
+    );
+    final gate = harness.repository.coverageGate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    await tester.tap(_semanticSegment);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(_queryField, 'בריאת העולם');
+    await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final tab =
+        harness.addedEvents.whereType<AddTab>().single.tab as SemanticSearchTab;
+    addTearDown(tab.dispose);
+    expect(tab.options.facets, ['/']);
+    expect(tab.options.includeLexical, isFalse);
+    gate.complete();
+    await tester.pumpAndSettle();
+  });
+
+  for (final changeMode in [false, true]) {
+    testWidgets(
+      'שינוי ${changeMode ? "מצב" : "שאילתה"} מבטל שליחה שממתינה לכיסוי',
+      (tester) async {
+        final harness = await pumpDialog(
+          tester,
+          _availability(SemanticAvailabilityPhase.ready),
+        );
+        final gate = harness.repository.coverageGate = Completer<void>();
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        await tester.tap(_semanticSegment);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('semantic-include-lexical')),
+        );
+        await tester.pumpAndSettle();
+        tester
+            .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
+            .onChanged({'/הלכה'});
+        await tester.enterText(_queryField, 'שאילתה ראשונה');
+        await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+        await tester.pump();
+        expect(submitButton(tester).isLoading, isTrue);
+
+        if (changeMode) {
+          await tester.tap(find.text('מדויק'));
+          await tester.pump();
+          await tester.tap(_semanticSegment);
+        } else {
+          await tester.enterText(_queryField, 'שאילתה אחרת');
+        }
+        gate.complete();
+        await tester.pumpAndSettle();
+
+        expect(harness.addedEvents.whereType<AddTab>(), isEmpty);
+        expect(submitButton(tester).isLoading, isFalse);
+      },
+    );
+  }
+
+  testWidgets('עריכת חיפוש מתוך ספר שומרת את ההיקף ואת השאילתה עם @', (
+    tester,
+  ) async {
+    const bookFacet = '/תנ״ך/id:1';
+    final tab = SemanticSearchTab(
+      options: const SemanticQueryOptions(query: 'בריאה', facets: [bookFacet]),
+      lockedBookFacet: bookFacet,
+      createResultsBloc: (_) =>
+          buildResultsBloc(source: null, recorder: RecordingRecorder()),
+    );
+    addTearDown(tab.dispose);
+    await pumpDialog(
+      tester,
+      _availability(SemanticAvailabilityPhase.ready),
+      editTab: tab,
+    );
+
+    expect(find.byType(SearchScopeMenuButton), findsNothing);
+    expect(find.text('מדויק'), findsNothing);
+    await tester.enterText(_queryField, 'בריאת העולם@הלכה');
+    await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+    await tester.pumpAndSettle();
+
+    expect(tab.options.query, 'בריאת העולם@הלכה');
+    expect(tab.options.facets, [bookFacet]);
+  });
+
   testWidgets('ספר יחיד, ספר אישי וממד נשלחים כמו שהם בחיפוש משולב', (
     tester,
   ) async {
@@ -755,7 +862,7 @@ void main() {
     expect(tab.options.facets, ['/הלכה']);
   });
   group('תחביר @ שומר על ההיקף המפורש', () {
-    Library scopeLibrary() {
+    Library scopeLibrary({String? author}) {
       Category category(String title, List<Book> books) {
         final result = Category(
           title: title,
@@ -772,7 +879,12 @@ void main() {
       return Library(
         categories: [
           category('הלכה', [
-            TextBook(id: 1, title: 'ספר רשמי', categoryPath: '/הלכה'),
+            TextBook(
+              id: 1,
+              title: 'ספר רשמי',
+              author: author,
+              categoryPath: '/הלכה',
+            ),
             TextBook(id: 5, title: 'שם משותף', categoryPath: '/הלכה'),
             TextBook(
               id: 6,
@@ -783,6 +895,7 @@ void main() {
             TextBook(
               id: 2,
               title: 'מחברת פרטית',
+              author: author,
               categoryPath: '/הלכה',
               source: BookSource.user,
             ),
@@ -810,6 +923,87 @@ void main() {
 
     const unsupportedMessage =
         'הצמצום המבוקש אינו נתמך במלואו בחיפוש החכם. בחרו צמצום אחר או עברו לחיפוש רגיל.';
+
+    for (final (query, coverage, expected) in [
+      ('חסד@נפתלי צבי', {'id:1'}, ['/הלכה/id:1']),
+      ('חסד@מחברת פרטית@נפתלי צבי', {'id:1'}, <String>[]),
+      ('חסד@נפתלי צבי@בראשית', {'id:7'}, <String>[]),
+    ]) {
+      testWidgets('בחירת מחבר בחיפוש חכם בלבד: $query', (tester) async {
+        final harness = await pumpDialog(
+          tester,
+          _availability(SemanticAvailabilityPhase.ready),
+          library: scopeLibrary(author: 'נפתלי צבי'),
+          showMessages: true,
+        );
+        harness.repository.coveredFilePaths = coverage;
+        await tester.tap(_semanticSegment);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('semantic-include-lexical')),
+        );
+        await tester.enterText(_queryField, query);
+        await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+        await tester.pumpAndSettle();
+
+        if (expected.isEmpty) {
+          expect(harness.addedEvents, isEmpty);
+          expect(find.text(unsupportedMessage), findsOneWidget);
+          UiSnack.hide();
+          await tester.pump();
+        } else {
+          final tab =
+              harness.addedEvents.whereType<AddTab>().single.tab
+                  as SemanticSearchTab;
+          addTearDown(tab.dispose);
+          expect(tab.options.facets, expected);
+        }
+      });
+    }
+
+    testWidgets('סינון ספרים פתוח מתעדכן בלי לאבד הקלדה כשהכיסוי מגיע', (
+      tester,
+    ) async {
+      expect(await tester.runAsync(tryInitSearchEngine), isTrue);
+      final harness = await pumpDialog(
+        tester,
+        _availability(SemanticAvailabilityPhase.ready),
+        library: scopeLibrary(),
+      );
+      final gate = harness.repository.coverageGate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      harness.repository.coveredFilePaths = {'uid:2', 'db:lib:3'};
+
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('semantic-include-lexical')));
+      await tester.pumpAndSettle();
+      final field = find.descendant(
+        of: find.byType(SearchScopeMenuButton),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(field, 'מחברת');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('מחברת פרטית'), findsNothing);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final editable = tester.widget<EditableText>(field);
+      expect(editable.controller.text, 'מחברת');
+      expect(editable.focusNode.hasFocus, isTrue);
+      expect(find.text('מחברת פרטית'), findsOneWidget);
+      await tester.enterText(field, 'ספר');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('ספר מצורף'), findsOneWidget);
+      expect(find.text('ספר רשמי'), findsNothing);
+    });
+
     testWidgets('היקף משולב שומר ספרים אישיים ומצורפים (issue #2538)', (
       tester,
     ) async {
@@ -1168,7 +1362,7 @@ void main() {
       await tester.tap(find.text('קבע כברירת מחדל'));
       await tester.pumpAndSettle();
       expect(SearchDefaults.loadSemanticDefault(), isTrue);
-      expect(SearchDefaults.loadDistanceDefault(), 0);
+      expect(SearchDefaults.loadDistanceDefault(SearchMode.exact), 0);
     },
   );
 

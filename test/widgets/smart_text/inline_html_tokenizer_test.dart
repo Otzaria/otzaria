@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+import 'package:otzaria/utils/text/otzaria_markup.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_tokenizer.dart';
 
 /// מבנה העץ כמחרוזת: תגים, attributes לפי סדר שם, וטקסט.
@@ -27,6 +28,30 @@ String _dump(List<dom.Node> nodes) {
 }
 
 void main() {
+  test('תמונה מוטמעת מופנית לתצוגת HTML לפני בניית עץ inline', () {
+    final image = otzariaImage(
+      'data:image/png;base64,${'A' * (4 << 20)}',
+      width: '20',
+      alt: 'image',
+    );
+    expect(parseInlineHtmlNodes('לפני $image אחרי'), isNull);
+  });
+
+  test('טקסט דמוי תמונה או תג קטוע שומרים את פרסור HTML5', () {
+    const image = '<img src="data:image/png;base64,A">';
+    for (final html in [
+      '<!-- $image -->טקסט',
+      "<span title='$image'>טקסט</span>",
+      '&lt;img src="data:image/png;base64,A"&gt;',
+      'טקסט <img src="data:image/png;base64,A',
+    ]) {
+      expect(
+        _dump(parseInlineHtmlNodes(html)!),
+        _dump(html_parser.parseFragment(html).nodes),
+      );
+    }
+  });
+
   // הפרסור המהיר מקבל רק קלט שהעץ שלו זהה לזה של פרסר HTML5.
   const accepted = [
     'טקסט פשוט',

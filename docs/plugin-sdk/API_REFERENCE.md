@@ -65,6 +65,8 @@
 | `bookmarks.remove` | קלט | קלט | קלט | קלט |
 | `search.fullText` | ✗ (ראה הערה) | ✓ | — | — |
 | `search.query` | ✓ | ✓ | ✓ | ✓ |
+| `semantic.nearest` | ✓ | ✓ | ✓ | ✓ |
+| `semantic.getCoveredBooks` | ✓ | ✓ | ✓ | ✓ |
 | `library.getBookContent` | ✗ | ✗ | ✓ | — |
 | `library.getBookToc` | ✗ | ✗ | ✓ | — |
 | `library.getBookAltToc` | ✗ | ✗ | ✓ | — |
@@ -228,6 +230,7 @@ if (response.success) {
 | `error.payload_too_large` / `error.section_too_large` | `too_large` | הקלט או הקטע גדולים מדי |
 | `error.unknown_method` | `unsupported` | ה-method אינו קיים במארח הזה — איות שגוי, או API חדש מ-`minAppVersion` שהוצהר |
 | `error.unavailable` | `unsupported` | ה-API קיים אך אינו זמין בהקשר הנוכחי (אין טאב קריאה פעיל, שירות כבוי) |
+| `error.preempted` | `conflict` | המשתמש הריץ חיפוש באוצריא, והוא קדם לפעולה של התוסף; אפשר לנסות שוב (`retryable: true`) |
 | `error.unsupported_context` / `error.unsupported_layer` | `unsupported` | ההקשר או השכבה אינם נתמכים לפעולה הזו |
 | `error.internal` | `internal` | שגיאה פנימית בצד אוצריא |
 
@@ -299,6 +302,10 @@ if (response.success) {
 | `search.setFieldText` | 0.9.98.1 |
 | `search.setFieldActionState` | 0.9.98.1 |
 | `search.endFieldSession` | 0.9.98.1 |
+| `semantic.getStatus` | 0.9.99 |
+| `semantic.countTokens` | 0.9.99 |
+| `semantic.nearest` | 0.9.99 |
+| `semantic.getCoveredBooks` | 0.9.99 |
 | `reader.openBook` | 0.9.89 |
 | `reader.openBookAtRef` | 0.9.89 |
 | `reader.printRange` | 0.9.98.1 |
@@ -2054,6 +2061,127 @@ await Otzaria.call('search.endFieldSession', { sessionId, submit: true });
 התוסף מקבל `search.fieldAction.ended` עם `reason: 'plugin'`. אם השדה מכיל
 `://`, הגשה נדחית ב-`error.invalid_params` גם אם התוסף לא כתב טקסט; אפשר לסיים
 את הסשן ללא הגשה. Enter של המשתמש ממשיך לעבוד כרגיל.
+
+---
+
+## semantic.* - חיפוש חכם (לפי משמעות)
+
+מגרסה 0.9.99. **הרשאה:** `search.semantic.read`.
+
+המודל והווקטורים שאוצריא מורידה לחיפוש החכם, לכלים שליד הקורא: מקבילות
+לקטע הנקרא, השוואת מפרש לטקסט־הבסיס, אשכולות, מסלול בין קטעים. הכול רץ
+במחשב של המשתמש.
+
+**כללים**
+
+- **הסכמה ונתונים.** הקריאות לנתונים זמינות ב-`phase: 'ready'`, כשהמשתמש
+  העניק הסכמה לחיפוש החכם והנתונים מותקנים. ביטול ההסכמה או הרשאת התוסף
+  עוצר פעולה פעילה. כל המתודות דורשות הרשאת תוסף, כולל `semantic.getStatus`.
+- **ספרים.** החיפוש מוגבל לספרי הטקסט הרשמיים במסד ולמסכתות ה־PDF
+  המצורפות. הספרים חייבים להימצא בקטלוג הנוכחי.
+- **הטקסט אינו בתשובות.** שורה שנמצאה מזוהה בזהות ספר ו-`index`; את הטקסט
+  קוראים ב-`library.getBookContent` בהרשאת `library.content.read`.
+- **סריקה אחת לדף.** `semantic.nearest` חדש מאותו דף של התוסף מסיים את הקודם
+  (הוא מסתיים בלי chunk של `done`), כמו הקלדה במסך החיפוש. `return()` על
+  האיטרטור מבטל את הסריקה במנוע.
+- **המשתמש קודם.** חיפוש שהמשתמש מריץ באוצריא מסיים סריקה פעילה של תוסף
+  ב-`error.preempted`. בקשות שמגיעות בזמן חיפוש פעיל נדחות באותו קוד.
+- **ציונים.** `score` מדורג כמו במסך החיפוש, עם הקנס של חלונות בשורה ארוכה.
+  ציונים ברי־השוואה רק באותו `modelFamilyId` ובאותו `generation`.
+
+### `semantic.getStatus`
+**הרשאה:** `search.semantic.read`
+
+```javascript
+const { data } = await Otzaria.call('semantic.getStatus');
+// {
+//   phase: 'ready',   // 'consentRequired' | 'needsDownload' | 'vectorsNotPublished'
+//                     // | 'downloading' | 'installing' | 'failed' | 'hidden'
+//   modelFamilyId: 'otzaria/Meivin-Embed-QA491-native256', dim: 256,
+//   vectorsReleaseTag: 'vectors-qa491-v30-…', vectorsLibraryVersion: 30, generation: 7,
+//   limits: { maxPoints: 64, maxK: 2000, defaultK: 50, maxCandidates: 5000, … }
+// }
+```
+
+`hiddenReason` מופיע עם `'hidden'`, `failure` עם `'failed'`, ו-`progress`
+(`{ item, fraction }`) בזמן הורדה או התקנה.
+
+### `semantic.countTokens`
+**הרשאה:** `search.semantic.read`
+
+```javascript
+const { data } = await Otzaria.call('semantic.countTokens', { texts: [a, b] });
+// { counts: [41, 300], queryMaxTokens: 256, overheadTokens: 3 }
+```
+
+כל ספירה היא של הרצף המלא שהמודל רואה כשאילתה, כולל קידומת התפקיד והטוקנים
+המיוחדים: טקסט נכנס בחלון אחד כש-`count <= queryMaxTokens`, וארוך ממנו נחתך.
+עד 5,000 טקסטים ו-2,000,000 תווים בקריאה, ועד 20,000 תווים לטקסט. הקריאה הראשונה פותחת את המודל.
+
+### `semantic.nearest`
+**הרשאה:** `search.semantic.read`
+
+השורות החיות הקרובות לעד 64 נקודות, במעבר אחד על הווקטורים. נקודה היא טקסט
+(מקודד כשאילתה, או `as: 'passage'` כמו שורה שמורה) או וקטור ברוחב הסט
+(`dim`), כ-base64 של float32 בסדר little-endian, למשל מרכז של אשכול.
+קידוד כקטע זמין כשהמודל המתאים כבר מותקן.
+
+```javascript
+const stream = Otzaria.call('semantic.nearest', {
+  from: windows.map((text) => ({ text })),
+  k: 100,
+  rescore: true,
+  exclude: [{ ...book, from: 120, to: 135 }],   // הקטע שממנו הנקודות נלקחו
+  categories: ['/תלמוד בבלי'],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === 'hits') show(chunk.hits);
+  if (chunk.type === 'done') console.log(chunk.generation);
+}
+```
+
+| פרמטר | ברירת מחדל | משמעות |
+|-------|-----------|--------|
+| `from` | — (חובה) | 1 עד 64 נקודות: `{ text, as? }` (`'query'` או `'passage'`, עד 20,000 תווים) או `{ vector }` |
+| `k` | `50` | כמה וקטורים כל נקודה מחזירה מהסריקה, עד 2,000. וקטור אחד יכול לייצג כמה שורות (אותו טקסט בכמה ספרים) |
+| `pool` | `'best'` | `'best'`: רשימה אחת, כל שורה פעם אחת בציון הטוב ביותר שלה. `'perPoint'`: רשימה לכל נקודה, לפי הסדר (נקודות × `k` עד 20,000) |
+| `maxCandidates` | `1000` | `'best'` בלבד: כמה וקטורים נשמרים לפני שהם נפתרים לשורות, עד 5,000 |
+| `rescore` | `false` | `'best'` בלבד: ציון לכל שורה מול כל נקודה, ב-`pointScores` (`null` לשורה שאין לה וקטור) |
+| `minScore` | — | שורות בציון נמוך ממנו מושמטות |
+| `exclude` | `[]` | עד 1,000 טווחי שורות (`{ ...זהות ספר, from, to }`) שלא יוחזרו |
+| `categories`, `books`, `authors`, `eras`, `baseBooksOnly`, `facets` | הספרייה הרשמית | ההיקף, כמו ב-[`search.query`](#searchquery), עם עד 128 ערכים בכל רשימה |
+
+**ה-chunks**, לפי הסדר:
+
+- `{ type: 'progress', phase: 'searching' }` — המודל נפתח והסריקה מתחילה.
+- `{ type: 'hits', hits, point? }` — עד 500 שורות לכל chunk; `point` עם
+  `'perPoint'`. כל רשימה נשלחת, גם ריקה.
+- `{ type: 'done', generation, vectorsLibraryVersion, clipped }`
+  — `clipped` מסמן שהוחזרו רק 20,000 השורות הראשונות.
+
+כל שורה: זהות ספר, `book`, `categoryPath`, `reference`, `index`, `window` (החלון
+בשורה ארוכה שנמצא; 0 לתחילת השורה), `score`, `point` (הנקודה שמצאה אותה בציון
+הגבוה ביותר) ו-`pointScores` עם `rescore`.
+
+שגיאות אפשריות: `error.invalid_params` (גם וקטור ברוחב שאינו של הסט),
+`error.not_found` (ספר ב-`books` או ב-`exclude`), `error.unavailable`,
+`error.preempted`, `error.timeout` (שתי דקות). בזרם, שגיאה נזרקת מהאיטרטור
+עם `code` ו-`retryable` על אובייקט ה-`Error`.
+
+**מגבלה ידועה:** עם היקף (`categories`, `books` וכו'), טקסט שהועתק לספר
+בהיקף אחרי בניית הווקטורים אינו נמצא, עד שהנתונים מתעדכנים.
+
+### `semantic.getCoveredBooks`
+**הרשאה:** `search.semantic.read`
+
+```javascript
+const { data } = await Otzaria.call('semantic.getCoveredBooks');
+// { books: [{ id, type, bookId, source, bookUid, title }, …] }
+```
+
+ספרים רשמיים שיש בהם לפחות שורה אחת שהווקטורים מכסים. אוצריא משתמשת
+במטמון הכיסוי של החיפוש החכם ומאמתת את גרסאות האינדקס והווקטורים בכל קריאה.
 
 ---
 
@@ -6722,6 +6850,8 @@ API — מפונה. הפינוי שקוף באותו אופן ככיבוי אח�
   עם `error.invalid_params`.
 - עובד גם ברישום דינמי דרך `reader.addContextMenuItem`, וב-`reader.updateContextMenuItem`.
 - פריט `separator` שהתוסף הוסיף בעצמו בתחילת הקבוצה אינו מכפיל את הקו.
+- מ-`0.9.99`, כשיותר מתוסף אחד מוסיף פריטים לאותו תפריט, כל הפריטים מוצגים
+  בתת-תפריט אחד "תוספים", באותו סדר ועם אותם קווים. תוסף יחיד נשאר בשורה.
 
 ### action — פעולת host על פריט תפריט הקשר
 
@@ -6983,6 +7113,7 @@ Otzaria.on('plugin.boot', async (payload) => {
     "library.books.provide",
     "search.fulltext.read",
     "search.field_actions",
+    "search.semantic.read",
     "reader.open",
     "navigation.write",
     "notes.read",

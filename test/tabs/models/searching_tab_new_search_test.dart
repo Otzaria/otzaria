@@ -27,7 +27,7 @@ void main() {
   group('חיפוש חדש לפי ברירות המחדל (issue #2322)', () {
     test('בלי מצב מפורש — מצב, מרווח ואפשרויות מברירת המחדל', () {
       SearchDefaults.saveModeDefault(SearchMode.exact);
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
       SearchDefaults.saveExactDefaults({
         'קידומות דקדוקיות': true,
         'כתיב מלא/חסר': true,

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
@@ -13,13 +14,18 @@ Link _anchorLink({
   required String path2,
   int? anchorStart,
   String? anchorLabel,
+  String connectionType = 'commentary',
+  BookSource targetSource = BookSource.official,
+  int? index2End,
 }) {
   return Link(
     heRef: heRef,
     index1: 4,
     path2: path2,
     index2: 1,
-    connectionType: 'commentary',
+    connectionType: connectionType,
+    targetSource: targetSource,
+    index2End: index2End,
     anchorStart: anchorStart,
     anchorEnd: null,
     anchorLabel: anchorLabel,
@@ -27,6 +33,127 @@ Link _anchorLink({
 }
 
 void main() {
+  group('כותרת הערה אינה מכפילה מספר רשומה סותר (issue #1979)', () {
+    // באר הגולה, שו"ע או"ח תרס"ד: הסימן המודפס [ג] מפנה לרשומה שה-heRef שלה
+    // מסתיים ב-ד, כי לפניה הערה ללא מספר ([•]).
+    Link beerHagolah(
+      String? label, {
+      String heRef = 'באר הגולה על שולחן ערוך אורח חיים, תרסד, ד',
+    }) => _anchorLink(
+      heRef: heRef,
+      path2: 'באר הגולה על שולחן ערוך אורח חיים',
+      anchorStart: 12,
+      anchorLabel: label,
+    );
+    const reference = 'באר הגולה על שולחן ערוך אורח חיים, תרסד, ד';
+
+    test('סימן מודפס ומספר רשומה מובחנים', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('ג'), '[ג]', reference),
+        '[ג] באר הגולה על שולחן ערוך אורח חיים, תרסד, רשומה ד',
+      );
+    });
+
+    test('תרעא אחרי העיגול, כשהשם כבר מופיע בכותרת הקבוצה', () {
+      expect(
+        anchoredLinkTitle(
+          beerHagolah('ד', heRef: 'באר הגולה על שולחן ערוך אורח חיים, תרעא, ה'),
+          '[ד]',
+          'תרעא, ה',
+        ),
+        '[ד] תרעא, רשומה ה',
+      );
+    });
+
+    test('אות שמופיעה פעמיים באותו סימן משאירה את שתי הכתובות', () {
+      for (final number in ['יא', 'לד']) {
+        final reference = 'באר הגולה על שולחן ערוך אורח חיים, שא, $number';
+        expect(
+          anchoredLinkTitle(
+            beerHagolah('כ', heRef: reference),
+            '[כ]',
+            reference,
+          ),
+          '[כ] באר הגולה על שולחן ערוך אורח חיים, שא, רשומה $number',
+        );
+      }
+    });
+
+    test('סעיף יעד בקישור הפוך נשמר במלואו', () {
+      const reference = 'שולחן ערוך, אורח חיים, תכט, ב';
+      final link = _anchorLink(
+        heRef: reference,
+        path2: 'שולחן ערוך, אורח חיים',
+        connectionType: 'SOURCE',
+        anchorStart: 0,
+        anchorLabel: 'י',
+      );
+      expect(anchoredLinkTitle(link, '[י]', reference), '[י] $reference');
+    });
+
+    test('סעיף קטן במשנה ברורה נשמר במלואו', () {
+      const reference = 'משנה ברורה, סט, ב';
+      final link = _anchorLink(
+        heRef: reference,
+        path2: 'משנה ברורה',
+        anchorStart: 26,
+        anchorLabel: 'א',
+      );
+      expect(anchoredLinkTitle(link, '[א]', reference), '[א] $reference');
+    });
+
+    test('כתובת טווח נשמרת גם אם הסיומת אינה זמינה בתצוגה', () {
+      final link = _anchorLink(
+        heRef: reference,
+        path2: 'באר הגולה על שולחן ערוך אורח חיים',
+        anchorStart: 738,
+        anchorLabel: 'ג',
+        index2End: 3,
+      );
+      for (final text in [reference, '$reference–ה']) {
+        expect(anchoredLinkTitle(link, '[ג]', text), '[ג] $text');
+      }
+    });
+
+    test('ספר בשם זהה ממקור אישי או מצורף שומר את כתובתו', () {
+      for (final source in [BookSource.user, BookSource.attached('test')]) {
+        final link = _anchorLink(
+          heRef: reference,
+          path2: 'באר הגולה על שולחן ערוך אורח חיים',
+          anchorStart: 738,
+          anchorLabel: 'ג',
+          targetSource: source,
+        );
+        expect(anchoredLinkTitle(link, '[ג]', reference), '[ג] $reference');
+      }
+    });
+
+    test('סימן שזהה למספר הרשומה — ללא שינוי', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('ד'), '[ד]', reference),
+        '[ד] $reference',
+      );
+      expect(
+        anchoredLinkTitle(beerHagolah(null), '[ד]', reference),
+        '[ד] $reference',
+      );
+    });
+
+    test('סימן שאינו אות (•) — ללא שינוי', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('•'), '[•]', reference),
+        '[•] $reference',
+      );
+    });
+
+    test('כתובת שאינה מסתיימת במספר הרשומה — הסימן אינו נוגע בה', () {
+      expect(
+        anchoredLinkTitle(beerHagolah('ג'), '[ג]', 'באר הגולה, תרסד'),
+        '[ג] באר הגולה, תרסד',
+      );
+    });
+  });
+
   group('anchorMarkerLetter', () {
     test('מעדיף את התווית השמורה במסד', () {
       final link = _anchorLink(
@@ -96,9 +223,7 @@ void main() {
       final result = injectLinkAnchorMarkers(
         rawLine: saLine,
         anchorLinks: [bhg],
-        styleIndexByCommentator: const {
-          'באר הגולה על שולחן ערוך אורח חיים': 0,
-        },
+        styleIndexByCommentator: const {'באר הגולה על שולחן ערוך אורח חיים': 0},
       );
       expect(
         result,
@@ -204,12 +329,12 @@ void main() {
       }
     });
 
-    test('כל שלושת סוגי הסוגריים נפלטים בפועל', () {
+    test('כל סוגי הסוגריים נפלטים בפועל', () {
       final emitted = <String>{};
       for (var index = 0; index < kLinkAnchorVariants.length; index++) {
         emitted.add(kLinkAnchorVariants[index].delimiter.wrap('א'));
       }
-      expect(emitted, containsAll(const ['(א)', '[א]', '{א}']));
+      expect(emitted, containsAll(const ['(א)', '[א]', '{א}', '/א/']));
     });
 
     test('עוגן-טווח עם lineIndex נפלט כ-<a> עם range=1 (לחיצה מנווטת)', () {
@@ -314,17 +439,9 @@ void main() {
       );
       final before = anchorStyleIndexByCommentator([target]);
       final after = anchorStyleIndexByCommentator([
-        _anchorLink(
-          heRef: 'א א, א',
-          path2: 'א',
-          anchorStart: 1,
-        ),
+        _anchorLink(heRef: 'א א, א', path2: 'א', anchorStart: 1),
         target,
-        _anchorLink(
-          heRef: 'ת א, א',
-          path2: 'ת',
-          anchorStart: 1,
-        ),
+        _anchorLink(heRef: 'ת א, א', path2: 'ת', anchorStart: 1),
       ]);
 
       expect(after[target.path2], before[target.path2]);

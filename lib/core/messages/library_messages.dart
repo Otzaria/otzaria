@@ -43,6 +43,9 @@ abstract class LibraryMessages {
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 
+  static String advancedDistanceSetAsDefault(int distance) =>
+      'מרווח $distance נקבע כברירת מחדל לחיפוש מתקדם';
+
   static String proximitySetAsDefault(String scope, String wordMatch) =>
       'טווח הקרבה "$scope · $wordMatch" נקבע כברירת מחדל לחיפוש מתקדם';
 
@@ -125,6 +128,10 @@ abstract class LibraryMessages {
   static const String updateCheckNetworkError =
       'שגיאה בחיבור לרשת במהלך בדיקת עדכונים';
 
+  static const String invalidLibraryReleaseResponse =
+      'לא התקבלו פרטי הורדה תקינים של הספרייה. בדקו את החיבור ונסו שוב, '
+      'או בחרו תיקייה שהוכנה במסייע ההורדה.';
+
   static const String updateCheckError = 'שגיאה בבדיקת עדכונים';
 
   static const String libraryDbCorruptTitle = 'קובץ הספרייה פגום';
@@ -154,6 +161,15 @@ abstract class LibraryMessages {
 
   static const String updateDiskSpaceError =
       'אין מספיק מקום פנוי בדיסק לעדכון הספרייה';
+
+  static const String libraryDbBusy =
+      'מסד הספרייה בשימוש כרגע ולא ניתן לשחרר אותו. יש לנסות שוב בעוד רגע.';
+
+  static const String libraryRefreshDbBusy =
+      'מסד הספרייה בשימוש כרגע. יש לנסות לרענן את הספרייה בעוד רגע.';
+
+  static const String updateSavedRefreshFailed =
+      'העדכון נשמר, אך רענון הספרייה נכשל';
 
   static const String updateNetworkInterrupted =
       'החיבור לרשת נקטע במהלך ההורדה';

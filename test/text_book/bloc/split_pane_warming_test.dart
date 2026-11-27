@@ -76,7 +76,6 @@ void main() {
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [10],
-    pinLeftPane: false,
     searchText: '',
   );
 

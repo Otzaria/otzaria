@@ -10,6 +10,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_probe.dar
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/portable_paths.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as p;
 
@@ -63,6 +64,140 @@ void main() {
 
   String rootRecordContent() =>
       File(p.join(dataRoot, '.otzaria_portable_root')).readAsStringSync();
+
+  group('ספרייה ניידת מחוץ לתיקיית הנתונים (issue #6081)', () {
+    final testedPaths = <String>[];
+
+    Future<String?> migrateLibrary({
+      String oldRoot = r'E:\אוצריא נייד\otzaria_data',
+      String newRoot = r'F:\אוצריא נייד\otzaria_data',
+      String savedPath = r'e:/ספרייה',
+      Set<String> pathsWithDatabase = const {r'F:\ספרייה'},
+    }) => PortablePaths.libraryPathAfterWindowsDriveChange(
+      savedPath,
+      oldRoot,
+      newRoot,
+      containsDatabase: (path) async {
+        testedPaths.add(path);
+        return pathsWithDatabase.contains(path);
+      },
+    );
+
+    setUp(testedPaths.clear);
+
+    test('מחליף אות בכונן, כולל אות קטנה ומפריד לוכסן', () async {
+      expect(await migrateLibrary(), r'F:\ספרייה');
+      expect(testedPaths, [r'F:\ספרייה', r'e:/ספרייה']);
+    });
+
+    test('שינוי שם תיקיית התוכנה אינו משנה את הנתיב היחסי לכונן', () async {
+      expect(
+        await migrateLibrary(
+          oldRoot: r'E:\otzaria_data',
+          newRoot: r'F:\יישומים\otzaria_data',
+        ),
+        r'F:\ספרייה',
+      );
+    });
+
+    test('ספרייה שנמצאת בשורש הכונן עוברת לשורש החדש', () async {
+      expect(
+        await migrateLibrary(
+          oldRoot: r'E:\otzaria_data',
+          newRoot: r'F:\otzaria_data',
+          savedPath: 'E:\\',
+          pathsWithDatabase: {'F:\\'},
+        ),
+        'F:\\',
+      );
+    });
+
+    test('תיקייה על האות החדשה בלי מסד אינה נבחרת', () async {
+      expect(await migrateLibrary(pathsWithDatabase: {}), isNull);
+      expect(testedPaths, [r'F:\ספרייה']);
+    });
+
+    test('ספרייה תקפה בנתיב השמור נשארת בשימוש', () async {
+      expect(
+        await migrateLibrary(pathsWithDatabase: {r'e:/ספרייה', r'F:\ספרייה'}),
+        isNull,
+      );
+    });
+
+    test('נתיב יחסי, שיתוף רשת וכונן שלישי אינם נבדקים', () async {
+      for (final path in [r'E:ספרייה', r'\\host\share\ספרייה', r'G:\ספרייה']) {
+        expect(await migrateLibrary(savedPath: path), isNull);
+      }
+      expect(await migrateLibrary(newRoot: r'e:\יישומים\otzaria_data'), isNull);
+      expect(testedPaths, isEmpty);
+    });
+
+    test('Windows: מעביר ספרייה עם מסד מקונן ונתיבים צמודים', () async {
+      final currentDrive = p.windows.rootPrefix(dataRoot);
+      final previousDrive = p.windows.equals(currentDrive, 'Z:\\')
+          ? 'Y:\\'
+          : 'Z:\\';
+      String oldPath(String current) =>
+          previousDrive + current.substring(currentDrive.length);
+
+      await writeRootRecord(oldPath(dataRoot));
+      final library = p.join(exeRoot.path, 'ספרייה');
+      final nested = await Directory(p.join(library, 'מקור')).create(
+        recursive: true,
+      );
+      final db = SeforimFixtureDb.create(nested, SeforimFixtureVariant.full);
+      await File(db).rename(p.join(nested.path, 'seforim.db'));
+      final index = await Directory(p.join(exeRoot.path, 'index')).create();
+      final databases = await Directory(
+        p.join(exeRoot.path, 'databases'),
+      ).create();
+      final backup = await Directory(p.join(exeRoot.path, 'backups')).create();
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        oldPath(library),
+      );
+      await Settings.setValue(SettingsRepository.keyLibraryFolderName, 'מקור');
+      await Settings.setValue(
+        SettingsRepository.keyIndexPath,
+        oldPath(index.path),
+      );
+      await Settings.setValue(
+        SettingsRepository.keyDatabasesPath,
+        oldPath(databases.path),
+      );
+      await Settings.setValue(
+        SettingsRepository.keyBackupPath,
+        oldPath(backup.path),
+      );
+
+      await PortablePaths.migrateIfMoved();
+
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        library,
+      );
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName),
+        'מקור',
+      );
+      expect(
+        DatabaseConstants.getDatabasePath(),
+        p.join(nested.path, 'seforim.db'),
+      );
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyIndexPath),
+        index.path,
+      );
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyDatabasesPath),
+        databases.path,
+      );
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyBackupPath),
+        oldPath(backup.path),
+      );
+    }, skip: Platform.isWindows ? null : 'נדרשת מערכת קבצים של Windows');
+  });
 
   group('PortablePaths.migrateIfMoved', () {
     test('ריצה ראשונה — רק רושם את השורש הנוכחי ולא נוגע בנתונים', () async {

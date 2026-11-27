@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
@@ -8,6 +9,7 @@ import 'package:otzaria/semantic_search/repository/semantic_platform_support.dar
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+import 'package:path/path.dart' as p;
 
 const onnxStatus = SemanticStatus(
   state: SemanticState.ready,
@@ -49,10 +51,31 @@ class _FakeEngine implements SearchEngine {
   SemanticVectorsInstallInput? installInput;
   SemanticArtifactInput? openInput;
   SemanticRankingOptions? ranking;
+  List<SemanticVote>? votes;
+  String? paginationSessionId;
   SemanticCancellationToken? searchToken;
   Object? failure;
   Completer<void>? searchPause;
   SemanticStatus status = onnxStatus;
+  bool vectorsRecovered = false;
+
+  @override
+  Future<SemanticVectorsInfo> semanticVectorsInfo({
+    required String vectorsDir,
+  }) async => SemanticVectorsInfo(
+    present: true,
+    identityDigest: 'ab' * 32,
+    modelFamilyId: 'model-family',
+    libraryVersion: 30,
+    libraryReleaseTag: 'v30-test',
+    generation: BigInt.one,
+    segments: const [],
+    slotsLive: BigInt.one,
+    slotsDead: BigInt.zero,
+    bytesOnDisk: BigInt.one,
+    needsCompaction: false,
+    recoveredFromPrevious: vectorsRecovered,
+  );
 
   @override
   Future<SemanticStatus> semanticStatus() async => status;
@@ -101,9 +124,13 @@ class _FakeEngine implements SearchEngine {
     required bool matchNikud,
     required bool matchTaamim,
     SemanticRankingOptions? ranking,
+    List<SemanticVote>? votes,
+    String? paginationSessionId,
     required SemanticCancellationToken cancellation,
   }) async {
     this.ranking = ranking;
+    this.votes = votes;
+    this.paginationSessionId = paginationSessionId;
     searchToken = cancellation;
     await searchPause?.future;
     return SemanticSearchResponse(
@@ -145,6 +172,33 @@ class _FakeEngine implements SearchEngine {
           isHighlighted: false,
         ),
     ];
+  }
+
+  SemanticNearestInput? nearestInput;
+  SemanticCancellationToken? nearestToken;
+
+  @override
+  Future<SemanticNearestResponse> semanticNearest({
+    required SemanticNearestInput input,
+    required SemanticCancellationToken cancellation,
+  }) async {
+    nearestInput = input;
+    nearestToken = cancellation;
+    final error = failure;
+    if (error != null) throw error;
+    return SemanticNearestResponse(
+      hits: const [],
+      perPoint: const [],
+      generation: BigInt.two,
+      vectorsLibraryVersion: 30,
+      unresolved: 0,
+      staleDropped: 0,
+      truncated: false,
+      embedMs: BigInt.zero,
+      scanMs: BigInt.zero,
+      resolveMs: BigInt.zero,
+      rescoreMs: BigInt.zero,
+    );
   }
 
   @override
@@ -202,6 +256,23 @@ void main() {
     }
   });
 
+  test('מטמון הכיסוי מזהה התקנה מחדש עם אותו מספר דור', () async {
+    final directory = await Directory.systemTemp.createTemp('vectors-stamp');
+    addTearDown(() => directory.delete(recursive: true));
+    final pointer = File(p.join(directory.path, 'CURRENT'));
+    final first = '{"generation":1,"set_sha256":"digest-one"}';
+    final second = '{"generation":1,"set_sha256":"digest-two"}';
+
+    await pointer.writeAsString(first);
+    expect(await adapter.coveredBooksStamp(directory.path), first);
+
+    await pointer.writeAsString(second);
+    expect(await adapter.coveredBooksStamp(directory.path), second);
+
+    engine.vectorsRecovered = true;
+    expect(await adapter.coveredBooksStamp(directory.path), isNull);
+  });
+
   test('installVectors מעביר את כל השדות ומחזיר את הדוח', () async {
     final summary = await adapter.installVectors(
       const SemanticInstallRequest(
@@ -219,6 +290,41 @@ void main() {
     expect(summary.kind, 'base');
     expect(summary.libraryVersion, 30);
     expect(tokens.single.isDisposed, isTrue);
+  });
+
+  test('nearest מעביר את הקלט ומשחרר את ה-token', () async {
+    const input = SemanticNearestInput(
+      points: [SemanticPoint(text: 'א', asPassage: false)],
+      topK: 3,
+      facets: ['/'],
+      exclude: [],
+      pool: SemanticPool.best,
+      maxCandidates: 10,
+      rescore: false,
+    );
+    final response = await adapter.nearest(
+      input,
+      cancel: SemanticCancelHandle(),
+    );
+
+    expect(engine.nearestInput, same(input));
+    expect(response.generation, BigInt.two);
+    expect(tokens.single.isDisposed, isTrue);
+
+    engine.failure = const SemanticError(
+      kind: SemanticErrorKind.invalidInput,
+      message: 'vector width',
+    );
+    await expectLater(
+      adapter.nearest(input, cancel: SemanticCancelHandle()),
+      throwsA(
+        isA<SemanticFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          SemanticFailureKind.invalidInput,
+        ),
+      ),
+    );
   });
 
   test('SemanticError ממופה לפי סוג', () async {
@@ -297,6 +403,24 @@ void main() {
       cancel: early,
     );
     expect(tokens.last.isCancelled, isTrue);
+  });
+
+  test('הסימונים ומזהה העימוד מגיעים למנוע', () async {
+    final votes = [
+      SemanticVote(filePath: 'id:1', id: BigInt.one, relevant: true),
+    ];
+    await adapter.search(
+      SemanticSearchRequest(
+        query: 'חסד',
+        facets: ['/'],
+        offset: 30,
+        votes: votes,
+        paginationSessionId: 'local-session',
+      ),
+      cancel: SemanticCancelHandle(),
+    );
+    expect(engine.votes, votes);
+    expect(engine.paginationSessionId, 'local-session');
   });
 
   test('mapRanking ממפה את כל השדות, כולל ספרי היסוד', () {

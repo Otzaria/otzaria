@@ -1114,6 +1114,61 @@ void main() {
     },
   );
 
+  test(
+    'תור בקרה מלא דוחה השהיה בזמן קריאת ספר ומאפשר לקרוא עד השורה האחרונה',
+    () async {
+      const rowsPerCheckpoint = 4096;
+      const checkpointCount = 49;
+      final dbPath = await seedDb(
+        'seforim',
+        bigBookLines: rowsPerCheckpoint * checkpointCount,
+      );
+      final port = ReceivePort();
+      final checkpoints = StreamIterator<dynamic>(port);
+      addTearDown(port.close);
+      addTearDown(checkpoints.cancel);
+      DbReadWorker.bookReadCheckpointPort = port.sendPort;
+      final fullRead = DbReadWorker.request('bookTextBytes', {
+        'dbPath': dbPath,
+        'bookId': 3,
+        'title': 'ספר גדול',
+      }).then<Object?>((result) => result, onError: (Object error) => error);
+      const timeout = Duration(seconds: 10);
+      expect(await checkpoints.moveNext().timeout(timeout), isTrue);
+
+      try {
+        final before = DbReadWorker.sentMessageCount;
+        for (var i = 0; i < 4; i++) {
+          DbReadWorker.allowReopen();
+        }
+        expect(DbReadWorker.sentMessageCount - before, 4);
+        expect(
+          await DbReadWorker.suspendForExternalWrite().timeout(timeout),
+          isFalse,
+        );
+        expect(DbReadWorker.sentMessageCount - before, 4);
+      } finally {
+        (checkpoints.current as SendPort).send(null);
+      }
+
+      // האות האחרון מגיע מתוך SQLite אחרי השורה האחרונה, לפני החזרת התוצאה.
+      for (var i = 1; i < checkpointCount; i++) {
+        expect(await checkpoints.moveNext().timeout(timeout), isTrue);
+        (checkpoints.current as SendPort).send(null);
+      }
+      expect(await fullRead.timeout(timeout), isA<DbReadWorkerSuspended>());
+      await DbReadWorker.resumeAfterExternalWrite();
+      expect(
+        await DbReadWorker.request('bookText', {
+          'dbPath': dbPath,
+          'bookId': 1,
+          'title': 'בראשית',
+        }).timeout(timeout),
+        List.generate(5, (i) => 'שורה $i').join('\n'),
+      );
+    },
+  );
+
   test('אצווה גדולה מפוצלת להודעות מוגבלות ושומרת את כל התוצאות', () async {
     final dbPath = await seedDb('seforim');
     await DbReadWorker.batched('heRef', {

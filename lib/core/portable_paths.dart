@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 /// המנגנון: קובץ [_rootRecordFileName] בתוך תיקיית הנתונים שומר את נתיב
 /// השורש כפי שהיה בריצה הקודמת. בהפעלה, אם השורש הנוכחי שונה — כל מחרוזת
 /// שמורה שמתחילה בשורש הישן משוכתבת לשורש החדש.
+/// ב-Windows גם ספרייה חיצונית על הכונן עצמו יכולה לעבור לאות החדשה.
 class PortablePaths {
   static const String _rootRecordFileName = '.otzaria_portable_root';
 
@@ -48,8 +49,7 @@ class PortablePaths {
 
   /// משכתב נתיבים שמורים אם שורש הנתונים הנייד זז מאז הריצה הקודמת.
   ///
-  /// חייב לרוץ אחרי `Settings.init` ואחרי `initHive` (ה-boxes חייבים
-  /// להיות פתוחים), ולפני כל קוד שצורך את הנתיבים השמורים.
+  /// רץ אחרי טעינת ההגדרות ולפני פתיחת המסדים שקוראים את הנתיבים השמורים.
   static Future<void> migrateIfMoved() async {
     if (!AppPaths.isPortable) return;
 
@@ -100,6 +100,9 @@ class PortablePaths {
             key,
             isJson ? jsonEncode(result.value) : result.value as String,
           );
+        } else if (Platform.isWindows &&
+            key == SettingsRepository.keyLibraryPath) {
+          await _rewriteLibraryOnMovedDrive(value, oldRoot, newRoot);
         }
       } catch (e, stackTrace) {
         debugPrint('PortablePaths: failed rewriting $key: $e\n$stackTrace');
@@ -116,6 +119,63 @@ class PortablePaths {
         }
       }
     }
+  }
+
+  static Future<void> _rewriteLibraryOnMovedDrive(
+    String savedPath,
+    String oldRoot,
+    String newRoot,
+  ) async {
+    final newPath = await libraryPathAfterWindowsDriveChange(
+      savedPath,
+      oldRoot,
+      newRoot,
+      containsDatabase: (path) async =>
+          await AppPaths.libraryDbFolderName(path) != null,
+    );
+    if (newPath == null) return;
+
+    // העברת ספרייה דרך ההגדרות שומרת לצדה גם נתיבי אינדקס ומסדים.
+    for (final key in [
+      SettingsRepository.keyDatabasesPath,
+      SettingsRepository.keyIndexPath,
+    ]) {
+      final saved = Settings.getValue<String>(key);
+      if (saved == null ||
+          !p.equals(p.dirname(saved), p.dirname(savedPath)) ||
+          _rewritePath(saved, oldRoot, newRoot) != saved) {
+        continue;
+      }
+      final moved = p.join(p.dirname(newPath), p.basename(saved));
+      if (await Directory(moved).exists() && !await Directory(saved).exists()) {
+        await Settings.setValue(key, moved);
+      }
+    }
+    await Settings.setValue(SettingsRepository.keyLibraryPath, newPath);
+  }
+
+  /// מועמד לספרייה על האות החדשה, כשהמסד זמין שם וחסר בנתיב השמור.
+  @visibleForTesting
+  static Future<String?> libraryPathAfterWindowsDriveChange(
+    String savedPath,
+    String oldRoot,
+    String newRoot, {
+    required Future<bool> Function(String) containsDatabase,
+  }) async {
+    final oldDrive = p.windows.rootPrefix(oldRoot);
+    final newDrive = p.windows.rootPrefix(newRoot);
+    if (oldDrive.length != 3 ||
+        newDrive.length != 3 ||
+        p.windows.equals(oldDrive, newDrive) ||
+        !p.windows.equals(oldDrive, p.windows.rootPrefix(savedPath))) {
+      return null;
+    }
+
+    final candidate = newDrive + savedPath.substring(oldDrive.length);
+    return await containsDatabase(candidate) &&
+            !await containsDatabase(savedPath)
+        ? candidate
+        : null;
   }
 
   /// עובר רקורסיבית על מבנה Hive/JSON ומשכתב כל מחרוזת שמתחילה ב-[oldRoot].

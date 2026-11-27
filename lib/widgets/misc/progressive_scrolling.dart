@@ -297,18 +297,21 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     _navigationKeys.release(event);
+    final keyboard = HardwareKeyboard.instance;
+    final released =
+        event is KeyUpEvent && !keyboard.isLogicalKeyPressed(event.logicalKey);
     final result =
         widget.onKeyEvent?.call(node, event) ?? KeyEventResult.ignored;
     if (result != KeyEventResult.ignored) {
-      if (event is KeyUpEvent) _stopScrolling();
+      if (released) _stopScrolling();
       return result;
     }
 
     final modified =
-        HardwareKeyboard.instance.isShiftPressed ||
-        HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.isAltPressed ||
-        HardwareKeyboard.instance.isMetaPressed;
+        keyboard.isShiftPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed;
     if (modified) _stopScrolling();
 
     final isPageDown = event.logicalKey == LogicalKeyboardKey.pageDown;
@@ -332,11 +335,11 @@ class _ProgressiveScrollState extends State<ProgressiveScroll>
 
     final direction = isArrowDown ? 1 : -1;
     if (event is KeyUpEvent) {
-      if (_scrollDirection == direction) {
+      if (released && _scrollDirection == direction) {
         final other = isArrowDown
             ? LogicalKeyboardKey.arrowUp
             : LogicalKeyboardKey.arrowDown;
-        if (HardwareKeyboard.instance.logicalKeysPressed.contains(other)) {
+        if (keyboard.isLogicalKeyPressed(other)) {
           _startScrolling(-direction);
         } else {
           _stopHold();

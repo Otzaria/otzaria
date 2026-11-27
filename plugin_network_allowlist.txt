@@ -126,3 +126,6 @@ https://moodle.oraysa.org
 
 # תוסף ושננתם (org.vshinantem.shas-review) — שרת המבחנים ובדיקת התמצית. POST בלבד, פלט מובנה בעברית
 https://vshinantem-exams.vshinantem.workers.dev/v1
+
+# תוסף המחשות משניות — דיווחי טעויות, אישורי תקינה וסימוני אימות לבעל התוסף
+https://script.google.com/macros/s/AKfycbwx2wWr6B6lCxUVP1dz8xLmtZqn18BkN7nquov-huM4kivLMc_Eu9XUELNzIDpTGMbDpw/exec

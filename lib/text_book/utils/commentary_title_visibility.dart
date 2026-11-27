@@ -40,6 +40,44 @@ bool commentaryTitleMatchesReadingLocation({
   return targetLocation.isNotEmpty && listEquals(targetLocation, sourceTokens);
 }
 
+/// כותרת המקטע [displayTitle] בלי שם הספר שכבר מופיע בכותרת הקבוצה
+/// [groupBookTitle] (issue #3599): "רש"י על שופטים ו, ה" -> "ו, ה".
+/// כשהכותרת אינה מתחילה בשם הספר, או שאחריו אין כתובת (שם הספר בלבד,
+/// סיומת טווח "– ...") — מוחזרת הכותרת המלאה.
+String commentaryTitleWithoutBook({
+  required String displayTitle,
+  required String groupBookTitle,
+}) {
+  final bookTokens = referenceTokens(groupBookTitle);
+  final titleTokens = referenceTokens(displayTitle);
+  if (bookTokens.length >= titleTokens.length ||
+      !_isTokenPrefix(bookTokens, titleTokens)) {
+    return displayTitle;
+  }
+  // חותכים במחרוזת המקורית, בגבול המילה הראשון שבו נגמר שם הספר.
+  for (var i = 1; i < displayTitle.length; i++) {
+    final c = displayTitle[i];
+    if (c != ' ' && c != ',') continue;
+    if (!listEquals(
+      referenceTokens(displayTitle.substring(0, i)),
+      bookTokens,
+    )) {
+      continue;
+    }
+    final location = displayTitle.substring(i).replaceFirst(_leadingGap, '');
+    final startsWithWord =
+        location.isNotEmpty &&
+        listEquals(
+          referenceTokens(location[0]),
+          [location[0]],
+        );
+    return startsWithWord ? location : displayTitle;
+  }
+  return displayTitle;
+}
+
+final RegExp _leadingGap = RegExp(r'^[\s,]+');
+
 final RegExp _nonspacingMarks = RegExp(r'\p{Mn}', unicode: true);
 
 /// מפרק כתובת למילות השוואה: בלי ניקוד/טעמים, גרשיים ופיסוק מפריד.

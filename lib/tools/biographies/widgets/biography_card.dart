@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
@@ -22,6 +23,12 @@ class BiographyCard extends StatefulWidget {
   /// Opens the entry with this id.
   final ValueChanged<String>? onOpen;
 
+  /// The library book of a work, if any.
+  final Book? Function(BiographyWork work) bookForWork;
+
+  /// Opens a book of the library.
+  final ValueChanged<Book>? onOpenBook;
+
   final bool initiallyExpanded;
 
   const BiographyCard({
@@ -29,10 +36,14 @@ class BiographyCard extends StatefulWidget {
     required this.biography,
     this.canOpen = _never,
     this.onOpen,
+    this.bookForWork = _noBook,
+    this.onOpenBook,
     this.initiallyExpanded = false,
   });
 
   static bool _never(String id) => false;
+
+  static Book? _noBook(BiographyWork work) => null;
 
   @override
   State<BiographyCard> createState() => _BiographyCardState();
@@ -267,6 +278,52 @@ class _BiographyCardState extends State<BiographyCard> {
     );
   }
 
+  /// A work's title, as a link when it has a book in the library.
+  Widget _work(
+    BiographyWork work,
+    ColorScheme cs,
+    TextStyle bodyStyle,
+    TextStyle linkStyle,
+  ) {
+    final book = widget.onOpenBook == null ? null : widget.bookForWork(work);
+    return Text.rich(
+      TextSpan(
+        style: bodyStyle.copyWith(fontWeight: FontWeight.w600),
+        children: [
+          if (book == null)
+            TextSpan(text: work.title)
+          else
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: Tooltip(
+                message: 'פתח את הספר',
+                child: Semantics(
+                  container: true,
+                  link: true,
+                  child: InkWell(
+                    onTap: () => widget.onOpenBook!(book),
+                    child: Text(
+                      work.title,
+                      style: linkStyle.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (work.description != null)
+            TextSpan(
+              text: ' - ${work.description}',
+              style: TextStyle(
+                fontWeight: FontWeight.normal,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _buildDetails(ColorScheme cs, TextStyle bodyStyle) {
     final labelStyle = bodyStyle.copyWith(
       fontSize: AppTokens.fontSM,
@@ -363,22 +420,7 @@ class _BiographyCardState extends State<BiographyCard> {
               for (final work in _bio.works)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppTokens.spaceXS),
-                  child: Text.rich(
-                    TextSpan(
-                      text: work.title,
-                      style: bodyStyle.copyWith(fontWeight: FontWeight.w600),
-                      children: [
-                        if (work.description != null)
-                          TextSpan(
-                            text: ' - ${work.description}',
-                            style: bodyStyle.copyWith(
-                              fontWeight: FontWeight.normal,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                  child: _work(work, cs, bodyStyle, linkStyle),
                 ),
             ],
           ),

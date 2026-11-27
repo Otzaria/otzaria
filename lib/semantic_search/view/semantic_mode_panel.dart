@@ -26,6 +26,7 @@ class SemanticModePanel extends StatelessWidget {
     this.queryTrailingAction,
     required this.scopeSelection,
     required this.onScopeChanged,
+    this.coveredBookFilePaths,
     required this.includeLexical,
     required this.onIncludeLexicalChanged,
     required this.groupIdenticalText,
@@ -45,7 +46,10 @@ class SemanticModePanel extends StatelessWidget {
   /// פעולה בסוף שדה השאילתה (היסטוריית החיפושים).
   final Widget? queryTrailingAction;
   final Set<String> scopeSelection;
-  final ValueChanged<Set<String>> onScopeChanged;
+
+  /// `null` בחיפוש בתוך ספר, שבו ההיקף הוא הספר ואין בורר.
+  final ValueChanged<Set<String>>? onScopeChanged;
+  final Set<String>? coveredBookFilePaths;
   final bool includeLexical;
   final ValueChanged<bool> onIncludeLexicalChanged;
   final bool groupIdenticalText;
@@ -328,12 +332,14 @@ class SemanticModePanel extends StatelessWidget {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SearchScopeMenuButton(
-                key: ValueKey(includeLexical),
-                selected: scopeSelection,
-                officialBooksOnly: !includeLexical,
-                onChanged: onScopeChanged,
-              ),
+              if (onScopeChanged case final onScopeChanged?)
+                SearchScopeMenuButton(
+                  key: ValueKey(includeLexical),
+                  selected: scopeSelection,
+                  officialBooksOnly: !includeLexical,
+                  coveredFilePaths: coveredBookFilePaths,
+                  onChanged: onScopeChanged,
+                ),
               FilterChip(
                 key: const ValueKey('semantic-include-lexical'),
                 label: Text(context.settingsText('שלב גם התאמה מילולית')),

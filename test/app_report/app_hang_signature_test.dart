@@ -146,6 +146,18 @@ void main() {
       expect(deep.stackText, contains('otzaria.exe+0x13144'));
     });
 
+    test('כמה שורות השמטה (ראש, קצה Dart, תחתית): החתימה רק מהראש', () {
+      const second = '... (12 frames omitted) ...';
+      final outer = [
+        for (var i = 0; i < 20; i++)
+          'app.so+0x${(0x1d00000 + i * 0x10).toRadixString(16)}',
+      ];
+      final deep = block([...rebuildTop, marker, ...outer, second, ...bottom]);
+      expect(deep.signature.hash, block(rebuildTop).signature.hash);
+      expect(deep.signature.frames.join(' '), isNot(contains('0x1d0')));
+      expect(deep.stackText, contains(second));
+    });
+
     test('ראש נייטיב בלי Dart: פריימי Dart בתחתית אינם משנים את החתימה', () {
       final nativeTop = [
         'ntdll.dll+0x164784',

@@ -253,6 +253,42 @@ void main() {
     );
   });
 
+  testWidgets('בחירת שורה בספר מעדכנת רק את סימון הכותרות שהשתנו', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    final toc = find.byType(TocViewer);
+    final bloc = tester.element(toc).read<TextBookBloc>() as _TestTextBookBloc;
+    bloc.update(
+      (bloc.state as TextBookLoaded).copyWith(
+        tableOfContents: [
+          TocEntry(text: 'כותרת א', index: 0, level: 1),
+          TocEntry(text: 'כותרת ב', index: 1, level: 1),
+          TocEntry(text: 'כותרת ג', index: 2, level: 1),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    NavTreeTile tile(String title) => tester.widget<NavTreeTile>(
+      find.descendant(
+        of: toc,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is NavTreeTile && widget.title == title,
+        ),
+      ),
+    );
+    final untouched = tile('כותרת ג');
+    expect(tile('כותרת א').isSelected, isTrue);
+
+    bloc.add(UpdateSelectedIndex(1));
+    await tester.pumpAndSettle();
+
+    expect(tile('כותרת א').isSelected, isFalse);
+    expect(tile('כותרת ב').isSelected, isTrue);
+    expect(tile('כותרת ג'), same(untouched));
+  });
+
   testWidgets('הקלדה בחיפוש-בספר שורדת את סיום בדיקת הכותרות החלופיות', (
     tester,
   ) async {
@@ -363,22 +399,11 @@ void main() {
       tester.widget<RichText>(snippet(2)).text.style!.fontFamily,
       'TaameyDavidCLM',
     );
-    // DD-26: אחרי מעבר החלונית נסגרת רק כשהיא מכסה את הטקסט. כאן היא
-    // מוצמדת לצד הטקסט (מסך רחב, נעוצה) — ולכן נשארת פתוחה.
+    // DD-26: אחרי מעבר החלונית נסגרת רק כשהיא מכסה את הטקסט. במסך רחב היא
+    // דוחקת את הטקסט — ולכן נשארת פתוחה.
     state.widget.closeLeftPaneCallback();
     await tester.pump();
     expect((bloc.state as TextBookLoaded).showLeftPane, isTrue);
-    // לא נעוצה, צפה מעל הטקסט: הקריאה מהחלונית השמורה מגיעה לקורא וסוגרת.
-    (bloc as _TestTextBookBloc).update(
-      (bloc.state as TextBookLoaded).copyWith(pinLeftPane: false),
-    );
-    await tester.pump();
-    // מצב הפריסה מדווח ב-post-frame.
-    await tester.pump();
-    expect(tester.state(search), same(state));
-    state.widget.closeLeftPaneCallback();
-    await tester.pump();
-    expect((bloc.state as TextBookLoaded).showLeftPane, isFalse);
   });
 
   testWidgets('שינוי תצורת חיפוש ובקשה חיצונית מגיעים לחלונית השמורה', (
@@ -500,7 +525,6 @@ TextBookLoaded _loadedState(TextBook book) {
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: true,
     searchText: '',
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,

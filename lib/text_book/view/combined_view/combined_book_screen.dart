@@ -14,10 +14,10 @@ import 'package:otzaria/text_display/view/copy_as_menu.dart';
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, ValueNotifier, listEquals;
 import 'package:flutter/gestures.dart' show kPrimaryMouseButton;
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.dart';
 
@@ -41,6 +41,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/widgets/misc/navigation_key_tracker.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -326,9 +327,7 @@ final _detailsTag = RegExp(r'<details\b', caseSensitive: false);
 
 /// שוליים משני צדי הפריטים: בימניים מצויר סמן הבחירה והם מרחיקים את הטקסט
 /// מאזור הלחיצה של המסילה; השמאליים שומרים על מרכוז עמודת הטקסט.
-const _selectionGutter = EdgeInsets.symmetric(
-  horizontal: kTextColumnMinMargin,
-);
+const _selectionGutter = EdgeInsets.symmetric(horizontal: kTextColumnMinMargin);
 
 class _ChildBuilder extends StatelessWidget {
   const _ChildBuilder({required this.builder, required this.child});
@@ -848,7 +847,7 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   late final FocusNode _focusNode;
-  final _selectionAreaFocusNode = _KeepSelectionOnWindowBlurFocusNode();
+  final _selectionAreaFocusNode = KeepSelectionOnWindowBlurFocusNode();
 
   bool _didRequestInitialFocus = false;
 
@@ -1343,9 +1342,12 @@ class _CombinedViewState extends State<CombinedView> {
     final currentSelectedIndex = state.selectedIndex;
 
     if (currentSelectedIndex != null) {
-      // אם האינדקס הנבחר כבר לא נראה (האינדקסים הנראים שונו עקב גלילה)
-      final visibleIndices = state.visibleIndices;
-      if (!visibleIndices.contains(currentSelectedIndex)) {
+      // אם האינדקס הנבחר כבר לא נראה (האינדקסים הנראים שונו עקב גלילה).
+      // visibleIndices מתעדכן באיחור (debounce), ולכן קטע שהניווט הרגע נחת
+      // עליו נבדק גם מול המיקום הנמדד עצמו.
+      final position = widget.tab.lines.position.value;
+      if (!state.visibleIndices.contains(currentSelectedIndex) &&
+          !(position?.visibleLines.contains(currentSelectedIndex) ?? false)) {
         _addTextBookEventIfOpen(const UpdateSelectedIndex(null));
       }
     }
@@ -1814,14 +1816,19 @@ class _CombinedViewState extends State<CombinedView> {
       final textBookState = context.read<TextBookBloc>().state;
       if (textBookState is! TextBookLoaded) return;
 
+      final selectedIndex = _currentSelectedIndex.value;
+      final lineStart = _selectionLineStart;
+      final lineEnd = _selectionLineEnd;
       await copySelectedTextForBook(
         plainText: plainText,
-        selectedIndex: _currentSelectedIndex.value,
+        selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
         sourceContent: widget.data,
         textBookState: textBookState,
         segmentCount: selectionSegmentCount(
-          start: _selectionLineStart,
-          end: _selectionLineEnd,
+          start: lineStart,
+          end: lineEnd,
           text: plainText,
         ),
         settingsState: settingsState,
@@ -1841,18 +1848,18 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// Builds the same protected, formatted text as Ctrl+C without touching the clipboard.
-  SelectedTextDragPreparation? _captureSelectedTextDrag(
-    String capturedText,
-  ) {
+  SelectedTextDragPreparation? _captureSelectedTextDrag(String capturedText) {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded || capturedText.trim().isEmpty) return null;
     final sourceWidget = widget;
     final settingsState = context.read<SettingsBloc>().state;
     final selectedIndex = _currentSelectedIndex.value;
+    final lineStart = _selectionLineStart;
+    final lineEnd = _selectionLineEnd;
     final source = _sourceSelection;
     final segmentCount = selectionSegmentCount(
-      start: _selectionLineStart,
-      end: _selectionLineEnd,
+      start: lineStart,
+      end: lineEnd,
       text: capturedText,
     );
     return () async {
@@ -1860,6 +1867,8 @@ class _CombinedViewState extends State<CombinedView> {
       final content = await buildSelectedTextCopy(
         plainText: capturedText,
         selectedIndex: selectedIndex,
+        selectionLineStart: lineStart,
+        selectionLineEnd: lineEnd,
         sourceContent: sourceWidget.data,
         textBookState: state,
         settingsState: settingsState,
@@ -2566,12 +2575,42 @@ class _CombinedViewState extends State<CombinedView> {
     return layout.itemForLine(line);
   }
 
+  // פריטים המחוברים לרשימה נשמרים לשימוש חוזר כשהבחירה בתוכם לא השתנתה.
+  final Map<int, ({List<int> selected, Widget item})> _readerItems = {};
+  ({TextBookLoaded state, Object notes, double viewport})? _readerItemsInputs;
+
   Widget buildOuterList(
     TextBookLoaded state,
     Map<int, List<PersonalNote>> noteMap,
   ) {
     // פריט לכל שורה במצב רגיל ולכל פסקה במצב רציף; tab.index הוא שורת מקור.
     final layout = readingLayoutOf(state);
+    final previous = _readerItemsInputs;
+    // מדיניות הבנייה משווה חלק מאוספי המצב לפי גודל, והפריט קורא את תוכנם.
+    if (previous == null ||
+        !identical(previous.notes, noteMap) ||
+        previous.viewport != _viewportHeight ||
+        !identical(previous.state.links, state.links) ||
+        !identical(previous.state.linksByLine, state.linksByLine) ||
+        !identical(
+          previous.state.availableCommentators,
+          state.availableCommentators,
+        ) ||
+        !identical(previous.state.tableOfContents, state.tableOfContents) ||
+        !identical(previous.state.loadedLineFlags, state.loadedLineFlags) ||
+        shouldRebuildIgnoringSelection(previous.state, state)) {
+      _readerItems.clear();
+    }
+    _readerItemsInputs = (
+      state: state,
+      notes: noteMap,
+      viewport: _viewportHeight,
+    );
+    final selectedLinesByItem = <int, List<int>>{};
+    for (final line in state.selectedIndices) {
+      if (line < 0 || line >= layout.lineCount) continue;
+      (selectedLinesByItem[layout.itemForLine(line)] ??= []).add(line);
+    }
     _commentaryCardKeys.removeWhere(
       (line, _) => !state.selectedIndices.contains(line),
     );
@@ -2624,6 +2663,11 @@ class _CombinedViewState extends State<CombinedView> {
             scrollOffsetController: widget.tab.lines.offsetController,
             itemCount: itemCount,
             itemBuilder: (context, index) {
+              final selected = selectedLinesByItem[index] ?? const <int>[];
+              final cached = _readerItems[index];
+              if (cached != null && listEquals(cached.selected, selected)) {
+                return cached.item;
+              }
               // מבודד את שכבת הצביעה של כל פריט - rebuild של פריט בודד (בחירה/
               // הדגשה) או emit של warming לא יצבע מחדש את כל ה-viewport.
               final tile = RepaintBoundary(
@@ -2644,12 +2688,20 @@ class _CombinedViewState extends State<CombinedView> {
                       )
                     : tile,
               );
-              return wrapReaderItem(
+              late final ReaderItemBox wrapped;
+              wrapped = ReaderItemBox(
                 item: index,
-                layout: readingSegmentsOf(state).layout,
                 boxes: widget.tab.lines.itemBoxes,
+                onUnmount: () {
+                  if (identical(_readerItems[index]?.item, wrapped) &&
+                      wrapped.boxes.boxForItem(index) == null) {
+                    _readerItems.remove(index);
+                  }
+                },
                 child: item,
               );
+              _readerItems[index] = (selected: selected, item: wrapped);
+              return wrapped;
             },
           ),
     );
@@ -2958,6 +3010,19 @@ class _CombinedViewState extends State<CombinedView> {
                                     notesForLine,
                                   ),
                                 );
+                          // שומרים מקום לטקסט שטרם נטען בלי להסתיר תוכן נלווה.
+                          final text = segment?.isLoaded == false
+                              ? ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight:
+                                        widget.textSize *
+                                        settingsState.lineHeightForBook(
+                                          state.lineHeight,
+                                        ),
+                                  ),
+                                  child: content,
+                                )
+                              : content;
                           // הסמן עוטף את עמודת הטקסט, כדי שיהיה צמוד אליה גם
                           // כשהיא ממורכזת וצרה מהפריט.
                           final column = _withSelectionGutter(
@@ -2969,7 +3034,7 @@ class _CombinedViewState extends State<CombinedView> {
                               padding: const EdgeInsets.symmetric(
                                 vertical: 2.0,
                               ),
-                              child: content,
+                              child: text,
                             ),
                           );
                           return textMaxWidth > 0
@@ -3431,6 +3496,8 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   Widget build(BuildContext context) {
+    // הפריטים קוראים שדות של ה-State ושל ההקשר; כאן הם אולי השתנו.
+    _readerItems.clear();
     // קישורים פנימיים מנווטים דרך ה-scope — גם בתצוגה המקדימה, שאינה בתוך הקורא.
     final bloc = context.select<TextBookBloc, TextBookBloc>((bloc) => bloc);
     return LineScrollScope(
@@ -3462,19 +3529,6 @@ class _CombinedViewState extends State<CombinedView> {
     _clearSelectionState();
     _selectionAreaKey.currentState?.selectableRegion.clearSelection();
     widget.onSelectedTextChanged?.call(null, null, null);
-  }
-}
-
-// ב-Windows אובדן פוקוס החלון מעביר את הפוקוס ל-rootScope כשה-lifecycle עדיין
-// resumed; בלי זה SelectableRegion מנקה את הבחירה.
-class _KeepSelectionOnWindowBlurFocusNode extends FocusNode {
-  @override
-  void notifyListeners() {
-    if (SchedulerBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-        FocusManager.instance.primaryFocus == FocusManager.instance.rootScope) {
-      return;
-    }
-    super.notifyListeners();
   }
 }
 

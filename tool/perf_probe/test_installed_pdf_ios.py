@@ -1,12 +1,15 @@
 """Negative evidence contracts; synthetic reports here are not native iOS runs."""
 
+import contextlib
 import copy
+import io
 import json
 import os
 from pathlib import Path
 import plistlib
 import re
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -92,7 +95,7 @@ class IosPdfEvidence(unittest.TestCase):
         steps["teardown"].update(viewerDetached=True, viewerNativeCloseCompleted=True, viewerLoadingCount=0)
         fixture_path = self.output / "bundle-runtime.pdf"
         self.report = {"schemaVersion": 1, "scenario": "installed-pdf-ios-simulator-v1", "status": "passed",
-                       "platform": "ios", "buildMode": "debug", "flutterVersion": "3.47.7", "commit": COMMIT,
+                       "platform": "ios", "buildMode": "debug", "flutterVersion": "3.47.9", "commit": COMMIT,
                        "campaign": self.receipt["campaign"], "pid": 173, "runId": "173-1234", "osVersion": "iOS fixture",
                        "frameworkPassed": True, "physicalDeviceAcceptance": False, "physicalPrinter": "notRun",
                        "errors": [], "contractErrors": [], "testFailures": [], "appUnmounted": True,
@@ -484,9 +487,27 @@ class OwnedSimulatorContracts(unittest.TestCase):
                 self.assertEqual(runner.run_driver(root, self.receipt(), COMMIT), 0)
             arguments = process.call_args.args[0]
             self.assertEqual(arguments[arguments.index("-d") + 1], UDID)
+            self.assertIn("--verbose", arguments)
             self.assertIn("--keep-app-running", arguments)
             self.assertNotIn("--use-existing-app", arguments)
             self.assertEqual(json.loads((root / "driver-command.json").read_text()), arguments)
+
+    def test_failed_driver_keeps_its_error_when_no_app_bundle_was_built(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "evidence"
+            with patch.object(runner, "command", return_value=COMMIT), \
+                    patch.object(runner, "create_simulator", return_value=self.receipt()), \
+                    patch.object(runner, "boot_simulator"), \
+                    patch.object(runner, "run_driver", return_value=1), \
+                    patch.object(runner, "collect_and_validate", side_effect=FileNotFoundError("missing bundle")) as collect, \
+                    patch.object(runner, "preserve_partial_output") as preserve, \
+                    patch.object(runner, "cleanup_simulator") as cleanup:
+                with self.assertRaisesRegex(ValueError, r"driver failed.*exit=1.*run.log"):
+                    runner.run(evidence, COMMIT)
+                collect.assert_not_called()
+                preserve.assert_called_once()
+                cleanup.assert_called_once()
+            self.assertTrue((evidence / "simulator.json").is_file())
 
     def test_boot_does_not_require_unix_executables_in_the_ios_runtime(self):
         receipt = self.receipt()
@@ -515,6 +536,36 @@ class OwnedSimulatorContracts(unittest.TestCase):
             self.assertEqual(receipt["model"], "iPhone18,1")
             self.assertEqual(receipt["stateBefore"], "Booted")
             self.assertNotIn("architecture", receipt)
+
+    def test_boot_status_timeout_restarts_the_owned_simulator_once(self):
+        receipt = self.receipt()
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "iOS.simruntime"
+            runtime = bundle / "Contents/Resources/RuntimeRoot"
+            runtime.mkdir(parents=True)
+            receipt["runtimeBundle"] = str(bundle)
+            calls = []
+
+            def native_call(*arguments, **_):
+                calls.append(arguments[0])
+                if arguments[0] == "bootstatus" and calls.count("bootstatus") == 1:
+                    raise subprocess.TimeoutExpired(["xcrun", "simctl", *arguments], 300)
+                if arguments[0] == "list":
+                    device = self.device(receipt)
+                    if calls.count("list") == 1:
+                        device["state"] = initial_state
+                    return json.dumps({"devices": {receipt["runtimeIdentifier"]: [device]}})
+                return str(runtime) if arguments[-1] == "SIMULATOR_ROOT" else ""
+
+            for initial_state, shutdown_calls in (("Booted", ["shutdown"]), ("Shutdown", [])):
+                with self.subTest(initial_state=initial_state), \
+                        patch.object(runner, "simctl", side_effect=native_call), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    calls.clear()
+                    runner.boot_simulator(receipt)
+                    self.assertEqual(calls, ["boot", "bootstatus", "list", *shutdown_calls,
+                                             "boot", "bootstatus", "list", "getenv", "getenv"])
+                    self.assertEqual(receipt["stateBefore"], "Booted")
 
     def test_cleanup_rejects_another_device_before_any_mutation(self):
         receipt = self.receipt()

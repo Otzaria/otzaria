@@ -34,9 +34,6 @@ class LoadContent extends TextBookEvent {
   // לכבות מצב רצף שהמשתמש בחר.
   final bool preserveContinuousReadingMode;
 
-  /// רוחב החלון של הקורא, למדיניות החלונית השמאלית; null — ברירת המחדל.
-  final double? screenWidth;
-
   const LoadContent({
     this.startIndex,
     required this.fontSize,
@@ -49,7 +46,6 @@ class LoadContent extends TextBookEvent {
         false, // Default to false for backward compatibility
     this.preserveRemovePunctuation = false,
     this.preserveContinuousReadingMode = false,
-    this.screenWidth,
   });
 
   @override
@@ -64,7 +60,6 @@ class LoadContent extends TextBookEvent {
     preserveRemoveNikud,
     preserveRemovePunctuation,
     preserveContinuousReadingMode,
-    screenWidth,
   ];
 }
 
@@ -235,6 +230,17 @@ class HighlightLine extends TextBookEvent {
   List<Object?> get props => [lineIndex];
 }
 
+/// מדגיש לרגע את [line] כשהיא גלויה בפועל בטאב הפעיל; זמן ההדגשה נספר משם.
+class HighlightLineWhenVisible extends TextBookEvent {
+  final int line;
+  final int? navigationEpoch;
+
+  const HighlightLineWhenVisible(this.line, {this.navigationEpoch});
+
+  @override
+  List<Object?> get props => [line, navigationEpoch];
+}
+
 class ClearHighlightedLine extends TextBookEvent {
   final int? lineIndex;
 
@@ -269,15 +275,6 @@ class SelectLineWhenVisible extends TextBookSelectionEvent {
 
   @override
   List<Object?> get props => [line];
-}
-
-class TogglePinLeftPane extends TextBookEvent {
-  final bool pin;
-
-  const TogglePinLeftPane(this.pin);
-
-  @override
-  List<Object?> get props => [pin];
 }
 
 class UpdateSearchText extends TextBookEvent {

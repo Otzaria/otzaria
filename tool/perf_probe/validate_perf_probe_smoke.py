@@ -12,8 +12,10 @@ import sys
 sys.dont_write_bytecode = True
 if __package__:
     from .run_perf_probe_posix import is_fixture_id, read_json
+    from .probe_binding import binding_identity, validate_binding_identity, validate_framework_scheduler
 else:
     from run_perf_probe_posix import is_fixture_id, read_json
+    from probe_binding import binding_identity, validate_binding_identity, validate_framework_scheduler
 
 
 CASE = {"schemaVersion": 1,
@@ -27,7 +29,7 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def validate(root, *, commit, platform):
+def validate(root, *, commit, platform, binding_mode="integration"):
     require(re.fullmatch(r"[0-9a-f]{40}", commit) is not None, "Expected a source commit SHA")
     report = read_json(root / "report.json", maximum=128 * 1024 * 1024)
     manifest = read_json(root / "manifest.json")
@@ -39,6 +41,7 @@ def validate(root, *, commit, platform):
     for source in (manifest, metadata):
         expected = {"schemaVersion": 2, "protocolVersion": 2, "status": "passed", "commit": commit,
                     "buildMode": "profile", "cacheState": "cold", "scenarioSet": "pdf-reader",
+                    "bindingMode": binding_mode, "probeTarget": binding_identity(binding_mode)["probeTarget"],
                     "launchCount": 1, "warmup": 0, "repetitions": 1, "dirty": False}
         for key, value in expected.items():
             require(type(source.get(key)) is type(value) and source[key] == value,
@@ -56,7 +59,9 @@ def validate(root, *, commit, platform):
     require(sampling.get("displayMode") == ("xvfb" if platform == "linux" else "desktop"),
             "Wrong display conditions for this smoke")
     settings = metadata["settings"]
-    require(settings.get("framePolicy") == "fullyLive", "Missing or unexpected integration binding frame policy")
+    validate_binding_identity(settings, binding_mode)
+    if binding_mode == "framework":
+        validate_framework_scheduler(report.get("notes"), metadata["launchCount"])
     require(settings.get("pdfReaderCase") == CASE and settings.get("pdfPageCount") == 600
             and settings.get("pdfLayout") == "regularView"
             and settings.get("scenarioSet") == "pdf-reader", "The default PDF case/actions changed")
@@ -120,6 +125,7 @@ def validate(root, *, commit, platform):
     require(scenario("first_preview_image").get("status") == "skipped",
             "Unsupported preview signal must remain explicit")
     return {"status": "passed", "platform": platform, "commit": commit, "fixtureId": metadata["fixtureId"],
+            "bindingMode": binding_mode,
             "pdfSha256": pdf_hash, "pdfReaderCase": CASE, "checkpointsMs": checkpoints,
             "idleResources": resources,
             "scope": sampling["scope"], "comparison": "not performed; one functional smoke launch"}
@@ -130,9 +136,11 @@ def main():
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--platform", choices=("linux", "macos"), required=True)
+    parser.add_argument("--binding-mode", choices=("integration", "framework"), default="integration")
     args = parser.parse_args()
     try:
-        print(json.dumps(validate(args.root, commit=args.commit, platform=args.platform), indent=2))
+        print(json.dumps(validate(args.root, commit=args.commit, platform=args.platform,
+                                  binding_mode=args.binding_mode), indent=2))
         return 0
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
         print(f"Incomplete POSIX PDF reader smoke: {error}", file=sys.stderr)

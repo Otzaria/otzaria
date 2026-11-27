@@ -257,8 +257,11 @@ Name those frames with the release asset `otzaria-dart-symbols-windows-<arch>.de
 `dart run tool/symbolize_hang_report.dart --symbols <file> errors.txt`. The tool skips any record
 whose `Dart build-id` does not match the file. `Build commit` identifies a dev build, and those have no
 published symbols. Windows builds published by `build-and-announce.yml` ship a patched `flutter_windows.dll`
-(`.github/actions/patched-flutter-engine`): name its frames with the `.pdb` from the `palmoni5/flutter` release
-`otzaria-3.47.7-a11y.1`, picked by the GUID in the record's `Module PDB:` line (x64
+(`.github/actions/patched-flutter-engine`): find the engine release selected by
+`.github/otzaria-engine/releases.json` and the checked-in patches at the app's build commit.
+Name its frames with that archive's `.pdb`, matching the GUID in the record's `Module PDB:` line.
+For older builds without this manifest, use the `palmoni5/flutter` release
+`otzaria-3.47.7-a11y.1` when its PDB GUID matches (x64
 `9A3F8E48-5EA7-4A0A-8316-21352F723250`, arm64 `7324F4D1-92B4-455F-BA47-E65B47E2E69B`). Other builds use the official PDB from
 `flutter_infra_release/flutter/<engine.version>/windows-x64-release/windows-x64-flutter.zip`.
 For `otzaria.exe` and the DLLs CMake builds from source (e.g. `flutter_inappwebview_windows_plugin.dll`), use the PDBs in the release
@@ -566,7 +569,7 @@ A pull request runs only Analyze and the guards (Lockfile, Goldens, UI Baseline,
 
 A failed run is retried once (except Analyze and the guards); a job that then passes is logged in the open `flaky-ci` issue, and a repeated failure moves the PR to draft. Flutter Tests also runs on every push to `dev`: a commit that fails twice there, after a green one, gets a revert PR from Otzaria Bot. A merge commit reverts its whole PR; a single-parent commit (including squash or rebase) reverts only that commit, never an inferred range based on the original PR's commit count.
 
-The `automerge` label (added by someone with write access) merges the PR with a merge commit as Otzaria Bot once every check passed, including `CI result`. Merges share one queue and require successful CI on the current `dev` SHA, including after a retry. Checks from different workflows remain distinct; only superseded runs of the same workflow and event are replaced. The bot first rebases a branch that is behind and waits for CI on the new head. Any push by a person removes `automerge`.
+The `automerge` label (added by someone with write access) merges the PR with a merge commit as Otzaria Bot once every check passed, including `CI result`. Merges share one queue and normally require a successful completed CI run on an ancestor of the current `dev` SHA; a newer retry still blocks merging. If the latest completed `dev` CI failed, timed out or was cancelled, an approved PR targeting `dev` may recover it only when its fully tested head contains the current `dev` SHA, with no automatic rebase. Checks from different workflows remain distinct; only superseded runs of the same workflow and event are replaced. The bot first rebases a branch that is behind, then merges it in the same run without waiting for CI on the rebased head (CI already passed on the PR's own head). Any push by a person removes `automerge`.
 
 ## Keeping a Branch Up to Date
 

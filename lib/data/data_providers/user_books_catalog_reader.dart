@@ -12,7 +12,7 @@ import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 typedef UserBooksCatalogRows = ({
   List<Map<String, dynamic>> books,
   List<Map<String, dynamic>> categories,
-  Map<int, String> authors,
+  Map<int, List<String>> authors,
   List<Map<String, dynamic>> versions,
   List<Map<String, dynamic>> attachedVersions,
 });

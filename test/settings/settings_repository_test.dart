@@ -124,12 +124,6 @@ void main() {
             defaultValue: false,
           ),
         ).thenReturn(false);
-        when(
-          mockSettingsWrapper.getValue<bool>(
-            SettingsRepository.keyPinSidebar,
-            defaultValue: false,
-          ),
-        ).thenReturn(false);
 
         final settings = await repository.loadSettings();
 
@@ -153,7 +147,6 @@ void main() {
         );
         expect(settings['defaultContinuousReadingMode'], false);
         expect(settings['defaultSidebarOpen'], false);
-        expect(settings['pinSidebar'], false);
       },
     );
 
@@ -262,12 +255,6 @@ void main() {
         ),
       ).thenReturn(true);
       when(
-        mockSettingsWrapper.getValue<bool>(
-          SettingsRepository.keyPinSidebar,
-          defaultValue: false,
-        ),
-      ).thenReturn(true);
-      when(
         mockSettingsWrapper.getValue<String>(
           SettingsRepository.keyPageShapeBottomFont,
           defaultValue: AppFonts.defaultFont,
@@ -297,7 +284,6 @@ void main() {
       );
       expect(settings['defaultContinuousReadingMode'], true);
       expect(settings['defaultSidebarOpen'], true);
-      expect(settings['pinSidebar'], true);
       // issue #849 — הגופן של "מפרשים תחתונים" נטען בעלייה דרך loadSettings.
       expect(settings['pageShapeBottomFont'], 'Tinos');
     });
@@ -472,9 +458,6 @@ void main() {
           SettingsRepository.keyDefaultSidebarOpen,
           false,
         ),
-      ).called(1);
-      verify(
-        mockSettingsWrapper.setValue(SettingsRepository.keyPinSidebar, false),
       ).called(1);
     });
 
@@ -1112,6 +1095,51 @@ void main() {
             18.0,
           ),
         ).called(1);
+      });
+    });
+
+    group('הצמדת החלונית שהוסרה', () {
+      Future<void> loadWithPin(bool? pinned) async {
+        when(
+          mockSettingsWrapper.getValue<bool>(
+            'settings_initialized',
+            defaultValue: false,
+          ),
+        ).thenReturn(true);
+        when(
+          mockSettingsWrapper.getValue<bool?>(
+            'key-pin-sidebar',
+            defaultValue: null,
+          ),
+        ).thenReturn(pinned);
+        await repository.loadSettings();
+      }
+
+      test('מי שהצמיד מקבל פתיחה עם פתיחת ספר, והמפתח הישן נמחק', () async {
+        await loadWithPin(true);
+        verify(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyDefaultSidebarOpen,
+            true,
+          ),
+        ).called(1);
+        verify(mockSettingsWrapper.remove('key-pin-sidebar')).called(1);
+      });
+
+      test('לא מוצמד: רק מוחק את המפתח הישן', () async {
+        await loadWithPin(false);
+        verifyNever(
+          mockSettingsWrapper.setValue(
+            SettingsRepository.keyDefaultSidebarOpen,
+            any,
+          ),
+        );
+        verify(mockSettingsWrapper.remove('key-pin-sidebar')).called(1);
+      });
+
+      test('בלי מפתח ישן לא נוגע בכלום', () async {
+        await loadWithPin(null);
+        verifyNever(mockSettingsWrapper.remove('key-pin-sidebar'));
       });
     });
 

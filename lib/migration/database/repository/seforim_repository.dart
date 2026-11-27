@@ -685,20 +685,6 @@ class SeforimRepository {
     ];
   }
 
-  /// מזהי כל ספרי היסוד (`isBaseBook = 1`) ב-DB זה — לשילוב רשימת ספרי
-  /// היסוד בתפריט סינון החיפוש. המיפוי לספרי הספרייה נעשה לפי `book.id`.
-  Future<Set<int>> loadBaseBookIds() async {
-    if (!(await _capabilities).hasColumn('book', 'isBaseBook')) return {};
-    final db = await _database.database;
-    final result = db
-        .select('SELECT id FROM book WHERE isBaseBook = 1')
-        .toMapList();
-    return {
-      for (final row in result)
-        if (row['id'] is int) row['id'] as int,
-    };
-  }
-
   /// כל טבלת `book_base_text` עם כותרת ספר הבסיס; ריק במסד שאין בו הטבלה.
   Future<List<Map<String, dynamic>>> loadBookBaseTexts() async {
     if (!(await _capabilities).has('book_base_text')) return const [];
@@ -1287,6 +1273,15 @@ class SeforimRepository {
   }
 
   // --- Lines ---
+
+  /// Checks for embedded text without reading the book or relying on totalLines.
+  Future<bool> hasStoredLines(int bookId) async {
+    if (!(await _capabilities).hasLines) return false;
+    final db = await _database.database;
+    return db.select('SELECT 1 FROM line WHERE bookId = ? LIMIT 1', [
+      bookId,
+    ]).isNotEmpty;
+  }
 
   Future<Line?> getLineByIndex(int bookId, int lineIndex) async {
     return await _database.lineDao.selectByBookIdAndIndex(bookId, lineIndex);

@@ -22,10 +22,17 @@ on:
       - 'test/tool/perf_probe/report_test.dart'
       - 'test/tool/perf_probe/pdf_image_budget_test.dart'
       - 'test/tool/perf_probe/perf_recorder_test.dart'
+      - 'test/tool/perf_probe/probe_binding_test.dart'
+      - 'test/tool/perf_probe/probe_engine_test.dart'
+      - 'test/tool/perf_probe/pdf_multi_window_test.dart'
+      - 'integration_test/support/perf_pdf_multi_window.dart'
+      - 'lib/core/windowing/**'
       - 'integration_test/support/webview_probe_fixture.dart'
       - 'integration_test/support/webview_probe_metrics.dart'
       - 'integration_test/support/webview_probe_window.dart'
       - 'integration_test/support/perf_recorder.dart'
+      - 'integration_test/support/perf_resource_workload.dart'
+      - 'integration_test/support/perf_framework_scheduler.dart'
       - 'integration_test/support/perf_fixture.dart'
       - 'integration_test/support/perf_pdf_reader.dart'
       - 'integration_test/support/perf_pdf_book_reader.dart'
@@ -58,10 +65,15 @@ on:
         type: number
         default: 5
       scenario_set:
-        description: Actions to measure after app startup
+        description: Actions after startup (multi-window uses a fixed cold 10-page smoke)
         type: choice
-        options: [all, pdf-reader, pdf-book-view]
+        options: [all, pdf-reader, pdf-book-view, pdf-multi-window]
         default: all
+      binding_mode:
+        description: Scheduler identity (framework accepts PDF scenarios only)
+        type: choice
+        options: [integration, framework]
+        default: integration
       pdf_page_count:
         description: Generated PDF size (real PDF inputs stay local)
         type: choice
@@ -94,6 +106,12 @@ jobs:
       - name: Validate process identity and invariant CSV formatting
         shell: pwsh
         run: ./tool/perf_probe/test_sample_resources.ps1
+      - name: Validate binding identity and native scheduling evidence
+        shell: pwsh
+        run: ./tool/perf_probe/test_probe_binding.ps1
+      - name: Validate the bundled Windows engine and patch identity
+        shell: pwsh
+        run: ./tool/perf_probe/test_probe_engine.ps1
       - name: Validate backend correlation and comparison readiness
         shell: pwsh
         run: ./tool/perf_probe/test_webview_hosting_probe.ps1
@@ -112,7 +130,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - name: Resolve pinned dependencies
         shell: pwsh
         run: |
@@ -131,6 +149,9 @@ jobs:
             test/tool/perf_probe/webview_probe_metrics_test.dart `
             test/tool/perf_probe/pdf_image_budget_test.dart `
             test/tool/perf_probe/perf_recorder_test.dart `
+            test/tool/perf_probe/probe_binding_test.dart `
+            test/tool/perf_probe/probe_engine_test.dart `
+            test/tool/perf_probe/pdf_multi_window_test.dart `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/process-coverage-tests.log'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run the native scenario without performance thresholds
@@ -144,7 +165,7 @@ jobs:
           flutter drive --profile -d windows --no-pub `
             --driver=test_driver/webview_resource_probe.dart `
             --target=integration_test/webview_resource_probe_test.dart `
-            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.9 `
             --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} `
             --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run.log'
@@ -160,7 +181,7 @@ jobs:
           flutter drive --profile -d windows --no-pub `
             --driver=test_driver/webview_resource_probe.dart `
             --target=integration_test/webview_resource_probe_test.dart `
-            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.7 `
+            --dart-define=WEBVIEW_PROBE_FLUTTER_VERSION=3.47.9 `
             --dart-define=WEBVIEW_PROBE_COMMIT=${{ github.sha }} `
             --dart-define=WEBVIEW_PROBE_IDLE_MS=1000 `
             2>&1 | Tee-Object -FilePath '${{ runner.temp }}/webview-probe/run-hwnd.log'
@@ -184,11 +205,13 @@ jobs:
             ${{ runner.temp }}/webview-probe/device-hwnd/**/report.json
 
   desktop:
-    name: Windows app measurements (${{ matrix.scenario }})
+    name: Windows app measurements (${{ matrix.scenario }}, ${{ matrix.binding_mode }}, ${{ matrix.mode || inputs.mode || 'profile' }})
     strategy:
       fail-fast: false
       matrix:
         scenario: ${{ fromJSON(github.event_name == 'pull_request' && '["pdf-reader","pdf-book-view"]' || format('["{0}"]', inputs.scenario_set || 'all')) }}
+        binding_mode: ${{ fromJSON(github.event_name == 'pull_request' && '["framework"]' || format('["{0}"]', inputs.binding_mode || 'integration')) }}
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"scenario":"pdf-multi-window","binding_mode":"framework","mode":"profile"},{"scenario":"pdf-multi-window","binding_mode":"framework","mode":"release"}]' || '[]') }}
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: windows-latest
@@ -197,24 +220,38 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/setup-flutter
         with:
-          flutter-version: 3.47.7
+          flutter-version: 3.47.9
       - uses: dtolnay/rust-toolchain@stable
       - name: Resolve pinned dependencies
         shell: pwsh
         run: |
           git config --global core.longpaths true
           flutter pub get --enforce-lockfile
+      - name: Install the existing patched release engine
+        if: matrix.scenario == 'pdf-multi-window' && (matrix.mode || inputs.mode || 'profile') == 'release'
+        uses: ./.github/actions/patched-flutter-engine
+        with:
+          arch: x64
       - name: Run isolated measurements
         shell: pwsh
         env:
-          PROBE_MODE: ${{ inputs.mode || 'profile' }}
-          PROBE_CACHE: ${{ inputs.cache_state || 'cold' }}
-          PROBE_LAUNCHES: ${{ inputs.launches || 1 }}
-          PROBE_REPETITIONS: ${{ inputs.repetitions || 1 }}
+          PROBE_MODE: ${{ matrix.mode || inputs.mode || 'profile' }}
+          PROBE_CACHE: ${{ matrix.scenario == 'pdf-multi-window' && 'cold' || inputs.cache_state || 'cold' }}
+          PROBE_LAUNCHES: ${{ matrix.scenario == 'pdf-multi-window' && 1 || inputs.launches || 1 }}
+          PROBE_REPETITIONS: ${{ matrix.scenario == 'pdf-multi-window' && 1 || inputs.repetitions || 1 }}
           PROBE_SCENARIOS: ${{ matrix.scenario }}
-          PROBE_WARMUP: ${{ github.event_name == 'workflow_dispatch' && 1 || 0 }}
-          PROBE_PDF_PAGES: ${{ inputs.pdf_page_count || '600' }}
+          PROBE_BINDING: ${{ matrix.binding_mode }}
+          PROBE_WARMUP: ${{ matrix.scenario != 'pdf-multi-window' && github.event_name == 'workflow_dispatch' && 1 || 0 }}
+          PROBE_PDF_PAGES: ${{ matrix.scenario == 'pdf-multi-window' && '10' || inputs.pdf_page_count || '600' }}
         run: |
+          if ($env:PROBE_SCENARIOS -eq 'pdf-multi-window' -and ($env:PROBE_BINDING -ne 'framework' -or $env:PROBE_MODE -notin @('profile', 'release'))) {
+            throw 'Native multi-window smoke requires framework binding and profile or release mode.'
+          }
+          $expectedEngine = ''
+          if ($env:PROBE_SCENARIOS -eq 'pdf-multi-window' -and $env:PROBE_MODE -eq 'release') {
+            if ($env:PATCHED_FLUTTER_DLL_SHA256 -notmatch '^[a-f0-9]{64}$') { throw 'The patched release action did not provide its verified DLL hash.' }
+            $expectedEngine = $env:PATCHED_FLUTTER_DLL_SHA256
+          }
           $pdfCase = Join-Path $env:RUNNER_TEMP 'pdf-reader-case.json'
           @{
             schemaVersion = 1
@@ -223,21 +260,28 @@ jobs:
           ./tool/perf_probe/run_perf_probe.ps1 -Mode $env:PROBE_MODE `
             -CacheState $env:PROBE_CACHE -Launches ([int]$env:PROBE_LAUNCHES) `
             -Repetitions ([int]$env:PROBE_REPETITIONS) `
-            -ScenarioSet $env:PROBE_SCENARIOS -Warmup ([int]$env:PROBE_WARMUP) `
-            -PdfCase $pdfCase `
+            -ScenarioSet $env:PROBE_SCENARIOS -BindingMode $env:PROBE_BINDING -Warmup ([int]$env:PROBE_WARMUP) `
+            -PdfCase $pdfCase -ExpectedEngineSha256 $expectedEngine `
             -OutputDirectory (Join-Path $env:RUNNER_TEMP 'perf-results') `
             -HardwareId "github-hosted-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
       - name: Require PDF budget and post-close observations from the actual app
+        if: matrix.scenario != 'pdf-multi-window'
         shell: pwsh
         env:
           PROBE_SCENARIOS: ${{ matrix.scenario }}
+          PROBE_BINDING: ${{ matrix.binding_mode }}
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
           $report = Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'perf-results/report.json') -Raw | ConvertFrom-Json
           if ($report.successful -ne $true) { throw 'The app measurement run did not pass.' }
           if ($report.metadata.settings.resourceObservationVersion -ne 1) { throw 'PDF resource observation version is missing.' }
-          if ($report.metadata.settings.framePolicy -ne 'fullyLive') { throw 'The integration frame policy is missing or unexpected.' }
+          Import-Module ./tool/perf_probe/probe_binding.psm1 -Force
+          Assert-PerfBindingIdentity $report.metadata.settings $env:PROBE_BINDING
+          if ($report.metadata.bindingMode -ne $env:PROBE_BINDING) { throw 'The app ran under the wrong binding.' }
+          if ($env:PROBE_BINDING -eq 'framework') {
+            Assert-PerfFrameworkScheduler $report.notes $report.metadata.launchCount
+          }
           if ($report.metadata.settings.scenarioSet -ne $env:PROBE_SCENARIOS) { throw 'The app ran the wrong PDF scenario set.' }
           $prefixes = switch ($env:PROBE_SCENARIOS) {
             'pdf-reader' { @('pdf.reader') }
@@ -260,11 +304,23 @@ jobs:
             $idle = $report.scenarios | Where-Object name -eq "$prefix.idle_after_close"
             if ($idle.measurementKind -ne 'resource-observation' -or $idle.observationWindowMs -ne 3000 -or $null -ne $idle.latencyMs) { throw "PDF post-close window was not a fixed resource observation: $prefix" }
           }
+      - name: Require actual native PDF windows and verified release engine
+        if: matrix.scenario == 'pdf-multi-window'
+        shell: pwsh
+        env:
+          PROBE_MODE: ${{ matrix.mode || inputs.mode || 'profile' }}
+        run: |
+          $arguments = @('tool/perf_probe/validate_pdf_multi_window.dart', '--root', (Join-Path $env:RUNNER_TEMP 'perf-results'), '--commit', $env:GITHUB_SHA, '--platform', 'windows', '--mode', $env:PROBE_MODE)
+          if ($env:PROBE_MODE -eq 'release') {
+            $arguments += @('--expected-engine-sha256', $env:PATCHED_FLUTTER_DLL_SHA256)
+          }
+          dart @arguments 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'perf-results/native-windows-verified.json')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload observations, including partial failures
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: perf-${{ inputs.mode || 'profile' }}-${{ inputs.cache_state || 'cold' }}-${{ matrix.scenario }}
+          name: perf-${{ matrix.mode || inputs.mode || 'profile' }}-${{ matrix.scenario == 'pdf-multi-window' && 'cold' || inputs.cache_state || 'cold' }}-${{ matrix.scenario }}-${{ matrix.binding_mode }}
           if-no-files-found: warn
           retention-days: 14
           path: |
@@ -275,5 +331,8 @@ jobs:
             ${{ runner.temp }}/perf-results/*.log
             ${{ runner.temp }}/perf-results/launch-*/*.json*
             ${{ runner.temp }}/perf-results/launch-*/*.log
+            ${{ runner.temp }}/perf-results/launch-*/pdf-multi-window-*/*.json
+            ${{ runner.temp }}/perf-results/launch-*/pdf-multi-window-*/*.pdf
+            ${{ runner.temp }}/perf-results/launch-*/pdf-multi-window-*/*.png
             ${{ runner.temp }}/perf-results/prepare-*/*.json
             ${{ runner.temp }}/perf-results/prepare-*/*.log

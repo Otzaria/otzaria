@@ -659,6 +659,42 @@ void main() {
     }
   }
 
+  testWidgets('שחרור חץ בספרון שומר על הדפדוף של החץ הייעודי', (tester) async {
+    final (bloc, tab) = await pumpBook(tester);
+    final controller = tab.pdfViewerController;
+    final document = controller.document;
+    const arrowLeft = LogicalKeyboardKey.arrowLeft;
+    const numpad = PhysicalKeyboardKey.numpad4;
+    try {
+      bloc.add(const SetLayoutMode(PdfLayoutMode.bookView));
+      await settle(tester, rounds: 30);
+      await dragIntoViewer(tester);
+      await tester.sendKeyDownEvent(arrowLeft, platform: 'windows');
+      await settle(tester, rounds: 20);
+      await tester.sendKeyDownEvent(
+        arrowLeft,
+        platform: 'windows',
+        physicalKey: numpad,
+      );
+      await settle(tester, rounds: 20);
+      expect(controller.pageNumber, 4);
+
+      await tester.sendKeyUpEvent(
+        arrowLeft,
+        platform: 'windows',
+        physicalKey: numpad,
+      );
+      await tester.sendKeyRepeatEvent(arrowLeft, platform: 'windows');
+      await settle(tester, rounds: 20);
+      expect(controller.pageNumber, 6);
+      await tester.sendKeyUpEvent(arrowLeft, platform: 'windows');
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await disposePdfDocument(tester, document);
+    }
+  });
+
   testWidgets('צירופי חצים שומרים דפדוף וקיצור מותאם אחרי גרירה', (
     tester,
   ) async {

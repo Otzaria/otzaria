@@ -425,6 +425,9 @@ class _TextPage implements PdfPage {
     bool enableAutoLinkDetection = true,
   }) => throw UnsupportedError('Text measurement does not load links');
   @override
+  Future<List<PdfPageImageObject>> loadImages() =>
+      throw UnsupportedError('Text measurement does not load images');
+  @override
   PdfPageRenderCancellationToken createCancellationToken() =>
       throw UnsupportedError('Text measurement does not render');
   @override

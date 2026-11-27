@@ -158,7 +158,11 @@ void main() {
         );
         expect(
           database.bookDao.getBookAuthorsMap(db),
-          expectAuthors ? {_Ids.rashiId: _Ids.authorName} : isEmpty,
+          expectAuthors
+              ? {
+                  _Ids.rashiId: [_Ids.authorName],
+                }
+              : isEmpty,
         );
         expect(await repo.getAllBooks(), hasLength(2));
       });
@@ -377,8 +381,9 @@ void main() {
 
     writer.execute('CREATE TABLE book_base_text (baseBookId INTEGER)');
     Future<Map<String, dynamic>> commentator() async =>
-        (await database.linkDao.selectCommentatorsByBook(_Ids.bereshitId))
-            .single;
+        (await database.linkDao.selectCommentatorsByBook(
+          _Ids.bereshitId,
+        )).single;
     final original = await commentator();
     expect(original['targetBookId'], _Ids.rashiId);
     expect(original['declaredBase'], isNull);
@@ -417,8 +422,9 @@ void main() {
           db.close();
         }
       }
-      await File(fixture)
-          .copy(path.join(libraryPath, DatabaseConstants.databaseFileName));
+      await File(
+        fixture,
+      ).copy(path.join(libraryPath, DatabaseConstants.databaseFileName));
 
       await Settings.init(cacheProvider: MemoryCacheProvider());
       AppPaths.debugOverrideDataRootPath(path.join(tempDir.path, 'data_root'));

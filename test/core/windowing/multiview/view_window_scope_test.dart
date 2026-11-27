@@ -95,6 +95,8 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+    // כמו באפליקציה: ברירות המחדל נכתבו בעלייה, לפני שנפתח חלון.
+    await Settings.setValue('settings_initialized', true);
   });
 
   setUp(() {

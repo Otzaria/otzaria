@@ -17,7 +17,9 @@ import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+
 import 'dart:math';
+
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/book_locator.dart';
@@ -129,6 +131,7 @@ Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
 }
 
 final _libraryOverflowCache = newTextOverflowCache();
+const double _kLibraryInfoButtonExtent = 28;
 
 /// כפתור "פרטים" של פריט ברשת, עם [tooltip] מלא כשיש.
 Widget _libraryInfoButton(
@@ -138,8 +141,8 @@ Widget _libraryInfoButton(
 }) {
   final cs = Theme.of(context).colorScheme;
   final button = Container(
-    width: 28,
-    height: 28,
+    width: _kLibraryInfoButtonExtent,
+    height: _kLibraryInfoButtonExtent,
     decoration: BoxDecoration(
       color: cs.surfaceContainerHighest,
       borderRadius: AppTokens.borderRadiusAll,
@@ -147,7 +150,10 @@ Widget _libraryInfoButton(
     child: IconButton(
       onPressed: onPressed,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      constraints: const BoxConstraints.tightFor(
+        width: _kLibraryInfoButtonExtent,
+        height: _kLibraryInfoButtonExtent,
+      ),
       icon: Icon(
         FluentIcons.info_24_regular,
         size: 15,
@@ -247,6 +253,9 @@ class CategoryGridItem extends StatelessWidget {
   /// נתיב האב שמוצג מתחת לכותרת — בתוצאות חיפוש, כדי להבחין בין תיקיות באותו שם.
   final String? parentPath;
 
+  /// משבצת מדף רשמי בתוצאות האיתור, עם הכותרת והנתיב בשורה אחת.
+  final bool compact;
+
   const CategoryGridItem({
     super.key,
     required this.category,
@@ -255,13 +264,15 @@ class CategoryGridItem extends StatelessWidget {
     this.isSelected = false,
     this.parentPath,
     this.onFocused,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final infoText = categoryInfoText(category);
+    if (compact) return _buildCompact(context, infoText);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final infoText = categoryInfoText(category);
     final personalSource = category.personalSource;
     final folderIcon = Container(
       width: 32,
@@ -341,7 +352,67 @@ class CategoryGridItem extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildCompact(BuildContext context, String? infoText) {
+    final theme = Theme.of(context);
+    final path = parentPath;
+    return AppCard(
+      onTap: onCategoryClickCallback,
+      focusNode: focusNode,
+      requestFocusOnTap: true,
+      onFocusChange: (focused) {
+        if (focused) onFocused?.call();
+      },
+      selected: isSelected,
+      tone: AppCardTone.inset,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceSMD,
+          vertical: _kCompactCategoryCardPaddingV,
+        ),
+        child: Row(
+          children: [
+            Flexible(
+              child: LibraryOverflowTooltipText(
+                text: category.title,
+                maxLines: 1,
+                textAlign: TextAlign.right,
+                style: _compactTitleStyle(context),
+              ),
+            ),
+            if (path != null && path.isNotEmpty) ...[
+              const SizedBox(width: AppTokens.spaceSM),
+              Expanded(
+                child: LibraryOverflowTooltipText(
+                  text: path,
+                  maxLines: 1,
+                  textAlign: TextAlign.right,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ] else
+              const Spacer(),
+            if (infoText != null)
+              ExcludeFocusTraversal(
+                child: _libraryInfoButton(
+                  context,
+                  tooltip: infoText,
+                  onPressed: () => showCategoryDetailsDialog(context, category),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+TextStyle? _compactTitleStyle(BuildContext context) => LibraryItemTitle.styleOf(
+  context,
+  true,
+)?.copyWith(fontWeight: FontWeight.w800);
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BookGridItem
@@ -943,6 +1014,26 @@ double narrowCategoryCardHeight(BuildContext context) {
   );
 }
 
+/// הריפוד האנכי של משבצת מדף מצומצמת ([CategoryGridItem.compact]).
+const double _kCompactCategoryCardPaddingV = AppTokens.spaceXS;
+
+const double _kCompactCategoryCardHeightRatio = 1 / 3;
+
+/// רצפת הגובה של משבצת מדף מצומצמת, שמכילה שורת טקסט או כפתור מידע וריפוד.
+double _compactCategoryCardHeight(BuildContext context) {
+  final painter = TextPainter(
+    text: TextSpan(text: 'א', style: _compactTitleStyle(context)),
+    textDirection: TextDirection.rtl,
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  final line = painter.height;
+  painter.dispose();
+  return (max(line, _kLibraryInfoButtonExtent) +
+          2 * _kCompactCategoryCardPaddingV)
+      .ceilToDouble();
+}
+
 /// השוליים של רשת הספרייה — משמשים גם בחישוב רוחב התא בפועל.
 const double _kGridPadding = 30;
 
@@ -1181,6 +1272,9 @@ class MyGridView extends StatelessWidget {
   /// מתחילים בשורה חדשה בגובה הרגיל.
   final int leadingCategoryCount;
 
+  /// [leadingCategoryCount] הפריטים הראשונים הם משבצות מדף מצומצמות בכל רוחב.
+  final bool compactLeadingCategories;
+
   /// גולל בעצמו ובונה רק את הכרטיסים שבתצוגה; אחרת נבנים כולם בתוך גלילה חיצונית.
   final bool scrollable;
   final ScrollController? controller;
@@ -1191,6 +1285,7 @@ class MyGridView extends StatelessWidget {
     this.onExitTop,
     this.minItemHeight = 0,
     this.leadingCategoryCount = 0,
+    this.compactLeadingCategories = false,
     this.scrollable = false,
     this.controller,
   }) : _itemCount = null,
@@ -1203,6 +1298,7 @@ class MyGridView extends StatelessWidget {
     this.onExitTop,
     this.minItemHeight = 0,
     this.leadingCategoryCount = 0,
+    this.compactLeadingCategories = false,
     this.scrollable = false,
     this.controller,
   }) : assert(itemCount >= 0),
@@ -1212,9 +1308,13 @@ class MyGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final itemCount = _itemCount ?? _items.length;
+    final compactLeadingHeight =
+        compactLeadingCategories && leadingCategoryCount > 0 && itemCount > 0
+        ? _compactCategoryCardHeight(context)
+        : null;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final itemCount = _itemCount ?? _items.length;
         final textScale = MediaQuery.textScalerOf(context).scale(1.0);
         final width = constraints.maxWidth;
         final baseRatio = width >= _kGridWideMinWidth
@@ -1249,14 +1349,21 @@ class MyGridView extends StatelessWidget {
             : cellWidth / childAspectRatio;
 
         // בתצוגה צרה כרטיסי התיקייה נמוכים מכרטיסי הספר (ss4).
-        final categoryCount = width < _kGridNarrowBelow && minItemHeight <= 0
+        final categoryCount =
+            (compactLeadingHeight != null ||
+                width < _kGridNarrowBelow && minItemHeight <= 0)
             ? min(leadingCategoryCount, itemCount)
             : 0;
         final SliverGridDelegate gridDelegate = categoryCount > 0
             ? LibraryBandedGridDelegate(
                 crossAxisCount: crossAxisCount,
                 bandCount: categoryCount,
-                bandExtent: narrowCategoryCardHeight(context),
+                bandExtent: compactLeadingHeight != null
+                    ? max(
+                        compactLeadingHeight,
+                        childHeight * _kCompactCategoryCardHeightRatio,
+                      )
+                    : narrowCategoryCardHeight(context),
                 restExtent: childHeight,
                 spacing: kLibraryGridSpacing,
               )

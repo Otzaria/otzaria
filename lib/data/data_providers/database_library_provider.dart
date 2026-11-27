@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:flutter/foundation.dart'
@@ -71,7 +72,9 @@ import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+
 import 'link_visibility_sql.dart';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
@@ -111,7 +114,7 @@ class _AttachedCatalogBuild {
   final AttachedBookSource source;
   final List<Map<String, dynamic>> rows;
   final List<Map<String, dynamic>> categoryRows;
-  final Map<int, String> authors;
+  final Map<int, List<String>> authors;
   final Map<String, Map<String, dynamic>> metadata;
   final List<Map<String, dynamic>> versionLinks;
   final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
@@ -1912,10 +1915,9 @@ Future<T> _loadOnReadWorker<T>(
   if (target.untrusted) return isolateRun();
   try {
     return await DbReadWorker.request(method, {
-          ...args,
-          'dbPath': target.path,
-        })
-        as T;
+      ...args,
+      'dbPath': target.path,
+    }) as T;
   } on DbReadWorkerUnavailable {
     return DbReadWorker.trackFallbackRead(
       isolateRun,
@@ -2787,6 +2789,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           books: [],
           parent: category,
           order: orphanOrder,
+          isOfficial: true,
         );
         category.subCategories.add(orphanCategory);
         category.subCategories.sort((a, b) => a.order.compareTo(b.order));
@@ -2980,6 +2983,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           id: dbBook.id,
           title: dbBook.title,
           author: dbBook.authors.isNotEmpty ? dbBook.authors.first.name : null,
+          authorNames: dbBook.authors.map((author) => author.name).toList(),
           heShortDesc: dbBook.heShortDesc,
           pubDate: dbBook.pubDates.isNotEmpty
               ? dbBook.pubDates.first.date
@@ -3328,20 +3332,30 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         preferSource: source,
       );
       if (record == null || record.source != source) return null;
-      final text = await BookTextReader.text(record.repository, record.book);
-      if (text != null) return text;
-      // ספר מבוסס-קובץ: filePath כבר נפתר בתוך תיקיית המסד (או null).
-      final file = record.book.filePath;
-      if (file == null || !await File(file).exists()) return null;
-      return await readFileBackedBookText(
-        File(file),
-        record.book.fileType,
-        title,
-      );
+      return await readResolvedBookText(record);
     } catch (e) {
       debugPrint('⚠️ Error reading attached book text: $e');
       return null;
     }
+  }
+
+  /// קורא ספר שכבר אותר, ומעביר כשל קריאה לקורא.
+  Future<String?> readResolvedBookText(ResolvedDbBookRecord record) async {
+    final book = record.book;
+    if (record.source.isAttached) {
+      final text = await BookTextReader.text(record.repository, book);
+      if (text != null) return text;
+    }
+    final path = book.filePath;
+    if (path != null && (book.isFileBacked || record.source.isAttached)) {
+      final file = File(path);
+      if (await file.exists()) {
+        return readFileBackedBookText(file, book.fileType, book.title);
+      }
+    }
+    return record.source.isAttached
+        ? null
+        : BookTextReader.text(record.repository, book);
   }
 
   Future<List<TocEntry>?> _readAttachedBookToc(
@@ -3865,7 +3879,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     db_models.Category dbCategory,
     Map<int, List<Map<String, dynamic>>> booksByCategory,
     Map<int?, List<db_models.Category>> categoriesByParent,
-    Map<int, String> authorsByBookId,
+    Map<int, List<String>> authorsByBookId,
     Category parent,
     Map<String, Map<String, dynamic>> metadata,
   ) {
@@ -3877,6 +3891,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       subCategories: [],
       books: [],
       parent: parent,
+      // במסד ישן עשוי להישאר עץ הספרים האישיים לצד הקטלוג הרשמי.
+      isOfficial: parent is Library
+          ? dbCategory.title != _kPersonalRootTitle
+          : parent.isOfficial,
     );
 
     // Get books for this category and sort by order
@@ -3892,7 +3910,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         dbBook,
         category,
         metadata,
-        authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
+        authorsFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
         categoryPathInfo: categoryPathInfo,
       );
       if (book == null) continue;
@@ -4101,7 +4119,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           dbBook,
           directBooksParent,
           metadata,
-          authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
+          authorsFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
           source: BookSource.user,
           idOverride: dbBook['id'] as int? ?? 0,
           categoryIdOverride: personalRootId,
@@ -4176,7 +4194,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
             dbBook,
             looseBooksParent,
             metadata,
-            authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
+            authorsFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
             source: BookSource.user,
             idOverride: dbBook['id'] as int? ?? 0,
             categoryIdOverride: pickedFolder.id,
@@ -4531,7 +4549,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         },
         category,
         build.metadata,
-        authorFromDatabase: build.authors[id],
+        authorsFromDatabase: build.authors[id],
         source: build.source,
         idOverride: id,
         categoryIdOverride: categoryId,
@@ -4645,7 +4663,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required db_models.Category dbCategory,
     required Map<int, List<Map<String, dynamic>>> booksByCategory,
     required Map<int?, List<db_models.Category>> categoriesByParent,
-    required Map<int, String> authorsByBookId,
+    required Map<int, List<String>> authorsByBookId,
     required Map<String, Map<String, dynamic>> metadata,
   }) {
     _appendUserBooksContentToCategoryRecursive(
@@ -4665,7 +4683,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     db_models.Category dbCategory,
     Map<int, List<Map<String, dynamic>>> booksByCategory,
     Map<int?, List<db_models.Category>> categoriesByParent,
-    Map<int, String> authorsByBookId,
+    Map<int, List<String>> authorsByBookId,
     Category parent,
     Map<String, Map<String, dynamic>> metadata,
   ) {
@@ -4696,7 +4714,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     db_models.Category dbCategory,
     Map<int, List<Map<String, dynamic>>> booksByCategory,
     Map<int?, List<db_models.Category>> categoriesByParent,
-    Map<int, String> authorsByBookId,
+    Map<int, List<String>> authorsByBookId,
     Map<String, Map<String, dynamic>> metadata,
   ) {
     // categoryId טבעי מ-user_books.db (בלי offset). הבידול נעשה דרך
@@ -4718,7 +4736,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         dbBook,
         category,
         metadata,
-        authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
+        authorsFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
         source: BookSource.user,
         idOverride: dbBook['id'] as int? ?? 0,
         categoryIdOverride: nativeCategoryId,
@@ -4778,7 +4796,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     Map<String, dynamic> bookMap,
     Category category,
     Map<String, Map<String, dynamic>> metadata, {
-    String? authorFromDatabase,
+    List<String>? authorsFromDatabase,
     BookSource source = BookSource.official,
     int? idOverride,
     int? categoryIdOverride,
@@ -4800,7 +4818,8 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final (:categoryPath, :topics) =
         categoryPathInfo ?? _categoryPathInfo(category);
 
-    final author = authorFromDatabase ?? (bookMeta?['author'] as String?);
+    final author =
+        authorsFromDatabase?.join(', ') ?? (bookMeta?['author'] as String?);
     final pubDate = bookMeta?['pubDate'] as String?;
     final pubPlace = bookMeta?['pubPlace'] as String?;
     final metaHeShortDesc = heShortDesc ?? bookMeta?['heShortDesc'] as String?;
@@ -4826,6 +4845,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       path: resolvedFilePath ?? title,
       filePath: resolvedFilePath,
       author: author,
+      authorNames: authorsFromDatabase,
       heShortDesc: metaHeShortDesc,
       heDesc: metaHeDesc,
       pubDate: pubDate,
@@ -5211,16 +5231,19 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         ];
       }
 
-      // ספר file-backed (תיקייה שנוספה בלי "הוסף למסד הנתונים") — אין שורות
-      // ב-DB, התוכן נקרא מהקובץ עצמו לפי אותו פיצול שורות של הסורק.
       final dbBook = resolvedBook.book;
       final dbBookFormat = documentFormatOf(
         fileType: dbBook.fileType,
         path: dbBook.filePath,
       );
-      if (dbBook.isFileBacked &&
+      // במסד מצורף השורות המוטמעות קודמות לקובץ הנלווה, כמו בפתיחת הספר.
+      final readFromFile =
+          dbBook.isFileBacked &&
           dbBook.filePath != null &&
-          (dbBookFormat?.isTextual ?? false)) {
+          (dbBookFormat?.isTextual ?? false) &&
+          (!resolvedBook.source.isAttached ||
+              !await resolvedBook.repository.hasStoredLines(dbBook.id));
+      if (readFromFile) {
         final file = File(dbBook.filePath!);
         if (!await file.exists()) {
           return [
@@ -5265,16 +5288,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final dbPath = _sqliteProvider.dbPath;
     if (!link.targetSource.isOfficial || dbPath.isEmpty) return null;
     try {
-      final result =
-          await DbReadWorker.batched('linkContent', {
-                'dbPath': dbPath,
-                'title': targetTitle,
-                'categoryId': link.targetCategoryId,
-                'index2': link.index2,
-                'index2End': link.index2End,
-                'includeLines': true,
-              })
-              as Map;
+      final result = await DbReadWorker.batched('linkContent', {
+        'dbPath': dbPath,
+        'title': targetTitle,
+        'categoryId': link.targetCategoryId,
+        'index2': link.index2,
+        'index2End': link.index2End,
+        'includeLines': true,
+      }) as Map;
       return (result['lines'] as List?)?.cast<LinkContentLine>();
     } on DbReadWorkerSuspended {
       return [(lineIndex: link.index2 - 1, content: 'שגיאה: מאגר לא מאותחל')];

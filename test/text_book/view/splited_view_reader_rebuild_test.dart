@@ -131,7 +131,6 @@ TextBookLoaded _state(double fontSize) => TextBookLoaded(
   tableOfContents: const [],
   visibleIndices: const [0],
   selectedIndex: 0,
-  pinLeftPane: false,
   searchText: '',
 );
 

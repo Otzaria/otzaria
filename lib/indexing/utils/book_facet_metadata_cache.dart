@@ -38,6 +38,10 @@ class BookFacetMetadataCache {
   static const String _baseBooksSql =
       'SELECT id FROM book WHERE isBaseBook = 1';
 
+  /// ספרי היסוד לפי דגל המסד, רשמיים ואישיים; ריקים עד ש-[warmUp] הסתיים.
+  Set<int> get baseBookIds => Set.unmodifiable(_baseBookIds);
+  Set<int> get baseUserBookIds => Set.unmodifiable(_baseUserBookIds);
+
   Future<void> warmUp() async {
     if (_isLoaded) return;
     if (_loadingFuture != null) return _loadingFuture;

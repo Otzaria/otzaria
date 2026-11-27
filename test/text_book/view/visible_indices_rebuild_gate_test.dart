@@ -227,7 +227,6 @@ void main() {
 
       expect(state.showLeftPane, isTrue);
       expect(state.linksLoading, isTrue);
-      expect(state.pinLeftPane, isTrue);
       expect(state.removePunctuation, isTrue);
       expect(state.isTanach, isTrue);
       expect(state.continuousReadingMode, isTrue);
@@ -537,7 +536,6 @@ TextBookLoaded _loaded() => TextBookLoaded(
   visibleIndices: const [1, 2],
   selectedIndex: 1,
   selectedIndices: const {1},
-  pinLeftPane: true,
   searchText: 'חיפוש',
   searchOptions: const {
     'חיפוש_0': {'סיומות': true},

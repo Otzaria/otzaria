@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -108,6 +109,50 @@ Future<OpenOrFocusTab> _tapBookmarkAndCapture(
   return tabsBloc.captured.single as OpenOrFocusTab;
 }
 
+/// לוחץ על הקבוצה [group] ומחזיר את בקשות הפתיחה שנשלחו ל-TabsBloc.
+Future<List<OpenOrFocusTab>> _tapGroupAndCapture(
+  WidgetTester tester, {
+  required BookmarkGroup group,
+}) async {
+  final bookmarkBloc = _StubGroupBookmarkBloc(group);
+  final tabsBloc = _CapturingTabsBloc();
+  final navBloc = _StubNavigationBloc();
+
+  addTearDown(() async {
+    await bookmarkBloc.close();
+    await tabsBloc.close();
+    await navBloc.close();
+  });
+
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<BookmarkBloc>.value(value: bookmarkBloc),
+          BlocProvider<TabsBloc>.value(value: tabsBloc),
+          BlocProvider<NavigationBloc>.value(value: navBloc),
+        ],
+        child: const Scaffold(body: BookmarkView()),
+      ),
+    ),
+  );
+  await tester.pump();
+
+  await tester.tap(find.text(group.name));
+  await tester.pump();
+
+  return tabsBloc.captured.cast<OpenOrFocusTab>();
+}
+
+class _StubGroupBookmarkBloc extends Cubit<BookmarkState>
+    implements BookmarkBloc {
+  _StubGroupBookmarkBloc(BookmarkGroup group)
+    : super(BookmarkState(bookmarks: const [], groups: [group]));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -193,5 +238,76 @@ void main() {
       expect(textTab.book.title, 'דברים');
       expect(textTab.index, 9);
     });
+
+    testWidgets('סימנייה על TextBook מבקשת להדגיש את השורה שלה כשתוצג '
+        '(issue #4455)', (tester) async {
+      final bookmark = Bookmark(
+        ref: 'דברים ל',
+        book: TextBook(title: 'דברים', filePath: '/fake/דברים.txt'),
+        index: 9,
+      );
+
+      final event = await _tapBookmarkAndCapture(tester, bookmark: bookmark);
+
+      expect(event.navigateToPositionIfReused, isTrue);
+      expect((event.tab as TextBookTab).highlightWhenVisibleLine, 9);
+    });
+
+    testWidgets('סימניית מפרשים אינה מבקשת הדגשת שורה (issue #4455)', (
+      tester,
+    ) async {
+      final bookmark = Bookmark(
+        ref: 'בראשית א, א',
+        book: TextBook(title: 'בראשית', filePath: '/fake/בראשית.txt'),
+        index: 4,
+        commentatorsToShow: const ['רש"י'],
+        targetKind: BookmarkTargetKind.commentators,
+      );
+
+      final event = await _tapBookmarkAndCapture(tester, bookmark: bookmark);
+
+      final source = (event.tab as CommentatorsTab).sourceTab;
+      expect(source.highlightWhenVisibleLine, isNull);
+    });
+  });
+
+  testWidgets('קבוצת סימניות: כל ספר טקסט מבקש להדגיש את השורה שלו, '
+      'וכל אחד יודגש כשהשורה שלו תוצג (issue #4455)', (tester) async {
+    final group = BookmarkGroup(
+      name: 'לימוד יומי',
+      items: [
+        Bookmark(
+          ref: 'בראשית א',
+          book: TextBook(title: 'בראשית', filePath: '/fake/בראשית.txt'),
+          index: 3,
+        ),
+        Bookmark(
+          ref: 'שמות ב',
+          book: TextBook(title: 'שמות', filePath: '/fake/שמות.txt'),
+          index: 17,
+        ),
+        Bookmark(
+          ref: 'ספר פדף עמ׳ 5',
+          book: PdfBook(title: 'ספר פדף', path: '/fake/ספר.pdf'),
+          index: 5,
+        ),
+      ],
+    );
+
+    final events = await _tapGroupAndCapture(tester, group: group);
+
+    final opened = events.where((e) => e.navigateToPositionIfReused);
+    expect(
+      opened.map(
+        (e) => e.tab is TextBookTab
+            ? (e.tab as TextBookTab).highlightWhenVisibleLine
+            : null,
+      ),
+      [3, 17, null],
+    );
+    expect(opened.last.tab, isA<PdfBookTab>());
+    final focusRequest = events.last;
+    expect(focusRequest.navigateToPositionIfReused, isFalse);
+    expect((focusRequest.tab as TextBookTab).highlightWhenVisibleLine, 3);
   });
 }

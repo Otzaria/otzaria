@@ -5,7 +5,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/widgets/smart_text/display_sized_memory_image.dart';
+import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
@@ -86,6 +88,43 @@ ImageProvider _provider(WidgetTester tester) =>
 
 void main() {
   final scan = _png(2002, 2826);
+
+  testWidgets('בנייה חוזרת של HTML משתמשת בבתי התמונות שעדיין מוצגות', (
+    tester,
+  ) async {
+    Future<List<Uint8List>> buildImages(String label, Uint8List second) async {
+      String image(Uint8List data) =>
+          "<img alt='$label' src='data:image/png;base64,${base64Encode(data)}'>";
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HtmlWidget(
+            '<p>${image(scan)}${image(second)}</p>',
+            factoryBuilder: OtzariaWidgetFactory.new,
+            buildAsync: false,
+            enableCaching: false,
+          ),
+        ),
+      );
+      final images = tester
+          .widgetList<DisplaySizedMemoryImage>(
+            find.byType(DisplaySizedMemoryImage),
+          )
+          .toList();
+      expect(images.map((image) => image.semanticLabel), [label, label]);
+      return images.map((image) => image.bytes).toList();
+    }
+
+    final second = _png(2, 2);
+    final before = await buildImages('ראשון', second);
+    final after = await buildImages('מעודכן', second);
+    expect(after[0], same(before[0]));
+    expect(after[1], same(before[1]));
+    final replacement = _png(3, 2);
+    final changed = await buildImages('תמונה חדשה', replacement);
+    expect(changed[0], same(before[0]));
+    expect(changed[1], orderedEquals(replacement));
+    expect(changed[1], isNot(same(before[1])));
+  });
 
   testWidgets('תמונת data: בשורת ספר מפוענחת ברוחב התצוגה ולא ברזולוציה '
       'המלאה', (tester) async {

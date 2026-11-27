@@ -56,7 +56,7 @@ Map<String, String>? smartTextElementCss(
     return {'color': linkColorCss, 'text-decoration': 'none'};
   }
   // סמן-אות של מפרש: הגליף שקוף, והווריאנט נשאר עליו כדי שרוחב המקום יתאים
-  // לציור המורם, שנושא את הצבע, הקו התחתון והרקע הפעיל.
+  // לציור המורם, שנושא את הצבע והרקע הפעיל.
   if ((tag == 'span' || tag == 'a') && classes.contains('link-anchor')) {
     return {
       'font-size': '${kLinkAnchorMarkerScale}em',

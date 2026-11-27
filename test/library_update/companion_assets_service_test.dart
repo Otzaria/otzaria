@@ -276,6 +276,98 @@ void main() {
       expect(changed, isTrue);
     });
 
+    test('סימון גרסה ללא PDF → מוריד ומתקין מחדש (#5974)', () async {
+      final dir = await Directory(talmudDir()).create(recursive: true);
+      await File(
+        p.join(dir.path, CompanionAssetsService.talmudVersionFileName),
+      ).writeAsString(tag);
+      final requested = <Uri>[];
+      final extractions = <({String archive, String outputDir})>[];
+
+      final changed = await service(
+        client: releaseClient(requested: requested),
+        extractions: extractions,
+        extractor:
+            (
+              archive,
+              outputDir,
+              onProgress, {
+              required maxOutputBytes,
+              isCancelled,
+            }) async {
+              extractions.add((archive: archive, outputDir: outputDir));
+              final extracted = await Directory(
+                p.join(
+                  outputDir,
+                  DatabaseConstants.talmudBavliFolderName,
+                ),
+              ).create(recursive: true);
+              await File(
+                p.join(extracted.path, 'ברכות.pdf'),
+              ).writeAsString('pdf');
+            },
+      ).verifyAndUpdate();
+
+      expect(changed, isTrue);
+      expect(extractions, hasLength(1));
+      expect(requested.map((u) => u.toString()), contains(assetUrl));
+      expect(File(p.join(talmudDir(), 'ברכות.pdf')).readAsStringSync(), 'pdf');
+      expect(readMarker(), tag);
+    });
+
+    test('PDF אמיתי בסיומת אותיות גדולות מונע הורדה מיותרת', () async {
+      final dir = await Directory(talmudDir()).create(recursive: true);
+      await File(p.join(dir.path, 'ברכות.PDF')).writeAsString('pdf');
+      await File(
+        p.join(dir.path, CompanionAssetsService.talmudVersionFileName),
+      ).writeAsString(tag);
+      final requested = <Uri>[];
+      final extractions = <({String archive, String outputDir})>[];
+
+      final changed = await service(
+        client: releaseClient(requested: requested),
+        extractions: extractions,
+      ).verifyAndUpdate();
+
+      expect(changed, isFalse);
+      expect(extractions, isEmpty);
+      expect(requested.map((u) => u.toString()), isNot(contains(assetUrl)));
+    });
+
+    test('נתיב ראשי ללא PDF אינו מסתיר התקנה תקינה בנתיב החלופי', () async {
+      final primary = p.join(tmp.path, 'primary');
+      final fallback = p.join(tmp.path, 'fallback');
+      await Directory(primary).create();
+      await Directory(fallback).create();
+      await File(
+        p.join(primary, CompanionAssetsService.talmudVersionFileName),
+      ).writeAsString('v1.0.0');
+      await File(p.join(primary, 'notes.txt')).writeAsString('not a pdf');
+      await File(p.join(fallback, 'ברכות.pdf')).writeAsString('pdf');
+      await File(
+        p.join(fallback, CompanionAssetsService.talmudVersionFileName),
+      ).writeAsString(tag);
+      final requested = <Uri>[];
+      final extractions = <({String archive, String outputDir})>[];
+
+      final changed = await service(
+        client: releaseClient(requested: requested),
+        talmudDirs: [primary, fallback],
+        extractions: extractions,
+      ).verifyAndUpdate();
+
+      expect(changed, isFalse);
+      expect(extractions, isEmpty);
+      expect(requested.map((u) => u.toString()), isNot(contains(assetUrl)));
+      expect(
+        File(
+          p.join(primary, CompanionAssetsService.talmudVersionFileName),
+        ).readAsStringSync(),
+        'v1.0.0',
+      );
+      expect(File(p.join(fallback, 'ברכות.pdf')).readAsStringSync(), 'pdf');
+    });
+
     test('סימון תואם לתג → לא מוריד ולא נוגע', () async {
       createTalmudDir(markerTag: tag);
       final extractions = <({String archive, String outputDir})>[];

@@ -82,7 +82,7 @@ class MacosInstalledPdfContracts(unittest.TestCase):
         steps["repeatedLifecycle"] = json.loads((Path(__file__).resolve().parents[2] / "test/tool/perf_probe/fixtures/installed_pdf_repeated.json").read_text())
         self.report = {
             "schemaVersion": 1, "status": "passed", "platform": "macos", "buildMode": "profile",
-            "flutterVersion": "3.47.7", "commit": COMMIT, "pid": 173, "runId": "173-1234",
+            "flutterVersion": "3.47.9", "commit": COMMIT, "pid": 173, "runId": "173-1234",
             "osVersion": "contract fixture", "frameworkPassed": True, "policyRestored": True,
             "physicalDeviceAcceptance": False, "errors": [], "contractErrors": [], "testFailures": [],
             "platformMatrix": {name: {"status": "passed" if name == "macos" else "notRun"}

@@ -9,6 +9,8 @@ import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/core/foreground_work.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/update_source_reachability.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart'
+    show LibraryDbNotReleased;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
@@ -443,13 +445,19 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
           return;
         }
       }
-      final canResume = await _canResumeAfter(applyError, plan);
+      final refreshFailed =
+          e is PartiallyAppliedLibraryDeltaException &&
+          identical(e.cause, e.refreshError);
+      final canResume =
+          !refreshFailed && await _canResumeAfter(applyError, plan);
       if (isClosed || _isStale(opId)) return;
       emit(
         LibraryUpdateState(
           status: LibraryUpdateStatus.error,
           // חוסר מקום אינו מציע הורדה מלאה — היא דורשת עוד יותר מקום.
-          message: canResume
+          message: refreshFailed
+              ? LibraryMessages.updateSavedRefreshFailed
+              : canResume
               ? LibraryMessages.downloadPausedResumable
               : diskFull
               ? LibraryMessages.updateDiskSpaceError
@@ -538,7 +546,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       emit(
         LibraryUpdateState(
           status: LibraryUpdateStatus.error,
-          message: canResume
+          message: dbReplaced && e is LibraryDbNotReleased
+              ? LibraryMessages.updateSavedRefreshFailed
+              : canResume
               ? LibraryMessages.downloadPausedResumable
               : _isDiskFull(e)
               ? LibraryMessages.updateDiskSpaceError
@@ -818,6 +828,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   /// פרט הכשל לחיווי. חריגות ה-updater נושאות הודעה עברית; קטיעת רשת גולמית
   /// ממופה לטקסט קצר. הפרטים המלאים נרשמים ל-errors.txt ב-[_logUpdateError].
   String _errorDetail(Object error) {
+    if (error is LibraryDbNotReleased) return error.message;
     if (error is PatchDownloadException) return error.message;
     if (error is GithubRateLimitException) {
       return LibraryMessages.updateRateLimited(error.minutesUntilReset());

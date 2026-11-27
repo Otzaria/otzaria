@@ -51,27 +51,12 @@ bool shouldAutoOpenReadingLeftPane({
 }) {
   final isDefaultOpen =
       hasSearchText ||
-      (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
       (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
   if (!isDefaultOpen) {
     return false;
   }
 
   return !isCompactReadingLayout(screenWidth: screenWidth);
-}
-
-bool resolveInitialReadingLeftPaneVisibility({
-  required bool explicitOpen,
-  double? screenWidth,
-}) {
-  // הנעיצה אינה עוקפת מסך צר: שם החלונית היא overlay עם scrim שחוסם את
-  // התוכן, וכפתור ביטול הנעיצה מוסתר.
-  if ((Settings.getValue<bool>('key-pin-sidebar') ?? false) &&
-      !isCompactReadingLayout(screenWidth: screenWidth)) {
-    return true;
-  }
-
-  return explicitOpen;
 }
 
 bool resolveRestoredReadingLeftPaneState(

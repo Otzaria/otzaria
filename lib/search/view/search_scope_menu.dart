@@ -12,8 +12,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -25,6 +26,7 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -46,8 +48,10 @@ class SearchScopeMenuButton extends StatefulWidget {
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
 
-  /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
+  /// בחיפוש החכם: רק ספרים עם וקטורים ([coveredFilePaths]), ועד שהם ידועים
+  /// רק ספרים מהספרייה הרשמית.
   final bool officialBooksOnly;
+  final Set<String>? coveredFilePaths;
 
   /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
   final bool excludeUserBooks;
@@ -57,6 +61,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.officialBooksOnly = false,
+    this.coveredFilePaths,
     this.excludeUserBooks = false,
   });
 
@@ -84,7 +89,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   int _baseBookGeneration = 0;
 
   ScopeTree _visibleTree(ScopeTree tree) => widget.officialBooksOnly
-      ? tree.officialOnly()
+      ? switch (widget.coveredFilePaths) {
+          final covered? => tree.coveredOnly(covered),
+          null => tree.officialOnly(),
+        }
       : widget.excludeUserBooks
       ? tree.withoutUserBooks()
       : tree;
@@ -169,6 +177,21 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   @override
+  void didUpdateWidget(covariant SearchScopeMenuButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.officialBooksOnly == widget.officialBooksOnly &&
+        identical(oldWidget.coveredFilePaths, widget.coveredFilePaths) &&
+        oldWidget.excludeUserBooks == widget.excludeUserBooks) {
+      return;
+    }
+    final library = _library;
+    final fullTree = library == null ? null : ScopeTree.cachedFor(library);
+    _treeCache = fullTree == null ? null : _visibleTree(fullTree);
+    _baseBookGeneration++;
+    _baseBookNodesCache = null;
+  }
+
+  @override
   void dispose() {
     _fieldFocus.removeListener(_onFocusChanged);
     _fieldFocus.dispose();
@@ -183,7 +206,16 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     // בלחיצה מחוץ לתפריט או ב-Escape.
     if (_fieldFocus.hasFocus && _library != null && !_portal.isShowing) {
       _portal.show();
+      unawaited(_refreshAliases());
     }
+  }
+
+  Future<void> _refreshAliases() async {
+    if (!Settings.isInitialized) return;
+    final cache = AcronymsCache.instance;
+    final revision = cache.revision;
+    await Future.wait([cache.warmUp(), cache.warmUpAttached()]);
+    if (mounted && revision != cache.revision) setState(() {});
   }
 
   void _close() {
@@ -244,21 +276,13 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   Future<void> _loadBaseBookIds() async {
-    final repo = SqliteDataProvider.instance.repository;
-    final ids = repo == null ? <int>{} : await repo.loadBaseBookIds();
-    var userIds = <int>{};
-    final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
-    if (userRepo != null) {
-      try {
-        userIds = await userRepo.loadBaseBookIds();
-      } catch (_) {
-        userIds = <int>{};
-      }
-    }
+    // מהמטמון שנקרא ב-isolate: סריקת טבלת book על חיבור ה-UI חוסמת בדיסק איטי.
+    final cache = BookFacetMetadataCache.instance;
+    await cache.warmUp();
     if (mounted) {
       setState(() {
-        _baseBookIds = ids;
-        _baseUserBookIds = userIds;
+        _baseBookIds = cache.baseBookIds;
+        _baseUserBookIds = cache.baseUserBookIds;
         _baseBookGeneration++;
         _baseBookNodesCache = null;
       });
@@ -439,18 +463,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final library = _library;
     final tree =
         _treeCache ?? (library == null ? null : ScopeTree.cachedFor(library));
-    final node = tree?.nodesByFacet[facet];
-    if (node != null) return node.title;
-
-    // מפתח ספר מהצורה 'כותרת|קטגוריה|...' נושא את הכותרת לפני ה-'|'; מפתח
-    // מזהה ('id:5') אינו שם, ואז אין מה להציג בלי העץ.
-    final pipe = facet.indexOf('|');
-    final head = pipe < 0 ? facet : facet.substring(0, pipe);
-    final segment = head.split('/').last;
-    if (segment.isEmpty || RegExp(r'^(id|uid|ext):').hasMatch(segment)) {
-      return null;
-    }
-    return Category.displayNameForPathSegment(segment);
+    return ScopeTree.facetDisplayName(facet, tree: tree);
   }
 
   /// הסינונים הפעילים ל-chips. בחירת קטגוריות/ספרים ספציפיים
@@ -736,7 +749,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       event.kind != PointerDeviceKind.trackpad;
 
   // חיצים, סימון ותוצאות המחברים בונים את התפריט מחדש עם אותה שאילתה.
-  ({ScopeTree tree, String query, List<ScopeSearchResultItem> results})?
+  ({
+    ScopeTree tree,
+    String query,
+    int aliasRevision,
+    List<ScopeSearchResultItem> results,
+  })?
   _treeSearch;
 
   List<String> _authorResults = const [];
@@ -761,6 +779,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       _view = _View.root;
       _stack.clear();
       _highlight = 0;
+    }
+    final tree = widget.tree;
+    if (tree != null && !identical(oldWidget.tree, tree)) {
+      for (var i = 0; i < _stack.length; i++) {
+        final node = tree.nodesByFacet[_stack[i].facet];
+        if (node == null) {
+          _stack.removeRange(i, _stack.length);
+          _highlight = 0;
+          break;
+        }
+        _stack[i] = node;
+      }
     }
     final incoming = widget.selected;
     if (incoming.length != _selection.length ||
@@ -1135,14 +1165,17 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   List<_MenuItem> _searchItems() {
     final tree = widget.tree!;
     final query = _normalizedQuery;
+    final aliasRevision = AcronymsCache.instance.revision;
     final categoryPart = _categoryPart;
     var search = _treeSearch;
     if (search == null ||
         !identical(search.tree, tree) ||
-        search.query != query) {
+        search.query != query ||
+        search.aliasRevision != aliasRevision) {
       search = _treeSearch = (
         tree: tree,
         query: query,
+        aliasRevision: aliasRevision,
         results: tree.search(query),
       );
     }

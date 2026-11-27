@@ -8,10 +8,71 @@
 [התרחיש הייעודי בהמשך](#android--חימום-מוקדם-ועלייה-במסלול-האפליקציה).
 
 ב־Windows הפקודה היא `run_perf_probe.ps1`, וב־Linux וב־macOS היא
-`run_perf_probe_posix.py`. כל אחת בונה את אותו יעד אינטגרציה פעם אחת,
+`run_perf_probe_posix.py`. כל אחת בונה את יעד המדידה הנבחר פעם אחת,
 מכינה ספרייה סינתטית בתהליך נפרד, ומריצה את האפליקציה בתהליכים חדשים עם
 נתונים מבודדים. הקוד נמצא ביעד הבדיקה בלבד: אין טיימרים, דוגמים או איסוף
 נוספים בבינארי הרגיל של משתמשי האפליקציה.
+
+## בחירת מנגנון הפריימים של המדידה
+
+ברירת המחדל נשארת `integration`. אפשר לבחור `framework` עבור
+`pdf-reader` או `pdf-book-view`: היעד
+`tool/perf_probe/framework_pdf_probe.dart` יוצר `WidgetsFlutterBinding`
+רגיל ו־`LiveWidgetController` ציבורי, ומפעיל את אותו `app.main`, אותו
+fixture ואותו קוד תרחיש שב־`integration_test/support/perf_resource_workload.dart`.
+הקורא, תצוגת הספר, תנאי המוכנות וסגירת המשאבים משותפים לשני היעדים.
+
+| מצב | binding | dispatcher | זהות תזמון בדוח |
+|---|---|---|---|
+| `integration` | `IntegrationTestWidgetsFlutterBinding` | `TestPlatformDispatcher` | `fullyLive` |
+| `framework` | `WidgetsFlutterBinding` | dispatcher מקורי של המנוע | `frameworkRequested` |
+
+`frameworkRequested` הוא תיאור של תזמון Flutter הרגיל, ולא ערך נוסף
+ב־enum של test binding. אין override של scheduler ואין מעבר זמני למדיניות
+אחרת. `LiveWidgetController` מבקש פריימים מפורשים רק בגבולות פעולה שדורשים
+אימות UI; חלון התצפית לאחר סגירת הקורא אינו מבקש פריימים. אנימציות,
+בקשות האפליקציה ואירועי מערכת נשארים פעילים ונמדדים. אין דרישה לאפס פריימים,
+ל־CPU אפסי או לאיפוס כל מוני הזיכרון.
+
+לפני שלבי PDF הנמדדים, היעד הרגיל מוודא שה־binding הוא בדיוק
+`WidgetsFlutterBinding` ושה־dispatcher אינו dispatcher של בדיקות.
+הוא גם ממתין לבקשת פריים מאוחרת מתוך Timer, דרך
+`SchedulerBinding.scheduleFrame` ועד callback של סוף הפריים. זו בדיקת
+תפקוד של המסלול המקורי, לא מקור לפריימים בחלון ההמתנה. הראיה נכתבת פעם
+אחת לכל הפעלה נמדדת ב־`notes`, ברשומה ששמה `framework.scheduler_contract`; ה־host guard
+דוחה ראיה חסרה, כפולה, עם זהות שגויה או עם זמן סיום שקדם לבקשה.
+
+חמשת השדות `bindingMode`, `bindingClass`, `framePolicy`,
+`platformDispatcher` ו־`probeTarget` נשמרים ב־settings של ההשוואה.
+שם היעד ומצבו נשמרים גם ב־manifest ובהשלמה האטומית שנכתבת רק אחרי סגירת
+ה־journal. ה־runner דורש התאמה ליעד שבנה. דוחות משני bindings שונים,
+או דוחות ישנים שחסרים בהם השדות, אינם זוג baseline/candidate תואם.
+
+```bash
+python3 -B tool/perf_probe/run_perf_probe_posix.py \
+  --binding-mode framework --scenario-set pdf-reader --mode profile \
+  --cache-state cold --warmup 0 --repetitions 1 --launches 1 \
+  --output /tmp/otzaria-perf/framework-reader
+```
+
+```powershell
+pwsh -File tool/perf_probe/run_perf_probe.ps1 `
+  -BindingMode framework -ScenarioSet pdf-book-view -Mode profile `
+  -CacheState cold -Warmup 0 -Repetitions 1 -Launches 1 `
+  -OutputDirectory C:\perf\framework-book
+```
+
+אפשר לבחור גם `release` באותם runners. ההפעלה וההשלמה אינן דורשות VM
+service או `flutter drive`; מדדי Dart heap במצב release נשארים `null`
+עם הסבר שהם אינם זמינים. הזיהוי הנפרד של build mode נשמר. בחירה ב־
+`framework` עם תרחיש `all` או עם יעד legacy נדחית במפורש.
+
+ה־CI מפעיל profile של reader ושל book-view ב־Windows עם `framework`,
+וכן ריצת reader אחת ב־Linux וב־macOS. `integration` נשאר זמין להרצה
+יזומה כאשר צריך לבדוק את השפעת סביבת הבדיקה. ה־guard שומר על דרישות מוכנות, מקור נקי, hash של ה־PDF,
+תקציב תמונות וכיסוי CPU/RSS בזמן התצפית. הרצה ירוקה נדרשת עבור כל יעד
+ממשי; חוזי הקלט לבדם אינם מוכיחים שהבינארי הופעל. גם במצב הרגיל זו אפליקציה
+עם מכשור מדידה, ולא טענה לאפס overhead או תוצאה של הפצת release.
 
 ## הרצה ב־Linux וב־macOS
 
@@ -105,7 +166,8 @@ pwsh -File tool/perf_probe/run_perf_probe.ps1 `
 |---|---|
 | `-Mode debug` | אבחון פונקציונלי; אין להשוות את זמניו ל-profile/release |
 | `-Mode profile` | מסלול המדידות הרגיל; Dart heap זמין רק אם VM service זמין בפועל |
-| `-Mode release` | אותו יעד בדיקה נבנה ב-release ומופעל ישירות; אין תלות ב-flutter drive או ב-VM service |
+| `-Mode release` | יעד המדידה הנבחר נבנה ב-release ומופעל ישירות; אין תלות ב-flutter drive או ב-VM service |
+| `-BindingMode framework` | תזמון Flutter רגיל עם תרחיש `pdf-reader` או `pdf-book-view`; ברירת המחדל היא `integration` |
 | `-CacheState cold` | שורש נתוני אפליקציה חדש לכל הפעלה, עם fixture מוכן וללא אינדקס קודם |
 | `-CacheState warm` | הכנת fixture, הפעלה מלאה שאינה נספרת, ואז הפעלות חדשות על אותם נתונים ואינדקס |
 | `-ScenarioSet pdf-book-view` | תצוגת ספר עם שער, קפיצות, תמונה ממוזערת גלויה, שלושה זוגות דפדוף קדימה–אחורה וסגירה; נדרשים לפחות 5 עמודים |
@@ -298,13 +360,17 @@ timeout מכשילים את ההרצה. הדוח מציג אחוזונים נפ�
 משכו נשמר כ-`observationDurationMs`, ו-`latencyMs` נשאר חסר ואינו מושווה
 כאילו התקצרה פעולה. CPU/handles, זיכרון ומוני עבודה נשארים מדידים גם בחלון זה.
 
-זהו חלון ללא פעולות משתמש בתוך אפליקציית האינטגרציה, ולא מדידת מנוחה
-של אפליקציית production. ה־binding פועל עם `framePolicy=fullyLive` וממשיך
+במצב `integration`, זהו חלון ללא פעולות משתמש בתוך אפליקציית האינטגרציה,
+ולא מדידת מנוחה של אפליקציית production. ה־binding פועל עם
+`framePolicy=fullyLive` וממשיך
 לתזמן פריימים גם כאשר האפליקציה אינה מבקשת פריים נוסף
 ([מימוש Flutter הנמדד](https://github.com/flutter/flutter/blob/abaf9c523780a608bd46686fd5e53740a07077f8/packages/flutter_test/lib/src/binding.dart#L2789-L2825)).
 לכן מדידות ה־CPU והפריימים כוללות גם את עבודת סביבת הבדיקה; מספר פריימים
 בחלון הזה אינו כשלעצמו ראיה לאנימציה או לעבודה שנותרה בקורא לאחר סגירתו.
-אין שינוי במדיניות הפריימים או דיכוי אנימציות לצורך התצפית.
+במצב `framework`, חלון זה משתמש ב־binding הרגיל ללא בקשות פריים מצד
+כלי המדידה. כל הפריימים והפעילות שנצפו עדיין נשמרים בדוח; אין סינון של
+עבודת האפליקציה או מערכת ההפעלה. בשני המצבים אין שינוי זמני במדיניות
+הפריימים או דיכוי אנימציות לצורך התצפית.
 
 בדוח תקציב התמונות יש כיסוי נפרד לכל נקודת דגימה. אם דגימה חסרה בחזרה
 מוצלחת, אחוזוני אותה נקודה נשארים חסרים והשוואת המדד אינה זמינה; אין השלמה
@@ -345,10 +411,10 @@ native-only memory. גם הפרש RSS פחות Dart heap אינו מדד native 
 ## שתי גרסאות באותו מחשב CI
 
 `Paired PDF measurements` מריץ את שני הצדדים ברצף בתוך **אותו job ומחשב**
-ב־Windows, Linux וב־macOS. לכל מערכת יש jobs נפרדים ל־cold ול־warm;
+ב־Windows, Linux וב־macOS, במצב cold או warm שנבחר להפעלה;
 אין השוואה מספרית בין jobs, מערכות הפעלה או מצבי מטמון. בכל צד
 נוצרים checkout מנותק ונקי ונתוני אפליקציה מבודדים. ה־SDK נשאר Flutter
-3.47.7, והכלי דורש זהות של עצי כלי המדידה, integration tests, driver,
+3.47.9, והכלי דורש זהות של עצי כלי המדידה, integration tests, driver,
 diagnostics וקובצי `pubspec.yaml`/`pubspec.lock`. הוא מריץ `pub get
 --enforce-lockfile`, ניתוח מלא ובדיקות PDF רלוונטיות בשני הצדדים לפני
 בנייה והרצה של האפליקציה דרך `run_perf_probe.ps1` או
@@ -356,15 +422,12 @@ diagnostics וקובצי `pubspec.yaml`/`pubspec.lock`. הוא מריץ `pub get
 וב־Xvfb/Openbox; זהות תצוגת התוכנה נשמרת בדוח ואינה מייצגת GPU פיזי.
 ב־macOS נדרשים Python 3.13 ומעלה ו־`lsof`, המותקן במערכת.
 
-הניסוי הקבוע ב־`pdf_layout_pair.json` משווה את שיפור פריסת הספר של #5800.
-גרסת הביקורת היא snapshot שנוצר מהגרסה המועמדת בהחזרה מדויקת של ששת
-קובצי אותו שינוי; **זו קבוצת ביקורת מחושבת, ולא גרסת release היסטורית**.
-שני המקורות מזוהים ב־SHA מלא, ורשימת הקבצים שביניהם נבדקת לפני הרצה.
-תוספת אימות ה־engine ב־POSIX משותפת לשני ה־snapshots ואינה חלק מדלתת
-פריסת הספר הנמדדת; ה־runner אינו משנה את המקור הנמדד בזמן ההרצה.
-ההרצה האוטומטית ב־PR בודקת את הזוג הקבוע הזה, ולא בהכרח את קוד האפליקציה
-של ה־PR שמפעיל אותה. היא מופעלת רק בשינויים לכלי הזוגי או להגדרת הניסוי,
-דרך `ci_gate.yml` ו־`run-ci`.
+הרצת השוואה דורשת בחירה מפורשת של שני המקורות ב־SHA מלא: `--baseline`
+ו־`--candidate` ב־CLI, או אותם inputs ב־`workflow_dispatch`. אין זוג
+ברירת מחדל. רשימת הקבצים שבין שני המקורות נשמרת ב־receipt; כלי המדידה
+והתלויות חייבים להיות זהים. ה־runner אינו משנה את המקור הנמדד בזמן ההרצה.
+ב־PR רצות רק בדיקות החוזה המהירות של הכלי, דרך `ci_gate.yml` ו־`run-ci`;
+בניית שני המקורות והמדידות בכל שלוש המערכות מופעלות רק ב־`workflow_dispatch`.
 
 ברירת המחדל היא `pdf-book-view` עם binding רגיל, profile, קובץ סינתטי
 בעל 1,000 עמודים וגדלים מעורבים, שלוש הפעלות וחמש חזרות לכל פעולה בכל
@@ -372,6 +435,31 @@ diagnostics וקובצי `pubspec.yaml`/`pubspec.lock`. הוא מריץ `pub get
 במדגם כזה אינם הוכחה ליציבות הזנב. סדר ההרצות נשמר בדוח, ואפשר להפוך
 אותו ב־`workflow_dispatch` כדי לחקור הטיה של סדר וחימום מערכת. cold מאפס
 את נתוני האפליקציה, ולא את מטמון הקבצים של מערכת ההפעלה.
+
+אפשר להעביר `--pdf-case /path/to/case.json` במקום `--pages`. זהו אותו
+manifest של `PerfPdfCase` המתואר לעיל, עם SHA-256, מספר עמודים והגדרות
+ניווט לקובץ חיצוני. `prepare_pdf_case.dart` הקיים מאמת את הסכמה ומיישם את
+ברירות המחדל; נתיב יחסי נפתר ביחס ל־manifest המקורי. הכלי מעתיק את הקובץ
+לתיקיית הפלט הפרטית ומעביר לשני ה־runners את אותו manifest קנוני ואותו PDF.
+ב־POSIX תיקיית הפלט החדשה נוצרת בהרשאות `0700`; ב־Windows חלים ה־ACL
+המקומיים. הרשאות ובעלות הקלט המקורי נשארות כפי שהיו.
+כל runner מאמת גם את העותק שהוא צורך בפועל, והדוחות חייבים להתאים לקלט
+המבוקש במספר העמודים, ב־hash ובניווט. הסכמה והשוואת שני הדוחות אינן מספיקות
+אם שניהם מתארים קלט אחר.
+
+ה־manifest המקורי, הקובץ המקורי והעותקים בבעלות הריצה נבדקים שוב בין שלבי
+העבודה ואחרי כל צד: שינוי תוכן, החלפת קובץ או שינוי זהות/זמני כתיבה מכשילים
+את ההשוואה; החזרת בתים אינה מסתירה שינוי זהות או חותמות כתיבה שנצפה.
+הקלט של המשתמש נקרא בלבד.
+ההעתקה וה־hash נעשים מחוץ לחלונות המדידה; cold עדיין מאפס רק נתוני אפליקציה,
+ומטמון הקבצים של מערכת ההפעלה עשוי להיות חם לאחר הקריאה הזאת.
+
+בהרצה יזומה ב־CI, אותו generator דטרמיניסטי של הפרויקט מכין קובץ עם מספר העמודים שנבחר
+וגדלים מעורבים, ו־`prepare_pair_ci_case.dart` כותב לו manifest חתום. ה־jobs
+הקיימים מודדים אותו במסלול `external` כדי לבדוק את החיבור גם ב־Windows,
+Linux ו־macOS. זהו קלט בדיקת שילוב סינתטי; הוא אינו מדידת corpus אמיתי של
+סריקות או OCR. קובצי ה־PDF נשארים בדיסק של הריצה; רשימת ה־artifacts כוללת
+רק manifest, זהויות, לוגים ותוצאות. corpus פרטי מורץ מקומית באמצעות ה־CLI.
 
 ב־POSIX ה־runner מחשב hash של ספריית Flutter מתוך ה־bundle לפני ההפעלות
 ואחריהן. לאחר השלמת כל journal, לפני סיום התהליך, הוא מאמת שה־PID שבבעלותו
@@ -478,7 +566,8 @@ dart tool/perf_probe/analyze.dart C:\perf\candidate-cold `
 ה-workflow `Performance probe tools` משתמש ב-`ci_gate.yml` ובתווית `run-ci`.
 לצד בדיקות החוזה ותרחיש WebView, ה-job הקיים של Windows מריץ ב-PR בדיקת
 קורא קצרה במצב `profile`: נתונים קרים, הפעלה אחת, חזרה אחת, ללא warmup,
-בשני jobs נפרדים: `pdf-reader` ו־`pdf-book-view`. אין ספי זמן או זיכרון; הכשל הוא פונקציונלי או
+בשני jobs נפרדים עם `framework`: `pdf-reader` ו־`pdf-book-view`.
+תרחיש רב־החלונות רץ בנפרד ב־profile וב־release. אין ספי זמן או זיכרון; הכשל הוא פונקציונלי או
 timeout מפורש. זו בדיקת הפעלה של המדידה, ולא בסיס לאחוזונים יציבים.
 ה-job דורש גם דגימות תקציב מלאות לפני פתיחה/סגירה/idle ואחריהן, ואת חלון
 השקט המסומן כחלון תצפית. שלב או דגימה חסרים מכשילים אותו; ערך גבוה של
@@ -499,7 +588,7 @@ artifact של manifest, דגימות, דוח ולוגים, כולל פלט חל�
 ```powershell
 # אותה הרצה קצרה כמו ב-PR, ללא ספי ביצועים:
 pwsh -File tool/perf_probe/run_perf_probe.ps1 `
-  -Mode profile -CacheState cold -ScenarioSet pdf-reader `
+  -Mode profile -CacheState cold -BindingMode framework -ScenarioSet pdf-reader `
   -Warmup 0 -Repetitions 1 -Launches 1
 
 pwsh -File tool/perf_probe/test_sample_resources.ps1
@@ -523,10 +612,6 @@ flutter analyze --no-pub
 חלק מקובצי Hive; אין להריצו במקביל או על פרופיל שלא ניתן לשחזר מגיבוי מלא.
 קלט זה מזוהה כ-legacy במנתח ואינו baseline. ברירת המחדל החדשה אינה משתמשת
 במסלול זה או בנתוני המשתמש.
-
-בפרט, `pdf_bookview_idle_probe_test.dart` הוא אבחון של ספר ברכות PDF בספרייה
-מותקנת. הוא נכשל אם אין קובץ מתאים, אם הגדרות הפרופיל החליפו את מצבי התצוגה
-הנדרשים או אם תנאי מוכנות לא התקיים בזמן; דוח חסר אינו הצלחה שקטה.
 
 מקורות להגדרות המדידה: [Flutter profiling](https://docs.flutter.dev/cookbook/testing/integration/profiling),
 [FrameTiming](https://api.flutter.dev/flutter/dart-ui/FrameTiming-class.html),
@@ -708,3 +793,96 @@ flutter test --concurrency=1 \
 [Flutter Gradle: תצורת profile](https://github.com/flutter/flutter/blob/3.47.7/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt).
 דוגמאות Android העדכניות עשויות להשתמש ב־API חדש יותר; המדידה כאן משתמשת
 ב־API הנעול במאגר, עם `setShouldRunUiThreadStartUpTasks(false)`.
+
+## PDF בכמה חלונות native — תרחיש Q02
+
+התרחיש `pdf-multi-window` זמין רק עם `framework`: אותו `app.main`, אותו
+`PdfBookScreen`, ופתיחת חלון דרך `WindowOpener` של האפליקציה. אין החלפה של
+`hasRealPlatformDispatcher`, הזרקת engine ID, reader חלופי או שינוי ב־SDK.
+
+הכינו case דטרמיניסטי קטן בקובץ שמחוץ לעץ המקור:
+
+```json
+{"schemaVersion":1,"source":{"kind":"generated","pageCount":10,"mixedPageSizes":true}}
+```
+
+ב־Linux או macOS, מתוך checkout נקי ובסשן desktop:
+
+```bash
+python3 tool/perf_probe/run_perf_probe_posix.py \
+  --mode profile --binding-mode framework --scenario-set pdf-multi-window \
+  --pdf-case /absolute/path/multi-window-case.json --cache-state cold \
+  --warmup 0 --repetitions 1 --launches 1 --timeout-seconds 600 \
+  --output /absolute/path/fresh-multi-window-run
+```
+
+ב־Windows:
+
+```powershell
+./tool/perf_probe/run_perf_probe.ps1 -Mode profile -BindingMode framework `
+  -ScenarioSet pdf-multi-window -PdfCase C:/fixtures/multi-window-case.json `
+  -CacheState cold -Warmup 0 -Repetitions 1 -Launches 1 `
+  -TimeoutSeconds 600 -OutputDirectory C:/results/fresh-multi-window-run
+```
+
+נבדקים שני paths נפרדים עם תוכן PDF זהה ו־SHA-256 מאומת, כך ש־document cache
+משותף לפי path אינו מתחזה לשני מסמכים. כל חלון חייב להציג את עמוד היעד
+ולשמור את זהות ה־view, ה־native handle והמסמך. ניווט בשני הקוראים מתבצע בזמן
+עבודה שהוגשה לאינדוקס וליצירת פלט PDF דרך ה־APIs הקיימים. האינדקס חייב להחזיר
+את עמודים 2 ו־4; פלט N-up חייב לשמור את עמודים 2 ו־3 כטקסט וקטורי, בסדר RTL,
+ולהפיק bitmap אמיתי באמצעות Printing.raster.
+
+לאחר מכן נבדקים minimize/restore, סגירת החלון הנוסף ופתיחתו מחדש. בזמן כל
+מעבר מוגשת גם עבודת raster native. חפיפת האינטרוולים מתארת עבודה שהוגשה
+והמתנה להשלמתה; היא אינה הוכחה שמנועים native רצו בו־זמנית על CPU.
+כל מסמך וקבוצת futures נשארים בבעלות התרחיש עד להשלמת העבודה. בסגירה נדרשת
+גם סגירת events וגם המתנה ל־document.dispose. ב־Linux מחכים בנפרד להסרת
+ה־view מ־PlatformDispatcher, לאחר הסרתו מה־registry של האפליקציה.
+
+נשמרים journal, report, receipt נפרד לכל חזרה, PDF ה־N-up ו־PNG של הרסטר.
+כל receipt מתאר גם כשל חלקי וניסיונות cleanup. אין סגירת חלון לפי שם,
+ואין הכרזת הצלחה כאשר נשארו חלונות, מסמכים או futures של התרחיש.
+PDF חיצוני מתאים למדידות הקורא הרגילות, אך אינו נתמך בתרחיש זה: בדיקות
+האינדקס והפלט תלויות בתוכן הדטרמיניסטי של ה־fixture.
+
+תקציב התמונות נדגם מהאובייקט `pdfSharedImageBudget` המשותף לכל ה־views
+באותו Dart isolate. מזהה ה־schema ההיסטורי `current-window-ui-isolate` נשמר
+לתאימות הדוחות; אין פירושו שהמונה מבודד לפי חלון. `settings.pdfMultiWindowProtocol`
+מתעד במפורש את ההיקף המשותף ואת היעדר הייחוס לכל חלון. השיא נשאר מאז
+יצירת התקציב, בלי reset בתחילת שלב או חלון.
+
+### Windows release והמנוע שבאמת מופץ
+
+ב־CI מתווספות הרצות profile ו־release נפרדות של התרחיש. הרצת release בלבד
+משתמשת בפעולה הקיימת `.github/actions/patched-flutter-engine` עבור Flutter
+3.47.9 x64. ה־runner מאמת את `flutter_windows.dll` שבתוך ה־bundle מול
+`PATCHED_FLUTTER_DLL_SHA256` לפני כל launch; `engineRevision`, build mode
+ושני ה־hashes נשמרים ב־manifest וב־settings של ההשוואה. הוא אינו מסתפק
+בבדיקת קובץ המנוע שב־SDK cache.
+
+לשחזור מקומי לאחר התקנת אותה גרסת מנוע מאומתת, העבירו
+`-Mode release -ExpectedEngineSha256 <verified-sha256>`. אי־התאמה, קובץ חסר
+או שינוי DLL בין הבנייה להפעלה מכשילים את הריצה. ב־profile נשמר hash של
+ה־bundle שנמדד, בלי לייחס לו את תיקון ה־release. במצב release אין צורך
+ב־VM service או flutter drive; heap נשאר unavailable והשלמה נקראת מהפרוטוקול
+הקיים של האפליקציה.
+
+בדיקת ה־smoke המפורשת דורשת case בן 10 עמודים, launch קר אחד, חזרה אחת
+וללא warmup. היא משווה את הראיות, מקור Git נקי לפני/אחרי הבנייה ואחרי ההרצה,
+hashes של קובצי ה־PDF בפועל, זהות scheduler ו־engine, וכל שלבי החלונות:
+
+```bash
+dart tool/perf_probe/validate_pdf_multi_window.dart \
+  --root /absolute/path/fresh-multi-window-run \
+  --commit <measured-checkout-sha> --platform linux --mode profile
+```
+
+ב־Windows release יש להוסיף גם `--expected-engine-sha256 <verified-sha256>`.
+גם workflow_dispatch מאפשר לבחור `pdf-multi-window` עם `binding_mode=framework`.
+בחירה זו מפעילה במפורש smoke קבוע: cold, עשרה עמודים, launch אחד, חזרה אחת
+וללא warmup. `mode=release` מתקין את אותו patched engine ומחייב את אותו hash;
+הפרמטרים לשינוי כמות חזרות ו־warm/cold נשארים זמינים בהרצה ישירה של ה־runner.
+ה־runner עצמו ממשיך לתמוך בחזרות וב־cold/warm; validator זה ממוקד להרצת
+ה־CI הקצרה, ואין בו סף שיפור CPU, זיכרון או latency. readiness מתייחס לתמונה
+הסופית ב־layer tree, לא לרגע ההצגה ב־GPU. תרחיש זה אינו מפעיל שינה פיזית
+של המחשב ואינו שולח עבודה למדפסת פיזית.

@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "engineRevision": "89c39edfdfae2949f6806e4a315c0c08522238b7",
+  "patchSha256": {
+    "windows-numpad.patch": "544bd5c5799b8227636c3e4b53f36ff184f334003cf09b2552f8a54ff88b4a57",
+    "skia-style.patch": "02b37d56b7ab6e82814f22d0b7653908f65f836077bfa22ccfe540c94c88debb"
+  },
+  "releases": [
+    {
+      "patches": [],
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y.1",
+      "sha256": {
+        "x64": "47600fb0bab510e6adebdaca117fdcaf7cabf67fb91d768a373276315a1305a3",
+        "arm64": "5b12b1e6f66f3b8220ac1e14b95a359edbe43cdb869557b986e2dd65ca8f3569"
+      }
+    },
+    {
+      "patches": [
+        "windows-numpad.patch"
+      ],
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y-numpad.1",
+      "sha256": {
+        "x64": "76efdd1bf523c7944c292bb9179dca95e5d8a2faec78b4da8f0aaa06616e77c8",
+        "arm64": "63a2fd903284411cd32d1e1ebbd643bdd3ab35b3e8f07f85ebbff188f839880c"
+      }
+    },
+    {
+      "patches": [
+        "skia-style.patch"
+      ],
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y-skia.1",
+      "sha256": {
+        "x64": "ce1604d9aef694673dbac26799368846bf3385bf91acf6ef62522053139f29c4",
+        "arm64": "037b8cd3fe3f7e3bd7c768b49d62254f6cf50f24bc8eb630d220b5842cbaf7e5"
+      }
+    },
+    {
+      "patches": [
+        "skia-style.patch",
+        "windows-numpad.patch"
+      ],
+      "url": "https://github.com/Y-PLONI/flutter/releases/download/otzaria-3.47.9-a11y-skia-numpad.1",
+      "sha256": {
+        "x64": "9d0ffd637cfaecc0c09485804bfd13ade5696eecf805ecec5cc89b22f13b1670",
+        "arm64": "613095605724ec93884304841263e0522a82ed4a1e122fcf5dfde97fc36bef09"
+      }
+    }
+  ]
+}

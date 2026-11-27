@@ -152,8 +152,7 @@ class LibraryDeltaContentDriftException implements Exception {
 
 /// כשל אחרי שלפחות צעד דלתא אחד כבר הושלם ונכתב ל-DB.
 ///
-/// הצעד שנכשל עצמו אטומי ולא נכתב, אך הצעדים שקדמו לו נשארים תקינים ויש
-/// לדווח עליהם ל-BLoC כדי שלא יאבד ריענון הספרייה/האינדקס.
+/// מדווח ל-BLoC על כל הצעדים שנשמרו, כולל כשהכשל הוא ברענון שאחרי השמירה.
 class PartiallyAppliedLibraryDeltaException implements Exception {
   final Object cause;
   final LibraryDeltaApplyResult appliedResult;
@@ -569,7 +568,19 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     onProgress?.call(
       const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
     );
-    await refreshService.refreshAfterDbUpdate();
+    try {
+      await refreshService.refreshAfterDbUpdate();
+    } catch (error, stackTrace) {
+      if (!result.hasDatabaseChanges) rethrow;
+      Error.throwWithStackTrace(
+        PartiallyAppliedLibraryDeltaException(
+          cause: error,
+          appliedResult: result,
+          refreshError: error,
+        ),
+        stackTrace,
+      );
+    }
 
     // אחרי שחיבור ה-RO נפתח מחדש והריענון הסתיים — מעבר קריאה
     // בלבד, בלי תור פעולות, כך שניתן להמשיך לקרוא בזמן הבדיקה.

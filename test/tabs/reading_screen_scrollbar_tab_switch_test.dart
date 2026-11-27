@@ -152,13 +152,21 @@ void main() {
     }
   }
 
-  testWidgets('חזרה לטאב שתוכנו שוחרר ברקע אינה מזיזה את סמן פס הגלילה', (
-    tester,
-  ) async {
+  Future<void> expectThumbKeptAcrossTabSwitch(
+    WidgetTester tester, {
+    bool scrollFirst = false,
+  }) async {
     await pumpReadingScreen(tester, tabCount: 2);
     final position = scrollPosition(tester, tabs[0]);
     position.jumpTo(position.maxScrollExtent / 2);
     await tester.pumpAndSettle();
+    if (scrollFirst) {
+      // משאיר פריטים שנמדדו ואינם בנויים; ריענון מלא בחזרה היה מוחק את מדידתם.
+      position.jumpTo(position.pixels + 1500);
+      await tester.pumpAndSettle();
+      position.jumpTo(position.pixels - 1500);
+      await tester.pumpAndSettle();
+    }
     // ה-bloc שהוזרק אינו מאזין למיקום הקריאה של הטאב; מעבירים אותו כמו המאזין.
     tabs[0].bloc.add(
       UpdateVisibleIndecies(tabs[0].lines.position.value!.visibleLines),
@@ -176,7 +184,17 @@ void main() {
     expect(tester.getRect(thumbOf(tabs[0])), before);
     await tester.pumpAndSettle();
     expect(tester.getRect(thumbOf(tabs[0])), before);
-  });
+  }
+
+  testWidgets(
+    'חזרה לטאב שתוכנו שוחרר ברקע אינה מזיזה את סמן פס הגלילה',
+    (tester) => expectThumbKeptAcrossTabSwitch(tester),
+  );
+
+  testWidgets(
+    'חזרה לטאב אחרי גלילה אינה מזיזה את סמן פס הגלילה',
+    (tester) => expectThumbKeptAcrossTabSwitch(tester, scrollFirst: true),
+  );
 }
 
 Finder thumbOf(TextBookTab tab) => find.descendant(
@@ -247,7 +265,6 @@ TextBookLoaded _loadedState(TextBook book) {
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: true,
     searchText: '',
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,

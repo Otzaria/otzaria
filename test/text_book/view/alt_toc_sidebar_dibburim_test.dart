@@ -45,7 +45,6 @@ TextBookLoaded _loadedState({
     removeNikud: false,
     visibleIndices: visibleIndices,
     selectedIndex: null,
-    pinLeftPane: false,
     searchText: '',
   );
 }

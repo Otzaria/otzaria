@@ -139,7 +139,7 @@ AppWindowListener? _appWindowListener;
 const ExternalActivationQueue _externalActivationQueue =
     ExternalActivationQueue();
 
-// מושלם כשהחלון הראשי נחשף ([presentMainWindow]). חימומי המטמון ממתינים לו
+// מושלם כשהחלון הראשי נחשף אחרי אתחול מוצלח. חימומי המטמון ממתינים לו
 // כדי שלא יתחרו בטעינת תוכן הספר הפעיל על ה-main isolate ועל seforim.db.
 final _mainWindowRevealedCompleter = Completer<void>();
 
@@ -152,8 +152,8 @@ void _markCrashScanDone() {
   if (!_crashScanCompleter.isCompleted) _crashScanCompleter.complete();
 }
 
-void _markMainWindowRevealed() {
-  if (!_mainWindowRevealedCompleter.isCompleted) {
+void _markMainWindowRevealed({required bool bootstrapFailed}) {
+  if (!bootstrapFailed && !_mainWindowRevealedCompleter.isCompleted) {
     _mainWindowRevealedCompleter.complete();
   }
   StartupTimeline.instance.finishAtReveal();
@@ -652,11 +652,11 @@ Future<void> _closeNativeSplash() async {
 /// חשיפת החלון הראשי: מציג את החלון המוסתר (שכבר בגבולותיו הסופיים, עם
 /// התוכן שצויר), ממקסם אם נדרש, וסוגר את ה-splash הנייטיב באותו רגע — כך החלון
 /// מופיע בבת אחת עם תוכן והסמל הצף מתפוגג, ללא קפיצה וללא פער. נקרא אחרי שהתוכן
-/// נחשף ונצבע.
-Future<void> presentMainWindow() async {
+/// נחשף ונצבע. חשיפת מסך שגיאת אתחול משאירה את שער עבודות הרקע סגור.
+Future<void> presentMainWindow({bool bootstrapFailed = false}) async {
   StartupTimeline.instance.markOnce('presentMainWindow');
   if (kIsWeb || !(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    _markMainWindowRevealed();
+    _markMainWindowRevealed(bootstrapFailed: bootstrapFailed);
     return;
   }
   try {
@@ -684,8 +684,8 @@ Future<void> presentMainWindow() async {
     // הסגירה מבצעת בצד הנייטיבי את ה-uncloak; חייבת לרוץ גם אם שלב הצגה
     // נכשל — אחרת החלון נשאר cloaked (בלתי-נראה) לתמיד.
     await _closeNativeSplash();
-    // משחרר את חימומי המטמון הדחויים גם אם אחת מפעולות החלון נכשלה.
-    _markMainWindowRevealed();
+    // אחרי אתחול מוצלח, משחרר עבודות רקע גם אם פעולת חלון נכשלה.
+    _markMainWindowRevealed(bootstrapFailed: bootstrapFailed);
   }
 }
 
@@ -744,11 +744,6 @@ Future<void> _initializeProcessSingletons() async {
   });
 
   await _timedPhase('initHive', initHive);
-  // מצב נייד: אם תיקיית הנתונים זזה (אות כונן אחרת / מיקום אחר), הנתיבים
-  // האבסולוטיים השמורים משוכתבים לפני שכל קוד אחר צורך אותם. חייב לרוץ
-  // אחרי Settings.init ואחרי initHive (ה-boxes פתוחים), ולפני
-  // SqliteDataProvider ו-FileSystemData שקוראים את נתיב הספרייה.
-  await _timedPhase('portablePaths', PortablePaths.migrateIfMoved);
   // נתיב הספרייה נרשם לקובץ טקסט שה-uninstaller קורא; ההגדרות עצמן
   // ב-Hive בינארי שאינו נגיש לו (issue #1020).
   unawaited(AppPaths.recordLibraryPathForUninstaller());
@@ -911,9 +906,6 @@ Future<void> _initializeRestartableRuntime() async {
   );
   await _timedPhase('recoverOrphanedBackup', _recoverOrphanedDbBackup);
 
-  // initHive נקרא כבר ב-_initializeProcessSingletons. הקריאה הכפולה כאן
-  // הייתה no-op (Hive.openBox מחזיר box קיים), אבל בכל זאת חוסכת קצת זמן
-  // בקריאה הראשונה. ב-restart אין צורך לפתוח שוב — boxes לא נסגרים.
   await _timedPhase('sqlite', SqliteDataProvider.instance.initialize);
 
   // הגדרת cache של pdfrx — לא חיונית להצגת המסך הראשי. PDF הראשון יקבל
@@ -1660,6 +1652,11 @@ class _AppBootstrapState extends State<AppBootstrap> {
             _error = error;
             _ready = true;
           });
+          // בלי זה החלון נשאר מוסתר וה-splash לא נסגר, ומסך השגיאה לא נראה.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            unawaited(presentMainWindow(bootstrapFailed: true));
+          });
         });
   }
 
@@ -1708,6 +1705,8 @@ Future<void> initHive() async {
   // הגירה לגרסה אחת: שורשי Hive ו-pdfium-window-N.dll שהשאירו מנועים נוספים.
   await deleteStaleWindowRoots();
   Hive.init(await AppPaths.getDataRootPath());
+  // נתיב מסד מצב המשתמש נגזר ממיקום הספרייה או המסדים שבהגדרות.
+  await _timedPhase('portablePaths', PortablePaths.migrateIfMoved);
   // המסד נפתח כאן ולא בעצלות: `TabsRepository.loadTabs` קורא אותו
   // סינכרונית מבנאי של bloc.
   await UserStateDatabase.instance.database;

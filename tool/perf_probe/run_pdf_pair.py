@@ -16,8 +16,10 @@ import time
 import uuid
 
 if __package__:
+    from .paired_pdf_case import PdfCaseSnapshot
     from .posix_engine import binary_identity, darwin_engine_images, linux_engine_images
 else:
+    from paired_pdf_case import PdfCaseSnapshot
     from posix_engine import binary_identity, darwin_engine_images, linux_engine_images
 
 
@@ -75,7 +77,7 @@ def source_identity(repo: Path, commit: str) -> dict:
     }
 
 
-def verify_sources(repo: Path, commits: dict, expected_paths: list[str] | None = None) -> dict:
+def verify_sources(repo: Path, commits: dict) -> dict:
     sources = {role: source_identity(repo, sha) for role, sha in commits.items()}
     before, after = sources["baseline"], sources["candidate"]
     if before["commit"] == after["commit"] or before["tree"] == after["tree"]:
@@ -84,8 +86,6 @@ def verify_sources(repo: Path, commits: dict, expected_paths: list[str] | None =
         if before[field] != after[field]:
             raise ValueError(f"The snapshots have different {field}; they are not comparable.")
     paths = git(repo, "diff", "--name-only", "--no-renames", before["commit"], after["commit"]).splitlines()
-    if expected_paths is not None and sorted(paths) != sorted(expected_paths):
-        raise ValueError("The fixed experiment no longer has its declared source delta.")
     return {"sources": sources, "changedPaths": paths}
 
 
@@ -101,8 +101,8 @@ def sdk_identity(flutter: str, cwd: Path) -> dict:
     identity = {k: sdk[k] for k in (
         "frameworkVersion", "frameworkRevision", "engineRevision", "dartSdkVersion"
     )}
-    if identity["frameworkVersion"] != "3.47.7":
-        raise ValueError("This experiment requires the pinned Flutter 3.47.7 SDK.")
+    if identity["frameworkVersion"] != "3.47.9":
+        raise ValueError("This experiment requires the pinned Flutter 3.47.9 SDK.")
     return identity
 
 
@@ -131,14 +131,14 @@ def verify_iterations(row: dict, launches: int, repetitions: int, warmup: bool) 
         raise ValueError(f"Missing, duplicate or unexpected iterations for {row['name']}.")
 
 
-def validate_reports(reports: dict, commits: dict, settings: dict, hardware_id: str, sdk: dict) -> dict:
+def validate_reports(reports: dict, commits: dict, settings: dict, hardware_id: str, sdk: dict,
+                     *, expected_corpus: dict) -> dict:
     expected = {
         "buildMode": settings["mode"], "cacheState": settings["cacheState"],
         "launchCount": settings["launches"], "repetitions": settings["repetitions"],
         "warmup": 1, "bindingMode": "framework", "hardwareId": hardware_id,
         "flutterVersion": sdk["frameworkRevision"],
     }
-    expected_corpus = {"kind": "generated", "pageCount": settings["pages"], "mixedPageSizes": True}
     prefix = "pdf.book_view" if settings["scenario"] == "pdf-book-view" else "pdf.reader"
     actions = {"open", "jump_forward", "jump_backward", "close", "idle_after_close"}
     actions |= {"thumbnails_first_image", "prepare_reversals", "rapid_reversals"} if prefix == "pdf.book_view" else {"zoom"}
@@ -299,8 +299,7 @@ def run_pair(args: argparse.Namespace) -> None:
     source, output = args.source.resolve(), args.output.resolve()
     if output == source or output.is_relative_to(source):
         raise ValueError("Results and temporary worktrees must be outside the source checkout.")
-    experiment = read_json(args.experiment) if not args.baseline and not args.candidate else None
-    commits = {role: full_sha(getattr(args, role) or experiment[role]) for role in ("baseline", "candidate")}
+    commits = {role: full_sha(getattr(args, role)) for role in ("baseline", "candidate")}
     system = platform.system()
     if system not in ("Windows", "Linux", "Darwin"):
         raise ValueError("Native paired measurements require Windows, Linux or macOS.")
@@ -310,33 +309,34 @@ def run_pair(args: argparse.Namespace) -> None:
         raise ValueError("The patched Windows engine hash cannot validate a POSIX engine.")
     if system != "Linux" and args.display_mode != "desktop":
         raise ValueError("Xvfb display identity is Linux-only.")
-    identities = verify_sources(source, commits, experiment.get("changedPaths") if experiment else None)
+    identities = verify_sources(source, commits)
     flutter, dart = (shutil.which(name) for name in ("flutter", "dart"))
     pwsh = shutil.which("pwsh") if system == "Windows" else None
     if not flutter or not dart or (system == "Windows" and not pwsh):
         raise ValueError("Flutter and Dart (also PowerShell on Windows) must be available on PATH.")
-    output.mkdir(parents=True, exist_ok=False)
+    output.mkdir(parents=True, exist_ok=False, mode=0o700 if os.name == "posix" else 0o777)
     logs = output / "logs"
     logs.mkdir()
     (output / "results").mkdir()
     (output / "worktrees").mkdir()
-    case = output / "pdf-case.json"
-    write_json(case, {"schemaVersion": 1, "source": {
-        "kind": "generated", "pageCount": args.pages, "mixedPageSizes": True,
-    }})
+    case_input = args.pdf_case.absolute() if args.pdf_case else output / "generated-pdf-case.json"
+    if not args.pdf_case:
+        write_json(case_input, {"schemaVersion": 1, "source": {
+            "kind": "generated", "pageCount": args.pages or 1000, "mixedPageSizes": True,
+        }})
+    case = None
     settings = {"mode": args.mode, "cacheState": args.cache_state, "scenario": args.scenario,
-                "pages": args.pages, "launches": args.launches, "repetitions": args.repetitions,
+                "launches": args.launches, "repetitions": args.repetitions,
                 "platform": system, "displayMode": args.display_mode}
     order = ["baseline", "candidate"] if args.order == "baseline-first" else ["candidate", "baseline"]
     hardware_id = f"paired-{platform.node()}-{uuid.uuid4().hex}"
     receipt = {
         "schemaVersion": 1, "status": "running", **identities, "settings": settings,
-        "experiment": experiment or {"kind": "operator-selected immutable source pair"},
+        "experiment": {"kind": "operator-selected immutable source pair"},
         "order": order, "hardwareId": hardware_id, "host": platform.node(),
         "startedAtEpochMs": time.time_ns() // 1_000_000,
         "orchestratorCommit": git(source, "rev-parse", "HEAD"),
         "orchestratorSha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "pdfCaseSha256": hashlib.sha256(case.read_bytes()).hexdigest(),
         "workflow": {key: os.environ.get(key) for key in (
             "GITHUB_REPOSITORY", "GITHUB_WORKFLOW_REF", "GITHUB_WORKFLOW_SHA", "GITHUB_SHA",
             "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_JOB"
@@ -363,10 +363,26 @@ def run_pair(args: argparse.Namespace) -> None:
             ):
                 stages[stage] = run_logged([flutter, *arguments], checkout, logs / f"{role}-{stage}.log")
                 verify_checkout(checkout, commits[role])
+                if case is not None:
+                    case.verify()
                 write_json(output / "pair.json", receipt)
-            arguments = native_arguments(checkout, args, output / "results" / role, case,
+            if case is None:
+                def canonicalize(input_case, canonical):
+                    stages["preparePdfCase"] = run_logged(
+                        [dart, "tool/perf_probe/prepare_pdf_case.dart", str(input_case), str(canonical)],
+                        checkout, logs / "prepare-pdf-case.log")
+                case = PdfCaseSnapshot.prepare(case_input, output, canonicalize)
+                settings["pages"] = case.case["source"]["pageCount"]
+                receipt["pdfCase"] = case.receipt
+                receipt["pdfCaseSha256"] = case.receipt["manifestSha256"]
+                verify_checkout(checkout, commits[role])
+                write_json(output / "pair.json", receipt)
+            case.verify()
+            arguments = native_arguments(checkout, args, output / "results" / role, case.path,
                                          hardware_id, system, pwsh)
             stages["nativeBuildAndRuns"] = run_logged(arguments, checkout, logs / f"{role}-native.log")
+            case.verify_run(output / "results" / role,
+                            read_json(output / "results" / role / "report.json"))
             verify_checkout(checkout, commits[role])
             if sdk_identity(flutter, checkout) != receipt["sdk"]:
                 raise ValueError("The Flutter/Dart/engine SDK changed after measurement.")
@@ -375,15 +391,21 @@ def run_pair(args: argparse.Namespace) -> None:
         run_logged([dart, "tool/perf_probe/analyze.dart", str(output / "results/candidate"),
                     "--baseline", str(output / "results/baseline")], candidate, logs / "comparison.log")
         reports = {role: read_json(output / "results" / role / "report.json") for role in commits}
+        for role, report in reports.items():
+            case.verify_run(output / "results" / role, report)
         if system != "Windows":
             verify_posix_engines(output / "results", reports, settings, system)
-        receipt["comparison"] = validate_reports(reports, commits, settings, hardware_id, receipt["sdk"])
+        receipt["comparison"] = validate_reports(
+            reports, commits, settings, hardware_id, receipt["sdk"],
+            expected_corpus=case.comparison["source"],
+        )
         for role in commits:
             verify_checkout(output / "worktrees" / role, commits[role])
         receipt["status"] = "passed"
     except Exception as error:
         receipt["status"] = "failed"
-        receipt["error"] = str(error)
+        receipt["error"] = (f"{type(error).__name__}: {error.strerror or 'file operation failed'}"
+                            if isinstance(error, OSError) else str(error))
         raise
     finally:
         cleanup_errors = []
@@ -405,22 +427,23 @@ def run_pair(args: argparse.Namespace) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[2])
-    parser.add_argument("--experiment", type=Path, default=Path(__file__).with_name("pdf_layout_pair.json"))
-    parser.add_argument("--baseline")
-    parser.add_argument("--candidate")
+    parser.add_argument("--baseline", required=True, type=full_sha)
+    parser.add_argument("--candidate", required=True, type=full_sha)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mode", choices=("profile", "release"), default="profile")
     parser.add_argument("--cache-state", choices=("cold", "warm"), default="cold")
     parser.add_argument("--scenario", choices=("pdf-reader", "pdf-book-view"), default="pdf-book-view")
-    parser.add_argument("--pages", type=int, choices=(10, 100, 600, 1000, 10000), default=1000)
+    pdf_input = parser.add_mutually_exclusive_group()
+    pdf_input.add_argument("--pages", type=int, choices=(10, 100, 600, 1000, 10000),
+                           help="Generated PDF pages (default: 1000).")
+    pdf_input.add_argument("--pdf-case", type=Path,
+                           help="Existing PDF case JSON; external PDF bytes remain local to this run.")
     parser.add_argument("--launches", type=int, choices=range(1, 31), default=3)
     parser.add_argument("--repetitions", type=int, choices=range(1, 101), default=5)
     parser.add_argument("--order", choices=("baseline-first", "candidate-first"), default="baseline-first")
     parser.add_argument("--expected-engine-sha256", default="")
     parser.add_argument("--display-mode", choices=("desktop", "xvfb"), default="desktop")
     args = parser.parse_args()
-    if bool(args.baseline) != bool(args.candidate):
-        parser.error("Provide both --baseline and --candidate, or neither for the fixed experiment.")
     try:
         run_pair(args)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:

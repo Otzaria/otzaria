@@ -23,8 +23,8 @@ import 'package:otzaria/utils/text/inline_style.dart';
 /// `ooxml` ו-`word-xml` חולקים טביעה — Flat OPC מגיע לאותו מנוע ומייצר פלט
 /// זהה בייט-בבייט. אי-שוויון ביניהם הוא סימן שהמנוע הותקף מכיוון אחד בלבד.
 const Map<String, ({int version, String fingerprint})> _pinned = {
-  'ooxml': (version: 17, fingerprint: '6cd6b6c9a4e66142'),
-  'word-xml': (version: 1017, fingerprint: '6cd6b6c9a4e66142'),
+  'ooxml': (version: 18, fingerprint: '6cd6b6c9a4e66142'),
+  'word-xml': (version: 1018, fingerprint: '6cd6b6c9a4e66142'),
   'odt': (version: 8, fingerprint: 'e7114c864beedc1d'),
   'rtf': (version: 8, fingerprint: 'cfa322a43935a572'),
   'legacy-word': (version: 9, fingerprint: 'e39829bc7e2dd94f'),

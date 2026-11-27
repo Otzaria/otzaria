@@ -247,12 +247,21 @@ Future<String> _convertWithCache(
   final String text;
   try {
     text = await future;
-  } finally {
+  } catch (_) {
     _inFlight.remove(key);
+    rethrow;
   }
 
-  // שמירה ברקע (fire-and-forget): הטקסט כבר מוכן, אין צורך להמתין ל-DB.
-  unawaited(_persist(cachePath, size, mtime, converterVersion, text));
+  // השמירה ב-isolate נמשכת שניות; עד סופה פתיחה נוספת מקבלת את הטקסט מכאן.
+  unawaited(
+    _persist(
+      cachePath,
+      size,
+      mtime,
+      converterVersion,
+      text,
+    ).whenComplete(() => _inFlight.remove(key)),
+  );
   return text;
 }
 

@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/expanding_chevron.dart';
+import 'package:otzaria/widgets/misc/keep_selection_focus_node.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
 import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -450,9 +451,7 @@ class _LinksListViewState extends State<LinksListView> {
         if (chipKeys.length > 1 && _showFilters) ...[
           ConstrainedBox(
             // מגביל את גובה המסננים כדי שלא יכסו את רשימת הקישורים.
-            constraints: BoxConstraints(
-              maxHeight: constraints.maxHeight * 0.3,
-            ),
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.3),
             child: SingleChildScrollView(
               padding: const EdgeInsetsDirectional.fromSTEB(
                 AppTokens.spaceSM,
@@ -870,10 +869,9 @@ class _LinksListViewState extends State<LinksListView> {
     final instanceKey = buildSelectedLinkInstanceKey(link);
     final contentKey = buildSelectedLinkContentKey(link);
     final restoredExpanded =
-        PageStorage.maybeOf(context)?.readState(
+        PageStorage.maybeOf(
               context,
-              identifier: instanceKey,
-            )
+            )?.readState(context, identifier: instanceKey)
             as bool?;
     final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
     return ExpansionTile(
@@ -923,11 +921,12 @@ class _LinksListViewState extends State<LinksListView> {
       subtitle: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
           // קישור עם עוגן-מילה: אות הסימון שבגוף הטקסט מוצגת לפני ההפניה.
-          var markerPrefix = '';
-          if (widget.showAnchorMarkers && link.anchorStart != null) {
-            final markerText = anchorMarkerText(link);
-            if (markerText != null) markerPrefix = '$markerText ';
-          }
+          final marker = widget.showAnchorMarkers && link.anchorStart != null
+              ? anchorMarkerText(link)
+              : null;
+          String withMarker(String reference) => marker == null
+              ? reference
+              : anchoredLinkTitle(link, marker, reference);
           final rawFallback = settingsState.replaceHolyNames
               ? utils.replaceHolyNames(
                   link.fallbackDisplayReference,
@@ -937,7 +936,7 @@ class _LinksListViewState extends State<LinksListView> {
 
           if (!isExpanded) {
             return Text(
-              markerPrefix + rawFallback,
+              withMarker(rawFallback),
               style: TextStyle(
                 fontSize: settingsState.commentatorsFontSize - 4,
                 fontWeight: FontWeight.normal,
@@ -953,8 +952,9 @@ class _LinksListViewState extends State<LinksListView> {
             future: link.displayReference,
             initialData: rawFallback,
             builder: (context, snapshot) {
-              String displaySubtitle =
-                  markerPrefix + (snapshot.data ?? rawFallback);
+              String displaySubtitle = withMarker(
+                snapshot.data ?? rawFallback,
+              );
               if (settingsState.replaceHolyNames) {
                 displaySubtitle = utils.replaceHolyNames(
                   displaySubtitle,
@@ -1007,7 +1007,12 @@ class _LinksListViewState extends State<LinksListView> {
               // קישור פתוח שנבנה מחדש בגלילה: שלד טעינה מקצר אותו לפריים אחד,
               // והגדילה אחריו דוחפת את הרשימה.
               initialData: _loadedContent[contentKey],
-              builder: (context, content) => _buildLinkContent(content, link),
+              // צומת פוקוס לכל קישור; מתחדש יחד עם מפתח ה-SelectionArea.
+              builder: (context, content) => KeepSelectionOnWindowBlurFocus(
+                key: ValueKey(_selectionRevision),
+                builder: (focusNode) =>
+                    _buildLinkContent(content, link, focusNode),
+              ),
               errorBuilder: (context, error) =>
                   BlocBuilder<SettingsBloc, SettingsState>(
                     builder: (context, settingsState) {
@@ -1042,7 +1047,7 @@ class _LinksListViewState extends State<LinksListView> {
     }, onError: (Object _) => failed());
   }
 
-  Widget _buildLinkContent(String content, Link link) {
+  Widget _buildLinkContent(String content, Link link, FocusNode focusNode) {
     if (content.isEmpty) {
       return BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
@@ -1071,6 +1076,7 @@ class _LinksListViewState extends State<LinksListView> {
           key: ValueKey(
             'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
           ),
+          focusNode: focusNode,
           contextMenuBuilder: (context, selectableRegionState) {
             return const SizedBox.shrink();
           },

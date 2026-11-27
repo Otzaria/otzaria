@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -240,6 +241,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   // כשל היצירה מגיע מהפלאגין כאירוע גלובלי (אין callback על ה-widget).
   StreamSubscription<WindowsWebViewCreationFailure>? _creationFailureSub;
   StreamSubscription<SettingsState>? _settingsSub;
+  StreamSubscription<bool>? _fullscreenSub;
 
   /// קיצורי הניווט שהוזרקו לתוסף, לפי המזהה שה-JS מחזיר.
   Map<String, PluginHostShortcut> _hostShortcuts = const {};
@@ -254,6 +256,14 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         unawaited(_pushHostShortcuts(controller));
       }
     });
+    if (!DeviceChrome.isMobile) {
+      _fullscreenSub = context.read<WindowFullscreenCubit?>()?.stream.listen((
+        _,
+      ) {
+        final controller = webViewController;
+        if (controller != null) unawaited(_pushHostShortcuts(controller));
+      });
+    }
     // For localhost_dev the dev server root IS the entrypoint (e.g. http://localhost:5173/).
     // The manifest entrypoint (e.g. dist/index.html) is the production-build path only.
     localHtmlPath = widget.plugin.isLocalhostDev
@@ -555,7 +565,12 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   /// מזריק לתוסף את קיצורי הניווט לפי ההגדרה הנוכחית של המשתמש.
   Future<void> _pushHostShortcuts(InAppWebViewController controller) async {
     final shortcuts = context.read<SettingsBloc>().state.shortcuts;
-    final list = PluginHostShortcuts.build(shortcuts);
+    final list = PluginHostShortcuts.build(
+      shortcuts,
+      includeFullscreenToolbarShortcut:
+          !DeviceChrome.isMobile &&
+          context.read<WindowFullscreenCubit?>()?.state == true,
+    );
     _hostShortcuts = {for (final s in list) s.id: s};
     _lastShortcuts = Map.of(shortcuts);
     try {
@@ -575,6 +590,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     _creationWatchdog?.cancel();
     unawaited(_creationFailureSub?.cancel());
     unawaited(_settingsSub?.cancel());
+    unawaited(_fullscreenSub?.cancel());
     final pluginId = widget.plugin.pluginId;
     final instanceId = widget.instanceId;
     final viewId = _viewId;
@@ -727,10 +743,12 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         identical(_crashGuardOwner, crashGuardOwner);
 
     if (_creationWatchdog == null && webViewController == null) {
-      _creationWatchdog = Timer(const Duration(seconds: 20), () {
+      // יצירה ראשונה של WebView2 יכולה לכלול הפעלה קרה של תהליך הדפדפן.
+      final timeout = Duration(seconds: Platform.isWindows ? 60 : 20);
+      _creationWatchdog = Timer(timeout, () {
         logPluginWebViewFailure(
           'Plugin WebView never created (silent blank)',
-          'onWebViewCreated did not fire within 20s',
+          'onWebViewCreated did not fire within ${timeout.inSeconds}s',
           details: {'Plugin': widget.plugin.pluginId},
         );
       });

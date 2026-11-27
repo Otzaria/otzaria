@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
@@ -59,9 +61,11 @@ Future<void> main() async {
     InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
     InBookSearchTemplate? searchTemplate,
     Map<String, Map<String, bool>> initialSearchOptions = const {},
+    Map<int, List<String>> initialAlternativeWords = const {},
     int searchDistance = 0,
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
     List<String> content = const ['שורה א'],
+    Future<List<String>> Function()? contentLoader,
     bool bookLoaded = true,
     Future<List<TextSearchResult>> Function(List<String>, String)?
     simpleSearchRunner,
@@ -111,7 +115,7 @@ Future<void> main() async {
         ],
         child: Scaffold(
           body: TextBookSearchView(
-            contentLoader: () async => content,
+            contentLoader: contentLoader ?? () async => content,
             lines: lines,
             focusNode: focusNode,
             closeLeftPaneCallback: () {},
@@ -121,6 +125,7 @@ Future<void> main() async {
             initialSearchOrigin: origin,
             initialSearchTemplate: template,
             initialSearchOptions: initialSearchOptions,
+            initialAlternativeWords: initialAlternativeWords,
             initialSearchDistance: distance,
             initialMatchPolicy: policy,
             simpleSearchRunner: simpleSearchRunner,
@@ -190,6 +195,105 @@ Future<void> main() async {
     expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
   }, skip: !engineReady);
 
+  testWidgets(
+    'המנוע לא מצא דבר בספר: הסריקה המקומית מציגה את ההתאמות המודגשות',
+    (tester) async {
+      // #4135: אינדקס חסר או ישן לספר — המנוע מחזיר 0, אך הספר מדגיש את
+      // ההתאמות מהתוכן הטעון, והרשימה נשארה ריקה.
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'דרך ביאה',
+        searchMode: SearchMode.advanced,
+        searchDistance: 3,
+        bookTitle: 'קובץ שיטות קמאי בכורות',
+        content: const [
+          'פתיחה',
+          'וזהו דרך ביאה שאמרו',
+          'שורה אחרת',
+          'ועוד דרך ביאה כאן',
+        ],
+      );
+      await harness.settle();
+
+      expect(repository.requests, hasLength(1));
+      expect(find.text('אין תוצאות'), findsNothing);
+      expect(find.text('נמצאו 2 תוצאות'), findsOneWidget);
+    },
+    skip: !engineReady,
+  );
+
+  for (final scope in [SearchScope.sameParagraph, SearchScope.wordDistance]) {
+    testWidgets('גיבוי למנוע ריק שומר על גבול הפסקה: $scope', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'דרך ביאה',
+        searchMode: SearchMode.advanced,
+        searchDistance: 3,
+        matchPolicy: SearchMatchPolicy(proximityScope: scope),
+        content: const ['וזהו דרך', 'ביאה שאמרו'],
+      );
+      await harness.settle();
+
+      expect(repository.requests, hasLength(1));
+      if (scope == SearchScope.sameParagraph) {
+        expect(find.text('אין תוצאות'), findsOneWidget);
+      } else {
+        expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      }
+    }, skip: !engineReady);
+  }
+
+  testWidgets('המנוע לא מצא דבר ויש מילים חלופיות: אין סריקה מקומית', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    var simpleCalls = 0;
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'דרך ביאה',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+      initialAlternativeWords: const {
+        0: ['אורח'],
+      },
+      content: const ['וזהו דרך ביאה שאמרו'],
+      simpleSearchRunner: (_, _) async {
+        simpleCalls++;
+        return const [];
+      },
+    );
+    await harness.settle();
+
+    expect(repository.requests, hasLength(1));
+    expect(simpleCalls, 0);
+    expect(find.text('אין תוצאות'), findsOneWidget);
+  });
+
+  testWidgets('המנוע לא מצא דבר וטעינת התוכן נכשלה: "אין תוצאות" ולא שגיאה', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'דרך ביאה',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+      contentLoader: () async => throw StateError('טעינה נכשלה'),
+    );
+    await harness.settle();
+
+    expect(repository.requests, hasLength(1));
+    expect(find.text('אין תוצאות'), findsOneWidget);
+  });
+
   for (final inNote in [false, true]) {
     testWidgets('תוצאת מנוע שומרת גבול הערה אחרי חישוב טווחים: inNote=$inNote', (
       tester,
@@ -257,7 +361,10 @@ Future<void> main() async {
   testWidgets('שאילתה חיצונית מעדכנת ניתוב בשני הכיוונים בלי שינוי בהגדרות', (
     tester,
   ) async {
-    final repository = _RecordingSearchRepository(results: const []);
+    // תוצאה מהמנוע, כדי שהמסלול המקומי לא ירוץ כגיבוי למנוע ריק (#4135).
+    final repository = _RecordingSearchRepository(
+      results: [_result(title: 'ספר בדיקה', reference: 'פרק', segment: 0)],
+    );
     final simpleQueries = <String>[];
     final harness = await pumpSearchView(
       tester,
@@ -439,7 +546,7 @@ Future<void> main() async {
 
   group('ברירת המחדל השמורה חלה על חיפוש חדש בספר (issue #1937)', () {
     tearDown(() {
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
       SearchDefaults.saveExactDefaults(const {});
     });
 
@@ -465,7 +572,7 @@ Future<void> main() async {
     });
 
     testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר', (tester) async {
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
       final repository = _RecordingSearchRepository(results: const []);
       final harness = await pumpSearchView(
         tester,
@@ -482,7 +589,7 @@ Future<void> main() async {
     testWidgets(
       'מרווח שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #3501)',
       (tester) async {
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         final repository = _RecordingSearchRepository(results: const []);
         final simpleQueries = <String>[];
         final harness = await pumpSearchView(
@@ -508,7 +615,7 @@ Future<void> main() async {
       'מצב מתקדם שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #4078)',
       (tester) async {
         SearchDefaults.saveModeDefault(SearchMode.advanced);
-        SearchDefaults.saveDistanceDefault(10);
+        SearchDefaults.saveDistanceDefault(10, mode: SearchMode.advanced);
         addTearDown(() => SearchDefaults.saveModeDefault(SearchMode.exact));
         final repository = _RecordingSearchRepository(results: const []);
         final harness = await pumpSearchView(
@@ -530,7 +637,7 @@ Future<void> main() async {
     testWidgets(
       'מרווח ו"בכל סדר" שמורים: החזרת מצב ה-bloc אינה מחזירה מילה אחת למנוע',
       (tester) async {
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         SearchDefaults.saveAnyOrderDefault(true);
         addTearDown(() => SearchDefaults.saveAnyOrderDefault(false));
         final repository = _RecordingSearchRepository(results: const []);
@@ -554,7 +661,7 @@ Future<void> main() async {
     testWidgets(
       '"בכל סדר" שמור נשאר אחרי הד ה-bloc של מילה אחת (issue #3690)',
       (tester) async {
-        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
         SearchDefaults.saveAnyOrderDefault(true);
         addTearDown(() => SearchDefaults.saveAnyOrderDefault(false));
         final repository = _RecordingSearchRepository(results: const []);
@@ -779,7 +886,7 @@ Future<void> main() async {
 
   testWidgets('עריכת חיפוש מתקדם משוחזר משמרת את ההגדרות', (tester) async {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     final repository = _RecordingSearchRepository(results: const []);
     final harness = await pumpSearchView(
       tester,
@@ -1229,6 +1336,128 @@ Future<void> main() async {
     // שתי ההופעות באותו קטע מוצגות בשורה אחת (issue #3083).
     expect(find.text('נמצאו 2 הופעות במקום אחד'), findsOneWidget);
   }, skip: !engineReady);
+
+  group('מצב החיפוש המשותף לחלוניות (issue #1692)', () {
+    setUp(() => InBookSearchPreferences.saveWholeWord(false));
+    tearDown(() => InBookSearchPreferences.saveWholeWord(false));
+
+    Future<List<TextSearchResult>> noResults(List<String> _, String _) async =>
+        const [];
+
+    testWidgets('מתג מילים שלמות נשמר ומבטל את ההורשה מתוצאה גלובלית', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'שמים',
+        searchOrigin: InBookSearchOrigin.globalResult,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+
+      await tester.tap(find.byIcon(OtzariaIcons.alef_mix_24_regular));
+      await harness.settle();
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+      final update = harness.bloc.searchTextUpdates.last;
+      expect(update.searchOrigin, InBookSearchOrigin.inBook);
+      expect(update.searchWholeWord, isTrue);
+      expect(repository.requests, isEmpty);
+    });
+
+    testWidgets('השאילתה מתוצאה גלובלית נושאת את מקורה רק עד שנערכת', (
+      tester,
+    ) async {
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'שמים',
+        searchOrigin: InBookSearchOrigin.globalResult,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+      // ניקוד ורווחים בקצוות אינם עריכה של השאילתה.
+      await harness.type(' שָׁמַיִם ');
+      await harness.settle();
+      expect(
+        harness.bloc.searchTextUpdates.last.searchOrigin,
+        InBookSearchOrigin.globalResult,
+      );
+
+      await harness.type('ארץ');
+      await harness.settle();
+      expect(
+        harness.bloc.searchTextUpdates.last.searchOrigin,
+        InBookSearchOrigin.inBook,
+      );
+    });
+
+    testWidgets('איפוס מבטל את ההורשה ומשאיר את מתג מילים שלמות', (
+      tester,
+    ) async {
+      await InBookSearchPreferences.saveWholeWord(true);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'שמים',
+        searchOrigin: InBookSearchOrigin.globalResult,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+
+      await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+      await harness.settle();
+
+      final update = harness.bloc.searchTextUpdates.last;
+      expect(update.text, isEmpty);
+      expect(update.searchOrigin, InBookSearchOrigin.inBook);
+      expect(update.searchWholeWord, isTrue);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+    });
+
+    testWidgets('שאילתה חיצונית קוראת מחדש את ההעדפה שהשתנתה בטאב אחר', (
+      tester,
+    ) async {
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'שמים',
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+
+      await InBookSearchPreferences.saveWholeWord(true);
+      await harness.rebuildFromBloc('ארץ', 0, SearchMatchPolicy.standard);
+      await harness.settle();
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+      expect(harness.bloc.searchTextUpdates.last.searchWholeWord, isTrue);
+    });
+
+    testWidgets('חיפוש במנוע מדגיש מילים שלמות גם כשהמתג כבוי', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע זרעך',
+        searchMode: SearchMode.advanced,
+        searchDistance: 3,
+        simpleSearchRunner: noResults,
+      );
+      await harness.settle();
+
+      expect(repository.requests, isNotEmpty);
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsNothing);
+      expect(harness.bloc.searchTextUpdates.last.searchWholeWord, isTrue);
+      expect(InBookSearchPreferences.loadWholeWord(), isFalse);
+    });
+  });
 }
 
 class _Harness {
@@ -1409,7 +1638,6 @@ TextBookLoaded _loadedState({
     removeNikud: removeNikud,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
   );
 }

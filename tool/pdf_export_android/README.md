@@ -33,7 +33,7 @@ upload after close.
 
 `.github/workflows/pdf_mobile_export_android.yml` builds a separate debug app
 (`org.otzaria.otzaria.pdfexportprobe`) and test APK with the existing SDK,
-Flutter 3.47.7, Kotlin and JUnit pins. The normal application does not include the
+Flutter 3.47.9, Kotlin and JUnit pins. The normal application does not include the
 probe Activity, fixture provider or control permission. No new dependency or
 production permission is required.
 

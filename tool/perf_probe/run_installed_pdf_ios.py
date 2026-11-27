@@ -74,7 +74,15 @@ def create_simulator(campaign):
 def boot_simulator(receipt):
     udid = receipt["udid"]
     simctl("boot", udid)
-    simctl("bootstatus", udid, "-b", timeout=300)
+    try:
+        simctl("bootstatus", udid, "-b", timeout=300)
+    except subprocess.TimeoutExpired:
+        print("Simulator boot status timed out; attempting a fresh boot", file=sys.stderr, flush=True)
+        _, device = simulator_entry(receipt, json.loads(simctl("list", "-j", "devices"))["devices"])
+        if device.get("state") != "Shutdown":
+            simctl("shutdown", udid)
+        simctl("boot", udid)
+        simctl("bootstatus", udid, "-b", timeout=300)
     runtime, device = simulator_entry(receipt, json.loads(simctl("list", "-j", "devices"))["devices"])
     require(device.get("state") == "Booted", "Owned Simulator did not boot")
     runtime_root = Path(simctl("getenv", udid, "SIMULATOR_ROOT")).resolve(strict=True)
@@ -103,11 +111,11 @@ def cleanup_simulator(receipt):
 
 def run_driver(root, receipt, commit):
     environment = {**os.environ, "INSTALLED_PROBE_REPORTS": str(root / "host")}
-    args = ["flutter", "drive", "--debug", "-d", receipt["udid"], "--no-dds", "--no-pub",
+    args = ["flutter", "drive", "--verbose", "--debug", "-d", receipt["udid"], "--no-dds", "--no-pub",
             "--keep-app-running",
             "--driver=test_driver/installed_plugin_resource_probe.dart",
             "--target=integration_test/installed_pdf_ios_probe_test.dart",
-            "--dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.7",
+            "--dart-define=INSTALLED_PROBE_FLUTTER_VERSION=3.47.9",
             "--dart-define=INSTALLED_PROBE_COMMIT=" + commit,
             "--dart-define=INSTALLED_PDF_IOS_CAMPAIGN=" + receipt["campaign"]]
     save(root / "driver-command.json", args)
@@ -179,6 +187,8 @@ def run(root, commit):
         boot_simulator(receipt)
         save(root / "simulator.json", receipt)
         exit_code = run_driver(root, receipt, commit)
+        require(exit_code == 0,
+                f"Native iOS integration driver failed (exit={exit_code}); see run.log")
         result = collect_and_validate(root, receipt, commit, exit_code)
     finally:
         if receipt is not None:

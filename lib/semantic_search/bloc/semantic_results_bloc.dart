@@ -16,7 +16,7 @@ import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart'
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling, SemanticPassageHighlight;
+    show MergedSibling, SemanticPassageHighlight, SemanticVote;
 
 export 'semantic_results_event.dart';
 export 'semantic_results_state.dart';
@@ -27,9 +27,9 @@ typedef SemanticUserBookResolver = Future<bool> Function(SemanticResultItem);
 /// הפסקה המלאה של התוצאה; `null` כשלא נמצאה.
 typedef SemanticPassageResolver = Future<String?> Function(SemanticResultItem);
 
-/// ציבורי רק ספר שפוענח ומקורו הספרייה הרשמית; כל השאר (גם מפתח שלא
-/// פוענח — לספר אישי יכול להיות מפתח ext:) נחשב פרטי.
-bool semanticResultIsPrivate(Book? book) => !(book?.source.isOfficial ?? false);
+/// רק תוצאה בעלת זהות ספרייה רשמית נחשבת ציבורית.
+bool semanticResultIsPrivate(Book? book) =>
+    !(book?.hasOfficialSemanticIdentity ?? false);
 
 /// תלויות הטלמטריה; ברירת המחדל [SearchFeedbackService.instance], בגישה הראשונה.
 class SemanticFeedbackPorts {
@@ -99,6 +99,7 @@ class SemanticResultsBloc
   SemanticResultsSource? _source;
   SemanticSearchContext? _context;
   final List<bool> _userBookFlags = [];
+  final _publicVotes = <({String filePath, BigInt id}), SearchFeedbackVote>{};
   int _generation = 0;
   SemanticCancelHandle? _highlightCancel;
 
@@ -122,7 +123,7 @@ class SemanticResultsBloc
   Future<void> _onSubmitted(
     SemanticSearchSubmitted event,
     Emitter<SemanticResultsState> emit, {
-    String? message,
+    bool refresh = false,
   }) async {
     final generation = ++_generation;
     _source?.cancel();
@@ -130,6 +131,7 @@ class SemanticResultsBloc
     _highlightCancel = SemanticCancelHandle();
     _context = null;
     _userBookFlags.clear();
+    if (!refresh) _publicVotes.clear();
     final options = event.options;
     emit(
       SemanticResultsState(
@@ -193,11 +195,14 @@ class SemanticResultsBloc
             ? SemanticResultsStatus.failed
             : SemanticResultsStatus.loaded,
         items: page.items,
+        votes: _votesForPage(page.items, 0),
         morePages: page.hasMore,
         isDebugPreview: source.isDebugPreview,
         message: failedEmpty
             ? SemanticSearchMessages.semanticPartFailed
-            : message,
+            : refresh
+            ? SemanticSearchMessages.resultsRefreshed
+            : null,
         onlyLexical: semanticFailed && !failedEmpty,
       ),
     );
@@ -230,15 +235,14 @@ class SemanticResultsBloc
       emit(state.copyWith(isLoadingMore: false));
       return;
     }
-    // אין לצרף עמוד מסדר חדש לרשימה הישנה. חיפוש מחדש מאפס גם הצבעות,
-    // סימונים והקשר משוב, ומבטל תשובות שעדיין מגיעות מהחיפוש הקודם.
+    // עמוד מסדר חדש מחליף את הרשימה ומתחיל הקשר משוב חדש.
     if (page.sessionRestarted ||
         (_context != null &&
             page.executedMode != _context!.response.executedMode)) {
       await _onSubmitted(
         SemanticSearchSubmitted(options),
         emit,
-        message: SemanticSearchMessages.resultsRefreshed,
+        refresh: true,
       );
       return;
     }
@@ -250,6 +254,7 @@ class SemanticResultsBloc
         isLoadingMore: false,
         clearMessage: true,
         items: [...state.items, ...page.items],
+        votes: {...state.votes, ..._votesForPage(page.items, offset)},
         // עמוד ריק אומר שאין עוד, גם כשהמקור דיווח אחרת.
         morePages: page.items.isNotEmpty && page.hasMore,
       ),
@@ -347,12 +352,23 @@ class SemanticResultsBloc
       votes[index] = event.vote;
       recorded = event.vote;
     }
+    final item = state.items[index];
+    final isUserBook = isUserBookAt(index);
+    // גם הציונים בדף הבא עשויים להיכלל במשוב הקיים.
+    if (!isUserBook) {
+      final key = (filePath: item.filePath, id: item.id);
+      if (recorded == SearchFeedbackVote.cleared) {
+        _publicVotes.remove(key);
+      } else {
+        _publicVotes[key] = recorded;
+      }
+    }
     emit(state.copyWith(votes: votes));
     final context = _context;
-    if (context == null || isUserBookAt(index) || !_isCollecting) return;
+    if (context == null || isUserBook || !_isCollecting) return;
     unawaited(
       _fullSnapshot(
-        state.items[index],
+        item,
         index,
         isUserBook: false,
       ).then(
@@ -403,6 +419,21 @@ class SemanticResultsBloc
     await _feedback.whenQueued();
   }
 
+  Map<int, SearchFeedbackVote> _votesForPage(
+    List<SemanticResultItem> items,
+    int offset,
+  ) {
+    final votes = <int, SearchFeedbackVote>{};
+    if (_publicVotes.isEmpty) return votes;
+    for (var i = 0; i < items.length; i++) {
+      if (isUserBookAt(offset + i)) continue;
+      final item = items[i];
+      final vote = _publicVotes[(filePath: item.filePath, id: item.id)];
+      if (vote != null) votes[offset + i] = vote;
+    }
+    return votes;
+  }
+
   Future<SemanticResultsPage?> _fetch(
     SemanticResultsSource source,
     SemanticQueryOptions options,
@@ -416,6 +447,15 @@ class SemanticResultsBloc
         options,
         offset: offset,
         limit: pageSize,
+        votes: [
+          if (!source.isDebugPreview && !state.onlyLexical)
+            for (final entry in _publicVotes.entries)
+              SemanticVote(
+                filePath: entry.key.filePath,
+                id: entry.key.id,
+                relevant: entry.value == SearchFeedbackVote.like,
+              ),
+        ],
         onSearching: offset == 0
             ? () {
                 if (generation == _generation && !emit.isDone) {

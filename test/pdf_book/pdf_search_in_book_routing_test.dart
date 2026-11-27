@@ -15,6 +15,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
@@ -134,11 +135,11 @@ Future<void> main() async {
     'איפוס במסכת PDF מצורפת משמר חיפוש מקומי עם ברירות מחדל מתקדמות',
     (tester) async {
       SearchDefaults.saveModeDefault(SearchMode.advanced);
-      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDistanceDefault(3, mode: SearchMode.advanced);
       SearchDefaults.saveDefaults({'קידומות': true, 'ראשי תיבות': true});
       addTearDown(() {
         SearchDefaults.saveModeDefault(SearchMode.exact);
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
         SearchDefaults.saveDefaults({});
       });
       final repository = await pumpPdfSearch(
@@ -183,12 +184,12 @@ Future<void> main() async {
     tester,
   ) async {
     SearchDefaults.saveModeDefault(SearchMode.advanced);
-    SearchDefaults.saveDistanceDefault(3);
+    SearchDefaults.saveDistanceDefault(3, mode: SearchMode.advanced);
     const wordOptions = {'קידומות': true, 'ראשי תיבות': true};
     SearchDefaults.saveDefaults(wordOptions);
     addTearDown(() {
       SearchDefaults.saveModeDefault(SearchMode.exact);
-      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       SearchDefaults.saveDefaults({});
     });
     final tab = PdfBookTab(book: _loadedState().book, pageNumber: 1);
@@ -244,7 +245,7 @@ Future<void> main() async {
     expect(restored.searchDistance, 3);
     expect(restored.searchOptions, expectedOptions);
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     SearchDefaults.saveDefaults({});
     await tester.pumpWidget(const SizedBox.shrink());
     final reopened = await pumpPdfSearch(
@@ -428,7 +429,7 @@ Future<void> main() async {
 
   testWidgets('עריכת חיפוש מתקדם משוחזר משמרת את ההגדרות', (tester) async {
     SearchDefaults.saveModeDefault(SearchMode.exact);
-    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact);
     final repository = await pumpPdfSearch(
       tester,
       query: 'תדע זרעך',
@@ -492,8 +493,10 @@ Future<void> main() async {
 
   // issue #1937: ברירת מחדל שנשמרה מחלון החיפוש לא חלה על חיפוש בספר.
   testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר PDF', (tester) async {
-    SearchDefaults.saveDistanceDefault(3);
-    addTearDown(() => SearchDefaults.saveDistanceDefault(0));
+    SearchDefaults.saveDistanceDefault(3, mode: SearchMode.exact);
+    addTearDown(
+      () => SearchDefaults.saveDistanceDefault(0, mode: SearchMode.exact),
+    );
     final repository = await pumpPdfSearch(
       tester,
       query: '',
@@ -512,10 +515,10 @@ Future<void> main() async {
     'מצב מתקדם שמור אינו חוסם חלק ממילה ב-PDF בשאילתה של מילה אחת (issue #4078)',
     (tester) async {
       SearchDefaults.saveModeDefault(SearchMode.advanced);
-      SearchDefaults.saveDistanceDefault(10);
+      SearchDefaults.saveDistanceDefault(10, mode: SearchMode.advanced);
       addTearDown(() {
         SearchDefaults.saveModeDefault(SearchMode.exact);
-        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDistanceDefault(0, mode: SearchMode.advanced);
       });
       final repository = await pumpPdfSearch(
         tester,
@@ -809,6 +812,114 @@ Future<void> main() async {
 
     await tester.pump(const Duration(milliseconds: 800));
   }, skip: !engineReady);
+
+  group('מצב החיפוש המשותף לחלוניות (issue #1692)', () {
+    setUp(() => InBookSearchPreferences.saveWholeWord(false));
+    tearDown(() => InBookSearchPreferences.saveWholeWord(false));
+
+    UpdateSearchOptions lastOptions(_RecordingSearchRepository repository) =>
+        verify(
+          () =>
+              repository.bloc.add(captureAny(that: isA<UpdateSearchOptions>())),
+        ).captured.cast<UpdateSearchOptions>().last;
+
+    testWidgets('מתג מילים שלמות נשמר ומבטל את ההורשה מתוצאה גלובלית', (
+      tester,
+    ) async {
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+
+      await tester.tap(find.byIcon(OtzariaIcons.alef_mix_24_regular));
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+      expect(lastOptions(repository).searchOrigin, InBookSearchOrigin.inBook);
+      // ה-PDF ממשיך לסרוק את שכבת הטקסט של pdfrx ולא את המנוע.
+      expect(repository.requests, isEmpty);
+      expect(repository.textSearcher.pattern, isA<RegExp>());
+    });
+
+    testWidgets('השאילתה מתוצאה גלובלית נושאת את מקורה רק עד שנערכת', (
+      tester,
+    ) async {
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+
+      // ניקוד ורווחים בקצוות אינם עריכה של השאילתה.
+      await tester.enterText(find.byType(TextField).first, ' שָׁמַיִם ');
+      await tester.pump(const Duration(milliseconds: 800));
+      verifyNever(
+        () => repository.bloc.add(
+          any(
+            that: isA<UpdateSearchOptions>().having(
+              (event) => event.searchOrigin,
+              'searchOrigin',
+              InBookSearchOrigin.inBook,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField).first, 'ארץ');
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(lastOptions(repository).searchOrigin, InBookSearchOrigin.inBook);
+    });
+
+    testWidgets('איפוס מבטל את ההורשה ומשאיר את מתג מילים שלמות', (
+      tester,
+    ) async {
+      await InBookSearchPreferences.saveWholeWord(true);
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+
+      await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(lastOptions(repository).searchOrigin, InBookSearchOrigin.inBook);
+      expect(InBookSearchPreferences.loadWholeWord(), isTrue);
+    });
+
+    testWidgets('שאילתה חיצונית קוראת מחדש את ההעדפה שהשתנתה בטאב אחר', (
+      tester,
+    ) async {
+      final incoming = ValueNotifier<ReadingTabSearchState?>(null);
+      addTearDown(incoming.dispose);
+      await pumpPdfSearch(
+        tester,
+        query: 'שמים',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        incomingSearchConfiguration: incoming,
+      );
+      expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+
+      await InBookSearchPreferences.saveWholeWord(true);
+      incoming.value = const ReadingTabSearchState(
+        searchText: 'ארץ',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);
+    });
+  });
 }
 
 class _SearchRequest {

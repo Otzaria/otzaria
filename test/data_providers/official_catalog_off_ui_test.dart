@@ -10,6 +10,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
 
 import '../helpers/seforim_fixture_db.dart';
 import '../test_helpers/memory_cache_provider.dart';
@@ -24,8 +25,19 @@ void main() {
   late Directory tempDir;
   late String libraryPath;
 
-  Future<void> openLibrary(SeforimFixtureVariant variant) async {
+  Future<void> openLibrary(
+    SeforimFixtureVariant variant, {
+    void Function(Database)? populate,
+  }) async {
     final created = SeforimFixtureDb.create(Directory(libraryPath), variant);
+    if (populate != null) {
+      final db = sqlite3.open(created);
+      try {
+        populate(db);
+      } finally {
+        db.close();
+      }
+    }
     File(
       created,
     ).renameSync(p.join(libraryPath, DatabaseConstants.databaseFileName));
@@ -106,6 +118,26 @@ void main() {
     } finally {
       db.execute('ROLLBACK');
     }
+  });
+
+  test('שם מחבר עם פסיק נשמר בשלמותו בקטלוג לצד מחבר נוסף', () async {
+    const authorName = 'אלכסנדר זיסקינד מהוראדנא, בעל יסוד ושורש העבודה';
+    await openLibrary(
+      SeforimFixtureVariant.full,
+      populate: (db) {
+        db.execute('INSERT INTO author (id, name) VALUES (2, ?)', [authorName]);
+        db.execute('INSERT INTO book_author (bookId, authorId) VALUES (?, 2)', [
+          SeforimFixtureIds.rashiId,
+        ]);
+      },
+    );
+
+    final library = await provider.buildLibraryCatalog({}, libraryPath);
+    final book = library.getAllBooks().singleWhere(
+      (book) => book.id == SeforimFixtureIds.rashiId,
+    );
+    expect(book.authors, [authorName, SeforimFixtureIds.authorName]);
+    expect(book.author, book.authors.join(', '));
   });
 
   test('השהיית קריאות אינה מפעילה שאילתת קטלוג על החיבור הראשי', () async {

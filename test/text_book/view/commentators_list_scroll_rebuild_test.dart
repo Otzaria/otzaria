@@ -82,7 +82,6 @@ void main() {
         removeNikud: false,
         visibleIndices: const [0, 1, 2],
         selectedIndex: null,
-        pinLeftPane: false,
         searchText: '',
       ),
     );
@@ -141,7 +140,6 @@ void main() {
         linksByLine: const {},
         tableOfContents: const [],
         visibleIndices: const [1000],
-        pinLeftPane: false,
         searchText: '',
       ),
     );

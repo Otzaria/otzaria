@@ -342,7 +342,8 @@ void main() {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 10)),
         );
-        await tester.pump();
+        // pdfrx 3.1 מתזמן את המשך הטעינה בטיימר; בלי זמן מדומה הוא לא יורה.
+        await tester.pump(const Duration(milliseconds: 16));
       }
       expect(document.pages.every((page) => page.isLoaded), isTrue);
       expect(

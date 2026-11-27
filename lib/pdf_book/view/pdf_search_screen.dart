@@ -22,9 +22,9 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/search/book_facet.dart';
-import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/view/whole_word_search_action.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
@@ -32,6 +32,7 @@ import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
 import 'package:otzaria/pdf_book/utils/pdf_engine_result_ordinals.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_result_list.dart';
 import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
+import 'package:otzaria/pdf_book/utils/pdf_word_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/utils/result_lines_highlight_pattern.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
@@ -231,14 +232,25 @@ class PdfBookSearchView extends StatefulWidget {
   /// תקרת מונחים ייחודיים לתבנית ההדגשה, כדי שהרגקס לא יתנפח.
   static const int _maxHighlightTerms = 50;
 
-  /// תבנית הדגשה לעמודים: המתאם של הקורא הטקסטואלי כשהוא מוצא את [resultHtmls],
-  /// ואחרת המונחים שהמנוע סימן, בשורות שהוא התאים. null כשאין מה להדגיש.
+  /// תבנית הדגשה מהמתאם לעמוד, מהתאמת המרווח או מהסימונים ב-[resultHtmls].
   @visibleForTesting
   static Pattern? buildAdvancedHighlightPattern(
     Iterable<String> resultHtmls, {
     String query = '',
     InBookSearchSettings settings = const InBookSearchSettings(),
+    HighlightPattern? indexPattern,
   }) {
+    if (indexPattern?.matcher case final matcher?) {
+      final policy = settings.matchPolicy;
+      return PdfWordHighlightPattern(
+        matcher,
+        indexPattern!.wordBoundaryEligible,
+        settings.searchMode == SearchMode.fuzzy
+            ? WordMatchMode.all
+            : policy.wordMatchMode,
+        policy.wordMatchCount,
+      );
+    }
     final proximity = _proximityPattern(resultHtmls, query, settings);
     if (proximity != null) return proximity;
 
@@ -286,7 +298,7 @@ class PdfBookSearchView extends StatefulWidget {
     String query,
     InBookSearchSettings settings,
   ) {
-    // במקורב, בטווח פסקה/כותרת וב"לפחות N מילים" המנוע מתאים שורה ולא רצף.
+    // במקורב, בטווח פסקה/כותרת וב"לפחות N מילים" אין דרישה לרצף.
     if (query.isEmpty || settings.searchMode == SearchMode.fuzzy) return null;
     final policy = settings.matchPolicy;
     if (policy.proximityScope != SearchScope.wordDistance ||
@@ -379,11 +391,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   InBookSearchSettings _settings = const InBookSearchSettings();
 
-  // הגדרות מתוצאה גלובלית חלות רק על השאילתה שהגיעה איתן.
-  String? _carriedInQuery;
-  InBookSearchOrigin get _searchOrigin => _carriedInQuery == null
-      ? InBookSearchOrigin.inBook
-      : InBookSearchOrigin.globalResult;
+  final _query = InBookSearchQueryState();
 
   // מסכת PDF מצורפת אינה מאונדקסת, וברירת מחדל שדורשת מנוע הייתה חוסמת בה.
   InBookSearchSettings get _paneDefaults => _isBundledTalmudPdf
@@ -397,7 +405,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   int get _searchDistance => _settings.distance;
   SearchMatchPolicy get _matchPolicy => _settings.matchPolicy;
 
-  String _lastPdfHighlightSource = '';
+  Object _lastPdfHighlightSource = '';
   int _searchGeneration = 0;
   late final _engineSearch = InBookEngineSearchCancellation(
     widget.searchRepository,
@@ -432,8 +440,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   /// תוצאות מיושנות (race) של חיפוש קודם.
   String? _pendingSimpleSearchScrollFor;
 
-  bool _wholeWord = InBookSearchPreferences.loadWholeWord();
-
   /// `/…/` also scans the pages: the engine's matcher runs on each text layer.
   bool get _isSimpleSearch =>
       _settings.isSimpleSearch ||
@@ -459,12 +465,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
   void _toggleWholeWord() {
-    setState(() {
-      _carriedInQuery = null;
-      _wholeWord = !_wholeWord;
-    });
+    setState(_query.toggleWholeWord);
     _syncSearchOptions(context.read<PdfBookBloc>());
-    unawaited(InBookSearchPreferences.saveWholeWord(_wholeWord));
     _searchTextUpdated();
   }
 
@@ -475,6 +477,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
       RegExp regExp => regExp.pattern,
       ProximityHighlightPattern proximity => proximity.key,
       ResultLinesHighlightPattern lines => lines.key,
+      PdfWordHighlightPattern words => words,
       _ => '',
     };
     final searcher = widget.textSearcher;
@@ -504,7 +507,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   void _centerOpenTargetMatch() {
     final page = _centerOnOpenTargetPage;
     _centerOnOpenTargetPage = null;
-    if (page == null || _carriedInQuery == null) return;
+    if (page == null || _query.origin == InBookSearchOrigin.inBook) return;
     unawaited(_goToMatchOnPage(page, (_) => 0, onlyIfShown: true));
   }
 
@@ -715,14 +718,65 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
   }
 
   /// מדגיש על העמוד את מה שהמנוע מצא בפועל (כולל fuzzy/מילים חלופיות).
-  void _updateAdvancedHighlight(List<SearchResult> results, String query) {
+  void _updateAdvancedHighlight(
+    List<SearchResult> results,
+    String query, {
+    HighlightPattern? indexPattern,
+  }) {
     final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
       results.map((r) => r.text),
       query: query,
       settings: _settings,
+      indexPattern: indexPattern,
     );
     _lastAdvancedHighlightPattern = pattern;
     _schedulePdfHighlight(pattern);
+  }
+
+  static final _phraseQuotes = RegExp(r'(?<![א-ת])["״“”„]|["״“”„](?![א-ת])');
+
+  static bool _hasQuotedFuzzyPhrase(String query) {
+    final segments = query.split(_phraseQuotes);
+    for (var i = 1; i + 1 < segments.length; i += 2) {
+      if (SearchQueryBuilder.hasMultipleWords(segments[i])) return true;
+    }
+    return false;
+  }
+
+  Future<HighlightPattern?> _preparePageWordHighlights(
+    String query,
+    int requestId,
+  ) async {
+    final policy = _settings.matchPolicy;
+    final needsWordMatcher = switch (_settings.searchMode) {
+      SearchMode.exact => false,
+      SearchMode.fuzzy =>
+        policy.querySemantics == SearchQuerySemantics.regular &&
+            !_hasQuotedFuzzyPhrase(query),
+      SearchMode.advanced =>
+        policy.proximityScope != SearchScope.wordDistance ||
+            policy.wordMatchMode != WordMatchMode.all,
+    };
+    final options = _settings.searchOptions;
+    if (!needsWordMatcher ||
+        SearchQueryBuilder.optionsRequestVocalized(options) ||
+        options.values.any((word) => word['תרגום ארמי'] == true)) {
+      return null;
+    }
+    try {
+      return await widget.searchRepository.preparePdfWordHighlightPattern(
+        inBookSearchRequest(
+          query: query,
+          bookPath: _bookPath!,
+          settings: _settings,
+          cancelRequestId: requestId,
+        ),
+        indexedFilePath: _indexedFilePath,
+      );
+    } catch (error) {
+      debugPrint('[PdfSearch] page word highlights unavailable: $error');
+      return null;
+    }
   }
 
   @override
@@ -739,10 +793,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           widget.initialMatchPolicy,
       optionsForEveryWord: widget.initialSearchTemplate?.wordDefaults,
     );
-    _carriedInQuery =
-        widget.initialSearchOrigin == InBookSearchOrigin.globalResult
-        ? searchableInBookQuery(widget.searchController.text)
-        : null;
+    _query.open(widget.searchController.text, widget.initialSearchOrigin);
     _centerOnOpenTargetPage = widget.takeCenterMatchPage?.call();
     if (!_isBundledTalmudPdf &&
         searchableInBookQuery(widget.searchController.text) == null) {
@@ -818,10 +869,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     notifier!.value = null;
     if (!mounted) return;
 
-    _carriedInQuery =
-        configuration.searchOrigin == InBookSearchOrigin.globalResult
-        ? searchableInBookQuery(configuration.searchText)
-        : null;
+    _query.open(configuration.searchText, configuration.searchOrigin);
     _centerOnOpenTargetPage = widget.takeCenterMatchPage?.call();
     _applySearchConfiguration(
       query: configuration.searchText,
@@ -997,7 +1045,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     if (query == null || UserRegexQuery.isValid(query)) return;
     final reversed = PdfBookSearchView.buildSimpleSearchPattern(
       query,
-      wholeWord: _wholeWord,
+      wholeWord: _query.wholeWord,
       reversed: true,
     );
     if (reversed == null) return;
@@ -1020,17 +1068,18 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
       totalPages: pdfState is PdfBookLoaded ? pdfState.totalPages : 1,
     );
 
-    final texts = <String>[];
+    var hasLoadedText = false;
     for (final page in pages) {
       if (!isCurrent()) return false;
       final pageText = await widget.textSearcher.loadText(pageNumber: page);
       if (!isCurrent()) return false;
-      if (pageText != null) texts.add(pageText.fullText);
+      if (pageText == null) continue;
+      hasLoadedText = true;
+      if (PdfBookSearchView.hasSearchableText([pageText.fullText])) return true;
     }
 
     // בלי טקסט כלל אי אפשר להכריע (המסמך עדיין לא נטען) — נשארים ב"אין תוצאות".
-    if (texts.isEmpty) return false;
-    if (PdfBookSearchView.hasSearchableText(texts)) return true;
+    if (!hasLoadedText) return false;
     setState(() => _searchErrorMessage = PdfMessages.noTextLayer);
     return false;
   }
@@ -1149,7 +1198,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     SearchDialogResult result,
     PdfBookBloc pdfBookBloc,
   ) {
-    _carriedInQuery = null;
+    _query.open(result.query, InBookSearchOrigin.inBook);
     _applySearchConfiguration(
       query: result.query,
       settings: InBookSearchSettings.fromDialogResult(result),
@@ -1169,8 +1218,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     }
     setState(() {
       _settings = settings.forQuery(searchableInBookQuery(query) ?? '');
-      // The preference is global; a toggle in another tab leaves a stale value.
-      _wholeWord = InBookSearchPreferences.loadWholeWord();
     });
     _syncSearchOptions(pdfBookBloc);
 
@@ -1189,7 +1236,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         searchMode: _searchMode,
         searchDistance: _searchDistance,
         matchPolicy: _matchPolicy,
-        searchOrigin: _searchOrigin,
+        searchOrigin: _query.origin,
         searchTemplate: _settings.template,
       ),
     );
@@ -1290,7 +1337,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           : PdfBookSearchView.buildSimpleSearchPattern(
               // כמו הדגשת התוצאות: רווח בקצה השדה מעגן התאמה חלקית לגבול מילה.
               widget.searchController.text,
-              wholeWord: _wholeWord,
+              wholeWord: _query.wholeWord,
             );
       _lastPdfHighlightSource = literal?.source ?? query;
       // שדה החיפוש כבר ממתין להפסקת ההקלדה; השהיית pdfrx הייתה מוסיפה עוד 500ms.
@@ -1304,13 +1351,14 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     }
 
     try {
+      final requestId = _engineSearch.next();
       final rawResults = await searchBookWithEngine(
         widget.searchRepository,
         query: query,
         bookPath: _bookPath!,
         limit: kInBookEngineFetchLimit,
         settings: _settings,
-        cancelRequestId: _engineSearch.next(),
+        cancelRequestId: requestId,
       );
 
       final indexedFilePath = _indexedFilePath;
@@ -1347,7 +1395,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           );
         }
       });
-      _updateAdvancedHighlight(results, query);
+      final indexPattern = results.isEmpty
+          ? null
+          : await _preparePageWordHighlights(query, requestId);
+      if (!mounted || generation != _searchGeneration) return;
+      _updateAdvancedHighlight(results, query, indexPattern: indexPattern);
       _centerOpenTargetMatch();
       _scheduleScrollToCurrentPage();
     } catch (e, st) {
@@ -1478,7 +1530,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
                     _isSimpleSearch
                         ? PdfBookSearchView.buildSimpleSearchPattern(
                             widget.searchController.text,
-                            wholeWord: _wholeWord,
+                            wholeWord: _query.wholeWord,
                             reversed: _simpleSearchReversed,
                           )?.regExp
                         : _lastAdvancedHighlightPattern,
@@ -1487,7 +1539,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
                 },
                 query: widget.searchController.text,
                 isSimpleSearch: _isSimpleSearch,
-                wholeWord: _wholeWord,
+                wholeWord: _query.wholeWord,
               ),
             );
           },
@@ -1501,8 +1553,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
       onSearchTextChanged: (_) {
         // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
         final query = searchableInBookQuery(widget.searchController.text);
-        if (_carriedInQuery != null && query != _carriedInQuery) {
-          _carriedInQuery = null;
+        if (_query.dropCarriedIfEdited(query)) {
           _settings = _paneDefaults;
           _syncSearchOptions(context.read<PdfBookBloc>());
         }
@@ -1516,7 +1567,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
           _searchResults = [];
           _resultsTruncated = false;
           _searchErrorMessage = null;
-          _carriedInQuery = null;
+          _query.dropCarried();
           _settings = _paneDefaults;
         });
         final searcher = widget.textSearcher;
@@ -1530,7 +1581,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         if (_isSimpleSearch)
           wholeWordSearchAction(
             context: context,
-            wholeWord: _wholeWord,
+            wholeWord: _query.wholeWord,
             onToggle: _toggleWholeWord,
           ),
       ],
@@ -1540,6 +1591,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         final result = await showInBookAdvancedSearchDialog(
           context,
           bookTitle: widget.bookTitle,
+          book: switch (pdfBookBloc.state) {
+            PdfBookLoaded(:final book) => book,
+            _ => null,
+          },
           query: widget.searchController.text,
           settings: _settings,
         );

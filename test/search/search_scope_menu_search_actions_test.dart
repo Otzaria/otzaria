@@ -6,6 +6,8 @@ import 'package:positioned_sliver_list/positioned_sliver_list.dart'
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/book_identity.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -58,12 +60,17 @@ Future<void> main() async {
   /// הבחירה החיה של הרכיב הנשלט — מוזנת חזרה דרך onChanged כמו בדיאלוג.
   late Set<String> selection;
 
-  Future<void> pumpMenu(WidgetTester tester, Set<String> selected) async {
+  Future<void> pumpMenu(
+    WidgetTester tester,
+    Set<String> selected, {
+    ValueNotifier<Set<String>?>? coverage,
+    Library? library,
+  }) async {
     final libraryBloc = _MockLibraryBloc();
     whenListen(
       libraryBloc,
       const Stream<LibraryState>.empty(),
-      initialState: LibraryState(library: _buildLibrary()),
+      initialState: LibraryState(library: library ?? _buildLibrary()),
     );
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
@@ -79,10 +86,20 @@ Future<void> main() async {
           value: libraryBloc,
           child: Scaffold(
             body: StatefulBuilder(
-              builder: (context, setState) => SearchScopeMenuButton(
-                selected: selection,
-                onChanged: (next) => setState(() => selection = next),
-              ),
+              builder: (context, setState) {
+                Widget menu(Set<String>? covered) => SearchScopeMenuButton(
+                  selected: selection,
+                  onChanged: (next) => setState(() => selection = next),
+                  officialBooksOnly: coverage != null,
+                  coveredFilePaths: covered,
+                );
+                return coverage == null
+                    ? menu(null)
+                    : ValueListenableBuilder(
+                        valueListenable: coverage,
+                        builder: (_, covered, _) => menu(covered),
+                      );
+              },
             ),
           ),
         ),
@@ -129,6 +146,75 @@ Future<void> main() async {
   group(
     'פעולות בתוצאות סינון ההיקף (issue #933)',
     () {
+      testWidgets('הקלדת רבינו בח מציעה את הספר רבנו בחיי (#5502)', (
+        tester,
+      ) async {
+        final cache = AcronymsCache.instance;
+        cache.setAcronymsForTesting({
+          3560: ['רבינו בחיי'],
+        });
+        addTearDown(cache.clear);
+        final library = _buildLibrary();
+        library.subCategories.single.subCategories.single.books.add(
+          TextBook(
+            id: 3560,
+            title: 'רבנו בחיי',
+            author: 'רבנו בחיי אבן חלאווה',
+            categoryPath: '/תנ״ך/תורה',
+          ),
+        );
+        await pumpMenu(tester, {'/'}, library: library);
+        await typeQuery(tester, 'רבינו בח');
+
+        expect(textInList('רבנו בחיי'), findsOneWidget);
+      });
+
+      testWidgets('עץ שכבר נפתח מתעדכן כשמגיעה רשימת הכיסוי', (tester) async {
+        final coverage = ValueNotifier<Set<String>?>(null);
+        addTearDown(coverage.dispose);
+        await pumpMenu(tester, {'/'}, coverage: coverage);
+        await typeQuery(tester, 'בראשית');
+        expect(textInList('בראשית'), findsOneWidget);
+
+        final book = _buildLibrary().getAllBooks().singleWhere(
+          (book) => book.title == 'שמות',
+        );
+        coverage.value = {BookIdentity.indexedFilePath(book)};
+        await tester.pumpAndSettle();
+
+        expect(textInList('בראשית'), findsNothing);
+        await typeQuery(tester, 'שמות');
+        expect(textInList('שמות'), findsOneWidget);
+      });
+
+      testWidgets('כיסוי מתעדכן בתוך קטגוריה פתוחה', (tester) async {
+        final coverage = ValueNotifier<Set<String>?>(null);
+        addTearDown(coverage.dispose);
+        await pumpMenu(tester, {'/'}, coverage: coverage);
+        await tester.tap(textInList('כל הספרים'));
+        await tester.pumpAndSettle();
+        await tester.tap(textInList('תנ״ך'));
+        await tester.pumpAndSettle();
+        expect(textInList('בראשית'), findsOneWidget);
+        expect(textInList('שמות'), findsOneWidget);
+
+        final book = _buildLibrary().getAllBooks().singleWhere(
+          (book) => book.title == 'שמות',
+        );
+        coverage.value = {BookIdentity.indexedFilePath(book)};
+        await tester.pumpAndSettle();
+
+        expect(find.text('תנ״ך'), findsOneWidget);
+        expect(textInList('בראשית'), findsNothing);
+        expect(textInList('שמות'), findsOneWidget);
+
+        coverage.value = {};
+        await tester.pumpAndSettle();
+
+        expect(find.text('תנ״ך'), findsNothing);
+        expect(textInList('שמות'), findsNothing);
+      });
+
       testWidgets('"נקה הכל" מוצג בתוצאות ומנקה גם היקף ברירת מחדל', (
         tester,
       ) async {

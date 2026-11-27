@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart'
     show Listenable, debugDefaultTargetPlatformOverride, TargetPlatform;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -18,6 +19,7 @@ import 'package:window_manager/window_manager.dart' show TitleBarStyle;
 
 import '../test_helpers/second_test_view.dart';
 import '../test_helpers/memory_cache_provider.dart';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
@@ -48,10 +50,7 @@ void main() {
     test('DPI אפס, שלילי או לא סופי מסונן', () {
       const rect = Rect.fromLTWH(0, 0, 1920, 1080);
       for (final scale in [0.0, -1.0, double.nan, double.infinity]) {
-        expect(
-          WindowPersistence.physicalWorkAreaOrNull(rect, scale),
-          isNull,
-        );
+        expect(WindowPersistence.physicalWorkAreaOrNull(rect, scale), isNull);
       }
     });
 
@@ -237,6 +236,160 @@ void main() {
         },
       );
     }
+
+    group('שחזור בתוך שטח העבודה (#2457)', () {
+      const screen = Size(1920, 1080);
+      const workArea = Rect.fromLTWH(0, 0, 1920, 1040);
+      const rightWorkArea = Rect.fromLTWH(1920, 0, 1920, 1080);
+      const channel = MethodChannel('dev.leanflutter.plugins/screen_retriever');
+
+      setUp(() {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      });
+
+      tearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      Future<Rect?> restore(
+        Rect saved, {
+        List<Rect> workAreas = const [workArea],
+        double displayScale = 1,
+        double savedDpr = 1,
+        double currentDpr = 1,
+        bool maximized = false,
+        bool fullscreen = false,
+      }) async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method != 'getAllDisplays') return null;
+              return {
+                'displays': [
+                  for (final (i, area) in workAreas.indexed)
+                    {
+                      'id': '$i',
+                      'size': {
+                        'width':
+                            (screen.width - (i == 0 ? area.left : 0)) /
+                            displayScale,
+                        'height': (screen.height - area.top) / displayScale,
+                      },
+                      'visiblePosition': {
+                        'dx': area.left / displayScale,
+                        'dy': area.top / displayScale,
+                      },
+                      'visibleSize': {
+                        'width': area.width / displayScale,
+                        'height': area.height / displayScale,
+                      },
+                      'scaleFactor': displayScale,
+                    },
+                ],
+              };
+            });
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        await Settings.setValue(SettingsRepository.keyLibraryPath, tmp.path);
+        await Settings.setValue(SettingsRepository.keyIsFullscreen, fullscreen);
+        await sessions.saveBounds(
+          1,
+          WindowBounds(
+            left: saved.left,
+            top: saved.top,
+            width: saved.width,
+            height: saved.height,
+            dpr: savedDpr,
+            maximized: maximized,
+          ).encode(),
+        );
+        final window = _RecordingWindow(visible: false);
+        final persistence = WindowPersistenceBinding(
+          controller: window,
+          geometry: window,
+          slot: () => 1,
+          sessions: sessions,
+          devicePixelRatio: () => currentDpr,
+        );
+        bindings.add(persistence);
+        await persistence.restoreIfAny();
+        await persistence.applyRestoredBounds();
+        return window.appliedBounds;
+      }
+
+      test('חלון בגודל המסך כולו לא מכסה את שורת המשימות', () async {
+        expect(await restore(const Rect.fromLTWH(0, 0, 1920, 1080)), workArea);
+      });
+
+      test('חלון שתחתיתו על שורת המשימות עולה מעליה בלי לשנות גודל', () async {
+        expect(
+          await restore(const Rect.fromLTWH(100, 670, 800, 400)),
+          const Rect.fromLTWH(100, 640, 800, 400),
+        );
+      });
+
+      test('חלון בתוך שטח העבודה נשאר במקומו', () async {
+        const bounds = Rect.fromLTWH(100, 100, 800, 600);
+        expect(await restore(bounds), bounds);
+      });
+
+      test('גבולות בלתי נראים של Windows (7px) אינם מזיזים חלון', () async {
+        const bounds = Rect.fromLTWH(-7, 0, 974, 1047);
+        expect(await restore(bounds), bounds);
+      });
+
+      test('חריגה של 8 פיקסלים בתחתית נשמרת', () async {
+        const bounds = Rect.fromLTWH(100, 640, 800, 408);
+        expect(await restore(bounds), bounds);
+      });
+
+      test('פס עליון מוגן לפני בדיקת הנגישות של רצועת הכותרת', () async {
+        const topTaskbarWorkArea = Rect.fromLTWH(0, 40, 1920, 1040);
+        expect(
+          await restore(Offset.zero & screen, workAreas: [topTaskbarWorkArea]),
+          topTaskbarWorkArea,
+        );
+      });
+
+      test('ההתאמה בפיקסלים פיזיים כשה-DPR של החלון שונה', () async {
+        expect(
+          await restore(
+            const Rect.fromLTWH(0, 0, 1536, 864),
+            displayScale: 1.25,
+            savedDpr: 1.25,
+            currentDpr: 1.5,
+          ),
+          Rect.fromLTWH(0, 0, 1920 * (1 / 1.5), 1040 * (1 / 1.5)),
+        );
+      });
+
+      test('גודל ומיקום נשמרים כשחלק מהחלון מחוץ למסך', () async {
+        const bounds = Rect.fromLTWH(100, 700, 800, 400);
+        expect(await restore(bounds), bounds);
+      });
+
+      test('חלון שנפרש על שני מסכים נשאר במקומו גם ליד פס משימות', () async {
+        const bounds = Rect.fromLTWH(1510, 700, 810, 400);
+        expect(
+          await restore(bounds, workAreas: [workArea, rightWorkArea]),
+          bounds,
+        );
+      });
+
+      test('המיקום לחזרה ממיקסום או ממסך מלא נשמר', () async {
+        final bounds = Offset.zero & screen;
+        expect(await restore(bounds, maximized: true), bounds);
+        expect(await restore(bounds, fullscreen: true), bounds);
+      });
+
+      for (final platform in [TargetPlatform.macOS, TargetPlatform.linux]) {
+        test('שטח העבודה אינו משנה את הגבולות ב-$platform', () async {
+          debugDefaultTargetPlatformOverride = platform;
+          final bounds = Offset.zero & screen;
+          expect(await restore(bounds), bounds);
+        });
+      }
+    });
 
     test('כל חלון שומר את הגבולות שלו לשורה שלו', () async {
       const a = Rect.fromLTWH(10, 20, 800, 600);

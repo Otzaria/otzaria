@@ -19,12 +19,18 @@ class AddHistory extends HistoryEvent {
   /// נדרש כי SetFacetsWithoutSearch מעבד את ה-state אסינכרונית, אחרי
   /// שהיסטוריית החיפוש כבר נלכדה — ואז ה-scope היה נאבד.
   final List<String>? scopeFacets;
+  final List<String>? filterFacets;
 
   /// טווח קרבה מפורש, מאותה סיבה: UpdateProximityScopeWithoutSearch מעבד
   /// את ה-state אסינכרונית, ובלי override ההיסטוריה עלולה לצלם טווח ישן.
   final SearchScope? proximityScope;
 
-  AddHistory(this.tab, {this.scopeFacets, this.proximityScope});
+  AddHistory(
+    this.tab, {
+    this.scopeFacets,
+    this.filterFacets,
+    this.proximityScope,
+  });
 }
 
 /// הוספת כמה כרטיסיות להיסטוריה בשמירה אחת (סגירה קבוצתית). אירועי

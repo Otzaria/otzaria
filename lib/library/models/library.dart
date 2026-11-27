@@ -29,6 +29,9 @@ class Category {
   /// Defaults to 999 if no order is specified for this category.
   int order;
 
+  /// מדף מקטלוג הספרייה הרשמית, גם כשספרים אישיים מצטרפים אליו.
+  final bool isOfficial;
+
   /// מזהה נתיב אופציונלי כשהכותרת אינה ייחודית בין קטגוריות אחיות.
   final String? pathSegment;
 
@@ -134,6 +137,7 @@ class Category {
     required this.subCategories,
     required this.books,
     required this.parent,
+    this.isOfficial = false,
   });
 }
 

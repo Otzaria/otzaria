@@ -84,7 +84,6 @@ void main() {
         tableOfContents: const [],
         removeNikud: false,
         visibleIndices: const [0],
-        pinLeftPane: true,
         searchText: '',
       ),
     );

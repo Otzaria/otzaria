@@ -32,10 +32,21 @@ class ShortcutHelper {
     return found;
   }
 
-  /// משאיר תווים ומקשי עריכה לשדה, ומתיר קיצורי modifiers, מקשי F ו-Escape.
-  static bool shouldIgnoreWhileEditing(KeyEvent event) {
+  /// משאיר תווים ומקשי עריכה לשדה. [preserveModifiedText] כולל תווים
+  /// מ-AltGr או Option ומקשי עריכה שמטופלים ב-Cocoa.
+  static bool shouldIgnoreWhileEditing(
+    KeyEvent event, {
+    bool preserveModifiedText = false,
+  }) {
     if (!isEditingText) return false;
     final keyboard = HardwareKeyboard.instance;
+    if (preserveModifiedText &&
+        ((event.character != null &&
+                !isPlainCtrlOrCmdPressed &&
+                !keyboard.isMetaPressed) ||
+            _isMacControlEditingEvent(event, keyboard))) {
+      return true;
+    }
     if (keyboard.isControlPressed ||
         isAltModifierPressed ||
         keyboard.isMetaPressed) {
@@ -45,6 +56,19 @@ class ShortcutHelper {
         !(event.logicalKey.keyId >= LogicalKeyboardKey.f1.keyId &&
             event.logicalKey.keyId <= LogicalKeyboardKey.f12.keyId);
   }
+
+  // Cocoa מממש Ctrl+D/H רק אחרי שה-framework מחזיר ignored.
+  static bool _isMacControlEditingEvent(
+    KeyEvent event,
+    HardwareKeyboard keyboard,
+  ) =>
+      usesMacModifiers &&
+      keyboard.isControlPressed &&
+      !keyboard.isMetaPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed &&
+      (event.logicalKey == LogicalKeyboardKey.keyD ||
+          event.logicalKey == LogicalKeyboardKey.keyH);
 
   // ─── modifiers ────────────────────────────────────────────────────────────────
   static const _modifiers = {'ctrl', 'control', 'shift', 'alt', 'meta'};
@@ -408,10 +432,13 @@ class ShortcutHelper {
     final pretty = _prettifyKeyTokens(formatted);
     // קיצור שמסתיים בסימן פיסוק (למשל `CTRL + ,`) מוצג בהקשר עברי כשהסימן
     // בקצה השני; סימן כיוון שמאלי בסוף מחזיר אותו למקומו.
-    return RegExp(r'[\p{L}\p{N}]$', unicode: true).hasMatch(pretty)
-        ? pretty
-        : '$pretty\u200E';
+    return _endsWithLetterOrDigit.hasMatch(pretty) ? pretty : '$pretty\u200E';
   }
+
+  // סטטי: ה-VM אינו שומר RegExp, ו-\p{} נבדק מול טבלאות ICU בכל קומפילציה.
+  static final _endsWithLetterOrDigit = RegExp(r'[\p{L}\p{N}]$', unicode: true);
+  static final _numpadDigit = RegExp(r'NUMPAD(\d)');
+  static final _trailingSlash = RegExp(r'\bSLASH$');
 
   /// ממיר שמות מקשי ניווט מילוליים (אחרי uppercase) לסמלים/תוויות קריאות,
   /// כדי שקיצור כמו `alt+arrowup` יוצג כ-`ALT + ↑` ולא `ALT + ARROWUP`.
@@ -429,14 +456,14 @@ class ShortcutHelper {
       .replaceAll('NUMPADDECIMAL', 'Numpad .')
       .replaceAll('NUMPADENTER', 'Numpad Enter')
       .replaceAllMapped(
-        RegExp(r'NUMPAD(\d)'),
+        _numpadDigit,
         (match) => 'Numpad ${match[1]}',
       )
       .replaceAll('PLUS', '+')
       .replaceAll('MINUS', '-')
       .replaceAll('EQUAL', '=')
       .replaceAll('COMMA', ',')
-      .replaceAll(RegExp(r'\bSLASH$'), '/')
+      .replaceAll(_trailingSlash, '/')
       .replaceAll('ENTER', 'Enter');
 
   /// כל המפעילים שיש לרשום עבור [shortcut]: הצירוף עצמו, ובנוסף המקשים

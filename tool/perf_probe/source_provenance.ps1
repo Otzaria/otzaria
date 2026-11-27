@@ -3,7 +3,7 @@ function Add-PerfSourceProvenance {
   param(
     [string]$Repository,
     [hashtable]$Manifest,
-    [ValidateSet('beforeBuild', 'afterBuild')][string]$Stage
+    [ValidateSet('beforeBuild', 'afterBuild', 'afterRuns')][string]$Stage
   )
 
   $status = @(& git -C $Repository -c core.quotepath=false status --porcelain=v1 --untracked-files=all)

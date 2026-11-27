@@ -1,0 +1,269 @@
+diff --git a/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler.cc b/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler.cc
+index 9351f6e0..8d7d65d7 100644
+--- a/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler.cc
++++ b/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler.cc
+@@ -131,10 +131,17 @@ uint64_t KeyboardKeyEmbedderHandler::GetLogicalKey(int key,
+   // Normally logical keys should only be derived from key codes, but since some
+   // key codes are either 0 or ambiguous (multiple keys using the same key
+   // code), these keys are resolved by scan codes.
+-  auto numpadIter =
+-      scanCodeToLogicalMap_.find(normalizeScancode(scancode, extended));
+-  if (numpadIter != scanCodeToLogicalMap_.cend())
+-    return numpadIter->second;
++  // Windows reports keypad navigation through the virtual key while keeping
++  // the keypad scan code, including when Shift temporarily inverts NumLock.
++  const bool is_navigation = (key >= VK_PRIOR && key <= VK_DOWN) ||
++                             key == VK_INSERT || key == VK_DELETE ||
++                             key == VK_CLEAR;
++  if (!is_navigation) {
++    auto numpadIter =
++        scanCodeToLogicalMap_.find(normalizeScancode(scancode, extended));
++    if (numpadIter != scanCodeToLogicalMap_.cend())
++      return numpadIter->second;
++  }
+ 
+   // Check if the keyCode is one we know about and have a mapping for.
+   auto logicalIt = windowsToLogicalMap_.find(key);
+diff --git a/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler_unittests.cc b/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler_unittests.cc
+index 146aff79..2a3e3d1a 100644
+--- a/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler_unittests.cc
++++ b/engine/src/flutter/shell/platform/windows/keyboard_key_embedder_handler_unittests.cc
+@@ -254,6 +254,238 @@ TEST(KeyboardKeyEmbedderHandlerTest, ToggleNumLockDuringNumpadPress) {
+   results.clear();
+ }
+ 
++namespace {
++
++struct RecordedNumpadEvent {
++  FlutterKeyEventType type;
++  uint64_t physical;
++  uint64_t logical;
++  bool synthesized;
++  std::string character;
++};
++
++class NumpadKeyRecorder {
++ public:
++  explicit NumpadKeyRecorder(bool num_lock = false, bool shift = false) {
++    state.Set(VK_NUMLOCK, false, num_lock);
++    state.Set(VK_SHIFT, shift);
++    state.Set(VK_LSHIFT, shift);
++    handler = std::make_unique<KeyboardKeyEmbedderHandler>(
++        [this](const FlutterKeyEvent& event, FlutterKeyEventCallback callback,
++               void* user_data) {
++          events.push_back({event.type, event.physical, event.logical,
++                            event.synthesized,
++                            event.character == nullptr ? "" : event.character});
++          if (callback != nullptr) {
++            callback(false, user_data);
++          }
++        },
++        state.Getter(), DefaultMapVkToScan);
++  }
++
++  void Send(int key, int scan, int action, bool extended = false,
++            bool was_down = false, char32_t character = 0) {
++    handler->KeyboardHook(key, scan, action, character, extended, was_down,
++                          [](bool) {});
++  }
++
++  std::vector<RecordedNumpadEvent> ForPhysical(uint64_t physical) const {
++    std::vector<RecordedNumpadEvent> result;
++    for (const auto& event : events) {
++      if (event.physical == physical) {
++        result.push_back(event);
++      }
++    }
++    return result;
++  }
++
++  TestKeystate state;
++  std::vector<RecordedNumpadEvent> events;
++  std::unique_ptr<KeyboardKeyEmbedderHandler> handler;
++};
++
++}  // namespace
++
++TEST(KeyboardKeyEmbedderHandlerTest, NumpadNavigationUsesNativeVirtualKeys) {
++  const struct {
++    int virtual_key;
++    int scan;
++    uint64_t physical;
++    uint64_t logical;
++  } keys[] = {
++      {VK_INSERT, 0x52, kPhysicalNumpad0, kLogicalInsert},
++      {VK_END, 0x4f, kPhysicalNumpad1, kLogicalEnd},
++      {VK_DOWN, 0x50, kPhysicalNumpad2, kLogicalArrowDown},
++      {VK_NEXT, 0x51, kPhysicalNumpad3, kLogicalPageDown},
++      {VK_LEFT, 0x4b, kPhysicalNumpad4, kLogicalArrowLeft},
++      {VK_CLEAR, 0x4c, kPhysicalNumpad5, kLogicalClear},
++      {VK_RIGHT, 0x4d, kPhysicalNumpad6, kLogicalArrowRight},
++      {VK_HOME, 0x47, kPhysicalNumpad7, kLogicalHome},
++      {VK_UP, 0x48, kPhysicalNumpad8, kLogicalArrowUp},
++      {VK_PRIOR, 0x49, kPhysicalNumpad9, kLogicalPageUp},
++      {VK_DELETE, 0x53, kPhysicalNumpadDecimal, kLogicalDelete},
++  };
++  for (const auto& key : keys) {
++    for (bool num_lock : {false, true}) {
++      for (bool shift : {false, true}) {
++        for (bool system : {false, true}) {
++          SCOPED_TRACE(key.virtual_key);
++          SCOPED_TRACE(num_lock);
++          SCOPED_TRACE(shift);
++          SCOPED_TRACE(system);
++          NumpadKeyRecorder recorder(num_lock, shift);
++          const int down = system ? WM_SYSKEYDOWN : WM_KEYDOWN;
++          const int up = system ? WM_SYSKEYUP : WM_KEYUP;
++          recorder.Send(key.virtual_key, key.scan, down);
++          EXPECT_EQ(recorder.handler->GetPressedState().at(key.physical),
++                    key.logical);
++          recorder.Send(key.virtual_key, key.scan, down, false, true);
++          recorder.Send(key.virtual_key, key.scan, up, false, true);
++          const auto events = recorder.ForPhysical(key.physical);
++          ASSERT_EQ(events.size(), 3u);
++          EXPECT_EQ(events[0].type, kFlutterKeyEventTypeDown);
++          EXPECT_EQ(events[1].type, kFlutterKeyEventTypeRepeat);
++          EXPECT_EQ(events[2].type, kFlutterKeyEventTypeUp);
++          for (const auto& event : events) {
++            EXPECT_EQ(event.logical, key.logical);
++            EXPECT_FALSE(event.synthesized);
++            EXPECT_TRUE(event.character.empty());
++          }
++          EXPECT_EQ(recorder.handler->GetPressedState().count(key.physical), 0u);
++        }
++      }
++    }
++  }
++}
++
++TEST(KeyboardKeyEmbedderHandlerTest, NumpadDigitsWithNumLockOnAtStartup) {
++  const struct {
++    int virtual_key;
++    int scan;
++    uint64_t physical;
++    uint64_t logical;
++  } keys[] = {
++      {VK_NUMPAD0, 0x52, kPhysicalNumpad0, kLogicalNumpad0},
++      {VK_NUMPAD1, 0x4f, kPhysicalNumpad1, kLogicalNumpad1},
++      {VK_NUMPAD2, 0x50, kPhysicalNumpad2, kLogicalNumpad2},
++      {VK_NUMPAD3, 0x51, kPhysicalNumpad3, kLogicalNumpad3},
++      {VK_NUMPAD4, 0x4b, kPhysicalNumpad4, kLogicalNumpad4},
++      {VK_NUMPAD5, 0x4c, kPhysicalNumpad5, kLogicalNumpad5},
++      {VK_NUMPAD6, 0x4d, kPhysicalNumpad6, kLogicalNumpad6},
++      {VK_NUMPAD7, 0x47, kPhysicalNumpad7, kLogicalNumpad7},
++      {VK_NUMPAD8, 0x48, kPhysicalNumpad8, kLogicalNumpad8},
++      {VK_NUMPAD9, 0x49, kPhysicalNumpad9, kLogicalNumpad9},
++      {VK_DECIMAL, 0x53, kPhysicalNumpadDecimal, kLogicalNumpadDecimal},
++  };
++  for (const auto& key : keys) {
++    for (bool control : {false, true}) {
++      SCOPED_TRACE(key.virtual_key);
++      SCOPED_TRACE(control);
++      NumpadKeyRecorder recorder(true);
++      recorder.state.Set(VK_CONTROL, control);
++      recorder.state.Set(VK_LCONTROL, control);
++      char32_t character = 0;
++      if (!control) {
++        character = key.virtual_key == VK_DECIMAL
++                        ? '.'
++                        : static_cast<char32_t>('0' + key.virtual_key - VK_NUMPAD0);
++      }
++      recorder.Send(key.virtual_key, key.scan, WM_KEYDOWN, false, false,
++                    character);
++      recorder.Send(key.virtual_key, key.scan, WM_KEYUP, false, true);
++      const auto events = recorder.ForPhysical(key.physical);
++      ASSERT_EQ(events.size(), 2u);
++      EXPECT_EQ(events[0].logical, key.logical);
++      EXPECT_EQ(events[1].logical, key.logical);
++      EXPECT_EQ(events[0].character,
++                control ? "" : std::string(1, static_cast<char>(character)));
++      EXPECT_EQ(recorder.handler->GetPressedState().count(key.physical), 0u);
++    }
++  }
++}
++
++TEST(KeyboardKeyEmbedderHandlerTest, NumpadNavigationKeepsIdentityAcrossNumLock) {
++  NumpadKeyRecorder recorder;
++  recorder.Send(VK_UP, 0x48, WM_KEYDOWN);
++  recorder.state.Set(VK_NUMLOCK, true, true);
++  recorder.Send(VK_NUMLOCK, 0x45, WM_KEYDOWN, true);
++  recorder.state.Set(VK_NUMLOCK, false, true);
++  recorder.Send(VK_NUMLOCK, 0x45, WM_KEYUP, true, true);
++  recorder.Send(VK_NUMPAD8, 0x48, WM_KEYDOWN, false, true, '8');
++  recorder.Send(VK_NUMPAD8, 0x48, WM_KEYUP, false, true);
++  const auto events = recorder.ForPhysical(kPhysicalNumpad8);
++  ASSERT_EQ(events.size(), 3u);
++  EXPECT_EQ(events[1].type, kFlutterKeyEventTypeRepeat);
++  EXPECT_EQ(events[2].type, kFlutterKeyEventTypeUp);
++  for (const auto& event : events) {
++    EXPECT_EQ(event.logical, kLogicalArrowUp);
++  }
++  EXPECT_TRUE(recorder.handler->GetPressedState().empty());
++}
++
++TEST(KeyboardKeyEmbedderHandlerTest, NumpadAndDedicatedArrowsStayDistinct) {
++  NumpadKeyRecorder recorder;
++  recorder.Send(VK_UP, 0x48, WM_KEYDOWN);
++  recorder.Send(VK_UP, 0x48, WM_KEYDOWN, true);
++  EXPECT_EQ(recorder.handler->GetPressedState().size(), 2u);
++  EXPECT_EQ(recorder.handler->GetPressedState().at(kPhysicalNumpad8),
++            kLogicalArrowUp);
++  EXPECT_EQ(recorder.handler->GetPressedState().at(kPhysicalArrowUp),
++            kLogicalArrowUp);
++  recorder.Send(VK_UP, 0x48, WM_KEYUP, false, true);
++  EXPECT_EQ(recorder.handler->GetPressedState().size(), 1u);
++  EXPECT_EQ(recorder.handler->GetPressedState().at(kPhysicalArrowUp),
++            kLogicalArrowUp);
++  recorder.Send(VK_UP, 0x48, WM_KEYUP, true, true);
++  EXPECT_TRUE(recorder.handler->GetPressedState().empty());
++}
++
++TEST(KeyboardKeyEmbedderHandlerTest, NumpadRecoversAfterMissedRelease) {
++  NumpadKeyRecorder recorder;
++  recorder.Send(VK_UP, 0x48, WM_KEYDOWN);
++  recorder.state.Set(VK_NUMLOCK, false, true);
++  recorder.Send(VK_NUMPAD8, 0x48, WM_KEYDOWN, false, false, '8');
++  recorder.Send(VK_NUMPAD8, 0x48, WM_KEYUP, false, true);
++  const auto events = recorder.ForPhysical(kPhysicalNumpad8);
++  ASSERT_EQ(events.size(), 4u);
++  EXPECT_EQ(events[0].logical, kLogicalArrowUp);
++  EXPECT_EQ(events[1].type, kFlutterKeyEventTypeUp);
++  EXPECT_EQ(events[1].logical, kLogicalArrowUp);
++  EXPECT_TRUE(events[1].synthesized);
++  EXPECT_EQ(events[2].type, kFlutterKeyEventTypeDown);
++  EXPECT_EQ(events[2].logical, kLogicalNumpad8);
++  EXPECT_EQ(events[2].character, "8");
++  EXPECT_EQ(events[3].type, kFlutterKeyEventTypeUp);
++  EXPECT_EQ(events[3].logical, kLogicalNumpad8);
++  EXPECT_EQ(recorder.handler->GetPressedState().count(kPhysicalNumpad8), 0u);
++}
++
++TEST(KeyboardKeyEmbedderHandlerTest, NumpadOperatorsKeepTheirLogicalKeys) {
++  const struct {
++    int virtual_key;
++    int scan;
++    bool extended;
++    uint64_t physical;
++    uint64_t logical;
++  } keys[] = {
++      {VK_MULTIPLY, 0x37, false, kPhysicalNumpadMultiply, kLogicalNumpadMultiply},
++      {VK_ADD, 0x4e, false, kPhysicalNumpadAdd, kLogicalNumpadAdd},
++      {VK_SUBTRACT, 0x4a, false, kPhysicalNumpadSubtract, kLogicalNumpadSubtract},
++      {VK_DIVIDE, 0x35, true, kPhysicalNumpadDivide, kLogicalNumpadDivide},
++      {VK_RETURN, 0x1c, true, kPhysicalNumpadEnter, kLogicalEnter},
++  };
++  for (const auto& key : keys) {
++    NumpadKeyRecorder recorder;
++    recorder.Send(key.virtual_key, key.scan, WM_KEYDOWN, key.extended);
++    recorder.Send(key.virtual_key, key.scan, WM_KEYUP, key.extended, true);
++    const auto events = recorder.ForPhysical(key.physical);
++    ASSERT_EQ(events.size(), 2u);
++    EXPECT_EQ(events[0].logical, key.logical);
++    EXPECT_EQ(events[1].logical, key.logical);
++    EXPECT_TRUE(recorder.handler->GetPressedState().empty());
++  }
++}
++
+ // Key presses that trigger IME should be ignored by this API (and handled by
+ // compose API).
+ TEST(KeyboardKeyEmbedderHandlerTest, ImeEventsAreIgnored) {

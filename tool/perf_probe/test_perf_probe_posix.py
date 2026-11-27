@@ -19,12 +19,14 @@ import unittest
 from unittest import mock
 
 from tool.perf_probe import posix_resources as resources
+from tool.perf_probe import probe_binding as bindings
 from tool.perf_probe import run_perf_probe_posix as runner
 from tool.perf_probe import validate_perf_probe_smoke as smoke
 
 
 def options(output, **overrides):
     values = dict(output=output, mode="profile", cache_state="cold", scenario_set="pdf-reader",
+                  binding_mode="integration",
                   warmup=0, repetitions=1, launches=1, pdf_case=None, baseline=None,
                   hardware_id="test-machine", display_mode="desktop", timeout_seconds=2,
                   build_timeout_seconds=2)
@@ -273,14 +275,17 @@ if not prepare:
     while not (out / 'samples.csv').exists() or len((out / 'samples.csv').read_text().splitlines()) < 2:
         time.sleep(.01)
 fixture_id = 'synthetic-v4-pdf-cases:' + 'a'*64
+identity = {bindings.BINDINGS!r}[os.environ['PERF_BINDING_MODE']]
 meta = {{'type':'meta', 'schemaVersion':2, 'protocolVersion':2, 'pid':{metadata_pid},
          'launchIndex':index, 'buildMode':'profile', 'scenarioSet':os.environ['PERF_SCENARIO_SET'],
          'preparationOnly':prepare, 'fixtureId':fixture_id}}
+meta.update(bindingMode=identity['bindingMode'], probeTarget=identity['probeTarget'])
 end = {{'type':'done', 'launchIndex':index, 'status':'passed'}}
 {extra}
 if {finish!r}:
     (out / 'phases.jsonl').write_text(json.dumps(meta)+'\\n'+json.dumps(end)+'\\n')
     result = {{'status':'passed', 'preparationOnly':prepare, 'fixtureId':fixture_id, 'error':None, 'testFailures':[]}}
+    result.update(identity)
     pending = out / 'completion.pending'
     pending.write_text(json.dumps(result))
     pending.rename(out / 'completion.json')
@@ -307,6 +312,31 @@ class PosixRunnerTest(PosixFixture):
         with self.assertRaises(ChildProcessError):
             os.waitid(os.P_PID, launch["pid"], os.WEXITED | os.WNOHANG | os.WNOWAIT)
 
+    def test_framework_completion_is_bound_to_the_owned_target(self):
+        directory = self.root / "framework"
+        result = runner.invoke_launch(self.app(), directory, self.root / "data",
+                                      options(directory, binding_mode="framework"),
+                                      resources.process_reader(), index=0)
+        self.assertEqual(result, "synthetic-v4-pdf-cases:" + "a" * 64)
+        completion = runner.read_json(directory / "completion.json")
+        self.assertEqual(completion["bindingClass"], "WidgetsFlutterBinding")
+        bad = self.root / "wrong-binding"
+        with self.assertRaisesRegex(ValueError, "binding identity"):
+            runner.invoke_launch(self.app(extra="identity['bindingMode']='integration'"),
+                                 bad, self.root / "data-bad",
+                                 options(bad, binding_mode="framework"),
+                                 resources.process_reader(), index=0)
+        self.assertFalse(runner.read_json(bad / "samples.csv.status.json")["complete"])
+
+    def test_framework_cli_cannot_silently_run_the_full_integration_workload(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            runner.arguments(["--binding-mode", "framework", "--scenario-set", "all"])
+        parsed = runner.arguments(["--binding-mode", "framework", "--scenario-set", "pdf-book-view"])
+        self.assertEqual(parsed.binding_mode, "framework")
+        self.assertEqual(parsed.scenario_set, "pdf-book-view")
+        with self.assertRaises(ValueError):
+            runner.run(options(self.root / "invalid", binding_mode="framework", scenario_set="all"))
+
     def test_process_metadata_cannot_claim_a_different_pid(self):
         directory = self.root / "run"
         with self.assertRaisesRegex(RuntimeError, "owned launch"):
@@ -330,6 +360,8 @@ class PosixRunnerTest(PosixFixture):
         meta = {"type": "meta", "schemaVersion": 2, "protocolVersion": 2, "pid": 42,
                 "launchIndex": 0, "buildMode": "profile", "scenarioSet": "pdf-reader",
                 "preparationOnly": False, "fixtureId": "synthetic-v4-pdf-cases:" + "a" * 64}
+        completion.update(bindings.binding_identity("integration"))
+        meta.update(bindingMode="integration", probeTarget=runner.TARGET)
         end = {"type": "done", "status": "passed", "launchIndex": 0}
 
         def validate(result, records):
@@ -675,7 +707,7 @@ class OrchestrationTest(PosixFixture):
         runner.capture(["git", "-C", str(self.repository), "-c", "user.name=Probe",
                         "-c", "user.email=probe@example.invalid", "commit", "-qm", "source"])
 
-    def measured_run(self, *, build_fails=False, bad_report=False, **overrides):
+    def measured_run(self, *, build_fails=False, bad_report=False, missing_scheduler=False, **overrides):
         output = self.root / "result"
         args = options(output, **overrides)
         executable = self.app()
@@ -705,6 +737,17 @@ class OrchestrationTest(PosixFixture):
                 manifest = runner.read_json(output / "manifest.json")
                 runner.write_json(output / "report.json", {
                     "complete": not bad_report, "successful": manifest["status"] == "passed" and not bad_report,
+                    "metadata": {**manifest, "settings": bindings.binding_identity(args.binding_mode)},
+                    "notes": [] if missing_scheduler else [{
+                        "name": "framework.scheduler_contract", "launchIndex": index,
+                        "frameworkScheduler": {
+                            "status": "passed",
+                            "source": "Timer -> SchedulerBinding.scheduleFrame -> postFrameCallback",
+                            "deferredFrameDelivered": True, "nativePlatformDispatcher": True,
+                            "bindingClass": "WidgetsFlutterBinding", "requestedAtUs": 25,
+                            "completedAtUs": 50, "frameTimestampUs": 400,
+                        },
+                    } for index in range(args.launches)],
                 })
 
         with (mock.patch.object(runner, "capture", side_effect=capture),
@@ -744,6 +787,23 @@ class OrchestrationTest(PosixFixture):
             self.assertTrue(launch["engineVerifiedAfterCompletion"])
             self.assertEqual(launch["pid"], evidence["pid"])
 
+    def test_framework_build_selects_the_ordinary_binding_target_once(self):
+        code, manifest, commands = self.measured_run(binding_mode="framework")
+        self.assertEqual(code, 0)
+        self.assertEqual(manifest["bindingMode"], "framework")
+        target = bindings.binding_identity("framework")["probeTarget"]
+        self.assertEqual(manifest["probeTarget"], target)
+        builds = [command for command in commands if command[:2] == ["flutter", "build"]]
+        self.assertEqual(len(builds), 1)
+        self.assertIn(f"--target={target}", builds[0])
+        self.assertNotIn(f"--target={runner.TARGET}", builds[0])
+
+    def test_framework_run_rejects_missing_scheduler_evidence(self):
+        code, manifest, _ = self.measured_run(binding_mode="framework", missing_scheduler=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(manifest["status"], "failed")
+        self.assertIn("scheduling check", manifest["analysisError"])
+
     def test_build_failure_still_records_after_build_provenance_and_never_launches(self):
         code, manifest, commands = self.measured_run(build_fails=True)
         self.assertEqual(code, 1)
@@ -767,9 +827,10 @@ class SmokeEvidenceTest(PosixFixture):
                                       else "proc_pid_rusage(RUSAGE_INFO_V0) + mach_timebase_info"}}
         metadata = {"schemaVersion": 2, "protocolVersion": 2, "status": "passed", "commit": "c" * 40,
                     "buildMode": "profile", "cacheState": "cold", "scenarioSet": "pdf-reader",
+                    "bindingMode": "integration", "probeTarget": runner.TARGET,
                     "launchCount": 1, "warmup": 0, "repetitions": 1, "dirty": False,
                     "fixtureId": "synthetic-v4-pdf-cases:" + "f" * 64, "sampling": sampling,
-                    "settings": {"framePolicy": "fullyLive", "pdfReaderCase": smoke.CASE, "pdfPageCount": 600,
+                    "settings": {**bindings.binding_identity("integration"), "pdfReaderCase": smoke.CASE, "pdfPageCount": 600,
                                  "pdfLayout": "regularView", "scenarioSet": "pdf-reader",
                                  "resourceObservationVersion": 1, "pdfPostCloseIdleMs": 3000}}
         manifest = {**metadata, "sourceProvenance": {
@@ -814,6 +875,47 @@ class SmokeEvidenceTest(PosixFixture):
                 self.assertEqual(result["checkpointsMs"]["final_image_ready"]["p50"], 34.5)
                 self.assertIn("not performed", result["comparison"])
 
+    def test_framework_smoke_requires_real_scheduler_identity_and_per_launch_evidence(self):
+        report, manifest = self.fixture()
+        identity = bindings.binding_identity("framework")
+        for source in (report["metadata"], manifest):
+            source.update(bindingMode=identity["bindingMode"], probeTarget=identity["probeTarget"])
+        report["metadata"]["settings"].update(identity)
+        note = {"type": "note", "name": "framework.scheduler_contract", "launchIndex": 0,
+                "frameworkScheduler": {
+                    "status": "passed",
+                    "source": "Timer -> SchedulerBinding.scheduleFrame -> postFrameCallback",
+                    "deferredFrameDelivered": True, "nativePlatformDispatcher": True,
+                    "bindingClass": "WidgetsFlutterBinding",
+                    "requestedAtUs": 25000, "completedAtUs": 30000, "frameTimestampUs": 45000}}
+        report["notes"] = [note]
+        runner.write_json(self.root / "manifest.json", manifest)
+        runner.write_json(self.root / "report.json", report)
+        self.assertEqual(smoke.validate(self.root, commit="c" * 40, platform="linux",
+                                        binding_mode="framework")["bindingMode"], "framework")
+        with self.assertRaises(ValueError):
+            self.validate()
+        for notes in ([], [note, note], [{**note, "launchIndex": True}],
+                      [{**note, "launchIndex": 1}]):
+            with self.subTest(notes=notes), self.assertRaises(ValueError):
+                bindings.validate_framework_scheduler(notes, 1)
+        for key in note["frameworkScheduler"]:
+            invalid = json.loads(json.dumps(note))
+            invalid["frameworkScheduler"].pop(key)
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                bindings.validate_framework_scheduler([invalid], 1)
+        for key, value in (("completedAtUs", 1), ("requestedAtUs", True),
+                           ("deferredFrameDelivered", 1), ("nativePlatformDispatcher", False)):
+            invalid = json.loads(json.dumps(note))
+            invalid["frameworkScheduler"][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                bindings.validate_framework_scheduler([invalid], 1)
+        for key in identity:
+            invalid = dict(identity)
+            invalid.pop(key)
+            with self.subTest(identity=key), self.assertRaises(ValueError):
+                bindings.validate_binding_identity(invalid, "framework")
+
     def test_dirty_missing_or_wrong_source_evidence_is_rejected(self):
         mutations = (
             lambda report, manifest: manifest.update(dirty=True),
@@ -855,7 +957,7 @@ class SmokeEvidenceTest(PosixFixture):
                 else:
                     settings["framePolicy"] = policy
                 runner.write_json(self.root / "report.json", report)
-                with self.assertRaisesRegex(ValueError, "frame policy"):
+                with self.assertRaisesRegex(ValueError, "binding identity"):
                     self.validate()
 
     def test_missing_skipped_duplicate_actions_or_incomplete_budget_are_rejected(self):
@@ -903,6 +1005,24 @@ class SmokeEvidenceTest(PosixFixture):
                 runner.write_json(self.root / "report.json", report)
                 with self.assertRaisesRegex(ValueError, "idle window"):
                     self.validate()
+
+
+
+class MultiWindowBindingContractTest(unittest.TestCase):
+    def test_native_windows_require_framework_at_both_entrypoints(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "native-output"
+            cli = ["--output", str(output), "--scenario-set", "pdf-multi-window"]
+            with self.assertRaises(SystemExit):
+                runner.arguments(cli)
+            self.assertFalse(output.exists())
+            args = runner.arguments([*cli, "--binding-mode", "framework"])
+            self.assertEqual(args.scenario_set, "pdf-multi-window")
+            self.assertEqual(args.binding_mode, "framework")
+            args.binding_mode = "integration"
+            with self.assertRaisesRegex(ValueError, "requires the framework"):
+                runner.run(args)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

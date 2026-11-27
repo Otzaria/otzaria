@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -482,6 +484,76 @@ void main() {
     );
   });
 
+  testWidgets(
+    'הורדה בלי תיקיית היברובוקס מוצעת לשמירה גם אחרי סגירת הדיאלוג (issue #5983)',
+    (tester) async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      final picker = FilePickerPlatform.instance;
+      final saves = <String, List<int>>{};
+      FilePickerPlatform.instance = _SavingPicker(saves);
+      addTearDown(() => FilePickerPlatform.instance = picker);
+      final library = _MockLibraryBloc();
+      whenListen(
+        library,
+        const Stream<LibraryState>.empty(),
+        initialState: LibraryState.initial(),
+      );
+      await tester.pumpWidget(
+        RepositoryProvider<SettingsRepository>.value(
+          value: _PasswordRepository(),
+          child: BlocProvider<LibraryBloc>.value(
+            value: library,
+            child: _wrap(
+              Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => OtzarBookDialog(book: _hebrewBook()),
+                  ),
+                  child: const Text('פתח'),
+                ),
+              ),
+              navigatorKey: navigatorKey,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(() async {
+        final listening = Completer<void>();
+        final chunks = StreamController<List<int>>(
+          onListen: listening.complete,
+        );
+        final client = MockClient.streaming(
+          (_, _) async =>
+              http.StreamedResponse(chunks.stream, 200, contentLength: 8),
+        );
+        await http.runWithClient(() async {
+          await tester.tap(find.text('הורדת הקובץ'));
+          await listening.future.timeout(const Duration(seconds: 5));
+          // לחיצה מחוץ לדיאלוג סוגרת אותו באמצע ההורדה.
+          await tester.tapAt(const Offset(5, 5));
+          await tester.pumpAndSettle();
+          expect(find.byType(OtzarBookDialog), findsNothing);
+
+          chunks.add('%PDF-1.4'.codeUnits);
+          await chunks.close();
+          await _pumpUntilFound(
+            tester,
+            find.textContaining('10022.pdf', findRichText: true),
+          );
+        }, () => client);
+      });
+
+      expect(saves.keys, ['10022.pdf']);
+      expect(String.fromCharCodes(saves['10022.pdf']!), '%PDF-1.4');
+      UiSnack.hide();
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
   group('כשל בהורדה (issue #5002)', () {
     testWidgets(
       'כשל רשת מוצג בעברית בלי טקסט החריגה, והפרטים נרשמים ביומן',
@@ -580,4 +652,27 @@ void main() {
       await tester.runAsync(bloc.close);
     },
   );
+}
+
+/// מקליט את בקשות השמירה ומחזיר נתיב קובץ, כאילו המשתמש אישר את הדיאלוג.
+class _SavingPicker extends FilePickerPlatform {
+  _SavingPicker(this.saves);
+
+  final Map<String, List<int>> saves;
+
+  @override
+  Future<Uri?> saveFile({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+    String? dialogTitle,
+    String? initialDirectory,
+    Function(FilePickerStatus)? onFileSaving,
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    saves[fileName] = bytes;
+    return Uri.file('${Directory.systemTemp.path}/$fileName');
+  }
 }

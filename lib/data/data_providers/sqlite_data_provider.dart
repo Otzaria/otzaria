@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show ValueListenable, ValueNotifier, debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
@@ -223,6 +224,9 @@ class SqliteDataProvider {
   /// פתח מחדש את ה-RO.
   int _activeWriteSessions = 0;
 
+  /// סשן כתיבה חיצוני מונע זמנית פתיחה של חיבור הקריאה.
+  bool get isClosedForExternalWrite => _activeWriteSessions > 0;
+
   /// gate לכתיבה חיצונית (isolate סנכרון/generator) — נוצר ב-
   /// [closeForExternalWrite] ומושלם ב-[reopenAfterExternalWrite]. קוראים
   /// מקבילים ממתינים עליו ב-[initialize] במקום לקבל null, כדי שספרים/מפרשים
@@ -302,10 +306,9 @@ class SqliteDataProvider {
       final findRefReleased = await FindRefDbIsolate.suspendForExternalWrite();
       final readWorkerReleased = await DbReadWorker.suspendForExternalWrite();
       if (!findRefReleased || !readWorkerReleased) {
-        final message = 'לא ניתן לשחרר את seforim.db לפני החלפת הספרייה';
         throw findRefReleased
-            ? DbReadWorkerNotReleased(message)
-            : StateError(message);
+            ? DbReadWorkerNotReleased(LibraryMessages.libraryDbBusy)
+            : LibraryDbNotReleased(LibraryMessages.libraryDbBusy);
       }
     } catch (_) {
       if (releaseOnFailure) {
@@ -412,6 +415,7 @@ class SqliteDataProvider {
     }
   }
 
+  /// [throwReadErrors] מבדיל בין כשל קריאה לספר חסר או ריק.
   Future<({int startLine, int endLine, int totalLines, String text})?>
   getBookTextRangeFromDb(
     String title, {
@@ -420,11 +424,17 @@ class SqliteDataProvider {
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
+    bool throwReadErrors = false,
   }) async {
     if (!_isInitialized) {
       await initialize();
     }
-    if (!_isInitialized) return null;
+    if (!_isInitialized) {
+      if (throwReadErrors && isClosedForExternalWrite) {
+        throw const DbReadWorkerSuspended();
+      }
+      return null;
+    }
 
     try {
       final resolvedBook = await _resolveBookRecord(
@@ -449,6 +459,7 @@ class SqliteDataProvider {
     } on DbReadWorkerBusy {
       rethrow;
     } catch (e, st) {
+      if (throwReadErrors) rethrow;
       debugPrint(
         '[SqliteDataProvider] getBookTextRangeFromDb failed for '
         '"$title": $e\n$st',

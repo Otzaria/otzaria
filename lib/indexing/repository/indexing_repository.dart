@@ -1642,9 +1642,7 @@ class IndexingRepository {
           extraFacets: _bookExtraFacets(book),
           sourceHash: _dbSourceHash(book, sourceHashes),
           // טביעת הטקסט הריק: כך ספר שנשאר ריק נמצא תואם בבדיקה הבאה.
-          textHash: book is PdfBook
-              ? null
-              : await contentFingerprint(text: const []),
+          textHash: await contentFingerprint(text: const []),
         ),
       ],
     );
@@ -3014,7 +3012,11 @@ class StampChangeDetector implements IndexChangeDetector {
         topics: _repository._bookTopics(book),
         extraFacets: _repository._bookExtraFacets(book),
       );
-      if (stamp.metadataHash == BigInt.zero || stamp.metadataHash != metadata) {
+      // חותם אפס מזהה PDF שאונדקס בשורות וצריך להיכתב מחדש בעמודים.
+      if (book is PdfBook && stamp.textHash == BigInt.zero) {
+        changed.add(book);
+      } else if (stamp.metadataHash == BigInt.zero ||
+          stamp.metadataHash != metadata) {
         changed.add(book);
         final sourceHash = IndexingRepository._dbSourceHash(book, sourceHashes);
         if (sourceHash == null ||

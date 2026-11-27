@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -18,6 +19,7 @@ import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/device_chrome.dart';
 import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_top_bar.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:window_manager/window_manager.dart' show TitleBarStyle;
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -38,6 +40,7 @@ import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
+import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -57,7 +60,8 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_event.dart'
+    hide UpdateFontSize;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -1769,6 +1773,82 @@ void main() {
       );
     });
 
+    testWidgets(
+      '"הקטע הבא" ו"הקטע הקודם" ממשיכים מהקטע הנבחר שעל המסך ולא מראש התצוגה (#6022)',
+      (tester) async {
+        final book = TextBook(title: 'ספר בדיקה');
+        final loaded = _loadedState(
+          book,
+          content: List.generate(150, (i) => 'שורה $i'),
+        ).copyWith(selectedIndex: 3);
+        final bloc = _TestTextBookBloc(loaded);
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
+
+        await _setSurfaceSize(tester, const Size(1200, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: true,
+        );
+
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        expect(tab.index, 0);
+        expect(tab.lines.position.value?.visibleLines, contains(3));
+
+        Iterable<int?> selections() => bloc.receivedEvents
+            .whereType<UpdateSelectedIndex>()
+            .map((e) => e.index);
+
+        // ראש התצוגה בשורה 0 והקטע הנבחר (3) גלוי: הקודם הוא 2 ולא כלום.
+        bloc.receivedEvents.clear();
+        await tester.tap(find.byTooltip('הקטע הקודם'));
+        await tester.pumpAndSettle();
+        expect(selections(), [2]);
+
+        bloc.emitStateForTest(loaded.copyWith(selectedIndex: 10));
+        await tester.pumpAndSettle();
+        expect(tab.index, lessThan(10));
+        expect(tab.lines.position.value?.visibleLines, contains(10));
+        bloc.receivedEvents.clear();
+        await tester.tap(find.byTooltip('הקטע הבא'));
+        await tester.pumpAndSettle();
+        expect(selections(), [11]);
+
+        // קטע נבחר שאינו על המסך: ממשיכים ממיקום הקריאה, כמו קודם.
+        bloc.emitStateForTest(loaded.copyWith(selectedIndex: 140));
+        await tester.pumpAndSettle();
+        final top = tab.index;
+        expect(tab.lines.position.value?.visibleLines, isNot(contains(140)));
+        bloc.receivedEvents.clear();
+        await tester.tap(find.byTooltip('הקטע הבא'));
+        await tester.pumpAndSettle();
+        expect(selections(), [top + 1]);
+      },
+    );
+
     testWidgets('במצב רגיל אין שורת ניווט בתפריט ה-overflow', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
@@ -1934,7 +2014,6 @@ void main() {
     Future<int> pumpAndToggleLeftPane(
       WidgetTester tester, {
       required Size size,
-      bool pinned = true,
     }) async {
       final book = TextBook(title: 'ספר בדיקה');
       final loaded = _loadedState(book);
@@ -1973,13 +2052,7 @@ void main() {
       await tester.pump();
 
       // פתיחת החלונית (false→true) מפעילה את בדיקת ה-reanchor
-      // הנעיצה נקבעת לפני הפתיחה, כמו אצל משתמש: מצב הפריסה מדווח ב-post-frame.
-      bloc.emitStateForTest(loaded.copyWith(pinLeftPane: pinned));
-      await tester.pump();
-      await tester.pump();
-      bloc.emitStateForTest(
-        loaded.copyWith(showLeftPane: true, pinLeftPane: pinned),
-      );
+      bloc.emitStateForTest(loaded.copyWith(showLeftPane: true));
       await tester.pump();
 
       final dynamic state = tester.state(find.byType(TextBookViewerBloc));
@@ -1994,17 +2067,6 @@ void main() {
       expect(count, greaterThan(0));
     });
 
-    testWidgets('חלונית לא נעוצה מרחפת מעל הטקסט — ה-reanchor מדוכא', (
-      tester,
-    ) async {
-      final count = await pumpAndToggleLeftPane(
-        tester,
-        size: const Size(1600, 900),
-        pinned: false,
-      );
-      expect(count, 0);
-    });
-
     testWidgets('במסך צר (overlay) ה-reanchor מדוכא בפתיחת החלונית', (
       tester,
     ) async {
@@ -2017,12 +2079,11 @@ void main() {
   });
 
   group('סגירת חלונית הניווט אחרי מעבר (DD-26)', () {
-    // נסגרת רק כשהיא מכסה את התוכן (overlay במסך צר, או צפה כשאינה נעוצה);
-    // חלונית שמוצמדת לצד הטקסט נשארת פתוחה, בלי תלות בפלטפורמה.
+    // נסגרת רק כשהיא מכסה את התוכן (overlay במסך צר); חלונית שדוחקת את
+    // הטקסט נשארת פתוחה, בלי תלות בפלטפורמה.
     Future<List<bool>> navigateFromToc(
       WidgetTester tester, {
       required Size size,
-      bool pinned = true,
     }) async {
       final book = TextBook(title: 'ספר בדיקה');
       final loaded = _loadedState(book);
@@ -2057,9 +2118,7 @@ void main() {
         tourCubit: tourCubit,
         isInCombinedView: false,
       );
-      bloc.emitStateForTest(
-        loaded.copyWith(showLeftPane: true, pinLeftPane: pinned),
-      );
+      bloc.emitStateForTest(loaded.copyWith(showLeftPane: true));
       await tester.pump();
       // מצב הפריסה מדווח ב-post-frame.
       await tester.pump();
@@ -2073,7 +2132,7 @@ void main() {
       ];
     }
 
-    testWidgets('מוצמדת לצד הטקסט (מסך רחב) — נשארת פתוחה', (tester) async {
+    testWidgets('דוחקת את הטקסט (מסך רחב) — נשארת פתוחה', (tester) async {
       final toggles = await navigateFromToc(
         tester,
         size: const Size(1600, 900),
@@ -2085,15 +2144,6 @@ void main() {
       final toggles = await navigateFromToc(
         tester,
         size: const Size(780, 900),
-      );
-      expect(toggles, [false]);
-    });
-
-    testWidgets('לא נעוצה, צפה מעל הטקסט — נסגרת', (tester) async {
-      final toggles = await navigateFromToc(
-        tester,
-        size: const Size(1600, 900),
-        pinned: false,
       );
       expect(toggles, [false]);
     });
@@ -2227,21 +2277,25 @@ void main() {
           shortcuts: const {'key-shortcut-open-find-ref': 'escape'},
         ),
       );
+      final loaded = bloc.state as TextBookLoaded;
+      bloc.emitStateForTest(loaded.copyWith(searchText: 'שורה'));
       await tester.pump();
-      final escapeListener = find
+      bloc.receivedEvents.clear();
+      final readerFocus = find
           .descendant(
             of: find.byType(TextBookViewerBloc),
-            matching: find.byType(KeyboardListener),
+            matching: _bookKeyFocus,
           )
           .first;
       expect(
-        tester.widget<KeyboardListener>(escapeListener).focusNode.hasFocus,
+        tester.widget<Focus>(readerFocus).focusNode!.hasFocus,
         isTrue,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(fullscreen.state, isTrue);
       expect(findRefRequests, 1);
+      expect(bloc.receivedEvents.whereType<UpdateSearchText>(), isEmpty);
       expect(geometry.calls, isEmpty);
 
       final reader = tester.element(find.byType(TextBookViewerBloc));
@@ -2261,6 +2315,15 @@ void main() {
       expect(geometry.calls, isEmpty);
 
       settingsBloc.emitStateForTest(SettingsState.initial());
+      bloc.receivedEvents.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(fullscreen.state, isTrue);
+      expect(geometry.calls, isEmpty);
+      expect(bloc.receivedEvents.whereType<UpdateSearchText>(), hasLength(1));
+
+      // הבלוק כבר ניקה את ההדגשה, והקורא עוד לא נבנה מחדש.
+      bloc.emitStateForTest(loaded);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(findRefRequests, 1);
@@ -2268,26 +2331,220 @@ void main() {
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
       geometry.calls.clear();
 
-      // התרחיש מחייב פוקוס בתוך ה-KeyboardListener של הספר.
-      final bookListener = find.descendant(
-        of: find.byType(TextBookViewerBloc),
-        matching: find.byType(KeyboardListener),
-      );
       expect(
-        tester.widget<KeyboardListener>(bookListener.first).focusNode.hasFocus,
+        tester.widget<Focus>(readerFocus).focusNode!.hasFocus,
         isTrue,
       );
+
+      // F9 פועל רק במסך מלא.
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
       await tester.pump();
       expect(fullscreen.state, isTrue);
       expect(geometry.calls, ['titleBar', 'fullScreen:true']);
+      await tester.pump();
+      expect(find.text(WindowMessages.fullscreenToolbarHint), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
+      expect(fullscreen.state, isTrue);
+
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'f9');
+      bloc.receivedEvents.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pump();
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), hasLength(1));
+      expect(settingsBloc.state.fullscreenAutoHideToolbar, isTrue);
 
       geometry.calls.clear();
       await tester.sendKeyEvent(LogicalKeyboardKey.f11);
       await tester.pump();
       expect(fullscreen.state, isFalse);
       expect(geometry.calls, ['fullScreen:false', 'titleBar']);
+      // ההודעה מוצגת פעם אחת בלבד, ונסגרת מעצמה.
+      await tester.pump(const Duration(seconds: 7));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  });
+
+  group('קיצור של הספר על מקש מכרטיס "קיצורים קבועים"', () {
+    for (final (shortcut, keys) in [
+      ('ctrl+tab', [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab]),
+      (
+        'ctrl+shift+tab',
+        [
+          LogicalKeyboardKey.controlLeft,
+          LogicalKeyboardKey.shiftLeft,
+          LogicalKeyboardKey.tab,
+        ],
+      ),
+      ('ctrl+2', [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.digit2]),
+      ('ctrl+9', [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.digit9]),
+      ('f11', [LogicalKeyboardKey.f11]),
+      ('escape', [LogicalKeyboardKey.escape]),
+    ]) {
+      testWidgets(
+        '$shortcut שהוקצה להגדלת הטקסט אינו מפעיל גם את הקיצור הקבוע',
+        (tester) async {
+          final previousMacOverride = ShortcutHelper.isMacForTesting;
+          ShortcutHelper.isMacForTesting = false;
+          addTearDown(() {
+            ShortcutHelper.isMacForTesting = previousMacOverride;
+          });
+          await Settings.setValue<String>(
+            ShortcutValidator.zoomInKey,
+            shortcut,
+          );
+          final book = TextBook(title: 'ספר בדיקה');
+          final bloc = _TestTextBookBloc(_loadedState(book));
+          final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+          final other = TextBookTab(book: book, index: 0);
+          final tabsBloc = _TestTabsBloc(
+            TabsState(tabs: [tab, other], currentTabIndex: 0),
+          );
+          final settingsBloc = _TestSettingsBloc(
+            SettingsState.initial().copyWith(fullscreenAutoHideToolbar: false),
+          );
+          // Escape פעיל רק במסך מלא, ולכן מתחילים בו.
+          final fullscreen = WindowFullscreenCubit(
+            initial: shortcut == 'escape',
+            persist: (_) async {},
+          );
+          final geometry = _RecordingGeometry();
+          final windowKeys = AppWindowKeys(
+            id: AppWindowId('fixed-shortcut-$shortcut'),
+          );
+          AppWindowKeys.register(windowKeys);
+          AppWindowKeys.activateWindow(windowKeys.id);
+          addTearDown(() async {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.pump();
+            AppWindowKeys.resetForTest();
+            LastActiveWindow.resetForTest();
+            await Settings.setValue<String?>(ShortcutValidator.zoomInKey, null);
+            await bloc.close();
+            await tabsBloc.close();
+            await settingsBloc.close();
+            await fullscreen.close();
+            tab.dispose();
+            other.dispose();
+          });
+
+          await _setSurfaceSize(tester, const Size(1200, 900));
+          await _pumpTextBookScreen(
+            tester,
+            tab: tab,
+            textBookBloc: bloc,
+            tabsBloc: tabsBloc,
+            settingsBloc: settingsBloc,
+            focusRepository: focusRepository,
+            shamorZachorDataProvider: shamorZachorDataProvider,
+            shamorZachorProgressProvider: shamorZachorProgressProvider,
+            bookmarkBloc: bookmarkBloc,
+            personalNotesBloc: personalNotesBloc,
+            tourCubit: tourCubit,
+            isInCombinedView: false,
+            windowKeys: windowKeys,
+            geometry: geometry,
+            fullscreenCubit: fullscreen,
+            withGlobalShortcuts: true,
+          );
+          bloc.receivedEvents.clear();
+
+          for (final key in keys) {
+            await tester.sendKeyDownEvent(key);
+          }
+          for (final key in keys.reversed) {
+            await tester.sendKeyUpEvent(key);
+          }
+          await tester.pump();
+
+          expect(bloc.receivedEvents.whereType<UpdateFontSize>(), hasLength(1));
+          expect(tabsBloc.receivedEvents, isEmpty);
+          expect(geometry.calls, isEmpty);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      );
+    }
+
+    testWidgets('קיצור ספר אינו בולע אות או תו AltGr בשדה החיפוש בספר', (
+      tester,
+    ) async {
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'z');
+      final previousWindowsOverride = ShortcutHelper.isWindowsForTesting;
+      final previousMacOverride = ShortcutHelper.isMacForTesting;
+      ShortcutHelper.isWindowsForTesting = true;
+      ShortcutHelper.isMacForTesting = false;
+      addTearDown(() {
+        ShortcutHelper.isWindowsForTesting = previousWindowsOverride;
+        ShortcutHelper.isMacForTesting = previousMacOverride;
+      });
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _ExportTextBookBloc(_loadedState(book), content: 'א');
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await Settings.setValue<String?>(ShortcutValidator.zoomInKey, null);
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+      // Ctrl+F בוחר בלשונית החיפוש; ה-bloc של הבדיקה לא פותח את החלונית לבד.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      bloc.emitStateForTest(
+        (bloc.state as TextBookLoaded).copyWith(showLeftPane: true),
+      );
+      await tester.pumpAndSettle();
+      expect(ShortcutHelper.isEditingText, isTrue);
+      bloc.receivedEvents.clear();
+
+      // מקש שסומן handled לא מגיע לשדה כתו.
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyZ), isFalse);
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), isEmpty);
+
+      await Settings.setValue<String>(ShortcutValidator.zoomInKey, 'alt+4');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altRight);
+      final handledAltGr = await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.digit4,
+        character: '₪',
+      );
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.digit4);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(handledAltGr, isFalse);
+      expect(bloc.receivedEvents.whereType<UpdateFontSize>(), isEmpty);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
@@ -2760,6 +3017,11 @@ void main() {
   });
 }
 
+/// ה-Focus של מסך הספר שמטפל בקיצורי הספר.
+final _bookKeyFocus = find.byWidgetPredicate(
+  (widget) => widget is Focus && widget.child is Scaffold,
+);
+
 Future<void> _pumpTextBookScreen(
   WidgetTester tester, {
   required TextBookTab tab,
@@ -2854,7 +3116,9 @@ Future<void> _pumpTextBookScreen(
                   controller: _PluginWindow(),
                   geometry: geometry ?? _PluginWindow(),
                   keys: windowKeys,
-                  child: screen,
+                  child: fullscreenCubit == null
+                      ? screen
+                      : WindowFullscreenTopBarScope(child: screen),
                 ),
         ),
       ),
@@ -2896,7 +3160,6 @@ TextBookLoaded _loadedState(
     removePunctuation: false,
     visibleIndices: const [0],
     selectedIndex: 0,
-    pinLeftPane: false,
     searchText: '',
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,
@@ -2965,7 +3228,11 @@ class _CapturingFilePicker extends FilePickerPlatform
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _TestSettingsBloc(super.initialState) {
-    on<SettingsEvent>((event, emit) {});
+    on<SettingsEvent>((event, emit) {
+      if (event is UpdateFullscreenAutoHideToolbar) {
+        emit(state.copyWith(fullscreenAutoHideToolbar: event.autoHide));
+      }
+    });
   }
 
   void emitStateForTest(SettingsState state) => emit(state);
