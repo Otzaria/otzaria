@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -382,14 +383,8 @@ class _LockSelectionEdgeIntent extends Intent {
   final bool forward;
 }
 
-/// נועל את הקצה הנכון בבחירה של שורה אחת ב-SelectableRegion, ומשחרר את המקש
-/// לברירת המחדל של Flutter (#6048).
-///
-/// Flutter מזיז את הקצה שמגדיל את הבחירה: המאוחר בטקסט קדימה, המוקדם אחורה.
-/// ברב-שורתי הוא קובע אותו לפי Y, אבל בשורה אחת לפי X בהנחת LTR, ולכן ב-RTL
-/// הוא מזיז את הקצה ההפוך והבחירה מהעכבר הולכת לאיבוד. צעד תו פנימה וחזרה
-/// מקבע את הקצה הנכון (כמו ה-priming של [_PhysicalExtendSelectionAction]),
-/// ו-Flutter ממשיך איתו. בשדה קלט ובבחירה רב-שורתית לא נוגעים בדבר.
+/// נועל קצה בחירה RTL באותה פסקה: Flutter מכריע בין קצוות באותה שורה לפי X כ-LTR.
+/// בשאר המקרים משאיר את הטיפול ל-Flutter.
 class _LockSelectionEdgeAction extends Action<_LockSelectionEdgeIntent> {
   @override
   Object? invoke(_LockSelectionEdgeIntent intent) {
@@ -403,7 +398,8 @@ class _LockSelectionEdgeAction extends Action<_LockSelectionEdgeIntent> {
     final points = state == null ? null : _selectionEndpoints(state);
     if (points == null ||
         points.length < 2 ||
-        (points.first.point.dy - points.last.point.dy).abs() > 1.0) {
+        (points.first.point.dy - points.last.point.dy).abs() > 1.0 ||
+        !_hasRtlSelectionEdges(state!, points)) {
       return null;
     }
     rtlSelectionPriming = true;
@@ -421,6 +417,47 @@ class _LockSelectionEdgeAction extends Action<_LockSelectionEdgeIntent> {
       rtlSelectionPriming = false;
     }
     return null;
+  }
+
+  bool _hasRtlSelectionEdges(
+    SelectableRegionState state,
+    List<TextSelectionPoint> points,
+  ) {
+    final root = state.context.findRenderObject();
+    if (root is! RenderBox) return false;
+    RenderParagraph? selectedParagraph;
+    for (var i = 0; i < 2; i++) {
+      final point = points[i].point;
+      final other = points[1 - i].point;
+      final height = i == 0 ? state.startGlyphHeight : state.endGlyphHeight;
+      final inside = point + Offset((other.dx - point.dx).sign, -height / 2);
+      final hit = BoxHitTestResult();
+      root.hitTest(hit, position: inside);
+      final paragraphs = hit.path
+          .map((entry) => entry.target)
+          .whereType<RenderParagraph>();
+      if (paragraphs.isEmpty) return false;
+      final paragraph = paragraphs.first;
+      if (selectedParagraph != null &&
+          !identical(selectedParagraph, paragraph)) {
+        return false;
+      }
+      selectedParagraph = paragraph;
+      final local = paragraph.globalToLocal(root.localToGlobal(inside));
+      final word = paragraph.getWordBoundary(
+        paragraph.getPositionForOffset(local),
+      );
+      final boxes = paragraph
+          .getBoxesForSelection(
+            TextSelection(baseOffset: word.start, extentOffset: word.end),
+          )
+          .where((box) => box.toRect().contains(local));
+      if (boxes.isEmpty ||
+          boxes.any((box) => box.direction != TextDirection.rtl)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
