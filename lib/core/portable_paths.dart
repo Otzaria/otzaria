@@ -17,9 +17,8 @@ import 'package:path/path.dart' as p;
 ///
 /// המנגנון: קובץ [_rootRecordFileName] בתוך תיקיית הנתונים שומר את נתיב
 /// השורש כפי שהיה בריצה הקודמת. בהפעלה, אם השורש הנוכחי שונה — כל מחרוזת
-/// שמורה שמתחילה בשורש הישן משוכתבת לשורש החדש. נתיב מחוץ לשורש (למשל
-/// ספרייה שיושבת על אותו כונן נייד, ליד תיקיית האפליקציה) משוכתב יחסית
-/// לבסיס שזז יחד עם השורש, ורק כשהוא חסר במקומו הישן וקיים במקום החדש.
+/// שמורה שמתחילה בשורש הישן משוכתבת לשורש החדש.
+/// ב-Windows גם ספרייה חיצונית על הכונן עצמו יכולה לעבור לאות החדשה.
 class PortablePaths {
   static const String _rootRecordFileName = '.otzaria_portable_root';
 
@@ -50,8 +49,7 @@ class PortablePaths {
 
   /// משכתב נתיבים שמורים אם שורש הנתונים הנייד זז מאז הריצה הקודמת.
   ///
-  /// חייב לרוץ אחרי `Settings.init` ואחרי `initHive` (ה-boxes חייבים
-  /// להיות פתוחים), ולפני כל קוד שצורך את הנתיבים השמורים.
+  /// רץ אחרי טעינת ההגדרות ולפני פתיחת המסדים שקוראים את הנתיבים השמורים.
   static Future<void> migrateIfMoved() async {
     if (!AppPaths.isPortable) return;
 
@@ -90,27 +88,21 @@ class PortablePaths {
       'rewriting stored paths',
     );
 
-    final base = _movedBase(oldRoot, newRoot);
-    String rewrite(String value) {
-      final underRoot = _rewritePath(value, oldRoot, newRoot);
-      if (underRoot != value || base == null) return underRoot;
-      final onMovedBase = _rewritePath(value, base.from, base.to);
-      if (onMovedBase == value) return value;
-      return !_exists(value) && _exists(onMovedBase) ? onMovedBase : value;
-    }
-
     for (final key in [..._pathSettingsKeys, ..._jsonPathSettingsKeys]) {
       final value = Settings.getValue<String>(key);
       if (value == null || value.isEmpty) continue;
       final isJson = _jsonPathSettingsKeys.contains(key);
       try {
         final decoded = isJson ? jsonDecode(value) : value;
-        final result = _rewriteDeep(decoded, rewrite);
+        final result = _rewriteDeep(decoded, oldRoot, newRoot);
         if (result.changed) {
           await Settings.setValue<String>(
             key,
             isJson ? jsonEncode(result.value) : result.value as String,
           );
+        } else if (Platform.isWindows &&
+            key == SettingsRepository.keyLibraryPath) {
+          await _rewriteLibraryOnMovedDrive(value, oldRoot, newRoot);
         }
       } catch (e, stackTrace) {
         debugPrint('PortablePaths: failed rewriting $key: $e\n$stackTrace');
@@ -121,7 +113,7 @@ class PortablePaths {
       if (!Hive.isBoxOpen(boxName)) continue;
       final box = Hive.box(boxName);
       for (final key in box.keys.toList()) {
-        final result = _rewriteDeep(box.get(key), rewrite);
+        final result = _rewriteDeep(box.get(key), oldRoot, newRoot);
         if (result.changed) {
           await box.put(key, result.value);
         }
@@ -129,52 +121,78 @@ class PortablePaths {
     }
   }
 
-  /// הבסיס שזז יחד עם שורש הנתונים: [oldRoot] ו-[newRoot] בלי רכיבי
-  /// הסיום המשותפים (תיקיית הנתונים ותיקיית האפליקציה, אם שמה לא השתנה).
-  /// כשרק אות הכונן התחלפה — שורשי הכוננים עצמם. null כשאין רכיב סיום
-  /// משותף, או כשהבסיס לא השתנה.
-  static ({String from, String to})? _movedBase(
+  static Future<void> _rewriteLibraryOnMovedDrive(
+    String savedPath,
+    String oldRoot,
+    String newRoot,
+  ) async {
+    final newPath = await libraryPathAfterWindowsDriveChange(
+      savedPath,
+      oldRoot,
+      newRoot,
+      containsDatabase: (path) async =>
+          await AppPaths.libraryDbFolderName(path) != null,
+    );
+    if (newPath == null) return;
+
+    // העברת ספרייה דרך ההגדרות שומרת לצדה גם נתיבי אינדקס ומסדים.
+    for (final key in [
+      SettingsRepository.keyDatabasesPath,
+      SettingsRepository.keyIndexPath,
+    ]) {
+      final saved = Settings.getValue<String>(key);
+      if (saved == null ||
+          !p.equals(p.dirname(saved), p.dirname(savedPath)) ||
+          _rewritePath(saved, oldRoot, newRoot) != saved) {
+        continue;
+      }
+      final moved = p.join(p.dirname(newPath), p.basename(saved));
+      if (await Directory(moved).exists() && !await Directory(saved).exists()) {
+        await Settings.setValue(key, moved);
+      }
+    }
+    await Settings.setValue(SettingsRepository.keyLibraryPath, newPath);
+  }
+
+  /// מועמד לספרייה על האות החדשה, כשהמסד זמין שם וחסר בנתיב השמור.
+  @visibleForTesting
+  static Future<String?> libraryPathAfterWindowsDriveChange(
+    String savedPath,
+    String oldRoot,
+    String newRoot, {
+    required Future<bool> Function(String) containsDatabase,
+  }) async {
+    final oldDrive = p.windows.rootPrefix(oldRoot);
+    final newDrive = p.windows.rootPrefix(newRoot);
+    if (oldDrive.length != 3 ||
+        newDrive.length != 3 ||
+        p.windows.equals(oldDrive, newDrive) ||
+        !p.windows.equals(oldDrive, p.windows.rootPrefix(savedPath))) {
+      return null;
+    }
+
+    final candidate = newDrive + savedPath.substring(oldDrive.length);
+    return await containsDatabase(candidate) &&
+            !await containsDatabase(savedPath)
+        ? candidate
+        : null;
+  }
+
+  /// עובר רקורסיבית על מבנה Hive/JSON ומשכתב כל מחרוזת שמתחילה ב-[oldRoot].
+  static ({bool changed, dynamic value}) _rewriteDeep(
+    dynamic value,
     String oldRoot,
     String newRoot,
   ) {
-    final oldParts = p.split(oldRoot);
-    final newParts = p.split(newRoot);
-    var common = 0;
-    while (common < oldParts.length - 1 &&
-        common < newParts.length - 1 &&
-        p.equals(
-          oldParts[oldParts.length - 1 - common],
-          newParts[newParts.length - 1 - common],
-        )) {
-      common++;
-    }
-    if (common == 0) return null;
-    final from = p.joinAll(oldParts.take(oldParts.length - common));
-    final to = p.joinAll(newParts.take(newParts.length - common));
-    return p.equals(from, to) ? null : (from: from, to: to);
-  }
-
-  static bool _exists(String value) {
-    final path = value.startsWith('folder:')
-        ? value.substring('folder:'.length)
-        : value;
-    return FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
-  }
-
-  /// עובר רקורסיבית על מבנה Hive/JSON ומשכתב כל מחרוזת דרך [rewrite].
-  static ({bool changed, dynamic value}) _rewriteDeep(
-    dynamic value,
-    String Function(String) rewrite,
-  ) {
     if (value is String) {
-      final rewritten = rewrite(value);
+      final rewritten = _rewritePath(value, oldRoot, newRoot);
       return (changed: rewritten != value, value: rewritten);
     }
     if (value is Map) {
       var changed = false;
       final out = <dynamic, dynamic>{};
       for (final entry in value.entries) {
-        final result = _rewriteDeep(entry.value, rewrite);
+        final result = _rewriteDeep(entry.value, oldRoot, newRoot);
         changed = changed || result.changed;
         out[entry.key] = result.value;
       }
@@ -186,7 +204,7 @@ class PortablePaths {
       var changed = false;
       final out = <dynamic>[];
       for (final element in value) {
-        final result = _rewriteDeep(element, rewrite);
+        final result = _rewriteDeep(element, oldRoot, newRoot);
         changed = changed || result.changed;
         out.add(result.value);
       }
@@ -208,8 +226,7 @@ class PortablePaths {
     final end = start + oldRoot.length;
     if (value.length < end) return value;
     if (!p.equals(value.substring(start, end), oldRoot)) return value;
-    // שורש כונן (E:\) כבר מסתיים במפריד.
-    if (value.length > end && !oldRoot.endsWith(p.separator)) {
+    if (value.length > end) {
       final next = value[end];
       // התאמת prefix בלבד אינה מספיקה: D:\otzaria_data2 מתחיל ב-D:\otzaria_data
       // אבל אינו יושב תחתיו.

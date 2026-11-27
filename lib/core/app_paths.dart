@@ -604,7 +604,7 @@ class AppPaths {
     final currentPath =
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
     if (currentPath.isNotEmpty) {
-      final folderName = await _libraryDbFolderName(currentPath);
+      final folderName = await libraryDbFolderName(currentPath);
       // הנתיב תקף, אבל ה-folderName השמור עלול להצביע על תת-תיקייה שאין בה
       // מסד — ואז getDatabasePath מחשב נתיב שבור על ספרייה קיימת.
       if (folderName != null) {
@@ -613,7 +613,7 @@ class AppPaths {
     }
 
     final defaultPath = await getDefaultLibraryPath();
-    final folderName = await _libraryDbFolderName(defaultPath);
+    final folderName = await libraryDbFolderName(defaultPath);
     if (folderName == null) {
       return settingsChanged;
     }
@@ -643,7 +643,7 @@ class AppPaths {
   ///
   /// מחקה את חישוב הנתיב ב-[DatabaseConstants.getDatabasePath], שמצרף את
   /// `keyLibraryFolderName` לנתיב הספרייה.
-  static Future<String?> _libraryDbFolderName(String libraryPath) async {
+  static Future<String?> libraryDbFolderName(String libraryPath) async {
     if (libraryPath.isEmpty) return null;
     final savedFolderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
