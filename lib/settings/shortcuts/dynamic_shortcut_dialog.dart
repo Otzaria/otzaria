@@ -269,6 +269,16 @@ class _DynamicShortcutForm extends StatelessWidget {
                   value.copyWith(change: change.copyWith(anchorMarkers: v)),
                 ),
               ),
+            if (isDisplay)
+              SettingsSegmentedTile<DynamicMarkChange?>(
+                icon: FluentIcons.text_footnote_24_filled,
+                title: t('ציוני הערות שוליים'),
+                options: markOptions,
+                currentValue: change.footnoteMarkers,
+                onChanged: (v) => onChanged(
+                  value.copyWith(change: change.copyWith(footnoteMarkers: v)),
+                ),
+              ),
             if (!isDisplay)
               SettingsSwitchTile(
                 icon: FluentIcons.text_clear_formatting_24_regular,

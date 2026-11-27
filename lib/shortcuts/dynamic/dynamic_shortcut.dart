@@ -62,6 +62,7 @@ class DynamicDisplayChange {
   final DynamicMarkChange? punctuation;
   final HolyNameDisplay? holyName;
   final DynamicMarkChange? anchorMarkers;
+  final DynamicMarkChange? footnoteMarkers;
   final DivineNamesDisplay? divineNames;
 
   const DynamicDisplayChange({
@@ -70,6 +71,7 @@ class DynamicDisplayChange {
     this.punctuation,
     this.holyName,
     this.anchorMarkers,
+    this.footnoteMarkers,
     this.divineNames,
   });
 
@@ -79,6 +81,7 @@ class DynamicDisplayChange {
       punctuation == null &&
       holyName == null &&
       anchorMarkers == null &&
+      footnoteMarkers == null &&
       divineNames == null;
 
   /// הטלאי שנוצר מהחלת השינוי על הפרופיל הפתור כעת.
@@ -88,6 +91,7 @@ class DynamicDisplayChange {
     punctuation: punctuation?.apply(current.punctuation),
     holyName: holyName,
     anchorMarkers: anchorMarkers?.apply(current.anchorMarkers),
+    footnoteMarkers: footnoteMarkers?.apply(current.footnoteMarkers),
     divineNames: divineNames,
   );
 
@@ -97,6 +101,7 @@ class DynamicDisplayChange {
     Object? punctuation = _keep,
     Object? holyName = _keep,
     Object? anchorMarkers = _keep,
+    Object? footnoteMarkers = _keep,
     Object? divineNames = _keep,
   }) => DynamicDisplayChange(
     nikud: nikud == _keep ? this.nikud : nikud as DynamicMarkChange?,
@@ -108,6 +113,9 @@ class DynamicDisplayChange {
     anchorMarkers: anchorMarkers == _keep
         ? this.anchorMarkers
         : anchorMarkers as DynamicMarkChange?,
+    footnoteMarkers: footnoteMarkers == _keep
+        ? this.footnoteMarkers
+        : footnoteMarkers as DynamicMarkChange?,
     divineNames: divineNames == _keep
         ? this.divineNames
         : divineNames as DivineNamesDisplay?,
@@ -121,6 +129,7 @@ class DynamicDisplayChange {
     if (punctuation != null) 'punctuation': punctuation!.name,
     if (holyName != null) 'holyName': holyName!.name,
     if (anchorMarkers != null) 'anchorMarkers': anchorMarkers!.name,
+    if (footnoteMarkers != null) 'footnoteMarkers': footnoteMarkers!.name,
     if (divineNames != null) 'divineNames': divineNames!.name,
   };
 
@@ -131,6 +140,7 @@ class DynamicDisplayChange {
         punctuation: DynamicMarkChange.fromJson(json['punctuation']),
         holyName: HolyNameDisplay.fromJson(json['holyName']),
         anchorMarkers: DynamicMarkChange.fromJson(json['anchorMarkers']),
+        footnoteMarkers: DynamicMarkChange.fromJson(json['footnoteMarkers']),
         divineNames: DivineNamesDisplay.fromJson(json['divineNames']),
       );
 
@@ -142,6 +152,7 @@ class DynamicDisplayChange {
       punctuation == other.punctuation &&
       holyName == other.holyName &&
       anchorMarkers == other.anchorMarkers &&
+      footnoteMarkers == other.footnoteMarkers &&
       divineNames == other.divineNames;
 
   @override
@@ -151,6 +162,7 @@ class DynamicDisplayChange {
     punctuation,
     holyName,
     anchorMarkers,
+    footnoteMarkers,
     divineNames,
   );
 }
@@ -261,6 +273,8 @@ class DynamicShortcut {
         },
       if (change.anchorMarkers != null)
         '${_mark(change.anchorMarkers!)} ציוני מפרשים',
+      if (change.footnoteMarkers != null)
+        '${_mark(change.footnoteMarkers!)} ציוני הערות שוליים',
       if (change.divineNames != null)
         switch (change.divineNames!) {
           DivineNamesDisplay.asIs => 'שאר שמות הקודש ככתבם',

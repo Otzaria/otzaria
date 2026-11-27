@@ -110,6 +110,9 @@ class RenderSettings {
   /// האם להציג את שאר שמות הקודש שסומנו במסד בצורת התצוגה שלהם
   final bool substituteDivineNames;
 
+  /// האם להסתיר את ציוני הערות השוליים (issue #4389)
+  final bool removeFootnoteMarkers;
+
   /// טקסט לחיפוש והדגשה
   final String searchText;
 
@@ -181,6 +184,7 @@ class RenderSettings {
     this.replaceHolyNames = false,
     this.holyNameStyle = HolyNameStyle.kufKuf,
     this.substituteDivineNames = false,
+    this.removeFootnoteMarkers = false,
     this.searchText = '',
     this.currentSearchIndex = -1,
     this.searchOptions = const {},
@@ -237,6 +241,7 @@ class RenderSettings {
       replaceHolyNames: profile.replaceHolyNames,
       holyNameStyle: profile.holyNameStyle,
       substituteDivineNames: profile.substituteDivineNames,
+      removeFootnoteMarkers: profile.hideFootnoteMarkers,
       searchText: searchText,
       currentSearchIndex: currentSearchIndex,
       searchOptions: searchOptions,
@@ -273,6 +278,7 @@ class RenderSettings {
     replaceHolyNames: replaceHolyNames,
     holyNameStyle: holyNameStyle,
     substituteDivineNames: substituteDivineNames,
+    removeFootnoteMarkers: removeFootnoteMarkers,
     fontSize: fontSize,
     fontFamily: fontFamily,
     fontWeight: fontWeight,
@@ -290,6 +296,7 @@ class RenderSettings {
     bool? replaceHolyNames,
     HolyNameStyle? holyNameStyle,
     bool? substituteDivineNames,
+    bool? removeFootnoteMarkers,
     String? searchText,
     int? currentSearchIndex,
     Map<String, Map<String, bool>>? searchOptions,
@@ -320,6 +327,8 @@ class RenderSettings {
       holyNameStyle: holyNameStyle ?? this.holyNameStyle,
       substituteDivineNames:
           substituteDivineNames ?? this.substituteDivineNames,
+      removeFootnoteMarkers:
+          removeFootnoteMarkers ?? this.removeFootnoteMarkers,
       searchText: searchText ?? this.searchText,
       currentSearchIndex: currentSearchIndex ?? this.currentSearchIndex,
       searchOptions: searchOptions ?? this.searchOptions,
@@ -355,6 +364,7 @@ class RenderSettings {
         replaceHolyNames == other.replaceHolyNames &&
         holyNameStyle == other.holyNameStyle &&
         substituteDivineNames == other.substituteDivineNames &&
+        removeFootnoteMarkers == other.removeFootnoteMarkers &&
         searchText == other.searchText &&
         currentSearchIndex == other.currentSearchIndex &&
         _searchOptionsEquals(searchOptions, other.searchOptions) &&
@@ -387,6 +397,7 @@ class RenderSettings {
       replaceHolyNames,
       holyNameStyle,
       substituteDivineNames,
+      removeFootnoteMarkers,
       searchText,
       currentSearchIndex,
       _searchOptionsHash(searchOptions),
