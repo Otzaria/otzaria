@@ -54,6 +54,15 @@ class InstalledPlugin {
       ? userOrderToolTabOffset + userOrder!
       : manifest.toolTabOrder;
 
+  /// אותו סדר בתצוגה ובכתיבות קיבוץ: סדר ידני/מניפסט, זמן התקנה ומזהה.
+  static int compareForDisplay(InstalledPlugin a, InstalledPlugin b) {
+    final orderCmp = a.effectiveToolTabOrder.compareTo(b.effectiveToolTabOrder);
+    if (orderCmp != 0) return orderCmp;
+    final timeCmp = a.installedAt.compareTo(b.installedAt);
+    if (timeCmp != 0) return timeCmp;
+    return a.pluginId.compareTo(b.pluginId);
+  }
+
   /// האם לתוסף יש דף — כרטיסייה, כניסה בפאנל הכלים והצמדה לסרגל הניווט.
   bool get hasToolPage => !manifest.headless;
 

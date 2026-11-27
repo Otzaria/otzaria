@@ -13,7 +13,7 @@ class PluginRegistryRepository {
   static final _groupChanges =
       StreamController<PluginRegistryRepository>.broadcast();
 
-  /// חלונות באותו isolate מתרעננים אחרי שינוי בקבוצות בחלון אחר.
+  /// חלונות באותו isolate מתרעננים אחרי שינוי בקבוצות או בסדר התוספים.
   static Stream<PluginRegistryRepository> get groupChanges =>
       _groupChanges.stream;
 
@@ -22,7 +22,10 @@ class PluginRegistryRepository {
 
   Future<List<PluginGroup>> getPluginGroups() => _db.getPluginGroups();
 
-  Future<List<PluginGroup>> createPluginGroup(
+  Future<PluginGroupsSnapshot> getPluginGroupsSnapshot() =>
+      _db.getPluginGroupsSnapshot();
+
+  Future<PluginGroupsSnapshot> createPluginGroup(
     String name,
     List<String> pluginIds,
   ) async {
@@ -31,7 +34,7 @@ class PluginRegistryRepository {
     return groups;
   }
 
-  Future<List<PluginGroup>> updatePluginGroup(
+  Future<PluginGroupsSnapshot> updatePluginGroup(
     PluginGroup group, {
     PluginGroup? expectedGroup,
   }) async {
@@ -43,13 +46,13 @@ class PluginRegistryRepository {
     return groups;
   }
 
-  Future<List<PluginGroup>> deletePluginGroup(String groupId) async {
+  Future<PluginGroupsSnapshot> deletePluginGroup(String groupId) async {
     final groups = await _db.deletePluginGroup(groupId);
     _groupChanges.add(this);
     return groups;
   }
 
-  Future<List<PluginGroup>> movePluginToGroup(
+  Future<PluginGroupsSnapshot> movePluginToGroup(
     String pluginId,
     String? groupId,
   ) async {
@@ -63,7 +66,7 @@ class PluginRegistryRepository {
     final plugins = (await _db.getAllInstalledPlugins())
         .map(_sessionView)
         .toList();
-    plugins.sort(_compareForDisplay);
+    plugins.sort(InstalledPlugin.compareForDisplay);
     return plugins;
   }
 
@@ -81,19 +84,6 @@ class PluginRegistryRepository {
     if (!PluginSafeMode.isActive) return plugin;
     final saved = await _db.getInstalledPlugin(plugin.pluginId);
     return saved == null ? plugin : plugin.copyWith(enabled: saved.enabled);
-  }
-
-  /// השוואת תוספים לצורך תצוגה — קודם לפי [InstalledPlugin.effectiveToolTabOrder],
-  /// ואז tie-breakers דטרמיניסטיים: [InstalledPlugin.installedAt] ובסוף
-  /// [InstalledPlugin.pluginId]. בלי tie-breaker, כש-N תוספים חולקים את
-  /// אותו `toolTabOrder` (ברירת מחדל 900 ב-manifest), הסדר ביניהם משתנה
-  /// בין הרצות.
-  static int _compareForDisplay(InstalledPlugin a, InstalledPlugin b) {
-    final orderCmp = a.effectiveToolTabOrder.compareTo(b.effectiveToolTabOrder);
-    if (orderCmp != 0) return orderCmp;
-    final timeCmp = a.installedAt.compareTo(b.installedAt);
-    if (timeCmp != 0) return timeCmp;
-    return a.pluginId.compareTo(b.pluginId);
   }
 
   /// מחזיר את [InstalledPlugin.userOrder] שיש להקצות לתוסף חדש כך שהוא
@@ -248,6 +238,7 @@ class PluginRegistryRepository {
       for (var i = 0; i < orderedPluginIds.length; i++) orderedPluginIds[i]: i,
     };
     await _db.updatePluginsUserOrder(ordering);
+    _groupChanges.add(this);
   }
 
   static final Map<String, int> _fileAccessGenerations = {};

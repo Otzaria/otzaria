@@ -248,6 +248,30 @@ class PluginSystemDatabase {
     return _readInIsolate(_selectPluginGroups, null);
   }
 
+  Future<PluginGroupsSnapshot> getPluginGroupsSnapshot() async {
+    await database;
+    return _readInIsolate(_selectPluginGroupsSnapshot, null);
+  }
+
+  static PluginGroupsSnapshot _selectPluginGroupsSnapshot(
+    Database db,
+    Object? _,
+  ) {
+    PluginGroupsSnapshot read() => PluginGroupsSnapshot(
+      groups: _selectPluginGroups(db, null),
+      userOrders: {
+        for (final row in db.select(
+          'SELECT plugin_id, user_order FROM plugin_installation',
+        ))
+          row['plugin_id'] as String: row['user_order'] as int?,
+      },
+    );
+    if (!db.autocommit) return read();
+    late PluginGroupsSnapshot snapshot;
+    withTransaction(db, () => snapshot = read());
+    return snapshot;
+  }
+
   static List<PluginGroup> _selectPluginGroups(Database db, Object? _) {
     final names = <String, String>{};
     final members = <String, List<String>>{};
@@ -272,7 +296,7 @@ class PluginSystemDatabase {
     ]);
   }
 
-  Future<List<PluginGroup>> createPluginGroup(
+  Future<PluginGroupsSnapshot> createPluginGroup(
     String name,
     List<String> pluginIds,
   ) {
@@ -289,7 +313,7 @@ class PluginSystemDatabase {
     );
   }
 
-  Future<List<PluginGroup>> updatePluginGroup(
+  Future<PluginGroupsSnapshot> updatePluginGroup(
     PluginGroup group, {
     PluginGroup? expectedGroup,
   }) => _enqueuePluginGroupWrite(
@@ -300,7 +324,7 @@ class PluginSystemDatabase {
     ),
   );
 
-  Future<List<PluginGroup>> deletePluginGroup(String groupId) =>
+  Future<PluginGroupsSnapshot> deletePluginGroup(String groupId) =>
       _enqueuePluginGroupWrite(
         _PluginGroupWrite(
           _PluginGroupOperation.delete,
@@ -308,7 +332,7 @@ class PluginSystemDatabase {
         ),
       );
 
-  Future<List<PluginGroup>> movePluginToGroup(
+  Future<PluginGroupsSnapshot> movePluginToGroup(
     String pluginId,
     String? groupId,
   ) => _enqueuePluginGroupWrite(
@@ -319,7 +343,7 @@ class PluginSystemDatabase {
     ),
   );
 
-  Future<List<PluginGroup>> _enqueuePluginGroupWrite(
+  Future<PluginGroupsSnapshot> _enqueuePluginGroupWrite(
     _PluginGroupWrite mutation,
   ) {
     if (_storageMoveWritesReleased case final released?) {
@@ -335,7 +359,7 @@ class PluginSystemDatabase {
   }
 
   /// השחזור נוגע רק לתוספים שנכללו ושוחזרו; ייבוא ממזג שומר כל שיוך מקומי.
-  Future<List<PluginGroup>> restorePluginGroups(
+  Future<PluginGroupsSnapshot> restorePluginGroups(
     List<PluginGroup> groups, {
     required Set<String> pluginScope,
     required bool keepExisting,
@@ -348,7 +372,7 @@ class PluginSystemDatabase {
     ),
   );
 
-  Future<List<PluginGroup>> _runPluginGroupWrite(
+  Future<PluginGroupsSnapshot> _runPluginGroupWrite(
     Future<void>? previous,
     _PluginGroupWrite mutation,
   ) async {
@@ -357,7 +381,7 @@ class PluginSystemDatabase {
     return _writePluginGroupInIsolate(_dbPath!, mutation);
   }
 
-  static Future<List<PluginGroup>> _writePluginGroupInIsolate(
+  static Future<PluginGroupsSnapshot> _writePluginGroupInIsolate(
     String path,
     _PluginGroupWrite mutation,
   ) => Isolate.run(() {
@@ -366,9 +390,9 @@ class PluginSystemDatabase {
       // הנעילה לפני הקריאה מונעת כשל בשדרוג טרנזקציית קריאה כשחלון אחר כותב.
       db.execute('BEGIN IMMEDIATE');
       _applyPluginGroupWrite(db, mutation);
-      final groups = _selectPluginGroups(db, null);
+      final snapshot = _selectPluginGroupsSnapshot(db, null);
       db.execute('COMMIT');
-      return groups;
+      return snapshot;
     } catch (_) {
       if (!db.autocommit) db.execute('ROLLBACK');
       rethrow;
@@ -400,6 +424,13 @@ class PluginSystemDatabase {
         )) {
           throw const PluginGroupNameInUse();
         }
+        // ביצירה החבר הראשון הוא יעד ההפלה; בעריכה נשארים העוגנים הקיימים.
+        _appendPluginsToUserOrder(
+          db,
+          current == null
+              ? group.pluginIds.skip(1)
+              : group.pluginIds.where((id) => !current.pluginIds.contains(id)),
+        );
         if (mutation.operation == _PluginGroupOperation.create) {
           db.execute(
             'INSERT INTO plugin_group (group_id, name, sort_order) '
@@ -445,6 +476,13 @@ class PluginSystemDatabase {
           throw const PluginGroupChanged();
         }
         // אותו יעד אינו משנה את הסדר כשהמשתמש משחרר שוב על אותה קבוצה.
+        if (db.select(
+          'SELECT 1 FROM plugin_group_member WHERE plugin_id = ? AND group_id = ?',
+          [mutation.pluginId, groupId],
+        ).isNotEmpty) {
+          return;
+        }
+        _appendPluginsToUserOrder(db, [mutation.pluginId!]);
         db.execute(
           'INSERT INTO plugin_group_member (plugin_id, group_id, position) '
           'SELECT plugin_id, ?, '
@@ -458,6 +496,35 @@ class PluginSystemDatabase {
       case _PluginGroupOperation.restore:
         _restorePluginGroups(db, mutation);
     }
+  }
+
+  /// חבר חדש מצטרף בסוף התיקייה, בלי למשוך את יעד ההפלה למיקום המקור.
+  /// סוף הסדר הגלובלי מתאים גם לתיקייה שכל חבריה מוסתרים כרגע.
+  static void _appendPluginsToUserOrder(
+    Database db,
+    Iterable<String> pluginIds,
+  ) {
+    final moved = pluginIds.toSet();
+    if (moved.isEmpty) return;
+    final plugins =
+        db
+            .select('SELECT * FROM plugin_installation')
+            .toMapList()
+            .map(InstalledPlugin.fromDbMap)
+            .toList()
+          ..sort(InstalledPlugin.compareForDisplay);
+    final current = plugins.map((plugin) => plugin.pluginId).toList();
+    moved.retainAll(current);
+    if (moved.isEmpty) return;
+    final reordered = [
+      ...current.where((id) => !moved.contains(id)),
+      ...moved,
+    ];
+    if (listEquals(current, reordered)) return;
+    applyUserOrderUpdates(db, {
+      for (var index = 0; index < reordered.length; index++)
+        reordered[index]: index,
+    });
   }
 
   static void _restorePluginGroups(Database db, _PluginGroupWrite mutation) {
@@ -788,14 +855,19 @@ class PluginSystemDatabase {
   /// שומר סדר מותאם אישית של תוספים.
   ///
   /// המפתחות הם plugin_id והערכים הם מספרי סדר (קטן יותר = מוקדם יותר).
-  /// העדכון מתבצע ב-transaction כדי לשמור על עקביות.
+  /// העדכון עובר בתור הכתיבה עם פעולות הקיבוץ, בטרנזקציה ב-isolate.
   ///
   /// אין עדכון של `updated_at`: סדר התצוגה אינו מאפיין של ההתקנה, ועדכון כזה
   /// בונה מחדש את דף התוסף עם ה-WebView בזמן dispose ב-Windows.
   Future<void> updatePluginsUserOrder(Map<String, int> ordering) async {
     if (ordering.isEmpty) return;
-    final db = await database;
-    applyUserOrderUpdates(db, ordering);
+    await _enqueueTransaction([
+      for (final entry in ordering.entries)
+        (
+          'UPDATE plugin_installation SET user_order = ? WHERE plugin_id = ?',
+          [entry.value, entry.key],
+        ),
+    ]);
   }
 
   /// הלוגיקה הטהורה של [updatePluginsUserOrder] על Database נתון.

@@ -140,16 +140,10 @@ void main() {
 
   testWidgets('Enter on cancel follows the cancel action', (tester) async {
     await _openEditor(tester);
-    final cancel = find.ancestor(
-      of: find.text('ביטול'),
-      matching: find.byType(ActionButton),
-    );
-    final button = find.descendant(
-      of: cancel,
-      matching: find.byType(FilledButton),
-    );
-    Focus.of(tester.element(button)).requestFocus();
+    final cancelFocus = Focus.of(tester.element(find.text('ביטול')));
+    cancelFocus.requestFocus();
     await tester.pump();
+    expect(cancelFocus.hasPrimaryFocus, isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(find.byType(PluginGroupEditor), findsNothing);
@@ -174,7 +168,7 @@ void main() {
     await tester.enterText(_search, 'כתיבה');
     await tester.pump();
     expect(find.text('חזרות'), findsNothing);
-    await tester.tap(find.text('כתיבה'));
+    await tester.tap(find.byKey(const ValueKey('group-member-b')));
     await tester.tap(find.text('שמור'));
     await tester.pump();
     expect(savedName, 'לימוד');
@@ -266,9 +260,10 @@ void main() {
         await _openEditor(
           tester,
           theme: dark
-              ? AppThemeData.dark(scheme)
+              ? AppThemeData.dark(scheme, compactMenuMode: false)
               : AppThemeData.light(
                   scheme,
+                  compactMenuMode: false,
                   variant: white
                       ? AppThemeVariant.white
                       : AppThemeVariant.standard,

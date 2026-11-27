@@ -73,7 +73,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   bool _groupsRequested = false;
   bool _groupsLoaded = false;
   int _groupReadGeneration = 0;
-  List<PluginGroup> _groups = const [];
+  PluginGroupsSnapshot? _groupSnapshot;
 
   /// החתימה מונעת קומפילציה ושאילתות חוזרות כשהמניפסט וההרשאות לא השתנו.
   String? _lastDeclarativeSyncSignature;
@@ -418,17 +418,17 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
 
   PluginSystemLoaded _loadedWithGroups(List<InstalledPlugin> plugins) =>
       PluginSystemLoaded(
-        plugins,
-        groups: _groups,
+        _groupSnapshot?.applyOrderTo(plugins) ?? plugins,
+        groups: _groupSnapshot?.groups ?? const [],
         groupsLoaded: _groupsLoaded,
       );
 
   Future<bool> _refreshPluginGroups() async {
     final generation = ++_groupReadGeneration;
     try {
-      final groups = await repository.getPluginGroups();
+      final snapshot = await repository.getPluginGroupsSnapshot();
       if (generation == _groupReadGeneration) {
-        _groups = List.unmodifiable(groups);
+        _groupSnapshot = snapshot;
         _groupsLoaded = true;
       }
       return true;
@@ -450,7 +450,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     try {
       // קריאה שכבר רצה אינה רשאית להחזיר snapshot ישן אחרי שמירה חדשה.
       if (event is! LoadPluginGroups) _groupReadGeneration++;
-      List<PluginGroup>? saved;
+      PluginGroupsSnapshot? saved;
       switch (event) {
         case LoadPluginGroups():
           await _refreshPluginGroups();
@@ -478,7 +478,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       }
       if (saved != null) {
         _groupReadGeneration++;
-        _groups = List.unmodifiable(saved);
+        _groupSnapshot = saved;
         _groupsLoaded = true;
       }
       if (state case PluginSystemLoaded(:final plugins)) {

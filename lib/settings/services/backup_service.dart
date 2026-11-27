@@ -206,8 +206,9 @@ class BackupService {
           ];
         } catch (error) {
           _logger.warning('Skipping plugin groups backup: $error');
-          if (!skippedSections.contains('plugins'))
+          if (!skippedSections.contains('plugins')) {
             skippedSections.add('plugins');
+          }
         }
       }
 
@@ -1120,8 +1121,9 @@ class BackupService {
           );
         } catch (error) {
           _logger.warning('Failed to restore plugin groups: $error');
-          if (!runtimeSkipped.contains('plugins'))
+          if (!runtimeSkipped.contains('plugins')) {
             runtimeSkipped.add('plugins');
+          }
         }
       }
     }
