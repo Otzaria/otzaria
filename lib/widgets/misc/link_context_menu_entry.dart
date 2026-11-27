@@ -24,6 +24,7 @@ import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 /// פרופיל המפרשים מהמדיניות הגלובלית, עם עקיפת הדגלים הישנים כשסופקו.
 ///
@@ -93,7 +94,7 @@ double previewFontSize(SettingsState settingsState, double? maxFontSize) =>
     ? settingsState.commentatorsFontSize
     : math.min(settingsState.commentatorsFontSize, maxFontSize);
 
-/// גודל הכותרת (שם הספר והמקום) בחלונית הקומפקטית: ×0.85 מגודל התוכן, כמו
+/// גודל הכותרת (שם הספר והמקום) בחלונית, גם בתפריט: ×0.85 מגודל התוכן, כמו
 /// כותרת מפרש (DESIGN_SYSTEM §2.4.2), כך שהיא גדלה עם גודל הקריאה. התקרה 14
 /// (titleSmall, כותרת כרטיס) כדי שהכותרת לא תתחרה בתוכן בגדלים גדולים, והרצפה
 /// 11 (labelSmall, הגודל הקודם) כדי שלא תקטן ממנו.
@@ -296,21 +297,26 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                 style: profile.holyNameStyle,
               );
             }
-            final titleText = Text(
-              title,
-              maxLines: compact ? 1 : null,
-              overflow: compact ? TextOverflow.ellipsis : null,
-              style: TextStyle(
-                fontSize: compact
-                    ? compactPreviewTitleFontSize(fontSize)
-                    : fontSize - 2,
-                fontWeight: FontWeight.bold,
-                fontFamily: AppFonts.renderFontFamily(
-                  settingsState.commentatorsFontFamily,
-                ),
-                color: colorScheme.primary,
+            final titleStyle = TextStyle(
+              fontSize: compactPreviewTitleFontSize(fontSize),
+              fontWeight: FontWeight.bold,
+              fontFamily: AppFonts.renderFontFamily(
+                settingsState.commentatorsFontFamily,
               ),
+              color: colorScheme.primary,
             );
+            final titleText = compact
+                ? Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
+                  )
+                : OverflowTooltipText(
+                    text: title,
+                    maxLines: 2,
+                    style: titleStyle,
+                  );
             if (onOpen == null) return titleText;
             return InkWell(
               onTap: onOpen,
