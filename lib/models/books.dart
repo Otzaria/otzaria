@@ -27,6 +27,14 @@ abstract class Book {
   /// The author of the book, if available.
   String? author;
 
+  /// שמות המחברים מהקטלוג, או [author] כשם יחיד כשאין רשימה.
+  /// [author] משמש לתצוגה ועשוי להכיל פסיק גם בשם של אדם אחד.
+  List<String> get authors =>
+      _authorNames ??
+      [if (author?.trim() case final name? when name.isNotEmpty) name];
+
+  final List<String>? _authorNames;
+
   /// Categories in Hebrew
   String? heCategories;
 
@@ -164,6 +172,7 @@ abstract class Book {
     this.extraTitles,
     this.source = BookSource.official,
     this.externalLibraryId,
+    this._authorNames,
   });
 
   /// סיומת המקור במפתחות זהות: ספר רשמי וספר אישי עם אותו id אינם אותו ספר.
@@ -187,6 +196,7 @@ class TextBook extends Book {
     required super.title,
     super.category,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -283,6 +293,7 @@ class TextBook extends Book {
       title: title ?? this.title,
       category: category,
       author: author ?? this.author,
+      authorNames: author == null ? _authorNames : null,
       heCategories: heCategories ?? this.heCategories,
       heEra: heEra ?? this.heEra,
       compDateStringHe: compDateStringHe,
@@ -443,6 +454,7 @@ abstract class FileBook extends Book {
     super.category,
     super.topics,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -473,6 +485,7 @@ class PdfBook extends FileBook {
     required super.path,
     super.topics,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -528,6 +541,7 @@ abstract class ConvertibleDocumentBook extends FileBook {
     required super.path,
     super.topics,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -595,6 +609,7 @@ class DocxBook extends ConvertibleDocumentBook {
     required super.path,
     super.topics,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -662,6 +677,7 @@ class EpubBook extends ConvertibleDocumentBook {
     required super.path,
     super.topics,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -720,6 +736,7 @@ class DocumentBook extends ConvertibleDocumentBook {
     required super.path,
     super.topics,
     super.author,
+    super.authorNames,
     super.heCategories,
     super.heEra,
     super.compDateStringHe,
@@ -830,6 +847,7 @@ Book buildBookForFileType({
   required String path,
   String? filePath,
   String? author,
+  List<String>? authorNames,
   String? heCategories,
   String? heEra,
   String? heShortDesc,
@@ -866,6 +884,7 @@ Book buildBookForFileType({
       title: title,
       category: category,
       author: author,
+      authorNames: authorNames,
       heCategories: heCategories,
       heEra: heEra,
       heShortDesc: heShortDesc,
@@ -891,6 +910,7 @@ Book buildBookForFileType({
     path: path,
     filePath: filePath,
     author: author,
+    authorNames: authorNames,
     heCategories: heCategories,
     heEra: heEra,
     heShortDesc: heShortDesc,

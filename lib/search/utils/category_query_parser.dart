@@ -8,7 +8,9 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 
-/// תוצאת פענוח שאילתה עם תחביר צמצום: `מונח@שם`, כאשר השם הוא קטגוריה או ספר.
+typedef _ScopeMatches = ({List<String> titles, List<String> authors});
+
+/// תוצאת פענוח שאילתה עם תחביר צמצום: `מונח@שם` לקטגוריה, ספר או מחבר.
 ///
 /// ניתן לציין כמה שמות ברצף, כל אחד לאחר `@` משלו:
 /// `ערבך ערבא@רמב"ן@רש"י` → מחפש את המילים רק ברש"י וברמב"ן.
@@ -22,19 +24,44 @@ class ParsedCategoryQuery {
   /// השמות כפי שהוקלדו (אחרי כל @), או רשימה ריקה אם לא הופיע `@` בשאילתה.
   final List<String> categoryNames;
 
-  /// נתיבי ה-facet של כל הקטגוריות והספרים שכותרתם תואמת לאחד השמות (בכל עומק).
+  /// נתיבי ה-facet של הקטגוריות והספרים שהותאמו לאחד השמות (בכל עומק).
   /// null כאשר אין תחביר `@` בשאילתה.
   final List<String>? facets;
 
   /// השמות שהוקלדו אך לא נמצאה להם התאמה בספרייה.
   final List<String> notFoundNames;
+  final List<_ScopeMatches> _matchesByName;
 
   const ParsedCategoryQuery({
     required this.query,
     this.categoryNames = const [],
     this.facets,
     this.notFoundNames = const [],
+  }) : _matchesByName = const [];
+
+  const ParsedCategoryQuery._({
+    required this.query,
+    required this.categoryNames,
+    required this.facets,
+    required this.notFoundNames,
+    required this._matchesByName,
   });
+
+  /// משמיט התאמות מחבר שאינן נתמכות. אם רכיב `@` שלם נשמט,
+  /// מחזיר את הבחירה המקורית כדי שבדיקת הכיסוי תדחה את החיפוש.
+  List<String> facetsWithSupportedAuthors(bool Function(String) isSupported) {
+    final original = facets ?? const <String>[];
+    if (_matchesByName.every((match) => match.authors.isEmpty)) return original;
+    final filtered = <String>[];
+    for (final match in _matchesByName) {
+      final previousLength = filtered.length;
+      filtered
+        ..addAll(match.titles)
+        ..addAll(match.authors.where(isSupported));
+      if (filtered.length == previousLength) return original;
+    }
+    return filtered;
+  }
 
   /// האם הופיע תחביר `@שם` (עם שם אחד לפחות) בשאילתה.
   bool get hasCategoryToken => categoryNames.isNotEmpty;
@@ -56,6 +83,8 @@ String categoryQueryPart(String rawQuery) {
 /// והספרים שכותרתם תואמת לאחד השמות שאחרי ה-@ — בכל עומק בעץ הספרייה. אם יש
 /// כמה התאמות לאותו שם, כולן נכללות. ההתאמה אינה דורשת שם מדויק — ראה
 /// [_CategoryQueryResolver._facetsForName] לשכבות ההתאמה (כינויים, הכלה ושגיאות כתיב).
+/// שם ללא נתיב כולל גם מחבר מדויק או תחילית חד-משמעית בגבולות מילים, אלא
+/// אם נמצאה כותרת ספר או קטגוריה מדויקת.
 ///
 /// - אם אין `@` בשאילתה: [ParsedCategoryQuery.facets] יהיה null והשאילתה
 ///   תוחזר כמות שהיא.
@@ -83,20 +112,25 @@ ParsedCategoryQuery parseCategoryQuery(String rawQuery, Library? library) {
   final resolver = _CategoryQueryResolver(library);
   final facets = <String>[];
   final notFoundNames = <String>[];
+  final matchesByName = <_ScopeMatches>[];
   for (final name in names) {
     final matches = resolver.facetsForPath(name);
-    if (matches.isEmpty) {
+    if (matches.titles.isEmpty && matches.authors.isEmpty) {
       notFoundNames.add(name);
     } else {
-      facets.addAll(matches);
+      matchesByName.add(matches);
+      facets
+        ..addAll(matches.titles)
+        ..addAll(matches.authors);
     }
   }
 
-  return ParsedCategoryQuery(
+  return ParsedCategoryQuery._(
     query: queryPart,
     categoryNames: names,
     facets: facets,
     notFoundNames: notFoundNames,
+    matchesByName: matchesByName,
   );
 }
 
@@ -111,37 +145,47 @@ class _CategoryQueryResolver {
   late final categories =
       library?.getAllCategories().map(_CategoryCandidate.new).toList() ??
       <_CategoryCandidate>[];
+  final _normalizedAuthors = <String, String>{};
 
   /// נתיבי ה-facet עבור [name], שיכול להיות נתיב `שם/שם...`: כל חלק מותאם רק
   /// מתחת להתאמות החלק שלפניו. אם הסדר שהוקלד לא מניב דבר — מנסים בסדר ההפוך.
-  List<String> facetsForPath(String name) {
+  _ScopeMatches facetsForPath(String name) {
     final segments = name
         .split('/')
         .map((segment) => segment.trim())
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
 
+    if (segments.length == 1 && !name.contains('/')) {
+      return _facetsForName(segments.single, matchAuthor: true);
+    }
+
     List<String> resolve(Iterable<String> ordered) {
       List<String>? scopes;
       for (final segment in ordered) {
-        scopes = _facetsForName(segment, within: scopes);
+        scopes = _facetsForName(segment, within: scopes).titles;
         if (scopes.isEmpty) break;
       }
       return scopes ?? const [];
     }
 
     final matches = resolve(segments);
-    return matches.isNotEmpty || segments.length < 2
+    final titles = matches.isNotEmpty || segments.length < 2
         ? matches
         : resolve(segments.reversed);
+    return (titles: titles, authors: const []);
   }
 
   /// ההתאמות הטובות ביותר ל-[name], מוגבלות לצאצאי [within] אם ניתן.
   /// השכבות הן כותרת מדויקת, מילים שלמות, הכלה חלקית ולבסוף שגיאות כתיב.
-  List<String> _facetsForName(String name, {List<String>? within}) {
+  _ScopeMatches _facetsForName(
+    String name, {
+    List<String>? within,
+    bool matchAuthor = false,
+  }) {
     final normalizedName = normalizeFindText(name);
     if (library == null || normalizedName.isEmpty) {
-      return const [];
+      return (titles: const [], authors: const []);
     }
 
     final scopes = within
@@ -170,7 +214,7 @@ class _CategoryQueryResolver {
           exact.add(category.facet);
         }
       }
-      return exact;
+      return (titles: exact, authors: const []);
     }
 
     final tiers = [<String>[], <String>[]];
@@ -194,12 +238,30 @@ class _CategoryQueryResolver {
         ? null
         : List<String?>.filled(books.length, null);
     final categoryTitles = List<String?>.filled(categories.length, null);
+    final authorFacets = <String, Set<String>>{};
+    final authorPrefix = '$normalizedName ';
+    final allowAuthorPrefix = normalizedName.contains(' ');
+    final includeAuthors =
+        matchAuthor &&
+        !categories.any((category) => category.title == normalizedName);
     for (var i = 0; i < books.length; i++) {
       final book = books[i];
       String? facet;
       if (within != null) {
         facet = book.facet;
         if (!inScope(facet)) continue;
+      }
+      if (includeAuthors) {
+        for (final rawAuthor in book.book.authors) {
+          final author = _normalizedAuthors.putIfAbsent(
+            rawAuthor,
+            () => normalizeFindText(rawAuthor),
+          );
+          if (author == normalizedName ||
+              (allowAuthorPrefix && author.startsWith(authorPrefix))) {
+            (authorFacets[author] ??= {}).add(facet ?? book.facet);
+          }
+        }
       }
       final title = book.title;
       final tier = literalTierOf(title, book.acronyms);
@@ -224,9 +286,21 @@ class _CategoryQueryResolver {
       }
     }
 
+    final exactAuthor = authorFacets[normalizedName];
+    final matchedAuthor =
+        exactAuthor ??
+        (authorFacets.length == 1 ? authorFacets.values.single : null);
+    _ScopeMatches withAuthor(List<String> titles) => (
+      titles: titles,
+      authors: matchedAuthor == null
+          ? const []
+          : matchedAuthor.difference(titles.toSet()).toList(),
+    );
+
     for (final tier in tiers) {
-      if (tier.isNotEmpty) return tier;
+      if (tier.isNotEmpty) return withAuthor(tier);
     }
+    if (exactAuthor != null) return withAuthor(const []);
 
     // שומרים את הנרמול והתחום מהמעבר הראשון, בלי לחשב אותם שוב ב-fallback.
     final nameWords = normalizedName.split(' ');
@@ -259,7 +333,7 @@ class _CategoryQueryResolver {
         fuzzyMatches.add(categories[i].facet);
       }
     }
-    return fuzzyMatches;
+    return withAuthor(fuzzyMatches);
   }
 }
 

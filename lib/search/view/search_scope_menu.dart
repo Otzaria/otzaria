@@ -12,6 +12,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -25,6 +26,7 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -204,7 +206,16 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     // בלחיצה מחוץ לתפריט או ב-Escape.
     if (_fieldFocus.hasFocus && _library != null && !_portal.isShowing) {
       _portal.show();
+      unawaited(_refreshAliases());
     }
+  }
+
+  Future<void> _refreshAliases() async {
+    if (!Settings.isInitialized) return;
+    final cache = AcronymsCache.instance;
+    final revision = cache.revision;
+    await Future.wait([cache.warmUp(), cache.warmUpAttached()]);
+    if (mounted && revision != cache.revision) setState(() {});
   }
 
   void _close() {
@@ -738,7 +749,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       event.kind != PointerDeviceKind.trackpad;
 
   // חיצים, סימון ותוצאות המחברים בונים את התפריט מחדש עם אותה שאילתה.
-  ({ScopeTree tree, String query, List<ScopeSearchResultItem> results})?
+  ({
+    ScopeTree tree,
+    String query,
+    int aliasRevision,
+    List<ScopeSearchResultItem> results,
+  })?
   _treeSearch;
 
   List<String> _authorResults = const [];
@@ -1149,14 +1165,17 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   List<_MenuItem> _searchItems() {
     final tree = widget.tree!;
     final query = _normalizedQuery;
+    final aliasRevision = AcronymsCache.instance.revision;
     final categoryPart = _categoryPart;
     var search = _treeSearch;
     if (search == null ||
         !identical(search.tree, tree) ||
-        search.query != query) {
+        search.query != query ||
+        search.aliasRevision != aliasRevision) {
       search = _treeSearch = (
         tree: tree,
         query: query,
+        aliasRevision: aliasRevision,
         results: tree.search(query),
       );
     }

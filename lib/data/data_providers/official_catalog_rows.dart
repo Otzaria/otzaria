@@ -10,7 +10,7 @@ import 'package:otzaria/migration/database/untrusted_database.dart';
 typedef CatalogRows = ({
   List<Map<String, dynamic>> books,
   List<Map<String, dynamic>> categories,
-  Map<int, String> authors,
+  Map<int, List<String>> authors,
 });
 
 /// שורות הקטלוג של seforim.db: בניית הקטלוג ו-`BooksCache` מצטרפים לאותה

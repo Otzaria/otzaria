@@ -862,7 +862,7 @@ void main() {
     expect(tab.options.facets, ['/הלכה']);
   });
   group('תחביר @ שומר על ההיקף המפורש', () {
-    Library scopeLibrary() {
+    Library scopeLibrary({String? author}) {
       Category category(String title, List<Book> books) {
         final result = Category(
           title: title,
@@ -879,7 +879,12 @@ void main() {
       return Library(
         categories: [
           category('הלכה', [
-            TextBook(id: 1, title: 'ספר רשמי', categoryPath: '/הלכה'),
+            TextBook(
+              id: 1,
+              title: 'ספר רשמי',
+              author: author,
+              categoryPath: '/הלכה',
+            ),
             TextBook(id: 5, title: 'שם משותף', categoryPath: '/הלכה'),
             TextBook(
               id: 6,
@@ -890,6 +895,7 @@ void main() {
             TextBook(
               id: 2,
               title: 'מחברת פרטית',
+              author: author,
               categoryPath: '/הלכה',
               source: BookSource.user,
             ),
@@ -917,6 +923,43 @@ void main() {
 
     const unsupportedMessage =
         'הצמצום המבוקש אינו נתמך במלואו בחיפוש החכם. בחרו צמצום אחר או עברו לחיפוש רגיל.';
+
+    for (final (query, coverage, expected) in [
+      ('חסד@נפתלי צבי', {'id:1'}, ['/הלכה/id:1']),
+      ('חסד@מחברת פרטית@נפתלי צבי', {'id:1'}, <String>[]),
+      ('חסד@נפתלי צבי@בראשית', {'id:7'}, <String>[]),
+    ]) {
+      testWidgets('בחירת מחבר בחיפוש חכם בלבד: $query', (tester) async {
+        final harness = await pumpDialog(
+          tester,
+          _availability(SemanticAvailabilityPhase.ready),
+          library: scopeLibrary(author: 'נפתלי צבי'),
+          showMessages: true,
+        );
+        harness.repository.coveredFilePaths = coverage;
+        await tester.tap(_semanticSegment);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('semantic-include-lexical')),
+        );
+        await tester.enterText(_queryField, query);
+        await tester.tap(find.byKey(const ValueKey('search-dialog-submit')));
+        await tester.pumpAndSettle();
+
+        if (expected.isEmpty) {
+          expect(harness.addedEvents, isEmpty);
+          expect(find.text(unsupportedMessage), findsOneWidget);
+          UiSnack.hide();
+          await tester.pump();
+        } else {
+          final tab =
+              harness.addedEvents.whereType<AddTab>().single.tab
+                  as SemanticSearchTab;
+          addTearDown(tab.dispose);
+          expect(tab.options.facets, expected);
+        }
+      });
+    }
 
     testWidgets('סינון ספרים פתוח מתעדכן בלי לאבד הקלדה כשהכיסוי מגיע', (
       tester,
