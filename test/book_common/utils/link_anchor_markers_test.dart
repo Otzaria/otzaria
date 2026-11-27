@@ -329,12 +329,12 @@ void main() {
       }
     });
 
-    test('כל שלושת סוגי הסוגריים נפלטים בפועל', () {
+    test('כל סוגי הסוגריים נפלטים בפועל', () {
       final emitted = <String>{};
       for (var index = 0; index < kLinkAnchorVariants.length; index++) {
         emitted.add(kLinkAnchorVariants[index].delimiter.wrap('א'));
       }
-      expect(emitted, containsAll(const ['(א)', '[א]', '{א}']));
+      expect(emitted, containsAll(const ['(א)', '[א]', '{א}', '/א/']));
     });
 
     test('עוגן-טווח עם lineIndex נפלט כ-<a> עם range=1 (לחיצה מנווטת)', () {
