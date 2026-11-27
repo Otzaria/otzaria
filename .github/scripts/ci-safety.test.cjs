@@ -131,6 +131,51 @@ ${mergeScript}`, { BOT_SLUG: 'otzaria-bot' });
   assert.equal(merge[merge.indexOf('--match-head-commit') + 1], 'rebased-head');
 });
 
+test('a rejected rebase push logs scoped diagnostics and never merges', t => {
+  const s = fixture(t, { behind: 791, pr: { state: 'open', draft: false, labels: [{ name: 'automerge' }, { name: 'run-ci' }],
+    head: { sha: 'pr-head', ref: 'feature', repo: { full_name: 'contributor/otzaria' } },
+    base: { ref: 'dev' }, maintainer_can_modify: true } });
+  const output = s.execute(`git() {
+  case "$1" in
+    clone) mkdir -p "\${@: -1}" ;;
+    rebase) touch "$RUNNER_TEMP/rebased" ;;
+    rev-parse)
+      if [ "$2" = FETCH_HEAD ]; then echo dev-head
+      elif [ -f "$RUNNER_TEMP/rebased" ]; then echo rebased-head
+      else echo pr-head; fi ;;
+    push)
+      echo "$*" > "$RUNNER_TEMP/push-args"
+      [ "$GIT_TRACE_CURL_NO_DATA" = 1 ] && [ "$GIT_TRACE_REDACT" = 1 ] || return 99printf '%s\\n' '<= Recv header: HTTP/2 200' '<= Recv header: x-github-request-id: ABCD:1234' \
+        '=> Send header: Authorization: secret-sentinel' '<= Recv header: Set-Cookie: secret-cookie' > "$GIT_TRACE_CURL"
+      return 1 ;;
+    rev-list) echo 792 ;;
+    diff) printf 'M\\t.github/workflows/automerge.yml\\n' ;;
+  esac
+}
+gh() {
+  if [ "$1" = api ] && [ "$2" = -X ] && [ "$3" = DELETE ]; then
+    touch "$RUNNER_TEMP/label-removed"
+    return 0
+  fi
+  command gh "$@"
+}
+timeout() {
+  if [ "$2" = gh ] && [ "$3" = api ]; then echo Otzaria/otzaria; else return 1; fi
+}
+${mergeScript}`, { BOT_SLUG: 'otzaria-bot', GITHUB_RUN_ID: '123456' });
+  assert.match(output, /Push failed: exit=1 elapsed=\d+s target=contributor\/otzaria ref=feature/);
+  assert.match(output, /GitHub request ID: ABCD:1234/);
+  assert.match(output, /HTTP status: HTTP\/2 200/);
+  assert.match(output, /Workflow file changes from old head to rebased head:/);
+  assert.match(output, /Target repo is not listed in the installation token's accessible repositories/);
+  assert.doesNotMatch(output, /secret-sentinel|secret-cookie|Authorization:|Set-Cookie:/);
+  assert.equal(existsSync(path.join(s.dir, 'automerge-push.trace')), false);
+  assert.equal(readFileSync(path.join(s.dir, 'push-args'), 'utf8').trim(), 'push -q --force-with-lease=feature:pr-head origin HEAD:feature');
+  assert.equal(existsSync(path.join(s.dir, 'label-removed')), true);
+  assert.match(readFileSync(path.join(s.dir, 'comment.md'), 'utf8'), /actions\/runs\/123456/);
+  assert.equal(s.merged(), false);
+});
+
 test('the CI gate discards output from a failed labels request', t => {
   const s = fixture(t);
   const output = path.join(s.dir, 'output');
