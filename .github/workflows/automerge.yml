@@ -218,9 +218,46 @@ jobs:
               git rebase --abort
               give_up "יש קונפליקט מול \`$base\`, ולכן הריבייס האוטומטי נכשל."
             fi
-            git push -q --force-with-lease="$head_ref:$head" origin "HEAD:$head_ref" \
-              || give_up "הדחיפה אחרי הריבייס נכשלה."
-            head=$(git rev-parse HEAD)
+            rebased_head=$(git rev-parse HEAD)
+            printf 'Rebase result: old=%s new=%s checked-base=%s\n' "$head" "$rebased_head" "$base_head"
+            push_started=$SECONDS
+            # Keep HTTP tracing local; only selected response headers are logged on failure.
+            push_trace="$RUNNER_TEMP/automerge-push.trace"
+            if GIT_TRACE_CURL="$push_trace" GIT_TRACE_CURL_NO_DATA=1 GIT_TRACE_REDACT=1 \
+                git push -q --force-with-lease="$head_ref:$head" origin "HEAD:$head_ref"; then
+              rm -f "$push_trace" || true
+            else
+              push_status=$?
+              printf 'Push failed: exit=%s elapsed=%ss target=%s ref=%s\n' "$push_status" "$((SECONDS - push_started))" "$head_repo" "$head_ref"
+              if [ -s "$push_trace" ]; then
+                awk '/<= Recv header: HTTP\// {
+                       if (match($0, /HTTP\/[0-9.]+ [0-9][0-9][0-9]/))
+                         print "HTTP status: " substr($0, RSTART, RLENGTH)
+                     }
+                     tolower($0) ~ /<= recv header: x-github-request-id: / {
+                       if ($NF ~ /^[[:xdigit:]:-]+$/) print "GitHub request ID: " $NF
+                     }' "$push_trace" || true
+              fi
+              rm -f "$push_trace" || true
+              echo "Fetched base: $(git rev-parse FETCH_HEAD || echo unavailable)"
+              echo "Commits added to the old head: $(git rev-list --count "$head..$rebased_head" || echo unavailable)"
+              echo "Workflow file changes from old head to rebased head:"
+              git diff --no-ext-diff --no-textconv --name-status "$head" "$rebased_head" -- .github/workflows/ || echo "Workflow diff unavailable"
+              echo "Workflow file changes relative to fetched base:"
+              git diff --no-ext-diff --no-textconv --name-status FETCH_HEAD "$rebased_head" -- .github/workflows/ || echo "Workflow diff unavailable"
+              echo "maintainer_can_modify: $(jq -r .maintainer_can_modify <<< "$pr")"
+              if installation_repos=$(timeout 15s gh api --paginate 'installation/repositories?per_page=100' --jq '.repositories[].full_name' 2>/dev/null); then
+                if grep -Fxq -- "$head_repo" <<< "$installation_repos"; then
+                  echo "Target repo is listed in the installation token's accessible repositories"
+                else
+                  echo "Target repo is not listed in the installation token's accessible repositories"
+                fi
+              else
+                echo "Installation token repository scope unavailable"
+              fi
+              give_up "הדחיפה אחרי הריבייס נכשלה (קוד יציאה $push_status). [לוג האבחון](https://github.com/$R/actions/runs/$GITHUB_RUN_ID)."
+            fi
+            head=$rebased_head
             echo "Rebased and pushed $head; merging without waiting for CI"
           fi
 
