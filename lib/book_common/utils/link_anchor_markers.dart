@@ -35,14 +35,43 @@ String? anchorMarkerText(Link link) {
   return wrapLinkAnchorLetter(letter, _stableStyleIndex(link.path2));
 }
 
+const _beerHagolah = 'באר הגולה על שולחן ערוך אורח חיים';
+
+/// כותרת מעוגנת המבחינה בבאר הגולה בין הציון המודפס למספר הרשומה (#1979).
+String anchoredLinkTitle(Link link, String marker, String reference) {
+  if (link.path2 == _beerHagolah &&
+      link.targetSource.isOfficial &&
+      link.index2End == null &&
+      link.heRefEnd == null &&
+      LinkTypes.normalize(link.connectionType) == LinkTypes.commentary) {
+    final parts = link.heRef.split(',').map((part) => part.trim()).toList();
+    final printed = _ordinal(link.anchorLabel ?? '');
+    if (parts.length == 3 && parts.first == _beerHagolah && printed != null) {
+      final ordinal = _ordinal(parts.last);
+      final location = '${parts[1]}, ${parts[2]}';
+      // אות מודפסת יכולה לחזור בתוך אותו סימן; מספר הרשומה מבדיל בין היעדים.
+      if (ordinal != null &&
+          printed != ordinal &&
+          (reference == '$_beerHagolah, $location' || reference == location)) {
+        final cut = reference.lastIndexOf(', ');
+        return '$marker ${reference.substring(0, cut)}, רשומה ${parts.last}';
+      }
+    }
+  }
+  return '$marker $reference';
+}
+
+/// מספר בגימטריה בלי גרשיים, או null כשהטקסט אינו מספר כזה.
+String? _ordinal(String text) {
+  final letters = text.trim().replaceAll(RegExp(r'["׳״]'), '');
+  return RegExp(r'^[א-ת]{1,4}$').hasMatch(letters) ? letters : null;
+}
+
 String? _letterFor(Link link, String? storedLabel) {
   final label = storedLabel?.trim();
   if (label != null && label.isNotEmpty) return _textPresentation(label);
   final tail = link.heRef.split(',').last.trim();
-  final letters = tail.replaceAll(RegExp(r'["׳״]'), '');
-  if (letters.isEmpty || letters.length > 4) return null;
-  if (!RegExp(r'^[א-ת]+$').hasMatch(letters)) return null;
-  return tail;
+  return _ordinal(tail) == null ? null : tail;
 }
 
 /// ♦ (U+2666) נתפס ע"י גופן האימוג'י ומוצג כיהלום אדום גדול (issue #1106);
