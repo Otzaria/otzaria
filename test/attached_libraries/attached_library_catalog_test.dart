@@ -307,6 +307,72 @@ void main() {
     }
   });
 
+  test(
+    'מדפים רשמיים מסומנים בבניית העץ, גם אחרי מיזוג והסתרה (issue #2691)',
+    () async {
+      final separate = await attach(
+        attachedFixture('נפרד', SeforimFixtureVariant.full),
+      );
+
+      var catalog = await buildCatalog();
+
+      final officialTanach = _child(catalog, 'תנ"ך')!;
+      expect(officialTanach.isOfficial, isTrue);
+      expect(_child(officialTanach, 'תורה')!.isOfficial, isTrue);
+      final personal = _child(catalog, _personalRoot)!;
+      expect(personal.isOfficial, isFalse);
+      final attachedRoot = _child(personal, separate.displayName)!;
+      expect(
+        [attachedRoot, ...attachedRoot.getAllCategories()].where(
+          (c) => c.isOfficial,
+        ),
+        isEmpty,
+      );
+
+      // תיקייה שמשותפת לספרייה הרשמית ולמסד ממוזג נשארת רשמית.
+      await attached.setPlacement(
+        separate,
+        AttachedLibraryPlacement.mergeIntoLibrary,
+      );
+      catalog = await buildCatalog();
+      final mergedTorah = _child(_child(catalog, 'תנ"ך')!, 'תורה')!;
+      expect(mergedTorah.isOfficial, isTrue);
+
+      // העותק שבלי המוסתרים שומר את הסימון.
+      final filtered = filterHiddenFromLibrary(
+        catalog,
+        HiddenLibrarySelection(
+          bookKeys: {PerBookSettings.bookKey(mergedTorah.books.first)},
+        ),
+      );
+      expect(_child(_child(filtered, 'תנ"ך')!, 'תורה')!.isOfficial, isTrue);
+    },
+  );
+
+  test('מדפים אישיים שנשארו ב-seforim.db אינם רשמיים', () async {
+    final db = sqlite3.sqlite3.open(
+      p.join(libraryPath, DatabaseConstants.databaseFileName),
+    );
+    try {
+      db.execute(
+        'INSERT INTO category (id, parentId, title) VALUES '
+        '(-1, NULL, ?), (-2, -1, ?), (-3, -2, ?)',
+        [_personalRoot, 'משנה', 'מפרשים'],
+      );
+    } finally {
+      db.close();
+    }
+
+    final catalog = await buildCatalog();
+    final personal = _child(catalog, _personalRoot)!;
+    expect(personal.isOfficial, isFalse);
+    expect(personal.getAllCategories().map((c) => c.isOfficial), [
+      false,
+      false,
+    ]);
+    expect(_child(catalog, 'תנ"ך')!.isOfficial, isTrue);
+  });
+
   test('מיזוג: ספרי המסד נכנסים לקטגוריות הספרייה לפי שם', () async {
     final library = await attach(
       attachedFixture('ממוזג', SeforimFixtureVariant.full),

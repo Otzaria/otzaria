@@ -429,5 +429,24 @@ void main() {
       ).toStorageKey();
       expect(await provider.keyToPath, {key: wordPath});
     });
+
+    test(
+      'קטלוג הקבצים אינו מסמן מדפים רשמיים: יש בו רק ספרים אישיים (#2691)',
+      () async {
+        final dir = Directory(
+          path.join(tempDir.path, 'אוצריא', 'אישי', 'משנה'),
+        );
+        await dir.create(recursive: true);
+        await File(path.join(dir.path, 'סיכום.txt')).writeAsString('טקסט');
+
+        final library = await FileSystemLibraryProvider.instance
+            .buildLibraryCatalog({}, tempDir.path);
+
+        final personal = library.subCategories.single;
+        expect(personal.title, 'ספרים אישיים');
+        expect(personal.isOfficial, isFalse);
+        expect(personal.books.single.title, 'סיכום');
+      },
+    );
   });
 }

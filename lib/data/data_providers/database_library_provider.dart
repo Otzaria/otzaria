@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:flutter/foundation.dart'
@@ -71,7 +72,9 @@ import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+
 import 'link_visibility_sql.dart';
+
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
@@ -1912,10 +1915,9 @@ Future<T> _loadOnReadWorker<T>(
   if (target.untrusted) return isolateRun();
   try {
     return await DbReadWorker.request(method, {
-          ...args,
-          'dbPath': target.path,
-        })
-        as T;
+      ...args,
+      'dbPath': target.path,
+    }) as T;
   } on DbReadWorkerUnavailable {
     return DbReadWorker.trackFallbackRead(
       isolateRun,
@@ -2787,6 +2789,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
           books: [],
           parent: category,
           order: orphanOrder,
+          isOfficial: true,
         );
         category.subCategories.add(orphanCategory);
         category.subCategories.sort((a, b) => a.order.compareTo(b.order));
@@ -3888,6 +3891,10 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       subCategories: [],
       books: [],
       parent: parent,
+      // במסד ישן עשוי להישאר עץ הספרים האישיים לצד הקטלוג הרשמי.
+      isOfficial: parent is Library
+          ? dbCategory.title != _kPersonalRootTitle
+          : parent.isOfficial,
     );
 
     // Get books for this category and sort by order
@@ -5281,16 +5288,14 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     final dbPath = _sqliteProvider.dbPath;
     if (!link.targetSource.isOfficial || dbPath.isEmpty) return null;
     try {
-      final result =
-          await DbReadWorker.batched('linkContent', {
-                'dbPath': dbPath,
-                'title': targetTitle,
-                'categoryId': link.targetCategoryId,
-                'index2': link.index2,
-                'index2End': link.index2End,
-                'includeLines': true,
-              })
-              as Map;
+      final result = await DbReadWorker.batched('linkContent', {
+        'dbPath': dbPath,
+        'title': targetTitle,
+        'categoryId': link.targetCategoryId,
+        'index2': link.index2,
+        'index2End': link.index2End,
+        'includeLines': true,
+      }) as Map;
       return (result['lines'] as List?)?.cast<LinkContentLine>();
     } on DbReadWorkerSuspended {
       return [(lineIndex: link.index2 - 1, content: 'שגיאה: מאגר לא מאותחל')];
