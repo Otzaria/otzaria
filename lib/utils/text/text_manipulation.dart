@@ -369,7 +369,7 @@ final RegExp _nonLatin1 = RegExp(r'[\u0100-\uFFFF]');
 
 /// מקף, פסק ו-| הופכים לרווח; ניקוד וטעמים (U+0591–U+05C7) נמחקים.
 /// קלט נקי מוחזר ללא העתקה; ניקוי נעשה על יחידות הקוד בלי מחרוזות ביניים.
-String removeVolwels(String s) {
+String removeVolwels(String s, {List<int>? sourceOffsets}) {
   // ב-Latin1 אין ניקוד עברי; החלפה מובנית חוסכת סריקה והעתקה ב-Dart.
   if (!_nonLatin1.hasMatch(s)) return s.replaceAll('|', ' ');
 
@@ -386,11 +386,14 @@ String removeVolwels(String s) {
   for (var i = 0; i < s.length; i++) {
     final c = s.codeUnitAt(i);
     if (c == 0x05BE || c == 0x05C0 || c == 0x7C) {
+      sourceOffsets?[n] = sourceOffsets[i];
       units[n++] = 0x20;
     } else if (c < 0x0591 || c > 0x05C7) {
+      sourceOffsets?[n] = sourceOffsets[i];
       units[n++] = c;
     }
   }
+  if (sourceOffsets != null) sourceOffsets.length = n;
   return String.fromCharCodes(units, 0, n);
 }
 
@@ -405,7 +408,7 @@ bool _isNikudMark(int c) =>
 
 /// מסיר ניקוד בלבד ומשאיר את הטעמים במקומם: נקודות התנועה, דגש, רפה, נקודות
 /// שי"ן/שי"ן ו-U+05C7. מקף, פסק, מתג וסוף פסוק נשארים — הם שייכים לטעמים.
-String removeNikudOnly(String s) {
+String removeNikudOnly(String s, {List<int>? sourceOffsets}) {
   if (!_nonLatin1.hasMatch(s)) return s;
   var firstChange = 0;
   while (firstChange < s.length && !_isNikudMark(s.codeUnitAt(firstChange))) {
@@ -418,8 +421,10 @@ String removeNikudOnly(String s) {
   for (var i = 0; i < s.length; i++) {
     final c = s.codeUnitAt(i);
     if (_isNikudMark(c)) continue;
+    sourceOffsets?[n] = sourceOffsets[i];
     units[n++] = c;
   }
+  if (sourceOffsets != null) sourceOffsets.length = n;
   return String.fromCharCodes(units, 0, n);
 }
 
@@ -433,16 +438,42 @@ final RegExp _attachedMarks = RegExp(
 /// מסיר ניקוד ו/או טעמים לפי שני הדגלים — הכניסה האחידה של כל המסלולים
 /// (תצוגה, העתקה, ייצוא). שניהם יחד = [removeVolwels], כדי לשמור על
 /// ההתנהגות המוכרת של "הסר הכול".
-String removeMarks(String s, {required bool nikud, required bool teamim}) {
-  if (nikud && teamim) return removeVolwels(s);
-  if (teamim) return removeTeamim(s);
-  if (nikud) return removeNikudOnly(s);
+String removeMarks(
+  String s, {
+  required bool nikud,
+  required bool teamim,
+  List<int>? sourceOffsets,
+}) {
+  if (nikud && teamim) return removeVolwels(s, sourceOffsets: sourceOffsets);
+  if (teamim) return removeTeamim(s, sourceOffsets: sourceOffsets);
+  if (nikud) return removeNikudOnly(s, sourceOffsets: sourceOffsets);
   return s;
 }
 
 final RegExp _htmlBreak = RegExp(r'<br\s*/?>', caseSensitive: false);
 
 final RegExp _carriageReturn = RegExp(r'\r\n?');
+
+String _replaceWithOffsets(
+  String text,
+  Pattern pattern,
+  String replacement,
+  List<int>? sourceOffsets,
+) {
+  if (sourceOffsets == null) return text.replaceAll(pattern, replacement);
+  final previous = sourceOffsets.toList();
+  sourceOffsets.clear();
+  var start = 0;
+  final result = text.replaceAllMapped(pattern, (match) {
+    sourceOffsets
+      ..addAll(previous.getRange(start, match.start))
+      ..addAll(List.filled(replacement.length, previous[match.start]));
+    start = match.end;
+    return replacement;
+  });
+  sourceOffsets.addAll(previous.getRange(start, previous.length));
+  return result;
+}
 
 /// מקום ה-`.` או ה-`:` שאחריהם רק רווחים עד סוף [s] — כמו `[.:](\s*)$`,
 /// אבל נבדק מהסוף במקום לסרוק את כל השורה.
@@ -516,23 +547,40 @@ bool _isSpacingMark(int c) =>
 /// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע; פיסוק שבין שתי מילים הופך לרווח
 /// מסיר " ״ אלא כשזה ראשי תיבות (אות אחת אחרי הגרשיים עד גבול מילה)
 /// מסיר מעבר שורה אם אין . או : בסוף השורה המקורית
-String removePunctuation(String text) {
+String removePunctuation(String text, {List<int>? sourceOffsets}) {
   if (text.isEmpty) return text;
 
   final hadHtmlBreaks = _htmlBreak.hasMatch(text);
   // סריקת RegExp של \r איטית גם כשאין התאמה, ורוב הטקסט בלי \r.
   var normalizedText = text.contains('\r')
-      ? text.replaceAll(_carriageReturn, '\n')
+      ? _replaceWithOffsets(text, _carriageReturn, '\n', sourceOffsets)
       : text;
   if (hadHtmlBreaks) {
-    normalizedText = normalizedText.replaceAll(_htmlBreak, '\n');
+    normalizedText = _replaceWithOffsets(
+      normalizedText,
+      _htmlBreak,
+      '\n',
+      sourceOffsets,
+    );
   }
 
   final lines = normalizedText.split('\n');
   final processedLines = <String>[];
   final originalEndsWithAllowed = <bool>[];
 
+  final processedOffsets = sourceOffsets == null ? null : <List<int>>[];
+  final lineBreaks = sourceOffsets == null ? null : <int>[];
+  var start = 0;
   for (final line in lines) {
+    final lineOffsets = sourceOffsets?.sublist(start, start + line.length);
+    if (lineOffsets != null) {
+      processedOffsets!.add(lineOffsets);
+      start += line.length;
+      lineBreaks!.add(
+        start < sourceOffsets!.length ? sourceOffsets[start] : -1,
+      );
+      start++;
+    }
     if (line.trim().isEmpty) {
       processedLines.add(line);
       originalEndsWithAllowed.add(true);
@@ -549,12 +597,18 @@ String removePunctuation(String text) {
 
     // הגרשיים מוכרעים לפני הסרת הפיסוק — אחרת ב-'רש"י,ובגמ' הפסיק נמחק,
     // ראשי התיבות נדבקים למילה הבאה ונראים כמירכאות ציטוט.
-    String processed = stripNonAcronymQuotes(line);
+    String processed = stripNonAcronymQuotes(line, sourceOffsets: lineOffsets);
 
     final lastAllowedPunctuationIndex = _trailingAllowedPunctuation(processed);
 
     // תגי HTML נשמרים בשלמותם כדי שפיסוק בתוך href לא ישבור קישורים.
     final buffer = StringBuffer();
+    var written = 0;
+    void writeUnit(int ch, int sourceIndex) {
+      buffer.writeCharCode(ch);
+      lineOffsets?[written++] = lineOffsets[sourceIndex];
+    }
+
     var parenDepth = 0;
     var inTag = false;
     var previous = 0; // התו הגלוי האחרון שנכתב
@@ -567,7 +621,7 @@ String removePunctuation(String text) {
       final ch = processed.codeUnitAt(i);
 
       if (inTag) {
-        buffer.writeCharCode(ch);
+        writeUnit(ch, i);
         if (ch == 0x3E) inTag = false; // >
         continue;
       }
@@ -575,7 +629,7 @@ String removePunctuation(String text) {
       if (ch == 0x3C) {
         // <
         inTag = true;
-        buffer.writeCharCode(ch);
+        writeUnit(ch, i);
         continue;
       }
 
@@ -592,6 +646,11 @@ String removePunctuation(String text) {
           }
           previousWasLiteralSpace = false;
           buffer.write(entity.group(0));
+          if (lineOffsets != null) {
+            final length = entity.end - i;
+            lineOffsets.setRange(written, written + length, lineOffsets, i);
+            written += length;
+          }
           i = entity.end - 1;
           continue;
         }
@@ -600,7 +659,7 @@ String removePunctuation(String text) {
       if (ch == 0x28) {
         // (
         parenDepth++;
-        buffer.writeCharCode(ch);
+        writeUnit(ch, i);
         previous = ch;
         previousWasLiteralSpace = false;
         continue;
@@ -611,7 +670,7 @@ String removePunctuation(String text) {
         if (parenDepth > 0) {
           parenDepth--;
         }
-        buffer.writeCharCode(ch);
+        writeUnit(ch, i);
         previous = ch;
         previousWasLiteralSpace = false;
         continue;
@@ -623,7 +682,7 @@ String removePunctuation(String text) {
           (isAllowedAtEnd &&
               lastAllowedPunctuationIndex != null &&
               i >= lastAllowedPunctuationIndex)) {
-        buffer.writeCharCode(ch);
+        writeUnit(ch, i);
         previous = ch;
         previousWasLiteralSpace = false;
         continue;
@@ -634,7 +693,7 @@ String removePunctuation(String text) {
           nextVisible = _nextVisibleUnit(processed, i + 1);
         }
         if (punctuationSeparatesWords(previous, nextVisible.$1)) {
-          buffer.writeCharCode(0x20);
+          writeUnit(0x20, i);
           previous = 0x20;
           previousWasLiteralSpace = true;
         } else if (previousWasLiteralSpace &&
@@ -646,16 +705,25 @@ String removePunctuation(String text) {
         continue;
       }
 
-      buffer.writeCharCode(ch);
+      writeUnit(ch, i);
       previous = ch;
       previousWasLiteralSpace = ch == 0x20;
     }
+    if (lineOffsets != null) lineOffsets.length = written;
     processed = buffer.toString();
 
     processedLines.add(processed);
   }
 
   final finalResult = StringBuffer();
+  sourceOffsets?.clear();
+  void writeBreak(String text, int index) {
+    finalResult.write(text);
+    if (sourceOffsets != null) {
+      sourceOffsets.add(index < 0 ? -1 : lineBreaks![index]);
+    }
+  }
+
   bool lastCharWasNewline = false;
   bool lastCharWasSpace = false;
 
@@ -668,13 +736,14 @@ String removePunctuation(String text) {
 
     if (line.trim().isEmpty) {
       if (finalResult.isNotEmpty) {
-        finalResult.write('\n');
+        writeBreak('\n', i - 1);
         lastCharWasNewline = true;
         lastCharWasSpace = false;
       }
       finalResult.write(line);
+      if (sourceOffsets != null) sourceOffsets.addAll(processedOffsets![i]);
       if (i < processedLines.length - 1) {
-        finalResult.write('\n');
+        writeBreak('\n', i);
         lastCharWasNewline = true;
         lastCharWasSpace = false;
       }
@@ -682,17 +751,18 @@ String removePunctuation(String text) {
     }
 
     if (finalResult.isNotEmpty && !lastCharWasNewline && !lastCharWasSpace) {
-      finalResult.write(' ');
+      writeBreak(' ', i - 1);
       lastCharWasSpace = true;
       lastCharWasNewline = false;
     }
 
     finalResult.write(line);
+    if (sourceOffsets != null) sourceOffsets.addAll(processedOffsets![i]);
     lastCharWasNewline = false;
     lastCharWasSpace = false;
 
     if (shouldKeepNewline && i < processedLines.length - 1) {
-      finalResult.write('\n');
+      writeBreak('\n', i);
       lastCharWasNewline = true;
     }
   }
@@ -701,7 +771,7 @@ String removePunctuation(String text) {
   if (!hadHtmlBreaks) {
     return result;
   }
-  return result.replaceAll('\n', '<br>');
+  return _replaceWithOffsets(result, '\n', '<br>', sourceOffsets);
 }
 
 final RegExp _quoteContextTokens = RegExp(
@@ -749,16 +819,30 @@ const Set<String> _voidHtmlTags = {
 };
 
 /// מסיר מירכאות ציטוט לפי הטקסט הגלוי, תוך שימור תגים וישויות.
-String stripNonAcronymQuotes(String text) {
+String stripNonAcronymQuotes(String text, {List<int>? sourceOffsets}) {
   final removed = removedQuoteOffsets(text);
   if (removed.isEmpty) return text;
   final result = StringBuffer();
   var lastEnd = 0;
+  var written = 0;
+  void copy(int end) {
+    result.write(text.substring(lastEnd, end));
+    sourceOffsets?.setRange(
+      written,
+      written + end - lastEnd,
+      sourceOffsets,
+      lastEnd,
+    );
+    written += end - lastEnd;
+  }
+
   for (final offset in removed) {
-    result.write(text.substring(lastEnd, offset));
+    copy(offset);
     lastEnd = offset + 1;
   }
-  return (result..write(text.substring(lastEnd))).toString();
+  copy(text.length);
+  if (sourceOffsets != null) sourceOffsets.length = written;
+  return result.toString();
 }
 
 /// מיקומי מירכאות שהסתרת הפיסוק משמיטה, לשימור המיפוי אל הטקסט הגולמי.
@@ -1295,14 +1379,15 @@ List<_HighlightRange>? _collectMatchedSearchWordRanges(
   return ranges;
 }
 
-/// עוטף טקסט גלוי ושומר תגים, בסריקה אחת גם כשאין תג סוגר.
-String _highlightTextOutsideTags(String text, String style) {
-  final result = StringBuffer();
+/// עובר על מקטעי הטקסט שהקורא צובע, בלי לעטוף תגיות או ציוני מפרשים.
+void _visitHighlightText(
+  String data,
+  int start,
+  int end,
+  void Function(int start, int end) visit,
+) {
+  final text = data.substring(start, end);
   var position = 0;
-  void writeText(String part) {
-    if (part.isNotEmpty) result.write('<span style="$style">$part</span>');
-  }
-
   while (position < text.length) {
     final tagStart = text.indexOf('<', position);
     if (tagStart < 0) break;
@@ -1311,62 +1396,11 @@ String _highlightTextOutsideTags(String text, String style) {
         ? text.indexOf('>', tagStart + 1)
         : htmlTagEnd;
     if (tagEnd < 0) break;
-    // ציון מפרש מוזרק נשאר כמות שהוא — הדגשה בתוכו צובעת את האות שלו.
     final anchorEnd = _linkAnchorElementEnd(text, tagStart, htmlTagEnd);
-    final end = anchorEnd == -1 ? tagEnd + 1 : anchorEnd;
-    writeText(text.substring(position, tagStart));
-    result.write(text.substring(tagStart, end));
-    position = end;
+    if (position < tagStart) visit(start + position, start + tagStart);
+    position = anchorEnd == -1 ? tagEnd + 1 : anchorEnd;
   }
-  writeText(text.substring(position));
-  return result.toString();
-}
-
-/// מדגיש את כל הטווח מהמילה הראשונה עד האחרונה ברצף (כולל רווחים ופיסוק).
-/// תגי HTML פנימיים נשארים מחוץ ל-span כדי לא לשבור קינון תגים.
-String _highlightContinuousMatch(
-  String matchedText,
-  List<_HighlightRange> ranges,
-  String style,
-) {
-  final start = ranges.first.start;
-  final end = ranges.last.end;
-  final highlighted = _highlightTextOutsideTags(
-    matchedText.substring(start, end),
-    style,
-  );
-  return matchedText.substring(0, start) +
-      highlighted +
-      matchedText.substring(end);
-}
-
-String _highlightMatchedSearchWords(
-  String matchedText,
-  List<_HighlightRange> ranges,
-  String style,
-) {
-  final result = StringBuffer();
-  var currentPosition = 0;
-
-  for (final range in ranges) {
-    if (range.start > currentPosition) {
-      result.write(matchedText.substring(currentPosition, range.start));
-    }
-    result.write(
-      _highlightTextOutsideTags(
-        matchedText.substring(range.start, range.end),
-        style,
-      ),
-    );
-
-    currentPosition = range.end;
-  }
-
-  if (currentPosition < matchedText.length) {
-    result.write(matchedText.substring(currentPosition));
-  }
-
-  return result.toString();
+  if (start + position < end) visit(start + position, end);
 }
 
 /// מאתר התאמות של הביטוי באמצעות המתאם המוכן וגבולות המילה פר-מילה. משותף ל-[highLight] ול-[countMatches], כך
@@ -1658,10 +1692,65 @@ String highLight(
   bool punctuationHidden = false,
   String? previousLine,
   String? nextLine,
+  void Function(int start, int end, String style)? visit,
 }) {
   if (searchQuery.isEmpty) return data;
+  StringBuffer? buffer;
+  var position = 0;
+  void write(int start, int end, String style) {
+    (buffer ??= StringBuffer())
+      ..write(data.substring(position, start))
+      ..write('<span style="$style">')
+      ..write(data.substring(start, end))
+      ..write('</span>');
+    position = end;
+  }
+
+  _visitSearchHighlights(
+    data,
+    searchQuery,
+    visit ?? write,
+    currentIndex: currentIndex,
+    searchOptions: searchOptions,
+    alternativeWords: alternativeWords,
+    spacingValues: spacingValues,
+    isFuzzy: isFuzzy,
+    searchDistance: searchDistance,
+    matchPolicy: matchPolicy,
+    isSearchResultLine: isSearchResultLine,
+    yellowBackground: yellowBackground,
+    partialWordMatch: partialWordMatch,
+    punctuationHidden: punctuationHidden,
+    previousLine: previousLine,
+    nextLine: nextLine,
+  );
+  return buffer == null
+      ? data
+      : (buffer!..write(data.substring(position))).toString();
+}
+
+/// מוסר את טווחי ה-HTML שאותם [highLight] עוטף, עם סגנון ה-CSS של הקורא.
+void _visitSearchHighlights(
+  String data,
+  String searchQuery,
+  void Function(int start, int end, String style) visit, {
+  int currentIndex = -1,
+  Map<String, Map<String, bool>> searchOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  bool isFuzzy = false,
+  int searchDistance = 0,
+  SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
+  bool isSearchResultLine = false,
+  bool yellowBackground = false,
+  bool partialWordMatch = false,
+  bool punctuationHidden = false,
+  String? previousLine,
+  String? nextLine,
+}) {
+  if (searchQuery.isEmpty) return;
   // ציטוט (רקע צהוב) מודגש בשורה אחת בלבד, ולכן אורכו לא תוקע את ה-UI.
-  if (!yellowBackground && isOverlongSearchQuery(searchQuery)) return data;
+  if (!yellowBackground && isOverlongSearchQuery(searchQuery)) return;
 
   // בניית תבניות ההדגשה מתבצעת כולה במנוע החיפוש (Rust) — כולל וריאציות
   // כתיב, מילים חילופיות, סובלנות ניקוד ומרווחים בין מילים. המתאם המוכן
@@ -1676,7 +1765,7 @@ String highLight(
     anyOrder: matchPolicy.anyOrder && !isFuzzy,
     querySemantics: matchPolicy.querySemantics,
   );
-  if (compiled == null) return data;
+  if (compiled == null) return;
 
   // בהדגשת ציטוט (רקע צהוב) הטקסט הועתק מהמקטע עצמו ועשוי להיקטע
   // באמצע מילה — דרישת גבולות מילה תפסול אז את כל ההדגשה.
@@ -1730,45 +1819,33 @@ String highLight(
     }
   }
 
-  if (matches.isEmpty) return data;
-
-  // מעבר אחד עם buffer: שרשור substring לכל התאמה מעתיק את כל השורה בכל פעם,
-  // ושורה ארוכה עם התאמות רבות חורגת מתקציב הפריים.
-  final buffer = StringBuffer();
-  var position = 0;
-
-  for (int i = 0; i < matches.length; i++) {
-    final highlightMatch = matches[i];
-    final match = highlightMatch;
-    final matchedText = data.substring(match.start, match.end);
-
-    final String replacement;
-    if (currentIndex == -1) {
-      final style = yellowBackground ? _markStyle : _searchHitStyle;
-      // הדגשת קטע מקושר (רקע צהוב) צריכה להיות רציפה כמו מרקר,
-      // בניגוד להדגשת חיפוש שמסמנת רק את מילות החיפוש עצמן.
-      replacement = yellowBackground
-          ? _highlightContinuousMatch(matchedText, highlightMatch.ranges, style)
-          : _highlightMatchedSearchWords(
-              matchedText,
-              highlightMatch.ranges,
-              style,
-            );
-    } else {
-      replacement = _highlightMatchedSearchWords(
-        matchedText,
-        highlightMatch.ranges,
-        i == currentIndex ? _searchCurrentStyle : _searchHitStyle,
+  for (var i = 0; i < matches.length; i++) {
+    final match = matches[i];
+    final continuous = currentIndex == -1 && yellowBackground;
+    final style = continuous
+        ? _markStyle
+        : i == currentIndex
+        ? _searchCurrentStyle
+        : _searchHitStyle;
+    void emit(int start, int end) => visit(start, end, style);
+    if (continuous) {
+      _visitHighlightText(
+        data,
+        match.start + match.ranges.first.start,
+        match.start + match.ranges.last.end,
+        emit,
       );
+    } else {
+      for (final range in match.ranges) {
+        _visitHighlightText(
+          data,
+          match.start + range.start,
+          match.start + range.end,
+          emit,
+        );
+      }
     }
-
-    buffer.write(data.substring(position, match.start));
-    buffer.write(replacement);
-    position = match.end;
   }
-
-  buffer.write(data.substring(position));
-  return buffer.toString();
 }
 
 /// מחזיר את טווחי ההדגשה (offsets גולמיים) של מילות החיפוש ב-[data], באותה
@@ -2470,7 +2547,7 @@ bool _isTeamimMark(int c) =>
     (c >= 0x0591 && c <= 0x05AF) || c == 0x05BD || c == 0x05BE || c == 0x05C0;
 
 /// מקף הופך לרווח; פסק (ורווח או מקף שצמודים לפניו), מתג וטעמים נמחקים.
-String removeTeamim(String s) {
+String removeTeamim(String s, {List<int>? sourceOffsets}) {
   if (!_nonLatin1.hasMatch(s)) return s;
   var firstChange = 0;
   while (firstChange < s.length && !_isTeamimMark(s.codeUnitAt(firstChange))) {
@@ -2483,14 +2560,17 @@ String removeTeamim(String s) {
   for (var i = 0; i < s.length; i++) {
     final c = s.codeUnitAt(i);
     if (c == 0x05BE) {
+      sourceOffsets?[n] = sourceOffsets[i];
       units[n++] = 0x20;
     } else if (c == 0x05C0) {
       final prev = i > 0 ? s.codeUnitAt(i - 1) : 0;
       if (prev == 0x20 || prev == 0x05BE) n--;
     } else if (c != 0x05BD && (c < 0x0591 || c > 0x05AF)) {
+      sourceOffsets?[n] = sourceOffsets[i];
       units[n++] = c;
     }
   }
+  if (sourceOffsets != null) sourceOffsets.length = n;
   return String.fromCharCodes(units, 0, n);
 }
 

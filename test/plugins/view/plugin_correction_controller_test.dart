@@ -40,6 +40,47 @@ void main() {
     expect(controller.value, editing);
   });
 
+  test('עריכה ליד ישות שומרת את איותה רק לתווים המקוריים', () {
+    const raw = '<i class="footnote">&#x1F600;&amp;</i> ברא';
+    final controller = PluginCorrectionController(raw);
+    addTearDown(controller.dispose);
+    controller.selection = const TextSelection.collapsed(offset: 3);
+    controller.value = const TextEditingValue(
+      text: '😀&& ברא',
+      selection: TextSelection.collapsed(offset: 4),
+    );
+    final source = controller.source;
+    final origins = source.restoreOrigins(
+      controller.canonical,
+      controller.draftMarkup,
+    )!;
+    expect(origins[2]!.spelling, ('&amp;', 1));
+    expect(origins[3]!.spelling, isNull);
+    final rebuilt = source.searchHtml(controller.canonical, origins);
+    expect(rebuilt.html, '<i class="footnote">&#x1F600;&amp;&amp;</i> ברא');
+    final emojiOffset = rebuilt.html.indexOf('&#x1F600;');
+    expect(
+      rebuilt.offsets
+          .sublist(emojiOffset, emojiOffset + '&#x1F600;'.length)
+          .toSet(),
+      {0, 1},
+    );
+
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 2);
+    controller.value = const TextEditingValue(
+      text: '&& ברא',
+      selection: TextSelection.collapsed(offset: 0),
+    );
+    final remainingOrigins = source.restoreOrigins(
+      controller.canonical,
+      controller.draftMarkup,
+    )!;
+    expect(
+      source.searchHtml(controller.canonical, remainingOrigins).html,
+      '<i class="footnote">&amp;&amp;</i> ברא',
+    );
+  });
+
   group('עיצוב בעורך', () {
     test('תגיות נתמכות ממופות לעיצוב התווים, ותגיות בלוק בקצוות מוסתרות', () {
       final controller = PluginCorrectionController(

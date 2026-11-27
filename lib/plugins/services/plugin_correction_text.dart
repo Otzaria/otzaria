@@ -9,21 +9,31 @@ class PluginCorrectionText {
   late final String plain;
   final List<CorrectionTextNode> nodes = [];
   final List<int> _droppedEntities = [];
+  late final List<String> _markup = [];
+  late final List<CorrectionHtmlOrigin> htmlOrigins = [];
   late final List<({int start, int end})> tags = List.unmodifiable(
     _scanTags(source),
   );
 
-  PluginCorrectionText(this.source) {
+  PluginCorrectionText(this.source, {bool trackHtml = false}) {
+    final trackMarkup = trackHtml && hasMarkup;
     final output = StringBuffer();
     var offset = 0;
     for (final tag in tags) {
-      _addNode(offset, tag.start, output);
-      output.write(
-        TextRendererService.stripHtml(source.substring(tag.start, tag.end)),
-      );
+      _addNode(offset, tag.start, output, trackHtml: trackMarkup);
+      final markup = source.substring(tag.start, tag.end);
+      final separator = TextRendererService.stripHtml(markup);
+      if (trackMarkup) {
+        final slot = _markup.length;
+        _markup.add(markup);
+        htmlOrigins.addAll(
+          List.filled(separator.length, (slot: slot, spelling: const ('', 1))),
+        );
+      }
+      output.write(separator);
       offset = tag.end;
     }
-    _addNode(offset, source.length, output);
+    _addNode(offset, source.length, output, trackHtml: trackMarkup);
     plain = output.toString();
   }
 
@@ -65,16 +75,35 @@ class PluginCorrectionText {
 
   static final _entities = RegExp(r'&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);');
 
-  void _addNode(int start, int end, StringBuffer output) {
+  void _addNode(
+    int start,
+    int end,
+    StringBuffer output, {
+    required bool trackHtml,
+  }) {
     if (start == end) return;
     final raw = source.substring(start, end);
     final boundaries = <int, int>{0: start};
     final text = StringBuffer();
     var offset = 0;
     void literal(int end) {
+      if (end == offset) return;
+      final slot = trackHtml ? _markup.length : -1;
+      final CorrectionHtmlOrigin? origin = trackHtml
+          ? (slot: slot, spelling: null)
+          : null;
+      if (trackHtml) _markup.add('');
       while (offset < end) {
-        text.write(raw[offset++]);
+        final char = raw[offset++];
+        text.write(char);
         boundaries[text.length] = start + offset;
+        if (trackHtml) {
+          htmlOrigins.add(
+            char == '&' || char == '>'
+                ? (slot: slot, spelling: (char, 1))
+                : origin!,
+          );
+        }
       }
     }
 
@@ -83,7 +112,17 @@ class PluginCorrectionText {
       final decoded = TextRendererService.stripHtml(entity[0]!);
       // ישות שהפענוח מוחק (כמו &copy;) מוצגת בקורא, אך אין לה היסט קנוני:
       // טווח שנוגע בה אינו מכריע אם היא נבחרה.
-      if (decoded.isEmpty) _droppedEntities.add(output.length + text.length);
+      if (decoded.isEmpty) {
+        _droppedEntities.add(output.length + text.length);
+        if (trackHtml) _markup.add(entity[0]!);
+      } else if (trackHtml) {
+        final origin = (
+          slot: _markup.length,
+          spelling: (entity[0]!, decoded.length),
+        );
+        _markup.add('');
+        htmlOrigins.addAll(List.filled(decoded.length, origin));
+      }
       text.write(decoded);
       offset = entity.end;
       boundaries[text.length] = start + offset;
@@ -91,6 +130,140 @@ class PluginCorrectionText {
     literal(raw.length);
     nodes.add(CorrectionTextNode(output.length, text.toString(), boundaries));
     output.write(text);
+  }
+
+  /// משחזר את תגיות המקור לאיתור התאמות, וממפה אותן להיסטים הקנוניים.
+  ({String html, List<int> offsets}) searchHtml(
+    String text,
+    List<CorrectionHtmlOrigin?> origins,
+  ) {
+    final html = StringBuffer();
+    final offsets = <int>[];
+    void write(String value, int offset, [int units = 1]) {
+      html.write(value);
+      for (var i = 0; i < value.length; i++) {
+        offsets.add(offset + i * units ~/ value.length);
+      }
+    }
+
+    var slot = 0;
+    for (var i = 0; i < text.length;) {
+      final origin = origins[i];
+      if (origin == ambiguousCorrectionOrigin) {
+        // תו חסר שיוך משאיר גבול בלי לייחס התאמה למופע הלא נכון.
+        write('\uFFFC', -1);
+        i++;
+        continue;
+      }
+      final target = origin?.slot ?? (slot == 0 ? 0 : slot - 1);
+      while (slot <= target && slot < _markup.length) {
+        write(_markup[slot++], -1);
+      }
+      final spelling = origin?.spelling;
+      if (spelling != null &&
+          i + spelling.$2 <= text.length &&
+          (spelling.$2 == 1 || origins[i + 1] == origin)) {
+        write(spelling.$1, i, spelling.$2);
+        i += spelling.$2;
+      } else {
+        final char = text[i];
+        write(switch (char) {
+          '&' => '&amp;',
+          '<' => '&lt;',
+          '>' => '&gt;',
+          _ => char,
+        }, i);
+        i++;
+      }
+    }
+    while (slot < _markup.length) {
+      write(_markup[slot++], -1);
+    }
+    return (html: html.toString(), offsets: offsets);
+  }
+
+  late final bool hasMarkup =
+      tags.isNotEmpty || source.contains('&') || source.contains('>');
+
+  late final Set<CorrectionHtmlOrigin> _sourceOrigins = htmlOrigins.toSet();
+  late final Set<int> _sourceSlots = _sourceOrigins
+      .map((origin) => origin.slot)
+      .toSet();
+  late final Map<int, (String, int)> _encodedSlots = {
+    for (final origin in _sourceOrigins)
+      if (origin.spelling case final spelling?)
+        if (spelling.$1 != '&' && spelling.$1 != '>') origin.slot: spelling,
+  };
+
+  /// מקודד רצפי צמתים ביחס למקור הזה, לשימוש בטיוטה המקומית.
+  List<int>? encodeOrigins(
+    Iterable<({int end, CorrectionHtmlOrigin? origin})> runs,
+  ) {
+    if (!hasMarkup) return null;
+    return [
+      for (final run in runs) ...[
+        run.end,
+        run.origin?.slot ?? -2,
+        switch (run.origin?.spelling?.$1) {
+          null => 0,
+          '&' => 1,
+          '>' => 2,
+          _ => 3,
+        },
+      ],
+    ];
+  }
+
+  /// מחזיר את שיוך התווים שנשמר בטיוטה, לאחר בדיקה מול צמתי המקור.
+  List<CorrectionHtmlOrigin?>? restoreOrigins(String text, List<int>? runs) {
+    if (runs == null || runs.length % 3 != 0) return null;
+    final result = <CorrectionHtmlOrigin?>[];
+    var previousSlot = 0;
+    for (var i = 0; i < runs.length; i += 3) {
+      final end = runs[i];
+      final slot = runs[i + 1];
+      final spellingCode = runs[i + 2];
+      final start = result.length;
+      if (end <= start ||
+          end > text.length ||
+          slot >= _markup.length ||
+          slot < -2 ||
+          (slot >= 0 && slot < previousSlot)) {
+        return null;
+      }
+      if (slot < 0) {
+        if (spellingCode != 0) return null;
+        result.addAll(
+          List.filled(
+            end - start,
+            slot == -1 ? ambiguousCorrectionOrigin : null,
+          ),
+        );
+        continue;
+      }
+      if (!_sourceSlots.contains(slot)) return null;
+      previousSlot = slot;
+      final spelling = switch (spellingCode) {
+        0 => null,
+        1 => const ('&', 1),
+        2 => const ('>', 1),
+        3 => _encodedSlots[slot],
+        _ => null,
+      };
+      final origin = (slot: slot, spelling: spelling);
+      if (spellingCode != 0) {
+        if (spelling == null || !_sourceOrigins.contains(origin)) return null;
+        final decoded = spelling.$1.isEmpty
+            ? ' '
+            : TextRendererService.stripHtml(spelling.$1);
+        if (decoded.isEmpty || (end - start) % decoded.length != 0) return null;
+        for (var offset = start; offset < end; offset += decoded.length) {
+          if (!text.startsWith(decoded, offset)) return null;
+        }
+      }
+      result.addAll(List.filled(end - start, origin));
+    }
+    return result.length == text.length ? result : null;
   }
 
   int get visibleStart => nodes.isEmpty ? 0 : nodes.first.start;
@@ -230,3 +403,11 @@ class CorrectionTextNode {
   CorrectionTextNode(this.start, this.text, this.boundaries);
   int get end => start + text.length;
 }
+
+/// צומת ה-HTML והאיות הגולמי של ישות שנשמרו לאחר עריכה.
+typedef CorrectionHtmlOrigin = ({int slot, (String, int)? spelling});
+
+const CorrectionHtmlOrigin ambiguousCorrectionOrigin = (
+  slot: -1,
+  spelling: null,
+);
