@@ -200,18 +200,22 @@ class PluginCorrectionText {
     Iterable<({int end, CorrectionHtmlOrigin? origin})> runs,
   ) {
     if (!hasMarkup) return null;
-    return [
-      for (final run in runs) ...[
-        run.end,
-        run.origin?.slot ?? -2,
-        switch (run.origin?.spelling?.$1) {
-          null => 0,
-          '&' => 1,
-          '>' => 2,
-          _ => 3,
-        },
-      ],
-    ];
+    final encoded = <int>[];
+    var start = 0;
+    for (final run in runs) {
+      final spelling = run.origin?.spelling;
+      // עריכה יכולה להשאיר חצי זוג UTF-16 משותף: שומרים את הצומת בלי איות הישות.
+      final code = switch (spelling) {
+        null => 0,
+        ('&', _) => 1,
+        ('>', _) => 2,
+        (_, final units) when (run.end - start) % units == 0 => 3,
+        _ => 0,
+      };
+      encoded.addAll([run.end, run.origin?.slot ?? -2, code]);
+      start = run.end;
+    }
+    return encoded;
   }
 
   /// מחזיר את שיוך התווים שנשמר בטיוטה, לאחר בדיקה מול צמתי המקור.

@@ -369,6 +369,45 @@ Future<void> main() async {
       );
     }
 
+    testWidgets('החלפת אימוג׳י מישות HTML משמרת את שיוך הטיוטה', (
+      tester,
+    ) async {
+      const source = '&#x1F600; <i class="footnote">ברא </i>ברא';
+      const settings = RenderSettings(searchText: 'ברא');
+      const expected = [
+        [7, 10],
+      ];
+      final db = sqlite3.openInMemory();
+      addTearDown(db.close);
+      final (:service, :snapshot) = await startSession(tester, source, db: db);
+      await tester.pumpWidget(paragraph(service, source, settings));
+      await open(tester);
+      editor(tester).widget.controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 2,
+      );
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '😁 ברא ברא',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(painted(tester, hit(tester), rendered: true), expected);
+      await finish(tester, service);
+      final id = snapshot['sessionId'] as String;
+      final saved = (await tester.runAsync(() => service.get('owner', id)))!;
+      await tester.runAsync(
+        () => service.end('owner', id, saved['revision'] as int),
+      );
+
+      final reopened = await startSession(tester, source, db: db);
+      await tester.pumpWidget(paragraph(reopened.service, source, settings));
+      expect(controller(tester).text, '😁 ברא ברא');
+      expect(painted(tester, hit(tester), rendered: true), expected);
+      await finish(tester, reopened.service);
+    }, skip: skip);
+
     testWidgets('טיוטה ישנה עם מופע עמום אינה מייחסת אותו לטקסט הספר', (
       tester,
     ) async {
