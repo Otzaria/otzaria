@@ -65,6 +65,13 @@ abstract interface class SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   });
 
+  /// מפנה את הגיבוי רק אם הסשן משרת את הדור החי השלם.
+  /// אימות הדור, בדיקת השלמות והפינוי מתבצעים תחת אותה נעילה.
+  Future<bool> retirePreviousGeneration(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  });
+
   /// סוגר את ה-session הפתוח.
   Future<void> disable();
 
@@ -148,6 +155,12 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
   Future<void> compactVectors(
     String vectorsDir, {
     int? liveLibraryVersion,
+    required SemanticCancelHandle cancel,
+  }) => Future.error(_unavailable);
+
+  @override
+  Future<bool> retirePreviousGeneration(
+    String vectorsDir, {
     required SemanticCancelHandle cancel,
   }) => Future.error(_unavailable);
 

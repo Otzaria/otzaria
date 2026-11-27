@@ -20,6 +20,7 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
 
   final Future<SearchEngine> Function() _engine;
   final SemanticCancellationToken Function() _newToken;
+  SearchEngine? _openedEngine;
 
   @override
   bool get supportsLongLineWindows => true;
@@ -120,18 +121,22 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   });
 
   @override
-  Future<SemanticBackendStatus> open(SemanticOpenRequest request) => _guard(
-    () async => mapStatus(
-      await (await _engine()).openSemanticArtifact(
-        config: SemanticArtifactInput(
-          vectorsDir: request.vectorsDir,
-          modelPath: request.modelPath,
-          modelIdentityJson: request.modelIdentityJson,
-          onnxRuntimePath: request.onnxRuntimePath,
-        ),
-      ),
-    ),
-  );
+  Future<SemanticBackendStatus> open(SemanticOpenRequest request) =>
+      _guard(() async {
+        final engine = await _engine();
+        final status = mapStatus(
+          await engine.openSemanticArtifact(
+            config: SemanticArtifactInput(
+              vectorsDir: request.vectorsDir,
+              modelPath: request.modelPath,
+              modelIdentityJson: request.modelIdentityJson,
+              onnxRuntimePath: request.onnxRuntimePath,
+            ),
+          ),
+        );
+        if (status.state == SemanticBackendState.ready) _openedEngine = engine;
+        return status;
+      });
 
   @override
   Future<void> compactVectors(
@@ -147,7 +152,32 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   });
 
   @override
-  Future<void> disable() async => (await _engine()).disableSemantic();
+  Future<bool> retirePreviousGeneration(
+    String vectorsDir, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    final opened = _openedEngine;
+    if (opened == null || cancel.isCancelled) return false;
+    final current = await _engine();
+    if (cancel.isCancelled ||
+        !identical(opened, current) ||
+        !identical(opened, _openedEngine)) {
+      return false;
+    }
+    return _withToken(cancel, (token) async {
+      final report = await opened.retirePreviousOpenedSemanticGeneration(
+        vectorsDir: vectorsDir,
+        cancellation: token,
+      );
+      return report.retired;
+    });
+  }
+
+  @override
+  Future<void> disable() async {
+    _openedEngine = null;
+    await (await _engine()).disableSemantic();
+  }
 
   @override
   Future<SemanticSearchOutcome> search(
