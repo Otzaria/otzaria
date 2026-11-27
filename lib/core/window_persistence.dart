@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -32,6 +33,10 @@ class WindowPersistence {
   /// גובה רצועת האחיזה (פס הכותרת המותאם) בפיקסלים לוגיים. בדיקת הנגישות
   /// דורשת שהרצועה הזו — לא סתם פינת חלון — תהיה על מסך חי, אחרת אין מה לגרור.
   static const double _grabStripExtent = 32;
+
+  /// המסגרת הבלתי נראית ש-Windows מוסיף סביב חלון (7px ב-96 DPI) — חלון
+  /// מוצמד לקצה המסך חורג בה משטח העבודה, וזה לא כיסוי של שורת המשימות.
+  static const double _invisibleFrameExtent = 8;
 
   /// החלון הראשי; לכל חלון Dart נוסף [WindowPersistenceBinding] משלו.
   static final WindowPersistenceBinding current = WindowPersistenceBinding();
@@ -128,6 +133,41 @@ class WindowPersistence {
       }
     }
     return false;
+  }
+
+  static Rect _fitOverTaskbar(
+    Rect bounds,
+    Rect screen,
+    Rect workArea,
+    double scale,
+  ) {
+    // ScreenRetriever rounds logical coordinates before we convert them back.
+    final tolerance = (_invisibleFrameExtent + 1) * scale;
+    final tolerated = workArea.inflate(tolerance);
+    if (screen.inflate(scale).intersect(workArea) != workArea ||
+        screen.inflate(tolerance).intersect(bounds) != bounds ||
+        tolerated.intersect(bounds) == bounds ||
+        workArea.width < minSize.width * scale ||
+        workArea.height < minSize.height * scale) {
+      return bounds;
+    }
+
+    final width = math.min(bounds.width, workArea.width);
+    final height = math.min(bounds.height, workArea.height);
+    final fitsHorizontally =
+        bounds.left >= tolerated.left && bounds.right <= tolerated.right;
+    final fitsVertically =
+        bounds.top >= tolerated.top && bounds.bottom <= tolerated.bottom;
+    return Rect.fromLTWH(
+      fitsHorizontally
+          ? bounds.left
+          : bounds.left.clamp(workArea.left, workArea.right - width),
+      fitsVertically
+          ? bounds.top
+          : bounds.top.clamp(workArea.top, workArea.bottom - height),
+      fitsHorizontally ? bounds.width : width,
+      fitsVertically ? bounds.height : height,
+    );
   }
 }
 
@@ -296,12 +336,20 @@ class WindowPersistenceBinding {
         // אין גבולות שמורים (הפעלה ראשונה) — גודל ברירת מחדל ממורכז.
         await _geometry.setSize(WindowPersistence.defaultSize);
         await _window.center();
-      } else if (await _isReachableOnConnectedDisplay(physicalBounds)) {
-        // הגבולות כבר עברו clamp ל-minSize (420x400) ב-restoreIfAny, וגודל
-        // ה-splash לעולם לא נשמר (splashMode) — לכן מכבדים כל גודל חוקי שנשמר,
-        // כולל חלונות קטנים שהמשתמש בחר במכוון.
+        return;
+      }
+
+      final (workAreas, restoredBounds) = await _boundsAndWorkAreas(
+        physicalBounds,
+      );
+      if (workAreas.isEmpty ||
+          WindowPersistence.titleStripReachableOnAnyDisplay(
+            restoredBounds,
+            workAreas,
+            WindowPersistence._grabStripExtent * (_restoredDpr ?? 1),
+          )) {
         await _geometry.setBounds(
-          WindowPersistence._scaleRect(physicalBounds, 1 / currentDpr),
+          WindowPersistence._scaleRect(restoredBounds, 1 / currentDpr),
         );
       } else {
         // גבולות מחוץ לכל מסך (מסך שנותק, עיוות DPI בין מסכים) — החלון היה
@@ -316,34 +364,53 @@ class WindowPersistenceBinding {
     }
   }
 
-  /// האם רצועת האחיזה של [physicalBounds] נגישה על מסך מחובר כלשהו. כשל
-  /// בקריאת רשימת המסכים לא חוסם את השחזור — עדיף שחזור רגיל ממירכוז מיותר.
-  Future<bool> _isReachableOnConnectedDisplay(Rect physicalBounds) async {
+  Future<(List<Rect>, Rect)> _boundsAndWorkAreas(Rect bounds) async {
     try {
       final displays = await screenRetriever.getAllDisplays();
-      // מסכי macOS וחלונותיו משתמשים באותו מרחב נקודות גלובלי.
-      // בשאר הפלטפורמות משווים בפיקסלים פיזיים.
+      final platform = defaultTargetPlatform;
       final displayRects = <Rect>[];
       for (final display in displays) {
         final position = display.visiblePosition;
         final size = display.visibleSize;
         if (position == null || size == null) continue;
-        final rect = WindowPersistence.physicalWorkAreaOrNull(
+        final scale = platform == TargetPlatform.macOS
+            ? 1.0
+            : (display.scaleFactor ?? 1).toDouble();
+        final workArea = WindowPersistence.physicalWorkAreaOrNull(
           position & size,
-          defaultTargetPlatform == TargetPlatform.macOS
-              ? 1.0
-              : (display.scaleFactor ?? 1).toDouble(),
+          scale,
         );
-        if (rect != null) displayRects.add(rect);
+        if (workArea == null) continue;
+        displayRects.add(workArea);
+        if (platform == TargetPlatform.windows &&
+            displays.length == 1 &&
+            display.scaleFactor != null &&
+            !_pendingMaximize &&
+            !_pendingFullscreen) {
+          // ב-Windows גודל המסך נמדד מהפינה הגלויה עד הקצה הימני־תחתון.
+          // למסך יחיד מקור פיזי ידוע (0, 0), גם כשהפס למעלה או משמאל.
+          final screen = WindowPersistence.physicalWorkAreaOrNull(
+            Rect.fromLTWH(
+              0,
+              0,
+              display.size.width + position.dx,
+              display.size.height + position.dy,
+            ),
+            scale,
+          );
+          if (screen != null) {
+            bounds = WindowPersistence._fitOverTaskbar(
+              bounds,
+              screen,
+              workArea,
+              scale,
+            );
+          }
+        }
       }
-      if (displayRects.isEmpty) return true;
-      return WindowPersistence.titleStripReachableOnAnyDisplay(
-        physicalBounds,
-        displayRects,
-        WindowPersistence._grabStripExtent * (_restoredDpr ?? 1),
-      );
+      return (displayRects, bounds);
     } catch (_) {
-      return true;
+      return (const <Rect>[], bounds);
     }
   }
 
