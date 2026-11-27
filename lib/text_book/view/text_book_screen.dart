@@ -23,7 +23,6 @@ import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -109,7 +108,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/ctrl_wheel_zoom.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
-import 'package:otzaria/widgets/misc/touch_pinch_scale_recognizer.dart';
+import 'package:otzaria/text_book/view/reading_viewport/reader_gesture_detector.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart'
@@ -226,10 +225,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   /// מונה כמה פעמים רץ ה-reanchor בעקבות שינוי גודל גופן. לבדיקת הרגרסיה.
   @visibleForTesting
   int reanchorOnFontSizeCount = 0;
-
-  // details.scale מצטבר מתחילת המחווה, ולכן חובה בסיס קבוע שנלכד בתחילתה —
-  // הכפלה ב-state החי מתרכבת בכל rebuild והגופן קופץ לקצה ה-clamp.
-  double? _pinchStartFontSize;
 
   // Key עבור PageShapeScreen
   final GlobalKey _pageShapeKey = GlobalKey();
@@ -2401,48 +2396,33 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     unawaited(_stepFontSize(context, state, larger: zoomIn));
   }
 
+  ValueChanged<double>? _beginFontPinch() {
+    final bloc = context.read<TextBookBloc>();
+    final state = bloc.state;
+    if (state is! TextBookLoaded) return null;
+    // scale מצטבר מתחילת הצביטה, ולכן מכפילים בגודל שנלכד בתחילתה.
+    return (scale) => bloc.add(
+      UpdateFontSize((state.fontSize * scale).clamp(15, 60)),
+    );
+  }
+
+  void _saveFontPinch() {
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) {
+      unawaited(
+        savePerBookDisplaySettings(context, state, fontSize: state.fontSize),
+      );
+    }
+  }
+
   Widget _buildHTMLViewer(TextBookLoaded state) {
     return Padding(
       // ללא שוליים אופקיים: רוחב הטקסט נקבע ב-textMaxWidth, ושוליים כאן הרחיקו
       // את פס הגלילה מדופן החלון בשונה משאר החלוניות.
       padding: const EdgeInsets.only(bottom: 5),
-      child: RawGestureDetector(
-        gestures: {
-          TouchPinchScaleRecognizer:
-              GestureRecognizerFactoryWithHandlers<TouchPinchScaleRecognizer>(
-                () => TouchPinchScaleRecognizer(debugOwner: this),
-                (recognizer) => recognizer
-                  // היחס נמדד מרגע הנחת האצבעות, לא מרגע זיהוי הצביטה.
-                  ..dragStartBehavior = DragStartBehavior.down
-                  ..onStart = (details) {
-                    final currentState = context.read<TextBookBloc>().state;
-                    _pinchStartFontSize = currentState is TextBookLoaded
-                        ? currentState.fontSize
-                        : null;
-                  }
-                  ..onUpdate = (details) {
-                    final baseFontSize = _pinchStartFontSize;
-                    if (baseFontSize == null) return;
-                    context.read<TextBookBloc>().add(
-                      UpdateFontSize(
-                        (baseFontSize * details.scale).clamp(15, 60),
-                      ),
-                    );
-                  }
-                  ..onEnd = (details) {
-                    // שמירת גודל הגופן בסיום המחווה
-                    final textBookBloc = context.read<TextBookBloc>();
-                    final currentState = textBookBloc.state;
-                    if (currentState is TextBookLoaded) {
-                      savePerBookDisplaySettings(
-                        context,
-                        currentState,
-                        fontSize: currentState.fontSize,
-                      );
-                    }
-                  },
-              ),
-        },
+      child: ReaderGestureDetector(
+        beginPinch: _beginFontPinch,
+        endPinch: _saveFontPinch,
         child: CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
             LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF):

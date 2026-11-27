@@ -4,7 +4,14 @@ import 'package:flutter/scheduler.dart';
 /// צביטת מגע שמנצחת גלילה כבר בשינוי קטן במרחק בין שתי אצבעות,
 /// כל עוד השינוי גובר על התזוזה המשותפת שלהן (גלילה או החלקת כרטיסיות).
 class TouchPinchScaleRecognizer extends ScaleGestureRecognizer {
-  TouchPinchScaleRecognizer({super.debugOwner});
+  TouchPinchScaleRecognizer({super.debugOwner, this.acceptsTrackpad = true});
+
+  /// האם לטפל גם בצביטת לוח מגע.
+  final bool acceptsTrackpad;
+
+  @override
+  bool isPointerPanZoomAllowed(PointerPanZoomStartEvent event) =>
+      acceptsTrackpad && super.isPointerPanZoomAllowed(event);
 
   /// רעש scale של DirectManipulation בגלילה רגילה נשאר מתחת לסף.
   static const double trackpadScaleSlop = 0.001;

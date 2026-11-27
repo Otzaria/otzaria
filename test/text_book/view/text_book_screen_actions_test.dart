@@ -66,11 +66,13 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/view/pane_drag_handle.dart';
+import 'package:otzaria/tabs/view/tab_swipe_detector.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -2632,6 +2634,8 @@ void main() {
       WidgetTester tester, {
       bool continuous = false,
       bool showSplitView = false,
+      PageController? swipeController,
+      ValueChanged<bool>? onSwipeActive,
     }) async {
       final book = TextBook(title: 'ספר בדיקה');
       final state =
@@ -2646,7 +2650,14 @@ void main() {
       final bloc = _TestTextBookBloc(state);
       final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
+        TabsState(
+          tabs: [
+            tab,
+            if (swipeController != null)
+              ToolTab(toolId: 'builtin.test', title: 'כרטיסייה סמוכה'),
+          ],
+          currentTabIndex: 0,
+        ),
       );
       final settingsBloc = _TestSettingsBloc(SettingsState.initial());
       addTearDown(() async {
@@ -2671,11 +2682,238 @@ void main() {
         personalNotesBloc: personalNotesBloc,
         tourCubit: tourCubit,
         isInCombinedView: false,
+        swipeController: swipeController,
+        onSwipeActive: onSwipeActive,
       );
       final wired = state.copyWith();
       bloc.emitStateForTest(wired);
       await tester.pumpAndSettle();
       return (tab, wired);
+    }
+
+    final readerList = find.byType(ScrollablePositionedList).first;
+
+    ScrollPosition readingPosition(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find
+              .descendant(of: readerList, matching: find.byType(Scrollable))
+              .first,
+        )
+        .position;
+
+    testWidgets('לוח מגע גולל את הקורא מהתנועה הראשונה ומאפשר היפוך כיוון', (
+      tester,
+    ) async {
+      final page = PageController();
+      addTearDown(page.dispose);
+      final active = <bool>[];
+      final (tab, _) = await pumpLongBook(
+        tester,
+        swipeController: page,
+        onSwipeActive: active.add,
+      );
+      final position = readingPosition(tester);
+      final start = position.pixels;
+      final center = tester.getCenter(readerList);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(center, timeStamp: Duration.zero);
+      final offsets = <double>[];
+      final steps = [
+        const Offset(0, -1),
+        const Offset(0, -4),
+        const Offset(-3, -8),
+        const Offset(-4, -12),
+        const Offset(-4, -5),
+        const Offset(-3, -6),
+      ];
+      for (final (i, pan) in steps.indexed) {
+        await gesture.panZoomUpdate(
+          center,
+          pan: pan,
+          scale: 1.0005,
+          timeStamp: Duration(milliseconds: (i + 1) * 10),
+        );
+        await tester.pump();
+        offsets.add(position.pixels - start);
+      }
+      await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 70));
+      await tester.pumpAndSettle();
+
+      expect(offsets, [0, 4, 8, 12, 5, 6]);
+      expect(page.page, 0);
+      expect(active, isEmpty);
+      expect(
+        (tab.bloc as _TestTextBookBloc).receivedEvents
+            .whereType<UpdateFontSize>(),
+        isEmpty,
+      );
+    });
+
+    for (final panBeforePinch in [0.0, 1.0, 4.0, 30.0]) {
+      testWidgets('צביטת לוח מגע אחרי גלילה של $panBeforePinch פיקסלים', (
+        tester,
+      ) async {
+        final page = PageController();
+        addTearDown(page.dispose);
+        final active = <bool>[];
+        final (tab, state) = await pumpLongBook(
+          tester,
+          swipeController: page,
+          onSwipeActive: active.add,
+        );
+        final bloc = tab.bloc as _TestTextBookBloc;
+        final position = readingPosition(tester);
+        final start = position.pixels;
+        final center = tester.getCenter(readerList);
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await gesture.panZoomStart(center, timeStamp: Duration.zero);
+        if (panBeforePinch != 0) {
+          await gesture.panZoomUpdate(
+            center,
+            pan: Offset(0, -panBeforePinch),
+            timeStamp: const Duration(milliseconds: 10),
+          );
+          await tester.pump();
+        }
+        final beforeScale = position.pixels;
+        expect(beforeScale - start, panBeforePinch > 2 ? panBeforePinch : 0);
+        expect(bloc.receivedEvents.whereType<UpdateFontSize>(), isEmpty);
+
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(-3, -panBeforePinch - 20),
+          scale: 1.2,
+          timeStamp: const Duration(milliseconds: 20),
+        );
+        await tester.pump();
+        await gesture.panZoomUpdate(
+          center,
+          pan: Offset(-4, -panBeforePinch - 24),
+          scale: 1,
+          timeStamp: const Duration(milliseconds: 30),
+        );
+        await tester.pump();
+        await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 40));
+        await tester.pumpAndSettle();
+
+        expect(
+          bloc.receivedEvents.whereType<UpdateFontSize>().map(
+            (event) => event.fontSize,
+          ),
+          [closeTo(state.fontSize * 1.2, 0.01), state.fontSize],
+        );
+        expect(position.pixels, beforeScale);
+        expect(page.page, 0);
+        expect(active, isEmpty);
+      });
+    }
+
+    testWidgets('לוח מגע אנכי לצד אצבע נייחת ניתן לביטול ולהתחלה מחדש', (
+      tester,
+    ) async {
+      final page = PageController();
+      addTearDown(page.dispose);
+      final active = <bool>[];
+      await pumpLongBook(
+        tester,
+        swipeController: page,
+        onSwipeActive: active.add,
+      );
+      final position = readingPosition(tester);
+      final start = position.pixels;
+      final center = tester.getCenter(readerList);
+      final touch = await tester.startGesture(center + const Offset(30, 0));
+      const firstTrackpadPointer = 22;
+      final first = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+        pointer: firstTrackpadPointer,
+      );
+      await first.panZoomStart(center, timeStamp: Duration.zero);
+      for (var i = 1; i <= 4; i++) {
+        await first.panZoomUpdate(
+          center,
+          pan: Offset(0, -4.0 * i),
+          timeStamp: Duration(milliseconds: 10 * i),
+        );
+        await tester.pump();
+      }
+      expect(position.pixels - start, 16);
+      expect(active, isEmpty);
+      GestureBinding.instance.cancelPointer(firstTrackpadPointer);
+      await tester.pump();
+      await touch.up();
+      await tester.pumpAndSettle();
+      expect(position.pixels - start, 16);
+
+      final second = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await second.panZoomStart(
+        center,
+        timeStamp: const Duration(milliseconds: 60),
+      );
+      await second.panZoomUpdate(
+        center,
+        pan: const Offset(0, -4),
+        timeStamp: const Duration(milliseconds: 70),
+      );
+      await tester.pump();
+      expect(position.pixels - start, 20);
+      await second.panZoomEnd(timeStamp: const Duration(milliseconds: 80));
+      await tester.pumpAndSettle();
+      expect(page.page, 0);
+      expect(active, isEmpty);
+    });
+
+    for (final latePinch in [false, true]) {
+      testWidgets(
+        latePinch
+            ? 'צביטה מבטלת החלקה אופקית שכבר התחילה בלוח מגע'
+            : 'לוח מגע אופקי עובר לטאב הבא מתוך קורא הטקסט',
+        (tester) async {
+          final page = PageController();
+          addTearDown(page.dispose);
+          final active = <bool>[];
+          await pumpLongBook(
+            tester,
+            swipeController: page,
+            onSwipeActive: active.add,
+          );
+          final position = readingPosition(tester);
+          final start = position.pixels;
+          final center = tester.getCenter(readerList);
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.trackpad,
+          );
+          await gesture.panZoomStart(center, timeStamp: Duration.zero);
+          for (var i = 1; i <= 6; i++) {
+            await gesture.panZoomUpdate(
+              center,
+              pan: Offset(-120.0 * i, -1.0 * i),
+              timeStamp: Duration(milliseconds: 10 * i),
+            );
+            await tester.pump();
+          }
+          expect(position.pixels, start);
+          expect(active, [true]);
+          if (latePinch) {
+            await gesture.panZoomUpdate(
+              center,
+              pan: const Offset(-725, -6),
+              scale: 1.2,
+              timeStamp: const Duration(milliseconds: 65),
+            );
+          }
+          await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 70));
+          await tester.pumpAndSettle();
+          expect(page.page, latePinch ? 0 : 1);
+          expect(active, [true, false]);
+        },
+      );
     }
 
     testWidgets('Alt+↓ באזור הקריאה מגיע למטפל הקיצורים הגלובלי', (
@@ -3042,6 +3280,8 @@ Future<void> _pumpTextBookScreen(
   bool withGlobalShortcuts = false,
   VoidCallback? onFindRefRequested,
   bool withPaneDragHandle = false,
+  PageController? swipeController,
+  ValueChanged<bool>? onSwipeActive,
   ThemeData? theme,
   TextScaler? textScaler,
 }) async {
@@ -3060,6 +3300,17 @@ Future<void> _pumpTextBookScreen(
   );
   if (withPaneDragHandle) {
     viewer = PaneDragHandleScope(pane: tab, enabled: true, child: viewer);
+  }
+  if (swipeController != null) {
+    viewer = TabSwipeDetector(
+      controller: swipeController,
+      onActiveChanged: onSwipeActive ?? (_) {},
+      child: PageView(
+        controller: swipeController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [viewer, const SizedBox.expand()],
+      ),
+    );
   }
   final screen = withGlobalShortcuts
       ? KeyboardShortcuts(

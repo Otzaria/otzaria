@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
+import 'package:otzaria/widgets/misc/scrollable_hit_test_registry.dart';
 
 /// מזהה המצביע של אירועי הגלגלת הסינתטיים ש[MiddleClickAutoScroll] משגר.
 ///
@@ -76,8 +77,7 @@ class _MiddleClickAutoScrollState extends State<MiddleClickAutoScroll>
   /// ציר הגלילה של האזור שנתפס, לציור החיצים ולנטרול הציר השני.
   Axis? _axis;
 
-  // מפתחות חלשים אינם משאירים רשימות שהוסרו בחיים עד לחיצת הגלגל הבאה.
-  final Expando<ScrollableState> _scrollables = Expando();
+  final _scrollables = ScrollableHitTestRegistry();
 
   bool get _isActive => _anchor != null;
 
@@ -186,29 +186,6 @@ class _MiddleClickAutoScrollState extends State<MiddleClickAutoScroll>
 
   // ------------------------------------------------------------ זיהוי היעד
 
-  /// לוכד כל [Scrollable] שנבנה מתחת לעטיפה מתוך ההודעות שהוא שולח.
-  ///
-  /// המפתח הוא ה-[Listener] שמקבל את אותות הגלגלת — הוא מה שמופיע בנתיב
-  /// הפגיעה, ולא ה-RenderObject השורשי של ה-[Scrollable]. הוא נמצא בין
-  /// ה-context ששולח את ההודעות לבין השורש, ולכן מטפסים בטווח הזה בלבד.
-  bool _capture(BuildContext? notificationContext) {
-    if (notificationContext == null) return false;
-    final state = Scrollable.maybeOf(notificationContext);
-    if (state == null) return false;
-
-    final root = state.context.findRenderObject();
-    var node = notificationContext.findRenderObject();
-    while (node != null) {
-      if (node is RenderPointerListener && node.onPointerSignal != null) {
-        _scrollables[node] = state;
-        break;
-      }
-      if (identical(node, root)) break;
-      node = node.parent;
-    }
-    return false;
-  }
-
   /// מוצא בנתיב את מה שיש לגלול: את הציר שלו ואת המאזין שישמש מדד חיות.
   /// null = אין מה לגלול כאן, או שיש בנתיב [AutoScrollBarrier].
   ///
@@ -312,9 +289,11 @@ class _MiddleClickAutoScrollState extends State<MiddleClickAutoScroll>
   @override
   Widget build(BuildContext context) {
     return NotificationListener<ScrollMetricsNotification>(
-      onNotification: (notification) => _capture(notification.context),
+      onNotification: (notification) =>
+          _scrollables.capture(notification.context),
       child: NotificationListener<ScrollNotification>(
-        onNotification: (notification) => _capture(notification.context),
+        onNotification: (notification) =>
+            _scrollables.capture(notification.context),
         child: _buildInteraction(context),
       ),
     );
