@@ -154,6 +154,13 @@ class BackupMerge {
     );
     if (plugins != null) result['plugins'] = plugins;
 
+    // קבוצות הן snapshot: איחוד חברות ישנה היה מחזיר תוספים שהוצאו מקבוצה.
+    final groupSource = newer.containsKey('pluginGroups') ? newer : older;
+    if (groupSource.containsKey('pluginGroups')) {
+      result['pluginGroups'] = groupSource['pluginGroups'];
+      result['pluginGroupScope'] = groupSource['pluginGroupScope'];
+    }
+
     setReportAwareBackupVersion(result);
     return result;
   }

@@ -646,6 +646,28 @@ void main() {
     });
   });
 
+  test('ארכיון שומר snapshot קבוצות והיקף תואם בלי להחזיר חברות ישנה', () {
+    final older = {
+      'pluginGroups': [
+        {
+          'id': 'g',
+          'name': 'לימוד',
+          'pluginIds': ['a', 'b'],
+        },
+      ],
+      'pluginGroupScope': ['a', 'b'],
+    };
+    final newer = {
+      'pluginGroups': <Object>[],
+      'pluginGroupScope': ['a'],
+    };
+    final merged = merge(older, newer);
+    expect(merged['pluginGroups'], isEmpty);
+    expect(merged['pluginGroupScope'], ['a']);
+    expect(merge(older, {})['pluginGroups'], older['pluginGroups']);
+    expect(merge({}, {}).containsKey('pluginGroups'), isFalse);
+  });
+
   group('תוספים', () {
     Map<String, dynamic> plugin(String id, String version) => {
       'installation': {'plugin_id': id, 'version': version},

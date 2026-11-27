@@ -6,6 +6,7 @@ import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -68,6 +69,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   StreamSubscription<PluginDevFsChange>? _devWatchSub;
   StreamSubscription<TabsState>? _readerStateSub;
   Future<void>? _closeFuture;
+  StreamSubscription<PluginRegistryRepository>? _groupChangesSub;
+  bool _groupsRequested = false;
+  bool _groupsLoaded = false;
+  int _groupReadGeneration = 0;
+  List<PluginGroup> _groups = const [];
 
   /// החתימה מונעת קומפילציה ושאילתות חוזרות כשהמניפסט וההרשאות לא השתנו.
   String? _lastDeclarativeSyncSignature;
@@ -130,6 +136,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       _onReorderPluginsRequested,
       transformer: sequential(),
     );
+    on<PluginGroupsEvent>(_onPluginGroupsEvent, transformer: sequential());
     on<EnablePluginRequested>(_onEnablePluginRequested);
     on<DisablePluginRequested>(_onDisablePluginRequested);
     on<SetPluginPermissionRequested>(
@@ -170,6 +177,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       PluginShortcutRegistry.instance.removeListener(_onPluginShortcutsChanged);
       await _devWatchSub?.cancel();
       await _readerStateSub?.cancel();
+      await _groupChangesSub?.cancel();
       if (_sharedDevWatcher) {
         PluginDevWatchService.release();
       } else {
@@ -210,7 +218,9 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     if (state is! PluginSystemLoaded) emit(PluginSystemLoading());
     try {
       await PluginSafeMode.ready;
+      final groupRead = _groupsRequested ? _refreshPluginGroups() : null;
       final plugins = await repository.getAllPlugins();
+      if (groupRead != null) await groupRead;
       if (PluginSafeMode.isActive) {
         devWatchService.syncWatchers(const []);
         // Listing only. Contribution sync treats a disabled plugin as removed
@@ -220,7 +230,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           PluginRuntimeDispatcher.instance.invalidatePlugin(plugin.pluginId);
         }
         _registerPluginShortcuts(const []);
-        emit(PluginSystemLoaded(plugins));
+        emit(_loadedWithGroups(plugins));
         return;
       }
       await PluginNewTabPageService.instance.syncOwner(repository);
@@ -252,7 +262,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           _lastDeclarativeSyncSignature = signature;
         }
       }
-      emit(PluginSystemLoaded(plugins));
+      emit(_loadedWithGroups(plugins));
     } catch (e) {
       emit(PluginSystemError(e.toString()));
       UiSnack.showError(PluginMessages.loadPluginsError(e));
@@ -403,6 +413,86 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       add(LoadPlugins());
     } catch (e) {
       UiSnack.showError(PluginMessages.reorderPluginsError(e));
+    }
+  }
+
+  PluginSystemLoaded _loadedWithGroups(List<InstalledPlugin> plugins) =>
+      PluginSystemLoaded(
+        plugins,
+        groups: _groups,
+        groupsLoaded: _groupsLoaded,
+      );
+
+  Future<bool> _refreshPluginGroups() async {
+    final generation = ++_groupReadGeneration;
+    try {
+      final groups = await repository.getPluginGroups();
+      if (generation == _groupReadGeneration) {
+        _groups = List.unmodifiable(groups);
+        _groupsLoaded = true;
+      }
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Plugin groups load failed: $error\n$stackTrace');
+      UiSnack.showError(PluginMessages.pluginGroupLoadFailed);
+      return false;
+    }
+  }
+
+  Future<void> _onPluginGroupsEvent(
+    PluginGroupsEvent event,
+    Emitter<PluginSystemState> emit,
+  ) async {
+    _groupsRequested = true;
+    _groupChangesSub ??= PluginRegistryRepository.groupChanges.listen((_) {
+      if (!isClosed) add(const LoadPluginGroups());
+    });
+    try {
+      // קריאה שכבר רצה אינה רשאית להחזיר snapshot ישן אחרי שמירה חדשה.
+      if (event is! LoadPluginGroups) _groupReadGeneration++;
+      List<PluginGroup>? saved;
+      switch (event) {
+        case LoadPluginGroups():
+          await _refreshPluginGroups();
+        case CreatePluginGroupRequested():
+          saved = await repository.createPluginGroup(
+            event.name,
+            event.pluginIds,
+          );
+        case UpdatePluginGroupRequested():
+          saved = await repository.updatePluginGroup(
+            PluginGroup(
+              id: event.groupId,
+              name: event.name,
+              pluginIds: event.pluginIds,
+            ),
+            expectedGroup: event.expectedGroup,
+          );
+        case DeletePluginGroupRequested():
+          saved = await repository.deletePluginGroup(event.groupId);
+        case MovePluginToGroupRequested():
+          saved = await repository.movePluginToGroup(
+            event.pluginId,
+            event.groupId,
+          );
+      }
+      if (saved != null) {
+        _groupReadGeneration++;
+        _groups = List.unmodifiable(saved);
+        _groupsLoaded = true;
+      }
+      if (state case PluginSystemLoaded(:final plugins)) {
+        emit(_loadedWithGroups(plugins));
+      }
+      event.completion?.complete();
+    } catch (error, stackTrace) {
+      debugPrint('Plugin group operation failed: $error\n$stackTrace');
+      final completion = event.completion;
+      if (completion != null) {
+        completion.completeError(error, stackTrace);
+      } else if (event is! LoadPluginGroups) {
+        UiSnack.showError(PluginMessages.pluginGroupSaveFailed);
+      }
     }
   }
 

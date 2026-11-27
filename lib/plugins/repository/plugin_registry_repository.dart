@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/models/plugin_published_record.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
@@ -7,9 +10,53 @@ import 'package:otzaria/plugins/utils/plugin_safe_mode.dart';
 
 class PluginRegistryRepository {
   final PluginSystemDatabase _db;
+  static final _groupChanges =
+      StreamController<PluginRegistryRepository>.broadcast();
+
+  /// חלונות באותו isolate מתרעננים אחרי שינוי בקבוצות בחלון אחר.
+  static Stream<PluginRegistryRepository> get groupChanges =>
+      _groupChanges.stream;
 
   PluginRegistryRepository({PluginSystemDatabase? database})
     : _db = database ?? PluginSystemDatabase.instance;
+
+  Future<List<PluginGroup>> getPluginGroups() => _db.getPluginGroups();
+
+  Future<List<PluginGroup>> createPluginGroup(
+    String name,
+    List<String> pluginIds,
+  ) async {
+    final groups = await _db.createPluginGroup(name, pluginIds);
+    _groupChanges.add(this);
+    return groups;
+  }
+
+  Future<List<PluginGroup>> updatePluginGroup(
+    PluginGroup group, {
+    PluginGroup? expectedGroup,
+  }) async {
+    final groups = await _db.updatePluginGroup(
+      group,
+      expectedGroup: expectedGroup,
+    );
+    _groupChanges.add(this);
+    return groups;
+  }
+
+  Future<List<PluginGroup>> deletePluginGroup(String groupId) async {
+    final groups = await _db.deletePluginGroup(groupId);
+    _groupChanges.add(this);
+    return groups;
+  }
+
+  Future<List<PluginGroup>> movePluginToGroup(
+    String pluginId,
+    String? groupId,
+  ) async {
+    final groups = await _db.movePluginToGroup(pluginId, groupId);
+    _groupChanges.add(this);
+    return groups;
+  }
 
   Future<List<InstalledPlugin>> getAllPlugins() async {
     await PluginSafeMode.ready;
@@ -136,6 +183,7 @@ class PluginRegistryRepository {
     }
     await _db.deletePlugin(pluginId);
     _revokeSemanticAccess(pluginId);
+    _groupChanges.add(this);
   }
 
   /// מוחק את כל הנתונים שהתוסף אגר (KV, רשומות שפורסמו, לוג) ומשאיר את
@@ -177,6 +225,7 @@ class PluginRegistryRepository {
     }
     await _db.deletePlugin(pluginId);
     _revokeSemanticAccess(pluginId);
+    _groupChanges.add(this);
   }
 
   Future<void> updateNavRailPinState(

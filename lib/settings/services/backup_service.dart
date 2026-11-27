@@ -28,6 +28,7 @@ import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
 import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
@@ -187,11 +188,27 @@ class BackupService {
 
       // Backup plugins
       if (includePlugins) {
-        backupData['plugins'] = await _backupPlugins(
+        final plugins = await _backupPlugins(
           skippedSections,
           oversizedPlugins,
           store,
         );
+        backupData['plugins'] = plugins;
+        try {
+          backupData['pluginGroups'] = [
+            for (final group
+                in await PluginSystemDatabase.instance.getPluginGroups())
+              group.toJson(),
+          ];
+          backupData['pluginGroupScope'] = [
+            for (final plugin in plugins)
+              (plugin['installation'] as Map)['plugin_id'],
+          ];
+        } catch (error) {
+          _logger.warning('Skipping plugin groups backup: $error');
+          if (!skippedSections.contains('plugins'))
+            skippedSections.add('plugins');
+        }
       }
 
       // Backup workspaces
@@ -1085,6 +1102,28 @@ class BackupService {
       );
       restoredPlugins = pluginsResult.restored;
       if (pluginsResult.hadFailures) runtimeSkipped.add('plugins');
+      if (backupData.containsKey('pluginGroups')) {
+        try {
+          final groups = backupData['pluginGroups'] as List;
+          final scope =
+              (backupData['pluginGroupScope'] as List?)
+                  ?.cast<String>()
+                  .toSet() ??
+              pluginsResult.restoredIds;
+          await PluginSystemDatabase.instance.restorePluginGroups(
+            [
+              for (final group in groups)
+                PluginGroup.fromJson((group as Map).cast<String, dynamic>()),
+            ],
+            pluginScope: scope.intersection(pluginsResult.restoredIds),
+            keepExisting: isMerge,
+          );
+        } catch (error) {
+          _logger.warning('Failed to restore plugin groups: $error');
+          if (!runtimeSkipped.contains('plugins'))
+            runtimeSkipped.add('plugins');
+        }
+      }
     }
 
     // Restore Shamor Zachor
@@ -1513,7 +1552,8 @@ class BackupService {
   }
 
   // כשל בתוסף אחד מדווח כשחזור חלקי בלי למנוע שחזור של שאר התוספים.
-  static Future<({bool hadFailures, int restored})> _restorePlugins(
+  static Future<({bool hadFailures, int restored, Set<String> restoredIds})>
+  _restorePlugins(
     List<Map<String, dynamic>> pluginsData,
     List<BackupStore> stores, {
     BackupImportCounts? counts,
@@ -1521,6 +1561,7 @@ class BackupService {
     final db = PluginSystemDatabase.instance;
     var hadFailures = false;
     var restored = 0;
+    final restoredIds = <String>{};
 
     // בייבוא ממזג תוסף שכבר מותקן כאן אינו נדרס: ההתקנה המקומית עשויה להיות
     // חדשה יותר, והנתונים שלה (kvStore) הם של המשתמש הזה.
@@ -1533,7 +1574,10 @@ class BackupService {
         final installation = (entry['installation'] as Map)
             .cast<String, dynamic>();
         final pluginId = installation['plugin_id'] as String;
-        if (installedIds.contains(pluginId)) continue;
+        if (installedIds.contains(pluginId)) {
+          restoredIds.add(pluginId);
+          continue;
+        }
         // המזהה מגיע מקובץ הגיבוי ומרכיב נתיב שנמחק ב-recursive; מזהה כמו `..`
         // היה מוחק תיקייה שרירותית.
         if (!PluginManifestValidator.isValidPluginId(pluginId)) {
@@ -1596,6 +1640,7 @@ class BackupService {
         });
 
         restored++;
+        restoredIds.add(pluginId);
         counts?.plugins++;
       } catch (e) {
         _logger.warning('Failed to restore plugin entry: $e');
@@ -1603,7 +1648,11 @@ class BackupService {
       }
     }
 
-    return (hadFailures: hadFailures, restored: restored);
+    return (
+      hadFailures: hadFailures,
+      restored: restored,
+      restoredIds: restoredIds,
+    );
   }
 
   /// כותב קבצים מגיבוי לתיקייה, אחרי ניקוי תוכן קודם. הערכים הם base64

@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math';
 
+import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
@@ -18,6 +21,30 @@ class PluginInstallIdentityInUse implements Exception {
 }
 
 typedef _InstalledPluginSnapshot = (InstalledPlugin, Map<String, dynamic>);
+
+enum _PluginGroupOperation { create, update, delete, move, restore }
+
+class _PluginGroupWrite {
+  final _PluginGroupOperation operation;
+  final PluginGroup? group;
+  final PluginGroup? expectedGroup;
+  final String? groupId;
+  final String? pluginId;
+  final List<PluginGroup> groups;
+  final Set<String> pluginScope;
+  final bool keepExisting;
+
+  const _PluginGroupWrite(
+    this.operation, {
+    this.group,
+    this.expectedGroup,
+    this.groupId,
+    this.pluginId,
+    this.groups = const [],
+    this.pluginScope = const {},
+    this.keepExisting = false,
+  });
+}
 
 class PluginSystemDatabase {
   PluginSystemDatabase._();
@@ -117,6 +144,24 @@ class PluginSystemDatabase {
         'ALTER TABLE plugin_installation ADD COLUMN hidden_from_tools INTEGER NOT NULL DEFAULT 0',
       );
     }
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS plugin_group (
+        group_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL
+      )
+    ''');
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS plugin_group_member (
+        plugin_id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL,
+        position INTEGER NOT NULL
+      )
+    ''');
+    db.execute(
+      'CREATE INDEX IF NOT EXISTS plugin_group_members '
+      'ON plugin_group_member(group_id, position)',
+    );
   }
 
   static void _createSchema(Database db) {
@@ -197,6 +242,279 @@ class PluginSystemDatabase {
   }
 
   // --- CRUD for Installed Plugins ---
+
+  Future<List<PluginGroup>> getPluginGroups() async {
+    await database;
+    return _readInIsolate(_selectPluginGroups, null);
+  }
+
+  static List<PluginGroup> _selectPluginGroups(Database db, Object? _) {
+    final names = <String, String>{};
+    final members = <String, List<String>>{};
+    for (final row in db.select('''
+      SELECT g.group_id, g.name, m.plugin_id
+      FROM plugin_group g
+      LEFT JOIN plugin_group_member m ON m.group_id = g.group_id
+      ORDER BY g.sort_order, g.group_id, m.position, m.plugin_id
+    ''')) {
+      final id = row['group_id'] as String;
+      names[id] = row['name'] as String;
+      final ids = members.putIfAbsent(id, () => []);
+      if (row['plugin_id'] case final String pluginId) ids.add(pluginId);
+    }
+    return List.unmodifiable([
+      for (final entry in names.entries)
+        PluginGroup(
+          id: entry.key,
+          name: entry.value,
+          pluginIds: members[entry.key]!,
+        ),
+    ]);
+  }
+
+  Future<List<PluginGroup>> createPluginGroup(
+    String name,
+    List<String> pluginIds,
+  ) {
+    final random = Random.secure();
+    final id = List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    return _enqueuePluginGroupWrite(
+      _PluginGroupWrite(
+        _PluginGroupOperation.create,
+        group: PluginGroup(id: id, name: name, pluginIds: pluginIds),
+      ),
+    );
+  }
+
+  Future<List<PluginGroup>> updatePluginGroup(
+    PluginGroup group, {
+    PluginGroup? expectedGroup,
+  }) => _enqueuePluginGroupWrite(
+    _PluginGroupWrite(
+      _PluginGroupOperation.update,
+      group: group,
+      expectedGroup: expectedGroup,
+    ),
+  );
+
+  Future<List<PluginGroup>> deletePluginGroup(String groupId) =>
+      _enqueuePluginGroupWrite(
+        _PluginGroupWrite(
+          _PluginGroupOperation.delete,
+          groupId: groupId,
+        ),
+      );
+
+  Future<List<PluginGroup>> movePluginToGroup(
+    String pluginId,
+    String? groupId,
+  ) => _enqueuePluginGroupWrite(
+    _PluginGroupWrite(
+      _PluginGroupOperation.move,
+      groupId: groupId,
+      pluginId: pluginId,
+    ),
+  );
+
+  Future<List<PluginGroup>> _enqueuePluginGroupWrite(
+    _PluginGroupWrite mutation,
+  ) {
+    if (_storageMoveWritesReleased case final released?) {
+      return released.future.then((_) => _enqueuePluginGroupWrite(mutation));
+    }
+    _openWriteBatch = null;
+    final result = _runPluginGroupWrite(_writeTail, mutation);
+    final tail = _writeTail = result.then<void>((_) {});
+    _settled(tail).then((_) {
+      if (identical(_writeTail, tail)) _writeTail = null;
+    });
+    return result;
+  }
+
+  /// השחזור נוגע רק לתוספים שנכללו ושוחזרו; ייבוא ממזג שומר כל שיוך מקומי.
+  Future<List<PluginGroup>> restorePluginGroups(
+    List<PluginGroup> groups, {
+    required Set<String> pluginScope,
+    required bool keepExisting,
+  }) => _enqueuePluginGroupWrite(
+    _PluginGroupWrite(
+      _PluginGroupOperation.restore,
+      groups: List.unmodifiable(groups),
+      pluginScope: Set.unmodifiable(pluginScope),
+      keepExisting: keepExisting,
+    ),
+  );
+
+  Future<List<PluginGroup>> _runPluginGroupWrite(
+    Future<void>? previous,
+    _PluginGroupWrite mutation,
+  ) async {
+    if (previous != null) await _settled(previous);
+    await _connection();
+    return _writePluginGroupInIsolate(_dbPath!, mutation);
+  }
+
+  static Future<List<PluginGroup>> _writePluginGroupInIsolate(
+    String path,
+    _PluginGroupWrite mutation,
+  ) => Isolate.run(() {
+    final db = openSecondaryWritableConnection(path, 'PluginGroupsWrite');
+    try {
+      // הנעילה לפני הקריאה מונעת כשל בשדרוג טרנזקציית קריאה כשחלון אחר כותב.
+      db.execute('BEGIN IMMEDIATE');
+      _applyPluginGroupWrite(db, mutation);
+      final groups = _selectPluginGroups(db, null);
+      db.execute('COMMIT');
+      return groups;
+    } catch (_) {
+      if (!db.autocommit) db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      db.close();
+    }
+  }, debugName: 'PluginGroupsWrite');
+
+  static void _applyPluginGroupWrite(
+    Database db,
+    _PluginGroupWrite mutation,
+  ) {
+    switch (mutation.operation) {
+      case _PluginGroupOperation.create:
+      case _PluginGroupOperation.update:
+        final group = mutation.group!;
+        final existing = _selectPluginGroups(db, null);
+        final current = existing.where((g) => g.id == group.id).firstOrNull;
+        if (mutation.operation == _PluginGroupOperation.update &&
+            (current == null ||
+                (mutation.expectedGroup != null &&
+                    current != mutation.expectedGroup))) {
+          throw const PluginGroupChanged();
+        }
+        if (existing.any(
+          (g) =>
+              g.id != group.id &&
+              g.name.toLowerCase() == group.name.toLowerCase(),
+        )) {
+          throw const PluginGroupNameInUse();
+        }
+        if (mutation.operation == _PluginGroupOperation.create) {
+          db.execute(
+            'INSERT INTO plugin_group (group_id, name, sort_order) '
+            'SELECT ?, ?, COALESCE(MAX(sort_order), -1) + 1 FROM plugin_group',
+            [group.id, group.name],
+          );
+        } else {
+          db.execute('UPDATE plugin_group SET name = ? WHERE group_id = ?', [
+            group.name,
+            group.id,
+          ]);
+        }
+        db.execute('DELETE FROM plugin_group_member WHERE group_id = ?', [
+          group.id,
+        ]);
+        for (var index = 0; index < group.pluginIds.length; index++) {
+          db.execute(
+            'INSERT INTO plugin_group_member (plugin_id, group_id, position) '
+            'SELECT plugin_id, ?, ? FROM plugin_installation WHERE plugin_id = ? '
+            'ON CONFLICT(plugin_id) DO UPDATE SET '
+            'group_id = excluded.group_id, position = excluded.position',
+            [group.id, index, group.pluginIds[index]],
+          );
+        }
+      case _PluginGroupOperation.delete:
+        db.execute('DELETE FROM plugin_group_member WHERE group_id = ?', [
+          mutation.groupId,
+        ]);
+        db.execute('DELETE FROM plugin_group WHERE group_id = ?', [
+          mutation.groupId,
+        ]);
+      case _PluginGroupOperation.move:
+        final groupId = mutation.groupId;
+        if (groupId == null) {
+          db.execute('DELETE FROM plugin_group_member WHERE plugin_id = ?', [
+            mutation.pluginId,
+          ]);
+          return;
+        }
+        if (db.select('SELECT 1 FROM plugin_group WHERE group_id = ?', [
+          groupId,
+        ]).isEmpty) {
+          throw const PluginGroupChanged();
+        }
+        // אותו יעד אינו משנה את הסדר כשהמשתמש משחרר שוב על אותה קבוצה.
+        db.execute(
+          'INSERT INTO plugin_group_member (plugin_id, group_id, position) '
+          'SELECT plugin_id, ?, '
+          '(SELECT COALESCE(MAX(position), -1) + 1 FROM plugin_group_member '
+          'WHERE group_id = ?) FROM plugin_installation WHERE plugin_id = ? '
+          'ON CONFLICT(plugin_id) DO UPDATE SET '
+          'group_id = excluded.group_id, position = excluded.position '
+          'WHERE plugin_group_member.group_id != excluded.group_id',
+          [groupId, groupId, mutation.pluginId],
+        );
+      case _PluginGroupOperation.restore:
+        _restorePluginGroups(db, mutation);
+    }
+  }
+
+  static void _restorePluginGroups(Database db, _PluginGroupWrite mutation) {
+    final names = {
+      for (final group in _selectPluginGroups(db, null)) group.id: group.name,
+    };
+    if (!mutation.keepExisting) {
+      for (final pluginId in mutation.pluginScope) {
+        db.execute('DELETE FROM plugin_group_member WHERE plugin_id = ?', [
+          pluginId,
+        ]);
+      }
+    }
+    for (final group in mutation.groups) {
+      if (group.pluginIds.isNotEmpty &&
+          !group.pluginIds.any(mutation.pluginScope.contains)) {
+        continue;
+      }
+      final previousName = names[group.id];
+      if (previousName == null || !mutation.keepExisting) {
+        final taken = {
+          for (final entry in names.entries)
+            if (entry.key != group.id) entry.value.toLowerCase(),
+        };
+        var name = group.name;
+        for (var suffix = 2; taken.contains(name.toLowerCase()); suffix++) {
+          final ending = ' ($suffix)';
+          name =
+              '${group.name.characters.take(PluginGroup.maxNameLength - ending.length)}$ending';
+        }
+        if (previousName == null) {
+          db.execute(
+            'INSERT INTO plugin_group (group_id, name, sort_order) '
+            'SELECT ?, ?, COALESCE(MAX(sort_order), -1) + 1 FROM plugin_group',
+            [group.id, name],
+          );
+        } else {
+          db.execute('UPDATE plugin_group SET name = ? WHERE group_id = ?', [
+            name,
+            group.id,
+          ]);
+        }
+        names[group.id] = name;
+      }
+      for (final pluginId in group.pluginIds) {
+        if (!mutation.pluginScope.contains(pluginId)) continue;
+        db.execute(
+          'INSERT INTO plugin_group_member (plugin_id, group_id, position) '
+          'SELECT plugin_id, ?, '
+          '(SELECT COALESCE(MAX(position), -1) + 1 FROM plugin_group_member '
+          'WHERE group_id = ?) FROM plugin_installation WHERE plugin_id = ? '
+          'ON CONFLICT(plugin_id) DO NOTHING',
+          [group.id, group.id, pluginId],
+        );
+      }
+    }
+  }
 
   // מוני החיבור מזהים שינויים מקומיים וכתיבות מחיבורי SQLite אחרים.
   (Database, int, int, List<_InstalledPluginSnapshot>)? _installedPlugins;
@@ -412,6 +730,7 @@ class PluginSystemDatabase {
 
   /// המחיקות עוברות בתור הכתיבה, באותה טרנזקציה, ב-isolate (#5869).
   Future<void> deletePlugin(String pluginId) => _enqueueTransaction([
+    ('DELETE FROM plugin_group_member WHERE plugin_id = ?', [pluginId]),
     ('DELETE FROM plugin_installation WHERE plugin_id = ?', [pluginId]),
     ('DELETE FROM plugin_permission_grant WHERE plugin_id = ?', [pluginId]),
     ..._pluginDataDeletes(pluginId),

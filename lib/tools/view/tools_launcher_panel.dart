@@ -12,9 +12,11 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/services/plugin_update_check_service.dart';
 import 'package:otzaria/plugins/view/plugin_actions.dart';
 import 'package:otzaria/plugins/view/plugin_settings_screen.dart';
+import 'package:otzaria/plugins/view/plugin_group_dialog.dart';
 import 'package:otzaria/plugins/utils/plugin_dev_tools_mode.dart';
 import 'package:otzaria/plugins/view/widgets/plugin_drop_zone.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -28,8 +30,8 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
+import 'package:otzaria/tools/plugin_group_entries.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
-import 'package:otzaria/tools/tool_order.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/controls/app_icon_button.dart';
@@ -37,6 +39,7 @@ import 'package:otzaria/widgets/feedback/app_info_banner.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -192,6 +195,10 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     onKeyEvent: _handleSearchFieldKey,
   );
   String _query = '';
+  String? _activeGroupId;
+  Map<String, PluginGroup> _groupsById = const {};
+  Map<String, PluginGroup> _groupsByPluginId = const {};
+  bool _groupsLoaded = false;
 
   /// הקובייה המסומנת בניווט מקלדת, כאינדקס ברשימה המסוננת השטוחה.
   /// `-1` = אין סימון, כדי שלא ייראה כאילו הכלי הראשון נבחר.
@@ -228,6 +235,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   @override
   void initState() {
     super.initState();
+    context.read<PluginSystemBloc>().add(const LoadPluginGroups());
     // autofocus אינו עובד כאן: הפאנל נפתח בתוך FocusScope שכבר יש בו
     // focusedChild (מסך הקריאה), ואז בקשת ה-autofocus נזנחת.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -295,9 +303,40 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
 
   void _activateHighlighted(List<ToolCatalogEntry> entries) {
     if (entries.isEmpty) return;
-    widget.onToolSelected(
+    _activateEntry(
       entries[_highlightedIndex.clamp(0, entries.length - 1)],
     );
+  }
+
+  void _activateEntry(ToolCatalogEntry entry) {
+    if (entry is! PluginGroupCatalogEntry) {
+      widget.onToolSelected(entry);
+      return;
+    }
+    setState(() {
+      _activeGroupId = entry.group.id;
+      _query = '';
+      _searchController.clear();
+      _highlightedIndex = -1;
+    });
+    _resetGridFocus();
+  }
+
+  void _leaveGroup() {
+    setState(() {
+      _activeGroupId = null;
+      _highlightedIndex = -1;
+    });
+    _resetGridFocus();
+  }
+
+  void _resetGridFocus() {
+    _onDragEnded();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_gridScrollController.hasClients) _gridScrollController.jumpTo(0);
+      _searchFocusNode.requestFocus();
+    });
   }
 
   KeyEventResult _handleKey(
@@ -310,7 +349,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.escape:
-        widget.onClose();
+        _activeGroupId == null ? widget.onClose() : _leaveGroup();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
         _moveHighlight(columns, entries.length);
@@ -350,6 +389,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     if (!canReorderBetween(source, target)) return;
     final pluginBloc = context.read<PluginSystemBloc>();
     final settingsBloc = context.read<SettingsBloc>();
+    final withinGroup = _activeGroupId == null
+        ? null
+        : _keyboardEntries.map((entry) => entry.toolId).toList();
 
     // שיגור מושהה לפריים הבא: הרשת נבנית בתוך LayoutBuilder, ושיגור בזמן
     // הבנייה מפיל את Flutter על הפעלה-מחדש של רכיבי Overlay.
@@ -363,11 +405,12 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         final base =
             _pendingPluginOrder ??
             pluginState.plugins.map((plugin) => plugin.pluginId).toList();
-        final ordered = reorderIdsAroundTarget(
+        final ordered = reorderPluginLauncherEntries(
           base,
-          source.toolId,
-          target.toolId,
+          source,
+          target,
           placeAfter: placeAfter,
+          withinGroup: withinGroup,
         );
         _pendingPluginOrder = ordered;
         pluginBloc.add(ReorderPluginsRequested(ordered));
@@ -394,7 +437,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   /// כשהמקור כבר אחרון ואין מה להזיז.
   ToolCatalogEntry? _endOfGroupTarget(ToolCatalogEntry source) {
     final last = _keyboardEntries.lastWhereOrNull(
-      (entry) => entry.isPlugin == source.isPlugin,
+      (entry) =>
+          entry.isPlugin == source.isPlugin &&
+          (entry is! PluginGroupCatalogEntry || entry.members.isNotEmpty),
     );
     return (last == null || last.toolId == source.toolId) ? null : last;
   }
@@ -508,6 +553,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     required VoidCallback? onMoveToEnd,
   }) {
     final plugin = entry.plugin;
+    final folder = entry is PluginGroupCatalogEntry ? entry.group : null;
     return [
       ToolTileAction(
         icon: FluentIcons.re_order_dots_vertical_24_regular,
@@ -537,54 +583,123 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
           ),
         ],
       ),
-      if (plugin != null)
+      if (folder != null) ...[
         ToolTileAction(
-          icon: FluentIcons.shield_24_regular,
-          label: 'ניהול הרשאות',
-          onTap: () => showPluginSettingsDialog(context, plugin),
+          icon: FluentIcons.edit_24_regular,
+          label: 'עריכת קבוצה',
+          onTap: _groupsLoaded
+              ? () => showPluginGroupEditor(context, group: folder)
+              : null,
         ),
-      ToolTileAction(
-        icon: _isPinnedToNavRail(entry)
-            ? FluentIcons.pin_off_24_regular
-            : FluentIcons.pin_24_regular,
-        label: _isPinnedToNavRail(entry)
-            ? 'הסר מסרגל הניווט'
-            : 'הצמד לסרגל הניווט',
-        onTap: () => _togglePinToNavRail(entry),
-      ),
-      ToolTileAction(
-        // תוסף מוצמד לסרגל הניווט נשאר בקטלוג גם כשהוא מוסתר, ולכן התווית
-        // חייבת לשקף את מצבו בפועל — אחרת הלחיצה הבאה מחזירה אותו בשקט.
-        icon: (plugin?.showInTools ?? true)
-            ? FluentIcons.eye_off_24_regular
-            : FluentIcons.eye_24_regular,
-        label: (plugin?.showInTools ?? true) ? 'הסתר מהממשק' : 'הצג בממשק',
-        onTap: () => _hideFromInterface(entry),
-      ),
-      if (plugin != null)
         ToolTileAction(
-          icon: plugin.savedEnabled
-              ? FluentIcons.pause_circle_24_regular
-              : FluentIcons.play_circle_24_regular,
-          label: plugin.savedEnabled ? 'השבת' : 'הפעל',
-          onTap: () => togglePluginEnabled(context, plugin),
+          icon: FluentIcons.folder_open_24_regular,
+          label: 'פירוק קבוצה',
+          onTap: _groupsLoaded ? () => _dissolveGroup(folder) : null,
         ),
-      if (plugin != null)
+      ] else ...[
+        if (plugin != null) ...[
+          ToolTileAction(
+            icon: FluentIcons.folder_arrow_right_24_regular,
+            label: 'העבר לקבוצה',
+            onTap: _groupsLoaded
+                ? () => showMovePluginToGroupDialog(context, plugin.pluginId)
+                : null,
+          ),
+          if (_groupsByPluginId.containsKey(plugin.pluginId))
+            ToolTileAction(
+              icon: FluentIcons.subtract_circle_24_regular,
+              label: 'הוצא מהקבוצה',
+              onTap: _groupsLoaded
+                  ? () => _movePluginToGroup(plugin.pluginId, null)
+                  : null,
+            ),
+        ],
+        if (plugin != null)
+          ToolTileAction(
+            icon: FluentIcons.shield_24_regular,
+            label: 'ניהול הרשאות',
+            onTap: () => showPluginSettingsDialog(context, plugin),
+          ),
         ToolTileAction(
-          icon: FluentIcons.arrow_reset_24_regular,
-          label: 'איפוס נתוני התוסף',
-          isDestructive: true,
-          dividerBefore: true,
-          onTap: () => showResetPluginDataDialog(context, plugin),
+          icon: _isPinnedToNavRail(entry)
+              ? FluentIcons.pin_off_24_regular
+              : FluentIcons.pin_24_regular,
+          label: _isPinnedToNavRail(entry)
+              ? 'הסר מסרגל הניווט'
+              : 'הצמד לסרגל הניווט',
+          onTap: () => _togglePinToNavRail(entry),
         ),
-      if (plugin != null)
         ToolTileAction(
-          icon: FluentIcons.delete_24_regular,
-          label: 'מחק תוסף',
-          isDestructive: true,
-          onTap: () => showDeletePluginDialog(context, plugin),
+          // תוסף מוצמד לסרגל הניווט נשאר בקטלוג גם כשהוא מוסתר, ולכן התווית
+          // חייבת לשקף את מצבו בפועל — אחרת הלחיצה הבאה מחזירה אותו בשקט.
+          icon: (plugin?.showInTools ?? true)
+              ? FluentIcons.eye_off_24_regular
+              : FluentIcons.eye_24_regular,
+          label: (plugin?.showInTools ?? true) ? 'הסתר מהממשק' : 'הצג בממשק',
+          onTap: () => _hideFromInterface(entry),
         ),
+        if (plugin != null)
+          ToolTileAction(
+            icon: plugin.savedEnabled
+                ? FluentIcons.pause_circle_24_regular
+                : FluentIcons.play_circle_24_regular,
+            label: plugin.savedEnabled ? 'השבת' : 'הפעל',
+            onTap: () => togglePluginEnabled(context, plugin),
+          ),
+        if (plugin != null)
+          ToolTileAction(
+            icon: FluentIcons.arrow_reset_24_regular,
+            label: 'איפוס נתוני התוסף',
+            isDestructive: true,
+            dividerBefore: true,
+            onTap: () => showResetPluginDataDialog(context, plugin),
+          ),
+        if (plugin != null)
+          ToolTileAction(
+            icon: FluentIcons.delete_24_regular,
+            label: 'מחק תוסף',
+            isDestructive: true,
+            onTap: () => showDeletePluginDialog(context, plugin),
+          ),
+      ],
     ];
+  }
+
+  Future<void> _dissolveGroup(PluginGroup group) async {
+    final bloc = context.read<PluginSystemBloc>();
+    final confirmed = await showTwoActionsDialog(
+      context: context,
+      title: context.settingsText('פירוק קבוצה'),
+      content: context.settingsText(
+        'התוספים יישארו מותקנים ויחזרו לרשימת הכלים.',
+      ),
+      confirmText: context.settingsText('פירוק קבוצה'),
+      icon: FluentIcons.folder_open_24_regular,
+    );
+    if (confirmed == true && !bloc.isClosed) {
+      bloc.add(DeletePluginGroupRequested(group.id));
+    }
+  }
+
+  void _movePluginToGroup(String pluginId, String? groupId) {
+    context.read<PluginSystemBloc>().add(
+      MovePluginToGroupRequested(pluginId: pluginId, groupId: groupId),
+    );
+  }
+
+  void _groupDrop(ToolCatalogEntry source, ToolCatalogEntry target) {
+    _onDragEnded();
+    if (!_groupsLoaded || source.plugin == null) return;
+    if (target is PluginGroupCatalogEntry) {
+      _movePluginToGroup(source.toolId, target.group.id);
+    } else if (target.plugin != null) {
+      unawaited(
+        showPluginGroupEditor(
+          context,
+          initialPluginIds: [target.toolId, source.toolId],
+        ),
+      );
+    }
   }
 
   bool _isPinnedToNavRail(ToolCatalogEntry entry) =>
@@ -625,6 +740,17 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       _lastLoadedPluginState = currentPluginState;
     }
     final pluginState = _lastLoadedPluginState ?? currentPluginState;
+    final pluginGroups = pluginState is PluginSystemLoaded
+        ? pluginState.groups
+        : const <PluginGroup>[];
+    _groupsLoaded =
+        pluginState is PluginSystemLoaded && pluginState.groupsLoaded;
+    _groupsById = {for (final group in pluginGroups) group.id: group};
+    _groupsByPluginId = {
+      for (final group in pluginGroups)
+        for (final pluginId in group.pluginIds) pluginId: group,
+    };
+    if (!_groupsById.containsKey(_activeGroupId)) _activeGroupId = null;
     final allEntries = buildToolCatalog(
       hiddenBuiltInToolIds: settingsState.hiddenBuiltInToolIds,
       isOfflineMode: settingsState.isOfflineMode,
@@ -632,7 +758,23 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       builtInToolsOrder: settingsState.builtInToolsOrder,
     );
     _clearSettledPendingOrders(settingsState, pluginState);
-    final entries = orderedToolEntries(filterToolEntries(allEntries, _query));
+    final groupedEntries = collapsePluginGroups(allEntries, pluginGroups);
+    final activeGroup = _groupsById[_activeGroupId];
+    final entries = normalizeToolSearchText(_query).isNotEmpty
+        ? orderedToolEntries(
+            filterToolEntries([
+              ...allEntries,
+              ...groupedEntries.whereType<PluginGroupCatalogEntry>(),
+            ], _query),
+          )
+        : activeGroup == null
+        ? groupedEntries
+        : allEntries
+              .where(
+                (entry) =>
+                    _groupsByPluginId[entry.toolId]?.id == activeGroup.id,
+              )
+              .toList();
     // הרשימה התקצרה (כלי הוסתר) — סימון שיצא מהטווח היה נשאר בלי חיווי, אבל
     // Enter היה פותח כלי אחר.
     if (_highlightedIndex >= entries.length) _highlightedIndex = -1;
@@ -661,6 +803,10 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                 children: [
                   _buildSearchField(entries),
                   const SizedBox(height: AppTokens.spaceMD),
+                  if (activeGroup != null) ...[
+                    _buildGroupNavigation(activeGroup, entries.length),
+                    const SizedBox(height: AppTokens.spaceSM),
+                  ],
                   Expanded(
                     child: Stack(
                       children: [
@@ -702,6 +848,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                                 widget.showDevTools ??
                                 PluginDevToolsMode.enabled,
                             onInstall: _installPlugin,
+                            onCreateGroup: _groupsLoaded
+                                ? () => showPluginGroupEditor(context)
+                                : null,
                             onLoadFolder: _loadDevPlugin,
                             onLoadLocalhost: _loadLocalhostPlugin,
                           ),
@@ -764,12 +913,20 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   void _onQueryChanged(String value) {
     setState(() {
       _query = value;
+      if (normalizeToolSearchText(value).isNotEmpty) _activeGroupId = null;
       // בחיפוש התוצאה הראשונה מסומנת (Enter יפתח אותה); בלי חיפוש אין סימון.
       _highlightedIndex = normalizeToolSearchText(value).isEmpty ? -1 : 0;
     });
   }
 
   Widget _buildEmptyState(bool isOfflineMode) {
+    if (_activeGroupId != null) {
+      return OtzariaEmptyState(
+        icon: FluentIcons.folder_open_24_regular,
+        title: context.settingsText('אין תוספים זמינים בקבוצה'),
+        message: context.settingsText('אפשר לערוך את הקבוצה ולהוסיף תוספים'),
+      );
+    }
     final hasQuery = _query.trim().isNotEmpty;
     final message = hasQuery
         ? context.settingsText('לא נמצאו כלים התואמים לחיפוש')
@@ -782,6 +939,45 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
           : FluentIcons.toolbox_24_regular,
       title: message,
       message: hasQuery ? context.settingsText('נסה לחפש מילים אחרות') : null,
+    );
+  }
+
+  Widget _buildGroupNavigation(PluginGroup group, int count) {
+    return Row(
+      children: [
+        AppIconButton(
+          icon: const Icon(FluentIcons.arrow_left_24_regular),
+          tooltip: context.settingsText('חזרה לכל הכלים'),
+          onPressed: _leaveGroup,
+        ),
+        const SizedBox(width: AppTokens.spaceXS),
+        Expanded(
+          child: Semantics(
+            header: true,
+            child: Text(
+              group.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+        ),
+        MetaChip(
+          label: count.toString(),
+          size: MetaChipSize.small,
+          tooltip: context.settingsText(
+            '{count} תוספים',
+            args: {'count': count},
+          ),
+        ),
+        AppIconButton(
+          icon: const Icon(FluentIcons.edit_24_regular),
+          tooltip: context.settingsText('עריכת קבוצה'),
+          onPressed: _groupsLoaded
+              ? () => showPluginGroupEditor(context, group: group)
+              : null,
+        ),
+      ],
     );
   }
 
@@ -880,6 +1076,16 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       }
       final groupStartIndex = runningIndex;
       runningIndex += group.entries.length;
+      final reorderable = group.entries
+          .where(
+            (entry) =>
+                entry is! PluginGroupCatalogEntry || entry.members.isNotEmpty,
+          )
+          .toList();
+      final reorderIndices = {
+        for (var index = 0; index < reorderable.length; index++)
+          reorderable[index].toolId: index,
+      };
       slivers.add(
         SliverPadding(
           // ui-lint: allow UIL-021 — המרווח בימין הפיזי בכוונה, מול פס הגלילה שמוצמד לימין (EdgeScrollbarBehavior.right, q10 Q16 A)
@@ -894,6 +1100,8 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
             delegate: SliverChildBuilderDelegate(
               (context, index) => _buildTile(
                 group: group.entries,
+                reorderable: reorderable,
+                reorderIndex: reorderIndices[group.entries[index].toolId] ?? -1,
                 indexInGroup: index,
                 flatIndex: groupStartIndex + index,
                 openToolIds: openToolIds,
@@ -927,14 +1135,16 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
 
   Widget _buildTile({
     required List<ToolCatalogEntry> group,
+    required List<ToolCatalogEntry> reorderable,
+    required int reorderIndex,
     required int indexInGroup,
     required int flatIndex,
     required Set<String> openToolIds,
   }) {
     final entry = group[indexInGroup];
-    final canReorder = _isReorderEnabled;
-    final isFirst = indexInGroup == 0;
-    final isLast = indexInGroup == group.length - 1;
+    final canReorder = _isReorderEnabled && reorderIndex >= 0;
+    final isFirst = reorderIndex == 0;
+    final isLast = reorderIndex == reorderable.length - 1;
     VoidCallback? moveTo(
       int targetIndex, {
       required bool enabled,
@@ -942,7 +1152,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     }) => enabled
         ? () => _reorder(
             source: entry,
-            target: group[targetIndex],
+            target: reorderable[targetIndex],
             placeAfter: placeAfter,
           )
         : null;
@@ -956,9 +1166,18 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       onDragEnded: _onDragEnded,
       onAcceptSource: (source, {required placeAfter}) =>
           _reorder(source: source, target: entry, placeAfter: placeAfter),
+      onGroupSource:
+          _isReorderEnabled &&
+              _groupsLoaded &&
+              _activeGroupId == null &&
+              entry.isPlugin
+          ? (source) => _groupDrop(source, entry)
+          : null,
       tile: ToolTile(
         entry: entry,
-        isOpen: openToolIds.contains(entry.toolId),
+        isOpen: entry is PluginGroupCatalogEntry
+            ? entry.members.any((member) => openToolIds.contains(member.toolId))
+            : openToolIds.contains(entry.toolId),
         isHighlighted: flatIndex == _highlightedIndex,
         movePulse: entry.toolId == _movedToolId ? _moveNonce : 0,
         // בלי זה הפוקוס נשאר על מסלול התפריט שנסגר, ומקשי הפאנל (Escape,
@@ -969,12 +1188,12 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         actions: _tileActions(
           entry,
           onMoveEarlier: moveTo(
-            indexInGroup - 1,
+            reorderIndex - 1,
             enabled: canReorder && !isFirst,
             placeAfter: false,
           ),
           onMoveLater: moveTo(
-            indexInGroup + 1,
+            reorderIndex + 1,
             enabled: canReorder && !isLast,
             placeAfter: true,
           ),
@@ -984,12 +1203,12 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
             placeAfter: false,
           ),
           onMoveToEnd: moveTo(
-            group.length - 1,
+            reorderable.length - 1,
             enabled: canReorder && !isLast,
             placeAfter: true,
           ),
         ),
-        onTap: () => widget.onToolSelected(entry),
+        onTap: () => _activateEntry(entry),
       ),
     );
   }
@@ -1069,12 +1288,14 @@ class _PluginsFooter extends StatelessWidget {
 class _PluginsToolbar extends StatelessWidget {
   final bool showDevTools;
   final VoidCallback onInstall;
+  final VoidCallback? onCreateGroup;
   final VoidCallback onLoadFolder;
   final VoidCallback onLoadLocalhost;
 
   const _PluginsToolbar({
     required this.showDevTools,
     required this.onInstall,
+    required this.onCreateGroup,
     required this.onLoadFolder,
     required this.onLoadLocalhost,
   });
@@ -1117,6 +1338,13 @@ class _PluginsToolbar extends StatelessWidget {
                 );
               },
             ),
+            const SizedBox(width: AppTokens.spaceXS),
+            AppIconButton(
+              size: AppIconButtonSize.medium,
+              icon: const Icon(FluentIcons.folder_add_24_regular),
+              tooltip: context.settingsText('קבוצה חדשה'),
+              onPressed: onCreateGroup,
+            ),
             if (showDevTools) ...[
               const SizedBox(width: AppTokens.spaceXS),
               AppIconButton(
@@ -1151,6 +1379,7 @@ class _ReorderableToolTile extends StatefulWidget {
   final bool showEndIndicator;
   final void Function(ToolCatalogEntry source, {required bool placeAfter})
   onAcceptSource;
+  final ValueChanged<ToolCatalogEntry>? onGroupSource;
 
   /// תזוזת גרירה מעל הקובייה — מזינה את גלילת הקצה של הרשת.
   final ValueChanged<Offset> onDragOver;
@@ -1167,6 +1396,7 @@ class _ReorderableToolTile extends StatefulWidget {
     required this.onDragOver,
     required this.onDragEnded,
     required this.onAcceptSource,
+    this.onGroupSource,
   });
 
   @override
@@ -1176,6 +1406,7 @@ class _ReorderableToolTile extends StatefulWidget {
 class _ReorderableToolTileState extends State<_ReorderableToolTile> {
   /// `true` = הקובייה הנגררת תיפול *אחרי* הקובייה הזאת בסדר.
   bool _placeAfter = false;
+  bool _groupDrop = false;
 
   /// בכיוון RTL "לפני" הוא הצד הימני של הקובייה, ולכן סמן בחצי הימני מציב
   /// לפניה וסמן בחצי השמאלי מציב אחריה.
@@ -1188,27 +1419,56 @@ class _ReorderableToolTileState extends State<_ReorderableToolTile> {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final inLeadingHalf = local.dx < box.size.width / 2;
     final placeAfter = isRtl ? inLeadingHalf : !inLeadingHalf;
-    if (placeAfter != _placeAfter) setState(() => _placeAfter = placeAfter);
+    final groupDrop =
+        widget.onGroupSource != null &&
+        source.plugin != null &&
+        local.dx > box.size.width * 0.3 &&
+        local.dx < box.size.width * 0.7 &&
+        local.dy > box.size.height * 0.2 &&
+        local.dy < box.size.height * 0.8;
+    if (placeAfter != _placeAfter || groupDrop != _groupDrop) {
+      setState(() {
+        _placeAfter = placeAfter;
+        _groupDrop = groupDrop;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return DragTarget<ToolCatalogEntry>(
-      onWillAcceptWithDetails: (details) =>
-          widget.canDrag && canReorderBetween(details.data, widget.entry),
+      onWillAcceptWithDetails: (details) {
+        if (!canReorderBetween(details.data, widget.entry)) return false;
+        _updateSide(details.data, details.offset);
+        return widget.canDrag ||
+            (widget.onGroupSource != null && details.data.plugin != null);
+      },
       onMove: (details) {
         _updateSide(details.data, details.offset);
         widget.onDragOver(details.offset);
       },
-      onLeave: (_) => widget.onDragEnded(),
-      onAcceptWithDetails: (details) =>
-          widget.onAcceptSource(details.data, placeAfter: _placeAfter),
+      onLeave: (_) {
+        if (_groupDrop) setState(() => _groupDrop = false);
+        widget.onDragEnded();
+      },
+      onAcceptWithDetails: (details) {
+        if (_groupDrop && widget.onGroupSource != null) {
+          widget.onGroupSource!(details.data);
+        } else if (widget.canDrag) {
+          widget.onAcceptSource(details.data, placeAfter: _placeAfter);
+        }
+      },
       builder: (context, candidates, _) {
+        final grouping = candidates.isNotEmpty && _groupDrop;
         final tile = _DropInsertionIndicator(
           placeAfter: widget.showEndIndicator
               ? true
-              : (candidates.isEmpty ? null : _placeAfter),
-          child: widget.tile,
+              : (candidates.isEmpty || grouping || !widget.canDrag
+                    ? null
+                    : _placeAfter),
+          child: grouping
+              ? _PluginGroupDropIndicator(child: widget.tile)
+              : widget.tile,
         );
         if (!widget.canDrag) return tile;
 
@@ -1346,6 +1606,44 @@ class _DropInsertionIndicator extends StatelessWidget {
   }
 }
 
+class _PluginGroupDropIndicator extends StatelessWidget {
+  final Widget child;
+
+  const _PluginGroupDropIndicator({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        IgnorePointer(
+          child: DecoratedBox(
+            key: const Key('plugin-group-drop-indicator'),
+            decoration: BoxDecoration(
+              color: AppSurfaces.hoverRow(cs),
+              borderRadius: AppTokens.borderRadiusAll,
+              border: Border.all(
+                color: cs.primary,
+                width: AppTokens.focusRingWidth,
+              ),
+            ),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: MetaChip(
+                label: context.settingsText('שחרר כדי לקבץ'),
+                size: MetaChipSize.small,
+                tone: MetaChipTone.primary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// מה שצף מתחת לסמן בזמן גרירת קובייה.
 class _ToolDragFeedback extends StatelessWidget {
   final ToolCatalogEntry entry;
@@ -1375,7 +1673,9 @@ class _ToolDragFeedback extends StatelessWidget {
                 : Icon(entry.icon, size: AppTokens.iconSM),
             const SizedBox(width: 8),
             Text(
-              context.settingsText(entry.label),
+              entry is PluginGroupCatalogEntry
+                  ? entry.label
+                  : context.settingsText(entry.label),
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ],
@@ -1436,66 +1736,86 @@ class ToolTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final folder = entry is PluginGroupCatalogEntry
+        ? entry as PluginGroupCatalogEntry
+        : null;
     return _MovePulse(
       nonce: movePulse,
-      child: AppCard(
-        onTap: onTap,
+      child: Semantics(
+        button: true,
         selected: isHighlighted,
-        child: Stack(
-          children: [
-            // האייקון והכותרת ממורכזים כגוש אחד.
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTokens.spaceXS),
-                child: LayoutBuilder(
-                  builder: (context, constraints) => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _buildIcon(cs, iconSizeFor(constraints.maxHeight)),
-                      const SizedBox(height: AppTokens.spaceXS),
-                      Flexible(
-                        child: Text(
-                          context.settingsText(entry.label),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: labelFontSize,
-                            height: labelLineHeight,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onSurface,
+        child: AppCard(
+          onTap: onTap,
+          selected: isHighlighted,
+          child: Stack(
+            children: [
+              // האייקון והכותרת ממורכזים כגוש אחד.
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppTokens.spaceXS),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildIcon(cs, iconSizeFor(constraints.maxHeight)),
+                        const SizedBox(height: AppTokens.spaceXS),
+                        Flexible(
+                          child: Text(
+                            folder?.label ?? context.settingsText(entry.label),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: labelFontSize,
+                              height: labelLineHeight,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            if (actions.isNotEmpty)
-              PositionedDirectional(
-                top: 0,
-                end: 0,
-                child: _buildMenuButton(context, cs),
-              ),
-            if (entry.isDevelopment)
-              PositionedDirectional(
-                bottom: 2,
-                start: 4,
-                child: const PluginDevBadge(),
-              ),
-            if (isOpen)
-              PositionedDirectional(
-                top: 4,
-                start: 4,
-                child: Icon(
-                  FluentIcons.checkmark_circle_16_filled,
-                  size: 12,
-                  color: cs.primary,
+              if (actions.isNotEmpty)
+                PositionedDirectional(
+                  top: 0,
+                  end: 0,
+                  child: _buildMenuButton(context, cs),
                 ),
-              ),
-          ],
+              if (entry.isDevelopment)
+                PositionedDirectional(
+                  bottom: 2,
+                  start: 4,
+                  child: const PluginDevBadge(),
+                ),
+              if (isOpen && folder == null)
+                PositionedDirectional(
+                  top: 4,
+                  start: 4,
+                  child: Icon(
+                    FluentIcons.checkmark_circle_16_filled,
+                    size: 12,
+                    color: cs.primary,
+                  ),
+                ),
+              if (folder != null)
+                PositionedDirectional(
+                  top: AppTokens.space2XS,
+                  start: AppTokens.space2XS,
+                  child: MetaChip(
+                    label: folder.members.length.toString(),
+                    size: MetaChipSize.small,
+                    tooltip: context.settingsText(
+                      '{count} תוספים',
+                      args: {'count': folder.members.length},
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1569,6 +1889,47 @@ class ToolTile extends StatelessWidget {
   }
 
   Widget _buildIcon(ColorScheme cs, double iconSize) {
+    final folder = entry;
+    if (folder is PluginGroupCatalogEntry && folder.members.isNotEmpty) {
+      final members = folder.members.take(4).toList();
+      return SizedBox.square(
+        dimension: iconSize,
+        child: FittedBox(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              borderRadius: AppTokens.borderRadiusAll,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppTokens.spaceXS),
+              child: Column(
+                children: [
+                  for (var row = 0; row < 2; row++)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var column = 0; column < 2; column++)
+                          Padding(
+                            padding: const EdgeInsets.all(AppTokens.space2XS),
+                            child: row * 2 + column < members.length
+                                ? Icon(
+                                    members[row * 2 + column].icon,
+                                    size: AppTokens.iconSM,
+                                    color: cs.primary,
+                                  )
+                                : const SizedBox.square(
+                                    dimension: AppTokens.iconSM,
+                                  ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (entry.imageIcon != null) {
       return ImageIcon(
         AssetImage(entry.imageIcon!),

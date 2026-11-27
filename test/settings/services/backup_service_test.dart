@@ -21,6 +21,7 @@ import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/search/library_line_source.dart';
@@ -704,6 +705,101 @@ void main() {
       );
       return (installPath: installPath, dataPath: dataPath);
     }
+
+    test('קבוצות תוספים נשמרות בגיבוי ומשוחזרות עם המזהים שלהן', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('grouped.plugin');
+      await db.createPluginGroup('לימוד', ['grouped.plugin']);
+      await db.createPluginGroup('קבוצה ריקה', []);
+      final original = await db.getPluginGroups();
+      final backup = await createPluginsBackup();
+      final json = jsonDecode(await File(backup.path).readAsString()) as Map;
+      expect(json['pluginGroups'], original.map((g) => g.toJson()).toList());
+      expect(json['pluginGroupScope'], ['grouped.plugin']);
+      for (final group in original) {
+        await db.deletePluginGroup(group.id);
+      }
+
+      final result = await BackupService.restoreFromBackup(backup.path);
+      expect(result.skippedSections, isEmpty);
+      expect(await db.getPluginGroups(), original);
+    });
+
+    test(
+      'ייבוא קבוצות אינו דורס ארגון מקומי או מכפיל קבוצות בייבוא חוזר',
+      () async {
+        final db = PluginSystemDatabase.instance;
+        await installTestPlugin('grouped.plugin');
+        await db.createPluginGroup('מקור', ['grouped.plugin']);
+        final source = (await db.getPluginGroups()).single;
+        final backup = await createPluginsBackup();
+        await installTestPlugin('local.plugin');
+        await db.updatePluginGroup(
+          PluginGroup(
+            id: source.id,
+            name: 'שם מקומי',
+            pluginIds: ['local.plugin'],
+          ),
+        );
+        await db.createPluginGroup('בחירה מקומית', ['grouped.plugin']);
+        final local = await db.getPluginGroups();
+
+        await BackupService.restoreFromBackup(
+          backup.path,
+          mode: BackupImportMode.merge,
+        );
+        await BackupService.restoreFromBackup(
+          backup.path,
+          mode: BackupImportMode.merge,
+        );
+        expect(await db.getPluginGroups(), local);
+      },
+    );
+
+    test('גיבוי ישן ללא קבוצות משאיר את הקבוצות המקומיות', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('grouped.plugin');
+      final backup = await createPluginsBackup();
+      final json =
+          jsonDecode(await File(backup.path).readAsString())
+              as Map<String, dynamic>;
+      json
+        ..remove('pluginGroups')
+        ..remove('pluginGroupScope');
+      await File(backup.path).writeAsString(jsonEncode(json));
+      await db.createPluginGroup('מקומית', ['grouped.plugin']);
+      final before = await db.getPluginGroups();
+
+      await BackupService.restoreFromBackup(backup.path);
+      expect(await db.getPluginGroups(), before);
+    });
+
+    test('תוסף ששחזורו נכשל שומר את שיוכו המקומי', () async {
+      final db = PluginSystemDatabase.instance;
+      await installTestPlugin('failed.plugin');
+      await installTestPlugin('restored.plugin');
+      await db.createPluginGroup('בגיבוי', ['failed.plugin']);
+      final backup = await createPluginsBackup();
+      await db.createPluginGroup('מקומית', [
+        'failed.plugin',
+        'restored.plugin',
+      ]);
+      final json =
+          jsonDecode(await File(backup.path).readAsString())
+              as Map<String, dynamic>;
+      final failed = (json['plugins'] as List).cast<Map>().singleWhere(
+        (p) => (p['installation'] as Map)['plugin_id'] == 'failed.plugin',
+      );
+      failed['files'] = {'index.html': '%%%'};
+      await File(backup.path).writeAsString(jsonEncode(json));
+
+      final result = await BackupService.restoreFromBackup(backup.path);
+      expect(result.skippedSections, contains('plugins'));
+      final local = (await db.getPluginGroups()).singleWhere(
+        (g) => g.name == 'מקומית',
+      );
+      expect(local.pluginIds, ['failed.plugin']);
+    });
 
     test('משחזר תוסף packaged עם קבצים, נתונים, הרשאות ו-KV', () async {
       final db = PluginSystemDatabase.instance;

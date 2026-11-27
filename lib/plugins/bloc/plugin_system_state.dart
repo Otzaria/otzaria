@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 
@@ -16,11 +17,17 @@ class PluginSystemLoading extends PluginSystemState {}
 
 class PluginSystemLoaded extends PluginSystemState {
   final List<InstalledPlugin> plugins;
+  final List<PluginGroup> groups;
+  final bool groupsLoaded;
 
-  const PluginSystemLoaded(this.plugins);
+  const PluginSystemLoaded(
+    this.plugins, {
+    this.groups = const [],
+    this.groupsLoaded = false,
+  });
 
   @override
-  List<Object?> get props => [plugins];
+  List<Object?> get props => [plugins, groups, groupsLoaded];
 
   List<InstalledPlugin> get pluginsPinnedToNavRail => plugins
       .where((p) => p.pinnedToNavRail && p.enabled && p.hasToolPage)

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/plugins/models/plugin_group.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 
@@ -241,6 +244,77 @@ class ReorderPluginsRequested extends PluginSystemEvent {
 }
 
 class RefreshPlugins extends PluginSystemEvent {}
+
+sealed class PluginGroupsEvent extends PluginSystemEvent {
+  final Completer<void>? completion;
+
+  const PluginGroupsEvent({this.completion});
+}
+
+class LoadPluginGroups extends PluginGroupsEvent {
+  const LoadPluginGroups();
+}
+
+class CreatePluginGroupRequested extends PluginGroupsEvent {
+  final String name;
+  final List<String> pluginIds;
+
+  const CreatePluginGroupRequested({
+    required this.name,
+    required this.pluginIds,
+    super.completion,
+  });
+
+  @override
+  List<Object?> get props => [name, pluginIds, completion];
+}
+
+class UpdatePluginGroupRequested extends PluginGroupsEvent {
+  final String groupId;
+  final String name;
+  final List<String> pluginIds;
+  final PluginGroup? expectedGroup;
+
+  const UpdatePluginGroupRequested({
+    required this.groupId,
+    required this.name,
+    required this.pluginIds,
+    this.expectedGroup,
+    super.completion,
+  });
+
+  @override
+  List<Object?> get props => [
+    groupId,
+    name,
+    pluginIds,
+    expectedGroup,
+    completion,
+  ];
+}
+
+class DeletePluginGroupRequested extends PluginGroupsEvent {
+  final String groupId;
+
+  const DeletePluginGroupRequested(this.groupId, {super.completion});
+
+  @override
+  List<Object?> get props => [groupId, completion];
+}
+
+class MovePluginToGroupRequested extends PluginGroupsEvent {
+  final String pluginId;
+  final String? groupId;
+
+  const MovePluginToGroupRequested({
+    required this.pluginId,
+    this.groupId,
+    super.completion,
+  });
+
+  @override
+  List<Object?> get props => [pluginId, groupId, completion];
+}
 
 class LoadDevelopmentPluginRequested extends PluginSystemEvent {
   final String directoryPath;
