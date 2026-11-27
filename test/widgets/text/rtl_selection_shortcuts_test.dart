@@ -1,7 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
+import 'package:otzaria/widgets/selection/item_selection_container.dart';
+import 'package:otzaria/widgets/selection/paragraph_selection_container.dart';
 
 /// בודק את [RtlSelectionShortcuts]: Shift+חץ פועל תמיד על קצה ה-focus (לעולם
 /// לא משחית את ה-anchor/תחילת המחרוזת), ובכיוון הנכון — בשורה אחת (דרך
@@ -385,6 +389,339 @@ void main() {
       expect(rtlInferredReversed, isTrue, reason: 'priming לא משנה את ההסקה');
     });
   });
+
+  group('Shift+למטה/למעלה אחרי בחירה בעכבר בשורה אחת (#6048)', () {
+    const line1 = 'אבגדה והוזח טיכלמ';
+    const line2 = 'נסעפצ קרשתא בגדהו';
+    const line3 = 'שלישית שלישית';
+
+    // שלוש שורות, כל אחת Text נפרד — כמו שורות הספר בתוך SelectionArea.
+    Future<void> pumpLines(WidgetTester tester) async {
+      regionKey = GlobalKey<SelectableRegionState>();
+      sel = null;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Center(
+                child: SizedBox(
+                  width: 600,
+                  child: RtlSelectionShortcuts(
+                    child: SelectableRegion(
+                      key: regionKey,
+                      selectionControls: emptyTextSelectionControls,
+                      onSelectionChanged: (v) {
+                        if (!rtlSelectionPriming) sel = v?.plainText;
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final line in const [line1, line2, line3])
+                            Text(line, style: const TextStyle(fontSize: 24)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// גרירת עכבר בתוך השורה הראשונה מ-[fromRight] אל [toRight] (מרחק מהקצה
+    /// הימני של השורה).
+    Future<void> mouseDragInFirstLine(
+      WidgetTester tester, {
+      required double fromRight,
+      required double toRight,
+    }) async {
+      final rect = tester.getRect(find.text(line1));
+      final y = rect.center.dy;
+      final gesture = await tester.startGesture(
+        Offset(rect.right - fromRight, y),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(Offset(rect.right - toRight, y));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('גרירה מימין לשמאל ואז Shift+למטה מרחיבה, לא מאבדת', (
+      tester,
+    ) async {
+      await pumpLines(tester);
+      await mouseDragInFirstLine(tester, fromRight: 2, toRight: 90);
+      final dragged = sel;
+      expect(dragged, isNotNull);
+      expect(dragged, isNotEmpty);
+      expect(line1.startsWith(dragged!), isTrue);
+
+      await shiftPress(tester, LogicalKeyboardKey.arrowDown);
+      expect(sel, isNotNull);
+      expect(
+        sel!.startsWith(line1),
+        isTrue,
+        reason: 'הבחירה מהעכבר חייבת להישמר ולגדול לשורה הבאה — לא "$sel"',
+      );
+      expect(sel, contains(line2.substring(0, 2)));
+      expect(sel, isNot(contains('שליש')));
+
+      // Shift+למעלה מחזיר בדיוק לבחירה שנעשתה בעכבר.
+      await shiftPress(tester, LogicalKeyboardKey.arrowUp);
+      expect(sel, equals(dragged));
+    });
+
+    testWidgets(
+      'Shift+End ו-Ctrl+Shift+End מרחיבים את הבחירה מהעכבר, לא מאבדים',
+      (tester) async {
+        await pumpLines(tester);
+        await mouseDragInFirstLine(tester, fromRight: 2, toRight: 90);
+        final dragged = sel;
+        expect(dragged, isNotEmpty);
+
+        await shiftPress(tester, LogicalKeyboardKey.end);
+        expect(sel, equals(line1), reason: 'עד סוף השורה — לא "$sel"');
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await shiftPress(tester, LogicalKeyboardKey.end);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        expect(sel, isNotNull);
+        expect(sel!.startsWith(line1), isTrue, reason: 'לא "$sel"');
+        expect(sel, endsWith(line3));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
+
+    testWidgets('Shift+למעלה מבחירה של שורה אחת בשורה השנייה מרחיבה למעלה', (
+      tester,
+    ) async {
+      await pumpLines(tester);
+      final rect = tester.getRect(find.text(line2));
+      final gesture = await tester.startGesture(
+        Offset(rect.right - 2, rect.center.dy),
+        kind: PointerDeviceKind.mouse,
+      );
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.moveTo(Offset(rect.right - 90, rect.center.dy));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final dragged = sel;
+      expect(dragged, isNotEmpty);
+      expect(line2.startsWith(dragged!), isTrue);
+
+      await shiftPress(tester, LogicalKeyboardKey.arrowUp);
+      expect(sel, isNotNull);
+      expect(
+        sel!.endsWith(dragged),
+        isTrue,
+        reason: 'הבחירה חייבת לגדול למעלה ולשמור את סופה — לא "$sel"',
+      );
+      expect(sel, contains(line1.substring(line1.length - 2)));
+    });
+  });
+
+  group('כיוון הטקסט בשורה אחת בתוך אזור RTL', () {
+    for (final selection in const [
+      ('אנגלית', 'abcde fghij klmno', 0, 4),
+      ('אנגלית בגרירה הפוכה', 'abcde fghij klmno', 4, 0),
+      ('אנגלית בגבולות הפסקה', 'abcde fghij klmno', 0, 17),
+      ('אנגלית בתוך עברית', 'אבגדה abcde fghij וזחטי', 6, 10),
+      ('אנגלית בתוך עברית בגרירה הפוכה', 'אבגדה abcde fghij וזחטי', 10, 6),
+      ('קצוות בכיוונים שונים', 'אבגדה abcde fghij וזחטי', 2, 10),
+      ('קצוות בכיוונים שונים בגרירה הפוכה', 'אבגדה abcde fghij וזחטי', 10, 2),
+      ('עברית סביב אנגלית', 'אבגדה abcde fghij וזחטי', 2, 20),
+      ('עברית סביב אנגלית בגרירה הפוכה', 'אבגדה abcde fghij וזחטי', 20, 2),
+      ('עברית', 'אבגדה והוזח טיכלמ', 0, 4),
+      ('עברית בגרירה הפוכה', 'אבגדה והוזח טיכלמ', 4, 0),
+    ]) {
+      testWidgets(selection.$1, (tester) async {
+        Future<({String before, String after})> extend({
+          required bool corrected,
+        }) async {
+          String? selected;
+          final region = SelectableRegion(
+            selectionControls: emptyTextSelectionControls,
+            onSelectionChanged: (value) {
+              if (!rtlSelectionPriming) selected = value?.plainText;
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  selection.$2,
+                  textDirection: selection.$2.startsWith('abcde')
+                      ? TextDirection.ltr
+                      : null,
+                  style: const TextStyle(fontSize: 24),
+                ),
+                const Text(
+                  'שורה שניה abcde fghij',
+                  style: TextStyle(fontSize: 24),
+                ),
+              ],
+            ),
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: Center(
+                    child: SizedBox(
+                      width: 600,
+                      child: corrected
+                          ? RtlSelectionShortcuts(child: region)
+                          : region,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.descendant(
+              of: find.text(selection.$2),
+              matching: find.byType(RichText),
+            ),
+          );
+          Offset caret(int offset) {
+            final atEnd = offset == selection.$2.length;
+            final box = paragraph
+                .getBoxesForSelection(
+                  TextSelection(
+                    baseOffset: atEnd ? offset - 1 : offset,
+                    extentOffset: atEnd ? offset : offset + 1,
+                  ),
+                )
+                .first;
+            return paragraph.localToGlobal(
+              Offset(
+                (atEnd ? box.end : box.start) +
+                    (atEnd ? -1 : 1) *
+                        (box.direction == TextDirection.ltr ? 1 : -1),
+                (box.top + box.bottom) / 2,
+              ),
+            );
+          }
+
+          final gesture = await tester.startGesture(
+            caret(selection.$3),
+            kind: PointerDeviceKind.mouse,
+          );
+          addTearDown(gesture.removePointer);
+          await tester.pump();
+          await gesture.moveTo(caret(selection.$4));
+          await tester.pump();
+          await gesture.up();
+          await tester.pumpAndSettle();
+          final before = selected;
+          expect(before, isNotEmpty);
+          await shiftPress(tester, LogicalKeyboardKey.arrowDown);
+          expect(selected, isNotNull);
+          final result = (before: before!, after: selected!);
+          await tester.pumpWidget(const SizedBox.shrink());
+          return result;
+        }
+
+        if (selection.$1.startsWith('עברית')) {
+          final result = await extend(corrected: true);
+          expect(result.after, contains(result.before));
+        } else {
+          final baseline = await extend(corrected: false);
+          final corrected = await extend(corrected: true);
+          expect(corrected.before, baseline.before);
+          expect(corrected.after, baseline.after);
+        }
+      });
+    }
+  });
+
+  for (final reversed in [false, true]) {
+    testWidgets('אותה שורה בין containers נשארת כפי שהייתה, הפוכה=$reversed', (
+      tester,
+    ) async {
+      String? baselineBefore;
+      String? baselineAfter;
+      for (final corrected in [false, true]) {
+        String? selected;
+        final region = SelectableRegion(
+          selectionControls: emptyTextSelectionControls,
+          onSelectionChanged: (value) {
+            if (!rtlSelectionPriming) selected = value?.plainText;
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ItemSelectionContainer(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    ParagraphSelectionContainer(
+                      child: Text('אבגדה', style: TextStyle(fontSize: 24)),
+                    ),
+                    ParagraphSelectionContainer(
+                      child: Text('וזחטי', style: TextStyle(fontSize: 24)),
+                    ),
+                  ],
+                ),
+              ),
+              const Text('קלמנס עפרשת', style: TextStyle(fontSize: 24)),
+            ],
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Center(
+                  child: corrected
+                      ? RtlSelectionShortcuts(child: region)
+                      : region,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final first = tester.getRect(find.text('אבגדה'));
+        final last = tester.getRect(find.text('וזחטי'));
+        final from = Offset(first.right - 24, first.center.dy);
+        final to = Offset(last.left + 24, last.center.dy);
+        final gesture = await tester.startGesture(
+          reversed ? to : from,
+          kind: PointerDeviceKind.mouse,
+        );
+        addTearDown(gesture.removePointer);
+        await tester.pump();
+        await gesture.moveTo(reversed ? from : to);
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+        final before = selected;
+        expect(before, isNotEmpty);
+        await shiftPress(tester, LogicalKeyboardKey.arrowDown);
+        if (corrected) {
+          expect(before, baselineBefore);
+          expect(selected, baselineAfter);
+        } else {
+          baselineBefore = before;
+          baselineAfter = selected;
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+    });
+  }
 
   testWidgets('LTR: ה-widget שקוף ואינו מוסיף Shortcuts', (tester) async {
     await tester.pumpWidget(
