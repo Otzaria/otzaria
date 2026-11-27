@@ -481,6 +481,96 @@ void main() {
       );
       expect(copied, isNull);
     });
+
+    group('כותרת בשורה נפרדת כשערוץ ההעתקה מסתיר פיסוק (#5463)', () {
+      // פסוק כפי שהוא בספר בראשית; הכותרת "פרק א" אינה מסתיימת בנקודה.
+      const verse =
+          '(א) <big>בְּ</big>רֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃';
+      const plainVerse =
+          '(א) בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃';
+      const header = 'ספר בדיקה, פרק א';
+
+      Future<({String plainText, String htmlText})> copyVerse(
+        String format, {
+        String heading = 'פרק א',
+        bool removeNikud = false,
+      }) async {
+        final state = _state(
+          verse,
+          link,
+          const TextDisplayPatch(punctuation: MarkVisibility.hide),
+        ).copyWith(content: ['<h2>$heading</h2>', verse]);
+        final copied = await buildSelectedTextCopy(
+          plainText: plainVerse,
+          selectedIndex: 1,
+          sourceContent: state.content,
+          textBookState: state,
+          settingsState: SettingsState.initial().copyWith(
+            copyWithHeaders: 'book_and_path',
+            copyHeaderFormat: format,
+          ),
+          copyTarget: TextTarget.body,
+          removeNikud: removeNikud,
+        );
+        return copied!;
+      }
+
+      test('כותרת לפני הטקסט', () async {
+        final copied = await copyVerse('separate_line_before');
+        expect(copied.plainText, '$header\n$plainVerse');
+        expect(
+          CopyUtils.buildStyledHtml(
+            htmlText: copied.htmlText,
+            fontFamily: 'Arial',
+            fontSize: 16,
+          ),
+          allOf(
+            startsWith('<div dir="rtl" style='),
+            contains('>$header</div><span dir="rtl" style='),
+            endsWith('>$verse</span>'),
+          ),
+        );
+      });
+
+      test('כותרת אחרי הטקסט', () async {
+        final copied = await copyVerse('separate_line_after');
+        expect(copied.plainText, '$plainVerse\n$header');
+        expect(
+          CopyUtils.buildStyledHtml(
+            htmlText: copied.htmlText,
+            fontFamily: 'Arial',
+            fontSize: 16,
+          ),
+          allOf(contains('>$verse</div>'), endsWith('>$header</span>')),
+        );
+      });
+
+      test('העתק בלי ניקוד מסיר ניקוד וטעמים גם מכותרת נפרדת', () async {
+        final copied = await copyVerse(
+          'separate_line_before',
+          heading: 'פֶּ֖רֶק א',
+          removeNikud: true,
+        );
+        const unmarked = '(א) בראשית ברא אלהים את השמים ואת הארץ';
+        const htmlUnmarked =
+            '(א) <big>ב</big>ראשית ברא אלהים את השמים ואת הארץ';
+        expect(copied.plainText, '$header\n$unmarked');
+        expect(copied.htmlText, '$header\n$htmlUnmarked');
+      });
+
+      for (final entry in const {
+        'same_line_after_brackets': '$plainVerse (ספר בדיקה פרק א)',
+        'same_line_after_no_brackets': '$plainVerse ספר בדיקה פרק א',
+        'same_line_before_brackets': '(ספר בדיקה פרק א) $plainVerse',
+        'same_line_before_no_brackets': 'ספר בדיקה פרק א $plainVerse',
+      }.entries) {
+        test('סינון כותרת נשמר בתבנית ${entry.key}', () async {
+          final copied = await copyVerse(entry.key);
+          expect(copied.plainText, entry.value);
+          expect(copied.htmlText, entry.value.replaceFirst(plainVerse, verse));
+        });
+      }
+    });
   });
 }
 

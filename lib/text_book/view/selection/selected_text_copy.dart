@@ -201,14 +201,26 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     selectionLineEnd: selectionLineEnd,
     divineNames: showsSubstitutedNames ? textBookState.divineNames : null,
   );
+  ({String plainText, String htmlText}) applyPreferences(
+    String plain,
+    String html,
+  ) => CopyUtils.applyCopyPreferencesForClipboard(
+    plainText: plain,
+    htmlText: html,
+    replaceHolyNames: settingsState.replaceHolyNames,
+    holyNameStyle: settingsState.holyNameStyle,
+    removeNikud: removeNikud,
+    profile: profile,
+  );
 
   var finalPlainText = plainText;
   final headerBook = headerBookOverride ?? textBookState?.book;
+  var processedSeparately = false;
   if (settingsState.copyWithHeaders != 'none' && headerBook != null) {
-    final bookName = CopyUtils.extractBookName(headerBook);
+    var bookName = CopyUtils.extractBookName(headerBook);
     final currentIndex = headerIndexOverride ?? selectedIndex ?? 0;
     final headerContent = headerContentOverride ?? sourceContent;
-    final currentPath = await CopyUtils.extractCurrentPath(
+    var currentPath = await CopyUtils.extractCurrentPath(
       headerBook,
       currentIndex,
       bookContent: headerContent,
@@ -218,6 +230,19 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
           ? textBookState?.isContentLineLoaded
           : null,
     );
+
+    // מסננים לפני הצירוף כדי שהסרת פיסוק לא תחבר את הכותרת לגוף.
+    final format = settingsState.copyHeaderFormat;
+    if (profile != null &&
+        profile.removePunctuation &&
+        (format == 'separate_line_before' || format == 'separate_line_after')) {
+      final copy = applyPreferences(plainText, htmlContentToUse);
+      plainText = copy.plainText;
+      htmlContentToUse = copy.htmlText;
+      bookName = applyTextDisplayProfile(bookName, profile);
+      currentPath = applyTextDisplayProfile(currentPath, profile);
+      processedSeparately = true;
+    }
 
     finalPlainText = CopyUtils.formatTextWithHeaders(
       originalText: plainText,
@@ -236,12 +261,7 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     );
   }
 
-  return CopyUtils.applyCopyPreferencesForClipboard(
-    plainText: finalPlainText,
-    htmlText: htmlContentToUse,
-    replaceHolyNames: settingsState.replaceHolyNames,
-    holyNameStyle: settingsState.holyNameStyle,
-    removeNikud: removeNikud,
-    profile: profile,
-  );
+  return processedSeparately
+      ? (plainText: finalPlainText, htmlText: htmlContentToUse)
+      : applyPreferences(finalPlainText, htmlContentToUse);
 }
